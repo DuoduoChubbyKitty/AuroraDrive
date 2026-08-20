@@ -7,6 +7,17 @@
 
 ---
 
+## 🙏 致谢
+
+感谢 [MaaNTE](https://github.com/1bananachicken/MaaNTE) 项目团队的全部 24 位贡献者：[1bananachicken](https://github.com/1bananachicken), [EeeMaoY](https://github.com/EeeMaoY), [Watanabehato](https://github.com/Watanabehato), [Hollow-YK](https://github.com/Hollow-YK), [Abino01](https://github.com/Abino01), [T52T52](https://github.com/T52T52), [HBLADEH](https://github.com/HBLADEH), [CCYellowStar2](https://github.com/CCYellowStar2), [potato1778](https://github.com/potato1778), [jwtggg](https://github.com/jwtggg), [overflow65537](https://github.com/overflow65537), [yororoA](https://github.com/yororoA), [drowning-in-codes](https://github.com/drowning-in-codes), [MrGEFORCE](https://github.com/MrGEFORCE), [sdfsfsk](https://github.com/sdfsfsk), [sudoriaa](https://github.com/sudoriaa), [NightDust981989](https://github.com/NightDust981989), [Mickls](https://github.com/Mickls), [MirrorChyanDesu](https://github.com/MirrorChyanDesu), [XUANHLGG](https://github.com/XUANHLGG), [Wattls](https://github.com/Wattls), [hollinlee](https://github.com/hollinlee), [zeejaytan](https://github.com/zeejaytan), [hot-YUser](https://github.com/hot-YUser)。
+其中 **1bananachicken**（175 commits）、**EeeMaoY**（89 commits）、**Watanabehato**（43 commits）等核心开发者为《异环》自动化生态奠定了坚实基础。
+感谢 [OK-NTE](https://github.com/BnanZ0/ok-nte)、[M9A](https://github.com/MAA1999/M9A) 项目的技术参考与开源共享。
+感谢 Apple Silicon 团队提供的 CoreML 优化工具链与 ScreenCaptureKit API。
+
+本项目在 MaaNTE 等同类项目的技术路线上进行了 macOS 原生架构的独立探索，特此致敬。
+
+---
+
 ## 一、项目简介
 
 AuroraDrive 是一款基于 macOS 原生技术的游戏自动驾驶辅助工具，为游戏「异环 (NTE)」提供从截屏到方向盘控制的完整闭环。系统采用四层感知架构：端到端深度学习（CoreML M9 模型）→ 目标检测（YOLOv26s）→ 纯规则控制 → 脱困策略，并配备四级降级状态机保障安全。
@@ -346,10 +357,23 @@ Copyright © 2026 DuoduoChubbyKitty
 | CGEvent (CoreGraphics) | — | 键盘事件注入 |
 
 ### 致谢
-- 感谢 [MaaNTE](https://github.com/1bananachicken/MaaNTE) 项目团队（1bananachicken、EeeMao 等开发者）的技术启发
-- 感谢 [OK-NTE](https://github.com/BnanZ0/ok-nte)、[M9A](https://github.com/MAA1999/M9A) 项目及异环玩家社区
-- 感谢 NTE/异环 游戏开发者 miHoYo 提供测试环境
-- 感谢 Apple Silicon 团队提供的 CoreML 优化工具链
+- 感谢 [MaaNTE](https://github.com/1bananachicken/MaaNTE) 项目全部 24 位贡献者：[1bananachicken](https://github.com/1bananachicken), [EeeMaoY](https://github.com/EeeMaoY), [Watanabehato](https://github.com/Watanabehato), [Hollow-YK](https://github.com/Hollow-YK), [Abino01](https://github.com/Abino01), [T52T52](https://github.com/T52T52), [HBLADEH](https://github.com/HBLADEH), [CCYellowStar2](https://github.com/CCYellowStar2), [potato1778](https://github.com/potato1778), [jwtggg](https://github.com/jwtggg), [overflow65537](https://github.com/overflow65537), [yororoA](https://github.com/yororoA), [drowning-in-codes](https://github.com/drowning-in-codes), [MrGEFORCE](https://github.com/MrGEFORCE), [sdfsfsk](https://github.com/sdfsfsk), [sudoriaa](https://github.com/sudoriaa), [NightDust981989](https://github.com/NightDust981989), [Mickls](https://github.com/Mickls), [MirrorChyanDesu](https://github.com/MirrorChyanDesu), [XUANHLGG](https://github.com/XUANHLGG), [Wattls](https://github.com/Wattls), [hollinlee](https://github.com/hollinlee), [zeejaytan](https://github.com/zeejaytan), [hot-YUser](https://github.com/hot-YUser)
+- 感谢 [OK-NTE](https://github.com/BnanZ0/ok-nte)、[M9A](https://github.com/MAA1999/M9A) 项目的技术参考
+- 感谢 Apple Silicon 团队提供的 CoreML 优化工具链与 ScreenCaptureKit API
+
+---
+
+## 🌟 特别感谢
+
+> **地图与导航——MaaNTE 团队的技术基石**
+
+《异环》是一款开放世界游戏，地图规模庞大、场景复杂多变。在没有导航辅助的情况下，玩家需要在广袤的世界中手动寻找目的地——这本身就是一项极具挑战性的任务。
+
+MaaNTE 团队在地图定位（MapLocator）、实时导航（Navi）、自动传送（MapTeleport）等核心模块上的突破，让"找到路"这件事从繁琐变成了可能。他们构建的大地图模板匹配引擎、邻域搜索策略、多缩放级别适配方案，为整个异环自动化生态奠定了最坚实的技术底座。
+
+尤其要感谢每一位为地图数据标注、路由规划、坐标系统一付出时间的贡献者。没有他们对游戏地图的深入理解与反复验证，后续的自动化驾驶才无从谈起。
+
+**你们是这座大厦的奠基人。**
 
 ---
 
