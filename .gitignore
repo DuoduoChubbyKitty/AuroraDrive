@@ -94,3 +94,7 @@ v94_*.jpg
 ui_preview_keyboard.jpg
 icon.icns
 yolo26s.pt
+
+# ── 工具诊断临时图片 / HTML（不在公开仓库中）──
+tools/*.png
+tools/*.html
