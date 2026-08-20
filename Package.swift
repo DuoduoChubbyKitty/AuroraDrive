@@ -16,7 +16,7 @@ let package = Package(
             name: "AuroraDrive",
             dependencies: ["MetalGooseEngine"],
             path: ".",
-            // 源码都在项目根；其余子目录是运行时用磁盘路径读取的数据/研究/备份文档，
+            // 源码在 src/AuroraDrive/；其余子目录是运行时用磁盘路径读取的数据/研究/备份文档，
             // 并非 target 内容。显式排除，避免 SwiftPM 将它们视为"未声明文件"告警。
             exclude: [
                 ".build",
@@ -55,10 +55,11 @@ let package = Package(
                 "AuroraDriveUI",
                 "AuroraDriveUI.bak-0017",
                 "AuroraDriveUI.bak-212619",
-                "LICENSE",
-                "NOTICE",
-                "P0-3_对拍验证报告_20260816.md",
-                "README.md",
+                "docs/LICENSE",
+                "docs/NOTICE",
+                "docs/README.md",
+                "docs/QUICKSTART.md",
+                "docs/ARCHITECTURE.md",
                 "app_ui_clone.html",
                 "automation_preview.html",
                 "color_live_031607.png",
@@ -163,22 +164,22 @@ let package = Package(
                 "补丁扫描清单_20260816.md",
             ],
             sources: [
-                "AuroraDriveApp.swift",
-                "AutomationPanel.swift",
-                "CaptureEngine.swift",
-                "ConfidenceEstimator.swift",
-                "ControlEngine.swift",
-                "DegradeStateMachine.swift",
-                "EscapeController.swift",
-                "GameMapView.swift",
-                "InferenceEngine.swift",
-                "KeyboardMonitor.swift",
-                "MinimapLocatorView.swift",
-                "RecordEngine.swift",
-                "RuleController.swift",
-                "SpeedOCRReader.swift",
-                "VisualLocator.swift",
-                "YoloEngine.swift"
+                "src/AuroraDrive/AuroraDriveApp.swift",
+                "src/AuroraDrive/AutomationPanel.swift",
+                "src/AuroraDrive/CaptureEngine.swift",
+                "src/AuroraDrive/ConfidenceEstimator.swift",
+                "src/AuroraDrive/ControlEngine.swift",
+                "src/AuroraDrive/DegradeStateMachine.swift",
+                "src/AuroraDrive/EscapeController.swift",
+                "src/AuroraDrive/GameMapView.swift",
+                "src/AuroraDrive/InferenceEngine.swift",
+                "src/AuroraDrive/KeyboardMonitor.swift",
+                "src/AuroraDrive/MinimapLocatorView.swift",
+                "src/AuroraDrive/RecordEngine.swift",
+                "src/AuroraDrive/RuleController.swift",
+                "src/AuroraDrive/SpeedOCRReader.swift",
+                "src/AuroraDrive/VisualLocator.swift",
+                "src/AuroraDrive/YoloEngine.swift"
             ],
             swiftSettings: [
                 // 主程序保持 Swift 5 语言模式，避免严格并发模式破坏既有并发代码
