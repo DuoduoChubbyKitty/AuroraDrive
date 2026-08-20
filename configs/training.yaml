@@ -1,0 +1,59 @@
+# M9 训练配置
+# 用于 src/train.py --config configs/training.yaml
+
+# 训练阶段配置
+training:
+  # 2D 预训练
+  stage_2d:
+    epochs: 80
+    resolution_switch_epoch: 50  # epoch 1-50: 112×112, 51-80: 224×224
+    batch_size: 4
+    gradient_accumulation: 4
+    learning_rate: 0.0003
+    warmup_epochs: 5
+    weight_decay: 0.0001
+    grad_clip_norm: 1.0
+    amp: true
+
+  # 3D 微调
+  stage_3d:
+    epochs: 10
+    batch_size: 4
+    learning_rate: 0.00001
+    freeze_backbone: true
+    train_layers: ["fusion_head.fc2", "fusion_head.fc3"]
+
+# 数据生成
+data_generation:
+  stage1_frames: 50000    # 行为克隆预热
+  stage2_frames: 20000    # DAgger在线采集
+  stage3_frames: 20000    # 偏离恢复
+  stage4_frames: 12000    # 3D域适应
+  correction_interval: 10
+  correction_threshold: 0.15
+
+# 损失函数
+loss:
+  steer_weight: 1.0
+  throttle_weight: 0.5
+  brake_weight: 0.5
+  huber_delta: 0.1
+
+# 数据增强
+augmentation:
+  brightness: {range: 0.20, prob: 0.50}
+  contrast: {range: 0.15, prob: 0.50}
+  gaussian_noise: {sigma: 0.02, prob: 0.30}
+  blur: {kernel: 3, prob: 0.20}
+  horizontal_flip: {prob: 0.10}
+  lidar_noise: {sigma: 0.05, prob: 0.30}
+  lidar_dropout: {rate: 0.10, prob: 0.20}
+
+# 验证与保存
+validation:
+  val_split: 0.1
+  validate_every: 5
+  save_every: 10
+
+# 设备
+device: auto  # auto | cpu | cuda | mps

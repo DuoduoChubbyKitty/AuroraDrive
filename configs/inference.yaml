@@ -1,0 +1,25 @@
+# M9 推理配置
+
+inference:
+  device: auto           # auto | cpu | cuda | mps
+  precision: FP16        # FP16 | FP32 | INT8
+  target_fps: 30
+
+  # 模型
+  model_path: "checkpoints/m9_deploy.pth"
+  use_reparameterized: true
+
+  # 传感器
+  cameras:
+    count: 10
+    resolution: [224, 224, 3]
+    fov_horizontal: 36.0
+    fov_vertical: 45.0
+  lidars:
+    count: 2
+    max_points: 2048
+    max_range: 80.0
+
+  # 渲染
+  renderer: "SceneKit"   # SceneKit | numpy_2d
+  render_distance: 150.0

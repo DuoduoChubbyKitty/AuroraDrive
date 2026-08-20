@@ -1,0 +1,163 @@
+classDiagram
+    class CaptureEngine {
+        +onFrame: ((NSImage)->Void)?
+        +onYoloFrame: ((CVPixelBuffer)->Void)?
+        +onROIFrame: ((ROIFrame)->Void)?
+        +captureFPS: Double
+        +start() void
+        +stop() void
+    }
+    class ROIFrame {
+        <<struct>>
+        +kind: ROIKind
+        +pixelBuffer: CVPixelBuffer
+        +sourceRect: CGRect
+    }
+    class ROIKind {
+        <<enum>>
+        +minimap
+        +speedometer
+    }
+    CaptureEngine --> ROIFrame : 产出
+    CaptureEngine --> ROIKind
+
+    class PerceptionConfig {
+        +laneROI: CGRect
+        +minimapROI: CGRect
+        +speedROI: CGRect
+        +bevPoints: [CGPoint]
+        +selfCarROI: CGRect
+        +targetCruiseSpeed: Double
+        +cornerLookaheadSeconds: Double
+        +minLaneConfidence: Double
+    }
+
+    class LaneDetecting {
+        <<protocol>>
+        +enabled: Bool
+        +process(frame: CIImage) LaneDetection
+    }
+    class MiniMapReading {
+        <<protocol>>
+        +read(frame: CIImage, roi: CGRect) MiniMapReading
+    }
+    class SpeedOCRReading {
+        <<protocol>>
+        +read(frame: CIImage, roi: CGRect) SpeedReading
+    }
+    class SignDetecting {
+        <<protocol>>
+        +detect(frame: CIImage) [SignReading]
+    }
+    class SelfCarFiltering {
+        <<protocol>>
+        +filter(detections: [Detection]) FilteredObstacles
+    }
+
+    class LaneLine {
+        +kind: Kind
+        +points: [CGPoint]
+        +curvature: Double
+        +confidence: Double
+    }
+    class LaneDetection {
+        +left: LaneLine?
+        +right: LaneLine?
+        +centerOffset: Double
+        +headingAngle: Double
+        +confidence: Double
+    }
+    class MiniMapReading {
+        +direction: CGVector
+        +waypoint: CGPoint?
+        +turnHint: TurnHint
+        +confidence: Double
+    }
+    class SpeedReading {
+        +speedKmh: Double
+        +confidence: Double
+    }
+    class SignReading {
+        +kind: SignKind
+        +box: CGRect
+        +confidence: Double
+    }
+    class FilteredObstacles {
+        +kept: [Detection]
+        +filteredSelfCar: [Detection]
+    }
+    class Detection {
+        <<existing>>
+        +x: Double
+        +y: Double
+        +width: Double
+        +height: Double
+        +label: Label
+        +confidence: Double
+    }
+
+    class FusedDriveState {
+        +lane: LaneDetection?
+        +obstacles: [Detection]
+        +waypoint: MiniMapReading?
+        +speed: SpeedReading?
+        +sign: SignReading?
+        +laneConfidence: Double
+        +yoloConfidence: Double
+        +miniMapConfidence: Double
+        +speedConfidence: Double
+        +overallHealth: Double
+        +timestamp: Date
+    }
+
+    class SensorFusion {
+        +fuse(lane: LaneDetection?, obstacles: FilteredObstacles, miniMap: MiniMapReading?, speed: SpeedReading?, sign: [SignReading]) FusedDriveState
+    }
+    class SpeedPlanner {
+        +plan(fused: FusedDriveState) Double
+    }
+    class FusionController {
+        +decide(fused: FusedDriveState) ControlCommand
+    }
+    class RuleLaneController {
+        +decide(lane: LaneDetection?, nearestObstacle: Detection?) ControlCommand
+    }
+    class DegradeStateMachine {
+        +update(m9Live: Bool, fusionLive: Bool, health: Double, warmingUp: Bool, speedKmh: Double, dt: Double, sportMode: Bool) DriveMode
+    }
+    class DriveState {
+        +tick() void
+        +startDriving() void
+        +stopDriving() void
+    }
+    class ControlEngine {
+        +hold(action: Action) void
+        +release(action: Action) void
+        +refreshHeldKeys() void
+    }
+    class ControlCommand {
+        <<existing>>
+        +steer: Double
+        +throttle: Double
+        +brake: Double
+    }
+
+    SensorFusion ..> FusedDriveState : 产出
+    SensorFusion ..> Detection : 读
+    SpeedPlanner ..> FusedDriveState : 读
+    FusionController ..> SpeedPlanner : 用
+    FusionController ..> FusedDriveState : 读
+    FusionController ..> ControlCommand : 产出
+    RuleLaneController ..> LaneDetection : 读
+    RuleLaneController ..> ControlCommand : 产出
+    DegradeStateMachine ..> FusedDriveState : overallHealth 输入
+    DriveState --> SensorFusion : 组合
+    DriveState --> FusionController : 组合
+    DriveState --> RuleLaneController : 组合
+    DriveState --> DegradeStateMachine : 组合
+    DriveState --> ControlEngine : 组合
+    VisionLaneDetector ..|> LaneDetecting : 实现
+    MiniMapReader ..|> MiniMapReading : 实现
+    SpeedOCRReader ..|> SpeedOCRReading : 实现
+    SignDetector ..|> SignDetecting : 实现
+    SelfCarFilter ..|> SelfCarFiltering : 实现

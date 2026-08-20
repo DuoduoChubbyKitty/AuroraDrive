@@ -1,0 +1,64 @@
+AuroraDrive
+Copyright (C) 2026 DuoduoChubbyKitty <19859116705@163.com>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 3 as published
+by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+============================================================================
+Third-party components and their licenses
+============================================================================
+
+1. MetalGoose — MetalFX upscaling / frame-generation engine
+   Upstream : https://github.com/Stallion77RepoOfficial/MetalGoose
+   License  : GNU GPL v3.0  (see Vendor/MetalGoose/LICENSE)
+   Status   : Vendored under Vendor/MetalGoose/ with TWO documented, minimal
+              extensions (see Vendor/MetalGoose/NOTICE.md); its original LICENSE
+              and README are included verbatim. It is NOT byte-for-byte upstream.
+   Use      : Built as a separate SwiftPM target `MetalGooseEngine` and used
+              ONLY on the display path (UpscaleFrameHostView) to upscale and
+              interpolate the on-screen preview. It is NEVER used on the
+              capture -> inference -> key-injection decision chain.
+
+2. MaaNTE — world map image (bigworldmapSecond.png) and pointer_model.onnx
+   Upstream : MaaNTE repository (fan project)
+   License  : per the MaaNTE repository.
+   IMPORTANT: bigworldmapSecond.png is the GAME PUBLISHER's copyrighted world
+              map. It is NOT part of AuroraDrive's own source and is NOT
+              redistributed by this repository. Operators must supply it
+              locally (e.g. copy into models/). Do not commit it.
+              pointer_model.onnx (vehicle heading ONNX model) is likewise a
+              third-party model weight; treat as locally-supplied.
+
+3. nteguide.com map marker data (FINAL_complete_map_database.json)
+   Upstream : https://nteguide.com  (interactive fan map for 异环 / NTE)
+   License  : fan-collected data, terms per nteguide.com.
+   Status   : NOT bundled. Fetched at build/runtime by
+              tools/fetch_complete_map.py + tools/build_final_map_db.py.
+
+============================================================================
+How AuroraDrive is licensed
+============================================================================
+All original source files in this repository (outside Vendor/) are licensed
+under GNU GPL v3.0. Each file carries an SPDX header:
+    SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
+    SPDX-License-Identifier: GPL-3.0-or-later
+
+Modifications to vendored MetalGoose files, if any, are noted in
+Vendor/MetalGoose/NOTICE.md.
+
+   Extensions (documented, not behavioral patches):
+     - Vendor/MetalGoose/Engine/GooseUpscaler.swift  (NEW, AuroraDrive-owned,
+       GPL-3.0): a public façade re-exposing make/attachToView/detachFromView/
+       ingest without altering GooseEngine's internal API.
+     - GooseEngine.swift: one public `ingest(cgImage:timestamp:)` method + a
+       `setupPipelines` change that compiles Shaders.metal from source at runtime
+       (SwiftPM does not auto-build .metal into a default.metallib).

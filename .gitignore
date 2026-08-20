@@ -1,0 +1,96 @@
+# ── Python 缓存 ──
+__pycache__/
+*.pyc
+*.pyo
+
+# ── 数据 / 模型 / 权重（含游戏版权数据与超大二进制，见 NOTICE）──
+data/
+models/
+checkpoints/
+recordings/
+*.bin
+*.h5
+*.pth
+*.pt
+
+# ── 编译 / 构建产物 ──
+.build/
+AuroraDriveUI*
+AuroraDrive.app/
+*.app
+NeversetApp/
+AuroraRecorder.app/
+AuroraRecorder_副本.app/
+
+# ── 虚拟环境 ──
+.venv-app/
+.venv/
+.venv-yolo26/
+.venv*/
+
+# ── IDE ──
+.vscode/
+.idea/
+.DS_Store
+
+# ── 日志 / 分析报告（非源码）──
+*.log
+
+# ── 备份 / 临时副本（非源码）──
+*.bak
+*.bak*
+*_副本/
+上一版软件的/
+归档/
+backups/
+
+# ── 第三方 / 子项目（版权数据与外来软件，不进入公开仓库）──
+MaaNTE/
+上一版的失败代码/
+
+# ── AI 助手工作区（含 token、会话历史，不应公开）──
+.workbuddy/
+Trae对话记录/
+Trae原始会话/
+.trae/backups/
+
+# ── 调试 / 诊断临时产物（开发过程，不进入公开仓库）──
+diag_area/
+diag_steps/
+*.log
+color_live_*.png
+lane_batches.json
+gen_*.png
+geom_*.png
+lane_*.py
+lane_*.png
+lane_annotator.html
+lane_merge.py
+lane_points_only.png
+lane_fused.png
+lane_geom_*.png
+manual_lane_*.py
+diag_area.py
+diag_aspect.py
+diag_leaves.py
+diag_steps.py
+diag_white.py
+diag_white2.py
+diag_white_only.png
+exp_iso.py
+fuse.py
+pointcloud_debug.py
+pointcloud_debug.png
+sourceC.py
+sourceC_demo.png
+app_ui_clone.html
+automation_preview.html
+pre_*.py
+pre_*.png
+pre_*.jpg
+v94_*.py
+v94_*.png
+v94_*.jpg
+ui_preview_keyboard.jpg
+icon.icns
+yolo26s.pt
