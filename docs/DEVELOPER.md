@@ -862,7 +862,8 @@ Copyright © 2026 DuoduoChubbyKitty
 | CGEvent (CoreGraphics) | — | 键盘事件注入 |
 
 ### 致谢
-- 感谢 All-AI-World / 自动驾驶系统社区的技术启发
+- 感谢 [MaaNTE](https://github.com/1bananachicken/MaaNTE) 项目团队（1bananachicken、EeeMao 等开发者）的技术启发
+- 感谢 [OK-NTE](https://github.com/BnanZ0/ok-nte)、[M9A](https://github.com/MAA1999/M9A) 项目及异环玩家社区
 - 感谢 NTE/异环 游戏开发者 miHoYo 提供测试环境
 - 感谢 Apple Silicon 团队提供的 CoreML 优化工具链
 

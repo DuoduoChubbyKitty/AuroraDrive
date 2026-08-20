@@ -6,6 +6,16 @@
 
 ---
 
+## 🙏 致谢
+
+感谢 [MaaNTE](https://github.com/1bananachicken/MaaNTE) 项目团队（**1bananachicken、EeeMao** 等开发者）为《异环》生态提供的自动化工具与技术启发。
+感谢 [OK-NTE](https://github.com/BnanZ0/ok-nte)、[M9A](https://github.com/MAA1999/M9A) 以及所有异环玩家社区成员的技术交流与贡献。
+感谢 Apple Silicon 团队提供的 CoreML 优化工具链与 ScreenCaptureKit API。
+
+本项目在 MaaNTE 等同类项目的技术路线上进行了 macOS 原生架构的独立探索，特此致敬。
+
+---
+
 ## 1. 职责概述
 
 DegradeStateMachine 是 AuroraDrive 的**决策核心**，实现四级降级状态机。当主驾驶模型（M9）失效时，系统自动降级到备用模式，保障基本行驶能力。

@@ -6,6 +6,16 @@
 
 ---
 
+## 🙏 致谢
+
+感谢 [MaaNTE](https://github.com/1bananachicken/MaaNTE) 项目团队（**1bananachicken、EeeMao** 等开发者）为《异环》生态提供的自动化工具与技术启发。
+感谢 [OK-NTE](https://github.com/BnanZ0/ok-nte)、[M9A](https://github.com/MAA1999/M9A) 以及所有异环玩家社区成员的技术交流与贡献。
+感谢 Apple Silicon 团队提供的 CoreML 优化工具链与 ScreenCaptureKit API。
+
+本项目在 MaaNTE 等同类项目的技术路线上进行了 macOS 原生架构的独立探索，特此致敬。
+
+---
+
 ## 1. 职责概述
 
 ControlEngine 是 AuroraDrive 的**执行层**，通过 CGEvent 向系统注入键盘事件，控制游戏角色移动。它是整个系统的"手"，将决策层的控制量转化为实际的游戏操作。
@@ -394,9 +404,10 @@ controlEngine.steerDeadZone = 0.2
 Copyright © 2026 DuoduoChubbyKitty
 
 依赖组件:
-- Apple CoreGraphics (CGEvent)
-- Apple ApplicationKit (NSApplication)
-- Accessibility.framework (权限检查)
+- Apple ScreenCaptureKit (macOS 12.3+)
+- CoreML / MetalPerformanceShaders
+- Vision (模板匹配)
+- CoreGraphics (CGEvent 注入)
 
 ---
 
