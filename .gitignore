@@ -12,6 +12,7 @@ recordings/
 *.h5
 *.pth
 *.pt
+yolo26s.pt
 
 # ── 编译 / 构建产物 ──
 .build/
@@ -33,8 +34,8 @@ AuroraRecorder_副本.app/
 .idea/
 .DS_Store
 
-# ── 日志 / 分析报告（非源码）──
-*.log
+# ── 第三方 / 子项目（版权数据与外来软件，不进入公开仓库）──
+MaaNTE/
 
 # ── 备份 / 临时副本（非源码）──
 *.bak
@@ -43,9 +44,6 @@ AuroraRecorder_副本.app/
 上一版软件的/
 归档/
 backups/
-
-# ── 第三方 / 子项目（版权数据与外来软件，不进入公开仓库）──
-MaaNTE/
 上一版的失败代码/
 
 # ── AI 助手工作区（含 token、会话历史，不应公开）──
@@ -53,7 +51,10 @@ MaaNTE/
 Trae对话记录/
 Trae原始会话/
 .trae/backups/
+.trae/documents/
 AuroraDrive开发日志/
+AuroraDrive日志备份/
+各种研究/
 
 # ── 调试 / 诊断临时产物（开发过程，不进入公开仓库）──
 diag_area/
@@ -94,7 +95,6 @@ v94_*.png
 v94_*.jpg
 ui_preview_keyboard.jpg
 icon.icns
-yolo26s.pt
 
 # ── 工具诊断临时图片 / HTML（不在公开仓库中）──
 tools/*.png
