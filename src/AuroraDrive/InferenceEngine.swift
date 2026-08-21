@@ -58,6 +58,9 @@ final class InferenceEngine {
 
     /// vehicle_state 维度（nonisolated：编译期常量，无 actor 依赖）
     private nonisolated static let stateDim = 6
+    /// NSNumber 单例：buildVehicleState 每帧分配 3 个零值和 1 个一值，复用避免 heap 分配
+    private nonisolated static let nsZero = NSNumber(value: 0.0)
+    private nonisolated static let nsOne = NSNumber(value: 1.0)
 
     // MARK: - 状态
 
@@ -341,11 +344,11 @@ final class InferenceEngine {
             return nil
         }
         arr[0] = NSNumber(value: speedNorm)          // speed_norm [0,1]
-        arr[1] = NSNumber(value: 0.0)                // curvature*5（无遥测→0）
-        arr[2] = NSNumber(value: 0.0)                // sin(heading)（无遥测→0）
-        arr[3] = NSNumber(value: 1.0)                // cos(heading)（无遥测→1）
+        arr[1] = Self.nsZero                         // curvature*5（无遥测→0）
+        arr[2] = Self.nsZero                         // sin(heading)（无遥测→0）
+        arr[3] = Self.nsOne                          // cos(heading)（无遥测→1）
         arr[4] = NSNumber(value: limitNorm)          // speed_limit_norm [0,1]
-        arr[5] = NSNumber(value: 0.0)                // reserved
+        arr[5] = Self.nsZero                         // reserved
         return arr
     }
 

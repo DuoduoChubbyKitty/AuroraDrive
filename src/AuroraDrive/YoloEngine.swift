@@ -42,6 +42,8 @@ final class YoloEngine {
     /// YOLOv26s 官方输入 640（旧 FastestV2 是 352）。
     /// nonisolated：后台推理队列要读，且是编译期常量、无 actor 依赖
     nonisolated static let inputSize = 640
+    /// parse() 中 4 次 /inputSize → 预乘倒数，ARM SIMD 单周期完成，消除每检测 4 次除法
+    private nonisolated static let invInputSize: Double = 1.0 / Double(inputSize)
 
     // 注：YOLOv26s 为 NMS-free 端到端，无 anchor 概念，输出为单张量 [1, maxDet, 6]，
     //     每行 [x1, y1, x2, y2, conf, class_id]（像素坐标，相对 640 输入）。
@@ -701,7 +703,7 @@ final class YoloEngine {
                                           maxDetections: Int) -> [Detection] {
         // 动态读取候选数（shape 第二维），不依赖硬编码常量
         let n = out.shape.count >= 2 ? out.shape[1].intValue : 0
-        let size = Double(inputSize)
+        let invSize = Self.invInputSize
         var dets: [Detection] = []
         dets.reserveCapacity(min(maxDetections, n))
 
@@ -711,11 +713,11 @@ final class YoloEngine {
             // 绝不进入 Int()（Int(NaN) 会 runtime trap 崩全车）
             guard conf.isFinite, conf > confidenceThreshold else { continue }
 
-            // 像素坐标 → 归一化坐标（除以输入边长 640）
-            let x1 = Self.readML(out, [0, i, 0]) / size
-            let y1 = Self.readML(out, [0, i, 1]) / size
-            let x2 = Self.readML(out, [0, i, 2]) / size
-            let y2 = Self.readML(out, [0, i, 3]) / size
+            // 像素坐标 → 归一化坐标（乘 1/640，替代除法）
+            let x1 = Self.readML(out, [0, i, 0]) * invSize
+            let y1 = Self.readML(out, [0, i, 1]) * invSize
+            let x2 = Self.readML(out, [0, i, 2]) * invSize
+            let y2 = Self.readML(out, [0, i, 3]) * invSize
             guard x1.isFinite, y1.isFinite, x2.isFinite, y2.isFinite else { continue }
             let w = x2 - x1, h = y2 - y1
             guard w > 0.001, h > 0.001 else { continue }   // 过滤退化框
@@ -736,7 +738,8 @@ final class YoloEngine {
                                   rawName: name))
         }
         // e2e 输出已按置信度降序，这里兜底排序 + 截断（替代原 nms 的 limit 语义）
-        return Array(dets.sorted { $0.confidence > $1.confidence }.prefix(maxDetections))
+        if dets.count > maxDetections { dets.removeSubrange(maxDetections..<dets.count) }
+        return dets
     }
 
     // 注：原 FastestV2 需要单独 NMS（nms() 已删除）。YOLOv26 为 NMS-free 端到端，

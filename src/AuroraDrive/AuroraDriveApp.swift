@@ -91,6 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 @main
 struct AuroraDriveApp: App {
+    /// Float UInt8→[0,1] 乘数：ARM SIMD 单周期完成，避免候选区扫描时每字节除法
+    nonisolated static let inv255d: Double = 1.0 / 255.0
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
@@ -1772,7 +1774,7 @@ private func runLocateLiveSelfCheck() {
         let py = min(max(0, Int(ey) - spanPx / 2), full.height - spanPx)
         guard let b = full.cropping(to: CGRect(x: px, y: py, width: spanPx, height: spanPx)),
               let bytes = VisualLocator.minimapBytes(from: b, side: 150) else { continue }
-        let vals = bytes.map { Double($0) / 255.0 }
+        let vals = bytes.map { Double($0) * AuroraDriveApp.inv255d }
         let mean = vals.reduce(0.0, +) / Double(vals.count)
         var sq = 0.0
         for v in vals { let d = v - mean; sq += d * d }

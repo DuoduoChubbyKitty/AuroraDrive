@@ -65,12 +65,16 @@ final class ConfidenceEstimator {
 
     // MARK: - 内部状态
 
+    // 环形缓冲区头，O(1) 滑窗更新（替代 removeFirst O(n) memmove）
     /// 最近 N 帧的 steer 值（算抖动用）
-    private var steerHistory: [Double] = []
+    private var steerHead: Int = 0
+    private var steerBuf: [Double] = []
     /// 最近 N 帧是否极端（转向打满）的标记
-    private var extremeHistory: [Bool] = []
+    private var extremeHead: Int = 0
+    private var extremeBuf: [Bool] = []
     /// 长窗口极端标记（3 秒，判"持续打满=贴墙/打转退化"）
-    private var longExtremeHistory: [Bool] = []
+    private var longExtremeHead: Int = 0
+    private var longExtremeBuf: [Bool] = []
 
     /// 长窗口帧数（3 秒 @30Hz）：持续打满这么久还没松 → 不是过弯，是退化
     var longExtremeWindow: Int = 90
@@ -99,19 +103,16 @@ final class ConfidenceEstimator {
             return
         }
 
-        // ── 1. 更新历史窗口 ──
-        steerHistory.append(command.steer)
-        if steerHistory.count > windowSize { steerHistory.removeFirst() }
-
         // 极端 = 转向打满（|steer|>0.95）。
         // 油门/刹车贴边（0 或 1）是正常驾驶行为，不判极端 ——
         // 旧定义把"巡航全油门"误判为退化，导致置信度恒 0.70、
         // 永远够不到 .rule→.e2e 的 0.75 恢复阈值，卡死在规则档。
         let isExtreme = abs(command.steer) > extremeThreshold
-        extremeHistory.append(isExtreme)
-        if extremeHistory.count > windowSize { extremeHistory.removeFirst() }
-        longExtremeHistory.append(isExtreme)
-        if longExtremeHistory.count > longExtremeWindow { longExtremeHistory.removeFirst() }
+
+        // ── 1. 更新历史窗口（环形缓冲区，O(1) 滑窗）──
+        Self.appendRing(&steerBuf, head: &steerHead, value: command.steer, cap: windowSize)
+        Self.appendRing(&extremeBuf, head: &extremeHead, value: isExtreme, cap: windowSize)
+        Self.appendRing(&longExtremeBuf, head: &longExtremeHead, value: isExtreme, cap: longExtremeWindow)
 
         // ── 2. 算三路子分 ──
         consistencyScore = computeConsistency()
@@ -129,9 +130,12 @@ final class ConfidenceEstimator {
         // 导致模型打满 16 秒还卡在端到端档继续注入错误按键。
         // 长窗口（3s）内 |steer|>0.95 占比 >70% → 置信度压到 0.30 强制降级。
         // 注意：只判"转向打满"，不是判"输出恒定"（直道稳定输出是正常的）。
-        if !longExtremeHistory.isEmpty {
-            let longRatio = Double(longExtremeHistory.filter { $0 }.count)
-                / Double(longExtremeHistory.count)
+        if !longExtremeBuf.isEmpty {
+            var extremeCount = 0
+            for i in 0..<longExtremeBuf.count {
+                if longExtremeBuf[(longExtremeHead + i) % longExtremeBuf.count] { extremeCount += 1 }
+            }
+            let longRatio = Double(extremeCount) / Double(longExtremeBuf.count)
             if longRatio > longExtremeRatioThreshold {
                 confidence = min(confidence, 0.30)
             }
@@ -141,32 +145,60 @@ final class ConfidenceEstimator {
 
     /// 重置（停止驾驶时调用）
     func reset() {
-        steerHistory.removeAll()
-        extremeHistory.removeAll()
-        longExtremeHistory.removeAll()
+        steerHead = 0; steerBuf.removeAll()
+        extremeHead = 0; extremeBuf.removeAll()
+        longExtremeHead = 0; longExtremeBuf.removeAll()
         confidence = 1.0
         consistencyScore = 1.0
         extremityScore = 1.0
         imageScore = 1.0
     }
 
+    // MARK: - 环形缓冲区工具
+
+    /// 环形缓冲追加：满了覆写最旧元素（O(1) 无 memmove）
+    private static func appendRing<T>(_ buf: inout [T], head: inout Int, value: T, cap: Int) {
+        if buf.count < cap {
+            buf.append(value)
+        } else {
+            buf[head] = value
+            head = (head + 1) % cap
+        }
+    }
+
     // MARK: - 子分计算
 
     /// 输出一致性：steer 历史的标准差越小，分越高
     /// 标准差 0 → 1.0，标准差 0.5+ → 0.0
+    /// 优化：单次循环同时算 sum 和 sumSqDiff，避免 reduce+map 两次遍历 + 中间数组。
     private func computeConsistency() -> Double {
-        guard steerHistory.count >= 3 else { return 0.8 }   // 帧数不足给中等分
-        let mean = steerHistory.reduce(0, +) / Double(steerHistory.count)
-        let variance = steerHistory.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(steerHistory.count)
-        let std = sqrt(variance)
+        let buf = steerBuf; let h = steerHead
+        guard buf.count >= 3 else { return 0.8 }   // 帧数不足给中等分
+        let n = Double(buf.count)
+        // 单次循环同时算 sum 和 sumSqDiff，避免两遍遍历环形缓冲
+        var sum: Double = 0
+        var sumSqDiff: Double = 0
+        for i in 0..<buf.count {
+            let s = buf[(h + i) % buf.count]
+            sum += s
+            sumSqDiff += s * s
+        }
+        let mean = sum / n
+        // Welford 式方差分解：Σ(x-mean)² = Σx² - n*mean²，避免第二次循环
+        let variance = (sumSqDiff - n * mean * mean) / n
+        let std = sqrt(max(0, variance))
         // std 0→1.0, std 0.5→0.0 线性映射
         return max(0, min(1, 1.0 - std * 2.0))
     }
 
     /// 输出极端度：极端帧占比越低，分越高
+    /// 优化：单次循环计数，替代 filter{}.count 分配中间 Bool 数组。
     private func computeExtremity() -> Double {
-        guard !extremeHistory.isEmpty else { return 1.0 }
-        let extremeRatio = Double(extremeHistory.filter { $0 }.count) / Double(extremeHistory.count)
+        let buf = extremeBuf; let h = extremeHead
+        guard !buf.isEmpty else { return 1.0 }
+        var extremeCount = 0
+        for i in 0..<buf.count { if buf[(h + i) % buf.count] { extremeCount += 1 } }
+        let extremeRatio = Double(extremeCount) / Double(buf.count)
         // 占比低于 ratioThreshold → 1.0，高于 → 线性下降到 0
         if extremeRatio <= extremeRatioThreshold {
             return 1.0
@@ -218,6 +250,8 @@ final class ConfidenceEstimator {
 
     /// 复用的 CoreImage 渲染上下文（线程安全，跨线程共享，避免每帧新建）
     private static let brightnessContext = CIContext(options: [.cacheIntermediates: false])
+    /// Float UInt8→[0,1] 乘数：ARM SIMD 单周期完成，避免每帧3次除法
+    private nonisolated static let inv255d: Double = 1.0 / 255.0
 
     /// 计算图像平均亮度 [0,1]（后台执行）
     /// 用 CIAreaAverage 全图均值代替旧 32×32 降采样 draw，主线程零绘制开销。
@@ -238,9 +272,9 @@ final class ConfidenceEstimator {
                                      format: .RGBA8,
                                      colorSpace: CGColorSpaceCreateDeviceRGB())
         }
-        let r = Double(pixel[0]) / 255.0
-        let g = Double(pixel[1]) / 255.0
-        let b = Double(pixel[2]) / 255.0
+        let r = Double(pixel[0]) * Self.inv255d
+        let g = Double(pixel[1]) * Self.inv255d
+        let b = Double(pixel[2]) * Self.inv255d
         // Rec.601 亮度近似（与旧 DeviceGray 转灰的视觉亮度一致；阈值 0.08/0.95 粗糙，语义等价）
         return 0.299 * r + 0.587 * g + 0.114 * b
     }

@@ -99,3 +99,4 @@ icon.icns
 # ── 工具诊断临时图片 / HTML（不在公开仓库中）──
 tools/*.png
 tools/*.html
+libMetalGooseEngine.dylib

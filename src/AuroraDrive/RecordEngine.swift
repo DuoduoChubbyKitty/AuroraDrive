@@ -15,6 +15,7 @@
 // ============================================================================
 import AppKit
 import Foundation
+import CoreFoundation  // CFAbsoluteTimeGetCurrent：零分配时间戳（录制 CSV 写盘用）
 import Observation
 import CoreVideo
 
@@ -269,7 +270,9 @@ final class RecordEngine {
     func appendFrame(image: NSImage, steer: Double, throttle: Double, brake: Double) {
         guard isRecording, let start = startTime, let url = sessionURL else { return }
 
-        let timestamp = Date().timeIntervalSince(start)
+        // 用 CFAbsoluteTime 替代 Date：timeIntervalSince(start) 只需 Double 差值，
+        // 无需分配 Date 对象；精度到微秒级，对训练数据完全够用。
+        let timestamp = CFAbsoluteTimeGetCurrent() - (start.timeIntervalSinceReferenceDate)
 
         // ── 背压：写盘队列待处理帧数超过 maxPendingWrites 时丢帧
         // （帧号不入队不自增，保持写入帧号连续）──
@@ -312,8 +315,9 @@ final class RecordEngine {
 
                     // ── 2. 追加 CSV 行 ──
                     let line = String(format: "%.4f,%ld,%.4f,%.4f,%.4f\n",
-                                      timestamp, idx, steer, throttle, brake)
-                    if let data = line.data(using: .utf8) {
+                                      timestamp, Int(idx), steer, throttle, brake)
+                    if let data = line.data(using: .utf8),
+                       data.count > 0 {
                         self.csvHandle?.write(data)
                     }
                 }

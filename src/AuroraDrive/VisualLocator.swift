@@ -151,6 +151,8 @@ final class VisualLocator {
     /// 全局粗扫档边长：首帧无 hint 时在这个小图上用 stride=2 全图扫，
     /// 保证采到 2px 宽的 NCC 峰（见 prepare() 说明）。
     private static let globalScanSize: CGFloat = 192
+    /// Float(0..255)→Float(0..1) 乘数：用乘法代替除法，ARM SIMD 单周期完成
+    private nonisolated static let inv255f: Float = 1.0 / 255.0
 
     // MARK: - 定位
 
@@ -479,7 +481,7 @@ final class VisualLocator {
                                   bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
         ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h),
                  byTiling: false)
-        return bytes.map { Float($0) / 255.0 }
+        return bytes.map { Float($0) * Self.inv255f }
     }
 
     /// CGImage → 缩放到目标尺寸的灰度 Float（0..1），行主序
@@ -493,7 +495,7 @@ final class VisualLocator {
                                   bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
         ctx.interpolationQuality = .high
         ctx.draw(img, in: CGRect(x: 0, y: 0, width: targetW, height: targetH))
-        return bytes.map { Float($0) / 255.0 }
+        return bytes.map { Float($0) * Self.inv255f }
     }
 
     /// 接地：把一张被裁出的小地图 CGImage 缩放到统一模板边长并输出灰度字节（0..255）
@@ -506,7 +508,7 @@ final class VisualLocator {
     /// 模板灰度 → Float + 均值
     private static func templateFloat(_ t: [UInt8], tw: Int, th: Int) -> ([Float], Float)? {
         guard tw * th <= t.count, tw > 0, th > 0 else { return nil }
-        let f = t.prefix(tw * th).map { Float($0) / 255.0 }
+        let f = t.prefix(tw * th).map { Float($0) * Self.inv255f }
         let mean = f.reduce(0.0, +) / Float(f.count)
         return (f, mean)
     }
