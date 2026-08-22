@@ -22,7 +22,7 @@ final class CaptureEngine: NSObject, SCStreamOutput {
     private var _yoloScalingEnabled = false
 
     private var stream: SCStream?
-    private let captureQueue = DispatchQueue(label: "com.aurora.capture.engine")
+    private let captureQueue = DispatchQueue(label: "com.aurora.capture.engine", qos: .userInteractive)
     private var onFrame: ((NSImage, CGImage?) -> Void)?
     private var onStatusChange: ((CaptureStatus) -> Void)?
     private var didStartCapture: (() -> Void)?
@@ -82,6 +82,10 @@ final class CaptureEngine: NSObject, SCStreamOutput {
         get { stateLock.withLock { _yoloScalingEnabled } }
         set { stateLock.withLock { _yoloScalingEnabled = newValue } }
     }
+
+    // speedOCR 区域归一化坐标，主线程写入，captureQueue 读取；
+    // 声明在 CaptureEngine 上以便 SpeedOCRReader / AuroraDriveApp 跨文件访问
+    nonisolated(unsafe) static var speedROINorm: CGRect = .zero
 
     // MARK: - 启动 / 停止
 

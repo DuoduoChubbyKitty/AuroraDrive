@@ -60,7 +60,7 @@ final class SpeedOCRReader {
 
     @ObservationIgnored
     private let ocrQueue = DispatchQueue(label: "com.aurora.speedocr",
-                                         qos: .userInitiated)
+                                         qos: .userInteractive)
 
     @ObservationIgnored
     private var generation = 0
