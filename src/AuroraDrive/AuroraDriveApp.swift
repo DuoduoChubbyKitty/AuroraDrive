@@ -1997,8 +1997,8 @@ struct ObstacleOverlay: View {
     var lockedTarget: Detection? = nil
     var isLocked: Bool = false
     // P7优化：静态缓存检测标签字符串，避免 30Hz Canvas render 路径中每帧 per-detection String(format:) 分配。
-    // 以 objectId 为键、count 为脏标记，跨视图实例共享缓存，struct 重创建时仍命中。
-    private static var labelCache: [ObjectIdentifier: (count: Int, labels: [String])] = [:]
+    // 以 "count-firstConf" 字符串为键，struct 重创建时仍命中。
+    private static var labelCache: [String: [String]] = [:]
 
     private static func color(for label: CocoLabels.Category) -> Color {
         switch label {
@@ -2011,15 +2011,15 @@ struct ObstacleOverlay: View {
 
     var body: some View {
         // P7优化：静态缓存标签字符串，跨 struct 实例共享，struct 重创建时仍命中。
-        let key = ObjectIdentifier(self)
-        let count = detections.count
-        let labels: [String]
-        if let cached = Self.labelCache[key], cached.count == count {
-            labels = cached.labels
-        } else {
-            labels = detections.map { "\($0.rawName) \(String(format: "%.2f", $0.confidence))" }
-            Self.labelCache[key] = (count, labels)
-        }
+        let labels: [String] = {
+            let count = detections.count
+            let firstConfInt = Int((detections.first?.confidence ?? 0.0) * 100)
+            let cacheKey = "\(count)-\(firstConfInt)"
+            if let cached = Self.labelCache[cacheKey] { return cached }
+            let result = detections.map { "\($0.rawName) \(String(format: "%.2f", $0.confidence))" }
+            Self.labelCache[cacheKey] = result
+            return result
+        }()
         Canvas { ctx, size in
             guard active else { return }
             let t = aspectFillLayout(source: sourceSize, view: size)
@@ -2035,7 +2035,7 @@ struct ObstacleOverlay: View {
                 ctx.stroke(Path(roundedRect: box, cornerRadius: 4),
                            with: .color(c.opacity(0.9)),
                            style: StrokeStyle(lineWidth: danger ? 2.2 : 1.4))
-                let label = cachedLabels[i]
+                let label = labels[i]
                 let r = ctx.resolve(Text(label).font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(.black))
                 let m = r.measure(in: size)
                 let capW = m.width + 10

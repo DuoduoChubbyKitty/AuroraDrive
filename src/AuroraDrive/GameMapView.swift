@@ -180,13 +180,13 @@ struct MarkerCategory: Identifiable, Hashable {
 
 // MARK: - 辅助视图
 
-struct SpinningRing: View {
+struct SpinningRing<Style: ShapeStyle>: View {
     let size: CGFloat
     let ringWidth: CGFloat
     let bgOpacity: CGFloat
-    let spinColor: any ShapeStyle
+    let spinColor: Style
     let duration: Double
-    let track: Any
+    let track: Bool
 
     var body: some View {
         ZStack {
@@ -206,8 +206,8 @@ struct SpinningRing: View {
 
 struct SlidePanel: View {
     let edge: Edge
-    let content: () -> any View
-    let background: () -> any View
+    let content: () -> AnyView
+    let background: () -> AnyView
 
     var body: some View {
         content()
@@ -340,7 +340,7 @@ struct GameMapView: View {
             .zIndex(10)
 
             HStack(spacing: 0) {
-                if mode != .normal { SlidePanel(edge: .leading, background: { sidebarBackground }) { sidebar } }
+                if mode != .normal { SlidePanel(edge: .leading, content: { AnyView(sidebar) }, background: { AnyView(sidebarBackground) }) }
                 Spacer()
             }
             .zIndex(20)
@@ -348,7 +348,7 @@ struct GameMapView: View {
 
             HStack(spacing: 0) {
                 Spacer()
-                if layersOpen { SlidePanel(edge: .trailing, background: { sidebarBackground }) { layerPanel } }
+                if layersOpen { SlidePanel(edge: .trailing, content: { AnyView(layerPanel) }, background: { AnyView(sidebarBackground) }) }
             }
             .zIndex(25)
             .animation(layersAnim, value: layersOpen)

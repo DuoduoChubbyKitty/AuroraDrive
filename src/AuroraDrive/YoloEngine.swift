@@ -143,13 +143,13 @@ class YoloEngine: ObservableObject {
             isLoaded = true
             Task { @MainActor [weak self] in self?.errorMessage = nil }
             if let m = model {
-                engineQueue.async {
+                engineQueue.async(execute: DispatchWorkItem(block: {
                     // 复用静态预热张量，避免每次推理初始化时分配 6MB 临时数组
                     guard let arr = try? MLMultiArray(shape: [1, 3, 640, 640], dataType: .float32) else { return }
-                    arr.data.copyMemory(from: Self.warmupTensor.bindMemory(to: UnsafeMutableRawPointer.Element.self).baseAddress!, byteCount: Self.warmupTensor.count * MemoryLayout<Float>.size)
+                    memcpy(arr.dataPointer, Self.warmupTensor.withUnsafeBytes { $0.bindMemory(to: UInt8.self).baseAddress! }, Self.warmupTensor.count * MemoryLayout<Float>.size)
                     guard let provider = try? MLDictionaryFeatureProvider(dictionary: ["image": MLFeatureValue(multiArray: arr)]) else { return }
                     _ = try? m.prediction(from: provider)
-                }
+                }))
             }
         } catch {
             let msg = "模型加载失败: \(error.localizedDescription)"
@@ -180,11 +180,11 @@ class YoloEngine: ObservableObject {
                 guard Self.copyPixelBuffer(pixelBuffer, to: pb) else {
                     self.finish(gen, [], 0, "CVPixelBuffer 复制失败"); return
                 }
-                prepMs = nsToMs(DispatchTime.now().uptimeNanoseconds - t0.rawValue)
+                prepMs = Self.nsToMs(DispatchTime.now().uptimeNanoseconds - t0.rawValue)
             } else {
                 let t0 = DispatchTime.now()
                 Self.draw(from: pixelBuffer, into: pb, size: Self.inputSize)
-                prepMs = nsToMs(DispatchTime.now().uptimeNanoseconds - t0.rawValue)
+                prepMs = Self.nsToMs(DispatchTime.now().uptimeNanoseconds - t0.rawValue)
             }
             do {
                 let input = try MLDictionaryFeatureProvider(dictionary: [
@@ -194,9 +194,10 @@ class YoloEngine: ObservableObject {
                       let arr = out.featureValue(for: name)?.multiArrayValue else {
                     self.finish(gen, [], 0, "输出缺失"); return
                 }
-                let latency = prepMs + Self.measureInferenceMs {
+                let inferenceMs = (try? Self.measureInferenceMs {
                     _ = try modelRef.prediction(from: input)
-                }
+                }) ?? 0
+                let latency = prepMs + inferenceMs
                 let dets = Self.parse(arr, confidenceThreshold: self.confidenceThreshold,
                                       maxDetections: self.maxDetections)
                 self.finish(gen, dets, latency, nil)
@@ -221,7 +222,7 @@ class YoloEngine: ObservableObject {
         return Double(DispatchTime.now().uptimeNanoseconds - t0.rawValue) / 1_000_000
     }
 
-    private nonisolated static func nsToMs(_ ns: UInt64) -> Double { ns / 1_000_000 }
+    private nonisolated static func nsToMs(_ ns: UInt64) -> Double { Double(ns) / 1_000_000 }
 
     private func finish(_ gen: Int, _ dets: [Detection], _ latency: Double, _ error: String?) {
         guard gen == generation else { return }
