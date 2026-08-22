@@ -1,13 +1,16 @@
 // SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// ============================================================================
-// AutomationPanel.swift — MaaNTE 自动化面板（抽屉式）
-// 侧边栏底部触发卡 + 右侧滑出抽屉（spring 弹跳 + 逐项阶梯弹入）
-// 悬停沉浸光效：图标/整行亮起青色光晕（内层 + 外层大光晕）
-// 注意：当前为 UI 壳，功能识别/点击逻辑后续逐个接入。
-// ============================================================================
 import SwiftUI
+
+// MARK: - 动画常量
+
+private let panelAnim = Animation.spring(response: 0.5, dampingFraction: 0.62, blendDuration: 0)
+private let toggleAnim = panelAnim
+private let hoverAnim = Animation.easeOut(duration: 0.18)
+private let fnAnim = Animation.spring(response: 0.35, dampingFraction: 0.7)
+private let itemAnim = Animation.spring(response: 0.46, dampingFraction: 0.72, blendDuration: 0)
+private let fadeAnim = Animation.spring(response: 0.42, dampingFraction: 0.72)
 
 // MARK: - 功能清单（MaaNTE 功能一览）
 
@@ -15,7 +18,7 @@ struct AutomationFunctionItem: Identifiable {
     let id = UUID()
     let emoji: String
     let name: String
-    var warn: Bool = false        // 高风险标记（封号风险高，如粉爪战斗挂机）
+    var warn: Bool = false
 }
 
 enum AutomationLibrary {
@@ -40,7 +43,7 @@ struct AutomationCard: View {
 
     var body: some View {
         Button {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.62, blendDuration: 0)) {
+            withAnimation(panelAnim) {
                 open.toggle()
             }
         } label: {
@@ -83,7 +86,7 @@ struct AutomationCard: View {
         }
         .buttonStyle(.plain)
         .onHover { h in
-            withAnimation(.easeOut(duration: 0.18)) { hovering = h }
+            withAnimation(hoverAnim) { hovering = h }
         }
         .help("MaaNTE 自动化功能面板（9 项）")
     }
@@ -94,14 +97,12 @@ struct AutomationCard: View {
 struct AutomationDrawer: View {
     @Binding var open: Bool
     @State private var running = Set<UUID>()
-    /// 入场动画开关：抽屉由 ContentView 条件性插入视图树，onAppear 置位触发内部阶梯弹入
     @State private var appeared = false
 
     private let functions = AutomationLibrary.functions
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 头部
             HStack {
                 HStack(spacing: 6) {
                     RoundedRectangle(cornerRadius: 1.5)
@@ -115,9 +116,7 @@ struct AutomationDrawer: View {
                 }
                 Spacer()
                 Button {
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.62, blendDuration: 0)) {
-                        open = false
-                    }
+                    withAnimation(panelAnim) { open = false }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 11, weight: .bold))
@@ -134,17 +133,18 @@ struct AutomationDrawer: View {
             .padding(.bottom, 10)
             .opacity(appeared ? 1 : 0)
             .offset(x: appeared ? 0 : 30)
-            .animation(.spring(response: 0.42, dampingFraction: 0.72).delay(0.02), value: appeared)
+            .animation(fadeAnim.delay(0.02), value: appeared)
 
-            // 功能列表
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 9) {
-                    ForEach(Array(functions.enumerated()), id: \.element.id) { idx, item in
+                    // 避免 for-each 里构造中间 Array，直接迭代 indices（UI 渲染路径）
+                    ForEach(Array(functions.indices), id: \.self) { idx in
+                        let item = functions[idx]
                         AutomationFnButton(item: item,
                                            index: idx,
                                            appeared: appeared,
                                            active: running.contains(item.id)) {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                            withAnimation(fnAnim) {
                                 if running.contains(item.id) {
                                     running.remove(item.id)
                                 } else {
@@ -173,11 +173,8 @@ struct AutomationDrawer: View {
                                      startPoint: .top, endPoint: .bottom))
                 .frame(width: 1)
         }
-        // 抽屉由 ContentView 条件性插入/移除；入场后再置位 appeared 触发内部阶梯弹入
         .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.62, blendDuration: 0)) {
-                appeared = true
-            }
+            withAnimation(panelAnim) { appeared = true }
         }
     }
 }
@@ -226,7 +223,6 @@ private struct AutomationFnButton: View {
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .fill(active ? Theme.cyan.opacity(0.10)
                                      : (hovered ? Theme.cyan.opacity(0.08) : Color.white.opacity(0.04)))
-                    // 沉浸光晕：hover/active 时中心径向光
                     if hovered || active {
                         RadialGradient(colors: [Theme.cyan.opacity(0.16), .clear],
                                        center: .center, startRadius: 0, endRadius: 110)
@@ -242,15 +238,15 @@ private struct AutomationFnButton: View {
             .shadow(color: hovered ? Theme.cyan.opacity(0.45)
                                    : (active ? Theme.cyan.opacity(0.22) : .clear),
                     radius: hovered ? 15 : (active ? 10 : 0))
-            .shadow(color: hovered ? Theme.cyan.opacity(0.22) : .clear, radius: 32)   // 外圈大光晕（沉浸）
+            .shadow(color: hovered ? Theme.cyan.opacity(0.22) : .clear, radius: 32)
         }
         .buttonStyle(.plain)
         .onHover { h in
-            withAnimation(.easeOut(duration: 0.18)) { hovered = h }
+            withAnimation(hoverAnim) { hovered = h }
         }
         .offset(x: appeared ? 0 : 46)
         .opacity(appeared ? 1 : 0)
-        .animation(.spring(response: 0.46, dampingFraction: 0.72, blendDuration: 0)
+        .animation(itemAnim
             .delay(appeared ? Double(index) * 0.055 : 0), value: appeared)
     }
 }

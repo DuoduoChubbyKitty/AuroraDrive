@@ -14,14 +14,15 @@ recordings/
 *.pt
 yolo26s.pt
 
-# ── 编译 / 构建产物 ──
+# ── 编译产物（SwiftPM）──
 .build/
+AuroraDrive.*          # AuroraDrive 可执行文件及相关编译产物
 AuroraDriveUI*
-AuroraDrive.app/
-*.app
+*.app/
 NeversetApp/
 AuroraRecorder.app/
 AuroraRecorder_副本.app/
+libMetalGooseEngine.dylib
 
 # ── 虚拟环境 ──
 .venv-app/

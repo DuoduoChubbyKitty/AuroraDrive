@@ -1,28 +1,35 @@
 // SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// ============================================================================
-//  GameMapView.swift — 异环游戏交互式地图 (v3)
-//  ──────────────────────────────────────────────────────────────────────────
-//  功能：
-//    · 顶部三模式分段控件：正常地图 / 按种类筛选 / 选择地图
-//    · 左侧侧边栏：分类选择器 + 索引搜索（按拼音/字母快速定位）
-//    · 正常模式：仅显示传送点+地名（轻量底图）
-//    · 筛选模式：勾选分类显示对应标记（材料/BOSS/怪物等）
-//    · 选图模式：按区域快速跳转 + 缩放定位
-//    · 标记点点击：弹出详情卡片（名称/类型/坐标/区域）
-//  数据：models/nte-game.jpg (4K底图) + models/FINAL_complete_map_database.json
-//  设计：Tesla FSD 驾驶舱风格 · 纯黑底 + 青色(#00E5FF)发光 · 玻璃拟态
-//  字体：SF Rounded（标题/正文）+ SF Mono（坐标/数字）
-// ============================================================================
-
 import SwiftUI
 import AppKit
 import Foundation
 
 // MARK: - 数据模型
 
-/// 完整地图数据库（从 FINAL_complete_map_database.json 加载）
+struct GradientIcon: View {
+    let icon: String
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(
+                    LinearGradient(
+                        colors: [Theme.cyan.opacity(0.25), Theme.cyan.opacity(0.05)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Theme.cyan.opacity(0.4), lineWidth: 0.6)
+                )
+                .frame(width: 28, height: 28)
+            Image(systemName: icon)
+                .font(FontStyle.semibold)
+                .foregroundStyle(Theme.cyan)
+        }
+    }
+}
+
 struct MapDatabase: Codable {
     let summary: DatabaseSummary?
     let markers_all: [MapMarker]?
@@ -66,7 +73,6 @@ struct MarkerTypeInfo: Codable {
     let labelEn: String?
 }
 
-/// 单个地图标记（统一结构，所有字段可选以容错）
 struct MapMarker: Codable, Identifiable, Hashable {
     var id: String { "\(type ?? "?")_\(Int(x ?? 0))_\(Int(y ?? 0))_\(name ?? "")" }
     let name: String?
@@ -79,29 +85,20 @@ struct MapMarker: Codable, Identifiable, Hashable {
     let icon: String?
     let link: String?
 
-    // 不解码 JSON 中的 id 字段（值类型不统一：有的字符串有的数字）
-    // Identifiable 的 id 用计算属性生成，避免解码冲突
     enum CodingKeys: String, CodingKey {
         case name, nameEn, type, x, y, subtype, region, icon, link
     }
 
-    /// 清理 HTML 标签后的显示名
     var displayName: String {
         let raw = name ?? nameEn ?? "?"
         return raw.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
                    .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// 用于地图标签的简短中文名（避免重复名拥挤）
-    /// 传送点：按 subtype 显示「快旅」/「计程车」
-    /// 塔：显示「维特海默塔」
-    /// 区域：显示中文名
-    /// 其他：显示 displayName
     var labelName: String {
         let t = type ?? ""
         switch t {
         case "waypoint":
-            // subtype: fast-travel / taxi
             let sub = subtype ?? ""
             if sub.contains("taxi") { return "计程车" }
             return "传送点"
@@ -114,19 +111,15 @@ struct MapMarker: Codable, Identifiable, Hashable {
         case "chest":
             return "宝箱"
         case "boss":
-            // BOSS 用 displayName 保留具体名字
             return displayName
         default:
             return displayName
         }
     }
 
-    /// 坐标安全取值
     var safeX: Double { x ?? 50.0 }
     var safeY: Double { y ?? 50.0 }
 
-    /// 拼音首字母（用于索引）—— 简化版：取 displayName 首字符
-    /// 完整拼音转换需引入 CFStringTokenizer，此处用首字符大写分类
     var indexKey: String {
         let first = displayName.first.map(String.init) ?? "#"
         if first.range(of: "[A-Za-z]", options: .regularExpression) != nil {
@@ -141,7 +134,6 @@ struct MapMarker: Codable, Identifiable, Hashable {
 
 // MARK: - 地图模式
 
-/// 三种地图模式（顶部三选项）
 enum MapMode: String, CaseIterable, Identifiable {
     case normal    = "正常地图"
     case filter    = "按种类筛选"
@@ -149,7 +141,6 @@ enum MapMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// SF Symbol 图标
     var icon: String {
         switch self {
         case .normal:    return "map"
@@ -158,7 +149,6 @@ enum MapMode: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 模式副标题
     var subtitle: String {
         switch self {
         case .normal:    return "传送点 · 地名"
@@ -170,16 +160,13 @@ enum MapMode: String, CaseIterable, Identifiable {
 
 // MARK: - 分类配置
 
-/// 标记分类配置（侧边栏筛选用）
 struct MarkerCategory: Identifiable, Hashable {
-    let id: String          // 类型 key，如 "waypoint"
-    let label: String       // 中文标签
-    let color: Color        // 显示颜色
-    let icon: String        // SF Symbol
-    var isEnabled: Bool     // 是否启用
-    var count: Int          // 标记数量
-
-    /// 从 nteguide 颜色字符串解析 SwiftUI Color
+    let id: String
+    let label: String
+    let color: Color
+    let icon: String
+    var isEnabled: Bool
+    var count: Int
     static func parseColor(_ hex: String?) -> Color {
         guard let hex = hex else { return Theme.cyan }
         let cleaned = hex.replacingOccurrences(of: "#", with: "")
@@ -191,73 +178,122 @@ struct MarkerCategory: Identifiable, Hashable {
     }
 }
 
+// MARK: - 辅助视图
+
+struct SpinningRing: View {
+    let size: CGFloat
+    let ringWidth: CGFloat
+    let bgOpacity: CGFloat
+    let spinColor: any ShapeStyle
+    let duration: Double
+    let track: Any
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Theme.cyan.opacity(bgOpacity), lineWidth: ringWidth)
+                .frame(width: size, height: size)
+            Circle()
+                .trim(from: 0, to: 0.7)
+                .stroke(spinColor, style: StrokeStyle(lineWidth: ringWidth, lineCap: .round))
+                .frame(width: size, height: size)
+                .rotationEffect(.degrees(-90))
+                .rotationEffect(.degrees(360))
+                .animation(.linear(duration: duration).repeatForever(autoreverses: false), value: track)
+        }
+    }
+}
+
+struct SlidePanel: View {
+    let edge: Edge
+    let content: () -> View
+
+    var body: some View {
+        content()
+            .frame(width: 300)
+            .background(sidebarBackground)
+            .transition(.move(edge: edge).combined(with: .opacity))
+    }
+}
+
+// MARK: - 动画常量
+
+private let slideAnim = Animation.spring(response: 0.42, dampingFraction: 0.86)
+private let zoomAnim = Animation.spring(response: 0.5, dampingFraction: 0.85)
+private let selectionAnim = Animation.spring(response: 0.4, dampingFraction: 0.85)
+private let tabAnim = Animation.spring(response: 0.3, dampingFraction: 0.85)
+private let quickOutAnim = Animation.easeOut(duration: 0.2)
+private let closeAnim = Animation.easeIn(duration: 0.18)
+private let modeSwitchAnim = Animation.spring(response: 0.35, dampingFraction: 0.82)
+private let toggleAnim = Animation.spring(response: 0.25, dampingFraction: 0.9)
+private let locateAnim = Animation.spring(response: 0.5, dampingFraction: 0.8)
+private let layersAnim = Animation.spring(response: 0.42, dampingFraction: 0.86)
+private let markerAnim = Animation.spring(response: 0.3, dampingFraction: 0.85)
+private let catToggleAnim = Animation.spring(response: 0.25, dampingFraction: 0.8)
+private let fadeOutAnim = Animation.easeOut(duration: 0.3)
+
+// MARK: - 内边距辅助
+
+extension View {
+    func ph8v3() -> some View { padding(.horizontal, 8).padding(.vertical, 3) }
+    func ph10v5() -> some View { padding(.horizontal, 10).padding(.vertical, 5) }
+}
+
 // MARK: - 主视图
 
 struct GameMapView: View {
-    // ── 数据路径 ──
-    // ⚠️ 原 yihuan_map_z5.png 为游戏地图，道路拼接错乱，已弃用
-    // 主底图改用 IMG_1366 截图，经 PIL Lanczos 4x 超分（8636×8592，文字平滑抗锯齿、不被改写）
-    // ⚠️ 旧底图 enhanced_1366.png 已废弃（一张无内容的超分截图，缓兵之计），由用户手动删除。
-    // 新底图改用 MaaNTE 官方大世界地图 bigworldmapSecond.png（11264×11264 高清路网，与现地图同版）。
-    private let mapImagePath = "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmapSecond.png"
-    private let altMapImagePath = "/Users/dupi/Desktop/自动驾驶系统/models/yihuan_map_z4.png"
-    private let dataPath = "/Users/dupi/Desktop/自动驾驶系统/models/FINAL_complete_map_database.json"
+    private let modelsRoot: URL = {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("models")
+    }()
 
     @Environment(\.dismiss) private var dismiss
 
-    // 缩放/拖拽
-    // 初始缩放 0.15 让 8192px 地图缩到 1229px 适配画面
     @State private var scale: CGFloat = 0.11
     @State private var lastScale: CGFloat = 0.11
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
 
-    // ── 数据 ──
     @State private var db: MapDatabase?
     @State private var mapImage: NSImage?
     @State private var mapSize: CGFloat = 3840
+    static let viewCenterX: CGFloat = 600  // 450 + 150, 定位十字准心 X
+    static let viewCenterY: CGFloat = 300  // 定位十字准心 Y
+    static let winW: CGFloat = 1163
+    static let winH: CGFloat = 680
     @State private var mapAspect: CGFloat = 16.0 / 9.0
-    @State private var isLoading: Bool = true    // 加载状态（启动动画用）
+    @State private var isLoading: Bool = true
 
-    // ── 模式 ──
     @State private var mode: MapMode = .normal
 
-    // ── 分类筛选 ──
     @State private var categories: [MarkerCategory] = []
 
-    // ── 选中/搜索 ──
     @State private var selectedMarker: MapMarker?
     @State private var searchText: String = ""
     @State private var selectedRegion: String?
 
-    // ── 关闭动画 ──
     @State private var isClosing: Bool = false
 
-    // ── 标记分层缓存（P 性能）──
-    // 缓存「按类型优先级排好序的候选池」，键 = 启用类型集合 + 搜索词。
-    // 平移/缩放时 body 每帧重算 filteredMarkers，但 filter+sort 5677 个标记是
-    // O(n log n) 大头；缓存后每帧只做 O(cap) 的均匀抽样，拖动不再卡。
     @State private var sortedPoolCache: [MapMarker] = []
     @State private var sortedPoolKey: String = ""
+    @State private var sortedPoolCapKey: Int = 0  // cap 缓存键，排序结果变化时重置为 0
+    @State private var filteredPoolCache: [MapMarker] = []
 
-    // ── 侧边栏 tab（筛选模式下：分类 / 索引）──
     @State private var sidebarTab: SidebarTab = .categories
 
-    // ── 图层浮层开关（常驻，随时拉下，独立于模式）──
     @State private var layersOpen: Bool = false
 
-    /// 侧边栏子标签
     enum SidebarTab: String, CaseIterable, Identifiable {
         case categories = "分类"
         case index      = "索引"
         var id: String { rawValue }
     }
 
-    // 正常模式下始终显示的类型（轻量底图）
     private let normalModeTypes: Set<String> = ["waypoint", "phone-booth", "tower", "region"]
 
-    /// 所有支持的分类定义（id -> 标签/图标），材料已细分
-    /// 用于侧边栏筛选 + 正常模式分层渲染
     private static let categoryDefs: [(id: String, label: String, icon: String)] = [
         ("waypoint",     "传送点",       "location.fill"),
         ("region",       "区域地名",      "mappin.circle"),
@@ -269,20 +305,18 @@ struct GameMapView: View {
         ("viewpoint",    "景点",         "camera.fill"),
         ("service",      "城市服务",      "briefcase.fill"),
         ("shop",         "商店",         "bag.fill"),
-        // ── 材料细分 ──
-        ("oracle-stone", "谕石(玉石)",   "gem.fill"),         // 258个，紫色
-        ("chest",        "宝箱",         "shippingbox.fill"), // 109个，橙色
-        ("collectible",  "收集品",       "sparkles"),         // 641个，绿色(避役包裹等)
-        ("mystery-box",  "神秘箱",       "questionmark.diamond.fill"), // 966个，紫色
-        ("gift-21",      "「21」的赠礼",  "gift.fill"),        // 112个，粉色
-        ("currency",     "货币战利品",    "dollarsign.circle.fill"),    // 964个，黄色
-        ("arc-plate",    "弧盘",         "circle.hexagongrid.fill"),   // 27个，紫色
-        ("monster",      "怪物",         "ant.fill"),         // 712个，红色
+        ("oracle-stone", "谕石(玉石)",   "gem.fill"),
+        ("chest",        "宝箱",         "shippingbox.fill"),
+        ("collectible",  "收集品",       "sparkles"),
+        ("mystery-box",  "神秘箱",       "questionmark.diamond.fill"),
+        ("gift-21",      "「21」的赠礼",  "gift.fill"),
+        ("currency",     "货币战利品",    "dollarsign.circle.fill"),
+        ("arc-plate",    "弧盘",         "circle.hexagongrid.fill"),
+        ("monster",      "怪物",         "ant.fill"),
     ]
 
     var body: some View {
         ZStack {
-            // ── 1. 深空背景（最底层）──
             ZStack {
                 Color.black.ignoresSafeArea()
                 RadialGradient(
@@ -295,10 +329,8 @@ struct GameMapView: View {
             }
             .allowsHitTesting(false)
 
-            // ── 2. 地图画布（全屏底层）──
             mapCanvas
 
-            // ── 3. 顶部工具条（标题+搜索+缩放）──
             VStack(spacing: 0) {
                 topBar
                 Spacer()
@@ -306,34 +338,20 @@ struct GameMapView: View {
             }
             .zIndex(10)
 
-            // ── 4. 左侧侧边栏 ──
             HStack(spacing: 0) {
-                if mode != .normal {
-                    sidebar
-                        .frame(width: 300)
-                        .background(sidebarBackground)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                }
+                if mode != .normal { SlidePanel(edge: .leading) { sidebar } }
                 Spacer()
             }
             .zIndex(20)
-            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: mode)
+            .animation(slideAnim, value: mode)
 
-            // ── 4.5 图层浮层（右侧常驻，弹簧拉下，随时开关，不依赖模式）──
             HStack(spacing: 0) {
                 Spacer()
-                if layersOpen {
-                    layerPanel
-                        .frame(width: 300)
-                        .background(sidebarBackground)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
+                if layersOpen { SlidePanel(edge: .trailing) { layerPanel } }
             }
             .zIndex(25)
-            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: layersOpen)
+            .animation(layersAnim, value: layersOpen)
 
-            // ── 5. 三模式分段控件（顶部正中央，独立浮层）──
-            // 放在 topBar 之上，确保可见可点
             VStack {
                 HStack {
                     Spacer()
@@ -347,8 +365,7 @@ struct GameMapView: View {
             .zIndex(30)
             .allowsHitTesting(true)
 
-            // ── 6. 关闭按钮（右下角浮动，独立浮层）──
-            // 注意：不能用 allowsHitTesting(false) 包裹，否则按钮也点不到
+            // hitTest穿透：不能用allowsHitTesting(false)包裹否则按钮也点不到
             VStack {
                 Spacer()
                 HStack {
@@ -360,40 +377,21 @@ struct GameMapView: View {
             }
             .zIndex(40)
 
-            // ── 7. 标记详情浮窗（选中时）──
             if let m = selectedMarker {
                 markerDetailCard(m)
                     .transition(.scale(scale: 0.9).combined(with: .opacity))
                     .zIndex(50)
             }
 
-            // ── 8. 加载动画覆盖层（启动时短暂显示）──
             if isLoading {
                 ZStack {
                     Color.black.opacity(0.85).ignoresSafeArea()
                     VStack(spacing: 18) {
-                        // 呼吸圆环 + 旋转弧
-                        ZStack {
-                            Circle()
-                                .stroke(Theme.cyan.opacity(0.15), lineWidth: 3)
-                                .frame(width: 56, height: 56)
-                            Circle()
-                                .trim(from: 0, to: 0.7)
-                                .stroke(
-                                    AngularGradient(
-                                        gradient: Gradient(colors: [Theme.cyan, Theme.cyan.opacity(0.3), .clear]),
-                                        center: .center
-                                    ),
-                                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                                )
-                                .frame(width: 56, height: 56)
-                                .rotationEffect(.degrees(-90))
-                                .rotationEffect(.degrees(360))
-                                .animation(
-                                    .linear(duration: 0.9).repeatForever(autoreverses: false),
-                                    value: isLoading
-                                )
-                        }
+                        SpinningRing(size: 56, ringWidth: 3, bgOpacity: 0.15,
+                                     spinColor: AngularGradient(
+                                         gradient: Gradient(colors: [Theme.cyan, Theme.cyan.opacity(0.3), .clear]),
+                                         center: .center),
+                                     duration: 0.9, track: isLoading)
                         Text("正在加载地图…")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundStyle(Theme.cyan)
@@ -407,19 +405,16 @@ struct GameMapView: View {
         }
         .onAppear { loadData() }
         .onDisappear {
-            // P1 修复：关闭地图 sheet 时释放 8636×8592 巨图（解码后 ≈280MB 常驻），
-            // 避免反复开合地图后内存累积。
+            // P1修复：关闭地图sheet时释放8636×8592巨图（解码后≈280MB常驻）避免反复开合内存累积
             mapImage = nil
             db = nil
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: selectedMarker)
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: mode)
+        .animation(markerAnim, value: selectedMarker)
+        .animation(selectionAnim, value: mode)
     }
 
-    /// 关闭按钮（右下角浮动，带按下动画 + 关闭过渡）
     private var closeButton: some View {
         Button {
-            // 关闭动画：先缩小淡出，再 dismiss
             withAnimation(.easeIn(duration: 0.18)) {
                 isClosing = true
             }
@@ -428,12 +423,10 @@ struct GameMapView: View {
             }
         } label: {
             ZStack {
-                // 外圈呼吸光晕
                 Circle()
                     .fill(Color.red.opacity(0.20))
                     .frame(width: 52, height: 52)
                     .shadow(color: .red.opacity(0.7), radius: 10)
-                // 主体红色渐变圆
                 Circle()
                     .fill(
                         RadialGradient(
@@ -448,7 +441,6 @@ struct GameMapView: View {
                             .stroke(.white.opacity(0.55), lineWidth: 1.4)
                             .frame(width: 40, height: 40)
                     )
-                // xmark
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
@@ -461,13 +453,10 @@ struct GameMapView: View {
         .help("关闭地图")
     }
 
-    /// 侧边栏背景：玻璃拟态 + 右侧青色细描边
     private var sidebarBackground: some View {
         ZStack {
-            // 主体毛玻璃
             RoundedRectangle(cornerRadius: 0)
                 .fill(.ultraThinMaterial.opacity(0.92))
-            // 顶部细微高光
             LinearGradient(
                 colors: [Theme.cyan.opacity(0.08), .clear],
                 startPoint: .top, endPoint: .bottom
@@ -475,7 +464,6 @@ struct GameMapView: View {
             .frame(height: 120)
             .frame(maxHeight: .infinity, alignment: .top)
             .allowsHitTesting(false)
-            // 右侧描边发光
             Rectangle()
                 .fill(
                     LinearGradient(
@@ -497,14 +485,12 @@ struct GameMapView: View {
             if let image = mapImage {
                 GeometryReader { geo in
                     ZStack {
-                        // 底图
                         Image(nsImage: image)
                             .resizable()
                             .scaledToFill()
                             .frame(width: mapSize * scale, height: mapSize * scale / mapAspect)
                             .clipped()
                             .overlay(
-                                // 地图边缘渐隐遮罩，营造无限延伸感
                                 LinearGradient(
                                     colors: [.black.opacity(0.4), .clear, .clear, .black.opacity(0.4)],
                                     startPoint: .leading, endPoint: .trailing
@@ -512,7 +498,6 @@ struct GameMapView: View {
                                 .allowsHitTesting(false)
                             )
 
-                        // 标记层
                         markerLayer
                     }
                     .offset(offset)
@@ -521,7 +506,6 @@ struct GameMapView: View {
                     .gesture(dragGesture)
                     .gesture(magnifyGesture)
                     .onTapGesture { location in
-                        // 点击空白处取消选中
                         if selectedMarker != nil {
                             selectedMarker = nil
                         }
@@ -529,22 +513,8 @@ struct GameMapView: View {
                 }
             } else {
                 VStack(spacing: 14) {
-                    // 自定义加载动画：呼吸圆环
-                    ZStack {
-                        Circle()
-                            .stroke(Theme.cyan.opacity(0.2), lineWidth: 2)
-                            .frame(width: 44, height: 44)
-                        Circle()
-                            .trim(from: 0, to: 0.7)
-                            .stroke(Theme.cyan, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                            .frame(width: 44, height: 44)
-                            .rotationEffect(.degrees(-90))
-                            .rotationEffect(.degrees(360))
-                            .animation(
-                                .linear(duration: 1.0).repeatForever(autoreverses: false),
-                                value: mapImage != nil
-                            )
-                    }
+                    SpinningRing(size: 44, ringWidth: 2, bgOpacity: 0.2,
+                                 spinColor: Theme.cyan, duration: 1.0, track: Any(mapImage != nil))
                     Text("加载地图数据中…")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(Theme.textSecondary)
@@ -554,7 +524,6 @@ struct GameMapView: View {
         }
     }
 
-    // 拖拽手势
     private var dragGesture: some Gesture {
         DragGesture()
             .onChanged { g in
@@ -566,7 +535,6 @@ struct GameMapView: View {
             .onEnded { _ in lastOffset = offset }
     }
 
-    // 缩放手势
     private var magnifyGesture: some Gesture {
         MagnificationGesture()
             .onChanged { g in
@@ -594,20 +562,10 @@ struct GameMapView: View {
         }
     }
 
-    /// 根据图层开关状态返回要渲染的标记（图层浮层 / 筛选侧栏共享同一份 categories 状态）
-    /// ⚠️ 标记坐标目前与底图可能未配准（旧数据），待本机重抓 nteguide 最新数据后校准。
-    ///
-    /// 分层渲染（P 性能）：全库 5677 个标记，若全部作为 SwiftUI 视图塞进 ZStack，
-    /// 平移/缩放时每帧重建 5677 个 view 直接卡死。这里按缩放层级裁剪数量：
-    ///   正常模式：只渲染核心导航层（waypoint/tower/region/phone-booth ≈ 130 个）—— 恒定量，不裁。
-    ///   筛选模式：按 zoom 分层 200 / 500 / 1500 上限（与项目规范「200/500/1500 标记按缩放层级」一致）。
-    /// 裁剪采用「类型优先级 + 均匀抽样」：核心类型（传送点/塔/地名/BOSS）始终保留，
-    /// 超出上限的收集类（材料/宝箱/谕石…）按步长均匀抽取，保证空间分布不聚簇。
     private func filteredMarkers(db: MapDatabase) -> [MapMarker] {
         let enabledTypes = Set(categories.filter { $0.isEnabled }.map { $0.id })
         guard !enabledTypes.isEmpty else { return [] }
 
-        // ── 分层上限：正常模式不裁（恒 ~130 核心标记）；筛选模式按缩放裁剪。──
         let cap: Int
         if mode == .normal {
             cap = Int.max
@@ -619,8 +577,6 @@ struct GameMapView: View {
             cap = 1500
         }
 
-        // ── 排序候选池缓存：filter+sort 只依赖 categories+searchText（不依赖 scale/offset）──
-        // 键变化才重建；平移/缩放 body 重算时直接复用，每帧只做 O(cap) 抽样。
         let key = enabledTypes.sorted().joined(separator: ",") + "|" + searchText
         if key != sortedPoolKey {
             let all = db.markers_all ?? []
@@ -631,7 +587,6 @@ struct GameMapView: View {
                     ($0.nameEn ?? "").localizedCaseInsensitiveContains(searchText)
                 }
             }
-            // 稳定排序（同优先级内保持原序）
             let sorted = result.enumerated()
                 .sorted { a, b in
                     let pa = Self.markerPriority(a.element.type ?? "")
@@ -641,40 +596,45 @@ struct GameMapView: View {
                 }
             sortedPoolCache = sorted.map(\.element)
             sortedPoolKey = key
+            sortedPoolCapKey = 0  // 排序结果变化，cap 缓存失效
         }
-        let pool = sortedPoolCache
 
-        // ── 数量足够 → 直接返回（正常模式恒返回全量核心标记）──
-        guard pool.count > cap else { return pool }
-
-        // ── 分层裁剪：核心类型始终保留，其余均匀抽样保证空间不聚簇 ──
-        let keptCore = pool.filter { Self.markerPriority($0.type ?? "") == 0 }
-        let others = pool.filter { Self.markerPriority($0.type ?? "") > 0 }
-        var out = keptCore
-        let room = max(0, cap - out.count)
-        if room > 0, !others.isEmpty {
-            let step = Double(others.count) / Double(room)
-            var idx = 0.0
-            while idx < Double(others.count), out.count < cap {
-                out.append(others[Int(idx)])
-                idx += step
+        // cap 变化时重新计算 filtered 结果（避免每帧重复 filter）
+        if cap != sortedPoolCapKey {
+            let pool = sortedPoolCache
+            guard pool.count > cap else {
+                filteredPoolCache = pool
+                sortedPoolCapKey = cap
+                return pool
             }
+            let keptCore = pool.filter { Self.markerPriority($0.type ?? "") == 0 }
+            let others = pool.filter { Self.markerPriority($0.type ?? "") > 0 }
+            var out = keptCore
+            let room = max(0, cap - out.count)
+            if room > 0, !others.isEmpty {
+                let step = Double(others.count) / Double(room)
+                var idx = 0.0
+                while idx < Double(others.count), out.count < cap {
+                    out.append(others[Int(idx)])
+                    idx += step
+                }
+            }
+            filteredPoolCache = out
+            sortedPoolCapKey = cap
+            return out
         }
-        return out
+
+        return filteredPoolCache
     }
 
-    /// 标记类型渲染优先级（数字越小越靠前保留）：
-    ///   core 导航层（waypoint/tower/region/phone-booth/BOSS）恒显示；
-    ///   其余收集类按缩放裁剪。
     private static func markerPriority(_ type: String) -> Int {
         switch type {
         case "waypoint", "tower", "region", "phone-booth", "boss": return 0
         case "quest", "activity", "viewpoint", "service", "shop": return 1
-        default: return 2   // 材料/宝箱/谕石/收集品/神秘箱/货币…
+        default: return 2
         }
     }
 
-    /// 单个标记视图
     @ViewBuilder
     private func markerView(_ m: MapMarker, renderW: CGFloat, renderH: CGFloat) -> some View {
         let px = CGFloat(m.safeX / 100.0) * renderW
@@ -687,13 +647,10 @@ struct GameMapView: View {
         let isBoss = mType == "boss"
         let isWaypoint = mType == "waypoint"
         let isTower = mType == "tower"
-        // 标记尺寸根据缩放动态调整，确保低缩放也可见
         let baseSize: CGFloat = max(7, min(14, 5 + scale * 30))
         let dotSize: CGFloat = isWaypoint ? baseSize * 1.3 : (isBoss ? baseSize * 1.4 : baseSize)
-        // 核心标记（传送点/塔/区域）始终显示中文标签，其他类型缩放足够大才显示
         let showLabel = isSel || isRegion || isWaypoint || isTower || isBoss || scale > 0.3
 
-        // 区域名：大号文字标签（半透明发光）
         if isRegion {
             Text(m.displayName)
                 .font(.system(size: max(13, 20 * scale * 1.4), weight: .heavy, design: .rounded))
@@ -705,9 +662,7 @@ struct GameMapView: View {
                     selectedMarker = (selectedMarker == m) ? nil : m
                 }
         } else {
-            // 普通标记：圆点 + 选中态光晕 + 可选标签
             ZStack {
-                // 选中时的外圈呼吸光环
                 if isSel {
                     Circle()
                         .stroke(color.opacity(0.4), lineWidth: 1.5)
@@ -715,7 +670,6 @@ struct GameMapView: View {
                         .shadow(color: color, radius: 8)
                 }
 
-                // 主圆点
                 Circle()
                     .fill(color)
                     .frame(width: isSel ? dotSize * 1.4 : dotSize,
@@ -728,7 +682,6 @@ struct GameMapView: View {
                                    height: isSel ? dotSize * 1.4 : dotSize)
                     )
 
-                // 中文标签（传送点/塔始终显示，其他缩放足够大才显示）
                 if showLabel {
                     Text(m.labelName)
                         .font(.system(size: max(9, 11 * scale * 1.1), weight: .semibold, design: .rounded))
@@ -757,7 +710,6 @@ struct GameMapView: View {
 
     private var topBar: some View {
         HStack(spacing: 14) {
-            // ── 标题（青色发光）──
             HStack(spacing: 6) {
                 Image(systemName: "map.fill")
                     .font(.system(size: 12, weight: .semibold))
@@ -770,19 +722,16 @@ struct GameMapView: View {
 
             Spacer()
 
-            // ── 搜索框（筛选/选图模式显示）──
             if mode != .normal {
                 searchBar
                     .transition(.scale.combined(with: .opacity))
             }
 
-            // ── 图层开关按钮（常驻，点一下从右侧拉下图层面板）──
             layerToggleButton
 
-            // ── 缩放控制 ──
             HStack(spacing: 4) {
                 zoomButton("minus") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(quickOutAnim) {
                         scale = max(scale * 0.75, 0.08); lastScale = scale
                     }
                 }
@@ -791,13 +740,13 @@ struct GameMapView: View {
                     .foregroundStyle(Theme.textSecondary)
                     .frame(width: 38)
                 zoomButton("plus") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(quickOutAnim) {
                         scale = min(scale * 1.3, 3.0); lastScale = scale
                     }
                 }
                 Divider().frame(height: 16).overlay(Theme.cyan.opacity(0.2))
                 zoomButton("location.fill") {
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    withAnimation(locateAnim) {
                         scale = 0.22; lastScale = 0.22
                         offset = .zero; lastOffset = .zero
                     }
@@ -809,7 +758,6 @@ struct GameMapView: View {
         .background(
             ZStack {
                 Rectangle().fill(.ultraThinMaterial).opacity(0.75)
-                // 底部青色细描边
                 Rectangle()
                     .fill(Theme.cyan.opacity(0.15))
                     .frame(height: 1)
@@ -818,7 +766,6 @@ struct GameMapView: View {
         )
     }
 
-    /// 三模式分段控件（精致胶囊样式）
     private var modeSegmentedControl: some View {
         HStack(spacing: 2) {
             ForEach(MapMode.allCases) { m in
@@ -836,13 +783,11 @@ struct GameMapView: View {
         )
     }
 
-    /// 单个模式分段
     private func modeSegment(_ m: MapMode) -> some View {
         let isActive = mode == m
         return Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+            withAnimation(modeSwitchAnim) {
                 mode = m
-                // 切到正常模式时清空选中
                 if m == .normal { selectedMarker = nil }
             }
         } label: {
@@ -878,7 +823,6 @@ struct GameMapView: View {
         .help(m.subtitle)
     }
 
-    /// 搜索框
     private var searchBar: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
@@ -913,7 +857,6 @@ struct GameMapView: View {
         )
     }
 
-    /// 缩放按钮
     private func zoomButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
@@ -934,11 +877,9 @@ struct GameMapView: View {
     private var sidebar: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
-                // ── 侧边栏标题 ──
                 sidebarHeader
 
                 if mode == .filter {
-                    // 筛选模式：分类 / 索引 双 tab
                     sidebarTabSwitcher
                     if sidebarTab == .categories {
                         filterContent
@@ -946,7 +887,6 @@ struct GameMapView: View {
                         indexContent
                     }
                 } else {
-                    // 选图模式：区域列表
                     selectMapContent
                 }
             }
@@ -954,27 +894,9 @@ struct GameMapView: View {
         }
     }
 
-    /// 侧边栏顶部标题
     private var sidebarHeader: some View {
         HStack(spacing: 8) {
-            // 模式图标 + 渐变背景
-            ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.cyan.opacity(0.25), Theme.cyan.opacity(0.05)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Theme.cyan.opacity(0.4), lineWidth: 0.6)
-                    )
-                    .frame(width: 28, height: 28)
-                Image(systemName: mode == .filter ? "line.3.horizontal.decrease.circle" : "square.grid.2x2")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.cyan)
-            }
+            GradientIcon(icon: mode == .filter ? "line.3.horizontal.decrease.circle" : "square.grid.2x2")
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(mode == .filter ? "分类筛选" : "区域选择")
@@ -993,13 +915,12 @@ struct GameMapView: View {
         .padding(.bottom, 14)
     }
 
-    /// 侧边栏 tab 切换（分类 / 索引）
     private var sidebarTabSwitcher: some View {
         HStack(spacing: 2) {
             ForEach(SidebarTab.allCases) { tab in
                 let isActive = sidebarTab == tab
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    withAnimation(tabAnim) {
                         sidebarTab = tab
                     }
                 } label: {
@@ -1027,69 +948,47 @@ struct GameMapView: View {
 
     // MARK: 筛选模式 - 分类列表
 
-    /// 筛选模式内容
     private var filterContent: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // ── 全选/全不选 + 统计 ──
-            HStack(spacing: 8) {
-                Button {
-                    withAnimation { for i in categories.indices { categories[i].isEnabled = true } }
-                } label: {
-                    Text("全选")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(Theme.cyan)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Theme.cyan.opacity(0.12)))
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    withAnimation { for i in categories.indices { categories[i].isEnabled = false } }
-                } label: {
-                    Text("清空")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(Theme.textTertiary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.white.opacity(0.05)))
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-
-                Text("\(categories.filter { $0.isEnabled }.reduce(0) { $0 + $1.count }) 项")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Theme.textTertiary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 10)
-
-            // ── 分类列表 ──
+            categoryToolbar
             ForEach($categories) { $cat in
                 categoryRow($cat)
             }
-
             Spacer(minLength: 30)
         }
     }
 
-    /// 单个分类行（精致卡片样式）
+    private var categoryToolbar: some View {
+        HStack(spacing: 8) {
+            Button { withAnimation { for i in categories.indices { categories[i].isEnabled = true } } } label: {
+                Text("全选").font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.cyan).ph8v3()
+                    .background(Capsule().fill(Theme.cyan.opacity(0.12)))
+            }.buttonStyle(.plain)
+            Button { withAnimation { for i in categories.indices { categories[i].isEnabled = false } } } label: {
+                Text("清空").font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.textTertiary).ph8v3()
+                    .background(Capsule().fill(Color.white.opacity(0.05)))
+            }.buttonStyle(.plain)
+            Spacer()
+            Text("\(categories.filter { $0.isEnabled }.reduce(0) { $0 + $1.count }) 项")
+                .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(Theme.textTertiary)
+        }.padding(.horizontal, 16).padding(.bottom, 10)
+    }
+
     private func categoryRow(_ cat: Binding<MarkerCategory>) -> some View {
         Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+            withAnimation(toggleAnim) {
                 cat.wrappedValue.isEnabled.toggle()
             }
         } label: {
             HStack(spacing: 12) {
-                // 颜色指示器（左侧色条 + 圆点）
                 RoundedRectangle(cornerRadius: 2)
                     .fill(cat.wrappedValue.color)
                     .frame(width: 3, height: 22)
                     .shadow(color: cat.wrappedValue.color.opacity(0.6), radius: 3)
                     .opacity(cat.wrappedValue.isEnabled ? 1 : 0.3)
 
-                // 图标
                 ZStack {
                     Circle()
                         .fill(cat.wrappedValue.color.opacity(cat.wrappedValue.isEnabled ? 0.2 : 0.05))
@@ -1099,7 +998,6 @@ struct GameMapView: View {
                         .foregroundStyle(cat.wrappedValue.isEnabled ? cat.wrappedValue.color : Theme.textTertiary)
                 }
 
-                // 标签 + 数量
                 VStack(alignment: .leading, spacing: 1) {
                     Text(cat.wrappedValue.label)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -1111,7 +1009,6 @@ struct GameMapView: View {
 
                 Spacer()
 
-                // 自定义开关（更精致）
                 ZStack {
                     Capsule()
                         .fill(cat.wrappedValue.isEnabled
@@ -1131,7 +1028,7 @@ struct GameMapView: View {
                         .shadow(color: .black.opacity(0.3), radius: 1)
                         .offset(x: cat.wrappedValue.isEnabled ? 6 : -6)
                 }
-                .animation(.spring(response: 0.25, dampingFraction: 0.8), value: cat.wrappedValue.isEnabled)
+                .animation(catToggleAnim, value: cat.wrappedValue.isEnabled)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -1149,15 +1046,14 @@ struct GameMapView: View {
 
     // MARK: - 常驻图层浮层
 
-    /// 顶部工具栏的图层开关按钮（📑）
     private var layerToggleButton: some View {
         Button {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(slideAnim) {
                 layersOpen.toggle()
             }
         } label: {
             Image(systemName: layersOpen ? "square.stack.3d.up.fill" : "square.stack.3d.up")
-                .font(.system(size: 13, weight: .semibold))
+                .font(FontStyle.semibold)
                 .foregroundStyle(layersOpen ? Theme.cyan : Theme.textSecondary)
                 .frame(width: 26, height: 26)
                 .background(
@@ -1171,29 +1067,11 @@ struct GameMapView: View {
         .help("图层（随时开关各收集层）")
     }
 
-    /// 图层浮层面板（从右侧弹簧拉下，列出所有图层，可单独开关 + 全选/清空）
     private var layerPanel: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
-                // ── 标题 ──
                 HStack(spacing: 8) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Theme.cyan.opacity(0.25), Theme.cyan.opacity(0.05)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                )
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Theme.cyan.opacity(0.4), lineWidth: 0.6)
-                            )
-                            .frame(width: 28, height: 28)
-                        Image(systemName: "square.stack.3d.up.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.cyan)
-                    }
+                    GradientIcon(icon: "square.stack.3d.up.fill")
                     VStack(alignment: .leading, spacing: 1) {
                         Text("图层")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1208,46 +1086,10 @@ struct GameMapView: View {
                 .padding(.top, 56)
                 .padding(.bottom, 14)
 
-                // ── 全选/清空 + 统计 ──
-                HStack(spacing: 8) {
-                    Button {
-                        withAnimation { for i in categories.indices { categories[i].isEnabled = true } }
-                    } label: {
-                        Text("全选")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.cyan)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(Theme.cyan.opacity(0.12)))
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        withAnimation { for i in categories.indices { categories[i].isEnabled = false } }
-                    } label: {
-                        Text("清空")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.textTertiary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(Color.white.opacity(0.05)))
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    Text("\(categories.filter { $0.isEnabled }.reduce(0) { $0 + $1.count }) 项")
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Theme.textTertiary)
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
-
-                // ── 分类列表（与筛选侧栏共用 categoryRow）──
+                categoryToolbar
                 ForEach($categories) { $cat in
                     categoryRow($cat)
                 }
-
                 Spacer(minLength: 30)
             }
             .padding(.bottom, 40)
@@ -1256,11 +1098,9 @@ struct GameMapView: View {
 
     // MARK: 筛选模式 - 索引列表
 
-    /// 索引内容（按首字母/字符分组列出所有可搜索的标记）
     private var indexContent: some View {
         let totalIndexed = indexGroupedMarkers.values.reduce(0) { $0 + $1.count }
         return VStack(alignment: .leading, spacing: 0) {
-            // ── 索引提示 ──
             HStack(spacing: 6) {
                 Image(systemName: "textformat")
                     .font(.system(size: 10, weight: .medium))
@@ -1277,10 +1117,8 @@ struct GameMapView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 10)
 
-            // ── 字母快速跳转条 ──
             indexJumpBar
 
-            // ── 分组列表 ──
             ForEach(indexGroupedMarkers.keys.sorted(), id: \.self) { key in
                 if let items = indexGroupedMarkers[key], !items.isEmpty {
                     indexSectionHeader(key)
@@ -1301,7 +1139,6 @@ struct GameMapView: View {
         }
     }
 
-    /// 字母快速跳转条
     private var indexJumpBar: some View {
         HStack(spacing: 2) {
             ForEach(indexGroupedMarkers.keys.sorted(), id: \.self) { key in
@@ -1321,7 +1158,6 @@ struct GameMapView: View {
         .padding(.bottom, 8)
     }
 
-    /// 索引分组标题
     private func indexSectionHeader(_ key: String) -> some View {
         HStack {
             Text(key)
@@ -1337,12 +1173,10 @@ struct GameMapView: View {
         .padding(.bottom, 4)
     }
 
-    /// 索引单行
     private func indexRow(_ m: MapMarker) -> some View {
         Button {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            withAnimation(locateAnim) {
                 selectedMarker = m
-                // 缩放到该标记
                 zoomToMarker(m)
             }
         } label: {
@@ -1369,10 +1203,8 @@ struct GameMapView: View {
         .buttonStyle(.plain)
     }
 
-    /// 索引分组后的标记（按 indexKey 分组）
     private var indexGroupedMarkers: [String: [MapMarker]] {
         guard let db = db else { return [:] }
-        // 索引只在已启用分类的标记中建立
         let enabledTypes = Set(categories.filter { $0.isEnabled }.map { $0.id })
         let all: [MapMarker]
         if mode == .filter {
@@ -1380,12 +1212,10 @@ struct GameMapView: View {
         } else {
             all = (db.markers_all ?? [])
         }
-        // 搜索过滤
         let filtered = searchText.isEmpty ? all : all.filter {
             ($0.name ?? "").localizedCaseInsensitiveContains(searchText) ||
             ($0.nameEn ?? "").localizedCaseInsensitiveContains(searchText)
         }
-        // 按 indexKey 分组
         var grouped: [String: [MapMarker]] = [:]
         for m in filtered {
             grouped[m.indexKey, default: []].append(m)
@@ -1395,7 +1225,6 @@ struct GameMapView: View {
 
     // MARK: 选图模式 - 区域列表
 
-    /// 选择地图模式内容
     private var selectMapContent: some View {
         VStack(alignment: .leading, spacing: 6) {
             let regions: [(key: String, zh: String, color: Color, icon: String)] = [
@@ -1412,7 +1241,6 @@ struct GameMapView: View {
 
             Spacer(minLength: 30)
 
-            // ── 当前区域信息卡 ──
             if let sel = selectedRegion, let db = db {
                 let count = (db.markers_all ?? []).filter { $0.region == sel }.count
                 let regionInfo = regions.first { $0.key == sel }
@@ -1459,17 +1287,15 @@ struct GameMapView: View {
         }
     }
 
-    /// 单个区域行
     private func regionRow(_ r: (key: String, zh: String, color: Color, icon: String)) -> some View {
         let isActive = selectedRegion == r.key
         return Button {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            withAnimation(selectionAnim) {
                 selectedRegion = r.key
                 zoomToRegion(r.key)
             }
         } label: {
             HStack(spacing: 12) {
-                // 区域图标 + 渐变背景
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(
@@ -1522,7 +1348,6 @@ struct GameMapView: View {
         .padding(.horizontal, 8)
     }
 
-    /// 区域标记数量
     private func regionMarkerCount(_ key: String) -> String {
         guard let db = db else { return "0 个标记" }
         let count = (db.markers_all ?? []).filter { $0.region == key }.count
@@ -1531,7 +1356,6 @@ struct GameMapView: View {
 
     // MARK: - 标记详情浮窗
 
-    /// 选中标记的详情卡片（右下角浮窗）
     private func markerDetailCard(_ m: MapMarker) -> some View {
         let mType = m.type ?? "unknown"
         let cat = categories.first { $0.id == mType }
@@ -1542,7 +1366,6 @@ struct GameMapView: View {
             VStack {
                 Spacer()
                 HStack(spacing: 12) {
-                    // 左侧色块 + 图标
                     ZStack {
                         RoundedRectangle(cornerRadius: 10)
                             .fill(
@@ -1561,21 +1384,18 @@ struct GameMapView: View {
                             .foregroundStyle(color)
                     }
 
-                    // 中间信息
                     VStack(alignment: .leading, spacing: 3) {
                         Text(m.displayName)
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                             .lineLimit(1)
                         HStack(spacing: 8) {
-                            // 类型标签
                             Text(cat?.label ?? mType)
                                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                                 .foregroundStyle(color)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Capsule().fill(color.opacity(0.18)))
-                            // 坐标
                             HStack(spacing: 3) {
                                 Image(systemName: "location")
                                     .font(.system(size: 8))
@@ -1583,7 +1403,6 @@ struct GameMapView: View {
                                     .font(.system(size: 10, design: .monospaced))
                             }
                             .foregroundStyle(Theme.textSecondary)
-                            // 区域
                             if let reg = m.region, !reg.isEmpty {
                                 HStack(spacing: 3) {
                                     Image(systemName: "globe")
@@ -1598,7 +1417,6 @@ struct GameMapView: View {
 
                     Spacer(minLength: 12)
 
-                    // 关闭按钮
                     Button {
                         withAnimation { selectedMarker = nil }
                     } label: {
@@ -1627,7 +1445,6 @@ struct GameMapView: View {
 
     // MARK: - 缩放定位
 
-    /// 缩放到指定区域中心
     private func zoomToRegion(_ key: String) {
         guard let db = db else { return }
         let markers = (db.markers_all ?? []).filter { $0.region == key }
@@ -1636,9 +1453,8 @@ struct GameMapView: View {
         let avgX = markers.reduce(0.0) { $0 + $1.safeX } / Double(markers.count)
         let avgY = markers.reduce(0.0) { $0 + $1.safeY } / Double(markers.count)
 
-        // 适度放大以聚焦区域
         if scale < 0.35 {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+            withAnimation(zoomAnim) {
                 scale = 0.4
                 lastScale = 0.4
             }
@@ -1649,17 +1465,13 @@ struct GameMapView: View {
         let targetPx = CGFloat(avgX / 100.0) * renderW
         let targetPy = CGFloat(avgY / 100.0) * renderH
 
-        // 屏幕中心（假设窗口约 900x600，侧边栏占 300）
-        let centerX: CGFloat = 450 + 150
-        let centerY: CGFloat = 300
-        offset = CGSize(width: centerX - targetPx, height: centerY - targetPy)
+        offset = CGSize(width: Self.viewCenterX - targetPx, height: Self.viewCenterY - targetPy)
         lastOffset = offset
     }
 
-    /// 缩放到指定标记
     private func zoomToMarker(_ m: MapMarker) {
         if scale < 0.5 {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+            withAnimation(zoomAnim) {
                 scale = 0.6
                 lastScale = 0.6
             }
@@ -1668,9 +1480,7 @@ struct GameMapView: View {
         let renderH = renderW / mapAspect
         let targetPx = CGFloat(m.safeX / 100.0) * renderW
         let targetPy = CGFloat(m.safeY / 100.0) * renderH
-        let centerX: CGFloat = 450 + 150
-        let centerY: CGFloat = 300
-        offset = CGSize(width: centerX - targetPx, height: centerY - targetPy)
+        offset = CGSize(width: Self.viewCenterX - targetPx, height: Self.viewCenterY - targetPy)
         lastOffset = offset
     }
 
@@ -1678,7 +1488,6 @@ struct GameMapView: View {
 
     private var bottomStatusBar: some View {
         HStack(spacing: 14) {
-            // 选中标记信息（紧凑版）
             if let m = selectedMarker {
                 HStack(spacing: 6) {
                     Circle()
@@ -1705,7 +1514,6 @@ struct GameMapView: View {
                 )
             }
 
-            // 标记统计
             if let db = db {
                 HStack(spacing: 4) {
                     Image(systemName: "circle.grid.2x2.fill")
@@ -1719,9 +1527,11 @@ struct GameMapView: View {
 
             Spacer()
 
-            // 图例（紧凑）
             HStack(spacing: 10) {
-                ForEach(categories.filter { $0.isEnabled }.prefix(6)) { cat in
+                // 直接 index loop，避免 filter+prefix 产生中间 Array（UI 渲染路径）
+                ForEach(Array(0..<categories.count).prefix(6), id: \.self) { i in
+                    let cat = categories[i]
+                    guard cat.isEnabled else { return }
                     HStack(spacing: 3) {
                         Circle()
                             .fill(cat.color)
@@ -1750,9 +1560,11 @@ struct GameMapView: View {
     // MARK: - 数据加载
 
     private func loadData() {
-        // 巨图（11264² PNG）解码移到后台，主线程零解码阻塞，只回写加载态
+        let mapImagePath = modelsRoot.appendingPathComponent("bigworldmapSecond.png").path
+        let altMapImagePath = modelsRoot.appendingPathComponent("yihuan_map_z4.png").path
+        let dataPath = modelsRoot.appendingPathComponent("FINAL_complete_map_database.json").path
+
         DispatchQueue.global(qos: .userInitiated).async { [self] in
-            // 1. 后台解码底图（优先 bigworldmapSecond.png，缺失时回退到旧游戏地图）
             var decoded: NSImage?
             if FileManager.default.fileExists(atPath: mapImagePath) {
                 decoded = NSImage(contentsOfFile: mapImagePath)
@@ -1760,8 +1572,6 @@ struct GameMapView: View {
                 decoded = NSImage(contentsOfFile: altMapImagePath)
             }
 
-            // 1b. 标记数据库（7.5MB JSON）也挪到后台解码 —— 主线程只接收解码结果，
-            // 避免地图首次打开时 JSONDecoder 阻塞 UI 几十毫秒（可感知掉帧）。
             var decodedDb: MapDatabase?
             if FileManager.default.fileExists(atPath: dataPath) {
                 do {
@@ -1773,29 +1583,23 @@ struct GameMapView: View {
             }
 
             DispatchQueue.main.async {
-                // 2. 主线程回写图片 + 尺寸
                 if let img = decoded {
                     mapImage = img
                     mapSize = img.size.width
                     mapAspect = img.size.width / max(img.size.height, 1)
                 }
 
-                // 3. 主线程回写数据库 + 构建分类
                 if let dbData = decodedDb {
                     db = dbData
                     buildCategories()
                 }
 
-                // 4. 默认选中新赫兰德
                 if selectedRegion == nil { selectedRegion = "new-herland" }
 
-                // 5. 计算初始 offset 让数据区域居中
-                // 数据范围 x:25-85, y:5-75 → 中心 x=55%, y=40%
                 centerOnDataRegion()
 
-                // 6. 加载完成，关闭加载动画
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.easeOut(duration: 0.3)) {
+                    withAnimation(fadeOutAnim) {
                         isLoading = false
                     }
                 }
@@ -1803,39 +1607,29 @@ struct GameMapView: View {
         }
     }
 
-    /// 计算偏移让数据区域中心居中显示
     private func centerOnDataRegion() {
         let renderW = mapSize * scale
         let renderH = renderW / mapAspect
-        // 数据中心在底图坐标 (55%, 40%)
         let dataCenterX = renderW * 0.55
         let dataCenterY = renderH * 0.40
-        // 窗口尺寸（地图卡片区域约 1163×680）
-        let winW: CGFloat = 1163
-        let winH: CGFloat = 680
-        // offset = 窗口中心 - 数据中心
         let newOffset = CGSize(
-            width: winW / 2 - dataCenterX,
-            height: winH / 2 - dataCenterY
+            width: Self.winW / 2 - dataCenterX,
+            height: Self.winH / 2 - dataCenterY
         )
         offset = newOffset
         lastOffset = newOffset
     }
 
-    /// 从数据库构建分类列表（使用 categoryDefs，从 markers_all 按 type 统计）
     private func buildCategories() {
         guard let db = db else { return }
 
         let all = db.markers_all ?? []
         let typeColors = db.marker_types ?? [:]
-        // 核心导航层默认开启，收集类默认关闭
         let coreTypes: Set<String> = ["waypoint", "region", "phone-booth", "tower"]
 
         categories = Self.categoryDefs.map { d in
-            // 从 markers_all 按 type 统计数量
             let count = all.filter { $0.type == d.id }.count
 
-            // 颜色：优先用 marker_types 的颜色，否则用预设
             let hexColor = typeColors[d.id]?.color
             let color: Color
             if let hex = hexColor, !hex.isEmpty {
@@ -1849,35 +1643,32 @@ struct GameMapView: View {
                 label: d.label,
                 color: color,
                 icon: d.icon,
-                // 打开地图默认只开核心导航层（传送点/区域/电话亭/塔），
-                // 收集类图层（材料/宝箱/谕石/收集品…）默认关闭，全收集时在图层浮层手动开启。
                 isEnabled: coreTypes.contains(d.id),
                 count: count
             )
         }
     }
 
-    /// 各类型的默认颜色（marker_types 缺失时回退）
     private func defaultColor(for type: String) -> Color {
         switch type {
-        case "waypoint":     return Color(red: 0.92, green: 0.70, blue: 0.03)  // 黄
-        case "region":       return Color(red: 0.42, green: 0.45, blue: 0.50)  // 灰
-        case "phone-booth":  return Color(red: 0.02, green: 0.71, blue: 0.83)  // 青
-        case "tower":        return Color(red: 0.96, green: 0.62, blue: 0.04)  // 橙
-        case "boss":         return Color(red: 0.94, green: 0.27, blue: 0.27)  // 红
-        case "quest":        return Color(red: 0.23, green: 0.51, blue: 0.96)  // 蓝
-        case "activity":     return Color(red: 0.93, green: 0.28, blue: 0.60)  // 粉
-        case "viewpoint":    return Color(red: 0.02, green: 0.72, blue: 0.83)  // 青
-        case "service":      return Color(red: 0.08, green: 0.72, blue: 0.55)  // 青绿
-        case "shop":         return Color(red: 0.02, green: 0.71, blue: 0.83)  // 青
-        case "oracle-stone": return Color(red: 0.65, green: 0.55, blue: 0.98)  // 紫(玉石)
-        case "chest":        return Color(red: 0.96, green: 0.62, blue: 0.04)  // 橙
-        case "collectible":  return Color(red: 0.13, green: 0.77, blue: 0.37)  // 绿
-        case "mystery-box":  return Color(red: 0.49, green: 0.23, blue: 0.93)  // 紫
-        case "gift-21":      return Color(red: 0.96, green: 0.45, blue: 0.71)  // 粉
-        case "currency":     return Color(red: 0.98, green: 0.80, blue: 0.08)  // 黄
-        case "arc-plate":    return Color(red: 0.55, green: 0.36, blue: 0.96)  // 紫
-        case "monster":      return Color(red: 0.86, green: 0.15, blue: 0.15)  // 红
+        case "waypoint":     return Color(red: 0.92, green: 0.70, blue: 0.03)
+        case "region":       return Color(red: 0.42, green: 0.45, blue: 0.50)
+        case "phone-booth":  return Color(red: 0.02, green: 0.71, blue: 0.83)
+        case "tower":        return Color(red: 0.96, green: 0.62, blue: 0.04)
+        case "boss":         return Color(red: 0.94, green: 0.27, blue: 0.27)
+        case "quest":        return Color(red: 0.23, green: 0.51, blue: 0.96)
+        case "activity":     return Color(red: 0.93, green: 0.28, blue: 0.60)
+        case "viewpoint":    return Color(red: 0.02, green: 0.72, blue: 0.83)
+        case "service":      return Color(red: 0.08, green: 0.72, blue: 0.55)
+        case "shop":         return Color(red: 0.02, green: 0.71, blue: 0.83)
+        case "oracle-stone": return Color(red: 0.65, green: 0.55, blue: 0.98)
+        case "chest":        return Color(red: 0.96, green: 0.62, blue: 0.04)
+        case "collectible":  return Color(red: 0.13, green: 0.77, blue: 0.37)
+        case "mystery-box":  return Color(red: 0.49, green: 0.23, blue: 0.93)
+        case "gift-21":      return Color(red: 0.96, green: 0.45, blue: 0.71)
+        case "currency":     return Color(red: 0.98, green: 0.80, blue: 0.08)
+        case "arc-plate":    return Color(red: 0.55, green: 0.36, blue: 0.96)
+        case "monster":      return Color(red: 0.86, green: 0.15, blue: 0.15)
         default:             return Theme.cyan
         }
     }
@@ -1885,9 +1676,8 @@ struct GameMapView: View {
 
 // MARK: - 地图入口按钮
 
-/// 可嵌入侧边栏的地图卡片
 struct GameMapCard: View {
-    @State private var showMap = false  // 默认关闭，由用户点「打开异环地图」才弹出
+    @State private var showMap = false
 
     var body: some View {
         GlowCard {

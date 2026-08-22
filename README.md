@@ -57,10 +57,35 @@ swift build -c release
 
 ### 2.4 启动应用
 
-双击 `.app` 或在终端运行：
+**方式一：双击启动（推荐）**
+
+直接双击项目根目录的 `start.sh` 脚本，自动构建并启动。
+
+**方式二：命令行启动**
 
 ```bash
-open .build/release/AuroraDrive.app
+cd ~/Desktop/自动驾驶系统
+./start.sh
+```
+
+**方式三：直接运行可执行文件**
+
+```bash
+cd ~/Desktop/自动驾驶系统
+.build/release/AuroraDrive
+```
+
+**命令行自检模式：**
+
+```bash
+# 网络定位自检（验证 WebSocket 连接）
+./start.sh --network-locate-selftest
+
+# YOLO 引擎自检
+./start.sh --yolo-selftest /path/to/screenshot.png
+
+# 速度 OCR 自检
+./start.sh --speed-selftest /path/to/frames/
 ```
 
 ---
