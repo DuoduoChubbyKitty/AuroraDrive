@@ -101,3 +101,4 @@ icon.icns
 tools/*.png
 tools/*.html
 libMetalGooseEngine.dylib
+.zip
