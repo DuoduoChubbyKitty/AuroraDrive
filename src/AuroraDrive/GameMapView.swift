@@ -206,12 +206,13 @@ struct SpinningRing: View {
 
 struct SlidePanel: View {
     let edge: Edge
-    let content: () -> View
+    let content: () -> any View
+    let background: () -> any View
 
     var body: some View {
         content()
             .frame(width: 300)
-            .background(sidebarBackground)
+            .background(background())
             .transition(.move(edge: edge).combined(with: .opacity))
     }
 }
@@ -339,7 +340,7 @@ struct GameMapView: View {
             .zIndex(10)
 
             HStack(spacing: 0) {
-                if mode != .normal { SlidePanel(edge: .leading) { sidebar } }
+                if mode != .normal { SlidePanel(edge: .leading, background: { sidebarBackground }) { sidebar } }
                 Spacer()
             }
             .zIndex(20)
@@ -347,7 +348,7 @@ struct GameMapView: View {
 
             HStack(spacing: 0) {
                 Spacer()
-                if layersOpen { SlidePanel(edge: .trailing) { layerPanel } }
+                if layersOpen { SlidePanel(edge: .trailing, background: { sidebarBackground }) { layerPanel } }
             }
             .zIndex(25)
             .animation(layersAnim, value: layersOpen)
@@ -514,7 +515,7 @@ struct GameMapView: View {
             } else {
                 VStack(spacing: 14) {
                     SpinningRing(size: 44, ringWidth: 2, bgOpacity: 0.2,
-                                 spinColor: Theme.cyan, duration: 1.0, track: Any(mapImage != nil))
+                                 spinColor: Theme.cyan, duration: 1.0, track: mapImage != nil)
                     Text("加载地图数据中…")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(Theme.textSecondary)
@@ -1531,15 +1532,16 @@ struct GameMapView: View {
                 // 直接 index loop，避免 filter+prefix 产生中间 Array（UI 渲染路径）
                 ForEach(Array(0..<categories.count).prefix(6), id: \.self) { i in
                     let cat = categories[i]
-                    guard cat.isEnabled else { return }
-                    HStack(spacing: 3) {
-                        Circle()
-                            .fill(cat.color)
-                            .frame(width: 5, height: 5)
-                            .shadow(color: cat.color.opacity(0.5), radius: 1.5)
-                        Text(cat.label)
-                            .font(.system(size: 9, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.textSecondary)
+                    if cat.isEnabled {
+                        HStack(spacing: 3) {
+                            Circle()
+                                .fill(cat.color)
+                                .frame(width: 5, height: 5)
+                                .shadow(color: cat.color.opacity(0.5), radius: 1.5)
+                            Text(cat.label)
+                                .font(.system(size: 9, weight: .medium, design: .rounded))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
                     }
                 }
             }

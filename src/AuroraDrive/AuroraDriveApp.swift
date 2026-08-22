@@ -94,6 +94,7 @@ private let projectRootURL: URL = {
         .deletingLastPathComponent()
 }()
 
+
 @main
 struct AuroraDriveApp: App {
     nonisolated static let inv255d: Double = 1.0 / 255.0
@@ -368,9 +369,9 @@ final class DriveState {
     // View 只读此属性，值变化时由 tick() 同步更新，重绘时无额外堆分配。
     @ObservationIgnored var confidenceText: String = "92.0%"
     // P6优化：mode 文字显示缓存，避免 render 路径中访问 uiGroup.rawValue 产生 String 分配。
-    @ObservationIgnored private var modeDisplayText: String = "端到端主驾"
+    @ObservationIgnored fileprivate var modeDisplayText: String = "端到端主驾"
     // P8优化：mode 颜色缓存，render 路径读缓存字段而非每次计算三元表达式。
-    @ObservationIgnored private var modeTextColor: Color = Theme.textTertiary
+    @ObservationIgnored fileprivate var modeTextColor: Color = Theme.textTertiary
     private var lastDecided: DriveMode = .e2e
 
     var effectiveSpeed: Double = 0
@@ -491,7 +492,7 @@ final class DriveState {
             self.pendingFrameCG = cgImage
             self.pendingFrameTime = Date()
             os_unfair_lock_unlock(&self.pendingFrameLock)
-            DispatchQueue.main.async { self.frameHost.push(cgImage) }
+            if let cg = cgImage { DispatchQueue.main.async { self.frameHost.push(cg) } }
         }
         captureEngine.onYoloFrame = { [weak self] pb in
             guard let self else { return }
@@ -1974,16 +1975,30 @@ private func aspectFillLayout(source: CGSize?, view: CGSize) -> (origin: CGPoint
     return (CGPoint(x: (view.width - w) / 2, y: (view.height - h) / 2), CGSize(width: w, height: h))
 }
 
+// 将视图像素坐标归一化到源图坐标系（[0,1]），与 YoloEngine.Detection 的 x/y 字段同尺度。
+// 基于 aspect-fill 布局的反变换：viewPt → 视图内源图区域坐标 → 归一化源图坐标。
+private func viewToSourceNorm(_ pt: CGPoint, source srcSize: CGSize?, view viewSize: CGSize) -> CGPoint? {
+    guard let src = srcSize, src.width > 0, src.height > 0 else { return nil }
+    let scale = max(viewSize.width / src.width, viewSize.height / src.height)
+    let w = src.width * scale
+    let h = src.height * scale
+    let ox = (viewSize.width - w) / 2
+    let oy = (viewSize.height - h) / 2
+    let localX = pt.x - ox
+    let localY = pt.y - oy
+    guard localX >= 0 && localX <= w && localY >= 0 && localY <= h else { return nil }
+    return CGPoint(x: localX / w, y: localY / h)
+}
+
 struct ObstacleOverlay: View {
     var active: Bool
     var detections: [Detection] = []
     var sourceSize: CGSize? = nil
     var lockedTarget: Detection? = nil
     var isLocked: Bool = false
-    // P7优化：缓存检测标签字符串，避免 30Hz Canvas render 路径中每帧 per-detection String(format:) 分配。
-    // 仅在 detections 数量变化时重建（dirty-check 代替 @State）。
-    @ObservationIgnored private var labelCacheStamp: Int = -1
-    @ObservationIgnored private var cachedLabels: [String] = []
+    // P7优化：静态缓存检测标签字符串，避免 30Hz Canvas render 路径中每帧 per-detection String(format:) 分配。
+    // 以 objectId 为键、count 为脏标记，跨视图实例共享缓存，struct 重创建时仍命中。
+    private static var labelCache: [ObjectIdentifier: (count: Int, labels: [String])] = [:]
 
     private static func color(for label: CocoLabels.Category) -> Color {
         switch label {
@@ -1995,17 +2010,22 @@ struct ObstacleOverlay: View {
     }
 
     var body: some View {
-        // P7优化：detections 数量变化时重建标签缓存，之后 Canvas render 路径零 String(format:) 分配。
-        if labelCacheStamp != detections.count {
-            labelCacheStamp = detections.count
-            cachedLabels = detections.map { "\($0.rawName) \(String(format: "%.2f", $0.confidence))" }
+        // P7优化：静态缓存标签字符串，跨 struct 实例共享，struct 重创建时仍命中。
+        let key = ObjectIdentifier(self)
+        let count = detections.count
+        let labels: [String]
+        if let cached = Self.labelCache[key], cached.count == count {
+            labels = cached.labels
+        } else {
+            labels = detections.map { "\($0.rawName) \(String(format: "%.2f", $0.confidence))" }
+            Self.labelCache[key] = (count, labels)
         }
         Canvas { ctx, size in
             guard active else { return }
             let t = aspectFillLayout(source: sourceSize, view: size)
             for (i, d) in detections.enumerated() {
                 let c = Self.color(for: d.label)
-                let danger = d.isInDangerZone()
+                let danger = d.isInDangerZone() != .none
                 let w = max(d.width * t.size.width, 2)
                 let h = max(d.height * t.size.height, 2)
                 let cx = t.origin.x + d.x * t.size.width

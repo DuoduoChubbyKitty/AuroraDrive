@@ -4,8 +4,7 @@
 import Foundation
 import CoreML
 import Vision
-import UIKit
-import UniformTypeIdentifiers
+import AppKit
 
 // MARK: - COCO 类别映射
 enum CocoLabels {
@@ -30,7 +29,7 @@ enum CocoLabels {
         case fireHydrant, bench
         case backpack, umbrella, handbag, tie, suitcase
         case bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe
-        case frame
+        case frame, obstacle
     }
 
     static func map(_ idx: Int) -> (Category, String) {
@@ -133,7 +132,7 @@ class YoloEngine: ObservableObject {
     private var lastInferTime = Date()
     private let inferCooldownMs: TimeInterval = 1 / 24.0
     private var errorMessageInternal: String?
-    private var fastPathActive = false
+    internal var fastPathActive = false
 
     // MARK: - 模型加载
     func loadIfNeeded() {
@@ -146,12 +145,10 @@ class YoloEngine: ObservableObject {
             if let m = model {
                 engineQueue.async {
                     // 复用静态预热张量，避免每次推理初始化时分配 6MB 临时数组
-                    let arr = try! MLMultiArray(shape: [1, 3, 640, 640], dataType: .float32)
+                    guard let arr = try? MLMultiArray(shape: [1, 3, 640, 640], dataType: .float32) else { return }
                     arr.data.copyMemory(from: Self.warmupTensor.bindMemory(to: UnsafeMutableRawPointer.Element.self).baseAddress!, byteCount: Self.warmupTensor.count * MemoryLayout<Float>.size)
-                    let provider = try MLDictionaryFeatureProvider(dictionary: [
-                        "image": MLFeatureValue(multiArray: arr)
-                    ])
-                    _ = try m.prediction(from: provider)
+                    guard let provider = try? MLDictionaryFeatureProvider(dictionary: ["image": MLFeatureValue(multiArray: arr)]) else { return }
+                    _ = try? m.prediction(from: provider)
                 }
             }
         } catch {
@@ -223,6 +220,8 @@ class YoloEngine: ObservableObject {
         try body()
         return Double(DispatchTime.now().uptimeNanoseconds - t0.rawValue) / 1_000_000
     }
+
+    private nonisolated static func nsToMs(_ ns: UInt64) -> Double { ns / 1_000_000 }
 
     private func finish(_ gen: Int, _ dets: [Detection], _ latency: Double, _ error: String?) {
         guard gen == generation else { return }
@@ -409,13 +408,13 @@ class YoloEngine: ObservableObject {
             let ms = Date().timeIntervalSince(start) * 1000
 
             var lines = ["图片: \(imagePath)  (\(Int(nsImage.size.width))×\(Int(nsImage.size.height)))",
-                         "模型: \(modelURL.lastPathComponent)",
+                         "模型: \(Self.modelURL.lastPathComponent)",
                          String(format: "耗时: %.1f ms  阈值: %.2f", ms, confidenceThreshold),
                          "输出dtype: \(arr.dataType.rawValue)  shape=\(arr.shape.map(\.intValue))"]
             lines.append(self.rawDump(arr))
             lines.append("过阈值 \(kept.count) 个:")
             for d in kept {
-                let flag = d.isInDangerZone() ? "[危险区]" : ""
+                let flag = d.isInDangerZone() != .none ? "[危险区]" : ""
                 lines.append(String(format: "  %-14@ %.3f  中心(%.3f,%.3f) 宽高(%.3f,%.3f) %@",
                                     d.rawName as NSString, d.confidence, d.x, d.y,
                                     d.width, d.height, flag as NSString))
@@ -437,7 +436,7 @@ class YoloEngine: ObservableObject {
         }
 
         var lines = ["图片: \(imagePath)  (\(Int(nsImage.size.width))×\(Int(nsImage.size.height)))",
-                     "迭代: \(iterations) 次/路径  模型: \(modelURL.lastPathComponent)"]
+                     "迭代: \(iterations) 次/路径  模型: \(Self.modelURL.lastPathComponent)"]
 
         do {
             guard let pb = Self.makePixelBuffer(size: Self.inputSize) else {
@@ -581,7 +580,9 @@ class YoloEngine: ObservableObject {
                 let sx = Int(Float(x) * pxPerDst)
                 let sp = sBase + sx * 4
                 let dp = dBase + x * 4
-                dp[0] = sp[0]; dp[1] = sp[1]; dp[2] = sp[2]; dp[3] = sp[3]
+                let spPtr = sp.assumingMemoryBound(to: UInt8.self)
+                let dpPtr = dp.assumingMemoryBound(to: UInt8.self)
+                dpPtr[0] = spPtr[0]; dpPtr[1] = spPtr[1]; dpPtr[2] = spPtr[2]; dpPtr[3] = spPtr[3]
             }
         }
     }
@@ -601,7 +602,7 @@ class YoloEngine: ObservableObject {
                                           confidenceThreshold: Double,
                                           maxDetections: Int) -> [Detection] {
         let n = out.shape.count >= 2 ? out.shape[1].intValue : 0
-        let invSize = Self.invInputSize
+        let invSize = 1.0 / 640.0
         var dets: [Detection] = []
         dets.reserveCapacity(min(maxDetections, n))
 

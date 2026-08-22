@@ -556,10 +556,6 @@ final class NetworkLocator {
         return socketClient?.stats() ?? [:]
     }
 
-    func isConnected() -> Bool {
-        return isConnected
-    }
-
     func close() {
         socketClient?.close()
         socketClient = nil

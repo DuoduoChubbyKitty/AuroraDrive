@@ -4,30 +4,10 @@
 import Foundation
 import Observation
 
-// MARK: - 检测结果类型
+// MARK: - 规则控制器的危险区判断和紧迫度扩展（作用于 Detection）
 
-struct Detection {
-
-    enum Label: String {
-        case car
-        case pedestrian
-        case sign
-        case obstacle
-    }
-
-    let x: Double
-    let y: Double
-    let width: Double
-    let height: Double
-
-    let label: Label
-
-    let confidence: Double
-
-    var rawName: String = "OBJ"
-
-    func isInDangerZone(dangerHalfWidth: Double = 0.18,
-                        dangerYMin: Double = 0.45) -> Bool {
+extension Detection {
+    func isInDangerZone(dangerHalfWidth: Double = 0.18, dangerYMin: Double = 0.45) -> Bool {
         abs(x - 0.5) < dangerHalfWidth && y > dangerYMin
     }
 

@@ -9,6 +9,15 @@ import CoreGraphics
 import Accelerate
 import os
 
+// MARK: - 录制状态
+
+enum CaptureStatus {
+    case started
+    case stopped
+    case error(String)
+    case permissionDenied
+}
+
 final class CaptureEngine: NSObject, SCStreamOutput {
 
     private let stateLock = OSAllocatedUnfairLock()
@@ -23,9 +32,12 @@ final class CaptureEngine: NSObject, SCStreamOutput {
 
     private var stream: SCStream?
     private let captureQueue = DispatchQueue(label: "com.aurora.capture.engine", qos: .userInteractive)
-    private var onFrame: ((NSImage, CGImage?) -> Void)?
-    private var onStatusChange: ((CaptureStatus) -> Void)?
-    private var didStartCapture: (() -> Void)?
+    internal var onFrame: ((NSImage, CGImage?) -> Void)?
+    internal var onStatusChange: ((CaptureStatus) -> Void)?
+    internal var didStartCapture: (() -> Void)?
+    internal var onYoloFrame: ((CVPixelBuffer) -> Void)?
+    internal var onNativeFrame: ((CVPixelBuffer) -> Void)?
+    internal var onUpscaleFrame: ((CVPixelBuffer) -> Void)?
 
     private var yoloBufferPool: CVPixelBufferPool?
     private var yoloBufferPoolSize: Int = 0
@@ -381,6 +393,29 @@ final class CaptureEngine: NSObject, SCStreamOutput {
                    copyBytes)
         }
         return dst
+    }
+
+    // 通用的 CVPixelBufferPool 缓存 helper：命中则复用，未命中则创建并缓存。
+    private func pool(width: Int, height: Int, storage: inout CVPixelBufferPool?,
+                      wKey: inout Int, hKey: inout Int) -> CVPixelBufferPool? {
+        if let pool = storage, wKey == width, hKey == height {
+            return pool
+        }
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey: width,
+            kCVPixelBufferHeightKey: height,
+        ]
+        var newPool: CVPixelBufferPool?
+        let status = CVPixelBufferPoolCreate(
+            kCFAllocatorDefault,
+            [kCVPixelBufferPoolMinimumBufferCountKey: 4] as CFDictionary,
+            attrs as CFDictionary, &newPool)
+        guard status == kCVReturnSuccess, let newPool else { return nil }
+        storage = newPool
+        wKey = width
+        hKey = height
+        return newPool
     }
 
     private func nativeBufferPool(width: Int, height: Int) -> CVPixelBufferPool? {

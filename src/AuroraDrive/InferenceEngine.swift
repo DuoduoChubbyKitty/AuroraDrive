@@ -4,6 +4,7 @@
 import Foundation
 import CoreML
 import Combine
+import Accelerate
 
 // MARK: - 推理结果
 struct InferenceResult {
@@ -88,13 +89,13 @@ class InferenceEngine: ObservableObject {
             Task { @MainActor [weak self] in self?.errorMessage = nil }
             if let m = model {
                 inferenceQueue.async {
-                    let empty = try! MLMultiArray(shape: [1, 3, 180, 320], dataType: .float32)
-                    let state = try! MLMultiArray(shape: [1, 6], dataType: .float32)
-                    let provider = try MLDictionaryFeatureProvider(dictionary: [
-                        "image": MLFeatureValue(multiArray: empty),
+                    guard let arr = try? MLMultiArray(shape: [1, 3, 180, 320], dataType: .float32) else { return }
+                    guard let state = try? MLMultiArray(shape: [1, 6], dataType: .float32) else { return }
+                    guard let provider = try? MLDictionaryFeatureProvider(dictionary: [
+                        "image": MLFeatureValue(multiArray: arr),
                         "vehicle_state": MLFeatureValue(multiArray: state),
-                    ])
-                    _ = try m.prediction(from: provider)
+                    ]) else { return }
+                    _ = try? m.prediction(from: provider)
                 }
             }
         } catch {
@@ -131,7 +132,8 @@ class InferenceEngine: ObservableObject {
                     dataType: .float32)
             }
             guard let imageBuffer = self.preprocessImage(image, height: h, width: w,
-                                                          into: self.reusableImageBuffer),
+                                                          into: self.reusableImageBuffer,
+                                                          pixelBuffer: &self.reusablePixelData),
                   let stateBuffer = Self.buildVehicleState(speedKmh: speedKmh,
                                                            speedLimitKmh: speedLimitKmh,
                                                            into: self.reusableStateBuffer) else {
@@ -189,10 +191,10 @@ class InferenceEngine: ObservableObject {
         }
     }
 
-    // MARK: - 车辆状态构造（nonisolated，纯函数）
-    private nonisolated static func buildVehicleState(speedKmh: Double,
-                                                     speedLimitKmh: Double,
-                                                     into reusable: MLMultiArray?) -> MLMultiArray? {
+    // MARK: - 车辆状态构造（纯函数）
+    private static func buildVehicleState(speedKmh: Double,
+                                          speedLimitKmh: Double,
+                                          into reusable: MLMultiArray?) -> MLMultiArray? {
         let speedNorm = max(0.0, min(1.0, speedKmh / 120.0))
         let limitNorm = max(0.0, min(1.0, speedLimitKmh / 120.0))
 
@@ -200,9 +202,9 @@ class InferenceEngine: ObservableObject {
         if let reusable = reusable,
            reusable.shape.count == 2,
            reusable.shape[0].intValue == 1,
-           reusable.shape[1].intValue == stateDim {
+           reusable.shape[1].intValue == Self.stateDim {
             arr = reusable
-        } else if let created = try? MLMultiArray(shape: [1, NSNumber(value: stateDim)],
+        } else if let created = try? MLMultiArray(shape: [1, NSNumber(value: Self.stateDim)],
                                                   dataType: .float32) {
             arr = created
         } else {
@@ -217,19 +219,20 @@ class InferenceEngine: ObservableObject {
         return arr
     }
 
-    // MARK: - 画面预处理（nonisolated，纯函数）
-    private nonisolated func preprocessImage(_ cgImage: CGImage,
-                                              height: Int, width: Int,
-                                              into reusable: MLMultiArray?) -> MLMultiArray? {
+    // MARK: - 画面预处理
+    private func preprocessImage(_ cgImage: CGImage,
+                                  height: Int, width: Int,
+                                  into reusable: MLMultiArray?,
+                                  pixelBuffer: inout [UInt8]?) -> MLMultiArray? {
         let pixelsW = width
         let pixelsH = height
         let bytesPerRow = pixelsW * 4
         let totalBytes = pixelsW * pixelsH * 4
         // 复用或新分配像素缓冲区，避免每帧 ~230KB 堆分配。
-        if reusablePixelData == nil || reusablePixelData!.count != totalBytes {
-            reusablePixelData = [UInt8](repeating: 0, count: totalBytes)
+        if pixelBuffer == nil || pixelBuffer!.count != totalBytes {
+            pixelBuffer = [UInt8](repeating: 0, count: totalBytes)
         }
-        var pixelData = reusablePixelData!
+        guard var pixelData = pixelBuffer else { return nil }
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(
