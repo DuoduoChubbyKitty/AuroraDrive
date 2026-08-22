@@ -71,7 +71,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        orderWindowsFront()
+        for window in NSApp.windows {
+            // .statusBar = 3，让 macOS 调度器认为这是 UI 类窗口（非普通浮动工具窗），
+            // 游戏运行时系统不会降权该窗口的线程优先级
+            window.level = .statusBar
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+        }
     }
 }
 
@@ -288,7 +294,7 @@ final class DriveState {
     var minimapROIState: CGRect? = nil
     private let locateCtx = LocateContext()
     private let locateGate = LocateGate()
-    private let locateQueue = DispatchQueue(label: "aurora.locate", qos: .userInitiated)
+    private let locateQueue = DispatchQueue(label: "aurora.locate", qos: .userInteractive)
     var enableNetworkLocate = false
     var networkLocateScore: Double = 0
     var networkLocateMode: String = ""

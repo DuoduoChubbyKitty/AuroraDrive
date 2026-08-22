@@ -124,7 +124,7 @@ class YoloEngine: ObservableObject {
     private let trackLostThreshold = 30
 
     // MARK: - 内部资源
-    private let engineQueue = DispatchQueue(label: "aurora.yolo.engine", qos: .userInitiated)
+    private let engineQueue = DispatchQueue(label: "aurora.yolo.engine", qos: .userInteractive)
     private var model: MLModel?
     private var lastFrame: [Detection] = []
     private var smoothUsed: [Bool] = []

@@ -43,7 +43,7 @@ class InferenceEngine: ObservableObject {
 
     // MARK: - 状态
     private var model: MLModel?
-    private let inferenceQueue = DispatchQueue(label: "aurora.inference", qos: .userInitiated)
+    private let inferenceQueue = DispatchQueue(label: "aurora.inference", qos: .userInteractive)
     private var generation = 0
     private var isInferencing = false
     private var lastInferTime = Date()
