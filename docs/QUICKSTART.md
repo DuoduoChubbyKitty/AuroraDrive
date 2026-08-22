@@ -32,6 +32,8 @@ swift build -c release
 - **OCR 槽位**：SpeedOCRReader.slotCentersNorm（可通过 HUD 标注覆盖）
 - **危险区范围**：RuleController.dangerHalfWidth/dangerYMin
 - **运动模式**：DriveState.sportMode（关闭避障，强制 E2E）
+- **网络定位**：`--network-locate` 启用（连接 ws://127.0.0.1:9004）
+- **网络定位自检**：`--network-locate-selftest` 验证定位服务连通性
 
 ## 训练配置
 

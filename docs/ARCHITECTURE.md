@@ -39,7 +39,7 @@
 | 推理 | CoreML | M9 主模型 + YOLOv26s |
 | 控制 | CGEvent | WASD + Space + Shift 注入 |
 | 显示 | MetalGoose (MetalFX) | 超分/插帧 (仅显示路径) |
-| 定位 | Accelerate/vDSP | NCC 小地图定位 |
+| 定位 | Accelerate/vDSP + Network | NCC 小地图 + WebSocket 网络定位 |
 | OCR | Accelerate | 模板匹配速度识别 |
 
 ### 1.3 关键约束
