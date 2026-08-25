@@ -26,6 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var napToken: NSObjectProtocol?
     /// CGEventTap 句柄（持有防止释放，系统级实时保护）
     private var eventTap: CFMachPort?
+    /// 2GB内存锚点（持有防止释放，让系统不敢冻结本进程）
+    private var memoryAnchor: UnsafeMutableRawPointer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 命令行自检：AuroraDriveUI --yolo-selftest <图片路径>
@@ -97,6 +99,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CFRunLoopAddSource(RunLoop.current.getCFRunLoop(), CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0), .commonModes)
         print("[App] CGEventTap已启用 → 系统级实时保护")
         self.eventTap = eventTap
+
+        // 强制占用2GB内存：让系统认为本进程是"重资源进程"不敢冻结
+        // 每页4KB，2GB = 524288页，mlock锁定在物理RAM不被换出
+        let allocSize = 2 * 1024 * 1024 * 1024  // 2GB
+        let pageCount = allocSize / 4096
+        if let buf = UnsafeMutableRawPointer.allocate(byteCount: allocSize, alignment: 4096) as UnsafeMutableRawPointer? {
+            // 写入每个页首字节（强制物理内存映射）
+            for i in 0..<pageCount {
+                buf.advanced(by: i * 4096).storeBytes(of: UInt8(i & 0xFF), as: UInt8.self)
+            }
+            // mlock：锁定页面在物理RAM，系统不能换出
+            if mlock(buf, allocSize) == 0 {
+                print("[App] 2GB内存已锁定在物理RAM → 系统不敢冻结")
+            } else {
+                print("[App] mlock失败（可能需要root），2GB仍占用但可能被换出")
+            }
+            // 持有指针防止释放
+            self.memoryAnchor = buf
+        }
 
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
