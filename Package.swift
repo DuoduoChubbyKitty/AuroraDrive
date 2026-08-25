@@ -4,21 +4,39 @@ import PackageDescription
 let package = Package(
     name: "AuroraDrive",
     platforms: [.macOS(.v26)],
-    dependencies: [
-        .package(path: "Plugins/PostBuildSign")
-    ],
+    dependencies: [],
     targets: [
         .executableTarget(
             name: "AuroraDrive",
             path: ".",
             exclude: [
                 ".build",
-                "上一版的失败代码",
+                "各类研究",
+                "MaaNTE",
+                "scripts",
                 "docs",
                 "tools",
+                "backups",
+                "checkpoints",
+                "data",
+                "diag_area",
+                "diag_steps",
+                "graphflow-out",
+                "models",
+                "recordings",
+                "lane_batches.json",
+                "untitled.txt",
+                "yolo26s.pt",
+                "train.log",
+                "run.sh",
+                "AuroraDriveUI",
+                "AuroraDriveUI.app",
                 ".workbuddy",
                 ".venv-yolo26",
-                "Plugins"
+                ".trae",
+                ".vscode",
+                "Plugins",
+                "src"
             ],
             sources: [
                 "AuroraDriveApp.swift",
@@ -43,13 +61,13 @@ let package = Package(
                 "Vendor/MetalGoose/Engine/WindowCaptureManager.swift",
                 "Vendor/MetalGoose/Engine/CaptureSettings.swift"
             ],
+            swiftSettings: [
+                .swiftLanguageMode(.v5)
+            ],
             linkerSettings: [
                 .linkedFramework("NetworkExtension"),
                 .linkedFramework("Network"),
                 .linkedLibrary("pcap")
-            ],
-            plugins: [
-                .plugin(name: "PostBuildSign", package: "PostBuildSign")
             ]
         )
     ]

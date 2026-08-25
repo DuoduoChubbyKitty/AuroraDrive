@@ -70,8 +70,8 @@ final class MinimapTileCache: ObservableObject {
     /// O(1)：纯数组索引。
     func tileAt(mapPixelX: Double, mapPixelY: Double) -> CGImage? {
         guard isReady else { return nil }
-        let col = Self.tileIndex(mapPixelX)
-        let row = Self.tileIndex(mapPixelY)
+        let col = Self.tileIndex(mapPixel: mapPixelX)
+        let row = Self.tileIndex(mapPixel: mapPixelY)
         return tiles[row * Self.tilesPerSide + col]
     }
 

@@ -1335,29 +1335,17 @@ struct ContentView: View {
 
     @State private var tickTimer: Timer? = nil
 
-    @State private var automationOpen = false   // 自动化抽屉开关
-
     var body: some View {
-        // 抽屉在 HStack 里和 sidebar 并排（sidebar 右边），物理不重叠。
-        // 不用 ZStack 独立叠层——叠层会导致抽屉 background/transition 的 hit-test
-        // 区域覆盖 sidebar，鼠标点不到按钮（AX click 绕过 hit-test 所以能点）。
         ZStack(alignment: .top) {
             HStack(spacing: 0) {
                 GameViewportView(state: state)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                SidebarView(state: state, automationOpen: $automationOpen)
+                SidebarView(state: state)
                     .frame(width: 360)
-                if automationOpen {
-                    AutomationDrawer(open: $automationOpen)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
             }
             .padding(.top, 44)
 
             TopToolbar(state: state)
-
-            // ── 常驻左上角小地图（固定尺寸 + allowsHitTesting(false)，不拦截 hit-test）──
-            FloatingMinimap(state: state)
         }
         .background(Theme.bgPure)
         .preferredColorScheme(.dark)
@@ -1880,7 +1868,7 @@ struct GameViewportView: View {
             // ── 手动框选/点选手势：锁定追踪目标 ──
             .contentShape(Rectangle())
             .gesture(
-                DragGesture(minimumDistance: 2)
+                DragGesture(minimumDistance: 0)
                     .onChanged { v in
                         // 驾驶中才允许框选
                         guard state.isDriving else { return }
@@ -2359,7 +2347,6 @@ struct UpscaleFrameHostView: NSViewRepresentable {
 
 struct SidebarView: View {
     @Bindable var state: DriveState
-    @Binding var automationOpen: Bool
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -2369,12 +2356,67 @@ struct SidebarView: View {
                 ConfigPanel(state: state)
                 TrainingPanel(state: state)
                 GameMapCard(state: state)
-                AutomationCard(open: $automationOpen)   // 底部：自动化触发卡
+                AutomationInlinePanel()
             }
             .padding(14)
         }
         .background(.ultraThinMaterial.opacity(0.55))       // 毛玻璃
         .background(Color.black.opacity(0.55))
+    }
+}
+
+/// 自动化功能内联面板（替代原抽屉式，直接在 sidebar 里展示，无图层问题）
+struct AutomationInlinePanel: View {
+    private let functions = AutomationLibrary.functions
+    @State private var running = Set<UUID>()
+
+    var body: some View {
+        GlowCard {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionHeader(title: "AUTOMATION")
+                VStack(spacing: 6) {
+                    ForEach(functions) { item in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                if running.contains(item.id) {
+                                    running.remove(item.id)
+                                } else {
+                                    running.insert(item.id)
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 9) {
+                                Text(item.emoji).font(.system(size: 15))
+                                Text(item.name)
+                                    .font(.system(size: 12.5, weight: .medium))
+                                    .foregroundStyle(Theme.textPrimary)
+                                Spacer()
+                                if item.warn {
+                                    Text("最凶")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(Theme.danger)
+                                }
+                                Circle()
+                                    .fill(running.contains(item.id) ? Theme.cyan : Color.white.opacity(0.15))
+                                    .frame(width: 7, height: 7)
+                                    .shadow(color: running.contains(item.id) ? Theme.cyan : .clear, radius: 5)
+                            }
+                            .padding(.horizontal, 10)
+                            .frame(height: 36)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(running.contains(item.id) ? Theme.cyan.opacity(0.08) : Color.white.opacity(0.03))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(running.contains(item.id) ? Theme.cyan.opacity(0.4) : Color.white.opacity(0.06), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
     }
 }
 
