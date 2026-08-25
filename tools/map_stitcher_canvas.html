@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>地图拼接画布 v2 — 多图批量导入</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  background: #1a1a1a;
+  color: #eee;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+/* ============ 左侧工具栏 ============ */
+.toolbar {
+  width: 280px;
+  background: #252525;
+  padding: 12px;
+  border-right: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.toolbar h2 { font-size: 14px; margin-bottom: 2px; color: #7ad; }
+.btn {
+  background: #333;
+  border: 1px solid #555;
+  color: #eee;
+  padding: 7px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12.5px;
+  width: 100%;
+  text-align: left;
+}
+.btn:hover { background: #444; border-color: #7ad; }
+.btn-primary { background: #2563eb; border-color: #3b82f6; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-danger { background: #7f1d1d; border-color: #b91c1c; }
+.file-upload { display: flex; flex-direction: column; gap: 4px; }
+.file-upload input { font-size: 11px; }
+.coord-box {
+  background: #1a1a1a;
+  padding: 7px;
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.coord-box .label { color: #7ad; }
+.layer-controls { display: flex; flex-direction: column; gap: 3px; }
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: #1a1a1a;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.layer-item.active { background: #2563eb; }
+.layer-item input[type="number"] {
+  width: 52px;
+  background: #0a0a0a;
+  border: 1px solid #333;
+  color: #eee;
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-size: 10.5px;
+}
+.layer-item .del { margin-left: auto; color: #f87171; font-weight: bold; cursor: pointer; padding: 0 3px; }
+.layer-item .vis { width: 16px; text-align: center; cursor: pointer; }
+.alpha-control { display: flex; gap: 4px; align-items: center; font-size: 11px; }
+.alpha-control input[type=range] { flex: 1; }
+/* ============ 画布区 ============ */
+.canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background: #0a0a0a;
+  background-image:
+    linear-gradient(45deg, #111 25%, transparent 25%),
+    linear-gradient(-45deg, #111 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #111 75%),
+    linear-gradient(-45deg, transparent 75%, #111 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+#workbench {
+  position: relative;
+  margin: 40px;
+  width: 16000px;
+  height: 10000px;
+}
+.layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-drag: none;
+  border: 1px dashed transparent;
+  pointer-events: auto;
+}
+.layer.selected {
+  border-color: #3b82f6;
+  cursor: grabbing;
+  z-index: 9999;
+}
+.layer.hidden { display: none; }
+.layer:hover { border-color: #7ad7; }
+.layer img {
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.zoom-info {
+  position: fixed;
+  top: 10px;
+  right: 300px;
+  background: rgba(20,20,20,0.85);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-family: "SF Mono", monospace;
+  color: #7ad;
+  pointer-events: none;
+  z-index: 10000;
+}
+.hint { font-size: 10.5px; color: #888; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<!-- ============ 左侧工具栏 ============ -->
+<div class="toolbar">
+  <h2>📁 批量导入图片</h2>
+  <div class="file-upload">
+    <label class="btn" style="display:block;">
+      🔽 选择多张截图
+      <input type="file" id="fileInput" multiple accept="image/*" style="display:none;" />
+    </label>
+    <label class="btn" style="display:block;">
+      📂 选择整个文件夹
+      <input type="file" id="dirInput" webkitdirectory directory multiple accept="image/*" style="display:none;" />
+    </label>
+  </div>
+  <div class="hint">点上面按钮选"多张"或"整个文件夹"，可一次性导入</div>
+
+  <h2>🛠️ 拼接工具</h2>
+  <button class="btn btn-primary" onclick="exportPNG()">💾 导出拼接 PNG</button>
+  <button class="btn" onclick="selectNextLayer()">⏭️ 下一层</button>
+  <button class="btn" onclick="selectPrevLayer()">⏮️ 上一层</button>
+  <button class="btn btn-danger" onclick="clearAll()">🗑️ 清空所有图层</button>
+  <div class="alpha-control">
+    <span>透明度</span>
+    <input type="range" id="alphaSlider" min="0.3" max="1" step="0.05" value="0.85" />
+    <span id="alphaVal">0.85</span>
+  </div>
+
+  <h2>📍 当前图层坐标</h2>
+  <div class="coord-box" id="coordBox">未选中图层</div>
+  <div class="hint">方向键=1px，Shift+方向=20px，Delete=删层</div>
+
+  <h2>🗂️ 图层列表 (<span id="layerCount">0</span>)</h2>
+  <div class="layer-controls" id="layerList" style="max-height:42vh;overflow-y:auto;"></div>
+</div>
+
+<!-- ============ 画布区 ============ -->
+<div class="canvas-wrap" id="canvasWrap">
+  <div class="zoom-info" id="zoomInfo">画布 16000 × 10000</div>
+  <div id="workbench"></div>
+</div>
+
+<script>
+/* ============ 状态 ============ */
+const state = {
+  layers: [],       // {id, name, img, el, x, y, w, h, alpha, visible}
+  selected: null,
+  dragState: null,
+  nextId: 1,
+};
+const workbench = document.getElementById('workbench');
+const layerList = document.getElementById('layerList');
+const coordBox = document.getElementById('coordBox');
+const fileInput = document.getElementById('fileInput');
+const dirInput = document.getElementById('dirInput');
+const alphaSlider = document.getElementById('alphaSlider');
+const alphaVal = document.getElementById('alphaVal');
+const zoomInfo = document.getElementById('zoomInfo');
+const layerCount = document.getElementById('layerCount');
+
+/* ============ 导入文件 ============ */
+function handleFiles(filesArr) {
+  const files = Array.from(filesArr)
+    .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name))
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  files.forEach(f => {
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => addLayer(f.name, img);
+    img.src = url;
+  });
+}
+fileInput.addEventListener('change', (e) => { handleFiles(e.target.files); fileInput.value = ''; });
+dirInput.addEventListener('change', (e) =>  { handleFiles(e.target.files); dirInput.value = '';  });
+
+function addLayer(name, img) {
+  const id = state.nextId++;
+  const layer = document.createElement('div');
+  layer.className = 'layer';
+  layer.dataset.id = id;
+  const imgEl = document.createElement('img');
+  imgEl.src = img.src;
+  imgEl.style.width = img.naturalWidth + 'px';
+  imgEl.style.height = img.naturalHeight + 'px';
+  layer.appendChild(imgEl);
+  // 初始位置：按导入顺序阶梯排布，方便移动
+  const step = 80;
+  const idx = state.layers.length;
+  layer.style.left = (idx * step + 100) + 'px';
+  layer.style.top  = (idx * step + 100) + 'px';
+
+  layer.addEventListener('mousedown', (e) => startDrag(e, id));
+  workbench.appendChild(layer);
+
+  state.layers.push({
+    id, name, img, el: layer,
+    x: idx * step + 100,
+    y: idx * step + 100,
+    w: img.naturalWidth,
+    h: img.naturalHeight,
+    alpha: parseFloat(alphaSlider.value),
+    visible: true,
+  });
+  selectLayer(id);
+  renderLayerList();
+}
+
+/* ============ 拖拽 ============ */
+function startDrag(e, id) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  selectLayer(id);
+  const L = state.layers.find(l => l.id === id);
+  state.dragState = { id, startX: e.clientX, startY: e.clientY, origX: L.x, origY: L.y };
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+function onDrag(e) {
+  const d = state.dragState; if (!d) return;
+  const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+  const L = state.layers.find(l => l.id === d.id);
+  L.x = d.origX + dx; L.y = d.origY + dy;
+  L.el.style.left = L.x + 'px'; L.el.style.top = L.y + 'px';
+  updateCoordBox();
+}
+function endDrag() {
+  state.dragState = null;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+}
+
+/* ============ 图层管理 ============ */
+function selectLayer(id) {
+  state.layers.forEach(l => l.el.classList.remove('selected'));
+  const L = state.layers.find(l => l.id === id);
+  if (L) {
+    state.selected = id;
+    L.el.classList.add('selected');
+    alphaSlider.value = L.alpha;
+    alphaVal.textContent = L.alpha.toFixed(2);
+    updateCoordBox();
+  }
+  renderLayerList();
+}
+function selectNextLayer() {
+  if (!state.layers.length) return;
+  const idx = state.layers.findIndex(l => l.id === state.selected);
+  selectLayer(state.layers[(idx + 1) % state.layers.length].id);
+}
+function selectPrevLayer() {
+  if (!state.layers.length) return;
+  const idx = state.layers.findIndex(l => l.id === state.selected);
+  selectLayer(state.layers[(idx - 1 + state.layers.length) % state.layers.length].id);
+}
+function deleteLayer(id) {
+  const idx = state.layers.findIndex(l => l.id === id);
+  if (idx < 0) return;
+  state.layers[idx].el.remove();
+  state.layers.splice(idx, 1);
+  if (state.selected === id) state.selected = state.layers[0]?.id || null;
+  state.selected ? selectLayer(state.selected) : coordBox.textContent = '未选中图层';
+  renderLayerList();
+}
+function clearAll() {
+  if (!confirm('确定清空所有图层？')) return;
+  state.layers.forEach(l => l.el.remove());
+  state.layers = [];
+  state.selected = null;
+  coordBox.textContent = '未选中图层';
+  renderLayerList();
+}
+function toggleLayerVisible(id) {
+  const L = state.layers.find(l => l.id === id);
+  if (!L) return;
+  L.visible = !L.visible;
+  L.el.classList.toggle('hidden', !L.visible);
+  renderLayerList();
+}
+function renderLayerList() {
+  layerCount.textContent = state.layers.length;
+  layerList.innerHTML = '';
+  state.layers.slice().reverse().forEach(L => {
+    const idx = state.layers.indexOf(L);
+    const row = document.createElement('div');
+    row.className = 'layer-item' + (state.selected === L.id ? ' active' : '');
+    row.innerHTML = `
+      <span class="vis" title="显示/隐藏">${L.visible ? '👁️' : '🚫'}</span>
+      <span style="flex-shrink:0;width:18px;color:#888;">#${idx}</span>
+      <input type="number" value="${Math.round(L.x)}" data-k="x" step="1" />
+      <input type="number" value="${Math.round(L.y)}" data-k="y" step="1" />
+      <span style="color:#aaa;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px;" title="${L.name}">${L.name.slice(-14)}</span>
+      <span class="del" title="删除">×</span>
+    `;
+    row.addEventListener('click', (e) => {
+      if (e.target.classList.contains('del')) { deleteLayer(L.id); return; }
+      if (e.target.classList.contains('vis')) { toggleLayerVisible(L.id); return; }
+      if (e.target.tagName === 'INPUT') return;
+      selectLayer(L.id);
+    });
+    row.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        const k = e.target.dataset.k;
+        const v = parseFloat(e.target.value);
+        if (!isNaN(v)) { L[k] = v; L.el.style.left = L.x + 'px'; L.el.style.top = L.y + 'px'; updateCoordBox(); }
+      });
+    });
+    layerList.appendChild(row);
+  });
+}
+function updateCoordBox() {
+  const L = state.layers.find(l => l.id === state.selected);
+  if (!L) { coordBox.textContent = '未选中图层'; return; }
+  const idx = state.layers.indexOf(L);
+  coordBox.innerHTML = `
+    <span class="label">#${idx} ${L.name.slice(-20)}</span><br>
+    x = <b style="color:#fff;">${Math.round(L.x)}</b>,&nbsp;
+    y = <b style="color:#fff;">${Math.round(L.y)}</b><br>
+    尺寸 ${L.w}×${L.h}<br>
+    右下 ${Math.round(L.x+L.w)} × ${Math.round(L.y+L.h)}
+  `;
+}
+
+/* ============ 透明度 ============ */
+alphaSlider.addEventListener('input', () => {
+  const L = state.layers.find(l => l.id === state.selected);
+  const v = parseFloat(alphaSlider.value);
+  alphaVal.textContent = v.toFixed(2);
+  if (L) { L.alpha = v; L.el.style.opacity = v; renderLayerList(); }
+});
+
+/* ============ 键盘微调 ============ */
+document.addEventListener('keydown', (e) => {
+  const L = state.layers.find(l => l.id === state.selected);
+  if (!L || document.activeElement.tagName === 'INPUT') return;
+  const step = e.shiftKey ? 20 : 1;
+  if (e.key === 'ArrowLeft')  { L.x -= step; e.preventDefault(); }
+  if (e.key === 'ArrowRight') { L.x += step; e.preventDefault(); }
+  if (e.key === 'ArrowUp')    { L.y -= step; e.preventDefault(); }
+  if (e.key === 'ArrowDown')  { L.y += step; e.preventDefault(); }
+  if (e.key === 'Delete' || e.key === 'Backspace') { deleteLayer(L.id); e.preventDefault(); return; }
+  L.el.style.left = L.x + 'px'; L.el.style.top = L.y + 'px';
+  updateCoordBox(); renderLayerList();
+});
+
+/* ============ 导出 PNG ============ */
+async function exportPNG() {
+  if (!state.layers.length) { alert('没有图层'); return; }
+  const coords = state.layers.filter(l => l.visible).map(l => [l.x, l.y, l.x+l.w, l.y+l.h]);
+  if (!coords.length) { alert('没有可见图层'); return; }
+  const minX = Math.floor(Math.min(...coords.map(c => c[0])));
+  const minY = Math.floor(Math.min(...coords.map(c => c[1])));
+  const maxX = Math.ceil(Math.max(...coords.map(c => c[2])));
+  const maxY = Math.ceil(Math.max(...coords.map(c => c[3])));
+  const W = maxX - minX, H = maxY - minY;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  for (const L of state.layers.filter(l => l.visible)) {
+    await new Promise(res => { if (L.img.complete) res(); else L.img.onload = res; });
+    ctx.globalAlpha = L.alpha;
+    ctx.drawImage(L.img, L.x - minX, L.y - minY);
+  }
+  ctx.globalAlpha = 1;
+  canvas.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'stitched_map.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }, 'image/png');
+}
+
+/* ============================================================
+   公共 API（从 DevTools evaluate_script 直接调用）
+   ============================================================ */
+window.__StitchAPI = {
+  /** 获取所有图层信息 [{idx,id,name,x,y,w,h,alpha,visible}] */
+  listLayers() {
+    return state.layers.map((L,i) => ({
+      idx:i, id:L.id, name:L.name, x:Math.round(L.x), y:Math.round(L.y),
+      w:L.w, h:L.h, alpha:L.alpha, visible:L.visible
+    }));
+  },
+  /** 按索引或 id 或名字选图层 */
+  select(ref) {
+    let L;
+    if (typeof ref === 'number' && ref < state.layers.length) L = state.layers[ref];
+    else L = state.layers.find(l => l.id === ref || l.name.includes(ref));
+    if (L) { selectLayer(L.id); return true; }
+    return false;
+  },
+  /** 设置当前选中图层的位置 */
+  setPos(x, y) {
+    const L = state.layers.find(l => l.id === state.selected);
+    if (!L) return false;
+    L.x = x; L.y = y;
+    L.el.style.left = x + 'px'; L.el.style.top = y + 'px';
+    updateCoordBox(); renderLayerList();
+    return true;
+  },
+  /** 对任意图层设置位置（按 idx/id/name） */
+  pos(ref, x, y) {
+    let L;
+    if (typeof ref === 'number' && ref < state.layers.length) L = state.layers[ref];
+    else L = state.layers.find(l => l.id === ref || l.name.includes(ref));
+    if (!L) return false;
+    L.x = x; L.y = y;
+    L.el.style.left = x + 'px'; L.el.style.top = y + 'px';
+    if (state.selected === L.id) { updateCoordBox(); renderLayerList(); }
+    return true;
+  },
+  /** 调整选中图层相对位置 */
+  nudge(dx, dy) {
+    const L = state.layers.find(l => l.id === state.selected);
+    if (!L) return false;
+    L.x += dx; L.y += dy;
+    L.el.style.left = L.x + 'px'; L.el.style.top = L.y + 'px';
+    updateCoordBox(); renderLayerList();
+    return true;
+  },
+  /** 选中图层透明度 */
+  setAlpha(a) {
+    const L = state.layers.find(l => l.id === state.selected);
+    if (!L) return false;
+    L.alpha = a; L.el.style.opacity = a;
+    alphaSlider.value = a; alphaVal.textContent = a.toFixed(2);
+    renderLayerList(); return true;
+  },
+  /** 切换可见 */
+  toggle(ref) {
+    let L;
+    if (typeof ref === 'number' && ref < state.layers.length) L = state.layers[ref];
+    else L = state.layers.find(l => l.id === ref || l.name.includes(ref));
+    if (!L) return false;
+    L.visible = !L.visible; L.el.classList.toggle('hidden', !L.visible);
+    renderLayerList(); return L.visible;
+  },
+  /** 删除图层 */
+  remove(ref) {
+    let L;
+    if (typeof ref === 'number' && ref < state.layers.length) L = state.layers[ref];
+    else L = state.layers.find(l => l.id === ref || l.name.includes(ref));
+    if (!L) return false;
+    deleteLayer(L.id); return true;
+  },
+  /** 直接触发导出 */
+  exportPng() { exportPNG(); },
+  /** 滚动画布到指定位置（看某块区域） */
+  scrollTo(x, y) {
+    const wrap = document.getElementById('canvasWrap');
+    wrap.scrollLeft = Math.max(0, x - 500);
+    wrap.scrollTop  = Math.max(0, y - 300);
+  },
+  /** 打印当前所有层布局（调试用） */
+  summary() {
+    const ls = state.layers.map((L,i) =>
+      `#${i} ${L.name.slice(-16)} x=${Math.round(L.x)} y=${Math.round(L.y)} ${L.w}x${L.h}${L.visible?'':' [H]'}`
+    ).join('\n');
+    console.log(ls); return ls;
+  }
+};
+Object.freeze(window.__StitchAPI);
+
+console.log('%c 地图拼接画布 v2 已就绪', 'color:#7ad;font-size:15px;font-weight:bold;');
+console.log('API: __StitchAPI.listLayers() / pos(i,x,y) / nudge(dx,dy) / exportPng()');
+</script>
+</body>
+</html>

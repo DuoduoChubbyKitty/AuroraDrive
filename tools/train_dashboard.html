@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="refresh" content="3" />
+<title>AuroraDrive · M9Model 训练监控</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#30363d; --txt:#e6edf3;
+    --dim:#8b949e; --accent:#58a6ff; --green:#3fb950; --red:#f85149; --amber:#d29922;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:980px;margin:0 auto;padding:24px 18px 60px;}
+  h1{font-size:20px;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:18px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card .k{color:var(--dim);font-size:12px;margin-bottom:6px}
+  .card .v{font-size:30px;font-weight:700;letter-spacing:.5px}
+  .card .v small{font-size:14px;color:var(--dim);font-weight:400}
+  .barwrap{background:#21262d;border-radius:8px;height:14px;overflow:hidden;margin-top:10px}
+  .bar{height:100%;width:0;background:linear-gradient(90deg,#1f6feb,#58a6ff);transition:width .4s}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;margin-left:6px}
+  .badge.run{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.4)}
+  .badge.done{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid rgba(88,166,255,.4)}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);
+        border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:600;background:#11161d;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  tr:last-child td{border-bottom:none}
+  .best{color:var(--green);font-weight:700}
+  .warn{color:var(--amber)}
+  .sec-title{font-size:14px;margin:26px 0 10px;color:var(--dim);font-weight:600}
+  .spark{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .legend{font-size:12px;color:var(--dim);margin:6px 0 0}
+  .legend b.a{color:var(--accent)} .legend b.b{color:var(--green)}
+  .foot{color:var(--dim);font-size:11px;margin-top:20px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AuroraDrive · M9Model 训练实时监控</h1>
+  <div class="sub">数据源：<code>logs/train_recording.log</code> · 每 3 秒自动刷新 · 设备 MPS · 20 epochs</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="k">当前进度</div>
+      <div class="v" id="curEpoch">— <small>/ 20</small></div>
+      <div class="barwrap"><div class="bar" id="curBar"></div></div>
+      <div class="k" id="curDetail" style="margin-top:8px">等待日志…</div>
+    </div>
+    <div class="card">
+      <div class="k">最新 batch Loss / Steer</div>
+      <div class="v" id="curLoss">—</div>
+      <div class="k" id="bestVal" style="margin-top:8px">最佳 val_loss：—</div>
+      <div class="k" id="status" style="margin-top:4px">状态：<span class="badge run">运行中</span></div>
+    </div>
+  </div>
+
+  <div class="sec-title">逐 epoch 汇总</div>
+  <table id="tbl">
+    <thead><tr><th>Epoch</th><th>LR</th><th>Train Loss</th><th>Val Loss</th><th>Val Steer</th><th>Val Thr</th><th>Val Brk</th><th>最佳</th></tr></thead>
+    <tbody><tr><td colspan="8" style="text-align:center;color:var(--dim)">尚无完成 epoch</td></tr></tbody>
+  </table>
+
+  <div class="sec-title">Loss 曲线</div>
+  <div class="spark">
+    <svg id="chart" width="100%" height="220" viewBox="0 0 920 220" preserveAspectRatio="none"></svg>
+    <div class="legend"><b class="a">— Train Loss</b> &nbsp; <b class="b">— Val Loss</b></div>
+  </div>
+
+  <div class="foot" id="updated">最后更新：—</div>
+</div>
+
+<script>
+const LOG_URL = "logs/train_recording.log";
+
+function parse(text){
+  const res = {
+    epochs: [],        // {ep, lr, loss, time}
+    vals: [],          // {ep, loss, steer, thr, brk, best}
+    cur: null,         // {ep, pct, loss, steer}
+    bestVal: null
+  };
+  // 完成 epoch 汇总
+  const reEp = /Epoch\s+(\d+)\/20 \| LR: ([\d.eE+-]+) \| Loss: ([\d.]+) \| Time: ([\d.]+)s/g;
+  let m;
+  while((m = reEp.exec(text))){ res.epochs.push({ep:+m[1], lr:m[2], loss:+m[3], time:+m[4]}); }
+  // 验证行
+  const reVal = /→ Val: Loss=([\d.]+) Steer=([\d.]+) Throttle=([\d.]+) Brake=([\d.]+)/g;
+  while((m = reVal.exec(text))){
+    const ep = res.epochs.length ? res.epochs[res.epochs.length-1].ep : null;
+    const best = /★ 新最佳模型/.test(text.slice(m.index-200, m.index+40));
+    res.vals.push({ep, loss:+m[1], steer:+m[2], thr:+m[3], brk:+m[4], best});
+    if(res.bestVal===null || +m[1] < res.bestVal) res.bestVal = +m[1];
+  }
+  // 当前 epoch：取最后一个含 "Epoch X:" 的行，按 \r 拆，取末段
+  const lines = text.split("\n");
+  for(let i=lines.length-1; i>=0; i--){
+    const seg = lines[i].split("\r").pop();
+    const re = /Epoch\s+(\d+):\s+(\d+)%\|.*?loss=([\d.]+), steer=([\d.]+)/;
+    const mm = seg.match(re);
+    if(mm){ res.cur = {ep:+mm[1], pct:+mm[2], loss:+mm[3], steer:+mm[4]}; break; }
+  }
+  return res;
+}
+
+function fmt(n,d=4){ return n===null||n===undefined?"—":(+n).toFixed(d); }
+
+function render(d){
+  // 当前进度卡
+  if(d.cur){
+    document.getElementById("curEpoch").innerHTML = d.cur.ep + ' <small>/ 20</small>';
+    document.getElementById("curBar").style.width = d.cur.pct + "%";
+    document.getElementById("curDetail").textContent =
+      `Epoch ${d.cur.ep} · batch ${d.cur.pct}% · 最新 loss=${fmt(d.cur.loss)} steer=${fmt(d.cur.steer,3)}`;
+    document.getElementById("curLoss").textContent = fmt(d.cur.loss);
+  } else {
+    document.getElementById("curEpoch").innerHTML = (d.epochs.length||"—") + ' <small>/ 20</small>';
+    document.getElementById("curLoss").textContent = d.epochs.length?fmt(d.epochs[d.epochs.length-1].loss):"—";
+  }
+  document.getElementById("bestVal").textContent = "最佳 val_loss：" + fmt(d.bestVal);
+
+  // 完成 epoch 表
+  const tb = document.querySelector("#tbl tbody");
+  if(d.epochs.length===0){
+    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--dim)">尚无完成 epoch</td></tr>';
+  } else {
+    tb.innerHTML = d.epochs.map((e,i)=>{
+      const v = d.vals[i];
+      const best = v && v.best ? '<span class="best">★</span>' : '';
+      return `<tr>
+        <td>${e.ep}</td><td>${e.lr}</td><td>${fmt(e.loss)}</td>
+        <td>${v?fmt(v.loss):"—"}</td><td>${v?fmt(v.steer,3):"—"}</td>
+        <td>${v?fmt(v.thr,3):"—"}</td><td>${v?fmt(v.brk,3):"—"}</td>
+        <td>${best||""}</td></tr>`;
+    }).join("");
+  }
+
+  // 曲线
+  drawChart(d);
+  document.getElementById("updated").textContent = "最后更新：" + new Date().toLocaleTimeString("zh-CN");
+}
+
+function drawChart(d){
+  const W=920,H=220,pad=30;
+  const train = d.epochs.map(e=>e.loss);
+  const val = d.vals.map(v=>v.loss);
+  const all = train.concat(val).filter(x=>x!=null);
+  const svg = document.getElementById("chart");
+  if(all.length===0){ svg.innerHTML=""; return; }
+  const maxV = Math.max(...all, 0.001), minV = Math.min(...all, 0);
+  const n = Math.max(train.length, val.length, 1);
+  const x = i => pad + (W-2*pad) * (n===1?0.5:i/(n-1));
+  const y = v => H-pad - (H-2*pad) * ((v-minV)/((maxV-minV)||1));
+  let s = `<line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="#30363d"/>`;
+  s += `<line x1="${pad}" y1="${pad}" x2="${pad}" y2="${H-pad}" stroke="#30363d"/>`;
+  s += `<text x="${pad-4}" y="${pad-8}" fill="#8b949e" font-size="11">${maxV.toFixed(2)}</text>`;
+  s += `<text x="${pad-4}" y="${H-pad+12}" fill="#8b949e" font-size="11">${minV.toFixed(2)}</text>`;
+  const path=(arr,color)=>{
+    if(arr.length===0) return "";
+    const p = arr.map((v,i)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    return `<path d="${p}" fill="none" stroke="${color}" stroke-width="2.5"/>`;
+  };
+  s += path(train,"#58a6ff") + path(val,"#3fb950");
+  svg.innerHTML = s;
+}
+
+async function tick(){
+  try{
+    const r = await fetch(LOG_URL + "?t=" + Date.now(), {cache:"no-store"});
+    const txt = await r.text();
+    render(parse(txt));
+  }catch(e){
+    document.getElementById("status").innerHTML = '状态：<span class="badge" style="background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.4)">日志读取失败</span>';
+  }
+}
+tick();
+setInterval(tick, 3000);
+</script>
+</body>
+</html>

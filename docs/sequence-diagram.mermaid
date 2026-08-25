@@ -1,0 +1,51 @@
+sequenceDiagram
+    autonumber
+    participant SCK as ScreenCaptureKit
+    participant CE as CaptureEngine (captureQueue·后台)
+    participant YOLO as YoloEngine (inferenceQueue·后台)
+    participant LANE as VisionLaneDetector (perceptionQueue·后台)
+    participant MM as MiniMapReader (perceptionQueue·后台)
+    participant OCR as SpeedOCRReader (visionQueue·后台, 5Hz)
+    participant SIGN as SignDetector (perceptionQueue·后台, 10Hz)
+    participant MAIN as DriveState.tick (主线程 30Hz)
+    participant FUSION as SensorFusion (主线程)
+    participant STM as DegradeStateMachine (主线程)
+    participant CTRL as Fusion/RuleController (主线程)
+    participant KEY as ControlEngine (主线程)
+    participant REC as RecordEngine
+    participant UI as SwiftUI (主线程)
+
+    SCK->>CE: 帧 CMSampleBuffer
+    CE->>CE: 源缓冲 → NSImage / 352 缓冲 / ROI 缓冲
+    CE-->>MAIN: onFrame(NSImage) → currentScreenImage
+    CE->>YOLO: onYoloFrame(352) → inferFast()
+    YOLO-->>MAIN: detections（NMS+平滑后）
+    CE->>LANE: onROIFrame(laneROI) → process()
+    CE->>MM: onROIFrame(minimapROI) → read()
+    CE->>OCR: onROIFrame(speedROI) → read()
+    CE->>SIGN: onFrame → detect()
+    LANE-->>MAIN: 车道线快照
+    MM-->>MAIN: 航点快照
+    OCR-->>MAIN: 速度快照
+    SIGN-->>MAIN: 路牌快照
+
+    loop 每帧 tick (30Hz)
+        MAIN->>MAIN: 读各感知最新快照 + yoloEngine.detections
+        MAIN->>FUSION: fuse(lane, obstacles, miniMap, speed, sign)
+        FUSION-->>MAIN: FusedDriveState (含 overallHealth)
+        MAIN->>STM: update(m9Live, fusionLive, health: overallHealth, ...)
+        STM-->>MAIN: DriveMode
+        alt mode == .e2e
+            MAIN->>CTRL: 沿用 M9 command（现状，不吃新感知）
+        else mode == .fused
+            MAIN->>CTRL: FusionController.decide(fused)（跟线+避障+控速）
+        else mode == .rule
+            MAIN->>CTRL: RuleLaneController.decide(lane, nearestObstacle)（贴边回正+直行）
+        else mode == .recover
+            MAIN->>CTRL: EscapeController（现状）
+        end
+        CTRL-->>MAIN: ControlCommand
+        MAIN->>KEY: applyCommand → hold/release + refreshHeldKeys
+        MAIN->>REC: recordFrameIfNeeded(含 ROI 通道)
+        MAIN->>UI: @Observable 自动刷新（含 PerceptionOverlay）
+    end

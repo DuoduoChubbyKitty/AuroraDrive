@@ -1,0 +1,307 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    "%lld" : {
+
+    },
+    "A new version is available: %@\nWould you like to download and install it now?" : {
+      "comment" : "Update body"
+    },
+    "About" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Névjegy"
+          }
+        }
+      }
+    },
+    "Already up to date" : {
+      "comment" : "Update alert title"
+    },
+    "Anti-Aliasing" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Élsimítás"
+          }
+        }
+      }
+    },
+    "Capture Cursor" : {
+      "comment" : "Toggle label",
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kurzor rögzítése"
+          }
+        }
+      }
+    },
+    "Check for Updates" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frissítések keresése"
+          }
+        }
+      }
+    },
+    "Checking for Updates…" : {
+      "comment" : "Update sheet title"
+    },
+    "Clear Metal Cache" : {
+      "comment" : "Button: clear Metal shader cache"
+    },
+    "Display Settings" : {
+      "comment" : "Panel title: Display settings",
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kijelző beállítások"
+          }
+        }
+      }
+    },
+    "Download & Install" : {
+      "comment" : "Update button"
+    },
+    "Downloading Update…" : {
+      "comment" : "Update sheet title"
+    },
+    "Frame Generation" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Képkockagenerálás"
+          }
+        }
+      }
+    },
+    "Grant" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jóváhagyás"
+          }
+        }
+      }
+    },
+    "Granted" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jóváhagyva"
+          }
+        }
+      }
+    },
+    "Installing Update…" : {
+      "comment" : "Update sheet title"
+    },
+    "Later" : {
+      "comment" : "Dismiss update"
+    },
+    "Maintenance" : {
+      "comment" : "Panel title: Maintenance"
+    },
+    "Metal cache cleared (%lld location(s)). Restart MetalGoose so shaders rebuild cleanly." : {
+      "comment" : "Alert: cache cleared"
+    },
+    "MetalGoose" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MetalGoose"
+          }
+        }
+      }
+    },
+    "MetalGoose is already up to date." : {
+      "comment" : "Update alert body"
+    },
+    "Method" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Methódus"
+          }
+        }
+      }
+    },
+    "MGUP-1 Settings" : {
+      "comment" : "Panel title: MGUP-1 settings",
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MGUP-1 Beállítások"
+          }
+        }
+      }
+    },
+    "Mode" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mód"
+          }
+        }
+      }
+    },
+    "Multiplier" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Szorzó"
+          }
+        }
+      }
+    },
+    "No Metal cache found to clear." : {
+      "comment" : "Alert: nothing to clear"
+    },
+    "OK" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Permissions Required" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Szükséges engedélyek"
+          }
+        }
+      }
+    },
+    "Quality" : {
+      "comment" : "Label: Quality",
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minőség"
+          }
+        }
+      }
+    },
+    "Relaunching MetalGoose…" : {
+      "comment" : "Update done label"
+    },
+    "Render Scale" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renderelési arány"
+          }
+        }
+      }
+    },
+    "Scale Factor" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skálázási tényező"
+          }
+        }
+      }
+    },
+    "Show MG HUD" : {
+      "comment" : "Toggle label",
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MG HUD Megjelenítése"
+          }
+        }
+      }
+    },
+    "Start Scaling" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Képfelskálázás indítása"
+          }
+        }
+      }
+    },
+    "Stop Scaling" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Képfelskálázás megállítása"
+          }
+        }
+      }
+    },
+    "Triple Buffering" : {
+      "comment" : "Toggle label: pipeline buffer depth"
+    },
+    "Update Available" : {
+      "comment" : "Update alert title"
+    },
+    "Update Failed" : {
+      "comment" : "Update error title"
+    },
+    "Update Installed" : {
+      "comment" : "Update sheet title",
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frissítés telepítve"
+          }
+        }
+      }
+    },
+    "Upscaling" : {
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Képfelskálázás"
+          }
+        }
+      }
+    },
+    "VSync" : {
+      "comment" : "Toggle label",
+      "localizations" : {
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vertikális szinkron"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.1"
+}

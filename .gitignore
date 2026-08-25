@@ -1,0 +1,67 @@
+__pycache__/
+*.pyc
+data/
+models/
+checkpoints/
+*.bin
+*.h5
+*.pth
+*.pt
+.DS_Store
+留档/
+archive/
+cpp/build/
+*.so
+__pycache__/
+
+# Tauri / Rust 构建产物
+src-tauri/target/
+src-tauri/Cargo.lock
+
+# Python venv
+.venv-app/
+.venv/
+
+# PyInstaller 打包产物
+packaging/dist/
+packaging/build/
+
+# 前端构建产物
+frontend/node_modules/
+frontend/dist/
+
+# 地图压缩包
+data/*.zst
+
+# IDE
+.vscode/
+.idea/
+
+# SwiftPM 构建产物
+.build/
+.swiftpm/
+
+# Python venv (yolo26 环境)
+.venv-yolo26/
+
+# 诊断/临时输出
+graphflow-out/
+diag_area/
+diag_steps/
+
+# 备份目录
+backups/
+
+# 嵌套独立仓库(异环小助手)
+MaaNTE/
+
+# 日志
+*.log
+
+# 二进制备份
+*.bak*
+AuroraDriveUI.bak-*
+
+# 临时文件
+untitled.txt
+

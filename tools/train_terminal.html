@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>AuroraDrive · 训练终端 (tail -f)</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;color:#c9d1d9;
+    font-family:"SF Mono",Menlo,Consolas,"Courier New",monospace;}
+  #bar{position:sticky;top:0;background:#0a0a0a;border-bottom:1px solid #222;
+    padding:6px 10px;font-size:12px;color:#8b949e;display:flex;gap:14px;align-items:center}
+  #bar b{color:#3fb950}
+  #log{white-space:pre-wrap;word-break:break-all;padding:8px 10px;font-size:12.5px;line-height:1.45}
+  .err{color:#f85149}
+</style>
+</head>
+<body>
+<div id="bar">
+  <span>M9Model 训练 · 实时终端 (tail -f)</span>
+  <span id="stat">连接中…</span>
+  <span id="clk"></span>
+</div>
+<pre id="log">加载中…</pre>
+
+<script>
+const LOG = "logs/train_recording.log";
+const log = document.getElementById("log");
+const stat = document.getElementById("stat");
+const clk = document.getElementById("clk");
+
+async function tick(){
+  try{
+    const r = await fetch(LOG + "?t=" + Date.now(), {cache:"no-store"});
+    if(!r.ok){ stat.innerHTML = '<span class="err">日志 404</span>'; return; }
+    const txt = await r.text();
+    // 每行按 \r 拆，只留末段（即该行的当前进度条状态），模拟终端覆盖效果
+    const out = txt.split("\n").map(l => l.split("\r").pop()).join("\n");
+    log.textContent = out;
+    // 滚到底
+    window.scrollTo(0, document.body.scrollHeight);
+    stat.innerHTML = '<b>● LIVE</b>';
+  }catch(e){
+    stat.innerHTML = '<span class="err">读取失败: '+e.message+'</span>';
+  }
+  clk.textContent = new Date().toLocaleTimeString("zh-CN");
+}
+tick();
+setInterval(tick, 2000);
+</script>
+</body>
+</html>
