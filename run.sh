@@ -54,12 +54,14 @@ fi
 # ── 编译 ──
 echo ""
 echo "[3/4] 编译 (release)"
-# 先尝试编译,允许 PostBuildSign 插件失败
-if swift build -c release 2>&1 | tail -5; then
-    echo "  编译+签名: ✓"
+# 必须先清缓存! SwiftPM 缓存会导致代码改动不生效
+rm -rf .build
+swift build -c release 2>&1 | tail -5
+if [ -f "$BIN_SRC" ]; then
+    echo "  编译成功 ✓"
 else
-    echo "  编译完成,但 PostBuildSign 插件可能失败(沙箱限制),手动签名..."
-    /usr/bin/codesign --force --deep --sign - "$BIN_SRC" 2>/dev/null || true
+    echo "  编译失败! 请检查错误"
+    exit 1
 fi
 
 # ── 复制+签名 ──
