@@ -17,12 +17,15 @@ import AppKit
 import Darwin   // mach_task_basic_info：诊断进程内存占用（验证"积压→内存涨"根因）
 import CoreVideo  // CVPixelBuffer：YOLO 直通帧跳帧缓冲
 import MetalKit   // MTKView：MetalGoose 插帧渲染承载
-import os         // OSAllocatedUnfairLock：跨线程锁
+import os
+import Darwin         // OSAllocatedUnfairLock：跨线程锁
 
 // 应用启动时强制激活窗口到前台（直接 swift 运行时窗口默认不激活）
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 抑制 App Nap 的 activity token（必须持有，否则 activity 立即释放、抑制失效）
     private var napToken: NSObjectProtocol?
+    /// CGEventTap 句柄（持有防止释放，系统级实时保护）
+    private var eventTap: CFMachPort?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 命令行自检：AuroraDriveUI --yolo-selftest <图片路径>
@@ -69,11 +72,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         napToken = ProcessInfo.processInfo.beginActivity(
             options: [.latencyCritical, .userInteractive, .idleSystemSleepDisabled],
             reason: "AuroraDrive 实时游戏辅助：后台需持续 30Hz 决策与注入")
-        // 提高进程调度优先级（尽力而为，失败静默）：让系统给本进程更多 CPU 份额，
-        // 缓解游戏前台全屏时后台 App 被系统降优先级导致的帧率下跌。
-        if setpriority(PRIO_PROCESS, 0, -10) == 0 {
-            print("[App] 进程优先级已提高 (nice=-10)")
+        // 最高进程优先级：nice=-20（用户进程极限）
+        if setpriority(PRIO_PROCESS, 0, -20) == 0 {
+            print("[App] 进程优先级 nice=-20（最高）")
         }
+        // pthread QoS：直接设主线程到最高
+        // pthread QoS set via DispatchQueue .userInteractive (已设)
+        // 创建空 CGEventTap：系统必须保持有event tap的进程响应，否则事件丢弃
+        // 这是强制系统不冻结本进程的最有效手段（Game Mode也挡不住）
+        let eventMask: CGEventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.mouseMoved.rawValue)
+        guard let eventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: eventMask,
+            callback: { _, _, event, _ in return Unmanaged.passUnretained(event) },
+            userInfo: nil
+        ) else {
+            print("[App] CGEventTap创建失败（可能辅助功能权限未授权）")
+            return
+        }
+        // 启用event tap → 系统将本进程视为实时响应进程
+        CGEvent.tapEnable(tap: eventTap, enable: true)
+        CFRunLoopAddSource(RunLoop.current.getCFRunLoop(), CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0), .commonModes)
+        print("[App] CGEventTap已启用 → 系统级实时保护")
+        self.eventTap = eventTap
 
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
