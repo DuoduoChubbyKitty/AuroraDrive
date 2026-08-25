@@ -505,7 +505,77 @@ final class DriveState {
     var networkLocateMode: String = ""
     var networkLocatePitch: Double = 0
     var networkLocateHeading: Double = 0
-    var networkLocateRawCoord: RawPoint = RawPoint(x: 0, y: 0, z: 0)
+
+    // ── 定位器字段（从外置盘移植，MinimapLocatorView需要） ──
+    var locatorFound = false
+    var locatorX: Double = 0
+    var locatorY: Double = 0
+    var locatorScore: Double = 0
+    var locatorHeading: Double = 0
+    var locatorTarget: (x: Double, y: Double)? = nil
+    @ObservationIgnored private var lastNetworkLocPos: (x: Double, y: Double)? = nil
+    @ObservationIgnored private var networkLocatorPorted: NetworkLocator?
+    @ObservationIgnored private var networkLocatorLock = os_unfair_lock_s()
+    @ObservationIgnored private let locateCtx = LocateContext()
+    @ObservationIgnored private let locateGate = LocateGate()
+
+    func setLocatorTarget(x: Double, y: Double) { locatorTarget = (x, y) }
+
+    static func heading(from: (x: Double, y: Double), to: (x: Double, y: Double)) -> Double {
+        let dx = to.x - from.x, dy = to.y - from.y
+        let h = atan2(dy, dx) * 180 / .pi
+        return h < 0 ? h + 360 : h
+    }
+
+    func runNetworkLocateStep() {
+        if networkLocatorPorted == nil {
+            os_unfair_lock_lock(&networkLocatorLock)
+            defer { os_unfair_lock_unlock(&networkLocatorLock) }
+            if networkLocatorPorted == nil {
+                let nl = NetworkLocator()
+                let ok = nl.prepare()
+                print("[NETWORK-LOCATE] prepare=\(ok)")
+                networkLocatorPorted = nl
+                locateCtx.networkReady = ok
+            }
+        }
+        guard let loc = networkLocatorPorted, locateCtx.networkReady else {
+            DispatchQueue.main.async { [weak self] in
+                self?.networkLocateScore = 0
+                self?.networkLocateMode = "not_ready"
+            }
+            return
+        }
+        let result = loc.locate()
+        guard result.found, let point = result.point else {
+            DispatchQueue.main.async { [weak self] in
+                self?.networkLocateScore = 0
+                self?.networkLocateMode = result.mode
+            }
+            return
+        }
+        let px = Double(point.0), py = Double(point.1)
+        var hdg = result.cameraHeading ?? 0
+        if let last = lastNetworkLocPos {
+            let dx = px - last.x, dy = py - last.y
+            if dx * dx + dy * dy > 16 {
+                hdg = Self.heading(from: last, to: (x: px, y: py))
+            }
+        }
+        lastNetworkLocPos = (x: px, y: py)
+        DispatchQueue.main.async { [weak self] in
+            self?.networkLocateX = px
+            self?.networkLocateY = py
+            self?.networkLocateScore = result.score
+            self?.networkLocateMode = result.mode
+            self?.networkLocateHeading = hdg
+            self?.locatorX = px
+            self?.locatorY = py
+            self?.locatorFound = true
+            self?.locatorScore = result.score
+            self?.locatorHeading = hdg
+        }
+    }
     var networkLocateLastUpdate: Date = .distantPast
 
     /// 本次开车会话开始时间（暖机期判定：启动后头几秒还没出推理结果时
@@ -727,7 +797,8 @@ final class DriveState {
     // ── 网络抓包定位引擎（NetworkExtension，UE5 移动包解析）──
     // TCP 30031 端口抓包，解析 UE5 移动包 bit-packed 格式
     // 输出游戏世界坐标 + 相机位姿，坐标变换到地图像素
-    @ObservationIgnored let networkLocator = NetworkPacketCapture()
+    // 旧NetworkPacketCapture已移除（不编译），使用移植的NetworkLocator
+    // @ObservationIgnored let networkLocator = NetworkPacketCapture()
 
     // ── 三段胶水代码（接模型输出 → 状态机 → 按键注入）──
     // escapeController: .recover 态脱困策略（倒车→转向→前进）
@@ -837,23 +908,24 @@ final class DriveState {
         upscaleSupported = upscaleHost.isAvailable
         dlog("[upscale] 引擎初始化: 可用=\(upscaleSupported)")
 
-        // 初始化网络定位引擎
-        networkLocator.onLocate = { [weak self] result in
-            self?.handleNetworkLocate(result)
-        }
-        networkLocator.onStatusChange = { [weak self] status in
-            DispatchQueue.main.async {
-                switch status {
-                case .started:
-                    self?.networkLocateMode = "network"
-                case .permissionDenied:
-                    self?.networkLocateMode = "permission_denied"
-                case .error(let msg):
-                    self?.networkLocateMode = "error: \(msg)"
-                default: break
-                }
-            }
-        }
+        // 旧网络定位已移除
+        // 旧网络定位回调已移除（NetworkPacketCapture不编译）
+        // networkLocator.onLocate = { [weak self] result in
+        //     self?.handleNetworkLocate(result)
+        // }
+        // networkLocator.onStatusChange = { [weak self] status in
+        //     DispatchQueue.main.async {
+        //         switch status {
+        //         case .started:
+        //             self?.networkLocateMode = "network"
+        //         case .permissionDenied:
+        //             self?.networkLocateMode = "permission_denied"
+        //         case .error(let msg):
+        //             self?.networkLocateMode = "error: \(msg)"
+        //         default: break
+        //         }
+        //     }
+        // }
         dlog("[network] 定位引擎初始化完成")
     }
 
@@ -880,7 +952,7 @@ final class DriveState {
         drivingStartTime = Date()
         keyboardMonitor.start()   // 启动物理键盘监听（KeyboardBar 显示用 + 录制用）
         captureEngine.start()
-        networkLocator.start()    // 启动网络抓包定位
+        // networkLocator.start()  // 旧网络抓包定位已移除    // 启动网络抓包定位
         inferenceEngine.loadIfNeeded()   // 首次启动加载 M9 驾驶模型
         assistEngine.loadIfNeeded()      // 首次启动加载第二套驾驶模型（YOLO接管档）
         yoloEngine.loadIfNeeded()        // 首次启动加载 YOLO 检测模型
@@ -899,7 +971,7 @@ final class DriveState {
         controlEngine.releaseAll()
         keyboardMonitor.stop()
         captureEngine.stop()
-        networkLocator.stop()
+        // networkLocator.stop()   // 旧网络抓包定位已移除
         degradeStm.reset()
         escapeController.reset()
         lastDecided = .e2e
@@ -913,21 +985,21 @@ final class DriveState {
     }
 
     /// 处理网络定位结果
-    func handleNetworkLocate(_ result: NetworkLocateResult) {
-        if result.found, let point = result.point {
-            networkLocateX = Double(point.x)
-            networkLocateY = Double(point.y)
-            networkLocateScore = result.score
-            networkLocateMode = result.mode
-            if let pitch = result.cameraPitch { networkLocatePitch = pitch }
-            if let heading = result.cameraHeading { networkLocateHeading = heading }
-            if let raw = result.rawCoordinate3D { networkLocateRawCoord = raw }
-            networkLocateLastUpdate = Date()
-        } else {
-            networkLocateScore = 0
-            networkLocateMode = "failed"
-        }
-    }
+    // 旧方法已移除（NetworkPacketCapture不编译）
+    // func handleNetworkLocate(_ result: NetworkLocateResult) {
+    //     if result.found, let point = result.point {
+    //         networkLocateX = Double(point.x)
+    //         networkLocateY = Double(point.y)
+    //         networkLocateScore = result.score
+    //         networkLocateMode = result.mode
+    //         if let pitch = result.cameraPitch { networkLocatePitch = pitch }
+    //         if let heading = result.cameraHeading { networkLocateHeading = heading }
+    //         networkLocateLastUpdate = Date()
+    //     } else {
+    //         networkLocateScore = 0
+    //         networkLocateMode = "failed"
+    //     }
+    // }
 
     func setUpscaleEnabled(_ on: Bool) {
         upscaleEnabled = on
@@ -1379,6 +1451,7 @@ struct ContentView: View {
 
     @State private var tickTimer: Timer? = nil
     @State private var tickDispatchSource: DispatchSourceTimer? = nil
+    @State private var netLocDispatchSource: DispatchSourceTimer? = nil
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -1399,6 +1472,8 @@ struct ContentView: View {
             tickTimer = nil
             tickDispatchSource?.cancel()
             tickDispatchSource = nil
+            netLocDispatchSource?.cancel()
+            netLocDispatchSource = nil
         }
         .onAppear {
             // tick 驱动：用 DispatchSource 替代 main RunLoop Timer
@@ -1415,6 +1490,14 @@ struct ContentView: View {
             timer.resume()
             tickTimer = nil  // 不再用 Timer 类型，用 DispatchSource 控制
             tickDispatchSource = timer
+
+            // 网络定位定时器4Hz
+            let nlQueue = DispatchQueue(label: "com.aurora.netlocate", qos: .userInteractive)
+            let nlTimer = DispatchSource.makeTimerSource(queue: nlQueue)
+            nlTimer.schedule(deadline: .now(), repeating: 1.0 / 4.0, leeway: .nanoseconds(0))
+            nlTimer.setEventHandler { DispatchQueue.main.async { state.runNetworkLocateStep() } }
+            nlTimer.resume()
+            netLocDispatchSource = nlTimer
             // 自主测试入口：AuroraDriveUI --auto-drive [--auto-seconds N]
             // 启动后自动开始驾驶（模拟人工点击「开始驾驶」），到点自动退出，
             // 用于无人值守的端到端验证（跑完读 /tmp/aurora_debug.log）。
@@ -1825,6 +1908,10 @@ struct GameViewportView: View {
                             sourceSize: state.screenSize,
                             lockedTarget: state.yoloEngine.lockedTarget,
                             isLocked: state.yoloEngine.isLocked)
+
+            // ── 小地图（移植版，显示网络定位位置）
+            MinimapLocatorView(state: state)
+                .allowsHitTesting(true)
 
             // ── 速度表ROI调试框（红框=速度表区域，蓝框=3个数字槽位）──
             SpeedROIOverlay(sourceSize: state.screenSize)
