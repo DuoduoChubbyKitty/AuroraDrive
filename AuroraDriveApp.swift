@@ -100,9 +100,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("[App] CGEventTap已启用 → 系统级实时保护")
         self.eventTap = eventTap
 
-        // 强制占用2GB内存：让系统认为本进程是"重资源进程"不敢冻结
-        // 每页4KB，2GB = 524288页，mlock锁定在物理RAM不被换出
-        let allocSize = 2 * 1024 * 1024 * 1024  // 2GB
+        // 强制占用256MB内存：让系统认为本进程是"重资源进程"不敢冻结
+        // 每页4KB，256MB = 65536页，mlock锁定在物理RAM不被换出
+        let allocSize = 256 * 1024 * 1024  // 256MB
         let pageCount = allocSize / 4096
         if let buf = UnsafeMutableRawPointer.allocate(byteCount: allocSize, alignment: 4096) as UnsafeMutableRawPointer? {
             // 写入每个页首字节（强制物理内存映射）
