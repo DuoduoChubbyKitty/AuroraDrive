@@ -100,9 +100,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("[App] CGEventTap已启用 → 系统级实时保护")
         self.eventTap = eventTap
 
-        // 强制占用256MB内存：让系统认为本进程是"重资源进程"不敢冻结
-        // 每页4KB，256MB = 65536页，mlock锁定在物理RAM不被换出
-        let allocSize = 256 * 1024 * 1024  // 256MB
+        // 强制占用768MB内存：让系统认为本进程是"重资源进程"不敢冻结
+        // 每页4KB，768MB = 196608页，mlock锁定在物理RAM不被换出
+        let allocSize = 768 * 1024 * 1024  // 768MB
         let pageCount = allocSize / 4096
         if let buf = UnsafeMutableRawPointer.allocate(byteCount: allocSize, alignment: 4096) as UnsafeMutableRawPointer? {
             // 写入每个页首字节（强制物理内存映射）
@@ -111,9 +111,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             // mlock：锁定页面在物理RAM，系统不能换出
             if mlock(buf, allocSize) == 0 {
-                print("[App] 2GB内存已锁定在物理RAM → 系统不敢冻结")
+                print("[App] 768MB内存已锁定在物理RAM → 系统不敢冻结")
             } else {
-                print("[App] mlock失败（可能需要root），2GB仍占用但可能被换出")
+                print("[App] mlock失败（可能需要root），768MB仍占用但可能被换出")
             }
             // 持有指针防止释放
             self.memoryAnchor = buf
