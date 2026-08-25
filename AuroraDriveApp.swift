@@ -1334,6 +1334,7 @@ struct ContentView: View {
     @State private var state = DriveState()
 
     @State private var tickTimer: Timer? = nil
+    @State private var tickDispatchSource: DispatchSourceTimer? = nil
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -1352,17 +1353,24 @@ struct ContentView: View {
         .onDisappear {
             tickTimer?.invalidate()
             tickTimer = nil
+            tickDispatchSource?.cancel()
+            tickDispatchSource = nil
         }
         .onAppear {
-            // tick 驱动：显式 Timer + tolerance=0（Combine Timer.publish 不暴露 tolerance，
-            // 后台时系统会放大 Timer 间隔合并触发 → tick 掉到 8Hz）
-            let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { _ in
-                // Timer 在主线程 RunLoop(.common) 上执行，tick 是 @MainActor，用隔离断言消除警告
-                MainActor.assumeIsolated { state.tick() }
+            // tick 驱动：用 DispatchSource 替代 main RunLoop Timer
+            // main RunLoop Timer 会被 App Nap 冻结（游戏全屏时 tick 掉到 8Hz）
+            // DispatchSource 在独立高优先级队列上运行，不受 App Nap 影响
+            let timerQueue = DispatchQueue(label: "com.aurora.tick", qos: .userInteractive)
+            let timer = DispatchSource.makeTimerSource(queue: timerQueue)
+            timer.schedule(deadline: .now(), repeating: 1.0 / 30.0, leeway: .nanoseconds(0))
+            timer.setEventHandler {
+                DispatchQueue.main.async {
+                    state.tick()
+                }
             }
-            timer.tolerance = 0
-            RunLoop.main.add(timer, forMode: .common)
-            tickTimer = timer
+            timer.resume()
+            tickTimer = nil  // 不再用 Timer 类型，用 DispatchSource 控制
+            tickDispatchSource = timer
             // 自主测试入口：AuroraDriveUI --auto-drive [--auto-seconds N]
             // 启动后自动开始驾驶（模拟人工点击「开始驾驶」），到点自动退出，
             // 用于无人值守的端到端验证（跑完读 /tmp/aurora_debug.log）。
@@ -1774,6 +1782,9 @@ struct GameViewportView: View {
                             lockedTarget: state.yoloEngine.lockedTarget,
                             isLocked: state.yoloEngine.isLocked)
 
+            // ── 速度表ROI调试框（红框=速度表区域，蓝框=3个数字槽位）──
+            SpeedROIOverlay(sourceSize: state.screenSize)
+
             // ── 手动框选预览（拖拽中显示虚线框）──
             if let s = dragStart, let c = dragCurrent {
                 let rect = CGRect(x: min(s.x, c.x), y: min(s.y, c.y),
@@ -2065,6 +2076,42 @@ func viewToSourceNorm(_ point: CGPoint,
     let ny = (point.y - t.origin.y) / t.size.height
     guard nx >= 0, nx <= 1, ny >= 0, ny <= 1 else { return nil }
     return CGPoint(x: nx, y: ny)
+}
+
+// MARK: - 速度表ROI调试框（在App预览画面上画框，显示OCR在看哪里）
+struct SpeedROIOverlay: View {
+    var sourceSize: CGSize?
+
+    var body: some View {
+        Canvas { ctx, size in
+            let t = aspectFillLayout(source: sourceSize, view: size)
+            guard t.size.width > 0, t.size.height > 0 else { return }
+
+            let roi = CaptureEngine.speedROINorm
+            let rx = t.origin.x + roi.origin.x * t.size.width
+            let ry = t.origin.y + roi.origin.y * t.size.height
+            let rw = roi.width * t.size.width
+            let rh = roi.height * t.size.height
+            let roiRect = CGRect(x: rx, y: ry, width: rw, height: rh)
+            ctx.stroke(Path(roiRect), with: .color(.red), lineWidth: 2)
+            ctx.fill(Path(roiRect), with: .color(.red.opacity(0.1)))
+
+            let slotCx = SpeedOCRReader.slotCentersNorm
+            let slotW = SpeedOCRReader.slotWidthNorm
+            let yMin = SpeedOCRReader.slotYMinNorm
+            let yMax = SpeedOCRReader.slotYMaxNorm
+            for i in 0..<3 {
+                let cx = slotCx[i]
+                let sx = t.origin.x + (cx - slotW/2) * t.size.width
+                let sy = t.origin.y + yMin * t.size.height
+                let sw = slotW * t.size.width
+                let sh = (yMax - yMin) * t.size.height
+                let slotRect = CGRect(x: sx, y: sy, width: sw, height: sh)
+                ctx.stroke(Path(slotRect), with: .color(.cyan), lineWidth: 1.5)
+            }
+        }
+        .allowsHitTesting(false)
+    }
 }
 
 struct ObstacleOverlay: View {
