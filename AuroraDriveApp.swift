@@ -32,13 +32,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = CommandLine.arguments
 
-        // 网络定位：BPF权限通过App内UI设置（TopToolbar药丸按钮→Sheet密码输入）
-        // 这里只检测状态，不弹窗
+        // 网络定位：BPF已chmod 666，不需要密码，直接用
         let bpfCheck = "/dev/bpf0".withCString { access($0, Int32(O_RDWR)) }
         if bpfCheck == 0 {
-            print("[App] BPF权限已就绪 ✓")
+            print("[App] BPF可读写 ✓ 网络定位可用")
         } else {
-            print("[App] BPF未授权，请点击顶部「网络定位」按钮设置")
+            print("[App] BPF不可用，请运行: sudo chmod 666 /dev/bpf*")
         }
 
         if let i = args.firstIndex(of: "--yolo-selftest"), i + 1 < args.count {
@@ -507,7 +506,7 @@ final class DriveState {
 
     // ── 网络定位相关字段 ──
     var enableNetworkLocate = false
-    var bpfAuthorized = false
+    var bpfAuthorized = true  // BPF已chmod 666，默认已授权
     var networkLocateX: Double = 0
     var networkLocateY: Double = 0
     var networkLocateScore: Double = 0
@@ -1816,10 +1815,9 @@ struct TopToolbar: View {
 
             Spacer()
 
-            // 右: 模式标识 + 运行灯 + 网络定位设置
+            // 右: 模式标识 + 运行灯
             HStack(spacing: 10) {
-                // 网络定位权限设置药丸按钮
-                BPFPermissionPill(state: state)
+                // 网络定位状态指示灯（不需要密码，BPF已chmod 666）
                 Circle()
                     .fill(state.isDriving ? Theme.cyan : Theme.textTertiary)
                     .frame(width: 7, height: 7)
@@ -2246,144 +2244,7 @@ func viewToSourceNorm(_ point: CGPoint,
     return CGPoint(x: nx, y: ny)
 }
 
-// MARK: - 网络定位权限设置（药丸按钮+液态玻璃Sheet）
-struct BPFPermissionPill: View {
-    @Bindable var state: DriveState
-    @State private var showSheet = false
-
-    var body: some View {
-        Button { showSheet = true } label: {
-            HStack(spacing: 4) {
-                Image(systemName: state.bpfAuthorized ? "checkmark.shield.fill" : "lock.shield.fill")
-                    .font(.system(size: 10))
-                Text(state.bpfAuthorized ? "已授权" : "网络定位")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(state.bpfAuthorized ? Theme.cyan.opacity(0.15) : Color.orange.opacity(0.15))
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(state.bpfAuthorized ? Theme.cyan.opacity(0.5) : Color.orange.opacity(0.5), lineWidth: 1)
-            )
-            .foregroundStyle(state.bpfAuthorized ? Theme.cyan : Color.orange)
-        }
-        .buttonStyle(.plain)
-        .sheet(isPresented: $showSheet) {
-            BPFPermissionSheet(state: state)
-        }
-    }
-}
-
-struct BPFPermissionSheet: View {
-    @Bindable var state: DriveState
-    @Environment(\.dismiss) var dismiss
-    @State private var password = ""
-    @State private var applying = false
-    @State private var result: String = ""
-    @State private var success = false
-
-    var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
-                Image(systemName: success ? "checkmark.shield.fill" : "lock.shield.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(success ? Theme.cyan : Color.orange)
-                Text(success ? "网络定位已授权" : "网络定位权限")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-            }
-            .padding(.top, 16)
-
-            if success {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.cyan)
-                    Text("当前已授权，可重新输入密码修改")
-                        .font(.system(size: 12)).foregroundStyle(Theme.textTertiary)
-                }
-            }
-
-            VStack(spacing: 6) {
-                Text("请输入管理员密码").font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
-                Text("留空则使用默认密码 123456").font(.system(size: 11)).foregroundStyle(.black.opacity(0.6))
-            }
-
-            SecureField("", text: $password, prompt: Text("密码（留空=默认123456）").foregroundColor(.secondary))
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 280)
-                .onSubmit { applyPassword() }
-
-            if !result.isEmpty {
-                Text(result).font(.system(size: 12)).foregroundStyle(result.contains("✅") ? Theme.cyan : .red)
-            }
-
-            HStack(spacing: 12) {
-                Button("关闭") { dismiss() }.buttonStyle(.bordered).tint(.secondary)
-                Button {
-                    applyPassword()
-                } label: {
-                    HStack {
-                        if applying { ProgressView().scaleEffect(0.8).tint(.white) }
-                        Text(applying ? "应用中..." : "应用")
-                    }
-                    .frame(maxWidth: 200).padding(.vertical, 6)
-                }
-                .buttonStyle(.borderedProminent).tint(Color.orange).disabled(applying)
-            }
-
-            Spacer()
-        }
-        .frame(width: 380, height: 380)
-        .background(.ultraThinMaterial)
-        .onAppear {
-            let bpfCheck = "/dev/bpf0".withCString { access($0, Int32(O_RDWR)) }
-            if bpfCheck == 0 { state.bpfAuthorized = true; success = true }
-        }
-    }
-
-    private func applyPassword() {
-        applying = true
-        result = ""
-        let pwd = password.isEmpty ? "123456" : password
-        let plistContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>Label</key><string>com.aurora.bpf-fix</string><key>ProgramArguments</key><array><string>/bin/chmod</string><string>666</string><string>/dev/bpf0</string><string>/dev/bpf1</string><string>/dev/bpf2</string><string>/dev/bpf3</string></array><key>RunAtLoad</key><true/></dict></plist>"
-        try? plistContent.write(toFile: "/tmp/aurora_bpf_fix.plist", atomically: true, encoding: .utf8)
-        // 关键：用分号不用&&，launchctl load失败不影响chmod BPF
-        let sudoCmd = "cp /tmp/aurora_bpf_fix.plist /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; chmod 644 /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; launchctl unload /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; launchctl load /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; chmod 666 /dev/bpf* 2>/dev/null; echo BPF_DONE"
-        let fullCmd = "echo '\(pwd)' | sudo -kS sh -c '\(sudoCmd)' 2>&1"
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/bin/sh")
-            task.arguments = ["-c", fullCmd]
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            task.standardError = pipe
-            do {
-                try task.run()
-                task.waitUntilExit()
-                let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                let ok = task.terminationStatus == 0 && output.contains("BPF_DONE")
-                DispatchQueue.main.async {
-                    applying = false
-                    if ok {
-                        success = true
-                        state.bpfAuthorized = true
-                        state.networkLocateMode = "ready"
-                        result = "✅ 权限设置成功"
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { dismiss() }
-                    } else {
-                        result = "密码错误，请重试"
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async { applying = false; result = "执行失败: \(error.localizedDescription)" }
-            }
-        }
-    }
-}
-
+// BPF权限UI已删除（不需要密码，BPF已chmod 666）
 // MARK: - 速度表ROI调试框（在App预览画面上画框，显示OCR在看哪里）
 struct SpeedROIOverlay: View {
     var sourceSize: CGSize?

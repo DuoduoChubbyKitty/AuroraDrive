@@ -39,6 +39,9 @@ func pcap_breakloop(_ p: OpaquePointer)
 @_silgen_name("pcap_close")
 func pcap_close(_ p: OpaquePointer)
 
+@_silgen_name("pcap_next_ex")
+func pcap_next_ex(_ p: OpaquePointer, _ h: UnsafeMutablePointer<UnsafeMutablePointer<pcap_pkthdr>?>, _ d: UnsafeMutablePointer<UnsafePointer<UInt8>?>) -> Int32
+
 @_silgen_name("pcap_lookupdev")
 func pcap_lookupdev(_ errbuf: UnsafeMutablePointer<CChar>?) -> UnsafePointer<CChar>?
 
@@ -342,8 +345,21 @@ final class UE5Decoder {
 
 // MARK: - 坐标抓取器（从Python CoordinateCapture移植，用libpcap替代scapy）
 
+/// 全局回调（避免Apple Silicon PAC签名问题，不用闭包）
+nonisolated(unsafe) var coordinateCaptureActive: CoordinateCapture? = nil
+
+/// pcap回调——C函数指针，不通过闭包，避免PAC崩溃
+let coordinateCaptureCallback: pcap_callback = { _, headerPtr, packetPtr in
+    guard let headerPtr = headerPtr, let packetPtr = packetPtr,
+          let capture = coordinateCaptureActive else { return }
+    let header = headerPtr.assumingMemoryBound(to: pcap_pkthdr.self).pointee
+    let packet = packetPtr.assumingMemoryBound(to: UInt8.self)
+    capture.processPacket(header: header, packet: packet)
+}
+
 /// 自包含网络坐标抓取：libpcap抓TCP 30031端口 → UE5包解析 → 世界坐标
 final class CoordinateCapture {
+    static var activeInstance: CoordinateCapture? = nil
     private let decoder = UE5Decoder()
     private var sample: Pose?
     private var sampleAt: Double = 0
@@ -405,22 +421,21 @@ final class CoordinateCapture {
         return true
     }
 
-    /// 抓包循环
+    /// 抓包循环——用pcap_next_ex不用回调，避免Apple Silicon PAC崩溃
     private func captureLoop() {
         guard let handle = pcapHandle else { return }
-        // pcap_loop会阻塞直到pcap_breakloop
-        // 传self作为user指针，回调里用Unmanaged取回
-        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        pcap_loop(handle, -1, { ctx, headerPtr, packetPtr in
-            guard let ctx = ctx, let headerPtr = headerPtr, let packetPtr = packetPtr else { return }
-            let capture = Unmanaged<CoordinateCapture>.fromOpaque(ctx).takeUnretainedValue()
-            let header = headerPtr.assumingMemoryBound(to: pcap_pkthdr.self).pointee
-            let packet = packetPtr.assumingMemoryBound(to: UInt8.self)
-            capture.processPacket(header: header, packet: packet)
-        }, selfPtr)
+        while running {
+            var headerPtr: UnsafeMutablePointer<pcap_pkthdr>? = nil
+            var packetPtr: UnsafePointer<UInt8>? = nil
+            let result = pcap_next_ex(handle, &headerPtr, &packetPtr)
+            if result == 0 { continue }
+            if result < 0 { break }
+            guard let h = headerPtr, let p = packetPtr else { continue }
+            processPacket(header: h.pointee, packet: p)
+        }
     }
 
-    /// 处理抓到的包（从pcap回调调用）
+    /// 处理抓到的包
     func processPacket(header: pcap_pkthdr, packet: UnsafePointer<UInt8>) {
         let timestamp = Double(header.ts.tv_sec) + Double(header.ts.tv_usec) / 1_000_000.0
         let caplen = Int(header.caplen)
