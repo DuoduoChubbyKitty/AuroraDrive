@@ -97,7 +97,7 @@ func ue5Vector(_ data: [UInt8], offset: Int, scale: Int) -> (Vec3, Int, Int, Boo
     for _ in 0..<3 {
         var v = bits(data, offset: cursor, count: width)
         cursor += width
-        if v & sign != 0 { v -= modulus }
+        if v & sign != 0 { v = v &- modulus }
         values.append(isScaled ? Double(v) / Double(scale) : Double(v))
     }
     return ((values[0], values[1], values[2]), cursor, width, isScaled)
