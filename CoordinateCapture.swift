@@ -286,8 +286,8 @@ final class UE5Decoder {
             if locBits < 20 || locBits > 32 { continue }
             if max(abs(location.0), max(abs(location.1), abs(location.2))) > kMaxLocationAbs { continue }
 
-            // 检查旋转有效性
-            let rotationOffset = locEnd + 7 + locBits * 3
+            // 检查旋转有效性（locEnd已含header+3值，只需加7位padding）
+            let rotationOffset = locEnd + 7
             if !hasValidRotation(payload, offset: rotationOffset) { continue }
 
             output.append(Candidate(clientTime: Double(clientTime), offset: offset, acceleration: accel, location: location))
