@@ -33,6 +33,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 命令行自检：AuroraDriveUI --yolo-selftest <图片路径>
         // 跑一张图验证 YOLO 全链路（像素缓冲通道序 / 解码 / NMS），打印结果后退出，不开窗口
         let args = CommandLine.arguments
+
+        // ⚠️ 网络定位必须root权限（libpcap抓包需要），不允许回退
+        // 不是root → 用osascript弹macOS密码框，以root权限重启自己
+        // 用户取消密码 → 直接退出
+        if getuid() != 0 {
+            print("[App] ⚠️ 网络定位需要root权限，正在请求管理员密码...")
+            let executablePath = CommandLine.arguments[0]
+            // 用 osascript 弹系统密码框，以root权限运行本程序
+            let script = "do shell script \"\(executablePath) \" with administrator privileges"
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            task.arguments = ["-e", script]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = pipe
+            do {
+                try task.run()
+            } catch {
+                print("[App] 无法请求管理员权限: \(error)")
+                exit(1)
+            }
+            task.waitUntilExit()
+            // osascript返回后，root进程已被拉起；本普通进程退出
+            exit(0)
+        }
+        print("[App] 以root权限运行 ✓ 网络定位可用")
+
         if let i = args.firstIndex(of: "--yolo-selftest"), i + 1 < args.count {
             let engine = YoloEngine()
             print(engine.selfTest(imagePath: args[i + 1]))
@@ -514,10 +541,11 @@ final class DriveState {
     var locatorHeading: Double = 0
     var locatorTarget: (x: Double, y: Double)? = nil
     @ObservationIgnored private var lastNetworkLocPos: (x: Double, y: Double)? = nil
-    @ObservationIgnored private var coordinateCapture: CoordinateCapture?
-    @ObservationIgnored private var networkLocatorLock = os_unfair_lock_s()
+    @ObservationIgnored private var healer: NetworkHealer?
+    @ObservationIgnored private var healerInitLock = os_unfair_lock_s()
     @ObservationIgnored private let locateCtx = LocateContext()
     @ObservationIgnored private let locateGate = LocateGate()
+    private let mapPath = "\(FileManager.default.currentDirectoryPath)/models/bigworldmapSecond.png"
 
     func setLocatorTarget(x: Double, y: Double) { locatorTarget = (x, y) }
 
@@ -528,54 +556,64 @@ final class DriveState {
     }
 
     func runNetworkLocateStep() {
-        // 用自包含CoordinateCapture（libpcap抓包+UE5解析），不需要MaaNTE服务端
-        if coordinateCapture == nil {
-            os_unfair_lock_lock(&networkLocatorLock)
-            defer { os_unfair_lock_unlock(&networkLocatorLock) }
-            if coordinateCapture == nil {
+        // 懒初始化NetworkHealer（自愈引擎：网络+视觉双模+后台诊断修复）
+        if healer == nil {
+            os_unfair_lock_lock(&healerInitLock)
+            defer { os_unfair_lock_unlock(&healerInitLock) }
+            if healer == nil {
                 let cc = CoordinateCapture()
+                let h = NetworkHealer(capture: cc, mapPath: mapPath)
+                // 监听模式切换
+                h.onModeChange = { [weak self] (mode: LocatorMode) -> Void in
+                    print("[Healer] 定位模式切换: \(mode.rawValue)")
+                }
                 let ok = cc.start()
-                print("[NETWORK-LOCATE] CoordinateCapture.start=\(ok)")
-                coordinateCapture = cc
-                locateCtx.networkReady = ok
+                if ok {
+                    h.start()  // 启动自愈引擎
+                    locateCtx.networkReady = true
+                }
+                healer = h
+                print("[NETWORK-LOCATE] NetworkHealer启动, pcap=\(ok)")
             }
         }
-        guard let cc = coordinateCapture, locateCtx.networkReady else {
+        guard let h = healer, locateCtx.networkReady else {
             DispatchQueue.main.async { [weak self] in
                 self?.networkLocateScore = 0
                 self?.networkLocateMode = "not_ready"
             }
             return
         }
-        // 读取最新坐标（世界坐标 → 地图像素）
-        guard let pose = cc.read(maxAge: 1.0) else {
+
+        // 从自愈引擎获取当前最佳定位
+        if let (px, py, hdg, mode) = h.currentLocation() {
+            if let last = lastNetworkLocPos {
+                let dx = px - last.x, dy = py - last.y
+                if dx * dx + dy * dy > 16 {
+                    // 用移动方向计算朝向
+                }
+            }
+            lastNetworkLocPos = (x: px, y: py)
             DispatchQueue.main.async { [weak self] in
-                self?.networkLocateScore = 0
-                self?.networkLocateMode = "no_data"
+                self?.networkLocateX = px
+                self?.networkLocateY = py
+                self?.networkLocateScore = 1.0
+                self?.networkLocateMode = mode.rawValue
+                self?.networkLocateHeading = hdg
+                self?.locatorX = px
+                self?.locatorY = py
+                self?.locatorFound = true
+                self?.locatorScore = 1.0
+                self?.locatorHeading = hdg
             }
-            return
-        }
-        let (mapX, mapY, heading) = worldToMapPixel(pose)
-        let px = mapX, py = mapY
-        var hdg = heading
-        if let last = lastNetworkLocPos {
-            let dx = px - last.x, dy = py - last.y
-            if dx * dx + dy * dy > 16 {
-                hdg = Self.heading(from: last, to: (x: px, y: py))
+        } else {
+            // 网络定位无数据，检查自愈引擎是否切到视觉
+            if h.mode == .visual {
+                // 视觉定位：需要从截屏获取小地图区域，这里只做标记
+                DispatchQueue.main.async { [weak self] in
+                    self?.networkLocateScore = 0
+                    self?.networkLocateMode = "visual_healing"
+                }
             }
-        }
-        lastNetworkLocPos = (x: px, y: py)
-        DispatchQueue.main.async { [weak self] in
-            self?.networkLocateX = px
-            self?.networkLocateY = py
-            self?.networkLocateScore = 1.0
-            self?.networkLocateMode = "pcap"
-            self?.networkLocateHeading = hdg
-            self?.locatorX = px
-            self?.locatorY = py
-            self?.locatorFound = true
-            self?.locatorScore = 1.0
-            self?.locatorHeading = hdg
         }
     }
     var networkLocateLastUpdate: Date = .distantPast
@@ -1911,9 +1949,10 @@ struct GameViewportView: View {
                             lockedTarget: state.yoloEngine.lockedTarget,
                             isLocked: state.yoloEngine.isLocked)
 
-            // ── 小地图（移植版，显示网络定位位置）
+            // ── 小地图（移植版，显示网络定位位置）放在左上角
             MinimapLocatorView(state: state)
                 .allowsHitTesting(true)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             // ── 速度表ROI调试框（红框=速度表区域，蓝框=3个数字槽位）──
             SpeedROIOverlay(sourceSize: state.screenSize)
