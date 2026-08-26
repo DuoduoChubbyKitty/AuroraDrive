@@ -28,6 +28,7 @@ enum Diagnosis {
     case bpfDeviceBusy          // BPF设备被占
     case portChanged             // 端口30031变了
     case permissionLost          // root权限丢了
+    case mapFileNotFound         // 地图文件路径错误
     case unknownButDead          // 一切正常但读不到包
 }
 
@@ -38,7 +39,7 @@ final class NetworkHealer {
     // ── 依赖 ──
     private let capture: CoordinateCapture
     private var visualLocator: VisualLocator?
-    private let mapPath: String
+    private var mapPath: String
     
     // ── 状态 ──
     private(set) var mode: LocatorMode = .network
@@ -104,10 +105,33 @@ final class NetworkHealer {
         }
         
         if mode == .visual {
-            // 降级模式：尝试诊断+修复网络
+            // 降级模式：先诊断视觉定位是否正常
+            if let visualDiag = diagnoseVisual() {
+                lastDiagnosis = visualDiag
+                healState = .repairing
+                let repaired = attemptRepair(visualDiag)
+                if repaired {
+                    print("[Healer] ✅ 视觉定位修复成功")
+                } else {
+                    // 视觉定位修不了，继续尝试修网络
+                    healState = .diagnosing
+                    let diag = diagnose()
+                    lastDiagnosis = diag
+                    healState = .repairing
+                    let repaired = attemptRepair(diag)
+                    if repaired {
+                        print("[Healer] ✅ 网络定位修复成功，切回主力")
+                        switchToNetwork()
+                    } else {
+                        repairAttempts += 1
+                        print("[Healer] 修复失败(第\(repairAttempts)次)，保持视觉定位，5秒后重试")
+                    }
+                }
+                return
+            }
+            // 视觉定位正常，继续尝试修网络
             if repairAttempts >= maxRepairAttempts {
-                // 达到最大修复次数，但继续每5秒试一次（不放弃）
-                repairAttempts = 0  // 重置，继续尝试
+                repairAttempts = 0
             }
             healState = .diagnosing
             let diag = diagnose()
@@ -171,6 +195,15 @@ final class NetworkHealer {
         print("[Healer] 诊断: 无法找到网卡")
         return .interfaceDown
     }
+
+    private func diagnoseVisual() -> Diagnosis? {
+        // 检查视觉定位的地图文件是否存在
+        if !FileManager.default.fileExists(atPath: mapPath) {
+            print("[Healer] 诊断: 地图文件不存在 - \(mapPath)")
+            return .mapFileNotFound
+        }
+        return nil
+    }
     
     // MARK: - 修复策略
     
@@ -212,6 +245,30 @@ final class NetworkHealer {
             print("[Healer] 修复: 扫描游戏新端口...")
             // TODO: 扫描所有TCP端口找UE5流量
             return restartCapture()
+            
+        case .mapFileNotFound:
+            // 地图路径错误：尝试查找正确路径
+            print("[Healer] 修复: 尝试查找地图文件...")
+            let candidates = [
+                "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmapSecond.png",
+                "\(NSHomeDirectory())/Desktop/自动驾驶系统/models/bigworldmapSecond.png",
+            ]
+            for path in candidates {
+                if FileManager.default.fileExists(atPath: path) {
+                    print("[Healer] 找到地图: \(path)")
+                    mapPath = path
+                    // 重新初始化VisualLocator
+                    let vl = VisualLocator(mapPath: mapPath)
+                    let err = vl.prepare()
+                    if err == nil {
+                        visualLocator = vl
+                        print("[Healer] VisualLocator重新初始化成功 ✓")
+                        return true
+                    }
+                }
+            }
+            print("[Healer] 无法找到地图文件")
+            return false
             
         case .unknownButDead:
             // 万能修复：关掉重来

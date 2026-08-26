@@ -527,7 +527,19 @@ final class DriveState {
     @ObservationIgnored private var healerInitLock = os_unfair_lock_s()
     @ObservationIgnored private let locateCtx = LocateContext()
     @ObservationIgnored private let locateGate = LocateGate()
-    private let mapPath = "\(FileManager.default.currentDirectoryPath)/models/bigworldmapSecond.png"
+    private let mapPath: String = {
+        // 用可执行文件所在目录找地图，不用currentDirectoryPath（那是Home目录）
+        let execPath = CommandLine.arguments[0]
+        let execDir = (execPath as NSString).deletingLastPathComponent
+        let candidates = [
+            "\(execDir)/models/bigworldmapSecond.png",
+            "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmapSecond.png",
+        ]
+        for path in candidates {
+            if FileManager.default.fileExists(atPath: path) { return path }
+        }
+        return candidates.last!  // 返回最后一个作为默认，让错误信息有意义
+    }()
 
     func setLocatorTarget(x: Double, y: Double) { locatorTarget = (x, y) }
 
