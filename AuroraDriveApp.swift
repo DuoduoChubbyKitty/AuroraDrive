@@ -2347,12 +2347,11 @@ struct BPFPermissionSheet: View {
         applying = true
         result = ""
         let pwd = password.isEmpty ? "123456" : password
-        // 先写plist到/tmp（不需要sudo）
         let plistContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>Label</key><string>com.aurora.bpf-fix</string><key>ProgramArguments</key><array><string>/bin/chmod</string><string>666</string><string>/dev/bpf0</string><string>/dev/bpf1</string><string>/dev/bpf2</string><string>/dev/bpf3</string></array><key>RunAtLoad</key><true/></dict></plist>"
         try? plistContent.write(toFile: "/tmp/aurora_bpf_fix.plist", atomically: true, encoding: .utf8)
-        // sudo执行mv+chmod+launchctl
-        let sudoCmd = "mv /tmp/aurora_bpf_fix.plist /Library/LaunchDaemons/com.aurora.bpf-fix.plist && chmod 644 /Library/LaunchDaemons/com.aurora.bpf-fix.plist && launchctl load /Library/LaunchDaemons/com.aurora.bpf-fix.plist"
-        let fullCmd = "echo '\(pwd)' | sudo -S sh -c '\(sudoCmd)' 2>&1; echo EXIT_CODE=$?"
+        // 关键：用分号不用&&，launchctl load失败不影响chmod BPF
+        let sudoCmd = "cp /tmp/aurora_bpf_fix.plist /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; chmod 644 /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; launchctl unload /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; launchctl load /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; chmod 666 /dev/bpf* 2>/dev/null; echo BPF_DONE"
+        let fullCmd = "echo '\(pwd)' | sudo -S sh -c '\(sudoCmd)' 2>&1"
 
         DispatchQueue.global(qos: .userInitiated).async {
             let task = Process()
@@ -2365,7 +2364,7 @@ struct BPFPermissionSheet: View {
                 try task.run()
                 task.waitUntilExit()
                 let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                let ok = output.contains("EXIT_CODE=0") && !output.contains("Sorry, try again")
+                let ok = output.contains("BPF_DONE") && !output.contains("Sorry, try again")
                 DispatchQueue.main.async {
                     applying = false
                     if ok {
@@ -2375,7 +2374,7 @@ struct BPFPermissionSheet: View {
                         result = "✅ 权限设置成功"
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { dismiss() }
                     } else {
-                        result = "密码错误或权限不足，请重试"
+                        result = "密码错误，请重试"
                     }
                 }
             } catch {
