@@ -484,4 +484,8 @@ final class VisualLocator {
                "expected=\(Int(expectCx)),\(Int(expectCy)) got=\(Int(res.x)),\(Int(res.y)) " +
                "score=\(String(format: "%.3f", res.score)) 档#\(res.scaleIndex)"
     }
+    
+    func cleanup() {
+        scales.removeAll()
+    }
 }

@@ -52,6 +52,7 @@ let package = Package(
                 "KeyboardMonitor.swift",
                 "MinimapLocatorView.swift",
                 "MinimapTileCache.swift",
+                "NetworkHealer.swift",
                 "NetworkLocator.swift",
                 "RecordEngine.swift",
                 "RuleController.swift",

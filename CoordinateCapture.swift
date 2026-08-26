@@ -39,6 +39,9 @@ func pcap_breakloop(_ p: OpaquePointer)
 @_silgen_name("pcap_close")
 func pcap_close(_ p: OpaquePointer)
 
+@_silgen_name("pcap_lookupdev")
+func pcap_lookupdev(_ errbuf: UnsafeMutablePointer<CChar>?) -> UnsafePointer<CChar>?
+
 
 
 // MARK: - 常量（与MaaNTE同步）
@@ -356,10 +359,22 @@ final class CoordinateCapture {
         guard !running else { return true }
         var errbuf = [CChar](repeating: 0, count: 256)
 
-        // 打开默认网络接口
-        let devPtr: OpaquePointer? = pcap_open_live(nil, 65535, 0, 20, &errbuf)
+        // 先获取默认网卡名（pcap_open_live(nil)在macOS会尝试创建BPF设备，需要root）
+        var devName: String? = nil
+        if let devCStr = pcap_lookupdev(&errbuf) {
+            devName = String(cString: devCStr)
+            print("[CoordinateCapture] 默认网卡: \(devName!)")
+        }
+
+        // 用网卡名打开（不用nil）
+        let devCStr = devName ?? ""
+        let devPtr: OpaquePointer? = devName != nil
+            ? devCStr.withCString { pcap_open_live($0, 65535, 0, 20, &errbuf) }
+            : pcap_open_live(nil, 65535, 0, 20, &errbuf)
+
         guard let dev = devPtr else {
-            print("[CoordinateCapture] pcap_open_live失败: \(String(cString: errbuf))")
+            let errMsg = String(cString: errbuf)
+            print("[CoordinateCapture] pcap_open_live失败: \(errMsg)")
             return false
         }
         pcapHandle = dev
