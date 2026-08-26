@@ -514,7 +514,7 @@ final class DriveState {
     var locatorHeading: Double = 0
     var locatorTarget: (x: Double, y: Double)? = nil
     @ObservationIgnored private var lastNetworkLocPos: (x: Double, y: Double)? = nil
-    @ObservationIgnored private var networkLocatorPorted: NetworkLocator?
+    @ObservationIgnored private var coordinateCapture: CoordinateCapture?
     @ObservationIgnored private var networkLocatorLock = os_unfair_lock_s()
     @ObservationIgnored private let locateCtx = LocateContext()
     @ObservationIgnored private let locateGate = LocateGate()
@@ -528,34 +528,36 @@ final class DriveState {
     }
 
     func runNetworkLocateStep() {
-        if networkLocatorPorted == nil {
+        // 用自包含CoordinateCapture（libpcap抓包+UE5解析），不需要MaaNTE服务端
+        if coordinateCapture == nil {
             os_unfair_lock_lock(&networkLocatorLock)
             defer { os_unfair_lock_unlock(&networkLocatorLock) }
-            if networkLocatorPorted == nil {
-                let nl = NetworkLocator()
-                let ok = nl.prepare()
-                print("[NETWORK-LOCATE] prepare=\(ok)")
-                networkLocatorPorted = nl
+            if coordinateCapture == nil {
+                let cc = CoordinateCapture()
+                let ok = cc.start()
+                print("[NETWORK-LOCATE] CoordinateCapture.start=\(ok)")
+                coordinateCapture = cc
                 locateCtx.networkReady = ok
             }
         }
-        guard let loc = networkLocatorPorted, locateCtx.networkReady else {
+        guard let cc = coordinateCapture, locateCtx.networkReady else {
             DispatchQueue.main.async { [weak self] in
                 self?.networkLocateScore = 0
                 self?.networkLocateMode = "not_ready"
             }
             return
         }
-        let result = loc.locate()
-        guard result.found, let point = result.point else {
+        // 读取最新坐标（世界坐标 → 地图像素）
+        guard let pose = cc.read(maxAge: 1.0) else {
             DispatchQueue.main.async { [weak self] in
                 self?.networkLocateScore = 0
-                self?.networkLocateMode = result.mode
+                self?.networkLocateMode = "no_data"
             }
             return
         }
-        let px = Double(point.0), py = Double(point.1)
-        var hdg = result.cameraHeading ?? 0
+        let (mapX, mapY, heading) = worldToMapPixel(pose)
+        let px = mapX, py = mapY
+        var hdg = heading
         if let last = lastNetworkLocPos {
             let dx = px - last.x, dy = py - last.y
             if dx * dx + dy * dy > 16 {
@@ -566,13 +568,13 @@ final class DriveState {
         DispatchQueue.main.async { [weak self] in
             self?.networkLocateX = px
             self?.networkLocateY = py
-            self?.networkLocateScore = result.score
-            self?.networkLocateMode = result.mode
+            self?.networkLocateScore = 1.0
+            self?.networkLocateMode = "pcap"
             self?.networkLocateHeading = hdg
             self?.locatorX = px
             self?.locatorY = py
             self?.locatorFound = true
-            self?.locatorScore = result.score
+            self?.locatorScore = 1.0
             self?.locatorHeading = hdg
         }
     }
