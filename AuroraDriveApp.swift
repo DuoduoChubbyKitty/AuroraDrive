@@ -30,35 +30,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var memoryAnchor: UnsafeMutableRawPointer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // 命令行自检：AuroraDriveUI --yolo-selftest <图片路径>
-        // 跑一张图验证 YOLO 全链路（像素缓冲通道序 / 解码 / NMS），打印结果后退出，不开窗口
         let args = CommandLine.arguments
 
-        // ⚠️ 网络定位必须root权限（libpcap抓包需要），不允许回退
-        // 不是root → 用osascript弹macOS密码框，以root权限重启自己
-        // 用户取消密码 → 直接退出
-        if getuid() != 0 {
-            print("[App] ⚠️ 网络定位需要root权限，正在请求管理员密码...")
-            let executablePath = CommandLine.arguments[0]
-            // 用 osascript 弹系统密码框，以root权限运行本程序
-            let script = "do shell script \"\(executablePath) \" with administrator privileges"
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            task.arguments = ["-e", script]
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            task.standardError = pipe
-            do {
-                try task.run()
-            } catch {
-                print("[App] 无法请求管理员权限: \(error)")
-                exit(1)
-            }
-            task.waitUntilExit()
-            // osascript返回后，root进程已被拉起；本普通进程退出
-            exit(0)
+        // 网络定位：BPF权限通过App内UI设置（TopToolbar药丸按钮→Sheet密码输入）
+        // 这里只检测状态，不弹窗
+        let bpfCheck = "/dev/bpf0".withCString { access($0, Int32(O_RDWR)) }
+        if bpfCheck == 0 {
+            print("[App] BPF权限已就绪 ✓")
+        } else {
+            print("[App] BPF未授权，请点击顶部「网络定位」按钮设置")
         }
-        print("[App] 以root权限运行 ✓ 网络定位可用")
 
         if let i = args.firstIndex(of: "--yolo-selftest"), i + 1 < args.count {
             let engine = YoloEngine()
@@ -526,6 +507,7 @@ final class DriveState {
 
     // ── 网络定位相关字段 ──
     var enableNetworkLocate = false
+    var bpfAuthorized = false
     var networkLocateX: Double = 0
     var networkLocateY: Double = 0
     var networkLocateScore: Double = 0
@@ -1822,8 +1804,10 @@ struct TopToolbar: View {
 
             Spacer()
 
-            // 右: 模式标识 + 运行灯
+            // 右: 模式标识 + 运行灯 + 网络定位设置
             HStack(spacing: 10) {
+                // 网络定位权限设置药丸按钮
+                BPFPermissionPill(state: state)
                 Circle()
                     .fill(state.isDriving ? Theme.cyan : Theme.textTertiary)
                     .frame(width: 7, height: 7)
@@ -2248,6 +2232,166 @@ func viewToSourceNorm(_ point: CGPoint,
     let ny = (point.y - t.origin.y) / t.size.height
     guard nx >= 0, nx <= 1, ny >= 0, ny <= 1 else { return nil }
     return CGPoint(x: nx, y: ny)
+}
+
+// MARK: - 网络定位权限设置（药丸按钮+液态玻璃Sheet）
+struct BPFPermissionPill: View {
+    @Bindable var state: DriveState
+    @State private var showSheet = false
+
+    var body: some View {
+        Button { showSheet = true } label: {
+            HStack(spacing: 4) {
+                Image(systemName: state.bpfAuthorized ? "checkmark.shield.fill" : "lock.shield.fill")
+                    .font(.system(size: 10))
+                Text(state.bpfAuthorized ? "已授权" : "网络定位")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(state.bpfAuthorized ? Theme.cyan.opacity(0.15) : Color.orange.opacity(0.15))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(state.bpfAuthorized ? Theme.cyan.opacity(0.5) : Color.orange.opacity(0.5), lineWidth: 1)
+            )
+            .foregroundStyle(state.bpfAuthorized ? Theme.cyan : Color.orange)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showSheet) {
+            BPFPermissionSheet(state: state)
+        }
+    }
+}
+
+struct BPFPermissionSheet: View {
+    @Bindable var state: DriveState
+    @Environment(\.dismiss) var dismiss
+    @State private var password = ""
+    @State private var applying = false
+    @State private var result: String = ""
+    @State private var success = false
+
+    var body: some View {
+        VStack(spacing: 24) {
+            // 标题
+            VStack(spacing: 8) {
+                Image(systemName: success ? "checkmark.shield.fill" : "lock.shield.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(success ? Theme.cyan : Color.orange)
+                Text(success ? "网络定位已授权" : "网络定位权限")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+            }
+            .padding(.top, 20)
+
+            if success {
+                // 成功状态
+                VStack(spacing: 8) {
+                    Text("BPF设备权限已设置")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.textSecondary)
+                    Text("网络定位功能已启用，下次启动自动生效")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                Button("完成") { dismiss() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.cyan)
+            } else {
+                // 密码输入
+                VStack(spacing: 6) {
+                    Text("请输入管理员密码")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.white)
+                    Text("默认密码为 123456")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.black.opacity(0.6))
+                }
+
+                SecureField("", text: $password, prompt: Text("密码").foregroundColor(.secondary))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 280)
+                    .onSubmit { applyPassword() }
+
+                if !result.isEmpty {
+                    Text(result)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red)
+                }
+
+                Button {
+                    applyPassword()
+                } label: {
+                    HStack {
+                        if applying {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .tint(.white)
+                        }
+                        Text(applying ? "应用中..." : "应用")
+                    }
+                    .frame(maxWidth: 280)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.orange)
+                .disabled(password.isEmpty || applying)
+            }
+
+            Spacer()
+        }
+        .frame(width: 380, height: 360)
+        .background(.ultraThinMaterial)
+        .onAppear {
+            // 检查当前权限状态
+            let bpfCheck = "/dev/bpf0".withCString { access($0, Int32(O_RDWR)) }
+            if bpfCheck == 0 {
+                state.bpfAuthorized = true
+                success = true
+            }
+        }
+    }
+
+    private func applyPassword() {
+        applying = true
+        result = ""
+        let plistContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>Label</key><string>com.aurora.bpf-fix</string><key>ProgramArguments</key><array><string>/bin/chmod</string><string>666</string><string>/dev/bpf0</string><string>/dev/bpf1</string><string>/dev/bpf2</string><string>/dev/bpf3</string></array><key>RunAtLoad</key><true/></dict></plist>"
+        let cmd = "echo '\(plistContent)' > /Library/LaunchDaemons/com.aurora.bpf-fix.plist && chmod 644 /Library/LaunchDaemons/com.aurora.bpf-fix.plist && launchctl load /Library/LaunchDaemons/com.aurora.bpf-fix.plist"
+        // 用密码执行
+        let fullCmd = "echo '\(password)' | sudo -S sh -c '\(cmd)' 2>&1"
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/bin/sh")
+            task.arguments = ["-c", fullCmd]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = pipe
+            do {
+                try task.run()
+                task.waitUntilExit()
+                let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+
+                DispatchQueue.main.async {
+                    applying = false
+                    if task.terminationStatus == 0 {
+                        success = true
+                        state.bpfAuthorized = true
+                        state.networkLocateMode = "ready"
+                    } else {
+                        result = "密码错误或权限不足"
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    applying = false
+                    result = "执行失败: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
 }
 
 // MARK: - 速度表ROI调试框（在App预览画面上画框，显示OCR在看哪里）
