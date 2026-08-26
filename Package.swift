@@ -44,6 +44,7 @@ let package = Package(
                 "CaptureEngine.swift",
                 "ConfidenceEstimator.swift",
                 "ControlEngine.swift",
+                "CoordinateCapture.swift",
                 "DegradeStateMachine.swift",
                 "EscapeController.swift",
                 "GameMapView.swift",
