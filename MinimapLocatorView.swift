@@ -143,12 +143,13 @@ struct MinimapLocatorView: View {
     }
 
     private static func loadDisplayMap() -> CGImage? {
-        let path = {
-            URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("models/bigworldmapSecond.png").path
+        let path: String = {
+            let candidates = [
+                "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmapSecond.png",
+                "\(FileManager.default.currentDirectoryPath)/models/bigworldmapSecond.png",
+            ]
+            for p in candidates { if FileManager.default.fileExists(atPath: p) { return p } }
+            return candidates[0]
         }()
         guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil) else { return nil }
         let opts: [CFString: Any] = [
