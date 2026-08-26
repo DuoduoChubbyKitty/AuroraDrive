@@ -2287,8 +2287,7 @@ struct BPFPermissionSheet: View {
     @State private var success = false
 
     var body: some View {
-        VStack(spacing: 24) {
-            // 标题
+        VStack(spacing: 20) {
             VStack(spacing: 8) {
                 Image(systemName: success ? "checkmark.shield.fill" : "lock.shield.fill")
                     .font(.system(size: 40))
@@ -2296,83 +2295,64 @@ struct BPFPermissionSheet: View {
                 Text(success ? "网络定位已授权" : "网络定位权限")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
             }
-            .padding(.top, 20)
+            .padding(.top, 16)
 
             if success {
-                // 成功状态
-                VStack(spacing: 8) {
-                    Text("BPF设备权限已设置")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Theme.textSecondary)
-                    Text("网络定位功能已启用，下次启动自动生效")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.textTertiary)
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.cyan)
+                    Text("当前已授权，可重新输入密码修改")
+                        .font(.system(size: 12)).foregroundStyle(Theme.textTertiary)
                 }
-                Button("完成") { dismiss() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.cyan)
-            } else {
-                // 密码输入
-                VStack(spacing: 6) {
-                    Text("请输入管理员密码")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white)
-                    Text("默认密码为 123456")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.black.opacity(0.6))
-                }
+            }
 
-                SecureField("", text: $password, prompt: Text("密码").foregroundColor(.secondary))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 280)
-                    .onSubmit { applyPassword() }
+            VStack(spacing: 6) {
+                Text("请输入管理员密码").font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
+                Text("留空则使用默认密码 123456").font(.system(size: 11)).foregroundStyle(.black.opacity(0.6))
+            }
 
-                if !result.isEmpty {
-                    Text(result)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red)
-                }
+            SecureField("", text: $password, prompt: Text("密码（留空=默认123456）").foregroundColor(.secondary))
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 280)
+                .onSubmit { applyPassword() }
 
+            if !result.isEmpty {
+                Text(result).font(.system(size: 12)).foregroundStyle(result.contains("✅") ? Theme.cyan : .red)
+            }
+
+            HStack(spacing: 12) {
+                Button("关闭") { dismiss() }.buttonStyle(.bordered).tint(.secondary)
                 Button {
                     applyPassword()
                 } label: {
                     HStack {
-                        if applying {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .tint(.white)
-                        }
+                        if applying { ProgressView().scaleEffect(0.8).tint(.white) }
                         Text(applying ? "应用中..." : "应用")
                     }
-                    .frame(maxWidth: 280)
-                    .padding(.vertical, 8)
+                    .frame(maxWidth: 200).padding(.vertical, 6)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.orange)
-                .disabled(password.isEmpty || applying)
+                .buttonStyle(.borderedProminent).tint(Color.orange).disabled(applying)
             }
 
             Spacer()
         }
-        .frame(width: 380, height: 360)
+        .frame(width: 380, height: 380)
         .background(.ultraThinMaterial)
         .onAppear {
-            // 检查当前权限状态
             let bpfCheck = "/dev/bpf0".withCString { access($0, Int32(O_RDWR)) }
-            if bpfCheck == 0 {
-                state.bpfAuthorized = true
-                success = true
-            }
+            if bpfCheck == 0 { state.bpfAuthorized = true; success = true }
         }
     }
 
     private func applyPassword() {
         applying = true
         result = ""
+        let pwd = password.isEmpty ? "123456" : password
+        // 先写plist到/tmp（不需要sudo）
         let plistContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>Label</key><string>com.aurora.bpf-fix</string><key>ProgramArguments</key><array><string>/bin/chmod</string><string>666</string><string>/dev/bpf0</string><string>/dev/bpf1</string><string>/dev/bpf2</string><string>/dev/bpf3</string></array><key>RunAtLoad</key><true/></dict></plist>"
-        let cmd = "echo '\(plistContent)' > /Library/LaunchDaemons/com.aurora.bpf-fix.plist && chmod 644 /Library/LaunchDaemons/com.aurora.bpf-fix.plist && launchctl load /Library/LaunchDaemons/com.aurora.bpf-fix.plist"
-        // 用密码执行
-        let fullCmd = "echo '\(password)' | sudo -S sh -c '\(cmd)' 2>&1"
+        try? plistContent.write(toFile: "/tmp/aurora_bpf_fix.plist", atomically: true, encoding: .utf8)
+        // sudo执行mv+chmod+launchctl
+        let sudoCmd = "mv /tmp/aurora_bpf_fix.plist /Library/LaunchDaemons/com.aurora.bpf-fix.plist && chmod 644 /Library/LaunchDaemons/com.aurora.bpf-fix.plist && launchctl load /Library/LaunchDaemons/com.aurora.bpf-fix.plist"
+        let fullCmd = "echo '\(pwd)' | sudo -S sh -c '\(sudoCmd)' 2>&1; echo EXIT_CODE=$?"
 
         DispatchQueue.global(qos: .userInitiated).async {
             let task = Process()
@@ -2385,22 +2365,21 @@ struct BPFPermissionSheet: View {
                 try task.run()
                 task.waitUntilExit()
                 let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-
+                let ok = output.contains("EXIT_CODE=0") && !output.contains("Sorry, try again")
                 DispatchQueue.main.async {
                     applying = false
-                    if task.terminationStatus == 0 {
+                    if ok {
                         success = true
                         state.bpfAuthorized = true
                         state.networkLocateMode = "ready"
+                        result = "✅ 权限设置成功"
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { dismiss() }
                     } else {
-                        result = "密码错误或权限不足"
+                        result = "密码错误或权限不足，请重试"
                     }
                 }
             } catch {
-                DispatchQueue.main.async {
-                    applying = false
-                    result = "执行失败: \(error.localizedDescription)"
-                }
+                DispatchQueue.main.async { applying = false; result = "执行失败: \(error.localizedDescription)" }
             }
         }
     }

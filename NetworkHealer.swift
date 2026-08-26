@@ -151,9 +151,10 @@ final class NetworkHealer {
     // MARK: - 诊断
     
     private func diagnose() -> Diagnosis {
-        // 检查1: 是否有root权限
-        if getuid() != 0 {
-            print("[Healer] 诊断: 权限丢失（不是root）")
+        // 检查1: BPF设备权限（不弹窗！只检测）
+        let bpfCheck = "/dev/bpf0".withCString { access($0, Int32(O_RDWR)) }
+        if bpfCheck != 0 {
+            print("[Healer] 诊断: BPF设备无权限（请在App顶部设置）")
             return .permissionLost
         }
         
@@ -210,28 +211,19 @@ final class NetworkHealer {
     private func attemptRepair(_ diag: Diagnosis) -> Bool {
         switch diag {
         case .permissionLost:
-            // 重新弹sudo密码（通过osascript）
-            print("[Healer] 修复: 重新请求管理员权限...")
-            let result = runShellCommand("osascript -e 'do shell script \"echo ok\" with administrator privileges' 2>&1")
-            if result.contains("ok") {
-                print("[Healer] 权限恢复，重启pcap")
-                return restartCapture()
-            }
-            print("[Healer] 权限恢复失败")
-            return false
+            // BPF权限不足——不弹窗！只重启pcap试试（权限由App UI设置）
+            print("[Healer] 修复: BPF权限不足，尝试重启pcap...")
+            return restartCapture()
             
         case .interfaceDown:
-            // 尝试重启网卡
-            print("[Healer] 修复: 尝试重启网络服务...")
-            _ = runShellCommand("osascript -e 'do shell script \"networksetup -setairportpower en0 on\" with administrator privileges' 2>&1")
-            Thread.sleep(forTimeInterval: 2)
+            // 网卡问题——不弹窗！只重启pcap
+            print("[Healer] 修复: 网卡可能异常，重启pcap...")
             return restartCapture()
             
         case .gameNotRunning:
-            // 游戏没跑，等它跑起来
-            print("[Healer] 修复: 等待游戏启动...")
-            Thread.sleep(forTimeInterval: 2)
-            return restartCapture()
+            // 游戏没跑——不修复，安静等待，不刷屏
+            print("[Healer] 游戏未启动，等待中...（不修复）")
+            return false
             
         case .bpfDeviceBusy:
             // BPF设备被占，先关旧句柄再重开
