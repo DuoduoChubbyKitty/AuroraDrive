@@ -93,13 +93,20 @@ final class NetworkHealer {
         if mode == .network {
             // 主力模式：检查pcap是否还在读包
             if let pose = capture.read(maxAge: 3.0) {
-                // 网络正常，有最新数据
                 _ = pose
                 healState = .healthy
                 return
             }
-            // 网络定位读不到包了！开始降级
-            print("[Healer] ⚠️ 网络定位无数据，降级到视觉定位")
+            // 网络定位读不到包——先检查是不是游戏没跑
+            let netstatResult = runShellCommand("lsof -i :30031 2>/dev/null | wc -l")
+            let portCount = Int(netstatResult.trimmingCharacters(in: .whitespaces)) ?? 0
+            if portCount <= 1 {
+                // 游戏没跑，pcap没流量是正常的——不降级，不刷屏，安静等
+                healState = .healthy
+                return
+            }
+            // 游戏在跑但pcap没数据 → 真的降级
+            print("[Healer] ⚠️ 游戏在跑但pcap无数据，降级到视觉定位")
             switchToVisual(reason: "网络定位超时无数据")
             return
         }

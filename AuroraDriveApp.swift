@@ -2351,7 +2351,7 @@ struct BPFPermissionSheet: View {
         try? plistContent.write(toFile: "/tmp/aurora_bpf_fix.plist", atomically: true, encoding: .utf8)
         // 关键：用分号不用&&，launchctl load失败不影响chmod BPF
         let sudoCmd = "cp /tmp/aurora_bpf_fix.plist /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; chmod 644 /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; launchctl unload /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; launchctl load /Library/LaunchDaemons/com.aurora.bpf-fix.plist 2>/dev/null; chmod 666 /dev/bpf* 2>/dev/null; echo BPF_DONE"
-        let fullCmd = "echo '\(pwd)' | sudo -S sh -c '\(sudoCmd)' 2>&1"
+        let fullCmd = "echo '\(pwd)' | sudo -kS sh -c '\(sudoCmd)' 2>&1"
 
         DispatchQueue.global(qos: .userInitiated).async {
             let task = Process()
@@ -2364,7 +2364,7 @@ struct BPFPermissionSheet: View {
                 try task.run()
                 task.waitUntilExit()
                 let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                let ok = output.contains("BPF_DONE") && !output.contains("Sorry, try again")
+                let ok = task.terminationStatus == 0 && output.contains("BPF_DONE")
                 DispatchQueue.main.async {
                     applying = false
                     if ok {
