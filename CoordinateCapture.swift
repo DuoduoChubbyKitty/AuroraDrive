@@ -70,14 +70,16 @@ typealias Flow = (String, Int, String, Int, String)  // srcIP, srcPort, dstIP, d
 
 /// 从字节数组的指定位偏移读取N位
 func bits(_ data: [UInt8], offset: Int, count: Int) -> UInt64 {
+    if count <= 0 || count > 63 || offset < 0 { return 0 }
     let firstByte = offset / 8
     let lastByte = (offset + count + 7) / 8
-    guard firstByte >= 0, lastByte <= data.count else { return 0 }
+    if firstByte < 0 || lastByte > data.count || lastByte <= firstByte { return 0 }
     var value: UInt64 = 0
     for i in stride(from: lastByte - 1, through: firstByte, by: -1) {
+        if i < 0 || i >= data.count { return 0 }
         value = (value << 8) | UInt64(data[i])
     }
-    return (value >> (offset % 8)) & ((1 << count) - 1)
+    return (value >> UInt64(offset % 8)) & ((UInt64(1) << UInt64(count)) - 1)
 }
 
 // MARK: - UE5序列化解码（从Python _vector/_rotator移植）
@@ -268,6 +270,7 @@ final class UE5Decoder {
     private func findCandidates(_ payload: [UInt8]) -> [Candidate]? {
         var output: [Candidate] = []
         let searchEnd = min(512, payload.count * 8 - 60)
+        guard searchEnd > 190 else { return output }
         for offset in 190..<searchEnd {
             // 读取时间戳（32位float）
             let timeBits = bits(payload, offset: offset, count: 32)
@@ -358,6 +361,17 @@ let coordinateCaptureCallback: pcap_callback = { _, headerPtr, packetPtr in
 }
 
 /// 自包含网络坐标抓取：libpcap抓TCP 30031端口 → UE5包解析 → 世界坐标
+func pcapLog(_ msg: String) {
+    let ts = ISO8601DateFormatter().string(from: Date())
+    let line = ts + " " + msg + "\n"
+    let url = URL(fileURLWithPath: "/tmp/aurora_pcap.log")
+    if let old = try? String(contentsOf: url, encoding: .utf8) {
+        try? (old + line).data(using: .utf8)?.write(to: url)
+    } else {
+        try? line.data(using: .utf8)?.write(to: url)
+    }
+}
+
 final class CoordinateCapture {
     static var activeInstance: CoordinateCapture? = nil
     private let decoder = UE5Decoder()
@@ -379,7 +393,7 @@ final class CoordinateCapture {
         var devName: String? = nil
         if let devCStr = pcap_lookupdev(&errbuf) {
             devName = String(cString: devCStr)
-            print("[CoordinateCapture] 默认网卡: \(devName!)")
+            pcapLog("[CoordinateCapture] 默认网卡: \(devName!)")
         }
 
         // 用网卡名打开（不用nil）
@@ -390,7 +404,7 @@ final class CoordinateCapture {
 
         guard let dev = devPtr else {
             let errMsg = String(cString: errbuf)
-            print("[CoordinateCapture] pcap_open_live失败: \(errMsg)")
+            pcapLog("[CoordinateCapture] pcap_open_live失败: \(errMsg)")
             return false
         }
         pcapHandle = dev
@@ -417,17 +431,19 @@ final class CoordinateCapture {
         }
         captureThread?.name = "com.aurora.coordinate-capture"
         captureThread?.start()
-        print("[CoordinateCapture] 抓包已启动 (tcp port 30031)")
+        pcapLog("[CoordinateCapture] 抓包已启动 (tcp port 30031)")
         return true
     }
 
     /// 抓包循环——用pcap_next_ex不用回调，避免Apple Silicon PAC崩溃
     private func captureLoop() {
         guard let handle = pcapHandle else { return }
+        pcapLog("[pcap] captureLoop开始, handle=有")
         while running {
             var headerPtr: UnsafeMutablePointer<pcap_pkthdr>? = nil
             var packetPtr: UnsafePointer<UInt8>? = nil
             let result = pcap_next_ex(handle, &headerPtr, &packetPtr)
+            if result > 0 { pcapLog("[pcap] 包! result=\(result) caplen=\(headerPtr?.pointee.caplen ?? 0)") }
             if result == 0 { continue }
             if result < 0 { break }
             guard let h = headerPtr, let p = packetPtr else { continue }
@@ -462,6 +478,9 @@ final class CoordinateCapture {
         let direction = packetDirection(src: srcIP, dst: dstIP)
         if direction == "s2c" || direction == "unknown" { return }
         let flow: Flow = (srcIP, srcPort, dstIP, dstPort, "TCP")
+        // 安全解码：即使payload是垃圾数据也不能崩溃
+        // payload太小（<32字节=256bit）时直接跳过，findCandidates的搜索范围190-512bit需要至少64字节
+        if payload.count < 70 { return }
         if let pose = decoder.decode(payload: payload, timestamp: timestamp, flow: flow) {
             let now = Date().timeIntervalSince1970
             lock.lock()

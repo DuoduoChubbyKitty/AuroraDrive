@@ -556,17 +556,20 @@ final class DriveState {
             if healer == nil {
                 let cc = CoordinateCapture()
                 let h = NetworkHealer(capture: cc, mapPath: mapPath)
-                // 监听模式切换
                 h.onModeChange = { [weak self] (mode: LocatorMode) -> Void in
                     print("[Healer] 定位模式切换: \(mode.rawValue)")
                 }
                 let ok = cc.start()
+                pcapLog("[NETWORK-LOCATE] cc.start()返回=\(ok)")
                 if ok {
-                    h.start()  // 启动自愈引擎
+                    h.start()
                     locateCtx.networkReady = true
+                    pcapLog("[NETWORK-LOCATE] healer已启动, networkReady=true")
+                } else {
+                    pcapLog("[NETWORK-LOCATE] ❌ pcap启动失败!")
                 }
                 healer = h
-                print("[NETWORK-LOCATE] NetworkHealer启动, pcap=\(ok)")
+                pcapLog("[NETWORK-LOCATE] healer已保存")
             }
         }
         guard let h = healer, locateCtx.networkReady else {
@@ -1527,8 +1530,11 @@ struct ContentView: View {
             // 网络定位定时器4Hz
             let nlQueue = DispatchQueue(label: "com.aurora.netlocate", qos: .userInteractive)
             let nlTimer = DispatchSource.makeTimerSource(queue: nlQueue)
-            nlTimer.schedule(deadline: .now(), repeating: 1.0 / 4.0, leeway: .nanoseconds(0))
-            nlTimer.setEventHandler { DispatchQueue.main.async { state.runNetworkLocateStep() } }
+            nlTimer.schedule(deadline: .now(), repeating: 1.0 / 10.0, leeway: .nanoseconds(0))
+            nlTimer.setEventHandler { DispatchQueue.main.async { 
+                pcapLog("[TIMER] runNetworkLocateStep被调用")
+                state.runNetworkLocateStep() 
+            } }
             nlTimer.resume()
             netLocDispatchSource = nlTimer
             // 自主测试入口：AuroraDriveUI --auto-drive [--auto-seconds N]
