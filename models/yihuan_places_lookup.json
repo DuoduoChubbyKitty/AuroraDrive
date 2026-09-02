@@ -1,0 +1,641 @@
+{
+  "「维特海默塔」": {
+    "name": "「维特海默塔」",
+    "type": "tower",
+    "region": "new-herland",
+    "x": 40.4,
+    "y": 42.58,
+    "px": 3309,
+    "py": 3488
+  },
+  "「去看电影吧」": {
+    "name": "「去看电影吧」",
+    "type": "boss",
+    "region": "new-herland",
+    "x": 45.94,
+    "y": 44.93,
+    "px": 3763,
+    "py": 3680
+  },
+  "黑之书": {
+    "name": "黑之书",
+    "type": "boss",
+    "region": "new-herland",
+    "x": 41.8,
+    "y": 43.81,
+    "px": 3424,
+    "py": 3588
+  },
+  "「深蓝之恸」": {
+    "name": "「深蓝之恸」",
+    "type": "boss",
+    "region": "new-herland",
+    "x": 50.46,
+    "y": 38.56,
+    "px": 4133,
+    "py": 3158
+  },
+  "「唤孤归」": {
+    "name": "「唤孤归」",
+    "type": "boss",
+    "region": "new-herland",
+    "x": 40.17,
+    "y": 51.37,
+    "px": 3290,
+    "py": 4208
+  },
+  "拘留所": {
+    "name": "拘留所",
+    "type": "service",
+    "region": "new-herland",
+    "x": 84.73,
+    "y": 9.82,
+    "px": 6941,
+    "py": 804
+  },
+  "惠比寿拍卖行": {
+    "name": "惠比寿拍卖行",
+    "type": "service",
+    "region": "new-herland",
+    "x": 52.47,
+    "y": 48.5,
+    "px": 4298,
+    "py": 3973
+  },
+  "「福荫木」": {
+    "name": "「福荫木」",
+    "type": "service",
+    "region": "new-herland",
+    "x": 46.1,
+    "y": 36.58,
+    "px": 3776,
+    "py": 2996
+  },
+  "金苹果藏馆": {
+    "name": "金苹果藏馆",
+    "type": "service",
+    "region": "new-herland",
+    "x": 48.39,
+    "y": 40.94,
+    "px": 3964,
+    "py": 3353
+  },
+  "莱昂置业": {
+    "name": "莱昂置业",
+    "type": "service",
+    "region": "new-herland",
+    "x": 42.62,
+    "y": 40.71,
+    "px": 3491,
+    "py": 3334
+  },
+  "弧盘工房": {
+    "name": "弧盘工房",
+    "type": "service",
+    "region": "new-herland",
+    "x": 48.68,
+    "y": 46.01,
+    "px": 3987,
+    "py": 3769
+  },
+  "粉爪分行": {
+    "name": "粉爪分行",
+    "type": "service",
+    "region": "new-herland",
+    "x": 45.95,
+    "y": 44.02,
+    "px": 3764,
+    "py": 3606
+  },
+  "粉爪总行": {
+    "name": "粉爪总行",
+    "type": "service",
+    "region": "new-herland",
+    "x": 41.08,
+    "y": 41.76,
+    "px": 3365,
+    "py": 3420
+  },
+  "暴走玩家": {
+    "name": "暴走玩家",
+    "type": "service",
+    "region": "new-herland",
+    "x": 48.24,
+    "y": 37.79,
+    "px": 3951,
+    "py": 3095
+  },
+  "雷加利亚": {
+    "name": "雷加利亚",
+    "type": "service",
+    "region": "new-herland",
+    "x": 48.94,
+    "y": 43.01,
+    "px": 4009,
+    "py": 3523
+  },
+  "治安所": {
+    "name": "治安所",
+    "type": "service",
+    "region": "new-herland",
+    "x": 40.79,
+    "y": 39.59,
+    "px": 3341,
+    "py": 3243
+  },
+  "火车站": {
+    "name": "火车站",
+    "type": "service",
+    "region": "new-herland",
+    "x": 42.59,
+    "y": 37.45,
+    "px": 3488,
+    "py": 3067
+  },
+  "2-Four便利店": {
+    "name": "2-Four便利店",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 41.62,
+    "y": 52.19,
+    "px": 3409,
+    "py": 4275
+  },
+  "爱丽丝烘焙坊": {
+    "name": "爱丽丝烘焙坊",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 45.58,
+    "y": 38.82,
+    "px": 3733,
+    "py": 3180
+  },
+  "竹本清源": {
+    "name": "竹本清源",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 40.93,
+    "y": 40.44,
+    "px": 3352,
+    "py": 3312
+  },
+  "巨嘴包子": {
+    "name": "巨嘴包子",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 43.23,
+    "y": 38.82,
+    "px": 3541,
+    "py": 3180
+  },
+  "咔叽玛": {
+    "name": "咔叽玛",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 42.09,
+    "y": 44.72,
+    "px": 3448,
+    "py": 3663
+  },
+  "激动猫": {
+    "name": "激动猫",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 40.51,
+    "y": 40.82,
+    "px": 3318,
+    "py": 3343
+  },
+  "超规格": {
+    "name": "超规格",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 42.01,
+    "y": 46.82,
+    "px": 3441,
+    "py": 3835
+  },
+  "鼎记": {
+    "name": "鼎记",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 43.47,
+    "y": 39.43,
+    "px": 3561,
+    "py": 3230
+  },
+  "浮冰影院": {
+    "name": "浮冰影院",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 45.85,
+    "y": 44.95,
+    "px": 3756,
+    "py": 3682
+  },
+  "食为天": {
+    "name": "食为天",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 41.21,
+    "y": 40.75,
+    "px": 3375,
+    "py": 3338
+  },
+  "福荫集市": {
+    "name": "福荫集市",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 46.38,
+    "y": 36.39,
+    "px": 3799,
+    "py": 2981
+  },
+  "集山忘野": {
+    "name": "集山忘野",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 39.3,
+    "y": 40.83,
+    "px": 3219,
+    "py": 3344
+  },
+  "叮咚怪咖所": {
+    "name": "叮咚怪咖所",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 39.44,
+    "y": 41.15,
+    "px": 3230,
+    "py": 3371
+  },
+  "月亮湾": {
+    "name": "月亮湾",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 39.87,
+    "y": 40.69,
+    "px": 3266,
+    "py": 3333
+  },
+  "玛雷尼披萨": {
+    "name": "玛雷尼披萨",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 41.7,
+    "y": 40.53,
+    "px": 3416,
+    "py": 3320
+  },
+  "白鲸书店": {
+    "name": "白鲸书店",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 41.27,
+    "y": 41,
+    "px": 3380,
+    "py": 3358
+  },
+  "布朗先生": {
+    "name": "布朗先生",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 39.73,
+    "y": 40.77,
+    "px": 3254,
+    "py": 3339
+  },
+  "猫丸拉面": {
+    "name": "猫丸拉面",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 40.67,
+    "y": 40.44,
+    "px": 3331,
+    "py": 3312
+  },
+  "噗卡糖果店": {
+    "name": "噗卡糖果店",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 43.92,
+    "y": 46.09,
+    "px": 3597,
+    "py": 3775
+  },
+  "千酿鲜吟屋": {
+    "name": "千酿鲜吟屋",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 41.95,
+    "y": 40.04,
+    "px": 3436,
+    "py": 3280
+  },
+  "茂藏家豆腐店": {
+    "name": "茂藏家豆腐店",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 43.12,
+    "y": 39.18,
+    "px": 3532,
+    "py": 3209
+  },
+  "怪·食惠": {
+    "name": "怪·食惠",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 43.12,
+    "y": 39.46,
+    "px": 3532,
+    "py": 3232
+  },
+  "大将军": {
+    "name": "大将军",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 41.18,
+    "y": 40.38,
+    "px": 3373,
+    "py": 3307
+  },
+  "豆风庵": {
+    "name": "豆风庵",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 41.93,
+    "y": 40.18,
+    "px": 3434,
+    "py": 3291
+  },
+  "普利姆叔叔": {
+    "name": "普利姆叔叔",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 43.48,
+    "y": 39.62,
+    "px": 3561,
+    "py": 3245
+  },
+  "蔬菜屋": {
+    "name": "蔬菜屋",
+    "type": "shop",
+    "region": "new-herland",
+    "x": 43.4,
+    "y": 39.88,
+    "px": 3555,
+    "py": 3266
+  },
+  "「一格」储物柜": {
+    "name": "「一格」储物柜",
+    "type": "service",
+    "region": "new-herland",
+    "x": 43.26,
+    "y": 49.83,
+    "px": 3543,
+    "py": 4082
+  },
+  "储物柜 (DT)": {
+    "name": "储物柜 (DT)",
+    "type": "service",
+    "region": "new-herland",
+    "x": 43.27,
+    "y": 48.43,
+    "px": 3544,
+    "py": 3967
+  },
+  "房地产": {
+    "name": "房地产",
+    "type": "service",
+    "region": "new-herland",
+    "x": 45.06,
+    "y": 47.86,
+    "px": 3691,
+    "py": 3920
+  },
+  "伊波恩": {
+    "name": "伊波恩",
+    "type": "service",
+    "region": "bridge-crossings",
+    "x": 52.88,
+    "y": 57.31,
+    "px": 4331,
+    "py": 4694
+  },
+  "「菲林轨迹」照相馆": {
+    "name": "「菲林轨迹」照相馆",
+    "type": "service",
+    "region": "bridge-crossings",
+    "x": 53.98,
+    "y": 55.69,
+    "px": 4422,
+    "py": 4562
+  },
+  "新越": {
+    "name": "新越",
+    "type": "service",
+    "region": "bridge-crossings",
+    "x": 56.61,
+    "y": 63.5,
+    "px": 4637,
+    "py": 5201
+  },
+  "塞润尼缇庄园": {
+    "name": "塞润尼缇庄园",
+    "type": "service",
+    "region": "bridge-crossings",
+    "x": 57.83,
+    "y": 67.5,
+    "px": 4737,
+    "py": 5529
+  },
+  "斯特利快递": {
+    "name": "斯特利快递",
+    "type": "service",
+    "region": "bridge-crossings",
+    "x": 53.2,
+    "y": 60.77,
+    "px": 4358,
+    "py": 4978
+  },
+  "一咖舍": {
+    "name": "一咖舍",
+    "type": "service",
+    "region": "bridge-crossings",
+    "x": 53.27,
+    "y": 56.03,
+    "px": 4363,
+    "py": 4589
+  },
+  "魔女之家": {
+    "name": "魔女之家",
+    "type": "service",
+    "region": "bridge-crossings",
+    "x": 56.35,
+    "y": 58.65,
+    "px": 4616,
+    "py": 4804
+  },
+  "极限99！": {
+    "name": "极限99！",
+    "type": "service",
+    "region": "bridge-crossings",
+    "x": 53.24,
+    "y": 63.38,
+    "px": 4361,
+    "py": 5192
+  },
+  "卜多力": {
+    "name": "卜多力",
+    "type": "shop",
+    "region": "bridge-crossings",
+    "x": 53.98,
+    "y": 56.79,
+    "px": 4422,
+    "py": 4652
+  },
+  "好人乔": {
+    "name": "好人乔",
+    "type": "shop",
+    "region": "bridge-crossings",
+    "x": 56.23,
+    "y": 57.97,
+    "px": 4606,
+    "py": 4748
+  },
+  "无首铁驭": {
+    "name": "无首铁驭",
+    "type": "boss",
+    "region": "unheard-shores",
+    "x": 63.36,
+    "y": 66.62,
+    "px": 5190,
+    "py": 5457
+  },
+  "上晴塔": {
+    "name": "上晴塔",
+    "type": "service",
+    "region": "miguel-district",
+    "x": 37.18,
+    "y": 40.93,
+    "px": 3045,
+    "py": 3352
+  },
+  "小小麻雀": {
+    "name": "小小麻雀",
+    "type": "service",
+    "region": "miguel-district",
+    "x": 36.36,
+    "y": 55.39,
+    "px": 2978,
+    "py": 4537
+  },
+  "夏成豆腐店": {
+    "name": "夏成豆腐店",
+    "type": "shop",
+    "region": "miguel-district",
+    "x": 30.88,
+    "y": 56.44,
+    "px": 2529,
+    "py": 4623
+  },
+  "「律动大师」": {
+    "name": "「律动大师」",
+    "type": "boss",
+    "region": "illusion-town",
+    "x": 44.48,
+    "y": 59.31,
+    "px": 3643,
+    "py": 4858
+  },
+  "克莱门学院": {
+    "name": "克莱门学院",
+    "type": "service",
+    "region": "illusion-town",
+    "x": 46.08,
+    "y": 66.14,
+    "px": 3774,
+    "py": 5418
+  },
+  "海特洛市立医院": {
+    "name": "海特洛市立医院",
+    "type": "service",
+    "region": "illusion-town",
+    "x": 50.5,
+    "y": 66.64,
+    "px": 4136,
+    "py": 5459
+  },
+  "纳库佩达之池": {
+    "name": "纳库佩达之池",
+    "type": "service",
+    "region": "illusion-town",
+    "x": 52.86,
+    "y": 66.23,
+    "px": 4330,
+    "py": 5425
+  },
+  "碎雪": {
+    "name": "碎雪",
+    "type": "shop",
+    "region": "illusion-town",
+    "x": 52.35,
+    "y": 64.91,
+    "px": 4288,
+    "py": 5317
+  },
+  "植愈": {
+    "name": "植愈",
+    "type": "shop",
+    "region": "illusion-town",
+    "x": 46.98,
+    "y": 68.62,
+    "px": 3848,
+    "py": 5621
+  },
+  "新赫兰德": {
+    "name": "新赫兰德",
+    "type": "region",
+    "region": "new-herland",
+    "x": 49.72431585292345,
+    "y": 42.0886497890295,
+    "px": 4073,
+    "py": 3447
+  },
+  "桥间地": {
+    "name": "桥间地",
+    "type": "region",
+    "region": "bridge-crossings",
+    "x": 54.80838122605366,
+    "y": 60.473927203065095,
+    "px": 4489,
+    "py": 4954
+  },
+  "未闻浦": {
+    "name": "未闻浦",
+    "type": "region",
+    "region": "unheard-shores",
+    "x": 62.16510309278349,
+    "y": 67.82757731958763,
+    "px": 5092,
+    "py": 5556
+  },
+  "米格尔区": {
+    "name": "米格尔区",
+    "type": "region",
+    "region": "miguel-district",
+    "x": 33.71910021945866,
+    "y": 48.283562545720535,
+    "px": 2762,
+    "py": 3955
+  },
+  "幻镇": {
+    "name": "幻镇",
+    "type": "region",
+    "region": "illusion-town",
+    "x": 43.63862926136366,
+    "y": 65.60796874999996,
+    "px": 3574,
+    "py": 5374
+  }
+}

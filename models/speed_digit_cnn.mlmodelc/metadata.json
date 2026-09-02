@@ -1,0 +1,85 @@
+[
+  {
+    "metadataOutputVersion" : "3.0",
+    "shortDescription" : "速度表数字识别CNN(0-9)",
+    "outputSchema" : [
+      {
+        "isOptional" : "0",
+        "formattedType" : "Int64",
+        "type" : "Int64",
+        "name" : "classLabel",
+        "shortDescription" : ""
+      },
+      {
+        "isOptional" : "0",
+        "keyType" : "Int64",
+        "formattedType" : "Dictionary (Int64 → Double)",
+        "type" : "Dictionary",
+        "name" : "classLabel_probs",
+        "shortDescription" : ""
+      }
+    ],
+    "storagePrecision" : "Float16",
+    "modelParameters" : [
+
+    ],
+    "author" : "AuroraDrive",
+    "specificationVersion" : 6,
+    "mlProgramOperationTypeHistogram" : {
+      "Relu" : 4,
+      "Cast" : 2,
+      "Conv" : 3,
+      "Reshape" : 1,
+      "MaxPool" : 3,
+      "Linear" : 2
+    },
+    "computePrecision" : "Mixed (Float16, Float32, Float64, Int32, Int64)",
+    "isUpdatable" : "0",
+    "stateSchema" : [
+
+    ],
+    "availability" : {
+      "macOS" : "12.0",
+      "tvOS" : "15.0",
+      "visionOS" : "1.0",
+      "watchOS" : "8.0",
+      "iOS" : "15.0",
+      "macCatalyst" : "15.0"
+    },
+    "modelType" : {
+      "name" : "MLModelType_mlProgram"
+    },
+    "inputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 1 × 45 × 25)",
+        "shortDescription" : "",
+        "shape" : "[1, 1, 45, 25]",
+        "name" : "image",
+        "type" : "MultiArray"
+      }
+    ],
+    "classLabels" : [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "generatedClassName" : "speed_digit_cnn",
+    "userDefinedMetadata" : {
+      "com.github.apple.coremltools.conversion_date" : "2026-08-26",
+      "com.github.apple.coremltools.source" : "torch==2.13.0",
+      "com.github.apple.coremltools.version" : "9.0",
+      "com.github.apple.coremltools.source_dialect" : "TorchScript"
+    },
+    "method" : "predict"
+  }
+]

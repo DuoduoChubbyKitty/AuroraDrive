@@ -1,67 +1,53 @@
-__pycache__/
-*.pyc
-data/
-models/
-checkpoints/
-*.bin
-*.h5
-*.pth
-*.pt
-.DS_Store
-留档/
-archive/
-cpp/build/
-*.so
-__pycache__/
-
-# Tauri / Rust 构建产物
-src-tauri/target/
-src-tauri/Cargo.lock
-
-# Python venv
-.venv-app/
-.venv/
-
-# PyInstaller 打包产物
-packaging/dist/
-packaging/build/
-
-# 前端构建产物
-frontend/node_modules/
-frontend/dist/
-
-# 地图压缩包
-data/*.zst
-
-# IDE
-.vscode/
-.idea/
-
-# SwiftPM 构建产物
+# ===== SwiftPM 构建产物 =====
 .build/
 .swiftpm/
+*.swiftmodule
 
-# Python venv (yolo26 环境)
+# ===== 二进制（clone 后 ./run.sh 重新编译生成）=====
+AuroraDriveUI
+AuroraDriveUI.app/
+*.bak-*
+
+# ===== 第三方项目/模型（版权原因不入库，见 README 致谢与下载链接）=====
+MaaNTE/
+models/trocr-base-printed/
+
+# ===== 训练中间产物 / 数据集（本地自备，不入库）=====
+checkpoints/
+data/
+archive/
+backups/
+留档/
+models/pair_checks/
+lane_batches.json
+
+# ===== 废弃代码（不再编译，保留本地参考）=====
+legacy/
+
+# ===== Python =====
+__pycache__/
+*.pyc
 .venv-yolo26/
+.venv/
+.venv-app/
 
-# 诊断/临时输出
-graphflow-out/
+# ===== 调试 / 日志 / 临时 =====
+untitled.txt
+*.log
 diag_area/
 diag_steps/
+graphflow-out/
+.DS_Store
 
-# 备份目录
-backups/
+# ===== AI 工具本地数据 =====
+.workbuddy/
+.dsh-vision-router/
 
-# 嵌套独立仓库(异环小助手)
-MaaNTE/
+# ===== 已废弃 =====
+Plugins/
+src-tauri/
+各类研究/
 
-# 日志
-*.log
-
-# 二进制备份
-*.bak*
-AuroraDriveUI.bak-*
-
-# 临时文件
-untitled.txt
-
+# ===== 密钥（绝不入库）=====
+.env
+*.token

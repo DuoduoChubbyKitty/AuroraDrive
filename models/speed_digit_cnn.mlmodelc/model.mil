@@ -1,0 +1,64 @@
+program(1.0)
+[buildInfo = dict<tensor<string, []>, tensor<string, []>>({{"coremlc-component-MIL", "3520.4.1"}, {"coremlc-version", "3520.5.1"}, {"coremltools-component-torch", "2.13.0"}, {"coremltools-source-dialect", "TorchScript"}, {"coremltools-version", "9.0"}})]
+{
+    func main<ios15>(tensor<fp32, [1, 1, 45, 25]> image) {
+            tensor<string, []> input_1_pad_type_0 = const()[name = tensor<string, []>("input_1_pad_type_0"), val = tensor<string, []>("custom")];
+            tensor<int32, [4]> input_1_pad_0 = const()[name = tensor<string, []>("input_1_pad_0"), val = tensor<int32, [4]>([1, 1, 1, 1])];
+            tensor<int32, [2]> input_1_strides_0 = const()[name = tensor<string, []>("input_1_strides_0"), val = tensor<int32, [2]>([1, 1])];
+            tensor<int32, [2]> input_1_dilations_0 = const()[name = tensor<string, []>("input_1_dilations_0"), val = tensor<int32, [2]>([1, 1])];
+            tensor<int32, []> input_1_groups_0 = const()[name = tensor<string, []>("input_1_groups_0"), val = tensor<int32, []>(1)];
+            tensor<string, []> image_to_fp16_dtype_0 = const()[name = tensor<string, []>("image_to_fp16_dtype_0"), val = tensor<string, []>("fp16")];
+            tensor<fp16, [16, 1, 3, 3]> conv1_weight_to_fp16 = const()[name = tensor<string, []>("conv1_weight_to_fp16"), val = tensor<fp16, [16, 1, 3, 3]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(64)))];
+            tensor<fp16, [16]> conv1_bias_to_fp16 = const()[name = tensor<string, []>("conv1_bias_to_fp16"), val = tensor<fp16, [16]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(448)))];
+            tensor<fp16, [1, 1, 45, 25]> image_to_fp16 = cast(dtype = image_to_fp16_dtype_0, x = image)[name = tensor<string, []>("cast_2")];
+            tensor<fp16, [1, 16, 45, 25]> input_1_cast_fp16 = conv(bias = conv1_bias_to_fp16, dilations = input_1_dilations_0, groups = input_1_groups_0, pad = input_1_pad_0, pad_type = input_1_pad_type_0, strides = input_1_strides_0, weight = conv1_weight_to_fp16, x = image_to_fp16)[name = tensor<string, []>("input_1_cast_fp16")];
+            tensor<fp16, [1, 16, 45, 25]> input_3_cast_fp16 = relu(x = input_1_cast_fp16)[name = tensor<string, []>("input_3_cast_fp16")];
+            tensor<int32, [2]> var_23 = const()[name = tensor<string, []>("op_23"), val = tensor<int32, [2]>([2, 2])];
+            tensor<int32, [2]> var_24 = const()[name = tensor<string, []>("op_24"), val = tensor<int32, [2]>([2, 2])];
+            tensor<string, []> input_5_pad_type_0 = const()[name = tensor<string, []>("input_5_pad_type_0"), val = tensor<string, []>("custom")];
+            tensor<int32, [4]> input_5_pad_0 = const()[name = tensor<string, []>("input_5_pad_0"), val = tensor<int32, [4]>([0, 0, 0, 0])];
+            tensor<bool, []> input_5_ceil_mode_0 = const()[name = tensor<string, []>("input_5_ceil_mode_0"), val = tensor<bool, []>(false)];
+            tensor<fp16, [1, 16, 22, 12]> input_5_cast_fp16 = max_pool(ceil_mode = input_5_ceil_mode_0, kernel_sizes = var_23, pad = input_5_pad_0, pad_type = input_5_pad_type_0, strides = var_24, x = input_3_cast_fp16)[name = tensor<string, []>("input_5_cast_fp16")];
+            tensor<string, []> input_7_pad_type_0 = const()[name = tensor<string, []>("input_7_pad_type_0"), val = tensor<string, []>("custom")];
+            tensor<int32, [4]> input_7_pad_0 = const()[name = tensor<string, []>("input_7_pad_0"), val = tensor<int32, [4]>([1, 1, 1, 1])];
+            tensor<int32, [2]> input_7_strides_0 = const()[name = tensor<string, []>("input_7_strides_0"), val = tensor<int32, [2]>([1, 1])];
+            tensor<int32, [2]> input_7_dilations_0 = const()[name = tensor<string, []>("input_7_dilations_0"), val = tensor<int32, [2]>([1, 1])];
+            tensor<int32, []> input_7_groups_0 = const()[name = tensor<string, []>("input_7_groups_0"), val = tensor<int32, []>(1)];
+            tensor<fp16, [32, 16, 3, 3]> conv2_weight_to_fp16 = const()[name = tensor<string, []>("conv2_weight_to_fp16"), val = tensor<fp16, [32, 16, 3, 3]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(576)))];
+            tensor<fp16, [32]> conv2_bias_to_fp16 = const()[name = tensor<string, []>("conv2_bias_to_fp16"), val = tensor<fp16, [32]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(9856)))];
+            tensor<fp16, [1, 32, 22, 12]> input_7_cast_fp16 = conv(bias = conv2_bias_to_fp16, dilations = input_7_dilations_0, groups = input_7_groups_0, pad = input_7_pad_0, pad_type = input_7_pad_type_0, strides = input_7_strides_0, weight = conv2_weight_to_fp16, x = input_5_cast_fp16)[name = tensor<string, []>("input_7_cast_fp16")];
+            tensor<fp16, [1, 32, 22, 12]> input_9_cast_fp16 = relu(x = input_7_cast_fp16)[name = tensor<string, []>("input_9_cast_fp16")];
+            tensor<int32, [2]> var_44 = const()[name = tensor<string, []>("op_44"), val = tensor<int32, [2]>([2, 2])];
+            tensor<int32, [2]> var_45 = const()[name = tensor<string, []>("op_45"), val = tensor<int32, [2]>([2, 2])];
+            tensor<string, []> input_11_pad_type_0 = const()[name = tensor<string, []>("input_11_pad_type_0"), val = tensor<string, []>("custom")];
+            tensor<int32, [4]> input_11_pad_0 = const()[name = tensor<string, []>("input_11_pad_0"), val = tensor<int32, [4]>([0, 0, 0, 0])];
+            tensor<bool, []> input_11_ceil_mode_0 = const()[name = tensor<string, []>("input_11_ceil_mode_0"), val = tensor<bool, []>(false)];
+            tensor<fp16, [1, 32, 11, 6]> input_11_cast_fp16 = max_pool(ceil_mode = input_11_ceil_mode_0, kernel_sizes = var_44, pad = input_11_pad_0, pad_type = input_11_pad_type_0, strides = var_45, x = input_9_cast_fp16)[name = tensor<string, []>("input_11_cast_fp16")];
+            tensor<string, []> input_13_pad_type_0 = const()[name = tensor<string, []>("input_13_pad_type_0"), val = tensor<string, []>("custom")];
+            tensor<int32, [4]> input_13_pad_0 = const()[name = tensor<string, []>("input_13_pad_0"), val = tensor<int32, [4]>([1, 1, 1, 1])];
+            tensor<int32, [2]> input_13_strides_0 = const()[name = tensor<string, []>("input_13_strides_0"), val = tensor<int32, [2]>([1, 1])];
+            tensor<int32, [2]> input_13_dilations_0 = const()[name = tensor<string, []>("input_13_dilations_0"), val = tensor<int32, [2]>([1, 1])];
+            tensor<int32, []> input_13_groups_0 = const()[name = tensor<string, []>("input_13_groups_0"), val = tensor<int32, []>(1)];
+            tensor<fp16, [64, 32, 3, 3]> conv3_weight_to_fp16 = const()[name = tensor<string, []>("conv3_weight_to_fp16"), val = tensor<fp16, [64, 32, 3, 3]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(9984)))];
+            tensor<fp16, [64]> conv3_bias_to_fp16 = const()[name = tensor<string, []>("conv3_bias_to_fp16"), val = tensor<fp16, [64]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(46912)))];
+            tensor<fp16, [1, 64, 11, 6]> input_13_cast_fp16 = conv(bias = conv3_bias_to_fp16, dilations = input_13_dilations_0, groups = input_13_groups_0, pad = input_13_pad_0, pad_type = input_13_pad_type_0, strides = input_13_strides_0, weight = conv3_weight_to_fp16, x = input_11_cast_fp16)[name = tensor<string, []>("input_13_cast_fp16")];
+            tensor<fp16, [1, 64, 11, 6]> input_15_cast_fp16 = relu(x = input_13_cast_fp16)[name = tensor<string, []>("input_15_cast_fp16")];
+            tensor<int32, [2]> var_65 = const()[name = tensor<string, []>("op_65"), val = tensor<int32, [2]>([2, 2])];
+            tensor<int32, [2]> var_66 = const()[name = tensor<string, []>("op_66"), val = tensor<int32, [2]>([2, 2])];
+            tensor<string, []> x_pad_type_0 = const()[name = tensor<string, []>("x_pad_type_0"), val = tensor<string, []>("custom")];
+            tensor<int32, [4]> x_pad_0 = const()[name = tensor<string, []>("x_pad_0"), val = tensor<int32, [4]>([0, 0, 0, 0])];
+            tensor<bool, []> x_ceil_mode_0 = const()[name = tensor<string, []>("x_ceil_mode_0"), val = tensor<bool, []>(false)];
+            tensor<fp16, [1, 64, 5, 3]> x_cast_fp16 = max_pool(ceil_mode = x_ceil_mode_0, kernel_sizes = var_65, pad = x_pad_0, pad_type = x_pad_type_0, strides = var_66, x = input_15_cast_fp16)[name = tensor<string, []>("x_cast_fp16")];
+            tensor<int32, [2]> var_72 = const()[name = tensor<string, []>("op_72"), val = tensor<int32, [2]>([-1, 960])];
+            tensor<fp16, [1, 960]> input_17_cast_fp16 = reshape(shape = var_72, x = x_cast_fp16)[name = tensor<string, []>("input_17_cast_fp16")];
+            tensor<fp16, [128, 960]> fc1_weight_to_fp16 = const()[name = tensor<string, []>("fc1_weight_to_fp16"), val = tensor<fp16, [128, 960]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(47104)))];
+            tensor<fp16, [128]> fc1_bias_to_fp16 = const()[name = tensor<string, []>("fc1_bias_to_fp16"), val = tensor<fp16, [128]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(292928)))];
+            tensor<fp16, [1, 128]> linear_0_cast_fp16 = linear(bias = fc1_bias_to_fp16, weight = fc1_weight_to_fp16, x = input_17_cast_fp16)[name = tensor<string, []>("linear_0_cast_fp16")];
+            tensor<fp16, [1, 128]> input_cast_fp16 = relu(x = linear_0_cast_fp16)[name = tensor<string, []>("input_cast_fp16")];
+            tensor<fp16, [10, 128]> fc2_weight_to_fp16 = const()[name = tensor<string, []>("fc2_weight_to_fp16"), val = tensor<fp16, [10, 128]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(293248)))];
+            tensor<fp16, [10]> fc2_bias_to_fp16 = const()[name = tensor<string, []>("fc2_bias_to_fp16"), val = tensor<fp16, [10]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(295872)))];
+            tensor<fp16, [1, 10]> linear_1_cast_fp16 = linear(bias = fc2_bias_to_fp16, weight = fc2_weight_to_fp16, x = input_cast_fp16)[name = tensor<string, []>("linear_1_cast_fp16")];
+            tensor<string, []> linear_1_cast_fp16_to_fp32_dtype_0 = const()[name = tensor<string, []>("linear_1_cast_fp16_to_fp32_dtype_0"), val = tensor<string, []>("fp32")];
+            tensor<fp32, [1, 10]> var_80 = cast(dtype = linear_1_cast_fp16_to_fp32_dtype_0, x = linear_1_cast_fp16)[name = tensor<string, []>("cast_1")];
+        } -> (var_80);
+}
