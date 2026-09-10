@@ -136,8 +136,7 @@ final class YoloEngine {
     /// 模型定位：优先编译产物 .mlmodelc，回退 .mlpackage。
     /// YOLOv26s 替换后模型名从 game_assist_yolo 改为 yolo26s（旧文件保留作回滚）。
     private var modelURL: URL {
-        let modelsDir = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
+        let modelsDir = AuroraPaths.projectRoot()
             .appendingPathComponent("models")
         let compiled = modelsDir.appendingPathComponent("yolo26s.mlmodelc")
         if FileManager.default.fileExists(atPath: compiled.path) {

@@ -17,9 +17,28 @@ struct BPFSetupManager {
         return FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/com.aurora.bpf-setup.plist")
     }
     
+    /// 检查LaunchDaemon是否已加载（真正运行）
+    static func isLaunchDaemonLoaded() -> Bool {
+        let task = Process()
+        task.launchPath = "/bin/sh"
+        task.arguments = ["-c", "launchctl list | grep -q com.aurora.bpf-setup"]
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+    
     /// 需要安装吗？（BPF不可用 且 LaunchDaemon未装）
     static func needsInstall() -> Bool {
         return !isBPFAvailable() && !isLaunchDaemonInstalled()
+    }
+    
+    /// 需要启动吗？（已安装但未加载）
+    static func needsLoad() -> Bool {
+        return isLaunchDaemonInstalled() && !isLaunchDaemonLoaded()
     }
     
     /// 写setup脚本到/tmp，然后用AppleScript以管理员权限运行
@@ -118,6 +137,24 @@ echo "BPF_SETUP_DONE"
             try task.run()
             task.waitUntilExit()
             return task.terminationStatus == 0 && isBPFAvailable()
+        } catch {
+            return false
+        }
+    }
+    
+    /// 启动 LaunchDaemon（如果已安装但未加载）
+    static func loadDaemonIfNeeded() -> Bool {
+        guard isLaunchDaemonInstalled() else { return false }
+        guard !isLaunchDaemonLoaded() else { return true }
+        
+        // 尝试加载服务
+        let task = Process()
+        task.launchPath = "/bin/sh"
+        task.arguments = ["-c", "launchctl load /Library/LaunchDaemons/com.aurora.bpf-setup.plist 2>/dev/null; launchctl start com.aurora.bpf-setup 2>/dev/null"]
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0 && isLaunchDaemonLoaded()
         } catch {
             return false
         }

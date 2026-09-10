@@ -219,8 +219,7 @@ final class SpeedOCRReader {
     ///   （保持空字模，UI 仍可运行，只是 speedKmh 读不到）
     /// - 用 #filePath 定位项目根，models 为同级子目录（与 InferenceEngine 一致）
     private func loadGlyphsSync() {
-        let modelsDir = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
+        let modelsDir = AuroraPaths.projectRoot()
             .appendingPathComponent("models")
         let url = modelsDir.appendingPathComponent("speed_glyphs.json")
         guard let data = try? Data(contentsOf: url) else { return }
@@ -527,25 +526,23 @@ final class SpeedOCRReader {
         var fgTotal = 0
 
         for (idx, cg) in slotImages.enumerated() {
-            let w = cg.width
-            let h = cg.height
-            guard w > 0, h > 0,
-                  let gray = grayscalePixels(cgImage: cg) else {
-                return RecognitionResult(error: "grayscale failed slot \(idx)")
+            guard cg.width > 0, cg.height > 0 else {
+                return RecognitionResult(error: "invalid slot \(idx)")
             }
-            // fg检测：用Otsu二值化统计前景像素
+            // 对齐训练端 PIL LANCZOS：用 CoreImage 高质量缩放替代最近邻，
+            // 消除「训练 LANCZOS vs 推理最近邻」的插值不一致（速度模型乱读的病根）
+            guard let resizedCG = Self.lanczosResize(cg, toWidth: templateWidth, toHeight: templateHeight),
+                  let gray = grayscalePixels(cgImage: resizedCG) else {
+                return RecognitionResult(error: "resize/grayscale failed slot \(idx)")
+            }
+            // fg检测：Otsu 二值化统计前景像素（gray 已是 90×50）
             let binary = binarizeOtsu(gray: gray)
-            let binaryResized = resizeNearest(src: binary, srcH: h, srcW: w,
-                                               dstH: templateHeight, dstW: templateWidth)
-            fgTotal += binaryResized.reduce(0) { $0 + Int($1) }
+            fgTotal += binary.reduce(0) { $0 + Int($1) }
 
-            // 灰度resize到45×25（用最近邻保持与训练一致）
-            let grayResized = resizeGray(src: gray, srcH: h, srcW: w,
-                                          dstH: templateHeight, dstW: templateWidth)
-            // 归一化到0-1
+            // 归一化到0-1（gray 已是 90×50，无需再缩放）
             var floatPixels = [Float](repeating: 0, count: templateHeight * templateWidth)
-            for i in 0..<grayResized.count {
-                floatPixels[i] = Float(grayResized[i]) / 255.0
+            for i in 0..<gray.count {
+                floatPixels[i] = Float(gray[i]) / 255.0
             }
 
             // 构造MLMultiArray (1, 1, 45, 25)
@@ -605,6 +602,18 @@ final class SpeedOCRReader {
         let speed = digits[0] * 100 + digits[1] * 10 + digits[2]
         let avgConf = maxConfidences.reduce(0, +) / Double(maxConfidences.count)
         return RecognitionResult(speed: speed, unknownSlots: [], confidence: avgConf)
+    }
+
+    /// CoreImage 高质量缩放（Lanczos 近似）到目标尺寸
+    /// 对齐训练端 PIL LANCZOS，替代最近邻消除插值不一致（速度模型乱读的病根）
+    nonisolated private static func lanczosResize(_ cg: CGImage, toWidth: Int, toHeight: Int) -> CGImage? {
+        guard toWidth > 0, toHeight > 0, cg.width > 0, cg.height > 0 else { return nil }
+        let ci = CIImage(cgImage: cg)
+        let scaleX = CGFloat(toWidth) / CGFloat(cg.width)
+        let scaleY = CGFloat(toHeight) / CGFloat(cg.height)
+        let scaled = ci.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+        let rect = CGRect(x: 0, y: 0, width: CGFloat(toWidth), height: CGFloat(toHeight))
+        return ciContext.createCGImage(scaled, from: rect)
     }
 
     /// 灰度最近邻缩放（输入任意大小灰度 → 输出 dstH×dstW 的 [UInt8]）

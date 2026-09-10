@@ -6,8 +6,18 @@ let package = Package(
     platforms: [.macOS(.v26)],
     dependencies: [],
     targets: [
+        .target(
+            name: "AuroraDriveShared",
+            path: "Sources/AuroraDriveShared"
+        ),
+        .executableTarget(
+            name: "AuroraDriveUserAgent",
+            dependencies: ["AuroraDriveShared"],
+            path: "Sources/AuroraDriveUserAgent"
+        ),
         .executableTarget(
             name: "AuroraDrive",
+            dependencies: ["AuroraDriveShared"],
             path: ".",
             exclude: [
                 ".build",
@@ -41,12 +51,14 @@ let package = Package(
             ],
             sources: [
                 "Sources/AuroraDrive/AuroraDriveApp.swift",
+                "Sources/AuroraDrive/AuroraPaths.swift",
                 "Sources/AuroraDrive/AutomationPanel.swift",
                 "Sources/AuroraDrive/CaptureEngine.swift",
                 "Sources/AuroraDrive/BPFSetup.swift",
                 "Sources/AuroraDrive/ConfidenceEstimator.swift",
                 "Sources/AuroraDrive/ControlEngine.swift",
                 "Sources/AuroraDrive/CoordinateCapture.swift",
+                "Sources/AuroraDrive/DaemonSetup.swift",
                 "Sources/AuroraDrive/DegradeStateMachine.swift",
                 "Sources/AuroraDrive/EscapeController.swift",
                 "Sources/AuroraDrive/GameMapView.swift",
@@ -54,7 +66,6 @@ let package = Package(
                 "Sources/AuroraDrive/KeyboardMonitor.swift",
                 "Sources/AuroraDrive/MinimapLocatorView.swift",
                 "Sources/AuroraDrive/MinimapTileCache.swift",
-                "Sources/AuroraDrive/NetworkHealer.swift",
                 "Sources/AuroraDrive/NetworkLocator.swift",
                 "Sources/AuroraDrive/RecordEngine.swift",
                 "Sources/AuroraDrive/RuleController.swift",

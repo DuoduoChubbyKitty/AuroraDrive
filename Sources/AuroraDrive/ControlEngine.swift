@@ -90,10 +90,15 @@ final class ControlEngine: @unchecked Sendable {
     func checkPermission() -> Bool {
         // AXIsProcessTrustedWithOptions 会触发系统授权弹窗（首次）
         // kAXTrustedCheckOptionPrompt: true 表示弹窗提示
-        // 使用字符串字面量替代全局常量访问，避免 Swift 6 并发检查报错
-        let promptKey = "kAXTrustedCheckOptionPrompt"
-        let options: NSDictionary = [promptKey: true]
-        let trusted = AXIsProcessTrustedWithOptions(options)
+        // 
+        // P0 修复 (2026-09-07): 字符串字面量 "kAXTrustedCheckOptionPrompt" 不是有效的
+        // CFString 常量，导致 options 字典无效 → AXIsProcessTrustedWithOptions 收到
+        // nil 等价参数 → 访问空指针崩溃 (EXC_BAD_ACCESS at 0x8)。
+        // 
+        // 正确做法：直接传 nil（不弹窗）或用 kAXTrustedCheckOptionPrompt as String
+        // 作为 key。这里改为传 nil：首次调用会自动弹系统授权提示，后续调用仅返回
+        // 当前权限状态，与原本期望行为一致。
+        let trusted = AXIsProcessTrustedWithOptions(nil)
         hasAccessibilityPermission = trusted
         return trusted
     }

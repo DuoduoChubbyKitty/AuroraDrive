@@ -19,6 +19,8 @@ import CoreVideo  // CVPixelBuffer：YOLO 直通帧跳帧缓冲
 import MetalKit   // MTKView：MetalGoose 插帧渲染承载
 import os
 import Darwin         // OSAllocatedUnfairLock：跨线程锁
+import IOKit.pwr_mgt  // IOPMAssertion：防止系统判定进程空闲并冻结
+import ApplicationServices  // AXIsProcessTrusted：辅助功能权限预检（TCC 自检）
 
 // 应用启动时强制激活窗口到前台（直接 swift 运行时窗口默认不激活）
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -28,9 +30,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var eventTap: CFMachPort?
     /// 2GB内存锚点（持有防止释放，让系统不敢冻结本进程）
     private var memoryAnchor: UnsafeMutableRawPointer?
+    /// IOPMAssertion ID（防止系统 Power Management 判定进程空闲并冻结，Game Mode 最强对抗）
+    private var powerAssertionID: IOPMAssertionID = IOPMAssertionID(kIOPMNullAssertionID)
+
+    /// 检查用户会话 Agent 是否被当前 gui/$uid 域加载（深度验证用）
+    private func launchctlPrintAgentOk() -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = ["print", "gui/\(getuid())/com.aurora.drive.agent"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = CommandLine.arguments
+
+        // Daemon 模式检测：launchd 启动时带 --daemon 参数 + AURORA_DAEMON_MODE=1 环境变量
+        let isDaemon = args.contains("--daemon")
+            || ProcessInfo.processInfo.environment["AURORA_DAEMON_MODE"] == "1"
+        if isDaemon {
+            // Daemon 模式：不激活窗口、不显示 Dock 图标，纯后台运行
+            NSApp.setActivationPolicy(.accessory)
+            print("[App] Daemon 模式启动（系统服务，最高调度优先级）")
+        }
+
+        // 命令行自检：AuroraDriveUI --test-xpc
+        // 对用户会话 Agent 做一次 XPC 健康 ping，打印结果后退出（深度验证用）。
+        if args.contains("--test-xpc") {
+            let loaded = launchctlPrintAgentOk()
+            print("[TEST-XPC] launchctl print gui/\(getuid())/com.aurora.drive.agent → \(loaded ? "已加载" : "未加载")")
+            let ok = DaemonSetupManager.pingUserAgent(timeout: 3.0)
+            print("[TEST-XPC] XPC ping → \(ok ? "成功" : "失败")")
+            exit(ok ? 0 : 1)
+        }
+
+        // 命令行自检：AuroraDriveUI --tcc-selftest
+        // TCC 权限继承验证：launchd 以「与 UI 完全相同的可执行文件路径+签名」拉起本进程，
+        // 因此这里的预检结果 = 未来 --engine 模式的真实权限状态。
+        // 全部使用纯预检 API（不弹任何授权窗），结果追加写入日志后立即退出。
+        if args.contains("--tcc-selftest") {
+            let axOK = AXIsProcessTrusted()  // 辅助功能权限预检（不带 prompt 参数 = 纯查询，零弹窗）
+            let screenOK = CGPreflightScreenCaptureAccess()  // 屏幕录制权限预检（macOS 10.15+，纯查询，零弹窗）
+            let line = "ts=\(Int(Date().timeIntervalSince1970)) path=\(CommandLine.arguments.first ?? "?") ax=\(axOK) screen=\(screenOK) uid=\(getuid()) mode=\(ProcessInfo.processInfo.environment["AURORA_TCC_TEST"] ?? "direct")"
+            let logPath = NSHomeDirectory() + "/Library/Logs/AuroraTCCSelfTest.log"
+            if !FileManager.default.fileExists(atPath: logPath) {
+                FileManager.default.createFile(atPath: logPath, contents: nil)
+            }
+            if let fh = FileHandle(forWritingAtPath: logPath) {
+                fh.seekToEndOfFile()
+                fh.write((line + "\n").data(using: .utf8)!)
+                fh.closeFile()
+            }
+            print("[TCC-SELFTEST] \(line)")
+            exit((axOK && screenOK) ? 0 : 2)
+        }
 
         // BPF权限检查在ContentView.onAppear里做（需要访问state）
 
@@ -83,7 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // pthread QoS set via DispatchQueue .userInteractive (已设)
         // 创建空 CGEventTap：系统必须保持有event tap的进程响应，否则事件丢弃
         // 这是强制系统不冻结本进程的最有效手段（Game Mode也挡不住）
-        let eventMask: CGEventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.mouseMoved.rawValue)
+        // 注意：只监听键盘事件，不监听鼠标移动（避免鼠标被强制移到左上角）
+        let eventMask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
         guard let eventTap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -122,6 +184,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        
+        // IOPMAssertion：声明进程需要持续响应，系统不得因"空闲"判定而冻结
+        // PreventUserIdleSystemSleep：防止系统认为用户空闲而降低进程优先级
+        // 这是对抗 Game Mode 冻结后台进程的官方 API，比任何 hack 都稳定
+        let assertionName = "AuroraDrive Real-time Game Assistant" as CFString
+        let status = IOPMAssertionCreateWithName(
+            kIOPMAssertPreventUserIdleSystemSleep as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            assertionName,
+            &powerAssertionID
+        )
+        if status == kIOReturnSuccess {
+            // 写入启动日志文件（SwiftUI App不输出到终端）
+            let logPath = "/tmp/aurora_iopm_status.log"
+            let logMsg = "[App] IOPMAssertion 已成功创建 (ID=\(powerAssertionID)) → 系统级防冻结保护\n"
+            try? logMsg.write(toFile: logPath, atomically: true, encoding: .utf8)
+            print("[App] IOPMAssertion 已创建 (ID=\(powerAssertionID)) → 系统级防冻结保护")
+        } else {
+            let logPath = "/tmp/aurora_iopm_status.log"
+            let logMsg = "[App] IOPMAssertion 创建失败 (status=\(status))，Game Mode 可能仍会冻结\n"
+            try? logMsg.write(toFile: logPath, atomically: true, encoding: .utf8)
+            print("[App] IOPMAssertion 创建失败 (status=\(status))，Game Mode 可能仍会冻结")
+        }
+        
+        // Darwin Notification Center：注册系统级通知，保持进程活跃
+        // 监听系统睡眠/唤醒、电源管理、显示配置等事件
+        // 系统不会冻结正在监听系统通知的进程
+        let darwinCenter = CFNotificationCenterGetDarwinNotifyCenter()
+        
+        // 监听系统睡眠/唤醒
+        CFNotificationCenterAddObserver(
+            darwinCenter,
+            nil,
+            { _, _, _, _, _ in
+                print("[Darwin] 系统电源管理事件")
+            },
+            "com.apple.system.powermanagement" as CFString,
+            nil,
+            .deliverImmediately
+        )
+        
+        // 监听显示配置变化（全屏切换时触发）
+        CFNotificationCenterAddObserver(
+            darwinCenter,
+            nil,
+            { _, _, _, _, _ in
+                print("[Darwin] 显示配置变化")
+            },
+            "com.apple.system.displays.reconfiguration" as CFString,
+            nil,
+            .deliverImmediately
+        )
+        
+        // 监听系统时间变化（保持进程活跃）
+        CFNotificationCenterAddObserver(
+            darwinCenter,
+            nil,
+            { _, _, _, _, _ in
+                print("[Darwin] 系统时间变化")
+            },
+            "com.apple.system.clock_set" as CFString,
+            nil,
+            .deliverImmediately
+        )
+        
+        print("[App] Darwin Notification Center 已注册（3个系统通知）")
+        
         // SwiftUI WindowGroup 的窗口在 applicationDidFinishLaunching 之后、runloop 下一轮
         // 才创建（此时同步遍历 NSApp.windows 常为空，激活无效）。延迟到下一 runloop 再
         // 激活，确保窗口已创建后置前，避免"进程起来却无可见窗口"。
@@ -131,6 +260,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 window.makeKeyAndOrderFront(nil)
                 window.orderFrontRegardless()
             }
+        }
+    }
+    
+    deinit {
+        // 释放 IOPMAssertion（进程退出时自动调用）
+        if powerAssertionID != kIOPMNullAssertionID {
+            IOPMAssertionRelease(powerAssertionID)
+            print("[App] IOPMAssertion 已释放")
         }
     }
 }
@@ -504,6 +641,14 @@ final class DriveState {
     var showBPFPasswordSheet = false  // 是否显示密码输入弹窗
     var bpfInstallMessage = ""  // 安装结果消息
     var bpfInstalling = false  // 正在安装中
+    
+    // ── Daemon 系统服务相关字段 ──
+    var daemonInstalled = false  // 是否已安装为系统服务
+    var showDaemonInstallSheet = false  // 是否显示安装引导弹窗
+    var daemonInstallMessage = ""  // 安装结果消息
+    var daemonInstalling = false  // 正在安装中
+    var isDaemonMode = false  // 当前是否为 daemon 模式运行
+    
     var networkLocateX: Double = 0
     var networkLocateY: Double = 0
     var networkLocateScore: Double = 0
@@ -519,8 +664,8 @@ final class DriveState {
     var locatorHeading: Double = 0
     var locatorTarget: (x: Double, y: Double)? = nil
     @ObservationIgnored private var lastNetworkLocPos: (x: Double, y: Double)? = nil
-    @ObservationIgnored private var healer: NetworkHealer?
     @ObservationIgnored private var healerInitLock = os_unfair_lock_s()
+    @ObservationIgnored private var coordinateCapture: CoordinateCapture?
     @ObservationIgnored private let locateCtx = LocateContext()
     @ObservationIgnored private let locateGate = LocateGate()
     private let mapPath: String = {
@@ -546,30 +691,24 @@ final class DriveState {
     }
 
     func runNetworkLocateStep() {
-        // 懒初始化NetworkHealer（自愈引擎：网络+视觉双模+后台诊断修复）
-        if healer == nil {
+        // 懒初始化 CoordinateCapture（纯网络定位，无自愈引擎）
+        if coordinateCapture == nil {
             os_unfair_lock_lock(&healerInitLock)
             defer { os_unfair_lock_unlock(&healerInitLock) }
-            if healer == nil {
+            if coordinateCapture == nil {
                 let cc = CoordinateCapture()
-                let h = NetworkHealer(capture: cc, mapPath: mapPath)
-                h.onModeChange = { [weak self] (mode: LocatorMode) -> Void in
-                    print("[Healer] 定位模式切换: \(mode.rawValue)")
-                }
                 let ok = cc.start()
                 pcapLog("[NETWORK-LOCATE] cc.start()返回=\(ok)")
                 if ok {
-                    h.start()
                     locateCtx.networkReady = true
-                    pcapLog("[NETWORK-LOCATE] healer已启动, networkReady=true")
+                    pcapLog("[NETWORK-LOCATE] CoordinateCapture已启动")
                 } else {
                     pcapLog("[NETWORK-LOCATE] ❌ pcap启动失败!")
                 }
-                healer = h
-                pcapLog("[NETWORK-LOCATE] healer已保存")
+                coordinateCapture = cc
             }
         }
-        guard let h = healer, locateCtx.networkReady else {
+        guard let cc = coordinateCapture, locateCtx.networkReady else {
             DispatchQueue.main.async { [weak self] in
                 self?.networkLocateScore = 0
                 self?.networkLocateMode = "not_ready"
@@ -577,8 +716,9 @@ final class DriveState {
             return
         }
 
-        // 从自愈引擎获取当前最佳定位
-        if let (px, py, hdg, mode) = h.currentLocation() {
+        // 从 CoordinateCapture 获取定位
+        if let pose = cc.read(maxAge: 1.0) {
+            let (px, py, hdg) = worldToMapPixel(pose)
             if let last = lastNetworkLocPos {
                 let dx = px - last.x, dy = py - last.y
                 if dx * dx + dy * dy > 16 {
@@ -590,7 +730,7 @@ final class DriveState {
                 self?.networkLocateX = px
                 self?.networkLocateY = py
                 self?.networkLocateScore = 1.0
-                self?.networkLocateMode = mode.rawValue
+                self?.networkLocateMode = "network"
                 self?.networkLocateHeading = hdg
                 self?.locatorX = px
                 self?.locatorY = py
@@ -599,13 +739,10 @@ final class DriveState {
                 self?.locatorHeading = hdg
             }
         } else {
-            // 网络定位无数据，检查自愈引擎是否切到视觉
-            if h.mode == .visual {
-                // 视觉定位：需要从截屏获取小地图区域，这里只做标记
-                DispatchQueue.main.async { [weak self] in
-                    self?.networkLocateScore = 0
-                    self?.networkLocateMode = "visual_healing"
-                }
+            // 网络定位无数据
+            DispatchQueue.main.async { [weak self] in
+                self?.networkLocateScore = 0
+                self?.networkLocateMode = "no_data"
             }
         }
     }
@@ -746,7 +883,23 @@ final class DriveState {
     var upscaleEngineError: String? = nil
 
     /// 游戏模式兼容（捕获线程时间约束调度，对抗全屏游戏降权）
-    var gameModeBoost: Bool = true
+    var gameModeBoost: Bool = true {
+        didSet {
+            if gameModeBoost != oldValue {
+                applyMainThreadBoost(gameModeBoost)
+                // 启用时加强心跳，防止系统冻结
+                if gameModeBoost {
+                    startAntiFreeze()
+                } else {
+                    stopAntiFreeze()
+                }
+            }
+        }
+    }
+    
+    /// 防冻结心跳定时器（游戏模式下强制唤醒主线程）
+    @ObservationIgnored
+    private var antiFreezeTimer: DispatchSourceTimer?
 
     // ── 诊断（验证"越到后面越卡=积压"）：onFrame 帧从入队到主线程执行的延迟(ms) ──
     // 若该值随时间持续增长 → main 队列积压确认（每帧 main.async + 22MB 大图堆积）
@@ -1044,7 +1197,35 @@ final class DriveState {
         gameModeBoost = on
         captureEngine.gameModeBoostEnabled = on
         applyMainThreadBoost(on)
+        
+        // 开启时：检查是否已安装 daemon，未安装则弹出安装引导
+        if on {
+            startAntiFreeze()
+            if DaemonSetupManager.needsInstall() {
+                // 延迟 0.5s 弹出安装引导，避免与启动时的弹窗冲突
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.showDaemonInstallSheet = true
+                }
+            }
+        } else {
+            stopAntiFreeze()
+        }
         dlog("[boost] 游戏模式兼容=\(on)")
+    }
+    
+    // MARK: - 防冻结心跳（已禁用：100ms键盘事件导致系统崩溃）
+    
+    /// 启动防冻结心跳：已禁用
+    /// 原因：每100ms发送键盘事件导致系统崩溃，鼠标无法移动
+    private func startAntiFreeze() {
+        // 已禁用，不再启动心跳
+        dlog("[antifreeze] 心跳已禁用（避免系统崩溃）")
+    }
+    
+    /// 停止防冻结心跳
+    private func stopAntiFreeze() {
+        antiFreezeTimer?.cancel()
+        antiFreezeTimer = nil
     }
 
     // MARK: - 一键训练（拉起 Python 训练进程）
@@ -1102,8 +1283,7 @@ final class DriveState {
     /// - Returns: 部署是否成功（成功才清理录制数据）
     @discardableResult
     private func deployTrainedModel() -> Bool {
-        let modelsDir = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
+        let modelsDir = AuroraPaths.projectRoot()
             .appendingPathComponent("models")
         let names = ["game_assist_control_fpv.mlmodelc", "game_assist_control.mlmodelc",
                      "game_assist_control_fpv.mlpackage", "game_assist_control.mlpackage"]
@@ -1138,8 +1318,7 @@ final class DriveState {
     /// 录制数据仅用于训练，训完即弃，避免无限累积、下次训练重复读取旧数据。
     /// 仅在部署成功时调用；失败保留数据以便排查。
     private func clearRawClips() {
-        let rawClips = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
+        let rawClips = AuroraPaths.projectRoot()
             .appendingPathComponent("data/raw_clips")
         guard FileManager.default.fileExists(atPath: rawClips.path) else { return }
         do {
@@ -1503,6 +1682,9 @@ struct ContentView: View {
         .sheet(isPresented: $state.showBPFPasswordSheet) {
             BPFPasswordSheet(state: state)
         }
+        .sheet(isPresented: $state.showDaemonInstallSheet) {
+            DaemonInstallSheet(state: state)
+        }
         .onDisappear {
             tickTimer?.invalidate()
             tickTimer = nil
@@ -1527,6 +1709,18 @@ struct ContentView: View {
             tickTimer = nil  // 不再用 Timer 类型，用 DispatchSource 控制
             tickDispatchSource = timer
 
+            // Daemon 系统服务检查（优先级高于 BPF，因为影响整个进程调度）
+            state.isDaemonMode = DaemonSetupManager.isRunningAsDaemon()
+            state.daemonInstalled = DaemonSetupManager.isDaemonInstalled()
+            if DaemonSetupManager.needsInstall() {
+                print("[App] 未安装为系统服务，显示安装引导")
+                state.showDaemonInstallSheet = true
+            } else if state.isDaemonMode {
+                print("[App] 当前以系统服务运行（最高优先级）")
+            } else if state.daemonInstalled {
+                print("[App] 已安装系统服务，但当前为普通模式")
+            }
+            
             // BPF权限检查（在onAppear里，有state访问权限）
             if BPFSetupManager.needsInstall() {
                 print("[App] BPF需要安装，等待用户输入密码")
@@ -1834,8 +2028,40 @@ struct TopToolbar: View {
 
             Spacer()
 
-            // 右: BPF状态药丸 + 模式标识 + 运行灯
+            // 右: Daemon状态药丸 + BPF状态药丸 + 模式标识 + 运行灯
             HStack(spacing: 10) {
+                // Daemon系统服务状态药丸（最高优先级标识）
+                if state.isDaemonMode {
+                    HStack(spacing: 4) {
+                        Image(systemName: "shield.lefthalf.filled.badge.checkmark")
+                            .font(.system(size: 9))
+                        Text("系统级")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Theme.cyan.opacity(0.2), in: Capsule())
+                    .foregroundStyle(Theme.cyan)
+                    .shadow(color: Theme.cyan.opacity(0.4), radius: 4)
+                    .help("当前以系统服务运行，最高调度优先级")
+                } else if !state.daemonInstalled {
+                    Button {
+                        state.showDaemonInstallSheet = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "shield")
+                                .font(.system(size: 9))
+                            Text("升级")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Theme.orangeRed.opacity(0.15), in: Capsule())
+                        .foregroundStyle(Theme.orangeRed)
+                    }
+                    .buttonStyle(.plain)
+                    .help("安装为系统服务，防止游戏全屏时被冻结")
+                }
                 // BPF权限药丸按钮（灵动岛风格折叠）
                 if !state.bpfAuthorized {
                     Button {
@@ -2000,6 +2226,102 @@ struct BPFPasswordSheet: View {
                 }
         }
         .frame(width: 340)
+    }
+}
+
+// MARK: - DaemonInstallSheet (系统服务安装引导)
+
+/// Daemon 安装引导弹窗：首次启动时引导用户安装为 LaunchDaemon（最高优先级）
+struct DaemonInstallSheet: View {
+    @Bindable var state: DriveState
+    @State private var password = "123456"
+
+    var body: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 8) {
+                Image(systemName: "shield.lefthalf.filled.badge.checkmark")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Theme.cyan)
+                    .shadow(color: Theme.cyan, radius: 10)
+                Text("安装系统级服务")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.cyan)
+                Text("游戏全屏时 macOS 会冻结后台 App\n安装为系统服务可获得最高调度优先级\n防止被冻结，只需输入一次密码")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+
+            SecureField("管理员密码", text: $password)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Theme.bgPure, in: RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(Theme.textPrimary)
+                .font(.system(size: 14, design: .monospaced))
+
+            if !state.daemonInstallMessage.isEmpty {
+                Text(state.daemonInstallMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(state.daemonInstallMessage.contains("成功") || state.daemonInstallMessage.contains("已安装") ? Theme.cyan : Theme.orangeRed)
+                    .multilineTextAlignment(.center)
+            }
+
+            HStack(spacing: 12) {
+                Button("暂不安装") {
+                    state.showDaemonInstallSheet = false
+                    state.daemonInstallMessage = ""
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+
+                Button {
+                    state.daemonInstalling = true
+                    state.daemonInstallMessage = ""
+                    let pwd = password
+                    let execPath = DaemonSetupManager.currentExecutablePath()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        let result = DaemonSetupManager.install(password: pwd, currentExecutablePath: execPath)
+                        DispatchQueue.main.async {
+                            state.daemonInstalling = false
+                            state.daemonInstallMessage = result.message
+                            if result.success {
+                                state.daemonInstalled = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                    state.showDaemonInstallSheet = false
+                                    state.daemonInstallMessage = ""
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        if state.daemonInstalling {
+                            ProgressView().scaleEffect(0.7)
+                        }
+                        Text(state.daemonInstalling ? "安装中..." : "立即安装")
+                    }
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .background(Theme.cyan.opacity(0.2), in: Capsule())
+                    .foregroundStyle(Theme.cyan)
+                }
+                .buttonStyle(.plain)
+                .disabled(state.daemonInstalling || password.isEmpty)
+            }
+        }
+        .padding(28)
+        .background {
+            RoundedRectangle(cornerRadius: 24)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(Theme.cyan.opacity(0.3), lineWidth: 1)
+                }
+        }
+        .frame(width: 360)
     }
 }
 
@@ -2702,6 +3024,7 @@ struct SidebarView: View {
                 TrainingPanel(state: state)
                 GameMapCard(state: state)
                 AutomationInlinePanel()
+                LogViewerPanel()
             }
             .padding(14)
         }
@@ -3272,5 +3595,158 @@ struct TrainButton: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+// ============================================================================
+// MARK: - LogViewerPanel (日志查看面板)
+// ============================================================================
+
+/// 日志查看面板：显示 /tmp/aurora_debug.log 的最新内容
+struct LogViewerPanel: View {
+    @State private var logContent: String = "日志未加载"
+    @State private var isExpanded: Bool = false
+    @State private var autoRefresh: Bool = false
+    @State private var refreshTimer: Timer?
+
+    var body: some View {
+        GlowCard {
+            VStack(alignment: .leading, spacing: 10) {
+                // 标题栏
+                HStack {
+                    SectionHeader(title: "DEBUG LOG")
+                    Spacer()
+                    // 自动刷新开关
+                    Toggle("", isOn: $autoRefresh)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .scaleEffect(0.7)
+                        .onChange(of: autoRefresh) { _, enabled in
+                            if enabled {
+                                startAutoRefresh()
+                            } else {
+                                stopAutoRefresh()
+                            }
+                        }
+                    // 手动刷新按钮
+                    Button {
+                        loadLog()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Theme.cyan)
+                    }
+                    .buttonStyle(.plain)
+                    // 展开/收起按钮
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if isExpanded {
+                    // 日志内容区域
+                    ScrollView(.vertical) {
+                        Text(logContent)
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(Theme.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                    .frame(height: 200)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.black.opacity(0.5))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Theme.cyan.opacity(0.2), lineWidth: 1)
+                    )
+
+                    // 底部操作按钮
+                    HStack(spacing: 8) {
+                        Button("清空日志") {
+                            clearLog()
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.danger)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Theme.danger.opacity(0.1))
+                        )
+                        .buttonStyle(.plain)
+
+                        Button("在 Finder 中显示") {
+                            showInFinder()
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.cyan)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Theme.cyan.opacity(0.1))
+                        )
+                        .buttonStyle(.plain)
+
+                        Spacer()
+
+                        Text(autoRefresh ? "自动刷新中..." : "")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Theme.cyan.opacity(0.6))
+                    }
+                }
+            }
+        }
+        .onAppear {
+            loadLog()
+        }
+        .onDisappear {
+            stopAutoRefresh()
+        }
+    }
+
+    private func loadLog() {
+        let logPath = "/tmp/aurora_debug.log"
+        if let content = try? String(contentsOfFile: logPath, encoding: .utf8) {
+            // 只显示最后 200 行
+            let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+            let lastLines = lines.suffix(200)
+            logContent = lastLines.joined(separator: "\n")
+        } else {
+            logContent = "日志文件不存在或无法读取\n路径: \(logPath)"
+        }
+    }
+
+    private func clearLog() {
+        let logPath = "/tmp/aurora_debug.log"
+        try? "".write(toFile: logPath, atomically: true, encoding: .utf8)
+        logContent = "日志已清空"
+    }
+
+    private func showInFinder() {
+        let logPath = "/tmp/aurora_debug.log"
+        let url = URL(fileURLWithPath: logPath)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    private func startAutoRefresh() {
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            loadLog()
+        }
+    }
+
+    private func stopAutoRefresh() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
     }
 }

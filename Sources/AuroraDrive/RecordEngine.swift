@@ -50,8 +50,7 @@ final class RecordEngine: @unchecked Sendable {
 
     /// 字模模式输出根目录：data/glyph_clips/（与训练 raw_clips 隔离，互不干扰）
     private var glyphRoot: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
+        AuroraPaths.projectRoot()
             .appendingPathComponent("data")
             .appendingPathComponent("glyph_clips")
     }
@@ -120,8 +119,7 @@ final class RecordEngine: @unchecked Sendable {
     /// 录制输出根目录：data/raw_clips/（训练端 mono_dataset 默认扫描路径）
     /// 用 #filePath 定位本文件所在目录（项目根），data/raw_clips 为同级子目录
     private var recordingsRoot: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
+        AuroraPaths.projectRoot()
             .appendingPathComponent("data")
             .appendingPathComponent("raw_clips")
     }

@@ -125,8 +125,7 @@ final class InferenceEngine {
     /// 优先加载训练产出的编译模型 <name>.mlmodelc（.mlmodelc 为 coremlcompiler 编译产物），
     /// 回退到历史未编译的 <name>.mlpackage，保证「训练完一键热替换」生效。
     private var modelURL: URL {
-        let modelsDir = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
+        let modelsDir = AuroraPaths.projectRoot()
             .appendingPathComponent("models")
         let compiled = modelsDir.appendingPathComponent("\(modelFileName).mlmodelc")
         if FileManager.default.fileExists(atPath: compiled.path) {
