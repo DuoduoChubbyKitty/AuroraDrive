@@ -1402,10 +1402,12 @@ final class DriveState {
             if let pb = client.takePixelBuffer() {
                 upscaleHost.push(pixelBuffer: pb)
                 isStreaming = true
-                if screenSize == nil {
-                    screenSize = CGSize(width: CVPixelBufferGetWidth(pb),
-                                        height: CVPixelBufferGetHeight(pb))
-                }
+                // 源尺寸必须随帧更新（不能只在 nil 时设一次）：
+                // 检测框叠加、框选手势的坐标换算都以 screenSize 为基准，
+                // 尺寸变了却不更新 → 框错位、框选选不中。
+                let sz = CGSize(width: CVPixelBufferGetWidth(pb),
+                                height: CVPixelBufferGetHeight(pb))
+                if screenSize != sz { screenSize = sz }
             }
         } else if let cg {
             currentFrameCG = cg
@@ -2627,7 +2629,10 @@ struct GameViewportView: View {
                         let c = dragCurrent ?? v.location
 
                         // 视口坐标 → 源图归一化
-                        let srcSize = state.frameHost.latestSize
+                        // 基准用 screenSize（本地/引擎、直绘/插帧两条显示路径都有值）；
+                        // 不用 frameHost.latestSize —— 插帧路径画面由 MetalGoose 直渲、
+                        // 不经过 frameHost，读它会拿到空值 → 整个框选被 guard 拦掉（选不了）。
+                        let srcSize = state.screenSize ?? state.frameHost.latestSize
                         let viewSize = geo.size
                         guard let n1 = viewToSourceNorm(s, source: srcSize, view: viewSize),
                               let n2 = viewToSourceNorm(c, source: srcSize, view: viewSize) else { return }
