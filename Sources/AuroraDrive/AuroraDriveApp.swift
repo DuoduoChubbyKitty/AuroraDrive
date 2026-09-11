@@ -2426,7 +2426,10 @@ struct GameViewportView: View {
             // 当截屏引擎运行时，显示实时游戏画面
             // 未运行时，显示纯黑占位 + 提示文字
             if state.isStreaming {
-                if state.upscaleEnabled {
+                // 引擎模式下画面来自后台引擎（共享内存成品帧），
+                // 插帧/超分是「本进程采集流」的显示增强，此模式下没有该数据源，
+                // 因此强制走 frameHost 显示引擎帧，避免切到 upscaleHost 后黑屏。
+                if state.upscaleEnabled && !state.engineModeActive {
                     UpscaleFrameHostView(host: state.upscaleHost)
                         .onChange(of: state.upscaleEnabled) { _, on in
                             if !on { state.upscaleHost.clear() }

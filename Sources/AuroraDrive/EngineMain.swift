@@ -499,6 +499,13 @@ enum EngineMain {
             EngineGlobals.state = DriveState()
             EngineGlobals.shm = shm
             EngineGlobals.socket = server
+            // 诊断（仅供无按键权限的环境验证帧管道）：
+            // 只启动抓屏、不注入按键，用来端到端验证「采集 → 共享内存 → UI」这条链路。
+            // 生产路径不受影响（默认不设该变量）。
+            if ProcessInfo.processInfo.environment["AURORA_ENGINE_DIAG_CAPTURE_ONLY"] == "1" {
+                EngineGlobals.state?.captureEngine.start()
+                engineLog("[ENGINE] 诊断：仅抓屏模式（不注入按键），用于验证帧管道")
+            }
         }
         engineLog("[ENGINE] DriveState 已创建")
 

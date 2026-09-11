@@ -66,6 +66,7 @@ final class EngineClient {
     private var shmSize = 0
     private var frameCache: CGImage?
     private var lastFrameSeq: UInt64 = 0
+    private var frameCountSinceConnect = 0
     private var connectTimer: DispatchSourceTimer?
     private var connectAttempts = 0
 
@@ -338,6 +339,10 @@ final class EngineClient {
                                     provider: provider, decode: nil,
                                     shouldInterpolate: false, intent: .defaultIntent) {
                     frameCache = cg
+                    frameCountSinceConnect += 1
+                    if frameCountSinceConnect == 1 {
+                        engineClientLog("收到引擎首帧 \(w)×\(h)（帧管道打通）")
+                    }
                 }
             }
         }
