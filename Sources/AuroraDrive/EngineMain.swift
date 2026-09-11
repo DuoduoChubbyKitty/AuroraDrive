@@ -508,6 +508,9 @@ enum EngineMain {
                         engineLog("[ENGINE] UI 连接异常断开，进入 3 秒重连窗口")
                         EngineMain.startReconnectWindow()
                     }
+                    // 无论主动关闭还是异常断开，都启动「无人使用倒计时」：
+                    // 30 秒内没有 UI 重连 → 引擎自动安全退出（不再常驻占资源）。
+                    EngineMain.startIdleExitCountdown()
                 }
             }
         }
@@ -515,6 +518,7 @@ enum EngineMain {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     EngineMain.cancelReconnectWindow()
+                    EngineMain.cancelIdleExitCountdown()
                     EngineGlobals.clientSaidBye = false
                     EngineMain.sendHeartbeat(reason: "client-connected")
                 }
@@ -601,6 +605,7 @@ enum EngineMain {
     nonisolated(unsafe) private static var engineTicker: DispatchSourceTimer?
     nonisolated(unsafe) private static var engineHeartbeat: DispatchSourceTimer?
     nonisolated(unsafe) private static var reconnectWorkItem: DispatchWorkItem?
+    nonisolated(unsafe) private static var idleExitWorkItem: DispatchWorkItem?
     nonisolated(unsafe) private static var heartbeatCount = 0
 
     // MARK: - tick 与发布
@@ -713,6 +718,32 @@ enum EngineMain {
     static func cancelReconnectWindow() {
         reconnectWorkItem?.cancel()
         reconnectWorkItem = nil
+    }
+
+    // MARK: - 无人使用自动退出（UI 离开 30 秒无重连）
+
+    /// UI 断开后启动倒计时：30 秒内无重连 → 自动安全退出（先 releaseAll）。
+    /// 说明：引擎本身是「常驻」设计（UI 关掉也能继续驾驶），但没人用还一直占资源不合理，
+    /// 所以加这道兜底。重连即取消（onClientConnected 里 cancel）。
+    @MainActor
+    static func startIdleExitCountdown() {
+        cancelIdleExitCountdown()
+        engineLog("[ENGINE] UI 已离开：30 秒内若无人重连，引擎将自动退出")
+        let work = DispatchWorkItem {
+            MainActor.assumeIsolated {
+                if EngineGlobals.socket?.hasClient == true { return }   // 已重连
+                engineLog("[ENGINE] 30 秒无人使用，自动退出（先释放全部按键）")
+                EngineMain.performShutdown(reason: "idle-exit")
+            }
+        }
+        idleExitWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30.0, execute: work)
+    }
+
+    @MainActor
+    static func cancelIdleExitCountdown() {
+        idleExitWorkItem?.cancel()
+        idleExitWorkItem = nil
     }
 
     /// 暂停驾驶（安全侧）：立即释放全部按键，但保持抓屏与推理运行，等待 UI 重连。

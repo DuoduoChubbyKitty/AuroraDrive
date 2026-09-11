@@ -1429,6 +1429,15 @@ final class DriveState {
             frameHost.push(cg)
         }
         remoteDetections = client.engineDetections
+        // 引擎已停止抓屏（点了停止/暂停）→ UI 侧同步收尾：
+        // 否则 isStreaming 会一直停在 true（引擎模式下只在有帧时被置 true，从不复位），
+        // 导致插帧视图继续挂着、徽章一直显示"插帧中"（用户实测反馈）。
+        if !client.engineIsStreaming && isStreaming {
+            isStreaming = false
+            upscaleLive = nil
+            upscaleHost.clear()     // 停掉 MetalGoose 渲染（detach）
+            frameHost.clear()
+        }
         // 引擎模式下 UI 不跑推理，面板/状态栏依赖的驾驶状态由引擎心跳回传后落到这里：
         // 档位、车速（含车速表读数）、置信度、有效车速。缺了这些，右侧状态栏与自车信息会「空掉」。
         if mode != client.engineMode { mode = client.engineMode }
@@ -2259,6 +2268,9 @@ struct TopToolbar: View {
             col = Theme.danger; txt = "插帧异常 · \(err)"
         } else if !state.upscaleEnabled {
             col = Theme.textTertiary; txt = "插帧 · 关"
+        } else if !state.isDriving {
+            // 没在驾驶 = 没有新帧可插（停止/暂停后不应继续显示"插帧中"）
+            col = Theme.textTertiary; txt = "插帧 · 待机"
         } else if let live = state.upscaleLive {
             col = Theme.cyan; txt = "插帧中 · \(live)"
         } else {
