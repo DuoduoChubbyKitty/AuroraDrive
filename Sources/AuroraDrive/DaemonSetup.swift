@@ -1,219 +1,56 @@
 // SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import AuroraDriveShared
 import Foundation
 import Darwin
 
-/// 开发阶段的一键服务编排器。
+/// 系统权限服务编排器（引擎拆分后的简化版）。
 ///
-/// 重要边界：
-/// - BPF 权限仍由独立的 root LaunchDaemon 负责；
-/// - 驾驶核心先以当前登录用户身份运行，避免把 SwiftUI/AppKit/TCC 程序当成 root daemon；
-/// - 当前阶段只安装并验证 UserAgent/XPC 基础设施，尚未把现有驾驶引擎迁移到 UserAgent。
+/// 背景：原「用户会话 XPC Agent」方案**已废弃**——
+///   实测 launchd 拉起的后台进程拿不到 TCC 权限（ax=false、screen=false），
+///   驾驶引擎改为由主程序 spawn 的子进程承担（沿进程链继承权限，
+///   见 EngineMain.swift / EngineClient.swift）。
+/// 因此本文件只保留与驾驶无关的 BPF 权限服务（root LaunchDaemon），
+/// 以及若干兼容旧调用点的空壳入口。
+///
+/// 边界：
+/// - BPF 权限由独立 root LaunchDaemon 负责（抓包定位用，与驾驶引擎无关）；
 /// - 不保存密码，也不把密码放入 argv、脚本或日志；管理员授权由 macOS 原生授权对话框完成。
 struct DaemonSetupManager {
-    static let userAgentLabel = AuroraDriveServiceIdentity.launchAgentLabel
-    static let userAgentMachService = AuroraDriveServiceIdentity.machServiceName
-    static let userAgentPlistName = "\(userAgentLabel).plist"
-    static let userAgentExecutableName = "AuroraDriveUserAgent"
 
-    /// 兼容旧 UI 的名称；不再代表 root daemon。
-    static var daemonLabel: String { userAgentLabel }
-    static var daemonPlistPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/LaunchAgents/\(userAgentPlistName)").path
-    }
-    static var daemonExecutablePath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/AuroraDrive/\(userAgentExecutableName)").path
-    }
+    /// 旧 UI 兼容：引擎架构已不再有 daemon 模式。
+    static func isRunningAsDaemon() -> Bool { false }
 
-    static func isRunningAsDaemon() -> Bool {
-        ProcessInfo.processInfo.environment["AURORA_USER_AGENT_MODE"] == "1"
-    }
+    /// 旧 UI 兼容：用户会话 Agent 方案已废弃，永远视为「未安装」。
+    static func isDaemonInstalled() -> Bool { false }
 
-    /// 仅检查用户会话 Agent 是否已安装且被当前 gui/$uid 域加载。
-    static func isDaemonInstalled() -> Bool {
-        FileManager.default.fileExists(atPath: daemonPlistPath)
-            && FileManager.default.fileExists(atPath: daemonExecutablePath)
-            && isUserAgentLoaded()
-    }
-
-    /// 一次安装事务需要同时满足 BPF 和用户 Agent。
+    /// 现在只有 BPF 权限需要安装。
     static func needsInstall() -> Bool {
-        !isDaemonInstalled() || !BPFSetupManager.isBPFAvailable()
+        !BPFSetupManager.isBPFAvailable()
     }
 
     /// 旧调用点兼容入口。password 参数保留仅为兼容旧 UI，实际不会读取或保存。
-    /// 管理员授权由 osascript 的原生授权流程完成。
     @discardableResult
     static func install(password: String, currentExecutablePath: String) -> (success: Bool, message: String) {
         install(currentExecutablePath: currentExecutablePath)
     }
 
-    /// 安装 BPF root LaunchDaemon + 当前用户 LaunchAgent。
-    /// 成功条件：用户 Agent 已 bootstrap，BPF 权限可用，system job 可被 print 查询。
+    /// 只安装 BPF root LaunchDaemon（不再安装任何 launchd Agent）。
     static func install(currentExecutablePath: String) -> (success: Bool, message: String) {
-        let hadAgent = isDaemonInstalled()
-        do {
-            try installUserAgent(currentExecutablePath: currentExecutablePath)
-        } catch {
-            return (false, "用户会话服务安装失败：\(error.localizedDescription)")
+        if BPFSetupManager.isBPFAvailable() {
+            return (true, "BPF 权限已可用")
         }
-
-        if !BPFSetupManager.isBPFAvailable() {
-            let result = installBPFWithSystemAuthorization()
-            guard result.success else {
-                if !hadAgent { removeUserAgent() }
-                return result
-            }
-        }
-
-        guard isUserAgentLoaded() else {
-            if !hadAgent { removeUserAgent() }
-            return (false, "用户会话服务文件已写入，但 launchd 未加载 Agent")
-        }
-        guard pingUserAgent(timeout: 2.0) else {
-            if !hadAgent { removeUserAgent() }
-            return (false, "用户会话 Agent 已注册，但 XPC 健康检查失败")
-        }
-        guard BPFSetupManager.isBPFAvailable() else {
-            if !hadAgent { removeUserAgent() }
-            return (false, "BPF 权限仍不可用，未报告安装成功")
-        }
-        return (true, "BPF 权限与用户会话 XPC Agent 已配置完成")
+        return installBPFWithSystemAuthorization()
     }
 
-    /// 兼容旧卸载入口；仅卸载用户 Agent，不自动删除 BPF 权限服务。
+    /// 旧调用点兼容：不再有需要卸载的用户会话 Agent。
     static func uninstall(password: String) -> (success: Bool, message: String) {
-        removeUserAgent()
-        return (true, "用户会话 Agent 已卸载；BPF 权限服务未改动")
+        (true, "无需卸载：用户会话 Agent 方案已废弃")
     }
 
     static func currentExecutablePath() -> String {
         URL(fileURLWithPath: CommandLine.arguments[0])
             .standardizedFileURL.resolvingSymlinksInPath().path
-    }
-
-    /// 通过 launchd 管理的 Mach 服务对用户 Agent 做一次带超时的 XPC ping。
-    static func pingUserAgent(timeout: TimeInterval = 2.0) -> Bool {
-        final class PingBox: @unchecked Sendable {
-            let lock = NSLock()
-            var answered = false
-            var ok = false
-        }
-        let box = PingBox()
-        let connection = NSXPCConnection(machServiceName: userAgentMachService)
-        connection.remoteObjectInterface = NSXPCInterface(with: AuroraDriveUserAgentProtocol.self)
-        connection.resume()
-        let remote = connection.remoteObjectProxyWithErrorHandler { _ in
-            box.lock.lock()
-            box.answered = true
-            box.ok = false
-            box.lock.unlock()
-        } as? AuroraDriveUserAgentProtocol
-        remote?.ping { version, status in
-            box.lock.lock()
-            box.answered = true
-            box.ok = version == AuroraDriveServiceIdentity.protocolVersion && status == "ready"
-            box.lock.unlock()
-        }
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            box.lock.lock()
-            let done = box.answered
-            let ok = box.ok
-            box.lock.unlock()
-            if done { return ok }
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-        return false
-    }
-
-    // MARK: - 用户会话 Agent
-
-    private static func installUserAgent(currentExecutablePath: String) throws {
-        guard let source = resolveUserAgentBinary(from: currentExecutablePath) else {
-            throw SetupError("找不到 AuroraDriveUserAgent。请先执行 swift build -c debug 或设置 AURORA_USER_AGENT_PATH")
-        }
-
-        let fm = FileManager.default
-        let executableURL = URL(fileURLWithPath: daemonExecutablePath)
-        try fm.createDirectory(at: executableURL.deletingLastPathComponent(),
-                               withIntermediateDirectories: true,
-                               attributes: [.posixPermissions: 0o700])
-        if fm.fileExists(atPath: daemonExecutablePath) {
-            try fm.removeItem(at: executableURL)
-        }
-        try fm.copyItem(at: source, to: executableURL)
-        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executableURL.path)
-
-        let plistURL = URL(fileURLWithPath: daemonPlistPath)
-        try fm.createDirectory(at: plistURL.deletingLastPathComponent(),
-                               withIntermediateDirectories: true,
-                               attributes: [.posixPermissions: 0o700])
-        let uid = getuid()
-        let plist: [String: Any] = [
-            "Label": userAgentLabel,
-            "ProgramArguments": [daemonExecutablePath, "--user-agent"],
-            "EnvironmentVariables": ["AURORA_USER_AGENT_MODE": "1"],
-            "MachServices": [userAgentMachService: true],
-            "ProcessType": "Interactive",
-            "Nice": -20,
-            "RunAtLoad": true,
-            "KeepAlive": true,
-            "StandardOutPath": fm.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Logs/AuroraDriveUserAgent.log").path,
-            "StandardErrorPath": fm.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Logs/AuroraDriveUserAgent.error.log").path,
-            "AURORAUserID": Int(uid)
-        ]
-        guard PropertyListSerialization.propertyList(plist, isValidFor: .xml) else {
-            throw SetupError("用户 Agent plist 内容无效")
-        }
-        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-        try data.write(to: plistURL, options: .atomic)
-        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: plistURL.path)
-
-        _ = run("/bin/launchctl", ["bootout", "gui/\(uid)/\(userAgentLabel)"], allowFailure: true)
-        let bootstrap = run("/bin/launchctl", ["bootstrap", "gui/\(uid)", plistURL.path])
-        guard bootstrap.status == 0 else {
-            throw SetupError("launchctl bootstrap 用户 Agent 失败：\(bootstrap.output)")
-        }
-        let kickstart = run("/bin/launchctl", ["kickstart", "-k", "gui/\(uid)/\(userAgentLabel)"], allowFailure: true)
-        guard kickstart.status == 0, isUserAgentLoaded() else {
-            throw SetupError("用户 Agent bootstrap 后未能 kickstart")
-        }
-    }
-
-    private static func isUserAgentLoaded() -> Bool {
-        let uid = getuid()
-        return run("/bin/launchctl", ["print", "gui/\(uid)/\(userAgentLabel)"], allowFailure: true).status == 0
-    }
-
-    private static func removeUserAgent() {
-        let uid = getuid()
-        _ = run("/bin/launchctl", ["bootout", "gui/\(uid)/\(userAgentLabel)"], allowFailure: true)
-        try? FileManager.default.removeItem(atPath: daemonPlistPath)
-        try? FileManager.default.removeItem(atPath: daemonExecutablePath)
-    }
-
-    private static func resolveUserAgentBinary(from appExecutable: String) -> URL? {
-        let fm = FileManager.default
-        var candidates: [URL] = []
-        if let env = ProcessInfo.processInfo.environment["AURORA_USER_AGENT_PATH"], !env.isEmpty {
-            candidates.append(URL(fileURLWithPath: env))
-        }
-        let appURL = URL(fileURLWithPath: appExecutable).standardizedFileURL.resolvingSymlinksInPath()
-        let buildDir = appURL.deletingLastPathComponent()
-        candidates.append(buildDir.appendingPathComponent(userAgentExecutableName))
-        let root = AuroraPaths.projectRoot()
-        candidates.append(root.appendingPathComponent(".build/arm64-apple-macosx/debug/\(userAgentExecutableName)"))
-        candidates.append(root.appendingPathComponent(".build/arm64-apple-macosx/release/\(userAgentExecutableName)"))
-        return candidates
-            .map { $0.standardizedFileURL.resolvingSymlinksInPath() }
-            .first { fm.isExecutableFile(atPath: $0.path) }
     }
 
     // MARK: - BPF root LaunchDaemon

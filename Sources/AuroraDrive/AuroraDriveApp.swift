@@ -33,43 +33,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// IOPMAssertion ID（防止系统 Power Management 判定进程空闲并冻结，Game Mode 最强对抗）
     private var powerAssertionID: IOPMAssertionID = IOPMAssertionID(kIOPMNullAssertionID)
 
-    /// 检查用户会话 Agent 是否被当前 gui/$uid 域加载（深度验证用）
-    private func launchctlPrintAgentOk() -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = ["print", "gui/\(getuid())/com.aurora.drive.agent"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = CommandLine.arguments
 
-        // Daemon 模式检测：launchd 启动时带 --daemon 参数 + AURORA_DAEMON_MODE=1 环境变量
+        // Daemon 模式检测（历史入口保留：launchd 拉起时带 --daemon）
         let isDaemon = args.contains("--daemon")
             || ProcessInfo.processInfo.environment["AURORA_DAEMON_MODE"] == "1"
         if isDaemon {
             // Daemon 模式：不激活窗口、不显示 Dock 图标，纯后台运行
             NSApp.setActivationPolicy(.accessory)
-            print("[App] Daemon 模式启动（系统服务，最高调度优先级）")
+            print("[App] Daemon 模式启动")
         }
 
-        // 命令行自检：AuroraDriveUI --test-xpc
-        // 对用户会话 Agent 做一次 XPC 健康 ping，打印结果后退出（深度验证用）。
+        // 历史自检入口 --test-xpc：用户会话 XPC Agent 方案已废弃
+        // （launchd 拉起的进程拿不到 TCC 权限，引擎改由主程序 spawn 子进程承担）
         if args.contains("--test-xpc") {
-            let loaded = launchctlPrintAgentOk()
-            print("[TEST-XPC] launchctl print gui/\(getuid())/com.aurora.drive.agent → \(loaded ? "已加载" : "未加载")")
-            let ok = DaemonSetupManager.pingUserAgent(timeout: 3.0)
-            print("[TEST-XPC] XPC ping → \(ok ? "成功" : "失败")")
-            exit(ok ? 0 : 1)
+            print("[TEST-XPC] 用户会话 XPC Agent 方案已废弃；后台引擎自检请见 ~/Library/Logs/AuroraEngine.log")
+            exit(0)
         }
 
         // 命令行自检：AuroraDriveUI --tcc-selftest
