@@ -108,3 +108,13 @@
 - 2026-09-11 13:21 用户真机点击验证：UI 按钮 → socket `start` 命令送达引擎 ✅（命令链路端到端通）
 - 2026-09-11 13:26 场景：引擎被杀 → UI 显示失联且不崩溃；引擎重启 → UI 自动重连 ✅
 - 2026-09-11 13:27 步骤5 commit c382835；验收清单 AI 可测项全过
+
+### ⑧ 停止驾驶后插帧不收尾 — 已修 ✅（fbdbf03）
+根因：引擎模式下 `isStreaming` 只在"有帧"时被置 true，从不复位 → 停止后 UI 仍以为在推流，
+插帧视图一直挂着、徽章一直显示"插帧中"。
+修法：引擎报告 isStreaming=false 时 UI 侧收尾（isStreaming=false + upscaleLive=nil + upscaleHost.clear() + frameHost.clear()）；
+徽章新增「插帧 · 待机」档（未驾驶时不显示"插帧中"）。
+
+### ⑨ UI 关闭后引擎常驻不退出 — 已修 ✅（fbdbf03，已实测）
+修法：UI 断开（无论 bye 还是异常）即启动 30 秒倒计时，无人重连 → `performShutdown("idle-exit")`（先 releaseAll 再退）。
+重连即取消倒计时。实测：断开→倒计时→5秒重连取消→再断开→30秒后安全退出 + socket 清理。
