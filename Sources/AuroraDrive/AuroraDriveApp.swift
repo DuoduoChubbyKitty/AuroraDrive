@@ -418,7 +418,20 @@ private func applyMainThreadBoost(_ enabled: Bool) {
     }
 }
 
+/// 进程入口分流：`--engine` 走纯后台引擎（EngineMain，不触碰 SwiftUI、
+/// 不创建窗口、不跑 NSApp），否则照常启动 SwiftUI 界面。
+/// 注意：@main 从 App 结构移到本 Launcher 仅为拿到最早的进程入口，
+/// SwiftUI 的 App/Scene/AppDelegate 结构完全保持原样，未做其他改动。
 @main
+struct AuroraDriveLauncher {
+    static func main() {
+        if CommandLine.arguments.contains("--engine") {
+            EngineMain.run()   // 永不返回（dispatchMain 常驻）
+        }
+        AuroraDriveApp.main()
+    }
+}
+
 struct AuroraDriveApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
