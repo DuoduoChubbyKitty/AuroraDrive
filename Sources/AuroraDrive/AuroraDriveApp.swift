@@ -645,6 +645,10 @@ final class DriveState {
     // ── 引擎模式（后台引擎拆分；EngineClient 激活时生效）──
     /// 引擎回传的检测结果（引擎模式下每 tick 刷新）
     var remoteDetections: [Detection] = []
+    /// 引擎模式是否激活（镜像自 EngineClient，供 UI 观察刷新）
+    var engineModeActive = false
+    /// 引擎心跳是否正常（false = 失联，UI 显示告警）
+    var engineConnected = false
     /// 最后一次「开始/停止」命令时间：引擎状态回同步的 1 秒宽限期，防切换瞬间UI闪烁
     @ObservationIgnored var lastDriveCommandTime = Date.distantPast
     /// UI 统一检测结果读取点：引擎模式用引擎回传，本地模式用本地 YoloEngine
@@ -1391,6 +1395,9 @@ final class DriveState {
     /// 引擎模式 tick：抓屏/推理/按键都在后台引擎里，UI 只拉取显示数据
     private func tickEngineMode() {
         let client = EngineClient.shared
+        // 镜像连接状态到 DriveState（@Observable），供状态栏显示
+        if engineModeActive != client.isActive { engineModeActive = client.isActive }
+        if engineConnected != client.isConnected { engineConnected = client.isConnected }
         if let cg = client.poll() {
             currentFrameCG = cg
             let sz = CGSize(width: cg.width, height: cg.height)
@@ -2174,6 +2181,20 @@ struct TopToolbar: View {
                     Text(state.m9Status.text)
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
                         .foregroundStyle(state.m9Status.color)
+                }
+                // 引擎模式状态：后台引擎已连接 / 失联（仅引擎模式显示；本地模式此块不出现）
+                if state.engineModeActive {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(state.engineConnected ? Theme.cyan : Theme.orangeRed)
+                            .frame(width: 6, height: 6)
+                            .shadow(color: (state.engineConnected ? Theme.cyan : Theme.orangeRed).opacity(0.9),
+                                    radius: 4)
+                        Text(state.engineConnected ? "引擎已连接" : "引擎失联")
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(state.engineConnected ? Theme.cyan : Theme.orangeRed)
+                    }
+                    .help("后台引擎运行中：抓屏/推理/按键都在引擎进程里，本窗口只负责显示")
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 5)
