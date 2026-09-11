@@ -61,6 +61,7 @@ let package = Package(
                 "Sources/AuroraDrive/DaemonSetup.swift",
                 "Sources/AuroraDrive/DegradeStateMachine.swift",
                 "Sources/AuroraDrive/EngineMain.swift",
+                "Sources/AuroraDrive/EngineClient.swift",
                 "Sources/AuroraDrive/EscapeController.swift",
                 "Sources/AuroraDrive/GameMapView.swift",
                 "Sources/AuroraDrive/InferenceEngine.swift",

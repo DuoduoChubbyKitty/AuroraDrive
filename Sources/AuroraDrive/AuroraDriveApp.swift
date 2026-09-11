@@ -125,6 +125,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             exit(0)
         }
 
+        // ── 引擎模式启动（后台引擎拆分）──
+        // 探测 engine.sock：已有健康引擎 → 直接连接；没有 → spawn 自己（--engine）。
+        // 任一步失败自动回退本地模式（下方全部本地逻辑保持原样）。
+        if !isDaemon {
+            EngineClient.shared.startup()
+        }
+
         // 抑制 App Nap（beginActivity .latencyCritical + .userInteractive）：
         // 下面的 disableAutomaticTermination 只防"被系统自动退出"，不管节流。
         // App 在游戏前台全屏时沦为后台 App，系统默认会对它的 RunLoop 定时器/渲染
@@ -263,6 +270,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    /// 正常退出前通知后台引擎「我走了，继续跑」：
+    /// 引擎收到 bye 后释放按键但保持抓屏推理，等待下次 UI 重连，
+    /// 且不会把这次断开当作崩溃来处理（不触发看门狗停车）。
+    func applicationWillTerminate(_ notification: Notification) {
+        EngineClient.shared.sendByeSync()
+    }
+
     deinit {
         // 释放 IOPMAssertion（进程退出时自动调用）
         if powerAssertionID != kIOPMNullAssertionID {
@@ -627,6 +641,16 @@ final class DriveState {
     var isDriving       = false
     var sportMode       = false
     var isTraining      = false
+
+    // ── 引擎模式（后台引擎拆分；EngineClient 激活时生效）──
+    /// 引擎回传的检测结果（引擎模式下每 tick 刷新）
+    var remoteDetections: [Detection] = []
+    /// 最后一次「开始/停止」命令时间：引擎状态回同步的 1 秒宽限期，防切换瞬间UI闪烁
+    @ObservationIgnored var lastDriveCommandTime = Date.distantPast
+    /// UI 统一检测结果读取点：引擎模式用引擎回传，本地模式用本地 YoloEngine
+    var effectiveDetections: [Detection] {
+        EngineClient.shared.isActive ? remoteDetections : yoloEngine.detections
+    }
 
     /// 专家模式：录制时控制量来源切到真人物理键（模仿学习的专家演示），
     /// 而非 AI 决策（currentCommand）。关 → 录 AI 决策（DAgger 自训练）。
@@ -1134,6 +1158,15 @@ final class DriveState {
     /// 3. 启动截屏画面流
     /// 4. 后续由推理引擎决定注入什么按键（当前仅占位，状态机已就位）
     func startDriving() {
+        // ── 引擎模式：命令转发给后台引擎（UI 不启动本地抓屏/推理/按键）──
+        if EngineClient.shared.isActive {
+            EngineClient.shared.sendCommand("start")
+            lastDriveCommandTime = Date()
+            isDriving = true
+            drivingStartTime = Date()
+            dlog("[引擎模式] 已发送 start 命令给后台引擎")
+            return
+        }
         // 权限检查：按键注入需要辅助功能权限
         // 无权限时引导用户到系统设置，不启动
         guard controlEngine.checkPermission() else {
@@ -1166,6 +1199,14 @@ final class DriveState {
     /// 4. 重置降级状态机 + 脱困控制器 + 置信度估计器 + 推理引擎
     /// 5. 若正在录制，一并停止录制（保证 meta.json 落盘）
     func stopDriving() {
+        // ── 引擎模式：命令转发给后台引擎（引擎侧释放按键并停止抓屏）──
+        if EngineClient.shared.isActive {
+            EngineClient.shared.sendCommand("stop")
+            lastDriveCommandTime = Date()
+            isDriving = false
+            dlog("[引擎模式] 已发送 stop 命令给后台引擎")
+            return
+        }
         isDriving = false
         controlEngine.releaseAll()
         keyboardMonitor.stop()
@@ -1347,6 +1388,25 @@ final class DriveState {
         }
     }
 
+    /// 引擎模式 tick：抓屏/推理/按键都在后台引擎里，UI 只拉取显示数据
+    private func tickEngineMode() {
+        let client = EngineClient.shared
+        if let cg = client.poll() {
+            currentFrameCG = cg
+            let sz = CGSize(width: cg.width, height: cg.height)
+            if screenSize != sz { screenSize = sz }
+            isStreaming = true
+            frameHost.push(cg)
+        }
+        remoteDetections = client.engineDetections
+        // 引擎是状态权威源；命令发出后 1 秒内保留 UI 乐观值，避免切换瞬间闪烁
+        if Date().timeIntervalSince(lastDriveCommandTime) > 1.0,
+           isDriving != client.engineIsDriving {
+            isDriving = client.engineIsDriving
+        }
+        if client.engineFPS > 0 { fps = client.engineFPS }
+    }
+
     /// 每帧推进（30Hz，由 ContentView 的 Timer 驱动）
     /// 完整决策管线：CoreML推理 → 置信度估计 → 状态机决策 → 按态输出控制量 → 录制
     func tick() {
@@ -1354,6 +1414,12 @@ final class DriveState {
         let tickNow = Date()
         tickGapMs = tickNow.timeIntervalSince(lastTickTime) * 1000
         lastTickTime = tickNow
+
+        // ── 引擎模式：只拉取显示数据，本地抓屏/推理/按键全部不跑 ──
+        if EngineClient.shared.isActive {
+            tickEngineMode()
+            return
+        }
 
         // ── 消费最新待显示帧（跳帧防堆积）──
         // onFrame 在 captureQueue 只覆盖最新帧；这里每 tick 取最新一帧赋给
@@ -2402,9 +2468,9 @@ struct GameViewportView: View {
                 }
             }
 
-            // ── AI 识别叠加层：YoloEngine 的真实检测框 ──
+            // ── AI 识别叠加层：检测框（本地模式=YoloEngine / 引擎模式=引擎回传）──
             ObstacleOverlay(active: state.isDriving,
-                            detections: state.yoloEngine.detections,
+                            detections: state.effectiveDetections,
                             sourceSize: state.screenSize,
                             lockedTarget: state.yoloEngine.lockedTarget,
                             isLocked: state.yoloEngine.isLocked)

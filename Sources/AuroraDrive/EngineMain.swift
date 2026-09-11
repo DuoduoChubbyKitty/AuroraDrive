@@ -27,10 +27,11 @@ import ApplicationServices
 
 // shm_open 在 C 声明为可变参数函数（oflag 含 O_CREAT 时才传 mode），
 // Swift 无法直接导入可变参数 C 函数；此处桥接为固定 3 参版本。
+// internal：EngineClient（UI 侧）也要用同一桥接。
 @_silgen_name("shm_open")
-private func swift_shm_open(_ name: UnsafePointer<CChar>, _ oflag: Int32, _ mode: mode_t) -> Int32
+func swift_shm_open(_ name: UnsafePointer<CChar>, _ oflag: Int32, _ mode: mode_t) -> Int32
 @_silgen_name("shm_unlink")
-private func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
+func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
 
 // MARK: - 引擎日志
 
@@ -307,26 +308,22 @@ final class EngineSocketServer {
     private func acceptClient() {
         let fd = accept(listenFD, nil, nil)
         guard fd >= 0 else { return }
-        // 新连接替换旧连接（UI 重开重连）
-        if clientFD >= 0 {
-            clientSource?.cancel()
+        // 新连接替换旧连接（UI 重开重连）：
+        // 旧连接由它自己的 cancel handler 关闭（只关它自己的 fd），
+        // 绝不在这里按 clientFD 关——cancel 是异步的，若按共享变量关会误关新连接。
+        if let old = clientSource {
             clientSource = nil
-            close(clientFD)
-            clientFD = -1
+            old.cancel()
         }
         clientFD = fd
         lineBuffer.removeAll(keepingCapacity: true)
         hasClient = true
         let src = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
         src.setEventHandler { [weak self] in
-            self?.readClient()
+            self?.readClient(fd: fd)
         }
-        src.setCancelHandler { [weak self] in
-            guard let self else { return }
-            if self.clientFD >= 0 {
-                close(self.clientFD)
-                self.clientFD = -1
-            }
+        src.setCancelHandler {
+            close(fd)   // 只关本连接的 fd
         }
         src.resume()
         clientSource = src
@@ -334,10 +331,10 @@ final class EngineSocketServer {
         onClientConnected?()
     }
 
-    private func readClient() {
-        guard clientFD >= 0 else { return }
+    private func readClient(fd: Int32) {
+        guard fd >= 0 else { return }
         var buf = [UInt8](repeating: 0, count: 8192)
-        let n = read(clientFD, &buf, buf.count)
+        let n = read(fd, &buf, buf.count)
         if n > 0 {
             lineBuffer.append(contentsOf: buf[0..<n])
             // 按行切分
@@ -349,10 +346,10 @@ final class EngineSocketServer {
                 }
             }
         } else {
-            // EOF 或错误 → 客户端断开
+            // EOF 或错误 → 本连接断开（fd 由 cancel handler 关闭）
+            if clientFD == fd { clientFD = -1 }
             clientSource?.cancel()
             clientSource = nil
-            clientFD = -1
             hasClient = false
             engineLog("[ENGINE] UI 连接断开")
             onClientDisconnected?()
@@ -598,8 +595,7 @@ enum EngineMain {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     EngineGlobals.clientSaidBye = true
-                    EngineGlobals.state?.stopDriving()
-                    engineLog("[ENGINE] bye：停止按键输出，引擎保持运行等待 UI 重连")
+                    EngineMain.pauseDriving("bye")
                 }
             }
         case "status":
@@ -635,11 +631,9 @@ enum EngineMain {
         cancelReconnectWindow()
         let work = DispatchWorkItem {
             MainActor.assumeIsolated {
-                guard let st = EngineGlobals.state else { return }
                 if EngineGlobals.socket?.hasClient == true { return }   // 已重连
-                engineLog("[ENGINE] 重连窗口超时：UI died, parking —— 释放全部按键")
-                st.stopDriving()
-                engineLog("[ENGINE] 安全停车完成 isDriving=\(st.isDriving)")
+                engineLog("[ENGINE] 重连窗口超时：UI died, parking")
+                EngineMain.pauseDriving("watchdog")
             }
         }
         reconnectWorkItem = work
@@ -650,6 +644,16 @@ enum EngineMain {
     static func cancelReconnectWindow() {
         reconnectWorkItem?.cancel()
         reconnectWorkItem = nil
+    }
+
+    /// 暂停驾驶（安全侧）：立即释放全部按键，但保持抓屏与推理运行，等待 UI 重连。
+    /// 用于：UI 主动 bye、看门狗超时。与 stop（显式停止、连抓屏一起停）区分。
+    @MainActor
+    static func pauseDriving(_ reason: String) {
+        guard let st = EngineGlobals.state else { return }
+        st.isDriving = false
+        st.controlEngine.releaseAll()
+        engineLog("[ENGINE] \(reason)：已释放全部按键（抓屏与推理保持运行，等待 UI 重连）")
     }
 
     // MARK: - 退出（任何路径都先 releaseAll）
