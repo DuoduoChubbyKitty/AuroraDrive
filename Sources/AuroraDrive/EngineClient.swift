@@ -67,6 +67,14 @@ final class EngineClient {
     private var frameCache: CGImage?
     private var lastFrameSeq: UInt64 = 0
     private var frameCountSinceConnect = 0
+
+    /// UI 当前是否要「像素缓冲」形态的帧（开了插帧时为 true）——
+    /// 由 UI 每 tick 设置；引擎侧也会收到同名开关命令来决定发全分辨率还是缩略帧。
+    var wantPixelBuffer = false
+    private var pendingPixelBuffer: CVPixelBuffer?
+    private var cvPool: CVPixelBufferPool?
+    private var cvPoolW = 0
+    private var cvPoolH = 0
     private var connectTimer: DispatchSourceTimer?
     private var connectAttempts = 0
 
@@ -128,7 +136,12 @@ final class EngineClient {
         lastHeartbeat = Date()
         attachShm()
         engineClientLog("✅ 引擎模式已激活（socket + 共享内存就绪）")
+        // 重连后主动同步一次画面档位（UI 可能开着插帧）
+        onActivated?()
     }
+
+    /// 激活（含重连）后的回调：UI 用它把当前档位/状态同步给引擎
+    var onActivated: (() -> Void)?
 
     /// 尝试连接引擎 socket
     private func tryConnect() -> Bool {
@@ -271,6 +284,48 @@ final class EngineClient {
 
     // MARK: - 共享内存读取
 
+    /// 从共享内存拷贝到 CVPixelBuffer（池化复用；供 MetalGoose 插帧消费）
+    private func copyIntoPixelBuffer(base: UnsafeMutableRawPointer, offset: Int,
+                                     w: Int, h: Int) -> CVPixelBuffer? {
+        if cvPool == nil || cvPoolW != w || cvPoolH != h {
+            let attrs: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: w,
+                kCVPixelBufferHeightKey as String: h,
+                kCVPixelBufferIOSurfacePropertiesKey as String: [:] as CFDictionary
+            ]
+            var pool: CVPixelBufferPool?
+            guard CVPixelBufferPoolCreate(kCFAllocatorDefault, nil,
+                                          attrs as CFDictionary, &pool) == kCVReturnSuccess else {
+                return nil
+            }
+            cvPool = pool
+            cvPoolW = w
+            cvPoolH = h
+        }
+        guard let pool = cvPool else { return nil }
+        var pb: CVPixelBuffer?
+        guard CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pb) == kCVReturnSuccess,
+              let pb else { return nil }
+        CVPixelBufferLockBaseAddress(pb, [])
+        defer { CVPixelBufferUnlockBaseAddress(pb, []) }
+        guard let dst = CVPixelBufferGetBaseAddress(pb) else { return nil }
+        let bpr = CVPixelBufferGetBytesPerRow(pb)
+        let copyBytes = w * 4
+        for r in 0..<h {
+            // 目标可能有行填充，源侧共享内存是紧凑布局，逐行拷
+            memcpy(dst.advanced(by: r * bpr), base.advanced(by: offset + r * copyBytes), copyBytes)
+        }
+        return pb
+    }
+
+    /// 取走上一步 poll() 产出的像素缓冲（消费一次；插帧模式用）
+    func takePixelBuffer() -> CVPixelBuffer? {
+        let b = pendingPixelBuffer
+        pendingPixelBuffer = nil
+        return b
+    }
+
     private func attachShm() {
         guard shmBase == nil else { return }
         let fd = swift_shm_open(EngineFrameShm.name, O_RDONLY, 0)
@@ -323,25 +378,31 @@ final class EngineClient {
         let h = Int(base.load(fromByteOffset: 28, as: UInt32.self))
         let pageSize = Int(base.load(fromByteOffset: 72, as: UInt64.self))
 
-        // ── 像素 → CGImage（复制出共享内存，避免与引擎写入竞态）──
+        // ── 像素读取：按 UI 当前档位二选一 ──
+        // 开插帧 → 读成 CVPixelBuffer（直接喂 MetalGoose，省一次大图构造）；
+        // 普通显示 → 读成 CGImage（直绘 layer.contents）。
         if w > 0, h > 0, pageSize > 0 {
             let off = EngineFrameShm.pixelsOffset + Int(activePage) * pageSize
             if off + pageSize <= shmSize {
-                let src = base.advanced(by: off)
-                let data = Data(bytes: src, count: pageSize)
-                let cs = CGColorSpaceCreateDeviceRGB()
-                let info = CGImageAlphaInfo.premultipliedFirst.rawValue
-                    | CGBitmapInfo.byteOrder32Little.rawValue
-                if let provider = CGDataProvider(data: data as CFData),
-                   let cg = CGImage(width: w, height: h, bitsPerComponent: 8,
-                                    bitsPerPixel: 32, bytesPerRow: w * 4,
-                                    space: cs, bitmapInfo: CGBitmapInfo(rawValue: info),
-                                    provider: provider, decode: nil,
-                                    shouldInterpolate: false, intent: .defaultIntent) {
-                    frameCache = cg
-                    frameCountSinceConnect += 1
-                    if frameCountSinceConnect == 1 {
-                        engineClientLog("收到引擎首帧 \(w)×\(h)（帧管道打通）")
+                if wantPixelBuffer {
+                    pendingPixelBuffer = copyIntoPixelBuffer(base: base, offset: off, w: w, h: h)
+                } else {
+                    let src = base.advanced(by: off)
+                    let data = Data(bytes: src, count: pageSize)
+                    let cs = CGColorSpaceCreateDeviceRGB()
+                    let info = CGImageAlphaInfo.premultipliedFirst.rawValue
+                        | CGBitmapInfo.byteOrder32Little.rawValue
+                    if let provider = CGDataProvider(data: data as CFData),
+                       let cg = CGImage(width: w, height: h, bitsPerComponent: 8,
+                                        bitsPerPixel: 32, bytesPerRow: w * 4,
+                                        space: cs, bitmapInfo: CGBitmapInfo(rawValue: info),
+                                        provider: provider, decode: nil,
+                                        shouldInterpolate: false, intent: .defaultIntent) {
+                        frameCache = cg
+                        frameCountSinceConnect += 1
+                        if frameCountSinceConnect == 1 {
+                            engineClientLog("收到引擎首帧 \(w)×\(h)（帧管道打通）")
+                        }
                     }
                 }
             }
@@ -395,9 +456,13 @@ final class EngineClient {
 
     // MARK: - 命令
 
-    func sendCommand(_ type: String) {
+    func sendCommand(_ type: String, extra: [String: Any] = [:]) {
         guard socketFD >= 0 else { return }
-        let line = "{\"type\":\"\(type)\"}\n"
+        var obj: [String: Any] = ["type": type]
+        for (k, v) in extra { obj[k] = v }
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: obj),
+              let json = String(data: jsonData, encoding: .utf8) else { return }
+        let line = json + "\n"
         guard let data = line.data(using: .utf8) else { return }
         let fd = socketFD
         queue.async {
@@ -405,6 +470,11 @@ final class EngineClient {
                 write(fd, ptr.baseAddress!, ptr.count)
             }
         }
+    }
+
+    /// 告知引擎切换画面档位：开插帧/要清晰画面 → 发全分辨率帧；否则发 480 宽缩略帧省带宽。
+    func setUpscale(_ on: Bool) {
+        sendCommand("upscale", extra: ["on": on])
     }
 
     /// UI 正常关闭前调用（引擎继续运行）

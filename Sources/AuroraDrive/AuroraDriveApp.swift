@@ -1115,6 +1115,14 @@ final class DriveState {
         upscaleSupported = upscaleHost.isAvailable
         dlog("[upscale] 引擎初始化: 可用=\(upscaleSupported)")
 
+        // 引擎（重新）连上时，把 UI 当前的画面档位同步给引擎：
+        // 否则引擎默认发 480 宽缩略帧，UI 开着插帧就会一直等不到全分辨率帧。
+        EngineClient.shared.onActivated = { [weak self] in
+            guard let self else { return }
+            EngineClient.shared.setUpscale(self.upscaleEnabled && self.upscaleSupported)
+            EngineClient.shared.sendCommand("status")
+        }
+
         // 旧网络定位已移除
         // 旧网络定位回调已移除（NetworkPacketCapture不编译）
         // networkLocator.onLocate = { [weak self] result in
@@ -1228,7 +1236,12 @@ final class DriveState {
     func setUpscaleEnabled(_ on: Bool) {
         upscaleEnabled = on
         captureEngine.upscaleEnabled = on
-        dlog("[upscale] 开关=\(on) 引擎可用=\(upscaleSupported)")
+        // 引擎模式：通知后台引擎切画面档位（全分辨率 ↔ 480 宽缩略），
+        // 否则引擎不知道 UI 开没开插帧，会一直发缩略帧导致插帧没数据。
+        if EngineClient.shared.isActive {
+            EngineClient.shared.setUpscale(on)
+        }
+        dlog("[upscale] 开关=\(on) 引擎可用=\(upscaleSupported) 引擎模式=\(EngineClient.shared.isActive)")
     }
 
     func setGameModeBoost(_ on: Bool) {
@@ -1378,7 +1391,23 @@ final class DriveState {
         // 镜像连接状态到 DriveState（@Observable），供状态栏显示
         if engineModeActive != client.isActive { engineModeActive = client.isActive }
         if engineConnected != client.isConnected { engineConnected = client.isConnected }
-        if let cg = client.poll() {
+
+        // 档位：开插帧 → 引擎发全分辨率帧，UI 读成 CVPixelBuffer 喂 MetalGoose；
+        //       否则 → 引擎发 480 宽缩略帧，UI 读成 CGImage 直绘。
+        let useUpscale = upscaleEnabled && upscaleSupported
+        client.wantPixelBuffer = useUpscale
+
+        let cg = client.poll()
+        if useUpscale {
+            if let pb = client.takePixelBuffer() {
+                upscaleHost.push(pixelBuffer: pb)
+                isStreaming = true
+                if screenSize == nil {
+                    screenSize = CGSize(width: CVPixelBufferGetWidth(pb),
+                                        height: CVPixelBufferGetHeight(pb))
+                }
+            }
+        } else if let cg {
             currentFrameCG = cg
             let sz = CGSize(width: cg.width, height: cg.height)
             if screenSize != sz { screenSize = sz }
@@ -1392,6 +1421,10 @@ final class DriveState {
             isDriving = client.engineIsDriving
         }
         if client.engineFPS > 0 { fps = client.engineFPS }
+        // 插帧实时统计（引擎模式下同样显示）
+        if useUpscale, let stats = upscaleHost.statsSnapshot() {
+            upscaleLive = "产出 \(stats.interpolatedFrameCount) · 透传 \(stats.passthroughFrameCount) · 输入 \(String(format: "%.0f", stats.captureFPS))fps → 输出 \(String(format: "%.0f", stats.outputFPS))fps"
+        }
     }
 
     /// 每帧推进（30Hz，由 ContentView 的 Timer 驱动）
@@ -2426,10 +2459,9 @@ struct GameViewportView: View {
             // 当截屏引擎运行时，显示实时游戏画面
             // 未运行时，显示纯黑占位 + 提示文字
             if state.isStreaming {
-                // 引擎模式下画面来自后台引擎（共享内存成品帧），
-                // 插帧/超分是「本进程采集流」的显示增强，此模式下没有该数据源，
-                // 因此强制走 frameHost 显示引擎帧，避免切到 upscaleHost 后黑屏。
-                if state.upscaleEnabled && !state.engineModeActive {
+                // 引擎模式下 UI 不采集、只显示：插帧的帧来自引擎（全分辨率经共享内存送来），
+                // 由 tickEngineMode 喂给 upscaleHost，所以两种档位都能正常显示。
+                if state.upscaleEnabled {
                     UpscaleFrameHostView(host: state.upscaleHost)
                         .onChange(of: state.upscaleEnabled) { _, on in
                             if !on { state.upscaleHost.clear() }
@@ -2608,17 +2640,19 @@ struct GameViewportView: View {
                             state.yoloEngine.setLock(x: rect.midX, y: rect.midY,
                                                      width: rect.width, height: rect.height)
                         } else {
-                            // 太小 = 视为点选：优先锁定离点击处最近的检测框
+                            // 点选：只有「点在检测框上」才锁定该框；点空白不再生成幽灵框。
+                            // 注意检测结果必须走 effectiveDetections —— 引擎模式下框来自后台引擎，
+                            // 读 yoloEngine.detections 永远是空数组，会退化成「点哪都建一个 0.12 的框」。
                             let center = CGPoint(x: rect.midX, y: rect.midY)
-                            let nearest = state.yoloEngine.detections.min { a, b in
-                                Self.normDist(a, center) < Self.normDist(b, center)
+                            let dets = state.effectiveDetections
+                            if let hit = dets.first(where: { Self.hitTest($0, center, margin: 0.03) }) {
+                                state.yoloEngine.setLock(to: hit)
+                            } else if let nearest = dets.min(by: {
+                                Self.normDist($0, center) < Self.normDist($1, center)
+                            }), Self.normDist(nearest, center) < 0.12 {
+                                state.yoloEngine.setLock(to: nearest)
                             }
-                            if let det = nearest, Self.normDist(det, center) < 0.25 {
-                                state.yoloEngine.setLock(to: det)
-                            } else {
-                                state.yoloEngine.setLock(x: center.x, y: center.y,
-                                                         width: 0.12, height: 0.12)
-                            }
+                            // 点空白处：不生成任何框（旧行为会留下永不消失的 0.12 幽灵框）
                         }
                     }
             )
@@ -2634,6 +2668,11 @@ struct GameViewportView: View {
     /// 检测框中心到点的归一化距离
     private static func normDist(_ d: Detection, _ p: CGPoint) -> Double {
         hypot(d.x - p.x, d.y - p.y)
+    }
+
+    /// 点是否落在检测框内（含少量外扩余量，方便点小目标）
+    private static func hitTest(_ d: Detection, _ p: CGPoint, margin: Double) -> Bool {
+        abs(p.x - d.x) <= d.width / 2 + margin && abs(p.y - d.y) <= d.height / 2 + margin
     }
 }
 

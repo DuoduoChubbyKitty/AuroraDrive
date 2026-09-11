@@ -156,8 +156,10 @@ final class EngineFrameShm {
     }
 
     /// 发布一帧（成品画面 + 检测结果 + 状态）
+    /// fullFrame 非空时用全分辨率帧（插帧/清晰显示用），否则用 480 宽缩略帧。
     func publish(image: CGImage?, detections: [Detection],
-                 fps: Double, isDriving: Bool, isStreaming: Bool) {
+                 fps: Double, isDriving: Bool, isStreaming: Bool,
+                 fullFrame: CVPixelBuffer? = nil) {
 
         // ── 检测结果区 ──
         let n = min(detections.count, EngineFrameShm.detCapacity)
@@ -185,7 +187,37 @@ final class EngineFrameShm {
         }
 
         // ── 像素区（双缓冲：写非活动页）──
-        if let img = image {
+        // 优先用全分辨率帧（插帧 / 清晰显示需要），否则用 480 宽缩略帧
+        if let pb = fullFrame {
+            let w = CVPixelBufferGetWidth(pb)
+            let h = CVPixelBufferGetHeight(pb)
+            if w > 0, h > 0, w <= EngineFrameShm.maxWidth, h <= EngineFrameShm.maxHeight {
+                CVPixelBufferLockBaseAddress(pb, .readOnly)
+                defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
+                if let srcBase = CVPixelBufferGetBaseAddress(pb) {
+                    let srcBPR = CVPixelBufferGetBytesPerRow(pb)
+                    let pageSize = w * h * 4
+                    if pageSize != currentPageSize {
+                        currentPageSize = pageSize
+                        generation += 1
+                        storeU32(32, generation)
+                        storeU64(72, UInt64(pageSize))
+                    }
+                    let active = base.load(fromByteOffset: 36, as: UInt32.self)
+                    let writePage = active == 0 ? 1 : 0
+                    let dest = base.advanced(by: EngineFrameShm.pixelsOffset + writePage * currentPageSize)
+                    let copyBytes = w * 4
+                    for r in 0..<h {
+                        // 源可能有行填充（bytesPerRow > w*4），逐行拷到紧凑布局
+                        memcpy(dest.advanced(by: r * copyBytes),
+                               srcBase.advanced(by: r * srcBPR), copyBytes)
+                    }
+                    storeU32(24, UInt32(w))
+                    storeU32(28, UInt32(h))
+                    storeU32(36, UInt32(writePage))   // 发布：翻转活动页
+                }
+            }
+        } else if let img = image {
             let w = img.width
             let h = img.height
             if w > 0, h > 0, w <= EngineFrameShm.maxWidth, h <= EngineFrameShm.maxHeight {
@@ -385,6 +417,11 @@ enum EngineGlobals {
     @MainActor static var clientSaidBye = false
     /// SIGTERM/SIGINT 置位（由主流 tick 检查后安全停车退出）
     nonisolated(unsafe) static var shutdownRequested = false
+    /// UI 是否请求「全分辨率帧」（开了插帧才需要，否则发 480 宽省带宽）
+    @MainActor static var wantFullFrame = false
+    /// 最新全分辨率帧（采集线程写 / 主线程读，用锁保护；覆盖式=天然跳帧）
+    nonisolated(unsafe) static var latestFullFrame: CVPixelBuffer?
+    nonisolated(unsafe) static let latestFullFrameLock = NSLock()
 }
 
 // MARK: - 引擎主入口
@@ -499,6 +536,14 @@ enum EngineMain {
             EngineGlobals.state = DriveState()
             EngineGlobals.shm = shm
             EngineGlobals.socket = server
+            // 全分辨率帧接线（供 UI 插帧 / 清晰显示）：
+            // 覆盖 DriveState 默认的「喂本进程 upscaleHost」接线 —— 引擎没有窗口/MTKView，
+            // 插帧渲染在 UI 进程做，引擎只负责把全分辨率帧送过去。
+            EngineGlobals.state?.captureEngine.onUpscaleFrame = { pb in
+                EngineGlobals.latestFullFrameLock.lock()
+                EngineGlobals.latestFullFrame = pb
+                EngineGlobals.latestFullFrameLock.unlock()
+            }
             // 诊断（仅供无按键权限的环境验证帧管道）：
             // 只启动抓屏、不注入按键，用来端到端验证「采集 → 共享内存 → UI」这条链路。
             // 生产路径不受影响（默认不设该变量）。
@@ -564,12 +609,20 @@ enum EngineMain {
     static func tickOnce() {
         guard let st = EngineGlobals.state else { return }
         st.tick()
+        // UI 开了插帧/要清晰画面时发全分辨率帧，否则发 480 宽缩略帧（省带宽）
+        var full: CVPixelBuffer? = nil
+        if EngineGlobals.wantFullFrame {
+            EngineGlobals.latestFullFrameLock.lock()
+            full = EngineGlobals.latestFullFrame
+            EngineGlobals.latestFullFrameLock.unlock()
+        }
         EngineGlobals.shm?.publish(
             image: st.currentFrameCG,
             detections: st.yoloEngine.detections,
             fps: st.captureEngine.captureFPS > 0 ? st.captureEngine.captureFPS : st.fps,
             isDriving: st.isDriving,
-            isStreaming: st.isStreaming)
+            isStreaming: st.isStreaming,
+            fullFrame: full)
     }
 
     // MARK: - 命令处理
@@ -609,6 +662,15 @@ enum EngineMain {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     EngineMain.sendHeartbeat(reason: "status-query")
+                }
+            }
+        case "upscale":
+            // UI 开关「插帧/超分」→ 引擎据此决定发全分辨率帧还是 480 宽缩略帧
+            let on = (obj["on"] as? Bool) ?? false
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    EngineGlobals.wantFullFrame = on
+                    engineLog("[ENGINE] 画面档位切换：\(on ? "全分辨率（插帧/清晰）" : "480 宽缩略（省带宽）")")
                 }
             }
         case "ping":
