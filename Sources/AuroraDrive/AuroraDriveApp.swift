@@ -1433,7 +1433,8 @@ final class DriveState {
         if confidence != client.engineConfidence { confidence = client.engineConfidence }
         if remoteSpeedKmh != client.engineSpeedKmh { remoteSpeedKmh = client.engineSpeedKmh }
         if effectiveSpeed != client.engineSpeed { effectiveSpeed = client.engineSpeed }
-        speedValid = client.engineSpeedKmh >= 0 && client.engineSpeed > 0.5
+        let sv = client.engineSpeedKmh >= 0 && client.engineSpeed > 0.5
+        if speedValid != sv { speedValid = sv }   // 逐帧无条件赋值也会触发 SwiftUI 刷新 → 只在变化时写
         // 锁定目标追踪：本地模式下由推理流程逐帧推进；引擎模式下必须用引擎回传的检测框推进，
         // 否则锁定框冻在原地不动、目标离开也不会自动解除。
         yoloEngine.trackLockFromRemote(client.engineDetections)
