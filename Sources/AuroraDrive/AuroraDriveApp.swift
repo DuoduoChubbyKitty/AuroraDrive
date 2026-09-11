@@ -441,13 +441,15 @@ struct AuroraDriveApp: App {
                             window.makeKeyAndOrderFront(nil)
                             window.orderFrontRegardless()
                             // 全屏游戏时标题栏（含红黄绿按钮/标题条）会浮在游戏画面上遮挡一条，
-                            // 这里把标题栏 chrome 全部隐藏，窗口仍可用（背景可拖动）。
+                            // 这里把标题栏 chrome 全部隐藏。
                             window.titlebarAppearsTransparent = true
                             window.titleVisibility = .hidden
                             window.standardWindowButton(.closeButton)?.isHidden = true
                             window.standardWindowButton(.miniaturizeButton)?.isHidden = true
                             window.standardWindowButton(.zoomButton)?.isHidden = true
-                            window.isMovableByWindowBackground = true
+                            // 注意：绝不要开 isMovableByWindowBackground —— 那会让「在画面上拖拽」
+                            // 变成「拖动整个窗口」，把框选手势整个吃掉（实测踩过）。
+                            // 拖窗口请拖窗口顶部那条隐形标题栏区域。
                         }
                     }
                 }
