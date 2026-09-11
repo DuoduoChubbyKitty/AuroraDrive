@@ -629,6 +629,8 @@ final class DriveState {
     var engineModeActive = false
     /// 引擎心跳是否正常（false = 失联，UI 显示告警）
     var engineConnected = false
+    /// 引擎回传的车速表读数（km/h；引擎模式下本地 speedOCR 不跑，用它顶上）
+    var remoteSpeedKmh: Double = -1
     /// 最后一次「开始/停止」命令时间：引擎状态回同步的 1 秒宽限期，防切换瞬间UI闪烁
     @ObservationIgnored var lastDriveCommandTime = Date.distantPast
     /// UI 统一检测结果读取点：引擎模式用引擎回传，本地模式用本地 YoloEngine
@@ -858,7 +860,7 @@ final class DriveState {
 
     /// 车速 OCR 最新快照（主线程读；未读到为 -1 / 0）
     /// 读自 speedOCR（@Observable 嵌套，body 访问会跟踪其更新）
-    var speedKmh: Double { speedOCR.speedKmh }
+    var speedKmh: Double { EngineClient.shared.isActive ? remoteSpeedKmh : speedOCR.speedKmh }
     var speedConfidence: Double { speedOCR.confidence }
 
     /// M9 推理链路状态（UI 显示：M9 到底有没有真的在参与开车）
@@ -1417,6 +1419,16 @@ final class DriveState {
             frameHost.push(cg)
         }
         remoteDetections = client.engineDetections
+        // 引擎模式下 UI 不跑推理，面板/状态栏依赖的驾驶状态由引擎心跳回传后落到这里：
+        // 档位、车速（含车速表读数）、置信度、有效车速。缺了这些，右侧状态栏与自车信息会「空掉」。
+        if mode != client.engineMode { mode = client.engineMode }
+        if confidence != client.engineConfidence { confidence = client.engineConfidence }
+        if remoteSpeedKmh != client.engineSpeedKmh { remoteSpeedKmh = client.engineSpeedKmh }
+        if effectiveSpeed != client.engineSpeed { effectiveSpeed = client.engineSpeed }
+        speedValid = client.engineSpeedKmh >= 0 && client.engineSpeed > 0.5
+        // 锁定目标追踪：本地模式下由推理流程逐帧推进；引擎模式下必须用引擎回传的检测框推进，
+        // 否则锁定框冻在原地不动、目标离开也不会自动解除。
+        yoloEngine.trackLockFromRemote(client.engineDetections)
         // 引擎是状态权威源；命令发出后 1 秒内保留 UI 乐观值，避免切换瞬间闪烁
         if Date().timeIntervalSince(lastDriveCommandTime) > 1.0,
            isDriving != client.engineIsDriving {

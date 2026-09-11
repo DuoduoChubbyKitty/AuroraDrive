@@ -68,6 +68,16 @@ final class EngineClient {
     private var lastFrameSeq: UInt64 = 0
     private var frameCountSinceConnect = 0
 
+    // ── 引擎回传的驾驶状态（引擎模式下 UI 不跑推理，面板显示靠这些）──
+    /// 降级档位（引擎是权威源）
+    private(set) var engineMode: DriveMode = .e2e
+    /// 有效车速（km/h）
+    private(set) var engineSpeed: Double = 0
+    /// 车速表 OCR 读数（km/h；-1 = 未读到）
+    private(set) var engineSpeedKmh: Double = -1
+    /// 驾驶置信度（0~1）
+    private(set) var engineConfidence: Double = 0
+
     /// UI 当前是否要「像素缓冲」形态的帧（开了插帧时为 true）——
     /// 由 UI 每 tick 设置；引擎侧也会收到同名开关命令来决定发全分辨率还是缩略帧。
     var wantPixelBuffer = false
@@ -270,6 +280,11 @@ final class EngineClient {
         if let v = obj["isDriving"] as? Bool { engineIsDriving = v }
         if let v = obj["isStreaming"] as? Bool { engineIsStreaming = v }
         if let v = obj["fps"] as? Double { engineFPS = v }
+        // 驾驶状态回传（引擎模式下 UI 不跑推理，面板/状态栏靠这些刷新）
+        if let s = obj["modeRaw"] as? String, let m = DriveMode(rawValue: s) { engineMode = m }
+        if let v = obj["speed"] as? Double { engineSpeed = v }
+        if let v = obj["speedKmh"] as? Double { engineSpeedKmh = v }
+        if let v = obj["confidence"] as? Double { engineConfidence = v }
         // 引擎重启检测：只在「已有 pid 且 pid 变了」时重新映射共享内存。
         // （首次心跳时 enginePID 还是 0，不能当成重启，否则会白白多映射一次）
         if let v = obj["pid"] as? Int32, enginePID != 0, v != enginePID {
