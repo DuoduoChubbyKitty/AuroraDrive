@@ -870,6 +870,9 @@ final class DriveState {
     /// UI 会在下一次 tick（30Hz）立刻把 isRecording 弹回旧值 → 开关按下即回弹。
     @ObservationIgnored var lastRecordCommandTime = Date.distantPast
 
+    /// 引擎协议版本不匹配时的用户可见告警（空 = 无告警）
+    var engineVersionWarning = ""
+
     /// 当前驾驶模式（由降级状态机计算，每帧 tick 同步）
     /// UI 观察此属性刷新模式芯片高亮
     var mode: DriveMode = .e2e
@@ -1472,6 +1475,24 @@ final class DriveState {
             upscaleLive = nil
             upscaleHost.clear()     // 停掉 MetalGoose 渲染（detach）
             frameHost.clear()
+        }
+        // ⚠️ 协议版本守卫（必须放在状态镜像之前）：UI 与引擎是两个独立长驻进程，
+        // 重编译后旧引擎可能还活着，新 UI 会直接连上它，导致新命令被静默丢弃
+        // （表现为「按钮能按但毫无反应」）。检测到版本不匹配就重启引擎。
+        //
+        // ⚠️ 只在非驾驶状态做：行驶中突然失去引擎比版本错配更危险。
+        // ⚠️ engineRelaunching 由 EngineClient 持有并在重启完成后清除 —— 不能用
+        //    UI 局部标志，否则重启流程中途 isEngineStale 仍为真时会无限重复触发。
+        if client.isEngineStale {
+            if !isDriving && !client.engineRelaunching {
+                client.engineRelaunching = true
+                engineVersionWarning = "检测到旧版引擎，正在重启…"
+                client.relaunchStaleEngine()
+            } else {
+                engineVersionWarning = "⚠️ 引擎版本不匹配，停止驾驶后自动重启"
+            }
+        } else if !engineVersionWarning.isEmpty {
+            engineVersionWarning = ""
         }
         // 引擎模式下 UI 不跑推理，面板/状态栏依赖的驾驶状态由引擎心跳回传后落到这里：
         // 档位、车速（含车速表读数）、置信度、有效车速。缺了这些，右侧状态栏与自车信息会「空掉」。

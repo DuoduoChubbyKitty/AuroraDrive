@@ -48,6 +48,17 @@ final class EngineClient {
 
     static let shared = EngineClient()
 
+    /// 引擎 socket 协议版本。⚠️ 任何命令 / 心跳字段变更都必须 +1。
+    ///
+    /// 为什么需要：UI 与引擎是两个独立长驻进程。重编译后旧引擎可能还活着，
+    /// 而 UI 启动时只要 socket 有人应答就直接连上（单例设计）。
+    /// 于是「新 UI 对着旧引擎说话」——新命令被旧引擎丢进 `未知命令类型`，
+    /// **静默失败**（按钮照常翻转，引擎毫无反应）。
+    ///
+    /// 1 = 原始（start/stop/bye/status/upscale/ping）
+    /// 2 = 新增 record / reloadmodel / config + 心跳 recording/frames/proto
+    nonisolated static let protocolVersion = 2
+
     // ── UI 读取的状态 ──
     private(set) var isActive = false          // 引擎模式已激活（连接成功）
     private(set) var isConnected = false       // 心跳正常
@@ -57,6 +68,11 @@ final class EngineClient {
     private(set) var engineDetections: [Detection] = []
     private(set) var lastHeartbeat = Date.distantPast
     private(set) var enginePID: Int32 = 0
+    /// 引擎自报的协议版本（0 = 旧引擎，不发 proto 字段）
+    private(set) var engineProtocol = 0
+    /// 是否已经历过至少一次「连接激活 → 收到心跳」的完整周期。
+    /// 只有它成立时才允许判定版本错配，避免启动瞬间误判。
+    private(set) var sawHeartbeat = false
 
     // ── 内部 ──
     private var socketFD: Int32 = -1
@@ -102,6 +118,11 @@ final class EngineClient {
     }
 
     private let queue = DispatchQueue(label: "aurora.engine.client", qos: .userInteractive)
+
+    /// 等待旧引擎退场的轮询定时器（relaunchStaleEngine 持有）
+    private var relaunchPoll: DispatchSourceTimer?
+    /// UI 侧「已发起重启陈旧引擎」标记，防止 30Hz tick 重复触发
+    var engineRelaunching = false
 
     // MARK: - 启动探测 / spawn
 
@@ -194,6 +215,76 @@ final class EngineClient {
         // 主动要一次状态
         sendCommand("status")
         return true
+    }
+
+    /// 是否已与「协议版本不匹配的旧引擎」建立过连接。
+    ///
+    /// ⚠️ 判定前提必须是 `sawHeartbeat`，不能写 `engineProtocol != 0`：
+    /// **旧引擎压根不发 `proto` 字段**，它的心跳让 `engineProtocol` 永远停在 0。
+    /// 若把 0 当「未知、不算错配」，守卫会恰好漏掉「新 UI × 旧引擎」这个
+    /// 唯一需要它生效的场合（2026-09-12 实测踩坑）。
+    var isEngineStale: Bool {
+        sawHeartbeat && engineProtocol != Self.protocolVersion
+    }
+
+    /// 终止协议不匹配的旧引擎，并拉起同版本新引擎。
+    ///
+    /// ⚠️ 2026-09-12 踩坑记录（第一版写错，导致 UI 陷入无限重启）：
+    ///   1. **`bye` 不会让引擎退出** —— 它只做 `pauseDriving()`，然后等 30 秒空闲才退。
+    ///      所以这里**必须真 kill**，不能靠 bye 商量。
+    ///   2. **必须等旧引擎死透再 startup()** —— 否则 `tryConnect()` 会又连回旧引擎，
+    ///      形成「连上→发现旧→重启→又连上」的死循环。flock 单例还会让新引擎直接
+    ///      `exit(0)`（锁被旧引擎持有），新引擎根本起不来。
+    ///   3. **必须重置 sawHeartbeat** —— 否则重启后判定前提仍成立，立刻又判错配。
+    ///
+    /// 只在非驾驶状态调用（驾驶中突然失去引擎比版本错配更危险）。
+    func relaunchStaleEngine() {
+        let stale = engineProtocol
+        let pid = enginePID
+        engineClientLog("⚠️ 引擎协议版本不匹配：引擎 v\(stale) ≠ UI v\(Self.protocolVersion)")
+        engineClientLog("→ 新命令会被旧引擎静默丢弃。终止 pid=\(pid) 并拉起新引擎")
+
+        // 1) 断开本端连接（不再依赖 bye —— 旧引擎收到 bye 也不会退）
+        readSource?.cancel()
+        readSource = nil
+        if socketFD >= 0 { close(socketFD); socketFD = -1 }
+        detachShm()
+        connectTimer?.cancel()
+        connectTimer = nil
+        // 2) 清空全部版本/连接状态，避免重启后立刻误判（坑 3）
+        isActive = false
+        isConnected = false
+        engineProtocol = 0
+        sawHeartbeat = false
+        lastHeartbeat = .distantPast
+        enginePID = 0
+        // 3) 真 kill（坑 1）：先 SIGTERM，1 秒后仍在则 SIGKILL
+        if pid > 0 {
+            kill(pid, SIGTERM)
+        }
+        // 4) 轮询等旧引擎死透（坑 2），最多等 8 秒；死了才 startup()
+        var waited = 0.0
+        let poll = DispatchSource.makeTimerSource(queue: queue)
+        poll.schedule(deadline: .now() + 0.4, repeating: 0.4, leeway: .milliseconds(50))
+        poll.setEventHandler { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                waited += 0.4
+                let alive = pid > 0 && kill(pid, 0) == 0
+                if alive && waited >= 1.2 {
+                    kill(pid, SIGKILL)          // SIGTERM 不理会 → 强杀
+                }
+                if !alive || waited >= 8.0 {
+                    poll.cancel()
+                    if alive { engineClientLog("⚠️ 旧引擎 pid=\(pid) 8 秒未退出，仍继续尝试拉起") }
+                    else { engineClientLog("旧引擎已退出，重新拉起…") }
+                    self.engineRelaunching = false
+                    self.startup()
+                }
+            }
+        }
+        poll.resume()
+        self.relaunchPoll = poll
     }
 
     /// spawn 引擎子进程（同二进制 + --engine；stdout/stderr → 引擎日志）
@@ -292,6 +383,10 @@ final class EngineClient {
         // 录制状态回传（引擎模式下真正的写盘在引擎进程，UI 只负责显示）
         if let v = obj["recording"] as? Bool { engineRecording = v }
         if let v = obj["frames"] as? Int { engineRecordFrames = v }
+        // 协议版本：UI 重启后可能连上重编译前的旧引擎（旧引擎不发此字段 → 保持 0）
+        if let v = obj["proto"] as? Int { engineProtocol = v }
+        // 标记「已收到过心跳」：版本错配判定以此为前置，避免启动瞬间误判
+        if !sawHeartbeat { sawHeartbeat = true }
         // 引擎重启检测：只在「已有 pid 且 pid 变了」时重新映射共享内存。
         // （首次心跳时 enginePID 还是 0，不能当成重启，否则会白白多映射一次）
         if let v = obj["pid"] as? Int32, enginePID != 0, v != enginePID {
