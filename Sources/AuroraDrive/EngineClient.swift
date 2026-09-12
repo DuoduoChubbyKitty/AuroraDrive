@@ -77,6 +77,10 @@ final class EngineClient {
     private(set) var engineSpeedKmh: Double = -1
     /// 驾驶置信度（0~1）
     private(set) var engineConfidence: Double = 0
+    /// 引擎录制状态（引擎是权威源：帧在引擎进程里，UI 只负责显示与转发开关）
+    private(set) var engineRecording = false
+    /// 引擎已写盘的录制帧数
+    private(set) var engineRecordFrames = 0
 
     /// UI 当前是否要「像素缓冲」形态的帧（开了插帧时为 true）——
     /// 由 UI 每 tick 设置；引擎侧也会收到同名开关命令来决定发全分辨率还是缩略帧。
@@ -285,6 +289,9 @@ final class EngineClient {
         if let v = obj["speed"] as? Double { engineSpeed = v }
         if let v = obj["speedKmh"] as? Double { engineSpeedKmh = v }
         if let v = obj["confidence"] as? Double { engineConfidence = v }
+        // 录制状态回传（引擎模式下真正的写盘在引擎进程，UI 只负责显示）
+        if let v = obj["recording"] as? Bool { engineRecording = v }
+        if let v = obj["frames"] as? Int { engineRecordFrames = v }
         // 引擎重启检测：只在「已有 pid 且 pid 变了」时重新映射共享内存。
         // （首次心跳时 enginePID 还是 0，不能当成重启，否则会白白多映射一次）
         if let v = obj["pid"] as? Int32, enginePID != 0, v != enginePID {

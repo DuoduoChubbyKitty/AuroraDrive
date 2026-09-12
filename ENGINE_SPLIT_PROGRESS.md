@@ -118,3 +118,29 @@
 ### ⑨ UI 关闭后引擎常驻不退出 — 已修 ✅（fbdbf03，已实测）
 修法：UI 断开（无论 bye 还是异常）即启动 30 秒倒计时，无人重连 → `performShutdown("idle-exit")`（先 releaseAll 再退）。
 重连即取消倒计时。实测：断开→倒计时→5秒重连取消→再断开→30秒后安全退出 + socket 清理。
+
+### ⑩ 通信链路深度排查（9 项跨进程断点）— 已修 ✅
+完整报告见 `COMM_AUDIT_2026-09-12.md`。触发问题：**「录制文件夹/文件能建，但录不进东西」**。
+
+**总根因**：引擎拆分后，`tick()` 在引擎模式下只在**引擎进程**执行；
+凡是「只在 tick() 里被读」的状态，UI 改了引擎根本收不到。
+`socket` 原命令表只有 `start/stop/bye/status/upscale/ping`，**录制/参数/模型重载三条链路全断**。
+
+| # | 问题 | 等级 | 修复 |
+|---|---|---|---|
+| P1 | **录制完全录不进**：UI 建目录+文件，但写帧的 `recordFrameIfNeeded()` 只在 tick() 里调，引擎模式下永不执行 | 🔴 | 新增 `record` 命令 + 心跳 `recording`/`frames` + UI 转发/回同步 |
+| P2 | **禁用控制失效**（安全）：`expertMode \|\| controlDisabled → releaseAll()` 在 tick 内，UI 拨了引擎不知道 → 以为松手了车还在被开 | 🔴安全 | 新增 `config` 命令下发 |
+| P3 | **紧急切纯规则失效**（安全）：`forceRuleMode` 控制停 M9 推理 + 降级状态机强制规则档，同样只在 tick 内 | 🔴安全 | 同上 |
+| P4 | 极速模式失效（降级状态机覆盖） | 🟡 | 同上 |
+| P5 | 降级阈值失效（`degradeStm.degradeHealth`） | 🟡 | 同上 |
+| P6 | **训练后模型热替换未跨进程**：`deployTrainedModel()` 只调 UI 的 `reloadModel()`，引擎仍用内存旧模型 →「训练了没生效」 | 🔴 | 新增 `reloadmodel` 命令 |
+| P7 | `pauseDriving` 不停录制 → UI 关闭后多录 30 秒「车停+陈旧标签」垃圾帧，污染训练集 | 🟡 | `pauseDriving` 内停录制并收尾 |
+| P8 | `performShutdown` 竞态：`stop()` 的 meta.json 是异步写，紧跟 `exit(0)` → 会话缺 meta.json | 🟡 | 新增 `RecordEngine.flushSync()`，退出前排空写盘队列 |
+| P9 | **修复过程中自引入**：录制回同步无宽限期 → 命令发出后 30Hz 的 tick 立刻把开关弹回 | 🟠 | 2 秒宽限期 + 引擎带 `record-ack` 即时回执 |
+
+**修复后命令表**：`start stop bye status upscale record reloadmodel config ping`
+
+**结构性结论**：任何「UI 可改、引擎可读、但无人同步」的第三类状态都是定时炸弹。
+跨进程状态必须二选一 —— 引擎权威则**心跳回传**，UI 权威则**命令下发**。P2–P5 全部属于漏网的第三类。
+
+状态：编译 ✅ / 已部署（主程序+app 双份重签名）✅ / 时间戳链校验 ✅ / **运行时 E2E 待用户重启验证** ⏳

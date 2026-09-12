@@ -245,6 +245,13 @@ final class RecordEngine: @unchecked Sendable {
         }
     }
 
+    /// 等待写盘队列排空（含 stop() 里异步写的 meta.json）。
+    /// 用途：进程即将 exit 前调用 —— stop() 的 meta.json 是 writeQueue.async 写的，
+    /// 直接 exit(0) 会在元信息落盘前杀掉进程，导致录制会话缺 meta.json。
+    func flushSync() {
+        writeQueue.sync { }
+    }
+
     // MARK: - 磁盘清理
 
     /// 清理某录制根目录下最旧的 clip_<ts> 目录，仅保留最近 maxClipsPerKind 个。

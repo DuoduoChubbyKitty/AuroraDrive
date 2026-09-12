@@ -824,9 +824,24 @@ final class DriveState {
     /// true → 开始录制会话；未在驾驶时由录制器负责拉起截屏画面流与键盘监听
     ///（否则不开车就开录制器会录出空目录）
     /// false → 写 meta.json 并关闭；驾驶仍开着时不关画面流/键盘监听（驾驶还在用）
+    ///
+    /// ⚠️ 引擎模式：帧只存在于引擎进程（UI 没有画面流），录制必须由引擎执行，
+    /// 这里只把开关转发过去。早先在引擎模式下仍然本地 recordEngine.start()，
+    /// 结果是「目录建了、文件建了，但录不进任何东西」——因为 UI 的 tick 在引擎
+    /// 模式下提前 return，recordFrameIfNeeded() 永远不执行。
     var isRecording = false {
         didSet {
             guard isRecording != oldValue else { return }
+            guard !applyingRemoteRecord else { return }   // 来自引擎回同步，别回声
+            if EngineClient.shared.isActive {
+                lastRecordCommandTime = Date()   // 宽限期起点：别让未更新的心跳把开关弹回去
+                EngineClient.shared.sendCommand("record", extra: [
+                    "on": isRecording,
+                    "glyph": glyphMode,
+                    "expert": expertMode,
+                ])
+                return
+            }
             if isRecording {
                 // 每次开始录制前同步字模模式开关。注意：录制中途切换 glyphMode 不影响
                 // 本次会话（语义为「录制中切换不生效，需重启录制」），故不做实时热切换。
@@ -845,6 +860,15 @@ final class DriveState {
             }
         }
     }
+
+    /// 防回环标记：tickEngineMode 把引擎录制状态镜像到 isRecording 时置位，
+    /// 避免 didSet 又把「record」命令回声给引擎。
+    @ObservationIgnored var applyingRemoteRecord = false
+
+    /// 最后一次向引擎发送「record」命令的时间。
+    /// 心跳周期 1s，命令刚发出时引擎还没来得及上报，若不设宽限期，
+    /// UI 会在下一次 tick（30Hz）立刻把 isRecording 弹回旧值 → 开关按下即回弹。
+    @ObservationIgnored var lastRecordCommandTime = Date.distantPast
 
     /// 当前驾驶模式（由降级状态机计算，每帧 tick 同步）
     /// UI 观察此属性刷新模式芯片高亮
@@ -1368,8 +1392,19 @@ final class DriveState {
                 try FileManager.default.removeItem(at: dst)
             }
             try FileManager.default.copyItem(at: src, to: dst)
-            inferenceEngine.reloadModel()
-            trainingLog = "已应用新模型: \(src.lastPathComponent)"
+            // 模型文件已落盘；但真正开车的推理引擎可能不在本进程：
+            //   引擎模式 → 命令引擎重新加载（否则引擎一直用内存里的旧模型）
+            //   本地模式 → 直接置空本进程的三个引擎
+            if EngineClient.shared.isActive {
+                EngineClient.shared.sendCommand("reloadmodel")
+                inferenceEngine.reloadModel()
+                trainingLog = "已应用新模型（引擎侧已通知重载）: \(src.lastPathComponent)"
+            } else {
+                inferenceEngine.reloadModel()
+                assistEngine.reloadModel()
+                yoloEngine.reloadModel()
+                trainingLog = "已应用新模型: \(src.lastPathComponent)"
+            }
             return true
         } catch {
             trainingLog = "模型部署失败: \(error.localizedDescription)"
@@ -1455,11 +1490,47 @@ final class DriveState {
             isDriving = client.engineIsDriving
         }
         if client.engineFPS > 0 { fps = client.engineFPS }
+        // 录制状态回同步（引擎是权威源）：引擎进程真正写盘，UI 只显示帧数。
+        // 置 applyingRemoteRecord 防回环，否则 isRecording 的 didSet 会把命令回声给引擎。
+        // 宽限期：刚发过 record 命令的 2 秒内不信心跳（心跳 1Hz + 引擎带即时回执），
+        // 否则命令刚发出、心跳还没更新时，这里会把用户刚拨的开关弹回去。
+        if Date().timeIntervalSince(lastRecordCommandTime) > 2.0,
+           isRecording != client.engineRecording {
+            applyingRemoteRecord = true
+            isRecording = client.engineRecording
+            applyingRemoteRecord = false
+        }
+        let remoteFrames = client.engineRecording ? client.engineRecordFrames : 0
+        if frames != remoteFrames { frames = remoteFrames }
+        // 驾驶参数下发：极速 / 禁用控制 / 紧急切纯规则 / 专家 / 字模 / 降级阈值
+        // 这些只在 tick() 里被读，而引擎模式下 tick() 跑在引擎进程 ——
+        // 必须显式推送。只在变化时发，避免 30Hz 刷屏。
+        pushEngineConfigIfChanged()
         // 插帧实时统计（引擎模式下同样显示）
         if useUpscale, let stats = upscaleHost.statsSnapshot() {
             upscaleLive = "产出 \(stats.interpolatedFrameCount) · 透传 \(stats.passthroughFrameCount) · 输入 \(String(format: "%.0f", stats.captureFPS))fps → 输出 \(String(format: "%.0f", stats.outputFPS))fps"
         }
     }
+
+    /// 把「只在 tick() 里被读」的驾驶参数推给引擎（引擎模式下 tick 跑在引擎进程）。
+    /// 仅在上次推送后有变化时才发，避免 30Hz 刷屏。
+    /// 覆盖：极速模式 / 禁用控制 / 紧急切纯规则 / 专家模式 / 字模模式 / 降级阈值。
+    private func pushEngineConfigIfChanged() {
+        let snap = "\(sportMode)|\(controlDisabled)|\(forceRuleMode)|\(expertMode)|\(glyphMode)|\(String(format: "%.3f", degradeThreshold))"
+        guard snap != lastPushedEngineConfig else { return }
+        lastPushedEngineConfig = snap
+        EngineClient.shared.sendCommand("config", extra: [
+            "sport": sportMode,
+            "controlDisabled": controlDisabled,
+            "forceRule": forceRuleMode,
+            "expert": expertMode,
+            "glyph": glyphMode,
+            "degradeThreshold": degradeThreshold,
+        ])
+    }
+
+    /// 上次推给引擎的驾驶参数快照（变化检测用）
+    @ObservationIgnored private var lastPushedEngineConfig = ""
 
     /// 每帧推进（30Hz，由 ContentView 的 Timer 驱动）
     /// 完整决策管线：CoreML推理 → 置信度估计 → 状态机决策 → 按态输出控制量 → 录制

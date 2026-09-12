@@ -678,6 +678,62 @@ enum EngineMain {
                     engineLog("[ENGINE] 画面档位切换：\(on ? "全分辨率（插帧/清晰）" : "480 宽缩略（省带宽）")")
                 }
             }
+        case "record":
+            // UI 开关「行驶录制」→ 引擎执行真正的写盘。
+            // 帧只存在于引擎进程（引擎模式下 UI 没有画面流），所以录制必须落在引擎侧。
+            // 早先只在 UI 侧 recordEngine.start() 建了目录/文件，但 UI 的 tick 在引擎模式下
+            // 提前 return，recordFrameIfNeeded() 永远不执行 → 目录建了、文件建了、录不进东西。
+            let recOn = (obj["on"] as? Bool) ?? false
+            let recGlyph = (obj["glyph"] as? Bool) ?? false
+            let recExpert = (obj["expert"] as? Bool) ?? false
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let st = EngineGlobals.state else { return }
+                    st.glyphMode = recGlyph
+                    st.expertMode = recExpert
+                    st.isRecording = recOn
+                    let dir = st.recordEngine.sessionURL?.lastPathComponent ?? "-"
+                    engineLog("[ENGINE] 录制\(recOn ? "开始" : "停止")：字模=\(recGlyph) 专家=\(recExpert) 会话=\(dir)")
+                    // 立即回执：心跳周期 1s，不即时上报的话 UI 会先看到「还没录」，
+                    // 把开关弹回去（UI 侧也有宽限期，这里是双保险）。
+                    EngineMain.sendHeartbeat(reason: "record-ack")
+                }
+            }
+        case "reloadmodel":
+            // 训练完成后热替换模型：模型由 UI 侧的 Python 训练产出并落盘，
+            // 但真正开车的推理引擎在引擎进程里。不转发这条命令，
+            // 引擎会一直用内存里的旧模型 →「训练完了但车还按老模型开」。
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let st = EngineGlobals.state else { return }
+                    st.inferenceEngine.reloadModel()
+                    st.assistEngine.reloadModel()
+                    st.yoloEngine.reloadModel()
+                    engineLog("[ENGINE] 模型热替换：主驾/副驾/YOLO 三引擎已置空，下次推理重读磁盘")
+                }
+            }
+        case "config":
+            // UI 侧的「驾驶参数」同步。这些参数只在 tick() 里被读，而引擎模式下
+            // tick() 只在引擎进程执行 —— 不推过来，UI 拨开关等于没拨。其中
+            // controlDisabled（禁用控制）与 forceRuleMode（紧急切纯规则）是安全开关，
+            // 不同步会让人以为车已经停手 / 已切安全档，实际还在跑模型。
+            let cSport = obj["sport"] as? Bool
+            let cCtrlDisabled = obj["controlDisabled"] as? Bool
+            let cForceRule = obj["forceRule"] as? Bool
+            let cExpert = obj["expert"] as? Bool
+            let cGlyph = obj["glyph"] as? Bool
+            let cThresh = obj["degradeThreshold"] as? Double
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let st = EngineGlobals.state else { return }
+                    if let v = cSport { st.sportMode = v }
+                    if let v = cCtrlDisabled { st.controlDisabled = v }
+                    if let v = cForceRule { st.forceRuleMode = v }
+                    if let v = cExpert { st.expertMode = v }
+                    if let v = cGlyph { st.glyphMode = v }
+                    if let v = cThresh { st.degradeThreshold = v }
+                }
+            }
         case "ping":
             server.send("{\"type\":\"pong\"}")
         default:
@@ -693,7 +749,7 @@ enum EngineMain {
         let detCount = st.yoloEngine.detections.count
         let fps = st.captureEngine.captureFPS > 0 ? st.captureEngine.captureFPS : st.fps
         let json = """
-        {"type":"heartbeat","ts":\(Int(Date().timeIntervalSince1970)),"fps":\(String(format: "%.1f", fps)),"detections":\(detCount),"isDriving":\(st.isDriving),"isStreaming":\(st.isStreaming),"mode":"\(st.mode)","modeRaw":"\(st.mode.rawValue)","speed":\(String(format: "%.1f", st.effectiveSpeed)),"speedKmh":\(String(format: "%.1f", st.speedKmh)),"confidence":\(String(format: "%.3f", st.confidence)),"pid":\(getpid()),"reason":"\(reason)"}
+        {"type":"heartbeat","ts":\(Int(Date().timeIntervalSince1970)),"fps":\(String(format: "%.1f", fps)),"detections":\(detCount),"isDriving":\(st.isDriving),"isStreaming":\(st.isStreaming),"mode":"\(st.mode)","modeRaw":"\(st.mode.rawValue)","speed":\(String(format: "%.1f", st.effectiveSpeed)),"speedKmh":\(String(format: "%.1f", st.speedKmh)),"confidence":\(String(format: "%.3f", st.confidence)),"recording":\(st.isRecording),"frames":\(st.recordEngine.frameCount),"pid":\(getpid()),"reason":"\(reason)"}
         """
         EngineGlobals.socket?.send(json)
     }
@@ -753,6 +809,13 @@ enum EngineMain {
         guard let st = EngineGlobals.state else { return }
         st.isDriving = false
         st.controlEngine.releaseAll()
+        // UI 已离开（bye / 看门狗超时）：一并停掉录制。
+        // 否则引擎会在无人监管下继续录 30 秒「车已停、标签还是上一刻 AI 决策」的垃圾帧，
+        // 这些帧会被下次训练当成有效样本 → 污染模仿学习数据集。
+        if st.isRecording {
+            st.isRecording = false
+            engineLog("[ENGINE] \(reason)：录制已停止（会话收尾并写 meta.json）")
+        }
         engineLog("[ENGINE] \(reason)：已释放全部按键（抓屏与推理保持运行，等待 UI 重连）")
     }
 
@@ -763,6 +826,9 @@ enum EngineMain {
         if let st = EngineGlobals.state {
             engineLog("[ENGINE] 退出流程（\(reason)）：释放全部按键")
             st.stopDriving()   // 内部含 controlEngine.releaseAll()
+            // stop() 里的 meta.json 是 writeQueue.async 写的，紧接着 exit(0)
+            // 会在元信息落盘前杀掉进程 → 录制会话缺 meta.json。这里等队列排空。
+            st.recordEngine.flushSync()
         } else {
             // 状态尚未建立：兜底直接用 ControlEngine 释放
             ControlEngine().releaseAll()
