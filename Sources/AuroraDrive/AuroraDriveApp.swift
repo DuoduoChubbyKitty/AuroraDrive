@@ -1792,8 +1792,9 @@ final class DriveState {
                  + "perm=\(controlEngine.hasAccessibilityPermission) "
                  + "front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-") "
                  + "native=\(Int(speedOCR.lastNativeSize.width))x\(Int(speedOCR.lastNativeSize.height)) "
-                 + "ocr=\(String(format: "%.1f", speedOCR.speedKmh))/\(String(format: "%.2f", speedOCR.confidence))"
+                 + "ocr[\(speedOCR.activeEngine.rawValue)]=\(String(format: "%.1f", speedOCR.speedKmh))/\(String(format: "%.2f", speedOCR.confidence))"
                  + "\(speedOCR.speedKmh < 0 ? "[" + speedOCR.lastOCRDiagnostic + "]" : "") "
+                 + "\(speedOCR.engineNotice.map { "notice=[\($0)] " } ?? "") "
                  + "eff=\(String(format: "%.1f", effectiveSpeed))/vld=\(speedValid) "
                  + "lag=\(Int(frameDeliveryLagMs))ms mem=\(Int(processMemoryMB()))MB "
                  + "capGap=\(captureEngine.lastFrameGapMs.isFinite ? Int(captureEngine.lastFrameGapMs) : 0)ms capWork=\(captureEngine.lastFrameWorkMs.isFinite ? Int(captureEngine.lastFrameWorkMs) : 0)ms tickGap=\(Int(tickGapMs))ms"
@@ -3389,6 +3390,28 @@ struct StatusPanel: View {
                         Text("km/h")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Theme.textTertiary)
+                        // 车速识别引擎标签：PP-OCRv6（主，青）/ CNN（备用降级，橙）
+                        // @Observable 嵌套：activeEngine 变化时 body 自动刷新
+                        Text(state.speedOCR.activeEngine.rawValue)
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(state.speedOCR.activeEngine == .ppocr
+                                             ? AnyShapeStyle(Theme.cyan)
+                                             : AnyShapeStyle(Theme.orangeRed))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule().fill((state.speedOCR.activeEngine == .ppocr
+                                                ? AnyShapeStyle(Theme.cyan)
+                                                : AnyShapeStyle(Theme.orangeRed)).opacity(0.12))
+                            )
+                            .overlay(
+                                Capsule().strokeBorder(
+                                    (state.speedOCR.activeEngine == .ppocr
+                                     ? AnyShapeStyle(Theme.cyan)
+                                     : AnyShapeStyle(Theme.orangeRed)).opacity(0.4),
+                                    lineWidth: 1)
+                            )
+                            .help("车速识别引擎：PP-OCRv6 微调模型（主）/ CNN（PP-OCR 故障时自动切换）")
                     }
                     Spacer()
                     // 禁用控制：人开 + 模型检测辅助（不注入 AI 键）
@@ -3429,6 +3452,19 @@ struct StatusPanel: View {
                             .tracking(1.5)
                             .foregroundStyle(Theme.textTertiary)
                     }
+                }
+                // 引擎切换 / 加载提示：PP-OCR 故障降级 CNN、备用缺失等（nil 不显示）
+                if let notice = state.speedOCR.engineNotice {
+                    HStack(spacing: 5) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 9))
+                        Text(notice)
+                            .font(.system(size: 10, weight: .medium))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .foregroundStyle(Theme.orangeRed)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
