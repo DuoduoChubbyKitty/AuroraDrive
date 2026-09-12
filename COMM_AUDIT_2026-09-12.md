@@ -126,6 +126,35 @@ start  stop  bye  status  upscale  ping      ← 只有 6 条
 | **定位依据** | ① `AuroraDriveApp.swift:914` `var speedLimit: Double = 120`<br>② `:3600` 绑定 UI 滑杆 `value: $state.speedLimit, range: 40...200, step: 5`<br>③ `tick()` 内（`:1610` / `:1612`）作为 `speedLimitKmh: speedLimit` 传入 `inferenceEngine.infer(...)` 与 `assistEngine.infer(...)`<br>④ `InferenceEngine.swift:320` `speed_limit_norm = speedLimit / 120` → 成为 `vehicle_state[4]` → **直接参与 steer/throttle 推理** |
 | **发现方式** | 全量状态清点：提取 `tick()` 函数体（1537–1794 行），逐个统计所有 UI 可绑定的状态变量引用次数，再逐一核对是否已同步。**这是本轮唯一一个靠"逐条清点"才挖出来的缺口**——前 9 项都是顺着"录制"这条线牵出来的 |
 
+### P11 — 「已移除」的网络定位仍在每次启动时自动运行【高 · 非预期行为】
+
+| 项 | 内容 |
+|---|---|
+| **问题描述** | `networkLocate` 被认为已废弃（`startDriving()` 里 `networkLocator.start()` 已注释、代码注释写「旧网络抓包定位已移除」）。但实际上：**每次启动 App 都会自动开启 BPF 网络抓包**，且持续运行 |
+| **风险等级** | 🟠 高（非预期行为 + 隐私面 + 性能 + 磁盘） |
+| **定位依据** | ① `AuroraDriveApp.swift:1944-1951` — `.onAppear` 中创建 10 Hz 定时器，**无任何开关门控**，回调里先 `pcapLog(...)` 再 `state.runNetworkLocateStep()`<br>② `runNetworkLocateStep()` **自身也没有 enable 检查**，第一件事就是 `coordinateCapture == nil` → `CoordinateCapture()` → `cc.start()`（打开 BPF 设备）<br>③ **运行时铁证**：`lsof /dev/bpf1` → `AuroraDri 4954 dupi 9u CHR 23,1 /dev/bpf1` —— **新 UI 进程此刻正持有 BPF 抓包设备**<br>④ 日志铁证：`/tmp/aurora_pcap.log` 中 `[NETWORK-LOCATE] CoordinateCapture已启动` 共 141 条，最近一条 `2026-09-12T01:16:38Z`（= 本地 09:16，正是本次启动时刻） |
+
+**副作用（实测）**：
+- **日志无轮转、无封顶**：`/tmp/aurora_pcap.log` 已 **400,898 行 / 23.6 MB**（09-08 → 09-12，约 4 天），当前仍在以约 **590 B/s ≈ 51 MB/天** 增长
+- 10 Hz 无条件写盘 + 10 Hz 抓包，即使没人用网络定位
+
+### P12 — 旧架构 root 守护进程仍在运行【中 · 架构残留】
+
+| 项 | 内容 |
+|---|---|
+| **问题描述** | 旧单进程架构编译出的 root 守护进程仍在运行，与新双进程架构并存 |
+| **风险等级** | 🟡 中 |
+| **定位依据** | ① `ps` → `root 83549 /usr/local/bin/aurora-drive-daemon --daemon`，**已运行 2 天 21 小时**，累计 CPU 5:26<br>② `/Library/LaunchDaemons/com.aurora.drive.daemon.plist`：`RunAtLoad=true` + `KeepAlive=true`（**杀了会自动重启**）+ `Nice=-20`（**全系统最高调度优先级**）<br>③ 二进制（Sep 8 22:17）字符串中包含完整的旧 App 组件：`CaptureEngine` / `KeyboardMonitor` / `CGEventSource` / `CoordinateCapture` / `/dev/bpf0` / `pcap_compile` / `/tmp/aurora_pcap.log` |
+
+**为何列入通信排查**：它以最高优先级常驻，且内含抓屏/键盘注入/BPF 全套能力，与新的引擎进程**功能重叠**。虽然实测当前 `%CPU 0.0`（多数时间空闲），但它是一个「随时可能介入」的未知变量，排查通信问题时应先排除。
+
+**清理需 sudo**（本会话审批已禁用，无法执行）：
+```
+sudo launchctl bootout system/com.aurora.drive.daemon
+sudo rm /Library/LaunchDaemons/com.aurora.drive.daemon.plist /usr/local/bin/aurora-drive-daemon
+```
+⚠️ **`com.aurora.bpf-setup.plist` 与 `com.aurora.bpf-fix.plist` 必须保留**（BPF 设备权限依赖它们，删了会导致 `/dev/bpf*` 权限丢失）。
+
 ### 2.1 已确认正常、无需修改的链路
 
 - `startDriving` / `stopDriving` 已有引擎分支并正确转发（`AuroraDriveApp.swift:1187` / `:1220`）
@@ -160,7 +189,6 @@ start  stop  bye  status  upscale  record  reloadmodel  config  ping
 ```
 
 ### 3.2 结构性建议（防止同类问题复发）
-
 1. **建立「跨进程状态清单」并纳入交接检查**
    凡是在 `tick()` 内被读取的可变状态，都必须二选一：
    - 由引擎作为权威源，通过心跳**回传**（如 `mode`/`speedKiNh`/`recording`）
@@ -175,6 +203,15 @@ start  stop  bye  status  upscale  record  reloadmodel  config  ping
 
 4. **命令行验证工具**
    建议给引擎 socket 加一个 CLI（如 `--cmd record --on`），便于在不启动 UI 的情况下验证命令链路 —— 本次排查受限于「无法在不动用户运行中实例的前提下做 E2E 验证」。
+
+5. **心跳字段宁多勿少**
+   本次 P1/P6 的根因都是「状态变了但没上报」。心跳是 1 Hz、负载只有几百字节，**多加字段的成本远低于漏一个字段的代价**。建议把引擎侧所有会影响 UI 显示的 DriveState 字段都纳入心跳。
+
+6. **P11 建议（未实施，需用户确认）**
+   `runNetworkLocateStep()` 与那个 10 Hz 定时器**缺少 enable 门控**。建议二选一：
+   - 若网络定位确实已废弃 → 删掉定时器与 `CoordinateCapture` 调用链
+   - 若仍需保留 → 至少加 `guard enableNetworkLocate else { return }`，并把 `pcapLog` 改成按需写（当前 10 Hz 无条件写盘、无轮转，约 51 MB/天）
+   **未擅自修改**：这属于功能性行为变更，不确定用户是否仍依赖该能力。
 
 ### 3.3 验证状态
 
