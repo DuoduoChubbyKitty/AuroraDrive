@@ -43,6 +43,13 @@ final class GameHUDWindow {
     /// - Parameter corner: 屏幕角（默认左上角，符合用户要求）
     func install() {
         if window != nil { return }
+        // 自我保护：没有 NSApplication UI 上下文时绝不创建窗口。
+        // 引擎进程（--engine）会创建 DriveState，若在其内建窗会崩 AppKit
+        // （NSViewSetCurrentlyBuildingLayerTreeForDisplay assertion）。
+        guard NSApp != nil else {
+            print("[HUD] 无 NSApplication 上下文（引擎进程）→ 跳过 HUD 安装")
+            return
+        }
 
         // 尺寸：够放两行等宽字（HUD 小巧，避免遮挡游戏视野）
         let w: CGFloat = 168

@@ -1188,7 +1188,13 @@ final class DriveState {
             let game = self.captureEngine.captureFPS
             return (assist, game)
         }
-        gameHUD.install()
+        // ★ 仅 UI 进程安装：引擎进程（--engine）也创建 DriveState，但它没有
+        //   NSApplication UI 上下文，在其中创建 NSWindow 会触发 AppKit 断言崩溃
+        //   （实测：NSViewSetCurrentlyBuildingLayerTreeForDisplay, NSView.m:12937，
+        //   导致引擎「就绪」后 1ms 即崩、UI 显示失联）。
+        if !CommandLine.arguments.contains("--engine") {
+            gameHUD.install()
+        }
         // 接线截屏引擎回调
         // onFrame: 每帧调用，更新 currentScreenImage（主线程，SwiftUI 自动刷新）
         // onStatusChange: 启动/停止/错误/权限拒绝
