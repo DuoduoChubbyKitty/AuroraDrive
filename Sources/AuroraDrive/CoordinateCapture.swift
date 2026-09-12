@@ -113,9 +113,10 @@ func ue5Vector(_ data: [UInt8], offset: Int, scale: Int) -> (Vec3, Int, Int, Boo
     for _ in 0..<3 {
         let v = bits(data, offset: cursor, count: width)
         cursor += width
-        // 符号扩展必须走 Int64：UInt64 的 &- 会下溢回绕成巨大正数（Python大整数无此问题），
-        // 导致所有负坐标 > kMaxLocationAbs 被淘汰 → 永远0候选
-        let sv: Int64 = (v & sign) != 0 ? Int64(v) - Int64(modulus) : Int64(v)
+        // 符号扩展必须走 Int64(bitPattern:)：UInt64 的 &- 会下溢回绕成巨大正数（Python大整数无此问题），
+        // 导致所有负坐标 > kMaxLocationAbs 被淘汰 → 永远0候选。
+        // 注意 Int64(modulus) 在 width=63 时（modulus=2^63）触发运行时断言（04:04 SIGTRAP 崩溃事故）
+        let sv: Int64 = (v & sign) != 0 ? Int64(bitPattern: v &- modulus) : Int64(v)
         values.append(isScaled ? Double(sv) / Double(scale) : Double(sv))
     }
     return ((values[0], values[1], values[2]), cursor, width, isScaled)
