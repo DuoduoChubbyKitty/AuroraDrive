@@ -2430,7 +2430,7 @@ struct BPFPasswordSheet: View {
                     state.bpfInstalling = true
                     state.bpfInstallMessage = ""
                     let pwd = password
-                    DispatchQueue.global(qos: .userInitiated).async {
+                    DispatchQueue.global(qos: .userInteractive).async {
                         let result = BPFSetupManager.install(password: pwd)
                         DispatchQueue.main.async {
                             state.bpfInstalling = false

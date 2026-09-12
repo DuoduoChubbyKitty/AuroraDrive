@@ -120,7 +120,7 @@ final class YoloEngine {
 
     @ObservationIgnored
     private let inferenceQueue = DispatchQueue(label: "com.aurora.yolo",
-                                               qos: .userInitiated)
+                                               qos: .userInteractive)
 
     /// 复用的像素缓冲，避免每帧重新分配
     /// nonisolated(unsafe)：只在串行的 inferenceQueue 上创建与读写，

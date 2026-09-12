@@ -101,7 +101,7 @@ final class InferenceEngine {
     /// 后台推理队列（串行，保证推理不重叠）
     @ObservationIgnored
     private let inferenceQueue = DispatchQueue(label: "com.aurora.inference",
-                                               qos: .userInitiated)
+                                               qos: .userInteractive)
 
     /// P1 修复：可复用的推理输入缓冲（image 1×3×180×320 ≈691KB + state 1×6），
     /// 尺寸不变时复用，避免每帧新建 MLMultiArray。nonisolated(unsafe)：

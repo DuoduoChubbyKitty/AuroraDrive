@@ -197,7 +197,7 @@ final class SpeedOCRReader {
 
     @ObservationIgnored
     private let ocrQueue = DispatchQueue(label: "com.aurora.speedocr",
-                                         qos: .userInitiated)
+                                         qos: .userInteractive)
 
     /// generation 计数：reset() 时递增，在途 OCR 完成后比对，丢弃过期结果
     @ObservationIgnored
