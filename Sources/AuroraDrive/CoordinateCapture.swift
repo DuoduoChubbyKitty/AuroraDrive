@@ -111,10 +111,12 @@ func ue5Vector(_ data: [UInt8], offset: Int, scale: Int) -> (Vec3, Int, Int, Boo
     let modulus = UInt64(1) << width
     var values: [Double] = []
     for _ in 0..<3 {
-        var v = bits(data, offset: cursor, count: width)
+        let v = bits(data, offset: cursor, count: width)
         cursor += width
-        if v & sign != 0 { v = v &- modulus }
-        values.append(isScaled ? Double(v) / Double(scale) : Double(v))
+        // 符号扩展必须走 Int64：UInt64 的 &- 会下溢回绕成巨大正数（Python大整数无此问题），
+        // 导致所有负坐标 > kMaxLocationAbs 被淘汰 → 永远0候选
+        let sv: Int64 = (v & sign) != 0 ? Int64(v) - Int64(modulus) : Int64(v)
+        values.append(isScaled ? Double(sv) / Double(scale) : Double(sv))
     }
     return ((values[0], values[1], values[2]), cursor, width, isScaled)
 }
