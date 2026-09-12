@@ -3516,6 +3516,12 @@ struct StatusPanel: View {
                             .foregroundStyle(.white)
                             .shadow(color: Theme.cyan.opacity(0.45), radius: 12)
                             .contentTransition(.numericText())
+                            // ★ 三位数（>99）时 52pt 宽度暴涨，曾被容器挤压折成两排：
+                            //   lineLimit(1) 禁止折行；minimumScaleFactor 空间不足时缩字；
+                            //   fixedSize 让文本按内容优先取宽，不被压扁换行。
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.55)
+                            .fixedSize(horizontal: true, vertical: false)
                         Text("km/h")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Theme.textTertiary)
