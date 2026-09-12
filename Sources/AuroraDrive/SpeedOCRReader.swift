@@ -693,28 +693,50 @@ final class SpeedOCRReader {
         if fgRatio < ppocrMinForegroundRatio {
             return RecognitionResult(
                 unknownSlots: [0],
-                diag: "fg=\(fgTotal) 比例 \(String(format: "%.3f", fgRatio)) 过低(画面无速度表)",
+                diag: "fg=\(fgTotal)/\(binary.count) 比例 \(String(format: "%.4f", fgRatio)) 低于 \(String(format: "%.4f", ppocrMinForegroundRatio)) 判无效",
                 fgTotal: fgTotal)
         }
 
         // 双线性 resize 到模型输入 48×136
         let resized = bilinearResizeGray(src: gray, srcH: grayH, srcW: grayW,
                                          dstH: ppocrInputHeight, dstW: ppocrInputWidth)
-        // 归一化 (v/255-0.5)/0.5 = v/127.5-1，灰度复制 3 通道 → [1,3,48,136] NCHW fp32
+        // 归一化 (v/255-0.5)/0.5 = v/127.5-1，灰度复制 3 通道 → [1,3,48,136] NCHW。
+        // **必须按模型输入层声明的 dataType 构造**：本模型以 compute_precision=FLOAT16
+        // 转换，输入规格是 fp16——喂 fp32 数组会被按 fp16 解读成垃圾，输出全乱码
+        // （自检实测：300/300 失败，raw 为乱码、置信度 0.000）
+        let inputDataType = model.modelDescription
+            .inputDescriptionsByName["image"]?.multiArrayConstraint?.dataType ?? .float32
+        if ProcessInfo.processInfo.environment["AURORA_OCR_DEBUG"] == "1" {
+            let desc = model.modelDescription
+            print("[DBG] 模型输入名=\(desc.inputDescriptionsByName.keys.sorted()) 输出名=\(desc.outputDescriptionsByName.keys.sorted())")
+            print("[DBG] inputDataType rawValue=\(inputDataType.rawValue) (65568=fp32 65552=fp16)")
+            print("[DBG] gray=\(gray.count) (期望 \(grayW*grayH))")
+        }
         guard let inputArray = try? MLMultiArray(
             shape: [1, 3,
                     NSNumber(value: ppocrInputHeight),
                     NSNumber(value: ppocrInputWidth)],
-            dataType: .float32) else {
+            dataType: inputDataType) else {
             return RecognitionResult(error: "PP-OCR: MLMultiArray 创建失败")
         }
-        let inPtr = inputArray.dataPointer.assumingMemoryBound(to: Float.self)
         let plane = ppocrInputHeight * ppocrInputWidth
-        for i in 0..<plane {
-            let v = Float(resized[i]) / 127.5 - 1.0
-            inPtr[i] = v              // C0
-            inPtr[plane + i] = v      // C1（与 C0 同值：源图即灰度）
-            inPtr[2 * plane + i] = v  // C2
+        switch inputDataType {
+        case .float16:
+            let p = inputArray.dataPointer.assumingMemoryBound(to: Float16.self)
+            for i in 0..<plane {
+                let v = Float16(Float(resized[i]) / 127.5 - 1.0)
+                p[i] = v
+                p[plane + i] = v
+                p[2 * plane + i] = v
+            }
+        default:
+            let p = inputArray.dataPointer.assumingMemoryBound(to: Float.self)
+            for i in 0..<plane {
+                let v = Float(resized[i]) / 127.5 - 1.0
+                p[i] = v
+                p[plane + i] = v
+                p[2 * plane + i] = v
+            }
         }
 
         guard let feature = try? MLDictionaryFeatureProvider(dictionary: ["image": inputArray]),
@@ -751,6 +773,8 @@ final class SpeedOCRReader {
     /// CTC 解码：逐时间步 argmax + softmax 概率 → 跳 blank(index 0)、折叠相邻重复
     /// - logits: [1, T, 6906]（行主序展开，stride = 6906）
     /// - index 1..6904 ↔ keys[0..6903]；index 6905 = space（非数字，解码忽略无害）
+    /// - **必须按 dataType 读取**：模型以 compute_precision=FLOAT16 转换，输出是 fp16
+    ///   （2 字节/元素）；按 Float（4 字节）指针读会越界段错误（自检实测 SIGSEGV）
     /// - Returns: (解码文本, 解码字符的平均 argmax 概率)；无字符输出时 nil
     nonisolated private static func ctcDecode(
         logits: MLMultiArray, keys: [String]
@@ -758,28 +782,60 @@ final class SpeedOCRReader {
         let classes = ppocrNumClasses
         let steps = logits.count / classes
         guard steps > 0, keys.count == ppocrKeysLines else { return nil }
-        let ptr = logits.dataPointer.assumingMemoryBound(to: Float.self)
+
+        // **必须尊重 MLMultiArray 的 strides**：CoreML 输出按内部对齐分配，
+        // 行步长可能 > classes（非紧凑布局）。按 stride=classes 硬展开会读错位
+        // → 读到 NaN/极大值 → softmax=0、argmax 随机（自检实测：置信度 0.000、
+        // 输出乱码，且张量本身经交叉验证完全正确）
+        let strides = logits.strides.map { $0.intValue }
+        let shape = logits.shape.map { $0.intValue }
+        guard strides.count == 3, shape.count == 3 else { return nil }
+        let rowStride = strides[1]   // 时间步 t 的步长
+        let colStride = strides[2]   // 类别 c 的步长
+        if ProcessInfo.processInfo.environment["AURORA_OCR_DEBUG"] == "1" {
+            print("[DBG] logits shape=\(shape) strides=\(strides)（紧凑应为 [\(shape[1]*classes), \(classes), 1]）")
+        }
+
+        // 类型感知读取器（闭包内持有裸指针，logits 生命周期覆盖整个解码过程）
+        let read: (Int) -> Float
+        switch logits.dataType {
+        case .float16:
+            let p = logits.dataPointer.assumingMemoryBound(to: Float16.self)
+            read = { Float(p[$0]) }
+        case .float32:
+            let p = logits.dataPointer.assumingMemoryBound(to: Float.self)
+            read = { p[$0] }
+        case .double:
+            let p = logits.dataPointer.assumingMemoryBound(to: Double.self)
+            read = { Float(p[$0]) }
+        default:
+            // int32/其他类型不该出现在 rec logits 上
+            return nil
+        }
+
         var chars: [Character] = []
         var confs: [Double] = []
         var prev = -1
         for t in 0..<steps {
-            let base = t * classes
+            let rowBase = t * rowStride
             var best = 0
-            var bestVal = ptr[base]
+            var bestVal = read(rowBase)
             for c in 1..<classes {
-                let v = ptr[base + c]
+                let v = read(rowBase + c * colStride)
                 if v > bestVal { bestVal = v; best = c }
             }
             if best != 0 && best != prev {
-                // softmax(best) = exp(0) / Σ exp(v-best) = 1 / Σ（数值稳定减 max）
-                var sumExp: Float = 0
-                for c in 0..<classes { sumExp += expf(ptr[base + c] - bestVal) }
+                // **置信度直接取该步最大概率值**：本模型输出已是概率分布
+                // （CTC 头 softmax 已烘焙进模型，实测 max-logit 恒为 1.0000）。
+                // 若再套一层 softmax（1/Σexp(v-max)）会得到"分布锐度"而非置信度，
+                // 对 6906 类约等于 1/2540 ≈ 0.0004 → 全部低于阈值判无效
+                // （自检实测：文本解码正确但置信度 0.000、300/300 全失败）
+                confs.append(Double(min(1.0, max(0.0, bestVal))))
                 if best <= keys.count {
                     chars.append(contentsOf: keys[best - 1])
                 } else {
                     chars.append(" ")
                 }
-                confs.append(Double(1.0 / sumExp))
             }
             prev = best
         }
@@ -874,11 +930,15 @@ final class SpeedOCRReader {
             guard let outputArray = output.featureValue(for: "digit_output")?.multiArrayValue else {
                 return RecognitionResult(error: "CNN输出读取失败")
             }
-            let outPtr = outputArray.dataPointer.assumingMemoryBound(to: Float.self)
+            // 读取输出 (1, 10)：用 NSNumber 桥接（仅 10 个元素，开销可忽略），
+            // 避免假设 fp32——模型若以 fp16 导出，按 Float 指针读会越界段错误
+            let readProb: (Int) -> Float = { d in
+                (outputArray[d] as? NSNumber)?.floatValue ?? 0
+            }
             var bestDigit = 0
             var bestProb: Float = -1
             for d in 0..<10 {
-                let prob = outPtr[d]
+                let prob = readProb(d)
                 if prob > bestProb {
                     bestProb = prob
                     bestDigit = d
@@ -887,9 +947,9 @@ final class SpeedOCRReader {
             digits.append(bestDigit)
             // softmax置信度
             var sumExp: Float = 0
-            var maxVal: Float = outPtr[0]
-            for d in 0..<10 { if outPtr[d] > maxVal { maxVal = outPtr[d] } }
-            for d in 0..<10 { sumExp += expf(outPtr[d] - maxVal) }
+            var maxVal: Float = readProb(0)
+            for d in 0..<10 { if readProb(d) > maxVal { maxVal = readProb(d) } }
+            for d in 0..<10 { sumExp += expf(readProb(d) - maxVal) }
             let conf = expf(maxVal - maxVal) / sumExp  // = 1/sumExp * exp(0) = 1/sumExp
             maxConfidences.append(Double(conf))
         }
@@ -1112,7 +1172,9 @@ final class SpeedOCRReader {
                 continue
             }
             guard let speed = result.speed else {
-                lines.append("  [FAIL] \(name): 无法识别 \(result.unknownSlots)")
+                // 带上诊断原因（fg/置信度/解码串），自检可直接定位失败环节
+                let why = result.diag ?? result.error ?? "无诊断"
+                lines.append("  [FAIL] \(name): 无法识别 \(result.unknownSlots) — \(why)")
                 failCount += 1
                 continue
             }
