@@ -418,9 +418,47 @@ private func applyMainThreadBoost(_ enabled: Bool) {
 /// SwiftUI 的 App/Scene/AppDelegate 结构完全保持原样，未做其他改动。
 @main
 struct AuroraDriveLauncher {
+    /// UI 单实例锁的 fd（持有到进程退出，内核自动释放）
+    nonisolated(unsafe) private static var uiLockFD: Int32 = -1
+
+    /// UI 单实例保护：flock 独占锁。
+    /// 背景（2026-09-12 实测）：两个 UI 实例会互抢同一个引擎 socket——
+    /// 引擎只服务一个客户端，双方轮流被踢 → 各自「断开→重连」0.5 秒死循环刷屏。
+    /// 引擎侧早有这样的锁（engine.lock），UI 侧此前缺失，这里补齐。
+    private static func acquireUISingleInstanceLock() -> Bool {
+        let appSupport = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AuroraDrive")
+        try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+        let lockPath = appSupport.appendingPathComponent("ui.lock").path
+        let fd = open(lockPath, O_CREAT | O_RDWR, 0o600)
+        guard fd >= 0 else { return true }   // 锁文件不可建时放行，不阻碍正常使用
+        if flock(fd, LOCK_EX | LOCK_NB) == 0 {
+            uiLockFD = fd                    // 持有；进程退出/崩溃时内核自动释放
+            ftruncate(fd, 0)
+            let pidStr = "\(getpid())\n"
+            _ = pidStr.withCString { write(fd, $0, strlen($0)) }
+            return true
+        }
+        close(fd)
+        return false
+    }
+
     static func main() {
-        if CommandLine.arguments.contains("--engine") {
-            EngineMain.run()   // 永不返回（dispatchMain 常驻）
+        let args = CommandLine.arguments
+        if args.contains("--engine") {
+            EngineMain.run()   // 永不返回（dispatchMain 常驻；自身已有 engine.lock）
+        }
+        // 一次性自检/守护模式不参与 UI 锁：它们是短命进程或被 launchd 托管，
+        // 若参与锁会与常驻 UI 互斥，导致自检失败或用户无法启动界面。
+        let oneShotFlags = ["--speed-selftest", "--tcc-selftest", "--test-xpc",
+                            "--yolo-selftest", "--upscale-selftest", "--yolo-bench",
+                            "--daemon"]
+        let isOneShot = args.contains { oneShotFlags.contains($0) }
+        if !isOneShot, !acquireUISingleInstanceLock() {
+            print("[App] 已有 AuroraDrive 实例在运行 —— 本次启动退出")
+            print("      原因：两个 UI 会互抢引擎 socket（0.5s 断开重连死循环）")
+            print("      如需重启，请先退出正在运行的实例")
+            exit(0)
         }
         AuroraDriveApp.main()
     }
