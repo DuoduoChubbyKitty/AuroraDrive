@@ -14,7 +14,7 @@ models/trocr-base-printed/
 
 # ===== 训练中间产物 / 数据集（本地自备，不入库）=====
 checkpoints/
-data/
+/data/
 archive/
 backups/
 留档/
@@ -51,3 +51,7 @@ src-tauri/
 # ===== 密钥（绝不入库）=====
 .env
 *.token
+
+# ===== Paddle 微调工作区 =====
+.venv-paddle/
+tools/ppocrv6_finetune/output/
