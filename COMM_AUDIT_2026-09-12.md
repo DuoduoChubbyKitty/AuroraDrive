@@ -155,7 +155,26 @@ sudo rm /Library/LaunchDaemons/com.aurora.drive.daemon.plist /usr/local/bin/auro
 ```
 ⚠️ **`com.aurora.bpf-setup.plist` 与 `com.aurora.bpf-fix.plist` 必须保留**（BPF 设备权限依赖它们，删了会导致 `/dev/bpf*` 权限丢失）。
 
-### 2.1 已确认正常、无需修改的链路
+### 2.1 【专项】XPC 链路排查结论 —— 存在但完全未接线（死代码）
+
+用户明确提到「XPC 那边很多问题」，故单独核实。**结论：XPC 不是问题源，因为它根本没有链路。**
+
+| 检查项 | 结果 | 依据 |
+|---|---|---|
+| 服务端实现 | ✅ 存在且可编译 | `Sources/AuroraDriveUserAgent/main.swift`（52 行）：`NSXPCListenerDelegate` + `NSXPCListener(machServiceName:)`，实现 `ping` / `startDriving` / `stopDriving` |
+| 共享协议 | ✅ 已定义 | `Sources/AuroraDriveShared/AuroraDriveShared.swift:8` `machServiceName = "com.aurora.drive.agent"` |
+| 构建目标注册 | ✅ 已注册 | `Package.swift:13-17` `executableTarget(name: "AuroraDriveUserAgent")` |
+| **客户端调用** | ❌ **完全没有** | 全源码 grep `NSXPCConnection` → **只命中 UserAgent 自身**；主程序 `AuroraDrive` 侧零引用 |
+| **安装** | ❌ **从未安装** | 安装用 plist 位于 `/tmp/com.aurora.drive.agent.plist` —— **位置错误**（launchd 只加载 `~/Library/LaunchAgents/` 或 `/Library/LaunchDaemons/`），故永不被加载 |
+| **运行** | ❌ **从未运行** | `ps` 无 `AuroraDriveUserAgent` 进程（只有系统自带的 `searchpartyuseragent` / `mbuseragent`） |
+
+**判定**：这是一个**未完成的设计残留** —— 服务端写好了，客户端从未编写，也从未安装运行。
+**对当前通信问题零影响**。用户体感的「各种不通」实际来自 P1–P10（socket 命令表缺 `record`/`config`/`reloadmodel` 三条链路），与 XPC 无关。
+
+**建议**：要么补齐客户端并正式安装（若确有多用户会话隔离需求），要么**直接删除** `Sources/AuroraDriveUserAgent/` + `AuroraDriveShared/` + `Package.swift` 对应 target，消除误导。当前状态最坏 —— 看起来有、实际没有，会让后续排查反复走弯路（本次即为实例）。
+
+### 2.2 已确认正常、无需修改的链路
+
 
 - `startDriving` / `stopDriving` 已有引擎分支并正确转发（`AuroraDriveApp.swift:1187` / `:1220`）
 - 插帧开关 `upscaleEnabled` 已通过 `setUpscale` 下发（`:1152`）
