@@ -63,6 +63,7 @@ let package = Package(
                 "Sources/AuroraDrive/EngineMain.swift",
                 "Sources/AuroraDrive/EngineClient.swift",
                 "Sources/AuroraDrive/EscapeController.swift",
+                "Sources/AuroraDrive/GameHUDWindow.swift",
                 "Sources/AuroraDrive/GameMapView.swift",
                 "Sources/AuroraDrive/InferenceEngine.swift",
                 "Sources/AuroraDrive/KeyboardMonitor.swift",

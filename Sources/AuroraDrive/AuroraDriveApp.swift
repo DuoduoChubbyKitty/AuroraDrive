@@ -177,11 +177,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if setpriority(PRIO_PROCESS, 0, -20) == 0 {
             print("[App] 进程优先级 nice=-20（最高）")
         }
-        // ── Game Mode 对抗：安装"锚定窗口" ──
-        // 刻意放在 CGEventTap 之前：锚定窗口不依赖辅助功能权限，
-        // 而下方 CGEventTap 的 guard 在权限不足时会 return，若放在其后将永不执行
-        // （实测踩过：从无 AX 权限的 shell 启动时，锚定窗口/IOPMAssertion 全被跳过）。
-        installGameModeAnchorWindow()
+        // ── Game Mode 对抗 ──
+        // 由 DriveState 的 GameHUDWindow（左上角绿色帧率 HUD）承担"可见窗口"职责：
+        // 它比 1×1 隐形锚点更可能被 gamepolicyd 认作"有可见窗口的应用"，
+        // 且同时提供实用信息。锚定窗口方案保留在下方方法中，默认不再调用。
+        // 注：HUD 在 DriveState.init() 里安装，那里能取到 captureEngine/tick 数据。
         // pthread QoS：直接设主线程到最高
         // pthread QoS set via DispatchQueue .userInteractive (已设)
         // 创建空 CGEventTap：系统必须保持有event tap的进程响应，否则事件丢弃
@@ -1109,6 +1109,9 @@ final class DriveState {
     /// 截屏引擎实例（启动时创建，全屏画面流 30fps）
     /// isDriving 启动时 start()，停止时 stop()
     let captureEngine = CaptureEngine()
+    /// 游戏画面左上角帧率 HUD（绿色两行：辅助帧率 / 游戏帧率）
+    /// 兼作对抗 Game Mode 的"可见窗口"（见 GameHUDWindow.swift 头注释）
+    let gameHUD = GameHUDWindow()
 
     /// 截屏权限状态（首次启动若未授权，引导用户到系统设置）
     var capturePermissionDenied = false
@@ -1175,6 +1178,17 @@ final class DriveState {
 
     init() {
         try? FileManager.default.removeItem(atPath: "/tmp/aurora_debug.log")
+        // ── 帧率 HUD（左上角绿色两行）：兼作 Game Mode 对抗的可见窗口 ──
+        gameHUD.fpsProvider = { [weak self] in
+            guard let self else { return (0, 0) }
+            // 辅助帧率：主线程 tick 速率（1000 / 上次 tick 间隔 ms）
+            let gap = self.tickGapMs
+            let assist = gap > 1 ? 1000.0 / gap : 0
+            // 游戏帧率：ScreenCaptureKit 实际捕获到的合成帧率（≈游戏渲染帧率）
+            let game = self.captureEngine.captureFPS
+            return (assist, game)
+        }
+        gameHUD.install()
         // 接线截屏引擎回调
         // onFrame: 每帧调用，更新 currentScreenImage（主线程，SwiftUI 自动刷新）
         // onStatusChange: 启动/停止/错误/权限拒绝
