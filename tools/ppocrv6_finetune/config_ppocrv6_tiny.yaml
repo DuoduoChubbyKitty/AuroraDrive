@@ -1,0 +1,39 @@
+Global:
+  model: PP-OCRv6_tiny_rec
+  mode: check_dataset
+  dataset_dir: "/Users/dupi/Desktop/自动驾驶系统/tools/ppocrv6_finetune/dataset"
+  device: cpu
+  output: "/Users/dupi/Desktop/自动驾驶系统/tools/ppocrv6_finetune/output"
+
+CheckDataset:
+  convert:
+    enable: False
+    src_dataset_type: null
+  split:
+    enable: False
+    train_percent: null
+    val_percent: null
+
+Train:
+  epochs_iters: 30
+  batch_size: 16
+  learning_rate: 0.0005
+  pretrain_weight_path: "/Users/dupi/Desktop/自动驾驶系统/tools/ppocrv6_finetune/pretrained/PP-OCRv6_tiny_rec_pretrained.pdparams"
+  resume_path: null
+  log_interval: 20
+  eval_interval: 1
+  save_interval: 5
+
+Evaluate:
+  weight_path: "/Users/dupi/Desktop/自动驾驶系统/tools/ppocrv6_finetune/output/best_accuracy/best_accuracy.pdparams"
+  log_interval: 1
+
+Export:
+  weight_path: "/Users/dupi/Desktop/自动驾驶系统/tools/ppocrv6_finetune/output/best_accuracy/best_accuracy.pdparams"
+
+Predict:
+  batch_size: 1
+  model_dir: "/Users/dupi/Desktop/自动驾驶系统/tools/ppocrv6_finetune/output/best_accuracy/inference"
+  input: "/Users/dupi/Desktop/自动驾驶系统/tools/ppocrv6_finetune/dataset/clip_20260827_204249_000064.jpg"
+  kernel_option:
+    run_mode: paddle
