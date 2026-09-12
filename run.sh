@@ -65,16 +65,22 @@ else
 fi
 
 # ── 复制+签名 ──
+# 2026-09-12 修复 SIGKILL (Code Signature Invalid)：
+#   进程按需分页——运行中实例会陆续从磁盘读未调入的页。旧的 `cp` 原地覆盖
+#   同一 inode 后，内核读到新旧混合的页，CDHash 校验失败 → 内核直接杀
+#   （Taskgated Invalid Signature，见 9/10 DiagnosticReports）。
+#   原子替换（cp 到临时名 + mv 换 inode）：运行中实例继续引用旧 inode
+#   （unlink 后 vnode 存活），新实例用新文件，谁都不受影响。
 echo ""
 echo "[4/4] 签名 + 部署"
 /usr/bin/codesign --force --deep --sign - "$BIN_SRC" 2>/dev/null || true
-cp "$BIN_SRC" "$BIN_DST"
+cp "$BIN_SRC" "$BIN_DST.tmp.$$" && mv -f "$BIN_DST.tmp.$$" "$BIN_DST"
 /usr/bin/xattr -d com.apple.quarantine "$BIN_DST" 2>/dev/null || true
 
 # 构建 .app bundle(从子进程启动时需要,避免 SIGKILL)
 BUNDLE_DIR="$ROOT/AuroraDriveUI.app"
 mkdir -p "$BUNDLE_DIR/Contents/MacOS"
-cp "$BIN_SRC" "$BUNDLE_DIR/Contents/MacOS/AuroraDriveUI"
+cp "$BIN_SRC" "$BUNDLE_DIR/Contents/MacOS/AuroraDriveUI.tmp.$$" && mv -f "$BUNDLE_DIR/Contents/MacOS/AuroraDriveUI.tmp.$$" "$BUNDLE_DIR/Contents/MacOS/AuroraDriveUI"
 printf '%s\n' \
   '<?xml version="1.0" encoding="UTF-8"?>' \
   '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
