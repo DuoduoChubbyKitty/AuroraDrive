@@ -86,10 +86,11 @@ final class SpeedOCRReader {
 
     // MARK: - 节流 / 范围 / 校验常量
 
-    /// OCR 推理时间闸（秒）：30Hz 每帧读速度表（原 0.2s=5Hz，UI 速度数字刷新慢）。
-    /// OCR 单次模板匹配 <1ms CPU，30Hz 约 30ms/s 可忽略；多帧确认在更高帧率下投票更稳。
-    /// 升频不违反 30fps 红线（红线是不降频）。
-    nonisolated static let inferInterval: TimeInterval = 1.0 / 30.0
+    /// OCR 推理时间闸（秒）：15Hz 读速度表。
+    /// 2026-09-12 由 30Hz 降为 15Hz：速度是缓变量，15Hz 对控制闭环绰绰有余，
+    /// 游戏满载时（本进程线程被挤到效率核）每秒推理次数减半 = 卡顿痛感减半。
+    /// 多帧确认 confirmCount=3 在 15Hz 下窗口 200ms，依然远快于驾驶反应需求。
+    nonisolated static let inferInterval: TimeInterval = 1.0 / 15.0
 
     /// 车速合理范围（km/h），超出视为识别噪声
     nonisolated static let speedRange: ClosedRange<Double> = 0.0...400.0
@@ -497,6 +498,9 @@ final class SpeedOCRReader {
         lastValidSpeed = nil
         lastOCRDiagnostic = ""
         candidates.removeAll(keepingCapacity: true)
+        // 静止帧复用缓存一并清空（新会话从干净状态开始）
+        Self.lastFrameHash = []
+        Self.lastFrameResult = nil
     }
 
     // MARK: - 槽位裁剪（nonisolated 纯函数）
@@ -633,6 +637,53 @@ final class SpeedOCRReader {
             return RecognitionResult(error: "PP-OCR: 灰度转换失败")
         }
 
+        // ── 静止帧复用：ROI 内容 16×6 块均值 hash 与上一帧一致 → 直接返回上次
+        //    结果，跳过 Otsu/缩放/ANE 推理/CTC 全链。速度数字绝大多数帧静止，
+        //    实测平均可跳过一半以上帧；游戏满载被挤到效率核时收益成倍放大。
+        //    （ocrQueue 串行执行；selfTest 与运行期互斥，无并发竞争）
+        let hash = frameHash(gray: gray, w: cg.width, h: cg.height)
+        if hash == lastFrameHash, let cached = lastFrameResult {
+            return cached
+        }
+
+        let result = recognizePPOCRCore(gray: gray, grayW: cg.width, grayH: cg.height,
+                                        model: model, keys: keys)
+        lastFrameHash = hash
+        lastFrameResult = result
+        return result
+    }
+
+    /// 静止帧复用缓存（仅 ocrQueue 串行写读；selfTest 与运行期互斥）
+    @ObservationIgnored
+    nonisolated(unsafe) private static var lastFrameHash: [UInt8] = []
+    @ObservationIgnored
+    nonisolated(unsafe) private static var lastFrameResult: RecognitionResult?
+
+    /// 16×6 块均值下采样 hash：单像素噪声不改变块均值，对捕捉抖动鲁棒
+    nonisolated private static func frameHash(gray: [UInt8], w: Int, h: Int) -> [UInt8] {
+        let bw = 16, bh = 6
+        var out = [UInt8](repeating: 0, count: bw * bh)
+        for by in 0..<bh {
+            let y0 = by * h / bh, y1 = max((by + 1) * h / bh, y0 + 1)
+            for bx in 0..<bw {
+                let x0 = bx * w / bw, x1 = max((bx + 1) * w / bw, x0 + 1)
+                var sum = 0
+                for y in y0..<y1 {
+                    let row = y * w
+                    for x in x0..<x1 { sum += Int(gray[row + x]) }
+                }
+                out[by * bw + bx] = UInt8(min(255, sum / ((x1 - x0) * (y1 - y0))))
+            }
+        }
+        return out
+    }
+
+    /// PP-OCR 识别核心（输入已灰度化；由 recognizePPOCR 的静止帧缓存壳调用）
+    nonisolated private static func recognizePPOCRCore(
+        gray: [UInt8], grayW: Int, grayH: Int,
+        model: MLModel, keys: [String]
+    ) -> RecognitionResult {
+
         // 前置无效检测（比例版）：Otsu 前景占比过低 = 画面无速度表。
         // 旧路径 3375px 上 fg<80 ≈ 2.37%；整行窗口分辨率随全屏分辨率变化，
         // 绝对像素数不可比，故按比例判定
@@ -647,7 +698,7 @@ final class SpeedOCRReader {
         }
 
         // 双线性 resize 到模型输入 48×136
-        let resized = bilinearResizeGray(src: gray, srcH: cg.height, srcW: cg.width,
+        let resized = bilinearResizeGray(src: gray, srcH: grayH, srcW: grayW,
                                          dstH: ppocrInputHeight, dstW: ppocrInputWidth)
         // 归一化 (v/255-0.5)/0.5 = v/127.5-1，灰度复制 3 通道 → [1,3,48,136] NCHW fp32
         guard let inputArray = try? MLMultiArray(
