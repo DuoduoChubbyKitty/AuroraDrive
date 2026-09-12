@@ -225,11 +225,18 @@ final class UE5Decoder {
     private var pendingSeen: Int = 0
     private var pendingAt: Double?
 
+    /// 最近一次 decode 找到的候选块数（诊断用）
+    private(set) var lastCandCount = 0
+
     typealias Candidate = (clientTime: Double, offset: Int, acceleration: Vec3, location: Vec3)
 
     /// 主解码入口
     func decode(payload: [UInt8], timestamp: Double, flow: Flow) -> Pose? {
-        guard let candidates = findCandidates(payload), !candidates.isEmpty else { return nil }
+        guard let candidates = findCandidates(payload), !candidates.isEmpty else {
+            lastCandCount = 0
+            return nil
+        }
+        lastCandCount = candidates.count
 
         var selected: Candidate?
         if let selfFlow = self.flow, flow != selfFlow {
@@ -401,6 +408,16 @@ final class CoordinateCapture {
     private var running = false
     private let lock = NSLock()
 
+    // 15秒窗口统计（仅 captureLoop 线程读写）
+    private var statWindowStart = Date().timeIntervalSince1970
+    private var statPackets = 0
+    private var statS2C = 0
+    private var statC2S = 0
+    private var statDecodeCalls = 0
+    private var statCandHits = 0
+    private var statCandPeak = 0
+    private var statSamples = 0
+
     /// 启动抓包 — 遍历所有网卡，找到有30031端口流量的那个
     func start() -> Bool {
         guard !running else { return true }
@@ -440,9 +457,9 @@ final class CoordinateCapture {
                 continue
             }
             
-            // 设置过滤器 tcp port 30031
+            // 设置过滤器：TCP 30031 + 全部UDP（对齐MaaNTE原版 "tcp port 30031 or udp"，UE5移动同步可能走UDP）
             var filterProgram = bpf_program(bf_len: 0, bf_insns: nil)
-            let compileResult: Int32 = "tcp port 30031".withCString { cStr in
+            let compileResult: Int32 = "tcp port 30031 or udp".withCString { cStr in
                 pcap_compile(handle!, &filterProgram, cStr, 0, 0)
             }
             if compileResult < 0 {
@@ -461,7 +478,7 @@ final class CoordinateCapture {
             // 这个网卡可用！
             devName = name
             pcapHandle = handle
-            pcapLog("[CoordinateCapture] ✓ 选中网卡: \(name) (已设置过滤器 tcp port 30031)")
+            pcapLog("[CoordinateCapture] ✓ 选中网卡: \(name) (过滤器: tcp port 30031 or udp)")
             break
         }
         
@@ -478,7 +495,7 @@ final class CoordinateCapture {
         }
         captureThread?.name = "com.aurora.coordinate-capture"
         captureThread?.start()
-        pcapLog("[CoordinateCapture] 抓包已启动 (tcp port 30031)")
+        pcapLog("[CoordinateCapture] 抓包已启动 (tcp port 30031 or udp)")
         return true
     }
 
@@ -490,7 +507,6 @@ final class CoordinateCapture {
             var headerPtr: UnsafeMutablePointer<pcap_pkthdr>? = nil
             var packetPtr: UnsafePointer<UInt8>? = nil
             let result = pcap_next_ex(handle, &headerPtr, &packetPtr)
-            if result > 0 { pcapLog("[pcap] 包! result=\(result) caplen=\(headerPtr?.pointee.caplen ?? 0)") }
             if result == 0 { continue }
             if result < 0 { break }
             guard let h = headerPtr, let p = packetPtr else { continue }
@@ -498,8 +514,10 @@ final class CoordinateCapture {
         }
     }
 
-    /// 处理抓到的包
+    /// 处理抓到的包（单线程：captureLoop 串行调用，统计字段无需加锁）
     func processPacket(header: pcap_pkthdr, packet: UnsafePointer<UInt8>) {
+        statPackets += 1
+        defer { logStats() }
         let timestamp = Double(header.ts.tv_sec) + Double(header.ts.tv_usec) / 1_000_000.0
         let caplen = Int(header.caplen)
         let data = Array(UnsafeBufferPointer(start: packet, count: caplen))
@@ -511,23 +529,37 @@ final class CoordinateCapture {
         let ipHeaderLen = Int(data[offset] & 0x0F) * 4
         guard offset + ipHeaderLen <= data.count else { return }
         let protocolNum = data[offset + 9]
-        if protocolNum != 6 { return }
         let srcIP = "\(data[offset+12]).\(data[offset+13]).\(data[offset+14]).\(data[offset+15])"
         let dstIP = "\(data[offset+16]).\(data[offset+17]).\(data[offset+18]).\(data[offset+19])"
         offset += ipHeaderLen
-        guard offset + 20 <= data.count else { return }
-        let srcPort = (Int(data[offset]) << 8) | Int(data[offset+1])
-        let dstPort = (Int(data[offset+2]) << 8) | Int(data[offset+3])
-        let tcpHeaderLen = Int((data[offset+12] >> 4) * 4)
-        offset += tcpHeaderLen
+        // TCP(6) 可变头；UDP(17) 固定8字节头——对齐MaaNTE原版，UE5移动同步可能走UDP
+        let transportStart: Int
+        if protocolNum == 6 {
+            guard offset + 20 <= data.count else { return }
+            transportStart = offset
+            offset += Int(data[offset+12] >> 4) * 4
+        } else if protocolNum == 17 {
+            guard offset + 8 <= data.count else { return }
+            transportStart = offset
+            offset += 8
+        } else {
+            return
+        }
         guard offset < data.count else { return }
         let payload = Array(data[offset...])
         let direction = packetDirection(src: srcIP, dst: dstIP)
-        pcapLog("[pcap] dir=\(direction) \(srcIP):\(srcPort)→\(dstIP):\(dstPort) payload=\(payload.count)字节")
+        if direction == "s2c" { statS2C += 1 }
         if direction == "s2c" || direction == "unknown" { return }
-        let flow: Flow = (srcIP, srcPort, dstIP, dstPort, "TCP")
-        if payload.count < 70 { return }
-        if let pose = decoder.decode(payload: payload, timestamp: timestamp, flow: flow) {
+        statC2S += 1
+        // findCandidates 需要 searchEnd > 190 位 → payload ≥ 32 字节。
+        // 对齐MaaNTE原版"payload非空即试"：旧代码 <70 丢弃把 48 字节的 c2s 移动包全部挡在了 decode 之外。
+        guard payload.count >= 32 else { return }
+        guard transportStart + 4 <= data.count else { return }
+        let srcPort = (Int(data[transportStart]) << 8) | Int(data[transportStart+1])
+        let dstPort = (Int(data[transportStart+2]) << 8) | Int(data[transportStart+3])
+        statDecodeCalls += 1
+        if let pose = decoder.decode(payload: payload, timestamp: timestamp, flow: (srcIP, srcPort, dstIP, dstPort, protocolNum == 6 ? "TCP" : "UDP")) {
+            statSamples += 1
             let now = Date().timeIntervalSince1970
             lock.lock()
             if now - lastSampleWall >= interval {
@@ -537,6 +569,21 @@ final class CoordinateCapture {
             }
             lock.unlock()
         }
+        if decoder.lastCandCount > 0 {
+            statCandHits += 1
+            statCandPeak = max(statCandPeak, decoder.lastCandCount)
+        }
+    }
+
+    /// 15秒一行统计汇总（代替原先每包2行的刷屏日志）
+    private func logStats() {
+        let now = Date().timeIntervalSince1970
+        guard now - statWindowStart >= 15 else { return }
+        let dt = now - statWindowStart
+        pcapLog("[STATS] \(Int(dt))s: 包=\(statPackets) s2c=\(statS2C) c2s送解=\(statC2S) 解码调用=\(statDecodeCalls) 候选包=\(statCandHits)/峰=\(statCandPeak) 样本=\(statSamples)")
+        statWindowStart = now
+        statPackets = 0; statS2C = 0; statC2S = 0
+        statDecodeCalls = 0; statCandHits = 0; statCandPeak = 0; statSamples = 0
     }
 
     /// 读取最新坐标

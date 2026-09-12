@@ -2087,9 +2087,8 @@ struct ContentView: View {
             let nlQueue = DispatchQueue(label: "com.aurora.netlocate", qos: .userInteractive)
             let nlTimer = DispatchSource.makeTimerSource(queue: nlQueue)
             nlTimer.schedule(deadline: .now(), repeating: 1.0 / 10.0, leeway: .nanoseconds(0))
-            nlTimer.setEventHandler { DispatchQueue.main.async { 
-                pcapLog("[TIMER] runNetworkLocateStep被调用")
-                state.runNetworkLocateStep() 
+            nlTimer.setEventHandler { DispatchQueue.main.async {
+                state.runNetworkLocateStep()
             } }
             nlTimer.resume()
             netLocDispatchSource = nlTimer
