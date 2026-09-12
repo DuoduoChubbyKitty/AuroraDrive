@@ -1956,6 +1956,9 @@ struct ContentView: View {
             } else if BPFSetupManager.isBPFAvailable() {
                 print("[App] BPF可读写 ✓")
                 state.bpfAuthorized = true
+            } else if !PrioritySetupManager.isLaunchDaemonInstalled() {
+                print("[App] 性能提权未安装，等待用户输入密码")
+                state.showBPFPasswordSheet = true
             } else if BPFSetupManager.isLaunchDaemonInstalled() {
                 BPFSetupManager.tryImmediateChmod()
                 state.bpfAuthorized = BPFSetupManager.isBPFAvailable()
@@ -2395,10 +2398,10 @@ struct BPFPasswordSheet: View {
                     .font(.system(size: 32))
                     .foregroundStyle(Theme.cyan)
                     .shadow(color: Theme.cyan, radius: 10)
-                Text("安装BPF权限")
+                Text("安装系统权限")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.cyan)
-                Text("输入管理员密码，安装后永久生效\n每次重启自动恢复，无需再输入")
+                Text("BPF 网络权限 + 性能提权（nice -20 防游戏挤占）\n输入管理员密码，安装后永久生效，重启自动恢复")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
@@ -2432,9 +2435,17 @@ struct BPFPasswordSheet: View {
                     let pwd = password
                     DispatchQueue.global(qos: .userInteractive).async {
                         let result = BPFSetupManager.install(password: pwd)
+                        // 同一密码顺带装性能提权（renice -20 守护），无需额外按钮
+                        let priResult = PrioritySetupManager.install(password: pwd)
                         DispatchQueue.main.async {
                             state.bpfInstalling = false
-                            state.bpfInstallMessage = result.message
+                            var msg = result.message
+                            if priResult.success {
+                                msg += "；性能提权已生效（nice -20）"
+                            } else if result.success {
+                                msg += "；性能提权未装：\(priResult.message)"
+                            }
+                            state.bpfInstallMessage = msg
                             if result.success {
                                 state.bpfAuthorized = true
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {

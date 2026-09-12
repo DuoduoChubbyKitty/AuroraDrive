@@ -69,6 +69,7 @@ let package = Package(
                 "Sources/AuroraDrive/MinimapLocatorView.swift",
                 "Sources/AuroraDrive/MinimapTileCache.swift",
                 "Sources/AuroraDrive/NetworkLocator.swift",
+                "Sources/AuroraDrive/PrioritySetup.swift",
                 "Sources/AuroraDrive/RecordEngine.swift",
                 "Sources/AuroraDrive/RuleController.swift",
                 "Sources/AuroraDrive/SpeedOCRReader.swift",
