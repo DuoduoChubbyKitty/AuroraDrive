@@ -464,6 +464,10 @@ enum EngineMain {
             }
         }
 
+        // ── Game Mode 对抗（持久战）：静音音频 + 每 3s 重新主张 ──
+        // 引擎进程是跑检测的那个，最需要 audible 维度与持续重主张
+        GameModeDefender.shared.start()
+
         // ── 3. 防冻结 ──
         let napToken = ProcessInfo.processInfo.beginActivity(
             options: [.latencyCritical, .userInteractive, .idleSystemSleepDisabled],

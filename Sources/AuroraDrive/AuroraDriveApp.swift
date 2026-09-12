@@ -177,6 +177,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if setpriority(PRIO_PROCESS, 0, -20) == 0 {
             print("[App] 进程优先级 nice=-20（最高）")
         }
+        // Game Mode 对抗（持久战）：静音音频 + 每 3s 重新主张 nice/activity/音频
+        GameModeDefender.shared.start()
         // ── Game Mode 对抗 ──
         // 由 DriveState 的 GameHUDWindow（左上角绿色帧率 HUD）承担"可见窗口"职责：
         // 它比 1×1 隐形锚点更可能被 gamepolicyd 认作"有可见窗口的应用"，
