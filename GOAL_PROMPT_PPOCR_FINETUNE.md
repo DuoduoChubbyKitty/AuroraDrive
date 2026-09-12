@@ -30,15 +30,49 @@
     这条路要的是【泛化性】，不只是这个测试集上的数字。
 
 ■ PP-OCRv6 tiny 现有文件（注意：是 ONNX 推理产物，不能直接训练）
-    MaaNTE/assets/MaaCommonAssets/OCR/ppocr_v6/tiny/
-      rec.onnx   4.2 MB   输入 [1,3,48,W] RGB → 输出 [1,T,6906] CTC logits
-      keys.txt   字符集 6904 类
-      det.onnx   1.7 MB（本项目位置固定，不需要检测器）
+    路径：MaaNTE/assets/MaaCommonAssets/OCR/ppocr_v6/tiny/
+    实测规格（onnxruntime 读取，非推测）：
+      rec.onnx   4.25 MB
+        输入 x   : [N, 3, 48, W]   ← 第 0 维与第 3 维均为动态
+        输出     : [N, T, 6906]    ← 第 0 维与第 1 维均为动态
+      det.onnx   1.71 MB（本项目 ROI 位置固定，不需要检测器）
+      keys.txt   6904 行（非空、唯一）
+
+    ■ 6906 vs 6904 的差额必须搞清（影响微调时改字典）
+      输出 6906 = 6904(keys.txt 字符) + 1(CTC blank) + 1(空格)
+        index 0        = CTC blank（解码时跳过）
+        index 1..6904  = keys.txt 第 1..6904 行
+        index 6905     = 空格（use_space_char 追加；本任务纯数字，解码时忽略无害）
+      → 若微调时要收窄字典，必须同时处理 blank 与空格这两个追加位，
+        否则分类头维度与字典长度不一致，训练会报错
+
+    同目录另有 small / medium 两档（未使用，供选型参考）：
+      small : rec 20.17 MB  输出 [N,T,18710]  keys 18708 行
+      medium: rec 73.00 MB
 
 ■ 环境
-    PaddlePaddle 3.3.1 有 macOS arm64 版（已查 PyPI 确认可安装）
+    PaddlePaddle 3.3.1 的 macOS arm64 wheel 已确认存在并成功下载：
+      paddlepaddle-3.3.1-cp311-cp311-macosx_11_0_arm64.whl（104.5 MB）
+    —— 注意：wheel 存在 ≠ 可用于训练。macOS 轮子可能只含推理算子。
+       能否训练必须在阶段 0 实测，不得假设。
     统一解释器：/Users/dupi/Desktop/自动驾驶系统/.venv-yolo26/bin/python3
     （Python 3.11.9，已修复 quarantine 导致的原生库拒载问题）
+
+■ PP-OCRv6 官方基准（来自同目录 README.md，多场景文本识别准确率 %）
+    | 档位   | W-Avg | 工业  | 屏幕  | 印刷CN | 艺术字 |
+    | medium | 83.2  | 77.4  | 82.5  | 91.5   | 71.2   |
+    | small  | 81.3  | 76.4  | 79.7  | 90.5   | 68.4   |
+    | tiny   | 73.5  | 62.1  | 71.2  | 86.7   | 54.7   |
+
+    ⚠ 两个必须正视的矛盾：
+    (a) 官方基准是 medium > small > tiny，但我们在本项目数据上实测
+        tiny 98.5% > medium 95.4% > small 85.4%（474 张人工真值）。
+        说明本项目数据是【极窄分布】（固定 3 位、固定位置、固定字体），
+        官方基准里的通用能力基本没被考到。
+    (b) 因此选择微调档位时不要只看本项目数字：
+        tiny 在工业/屏幕场景只有 62.1% / 71.2%，
+        若要更好的泛化性（换分辨率/换游戏/换 UI），
+        应考虑 small 或 medium 档作为微调基座，并在报告中说明取舍。
 
 ■ 解码规则（实测得出，必须沿用）
     1. 取 CTC 解码后数字串的【后 3 位】，不足 3 位左边补零
@@ -66,7 +100,9 @@
       —— 项目里现有的是 ONNX 推理产物，无法直接微调
       —— 需要 Paddle 格式的预训练模型（.pdparams）+ 训练配置 yaml
       —— 来源：PaddleOCR 官方模型库 / GitHub Release / 官方文档
-      —— 若官方不提供 tiny 的训练权重，改用 small 或报告该阻塞
+      —— 若官方不提供 tiny 的训练权重：
+          优先改用 small 档（官方基准更高、泛化更好，且本项目已有 small rec.onnx 可对比）
+          或如实报告该阻塞，不得用其他模型冒充
 1.2 生成 PaddleOCR 格式标注：每行 `<图片路径>\t<三位数字文本>`
       —— 只取 human.csv 中状态 = ok 的样本
       —— 文本必须含前导零（如 "014" 而非 "14"）
