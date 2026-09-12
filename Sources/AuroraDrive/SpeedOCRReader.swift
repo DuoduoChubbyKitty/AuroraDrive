@@ -42,6 +42,14 @@
 //    字模文件 models/speed_glyphs.json（同源常量由 tools/build_speed_glyphs.py
 //    训练生成）。缺模板的数字位在组合里视为残差无穷大，该速度值不会被选中；
 //    字模全缺时保持 Swift 路径仍能运行、不崩溃。
+//
+//  2026-09 新增：PP-OCRv6 整行推理路径（最高优先级）：
+//    模型 models/ppocrv6_tiny_ft_int8.mlpackage（微调自官方 PP-OCRv6 tiny rec，
+//    测试集 5077 张 99.9803%，见 PPOCRV6_FINETUNE_REPORT.md）+ 伴生
+//    models/ppocrv6_tiny_ft_keys.txt（6904 行，第 617 行为全角空格 U+3000，
+//    加载只去换行不可 trim）。运行时 ROI 切片与训练裁片覆盖同一物理区域
+//    （speedROINorm = 训练裁窗），故整帧直接推理：灰度 → 双线性 48×136 →
+//    复制 3 通道 → CTC 解码 → 取数字串后 3 位。CNN / 模板路径保留为降级链。
 // ============================================================================
 import CoreGraphics
 import CoreImage
@@ -127,6 +135,33 @@ final class SpeedOCRReader {
     /// - 0.30 = 允许 30% 像素不同；三位数整体匹配时按 3 槽总像素（3375）同比例判定
     nonisolated static let maxSlotResidualRatio: Double = 0.30
 
+    // MARK: - PP-OCRv6 整行路径常量
+
+    /// PP-OCRv6 微调模型推理输入（NCHW）：高 48 固定，宽 136 = ceil(51×48/18)。
+    /// 训练裁片为 51×18（= speedROINorm ROI @640×360 录制帧），高 18→48 放大时
+    /// 宽 51×(48/18) = 136，与评测脚本 eval_onnx.py / eval_coreml.py 完全同参。
+    nonisolated static let ppocrInputHeight: Int = 48
+    nonisolated static let ppocrInputWidth: Int = 136
+
+    /// CTC 解码输出类别数 = blank(1) + keys.txt(6904) + space(1)
+    nonisolated static let ppocrNumClasses: Int = 6906
+
+    /// keys.txt 行数校验值（防字典/模型错位；第 617 行是全角空格 U+3000，属合法 token，
+    /// 加载时只去换行符、绝不能用 trim——否则行内容漂移 +1，全部索引错位）
+    nonisolated static let ppocrKeysLines: Int = 6904
+
+    /// 解码规则 2：数字串长度 < 2 → 判无效（模型输出噪声帧常解成单字符）
+    nonisolated static let ppocrMinDigits: Int = 2
+
+    /// 解码规则 3：置信度 < 0.30 → 判无效。
+    /// 微调后全测试集最低置信 0.8343（见 PPOCRV6_FINETUNE_REPORT.md §5），
+    /// 0.30 极安全；同时下游 speedValid(conf>0.3) 语义保持一致。
+    nonisolated static let ppocrMinConfidence: Double = 0.30
+
+    /// 前置无效检测的等比例阈值：旧路径 3 槽 3375 像素上 fg<80 ≈ 2.37%，
+    /// 整行路径按比例换算（窗口分辨率随全屏分辨率变化，绝对像素数不可比）
+    nonisolated static let ppocrMinForegroundRatio: Double = 80.0 / 3375.0
+
     // MARK: - 状态输出（主线程读）
 
     /// 最新读取到的车速（km/h）；无结果时为 -1
@@ -152,6 +187,17 @@ final class SpeedOCRReader {
     /// CNN模型（speed_digit_cnn_v4.mlpackage），替代模板匹配
     @ObservationIgnored
     private var cnnModel: MLModel?
+
+    /// PP-OCRv6 微调整行模型（ppocrv6_tiny_ft_int8.mlpackage，1.2 MB）
+    /// - 输入 image [1,3,48,136] fp32（灰度复制 3 通道，归一化 (v/255-0.5)/0.5）
+    /// - 输出 logits [1,T,6906]（CTC 头）
+    /// - 加载成功时为最高优先级路径（详见 recognizePPOCR）
+    @ObservationIgnored
+    private var ppocrModel: MLModel?
+
+    /// keys.txt 字符表（下标 0..6903 ↔ CTC index 1..6904；0=blank、6905=space 不入表）
+    @ObservationIgnored
+    private var ppocrKeys: [String] = []
 
     /// 最近一次 OCR 诊断（为什么没出结果）；成功读出时清空。
     /// 取值示例：字模未加载 / 裁剪失败 / fg=45 过低(画面无速度表) / 残差=1520 超阈值
@@ -191,6 +237,45 @@ final class SpeedOCRReader {
         loadGlyphsSync()
         // 加载CNN模型（替代模板匹配）
         loadCNNModel()
+        // 加载 PP-OCRv6 微调整行模型（最高优先级路径）
+        loadPPOCRModel()
+    }
+
+    /// 从 models/ppocrv6_tiny_ft_int8.mlpackage 加载 PP-OCRv6 微调模型 + keys.txt 字符表
+    /// - 任一文件缺失/校验不过 → 静默失败（ppocrModel 保持 nil，自动降级旧 CNN/模板路径）
+    private func loadPPOCRModel() {
+        let root = AuroraPaths.projectRoot()
+        let candidates = [
+            root.appendingPathComponent("models/ppocrv6_tiny_ft_int8.mlpackage").path,
+            "models/ppocrv6_tiny_ft_int8.mlpackage",
+        ]
+        // 字符表先于模型加载：缺表则模型无法解码
+        let keysCandidates = [
+            root.appendingPathComponent("models/ppocrv6_tiny_ft_keys.txt").path,
+            "models/ppocrv6_tiny_ft_keys.txt",
+        ]
+        guard let keysPath = keysCandidates.first(where: { FileManager.default.fileExists(atPath: $0) }),
+              let raw = try? String(contentsOfFile: keysPath, encoding: .utf8) else { return }
+        // 与训练端 PaddleOCR 加载语义一致：只去换行（\n / \r\n），绝不能 trim——
+        // 第 617 行是全角空格 U+3000（合法 token），trim 会把它滤掉导致行数 6903、索引错位
+        var lines = raw.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: CharacterSet(arrayLiteral: "\r")) }
+        // 文件末尾换行会产生一个尾随空串，去掉（不计入 6904 行）
+        if let last = lines.last, last.isEmpty { lines.removeLast() }
+        guard lines.count == Self.ppocrKeysLines else { return }
+        ppocrKeys = lines
+
+        guard let modelPath = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+            ppocrKeys = []
+            return
+        }
+        do {
+            // 新版 macOS 对 .mlpackage 需先编译再加载
+            let compiledURL = try MLModel.compileModel(at: URL(fileURLWithPath: modelPath))
+            ppocrModel = try MLModel(contentsOf: compiledURL)
+        } catch {
+            ppocrKeys = []   // 模型加载失败则表也不留，保持"整组可用"语义
+        }
     }
 
     /// 从 models/speed_digit_cnn_v4.mlpackage 加载CNN模型
@@ -275,21 +360,42 @@ final class SpeedOCRReader {
         else { return }
         // 闸 2：防重叠（上一帧 OCR 还没跑完）
         guard !isInferencing else { return }
-        // CNN模型或字模至少有一个可用
-        guard cnnModel != nil || !loadedGlyphs.isEmpty else {
-            lastOCRDiagnostic = "CNN模型和字模均未加载"
+        // PP-OCR / CNN模型 / 字模至少有一个可用
+        guard ppocrModel != nil || cnnModel != nil || !loadedGlyphs.isEmpty else {
+            lastOCRDiagnostic = "PP-OCR/CNN模型和字模均未加载"
             return
         }
 
-        // 后台队列：裁 3 槽 + CNN推理
+        // 后台队列：PP-OCR 整行推理（优先）→ 裁 3 槽 + CNN/模板（降级）
         lastInferTime = Date()
         let gen = generation
         let glyphsSnapshot = loadedGlyphs
         let cnnSnapshot = cnnModel
+        let ppocrSnapshot = ppocrModel
+        let ppocrKeysSnapshot = ppocrKeys
         let roiNorm = CaptureEngine.speedROINorm
         isInferencing = true
         ocrQueue.async { [weak self] in
-            // 1. CIImage 路径裁 3 个槽位
+            // ── 路径 1：PP-OCRv6 整行推理（最高优先级）──
+            // 运行时 nativePixelBuffer 已是 speedROINorm ROI 切片，与训练裁片
+            // （同 ROI @640×360，51×18px）覆盖同一物理区域 → 直接整帧推理，无需裁槽
+            if let pp = ppocrSnapshot {
+                let result = Self.recognizePPOCR(roiBuffer: nativePixelBuffer,
+                                                 model: pp,
+                                                 keys: ppocrKeysSnapshot,
+                                                 isROISlice: true)
+                if result.speed == nil,
+                   let diag = result.diag, diag.hasPrefix("fg=") {
+                    // 整行路径的 fg 死诊断：无槽裁图可存，仅存 ROI 缩略
+                    Self.saveOCRDebug(buffer: nativePixelBuffer, slots: [], fg: result.fgTotal)
+                }
+                Task { @MainActor in
+                    self?.finish(gen, result)
+                }
+                return
+            }
+
+            // ── 路径 2/3（降级）：CIImage 裁 3 个槽位 → CNN 或模板 ──
             guard let slotImages = Self.cropSlots(from: nativePixelBuffer,
                                                   roiNorm: roiNorm) else {
                 Task { @MainActor in
@@ -298,7 +404,7 @@ final class SpeedOCRReader {
                 return
             }
 
-            // 2. CNN推理（优先）或模板匹配（降级）
+            // CNN推理（优先）或模板匹配（降级）
             let result: RecognitionResult
             if let cnn = cnnSnapshot {
                 result = Self.recognizeCNN(slotImages: slotImages, model: cnn)
@@ -510,6 +616,185 @@ final class SpeedOCRReader {
         var fgTotal: Int = 0
         /// 错误信息（OCR 系统级失败，如 CGImage 渲染异常）
         var error: String?
+    }
+
+    // MARK: - PP-OCRv6 整行推理（最高优先级路径）
+
+    /// 对 ROI 切片（或全屏帧先裁 ROI）跑 PP-OCRv6 微调模型整行推理
+    /// - 几何依据：训练裁片 = speedROINorm ROI @640×360 录制帧 = 51×18px（实测
+    ///   数字笔画 bounding box 占比与槽位常量双向吻合，见 PPOCRV6_FINETUNE_REPORT.md），
+    ///   运行时 ROI 切片覆盖同一物理区域 → 无需任何槽位裁剪
+    /// - 预处理与 eval_onnx.py / eval_coreml.py 完全同参：
+    ///   灰度 → 双线性 resize 48×136（对齐 cv2.INTER_LINEAR）→ (v/255-0.5)/0.5
+    ///   → 灰度值复制 3 通道 NCHW
+    /// - 解码与训练期规则一致：CTC（blank=0、折叠重复）→ 置信 ≥0.30 →
+    ///   取数字串**后 3 位**左补零 → <2 位判无效；多帧级决策由上游 finish 三层校验负责
+    nonisolated private static func recognizePPOCR(
+        roiBuffer: CVPixelBuffer,
+        model: MLModel,
+        keys: [String],
+        isROISlice: Bool
+    ) -> RecognitionResult {
+        let input: CIImage
+        if isROISlice {
+            input = CIImage(cvPixelBuffer: roiBuffer)
+        } else {
+            // 全屏帧（自检路径）：按 speedROINorm 裁出速度表区域。
+            // CIImage 原点左下（y 向上），归一化坐标左上原点 → ciRect.y = sh - yMax
+            let sw = CGFloat(CVPixelBufferGetWidth(roiBuffer))
+            let sh = CGFloat(CVPixelBufferGetHeight(roiBuffer))
+            let r = CaptureEngine.speedROINorm
+            let rect = CGRect(x: r.origin.x * sw,
+                              y: sh - (r.origin.y + r.height) * sh,
+                              width: r.width * sw,
+                              height: r.height * sh).integral
+            guard rect.minX >= 0, rect.minY >= 0,
+                  rect.maxX <= sw, rect.maxY <= sh else {
+                return RecognitionResult(error: "PP-OCR: ROI 越界 \(rect)")
+            }
+            input = CIImage(cvPixelBuffer: roiBuffer).cropped(to: rect)
+        }
+        guard let cg = ciContext.createCGImage(input, from: input.extent),
+              cg.width > 0, cg.height > 0 else {
+            return RecognitionResult(error: "PP-OCR: ROI 渲染失败")
+        }
+        guard let gray = grayscalePixels(cgImage: cg) else {
+            return RecognitionResult(error: "PP-OCR: 灰度转换失败")
+        }
+
+        // 前置无效检测（比例版）：Otsu 前景占比过低 = 画面无速度表。
+        // 旧路径 3375px 上 fg<80 ≈ 2.37%；整行窗口分辨率随全屏分辨率变化，
+        // 绝对像素数不可比，故按比例判定
+        let binary = binarizeOtsu(gray: gray)
+        let fgTotal = binary.reduce(0) { $0 + Int($1) }
+        let fgRatio = Double(fgTotal) / Double(max(1, binary.count))
+        if fgRatio < ppocrMinForegroundRatio {
+            return RecognitionResult(
+                unknownSlots: [0],
+                diag: "fg=\(fgTotal) 比例 \(String(format: "%.3f", fgRatio)) 过低(画面无速度表)",
+                fgTotal: fgTotal)
+        }
+
+        // 双线性 resize 到模型输入 48×136
+        let resized = bilinearResizeGray(src: gray, srcH: cg.height, srcW: cg.width,
+                                         dstH: ppocrInputHeight, dstW: ppocrInputWidth)
+        // 归一化 (v/255-0.5)/0.5 = v/127.5-1，灰度复制 3 通道 → [1,3,48,136] NCHW fp32
+        guard let inputArray = try? MLMultiArray(
+            shape: [1, 3,
+                    NSNumber(value: ppocrInputHeight),
+                    NSNumber(value: ppocrInputWidth)],
+            dataType: .float32) else {
+            return RecognitionResult(error: "PP-OCR: MLMultiArray 创建失败")
+        }
+        let inPtr = inputArray.dataPointer.assumingMemoryBound(to: Float.self)
+        let plane = ppocrInputHeight * ppocrInputWidth
+        for i in 0..<plane {
+            let v = Float(resized[i]) / 127.5 - 1.0
+            inPtr[i] = v              // C0
+            inPtr[plane + i] = v      // C1（与 C0 同值：源图即灰度）
+            inPtr[2 * plane + i] = v  // C2
+        }
+
+        guard let feature = try? MLDictionaryFeatureProvider(dictionary: ["image": inputArray]),
+              let output = try? model.prediction(from: feature) else {
+            return RecognitionResult(error: "PP-OCR: 推理失败")
+        }
+        guard let logits = output.featureValue(for: "logits")?.multiArrayValue else {
+            return RecognitionResult(error: "PP-OCR: 输出 logits 读取失败")
+        }
+
+        // CTC 解码 → 置信门槛 → 后 3 位规则
+        guard let (text, conf) = ctcDecode(logits: logits, keys: keys) else {
+            return RecognitionResult(unknownSlots: [0], diag: "PP-OCR: CTC 解码为空")
+        }
+        guard conf >= ppocrMinConfidence else {
+            return RecognitionResult(
+                unknownSlots: [0],
+                diag: "PP-OCR: 置信度 \(String(format: "%.3f", conf)) < 0.30 raw=\(text)")
+        }
+        let digits = text.filter { $0 >= "0" && $0 <= "9" }
+        guard digits.count >= ppocrMinDigits else {
+            return RecognitionResult(
+                unknownSlots: [0],
+                diag: "PP-OCR: 数字串太短(\(digits.count)) raw=\(text)")
+        }
+        // 后 3 位 + 左补零（模型常在前部多读 1~2 个字符：1018→018、14→014）
+        let tail = String(digits.suffix(3)).padding(toLength: 3, withPad: "0", startingAt: 0)
+        guard let speed = Int(tail) else {
+            return RecognitionResult(unknownSlots: [0], diag: "PP-OCR: 速度解析失败 raw=\(tail)")
+        }
+        return RecognitionResult(speed: speed, unknownSlots: [], confidence: conf)
+    }
+
+    /// CTC 解码：逐时间步 argmax + softmax 概率 → 跳 blank(index 0)、折叠相邻重复
+    /// - logits: [1, T, 6906]（行主序展开，stride = 6906）
+    /// - index 1..6904 ↔ keys[0..6903]；index 6905 = space（非数字，解码忽略无害）
+    /// - Returns: (解码文本, 解码字符的平均 argmax 概率)；无字符输出时 nil
+    nonisolated private static func ctcDecode(
+        logits: MLMultiArray, keys: [String]
+    ) -> (text: String, conf: Double)? {
+        let classes = ppocrNumClasses
+        let steps = logits.count / classes
+        guard steps > 0, keys.count == ppocrKeysLines else { return nil }
+        let ptr = logits.dataPointer.assumingMemoryBound(to: Float.self)
+        var chars: [Character] = []
+        var confs: [Double] = []
+        var prev = -1
+        for t in 0..<steps {
+            let base = t * classes
+            var best = 0
+            var bestVal = ptr[base]
+            for c in 1..<classes {
+                let v = ptr[base + c]
+                if v > bestVal { bestVal = v; best = c }
+            }
+            if best != 0 && best != prev {
+                // softmax(best) = exp(0) / Σ exp(v-best) = 1 / Σ（数值稳定减 max）
+                var sumExp: Float = 0
+                for c in 0..<classes { sumExp += expf(ptr[base + c] - bestVal) }
+                if best <= keys.count {
+                    chars.append(contentsOf: keys[best - 1])
+                } else {
+                    chars.append(" ")
+                }
+                confs.append(Double(1.0 / sumExp))
+            }
+            prev = best
+        }
+        guard !chars.isEmpty, !confs.isEmpty else { return nil }
+        return (String(chars), confs.reduce(0, +) / Double(confs.count))
+    }
+
+    /// 灰度双线性缩放（像素中心对齐 + 边缘 clamp，对齐 OpenCV INTER_LINEAR）
+    /// - 训练/评测端预处理为 cv2.resize 默认 INTER_LINEAR，此处必须同插值，
+    ///   否则 18→48 放大后的笔画边缘灰度分布不一致（模型对插值敏感）
+    nonisolated private static func bilinearResizeGray(
+        src: [UInt8], srcH: Int, srcW: Int, dstH: Int, dstW: Int
+    ) -> [UInt8] {
+        guard srcH > 0, srcW > 0, dstH > 0, dstW > 0, src.count == srcH * srcW else { return [] }
+        var out = [UInt8](repeating: 0, count: dstH * dstW)
+        let xRatio = Double(srcW) / Double(dstW)
+        let yRatio = Double(srcH) / Double(dstH)
+        for y in 0..<dstH {
+            let sy = (Double(y) + 0.5) * yRatio - 0.5
+            let y0 = min(max(Int(sy.rounded(.down)), 0), srcH - 1)
+            let y1 = min(y0 + 1, srcH - 1)
+            let fy = max(0.0, min(sy - Double(y0), 1.0))
+            for x in 0..<dstW {
+                let sx = (Double(x) + 0.5) * xRatio - 0.5
+                let x0 = min(max(Int(sx.rounded(.down)), 0), srcW - 1)
+                let x1 = min(x0 + 1, srcW - 1)
+                let fx = max(0.0, min(sx - Double(x0), 1.0))
+                let p00 = Double(src[y0 * srcW + x0])
+                let p01 = Double(src[y0 * srcW + x1])
+                let p10 = Double(src[y1 * srcW + x0])
+                let p11 = Double(src[y1 * srcW + x1])
+                let top = p00 + (p01 - p00) * fx
+                let bot = p10 + (p11 - p10) * fx
+                out[y * dstW + x] = UInt8((top + (bot - top) * fy).rounded())
+            }
+        }
+        return out
     }
 
     // MARK: - CNN推理（替代模板匹配）
@@ -941,13 +1226,19 @@ final class SpeedOCRReader {
         if images.isEmpty {
             return "✗ 目录里没有 PNG/JPG: \(dirPath)"
         }
-        if loadedGlyphs.isEmpty {
-            return "✗ 字模库为空：未找到 models/speed_glyphs.json 或模板尺寸不匹配"
+        // PP-OCR 路径不依赖字模；只有降级到旧路径时字模才是硬前置
+        let usePPOCR = ppocrModel != nil
+        if !usePPOCR && loadedGlyphs.isEmpty {
+            return "✗ 字模库为空（且 PP-OCR 未加载）：未找到 models/speed_glyphs.json"
         }
 
         var lines: [String] = []
         lines.append("== SpeedOCRReader 自检 ==")
         lines.append("目录: \(dirPath)")
+        lines.append("路径: \(usePPOCR ? "PP-OCRv6 整行 (int8)" : "旧 CNN / 模板匹配")")
+        if usePPOCR {
+            lines.append("PP-OCR 输入: [1,3,\(Self.ppocrInputHeight),\(Self.ppocrInputWidth)]  keys=\(ppocrKeys.count)行")
+        }
         lines.append("字模: \(loadedGlyphs.keys.sorted().joined(separator: ", "))")
         lines.append("槽位: x=\(Self.slotCentersNorm) w=\(Self.slotWidthNorm) y=[\(Self.slotYMinNorm),\(Self.slotYMaxNorm)]")
         lines.append("帧数: \(images.count)")
@@ -956,6 +1247,8 @@ final class SpeedOCRReader {
         var passCount = 0
         var failCount = 0
         let glyphsSnapshot = loadedGlyphs
+        let ppocrSnapshot = ppocrModel
+        let ppocrKeysSnapshot = ppocrKeys
         for url in images {
             let name = url.lastPathComponent
             guard let cg = Self.loadCGImage(from: url) else {
@@ -968,12 +1261,21 @@ final class SpeedOCRReader {
                 failCount += 1
                 continue
             }
-            guard let slots = Self.cropSlots(from: pb, roiNorm: roiNorm) else {
-                lines.append("  [skip] \(name): 槽位裁剪失败")
-                failCount += 1
-                continue
+            let result: RecognitionResult
+            if let pp = ppocrSnapshot {
+                // PP-OCR 整行路径：roiNorm 非 nil 表示输入已是 ROI 切片 → 整帧即窗口；
+                // nil 表示全屏帧 → recognizePPOCR 内部按 speedROINorm 裁剪
+                result = Self.recognizePPOCR(roiBuffer: pb, model: pp,
+                                             keys: ppocrKeysSnapshot,
+                                             isROISlice: roiNorm != nil)
+            } else {
+                guard let slots = Self.cropSlots(from: pb, roiNorm: roiNorm) else {
+                    lines.append("  [skip] \(name): 槽位裁剪失败")
+                    failCount += 1
+                    continue
+                }
+                result = Self.recognize(slotImages: slots, glyphs: glyphsSnapshot)
             }
-            let result = Self.recognize(slotImages: slots, glyphs: glyphsSnapshot)
             if let err = result.error {
                 lines.append("  [FAIL] \(name): \(err)")
                 failCount += 1
