@@ -1,7 +1,7 @@
 [
   {
     "metadataOutputVersion" : "3.0",
-    "storagePrecision" : "Float16",
+    "storagePrecision" : "Mixed (Float16, Int8)",
     "outputSchema" : [
       {
         "hasShapeFlexibility" : "0",
@@ -37,17 +37,18 @@
     "modelParameters" : [
 
     ],
-    "specificationVersion" : 6,
+    "specificationVersion" : 7,
     "mlProgramOperationTypeHistogram" : {
-      "Linear" : 6,
       "Concat" : 1,
-      "Cast" : 5,
-      "Conv" : 22,
-      "Relu" : 25,
-      "Sigmoid" : 2,
-      "ReduceMean" : 1,
-      "Reshape" : 1,
-      "Tanh" : 1
+      "Ios16.cast" : 5,
+      "Ios16.tanh" : 1,
+      "Ios16.sigmoid" : 2,
+      "Ios16.relu" : 25,
+      "Ios16.constexprAffineDequantize" : 24,
+      "Ios16.reduceMean" : 1,
+      "Ios16.reshape" : 1,
+      "Ios16.linear" : 6,
+      "Ios16.conv" : 22
     },
     "computePrecision" : "Mixed (Float16, Float32, Int32)",
     "isUpdatable" : "0",
@@ -55,12 +56,12 @@
 
     ],
     "availability" : {
-      "macOS" : "12.0",
-      "tvOS" : "15.0",
+      "macOS" : "13.0",
+      "tvOS" : "16.0",
       "visionOS" : "1.0",
-      "watchOS" : "8.0",
-      "iOS" : "15.0",
-      "macCatalyst" : "15.0"
+      "watchOS" : "9.0",
+      "iOS" : "16.0",
+      "macCatalyst" : "16.0"
     },
     "modelType" : {
       "name" : "MLModelType_mlProgram"
@@ -93,7 +94,7 @@
         "type" : "MultiArray"
       }
     ],
-    "generatedClassName" : "game_assist_control",
+    "generatedClassName" : "game_assist_control_int8",
     "method" : "predict"
   }
 ]
