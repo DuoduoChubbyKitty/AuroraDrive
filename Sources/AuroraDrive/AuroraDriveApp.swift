@@ -32,6 +32,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var memoryAnchor: UnsafeMutableRawPointer?
     /// IOPMAssertion ID（防止系统 Power Management 判定进程空闲并冻结，Game Mode 最强对抗）
     private var powerAssertionID: IOPMAssertionID = IOPMAssertionID(kIOPMNullAssertionID)
+    /// Game Mode 对抗锚定窗口（1×1 浮层，见 installGameModeAnchorWindow）
+    private var gameModeAnchorWindow: NSWindow?
+
+    /// Game Mode 对抗：安装 1×1「锚定窗口」。
+    ///
+    /// 原理：Game Mode 由 gamepolicyd 管理，它系统性地压制**后台任务**
+    /// （Apple 原话：lowering usage for background tasks / background threads
+    /// being suppressed）。macOS 判定"后台"的常见依据是「无可见窗口 + 无用户交互」。
+    /// 这里挂一个技术上可见、视觉上无感的窗口，试图让本进程不被归入纯后台桶。
+    ///
+    /// 关键设计：
+    ///   · `fullScreenAuxiliary` —— **能随游戏全屏 Space 一起显示**（否则游戏全屏后
+    ///     本窗口被移出该 Space，等于不存在）
+    ///   · 1×1 px + 近乎透明 + `ignoresMouseEvents` —— 视觉与交互零干扰
+    ///   · `.floating` 层级 —— 保证不被游戏窗口完全遮蔽
+    ///   · 屏幕右下角 —— 即使有 1px 痕迹也在最不显眼处
+    ///
+    /// 注：此对抗是否被 gamepolicyd 认可**没有公开证据**，属于工程尝试；
+    /// 配合已有的 beginActivity(.latencyCritical) / CGEventTap / IOPMAssertion
+    /// 共同构成多层防护。若实测无效，可调 alphaValue / 尺寸 / level 再试。
+    private func installGameModeAnchorWindow() {
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
+                         styleMask: [.borderless],
+                         backing: .buffered,
+                         defer: false)
+        w.isOpaque = false
+        // 非零 alpha：完全透明的窗口可能被系统直接判定为"无可见内容"
+        w.backgroundColor = NSColor.black.withAlphaComponent(0.02)
+        w.hasShadow = false
+        w.ignoresMouseEvents = true          // 绝不拦截点击
+        w.isMovable = false
+        w.level = .floating                  // 浮于普通窗口之上
+        w.collectionBehavior = [.canJoinAllSpaces,   // 所有 Space 可见
+                                .stationary,         // 不随 Space 切换移动
+                                .ignoresCycle,       // 不出现在 Cmd+Tab 循环
+                                .fullScreenAuxiliary] // ★ 能进入全屏 Space
+        // 位置用 CGDisplayBounds 计算：NSScreen.main 在「app 未激活 / 从 shell 启动」时
+        // 会返回异常值（实测 maxX=0 → 窗口跑到屏幕外），CGDisplay 不受激活状态影响。
+        let screenBounds = CGDisplayBounds(CGMainDisplayID())
+        // 右下角内缩：既在屏内（技术上可见），又避开 Dock 区域
+        w.setFrameOrigin(NSPoint(x: screenBounds.maxX - 4,
+                                 y: screenBounds.maxY - 4))
+        w.orderFrontRegardless()
+        gameModeAnchorWindow = w
+        // 诊断落盘（stdout 重定向到文件时是块缓冲，print 可能不落盘）
+        let diag = "ts=\(Int(Date().timeIntervalSince1970)) visible=\(w.isVisible) onscreen=\(w.isOnActiveSpace) level=\(w.level.rawValue) frame=\(w.frame) alpha=\(w.alphaValue)\n"
+        try? diag.write(toFile: "/tmp/aurora_anchor_diag.log", atomically: true, encoding: .utf8)
+        fflush(stdout)
+        print("[App] 锚定窗口已安装 (1×1 @右下角, fullScreenAuxiliary) → 对抗 Game Mode 后台压制")
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = CommandLine.arguments
@@ -127,6 +177,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if setpriority(PRIO_PROCESS, 0, -20) == 0 {
             print("[App] 进程优先级 nice=-20（最高）")
         }
+        // ── Game Mode 对抗：安装"锚定窗口" ──
+        // 刻意放在 CGEventTap 之前：锚定窗口不依赖辅助功能权限，
+        // 而下方 CGEventTap 的 guard 在权限不足时会 return，若放在其后将永不执行
+        // （实测踩过：从无 AX 权限的 shell 启动时，锚定窗口/IOPMAssertion 全被跳过）。
+        installGameModeAnchorWindow()
         // pthread QoS：直接设主线程到最高
         // pthread QoS set via DispatchQueue .userInteractive (已设)
         // 创建空 CGEventTap：系统必须保持有event tap的进程响应，否则事件丢弃
@@ -259,6 +314,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     deinit {
         // 释放 IOPMAssertion（进程退出时自动调用）
+        // 释放锚定窗口
+        gameModeAnchorWindow?.orderOut(nil)
+        gameModeAnchorWindow = nil
         if powerAssertionID != kIOPMNullAssertionID {
             IOPMAssertionRelease(powerAssertionID)
             print("[App] IOPMAssertion 已释放")
