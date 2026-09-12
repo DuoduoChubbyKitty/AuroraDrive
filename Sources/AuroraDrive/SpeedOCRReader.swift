@@ -756,14 +756,20 @@ final class SpeedOCRReader {
                 unknownSlots: [0],
                 diag: "PP-OCR: 置信度 \(String(format: "%.3f", conf)) < 0.30 raw=\(text)")
         }
+        if ProcessInfo.processInfo.environment["AURORA_OCR_DEBUG"] == "1" {
+            print("[DBG] raw=\(text.debugDescription) conf=\(conf) digits=\(text.filter { $0 >= "0" && $0 <= "9" })")
+        }
         let digits = text.filter { $0 >= "0" && $0 <= "9" }
         guard digits.count >= ppocrMinDigits else {
             return RecognitionResult(
                 unknownSlots: [0],
                 diag: "PP-OCR: 数字串太短(\(digits.count)) raw=\(text)")
         }
-        // 后 3 位 + 左补零（模型常在前部多读 1~2 个字符：1018→018、14→014）
-        let tail = String(digits.suffix(3)).padding(toLength: 3, withPad: "0", startingAt: 0)
+        // 后 3 位 + **左补零**（模型常在前部多读 1~2 个字符：1018→018、14→014）。
+        // 注意：不能用 padding(toLength:withPad:startingAt:)——那是【尾部】补零，
+        // 会把 "51" 变成 "510"（应为 "051"），实测 2/7883 张因此读错方向。
+        let trimmed = String(digits.suffix(3))
+        let tail = String(repeating: "0", count: max(0, 3 - trimmed.count)) + trimmed
         guard let speed = Int(tail) else {
             return RecognitionResult(unknownSlots: [0], diag: "PP-OCR: 速度解析失败 raw=\(tail)")
         }
