@@ -1950,15 +1950,15 @@ struct ContentView: View {
             }
             
             // BPF权限检查（在onAppear里，有state访问权限）
-            if BPFSetupManager.needsInstall() {
-                print("[App] BPF需要安装，等待用户输入密码")
+            if BPFSetupManager.needsInstall() || !PrioritySetupManager.isLaunchDaemonInstalled() {
+                // 两者任一缺失都走同一密码弹窗（一次输入装齐 BPF + 性能提权）。
+                // 注意必须并入首条件：若拆成后续 else if，会被 isBPFAvailable 分支截胡
+                // 导致提权器永远装不上。
+                print("[App] 系统权限需安装（BPF=\(!BPFSetupManager.needsInstall()) 提权=\(PrioritySetupManager.isLaunchDaemonInstalled())）")
                 state.showBPFPasswordSheet = true
             } else if BPFSetupManager.isBPFAvailable() {
                 print("[App] BPF可读写 ✓")
                 state.bpfAuthorized = true
-            } else if !PrioritySetupManager.isLaunchDaemonInstalled() {
-                print("[App] 性能提权未安装，等待用户输入密码")
-                state.showBPFPasswordSheet = true
             } else if BPFSetupManager.isLaunchDaemonInstalled() {
                 BPFSetupManager.tryImmediateChmod()
                 state.bpfAuthorized = BPFSetupManager.isBPFAvailable()

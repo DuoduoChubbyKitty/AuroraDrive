@@ -56,7 +56,9 @@ set -e
 cat > /usr/local/bin/aurora-priority.sh << 'SCRIPT_EOF'
 #!/bin/bash
 while true; do
-    for pid in $(pgrep -f "AuroraDriveUI" 2>/dev/null); do
+    # 用 ps comm（可执行文件路径）精确匹配，不用 pgrep -f——
+    # 后者会误伤任何命令行含 "AuroraDriveUI" 的无关进程（终端/编辑器/诊断命令）
+    for pid in $(ps -axo pid=,comm= | awk '$2 ~ /\\/AuroraDriveUI$/ {print $1}'); do
         renice -n -20 -p "$pid" >/dev/null 2>&1
     done
     sleep 5
