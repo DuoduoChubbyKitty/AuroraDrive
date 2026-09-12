@@ -117,6 +117,15 @@ start  stop  bye  status  upscale  ping      ← 只有 6 条
 | **定位依据** | 心跳周期 1 s，命令发出后引擎尚未上报；UI 的 `tickEngineMode()` 以 30 Hz 运行，下一次 tick 即读到 `engineRecording == false`，把 `isRecording` 镜像回 false |
 | **备注** | 已在同批次修复（宽限期 + 引擎即时回执），记录在此以说明「回同步必须配套宽限期」这一模式 |
 
+### P10 — 「速度上限」未跨进程【中高 · 静默影响驾驶】
+
+| 项 | 内容 |
+|---|---|
+| **问题描述** | UI 拖动「速度上限」滑杆，引擎侧模型**完全不知情**：界面显示 40 km/h，AI 仍按 120 km/h 决策 |
+| **风险等级** | 🟠 中高（非显示项 —— 直接进入模型输入，静默改变驾驶行为） |
+| **定位依据** | ① `AuroraDriveApp.swift:914` `var speedLimit: Double = 120`<br>② `:3600` 绑定 UI 滑杆 `value: $state.speedLimit, range: 40...200, step: 5`<br>③ `tick()` 内（`:1610` / `:1612`）作为 `speedLimitKmh: speedLimit` 传入 `inferenceEngine.infer(...)` 与 `assistEngine.infer(...)`<br>④ `InferenceEngine.swift:320` `speed_limit_norm = speedLimit / 120` → 成为 `vehicle_state[4]` → **直接参与 steer/throttle 推理** |
+| **发现方式** | 全量状态清点：提取 `tick()` 函数体（1537–1794 行），逐个统计所有 UI 可绑定的状态变量引用次数，再逐一核对是否已同步。**这是本轮唯一一个靠"逐条清点"才挖出来的缺口**——前 9 项都是顺着"录制"这条线牵出来的 |
+
 ### 2.1 已确认正常、无需修改的链路
 
 - `startDriving` / `stopDriving` 已有引擎分支并正确转发（`AuroraDriveApp.swift:1187` / `:1220`）
@@ -138,11 +147,12 @@ start  stop  bye  status  upscale  ping      ← 只有 6 条
 | P1 | `EngineClient` 新增 `engineRecording` / `engineRecordFrames` 并解析 | `EngineClient.swift:80-83`、`:291-293` |
 | P1 | UI `isRecording` didSet：引擎模式**只转发命令**，不再本地建目录 | `AuroraDriveApp.swift:836-843` |
 | P1 | `tickEngineMode()` 回同步录制状态与帧数（含 `applyingRemoteRecord` 防回环） | `AuroraDriveApp.swift:1495-1501` |
-| P2–P5 | 新增 socket 命令 **`config`**，统一下发 `sport` / `controlDisabled` / `forceRule` / `expert` / `glyph` / `degradeThreshold`；UI 侧 `pushEngineConfigIfChanged()` 变化时才发 | `EngineMain.swift`、`AuroraDriveApp.swift` |
+| P2–P5 | 新增 socket 命令 **`config`**，统一下发 `sport` / `controlDisabled` / `forceRule` / `expert` / `glyph` / `degradeThreshold` / `speedLimit`；UI 侧 `pushEngineConfigIfChanged()` 变化时才发 | `EngineMain.swift`、`AuroraDriveApp.swift` |
 | P6 | 新增 socket 命令 **`reloadmodel`**；`deployTrainedModel()` 在引擎模式下转发 | `EngineMain.swift`、`AuroraDriveApp.swift` |
 | P7 | `pauseDriving()` 中一并停止录制并收尾 | `EngineMain.swift:805` |
 | P8 | `RecordEngine.flushSync()`（`writeQueue.sync` 屏障），`performShutdown()` 在 `exit(0)` 前排空写盘队列 | `RecordEngine.swift`、`EngineMain.swift` |
 | P9 | 录制宽限期 `lastRecordCommandTime`（2 s）+ 引擎带 `record-ack` 即时回执 | `AuroraDriveApp.swift`、`EngineMain.swift` |
+| P10 | `speedLimit` 并入 `config` 下发（进 `vehicle_state[4]`） | `EngineMain.swift`、`AuroraDriveApp.swift` |
 
 **修复后 socket 命令表**：
 ```

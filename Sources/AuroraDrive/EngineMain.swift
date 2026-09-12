@@ -723,6 +723,7 @@ enum EngineMain {
             let cExpert = obj["expert"] as? Bool
             let cGlyph = obj["glyph"] as? Bool
             let cThresh = obj["degradeThreshold"] as? Double
+            let cSpeedLimit = obj["speedLimit"] as? Double
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let st = EngineGlobals.state else { return }
@@ -732,6 +733,10 @@ enum EngineMain {
                     if let v = cExpert { st.expertMode = v }
                     if let v = cGlyph { st.glyphMode = v }
                     if let v = cThresh { st.degradeThreshold = v }
+                    // speedLimit 不是「显示项」：它经 InferenceEngine 变成
+                    // vehicle_state[4] = speed_limit_norm 直接参与推理，不同步会
+                    // 让 UI 显示 40 而模型仍按 120 决策。
+                    if let v = cSpeedLimit { st.speedLimit = v }
                 }
             }
         case "ping":

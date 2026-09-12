@@ -1514,9 +1514,9 @@ final class DriveState {
 
     /// 把「只在 tick() 里被读」的驾驶参数推给引擎（引擎模式下 tick 跑在引擎进程）。
     /// 仅在上次推送后有变化时才发，避免 30Hz 刷屏。
-    /// 覆盖：极速模式 / 禁用控制 / 紧急切纯规则 / 专家模式 / 字模模式 / 降级阈值。
+    /// 覆盖：极速模式 / 禁用控制 / 紧急切纯规则 / 专家模式 / 字模模式 / 降级阈值 / 速度上限。
     private func pushEngineConfigIfChanged() {
-        let snap = "\(sportMode)|\(controlDisabled)|\(forceRuleMode)|\(expertMode)|\(glyphMode)|\(String(format: "%.3f", degradeThreshold))"
+        let snap = "\(sportMode)|\(controlDisabled)|\(forceRuleMode)|\(expertMode)|\(glyphMode)|\(String(format: "%.3f", degradeThreshold))|\(String(format: "%.1f", speedLimit))"
         guard snap != lastPushedEngineConfig else { return }
         lastPushedEngineConfig = snap
         EngineClient.shared.sendCommand("config", extra: [
@@ -1526,6 +1526,8 @@ final class DriveState {
             "expert": expertMode,
             "glyph": glyphMode,
             "degradeThreshold": degradeThreshold,
+            // 速度上限直接进 vehicle_state[4]，不是显示项
+            "speedLimit": speedLimit,
         ])
     }
 
