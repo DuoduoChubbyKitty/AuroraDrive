@@ -144,3 +144,15 @@
 跨进程状态必须二选一 —— 引擎权威则**心跳回传**，UI 权威则**命令下发**。P2–P5 全部属于漏网的第三类。
 
 状态：编译 ✅ / 已部署（主程序+app 双份重签名）✅ / 时间戳链校验 ✅ / **运行时 E2E 待用户重启验证** ⏳
+
+**追加发现（同批审计）**：
+- **P11【高】「已移除」的网络定位仍在每次启动自动运行**：`.onAppear` 里 10 Hz 定时器**无门控**、`runNetworkLocateStep()` **自身也无 enable 检查**，一启动就 `CoordinateCapture.start()` 开 BPF 抓包。
+  运行时铁证：`lsof /dev/bpf1` → `AuroraDri 4954` 持有该设备。
+  副作用：`/tmp/aurora_pcap.log` **无轮转**，4 天已 23.6 MB / 40 万行，仍以约 51 MB/天增长。
+  ⚠️ **未擅自修复**（属功能性变更，不确定是否仍依赖网络定位）
+- **P12【中】旧架构 root 守护进程仍在跑**：`/usr/local/bin/aurora-drive-daemon`（pid 83549，已跑 2 天 21 小时），
+  `KeepAlive=true`（杀了自动重启）+ `Nice=-20`（全系统最高优先级），二进制内含旧版抓屏/键盘注入/BPF 全套能力。
+  需 sudo 清理；**BPF 两个 plist 必须保留**。
+- **XPC 专项结论**：`AuroraDriveUserAgent` 服务端 + `AuroraDriveShared` 协议 + `Package.swift` target 都在，
+  但**主程序零 `NSXPCConnection` 客户端代码**，安装 plist 还躺在 `/tmp/`（位置错误）→ **进程从未运行**。
+  **XPC 不是「不通」的原因，它根本没有链路**。建议删除或补齐，别留着误导排查。
