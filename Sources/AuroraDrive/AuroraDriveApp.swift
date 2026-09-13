@@ -2027,6 +2027,21 @@ struct ContentView: View {
             .padding(.top, 44)
 
             TopToolbar(state: state)
+
+            // ── AI Agent 左侧面板（覆盖层，独立开关，不挤压右侧 Sidebar）──
+            AIAgentEdgeTab(center: AgentSkillCenter.shared, panelWidth: 348)
+                .frame(maxHeight: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 44)
+
+            if AgentSkillCenter.shared.isPanelOpen {
+                AIAgentPanelView(center: AgentSkillCenter.shared)
+                    .frame(maxHeight: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 44)
+                    .transition(.move(edge: .leading))
+                    .zIndex(15)
+            }
         }
         .background(Theme.bgPure)
         .preferredColorScheme(.dark)
@@ -2119,6 +2134,21 @@ struct ContentView: View {
                 print("[UPSELFTEST] 插帧引擎自检开始")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     runUpscaleSelfTest()
+                }
+            }
+
+            // ── AI Agent 面板初始化 ──
+            // 注入按键/截屏引擎 → 技能中心（人类 + AI 共用执行通道）
+            AgentSkillCenter.shared.configure(control: state.controlEngine,
+                                              capture: state.captureEngine)
+
+            // AI Agent 自测入口：AuroraDriveUI --agent-selftest
+            if args.contains("--agent-selftest") {
+                print("[AGENT] --agent-selftest 收到，1.2s 后开始自测")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    AgentSkillCenter.shared.configure(control: state.controlEngine,
+                                                      capture: state.captureEngine)
+                    AgentSelfTest.run(center: AgentSkillCenter.shared)
                 }
             }
         }
@@ -3458,7 +3488,6 @@ struct SidebarView: View {
                 ConfigPanel(state: state)
                 TrainingPanel(state: state)
                 GameMapCard(state: state)
-                AutomationInlinePanel()
                 LogViewerPanel()
             }
             .padding(14)
@@ -3467,62 +3496,6 @@ struct SidebarView: View {
         .background(Color.black.opacity(0.55))
     }
 }
-
-/// 自动化功能内联面板（替代原抽屉式，直接在 sidebar 里展示，无图层问题）
-struct AutomationInlinePanel: View {
-    private let functions = AutomationLibrary.functions
-    @State private var running = Set<UUID>()
-
-    var body: some View {
-        GlowCard {
-            VStack(alignment: .leading, spacing: 10) {
-                SectionHeader(title: "AUTOMATION")
-                VStack(spacing: 6) {
-                    ForEach(functions) { item in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                if running.contains(item.id) {
-                                    running.remove(item.id)
-                                } else {
-                                    running.insert(item.id)
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 9) {
-                                Text(item.emoji).font(.system(size: 15))
-                                Text(item.name)
-                                    .font(.system(size: 12.5, weight: .medium))
-                                    .foregroundStyle(Theme.textPrimary)
-                                Spacer()
-                                if item.warn {
-                                    Text("最凶")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundStyle(Theme.danger)
-                                }
-                                Circle()
-                                    .fill(running.contains(item.id) ? Theme.cyan : Color.white.opacity(0.15))
-                                    .frame(width: 7, height: 7)
-                                    .shadow(color: running.contains(item.id) ? Theme.cyan : .clear, radius: 5)
-                            }
-                            .padding(.horizontal, 10)
-                            .frame(height: 36)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(running.contains(item.id) ? Theme.cyan.opacity(0.08) : Color.white.opacity(0.03))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(running.contains(item.id) ? Theme.cyan.opacity(0.4) : Color.white.opacity(0.06), lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-    }
-}
-
 
 // ============================================================================
 // MARK: - 文件 8: StatusPanel.swift  (状态面板)
