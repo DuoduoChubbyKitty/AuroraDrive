@@ -81,10 +81,10 @@ enum AgentSkillLibrary {
                    keywords: ["咖啡"]),
         AgentSkill(id: "pinkpaw", emoji: "🐾", name: "粉爪大劫案", warn: true,
                    keywords: ["粉爪", "大劫案"]),
-        AgentSkill(id: "furniture", emoji: "🪑", name: "自动收家具",
-                   keywords: ["家具"]),
-        AgentSkill(id: "rewards", emoji: "💎", name: "自动领奖励",
-                   keywords: ["奖励", "领奖"]),
+        AgentSkill(id: "furniture", emoji: "🪑", name: "自动收家具", ported: true,
+                   keywords: ["家具", "收家具", "收取"]),
+        AgentSkill(id: "rewards", emoji: "💎", name: "自动领奖励", ported: true,
+                   keywords: ["奖励", "领奖", "领取"]),
         AgentSkill(id: "piano", emoji: "🎹", name: "自动弹钢琴",
                    keywords: ["钢琴", "弹琴"]),
         AgentSkill(id: "rhythm", emoji: "🎵", name: "自动超强音",
@@ -207,6 +207,9 @@ final class AgentSkillCenter: @unchecked Sendable {
             performAutoLogin(skill: skill, source: source, dryRun: dryRun)
         case "volleyball":
             startVolleyballLoop(skill: skill, source: source, dryRun: dryRun)
+        case "rewards", "furniture":
+            // 纯 UI 点击型：OCR 定位「领取/收取」按钮 → 循环点击直到没有
+            performUIClickLoop(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
@@ -332,6 +335,82 @@ final class AgentSkillCenter: @unchecked Sendable {
         timer.resume()
         volleyballTimer = timer
         appendSystem("🏐 排球循环运行中（每 0.6s 击球一次，再次点击或输入「停止」结束）")
+    }
+
+    /// 通用 UI 点击技能（自动领奖励 / 自动收家具）
+    /// 真实链路：截图 → Vision OCR 定位「领取/收取」按钮 → 鼠标点击 →
+    /// 等 UI 反应后重试，最多 N 轮；按钮消失即完成。
+    private func performUIClickLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard let mouse = makeMouse() else {
+            appendSystem("❌ 辅助功能权限未授权，无法注入鼠标")
+            runningSkills.remove(skill.id)
+            return
+        }
+
+        // 每种技能的关键词（按优先级）
+        let keywords: [String]
+        let maxRounds: Int
+        let clickInterval: TimeInterval
+        switch skill.id {
+        case "rewards":
+            keywords = ["一键领取", "领取奖励", "领取", "领奖", "确认"]
+            maxRounds = 8
+            clickInterval = 1.2
+        case "furniture":
+            keywords = ["一键收取", "收取家具", "收取", "回收"]
+            maxRounds = 8
+            clickInterval = 1.0
+        default:
+            keywords = []
+            maxRounds = 0
+            clickInterval = 1.0
+        }
+
+        let scale = MouseController.displayScale
+        let logger: (String) -> Void = { [weak self] msg in
+            self?.appendSystem(msg)
+            self?.dlog("[\(skill.id)] \(msg)")
+        }
+
+        var clicked = 0
+        for round in 1...maxRounds {
+            // 技能可能被用户手工停止（runningSkills 被移除），循环感知退出
+            guard runningSkills.contains(skill.id) else {
+                logger("⏹️ 已停止（用户中断）")
+                return
+            }
+
+            guard let frame = capture?.currentFrame,
+                  let cg = loginAssistant.cgImage(from: frame) else {
+                logger("⚠️ 拿不到截屏帧（第 \(round) 轮）")
+                continue
+            }
+
+            guard let hit = loginAssistant.locateButton(keywords, in: cg, scale: scale) else {
+                // 找不到按钮 = 领完了/收完了，或界面不在
+                logger(clicked > 0
+                       ? "🏁 完成：共点击 \(clicked) 次，界面上已无「\(skill.name)」按钮"
+                       : "ℹ️ 未找到「\(skill.name)」按钮（需要先打开对应界面？）")
+                runningSkills.remove(skill.id)
+                return
+            }
+
+            guard !dryRun else {
+                // 自测：只验证定位链路，不真点
+                logger("✅ 自测：定位到「\(hit.text)」→ (\(Int(hit.point.x)), \(Int(hit.point.y)))，链路就绪")
+                runningSkills.remove(skill.id)
+                return
+            }
+
+            logger("🖱️ 第 \(round) 轮：点击「\(hit.text)」")
+            mouse.click(at: hit.point)
+            clicked += 1
+            usleep(useconds_t(clickInterval * 1_000_000))
+        }
+
+        // 到达轮数上限仍未结束（理论上按钮会消失；兜底停止）
+        logger("⏹️ 已达 \(maxRounds) 轮上限，停止（避免无限点击）")
+        runningSkills.remove(skill.id)
     }
 
     /// 待移植技能：现场快照 + 如实回报
@@ -490,6 +569,18 @@ enum AgentSelfTest {
         center.runSkill("volleyball", source: .ai)
         center.sendUserMessage("停止", source: .ai)
         log(center.runningSkills.isEmpty, "指令解析→停止", "运行中=\(center.runningSkills.count)")
+
+        // 3.5 UI 点击型技能路由（dryRun：只验证链路不真点）
+        center.isDryRun = true
+        center.sendUserMessage("帮我领奖励", source: .ai)
+        let rewardsRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动领奖励") }
+        center.stopAll(source: .ai)
+        center.sendUserMessage("收家具", source: .ai)
+        let furnitureRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动收家具") }
+        center.stopAll(source: .ai)
+        center.isDryRun = false
+        log(rewardsRouted, "指令解析→领奖励", rewardsRouted ? "命中 rewards" : "未命中")
+        log(furnitureRouted, "指令解析→收家具", furnitureRouted ? "命中 furniture" : "未命中")
 
         // 4. 人类点击同一通道（toggle → running）
         center.isDryRun = true

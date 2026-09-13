@@ -61,9 +61,17 @@ final class LoginAssistant: @unchecked Sendable {
         }
     }
 
-    /// 在一帧截图里找登录按钮
+    /// 在一帧截图里找登录按钮（登录关键词优先级）
     /// - Returns: (按钮文字, 屏幕点坐标)；nil = 没找到
     func locateButton(in image: CGImage, scale: CGFloat) -> (text: String, point: CGPoint)? {
+        locateButton(Self.buttonKeywords, in: image, scale: scale)
+    }
+
+    /// 通用按钮定位：按给定关键词优先级扫描，返回第一个命中
+    /// （供自动领奖励/收家具等所有 OCR 点击技能复用）
+    func locateButton(_ keywords: [String],
+                      in image: CGImage,
+                      scale: CGFloat) -> (text: String, point: CGPoint)? {
         let width = image.width
         let height = image.height
 
@@ -71,7 +79,7 @@ final class LoginAssistant: @unchecked Sendable {
 
         // 按关键词优先级扫描：先看最高优先级的关键词有没有命中，
         // 命中就直接用（避免「开始」按钮盖过「点击进入」时点错）
-        for keyword in Self.buttonKeywords {
+        for keyword in keywords {
             for t in texts {
                 // 完整包含即命中（OCR 偶尔把「点击进入游戏」读全，用包含匹配容错）
                 if t.text.contains(keyword) {
@@ -91,7 +99,8 @@ final class LoginAssistant: @unchecked Sendable {
 
     /// NSImage → CGImage（正确 API：cgImage(forProposedRect:context:hints:)）
     /// ScreenCaptureKit 生成的 NSImage 尺寸即像素尺寸，传入 .zero 矩形即可
-    private func cgImage(from image: NSImage) -> CGImage? {
+    /// internal：AI Agent 面板的通用 UI 点击技能也复用此转换
+    func cgImage(from image: NSImage) -> CGImage? {
         var rect = NSRect(origin: .zero, size: image.size)
         return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
     }
