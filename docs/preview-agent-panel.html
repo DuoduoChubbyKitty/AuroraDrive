@@ -8,12 +8,11 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-serif;height:100vh;overflow:hidden}
 
-/* ── Layout ── */
 .app{display:flex;height:100vh;width:100vw}
 
-/* ── AI Agent Panel (left, slides in/out independently) ── */
+/* ── AI Agent Panel (left) ── */
 .agent-panel{
-  width:320px;min-width:280px;max-width:400px;
+  width:300px;min-width:260px;max-width:360px;
   background:rgba(0,10,20,0.95);
   border-right:1px solid rgba(0,229,255,0.2);
   display:flex;flex-direction:column;
@@ -23,10 +22,10 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 }
 .agent-panel.open{transform:translateX(0)}
 
-/* ── Main Area (right, always visible) ── */
+/* ── Main Area (right) ── */
 .main-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
 
-/* ── Toggle Button (left edge of main area) ── */
+/* ── Toggle Button ── */
 .toggle-btn{
   position:absolute;left:0;top:50%;transform:translateY(-50%);
   width:24px;height:56px;
@@ -56,7 +55,7 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 .topbar-mode{font-size:11px;font-weight:600;font-family:'SF Mono',monospace;color:var(--cyan)}
 .topbar-m9{font-size:9px;font-weight:600;font-family:'SF Mono',monospace;color:var(--text-sec)}
 
-/* ── Game Viewport ── */
+/* ── Viewport ── */
 .viewport{flex:1;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .viewport-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .viewport-placeholder{text-align:center;opacity:0.25}
@@ -68,39 +67,21 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 .rec-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);box-shadow:0 0 6px var(--danger)}
 .rec-text{font-size:11px;font-weight:700;font-family:'SF Mono',monospace;color:var(--danger)}
 .frames-text{font-size:10px;font-weight:500;font-family:'SF Mono',monospace;color:var(--text-ter)}
-
-/* ── Keyboard Bar ── */
 .kb-bar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:4px;padding:4px 8px;background:rgba(0,10,15,0.85);border-radius:8px;border:1px solid rgba(0,229,255,0.4)}
 .kcap{width:28px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;font-family:'SF Mono',monospace;color:var(--text-ter);background:rgba(255,255,255,0.04);border:1px solid rgba(0,229,255,0.3);transition:all 0.08s;cursor:default;user-select:none}
 .kcap.active{color:#000;background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,229,255,0.8)}
 .kcap.wide{width:48px}
-.kcap.narrow{width:32px;font-size:9px}
 
 /* ── Right Sidebar ── */
-.right-sidebar{
-  width:360px;
-  background:rgba(0,0,0,0.55);
-  border-left:1px solid rgba(0,229,255,0.1);
-  display:flex;flex-direction:column;
-  overflow:hidden;flex-shrink:0;
-}
-.right-sidebar.collapsed{width:0;border:none}
-
-/* ── Scroll Area ── */
+.right-sidebar{width:360px;background:rgba(0,0,0,0.55);border-left:1px solid rgba(0,229,255,0.1);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
 .sb-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
 .sb-scroll::-webkit-scrollbar{width:3px}
 .sb-scroll::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
-
-/* ── GlowCard ── */
 .gcard{background:var(--bg-card);border-radius:16px;border:1px solid rgba(255,255,255,0.08);padding:16px;position:relative;overflow:hidden}
 .gcard::before{content:'';position:absolute;inset:0;border-radius:16px;padding:1px;background:linear-gradient(135deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
-
-/* ── SectionHeader ── */
 .shdr{display:flex;align-items:center;gap:8px;margin-bottom:14px}
 .shdr .bar{width:3px;height:12px;background:var(--cyan);border-radius:1.5px;box-shadow:0 0 4px var(--cyan)}
 .shdr .ttl{font-size:11px;font-weight:700;letter-spacing:2.5px;color:var(--text-sec);text-transform:uppercase}
-
-/* ── ModeChip ── */
 .mchip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);cursor:pointer;transition:all 0.2s;margin-bottom:8px}
 .mchip:last-child{margin-bottom:0}
 .mchip.active{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,229,255,0.8)}
@@ -108,47 +89,33 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 .mchip-icon{font-size:11px}
 .mchip-lbl{font-size:11px;font-weight:600}
 .mchip-desc{font-size:9px;opacity:0.85}
-
-/* ── Confidence ── */
 .crow{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .clbl{font-size:11px;font-weight:500;color:var(--text-sec)}
 .cval{font-size:12px;font-weight:700;font-family:'SF Mono',monospace;color:var(--cyan)}
 .ctrack{height:8px;border-radius:4px;background:rgba(255,255,255,0.08);overflow:hidden}
 .cfill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--cyan-dim),var(--cyan));box-shadow:0 0 8px rgba(0,229,255,0.6);transition:width 0.3s}
-
-/* ── Speed ── */
 .srow{display:flex;align-items:baseline;gap:6px;margin-top:4px}
 .sval{font-size:52px;font-weight:800;font-family:'SF Mono',monospace;color:#fff;text-shadow:0 0 12px rgba(0,229,255,0.45)}
 .sunit{font-size:12px;color:var(--text-ter)}
 .seng{margin-left:auto;font-size:9px;font-weight:700;font-family:'SF Mono',monospace;color:var(--cyan);padding:2px 5px;background:rgba(0,229,255,0.15);border-radius:4px}
-
-/* ── Start Button ── */
 .sbtn{width:100%;padding:16px;border-radius:14px;border:none;cursor:pointer;font-size:16px;font-weight:700;letter-spacing:0.5px;transition:all 0.2s;margin:4px 0;font-family:inherit}
 .sbtn.on{background:linear-gradient(180deg,var(--cyan),rgba(0,229,255,0.75));color:#000;box-shadow:0 0 18px rgba(0,229,255,0.65)}
 .sbtn.off{background:linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0.08));color:#fff;border:1px solid rgba(255,61,71,0.7)}
-
-/* ── Control Row ── */
 .crow2{display:flex;align-items:center;justify-content:space-between;padding:4px 0}
 .crow2-label{display:flex;align-items:center;gap:8px}
 .crow2-icon{font-size:13px;font-weight:600}
 .crow2-title{font-size:13px;font-weight:600}
 .crow2-sub{font-size:10px;color:var(--text-ter)}
-
-/* ── Toggle ── */
 .tog{width:36px;height:20px;border-radius:10px;background:rgba(255,255,255,0.15);position:relative;cursor:pointer;transition:all 0.2s}
 .tog.on{background:var(--cyan)}
 .tog-knob{width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:all 0.2s}
 .tog.on .tog-knob{left:18px}
-
-/* ── Slider ── */
 .sldr{display:flex;flex-direction:column;gap:6px}
 .sldr-head{display:flex;justify-content:space-between}
 .sldr-lbl{font-size:12px;font-weight:500;color:var(--text-sec)}
 .sldr-val{font-size:12px;font-weight:700;font-family:'SF Mono',monospace;color:var(--cyan)}
 .sldr input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,0.08);outline:none}
 .sldr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 6px rgba(0,229,255,0.8)}
-
-/* ── Automation Item ── */
 .auto-item{display:flex;align-items:center;gap:9px;padding:0 10px;height:36px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:all 0.15s;margin-bottom:6px}
 .auto-item:last-child{margin-bottom:0}
 .auto-item:hover{background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.2)}
@@ -158,128 +125,124 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 .auto-warn{font-size:8px;font-weight:700;color:var(--danger)}
 .auto-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.15);transition:all 0.2s}
 .auto-item.run .auto-dot{background:var(--cyan);box-shadow:0 0 5px var(--cyan)}
-
-/* ── Train Button ── */
 .tbtn{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.1);color:var(--cyan);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;flex:1;font-family:inherit}
 .tbtn:hover{background:rgba(0,229,255,0.18)}
 .tbtn.fill{background:var(--cyan);color:#000;border-color:var(--cyan)}
 .tbtn-row{display:flex;gap:8px;margin-top:8px}
-
-/* ── Map ── */
 .map-mini{height:100px;border-radius:10px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);display:flex;align-items:center;justify-content:center;color:var(--text-ter);font-size:12px;position:relative;overflow:hidden}
 .map-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
-
-/* ── Log ── */
 .log-c{font-size:9px;font-family:'SF Mono',monospace;color:var(--text-sec);max-height:60px;overflow-y:auto;line-height:1.6}
 .log-c::-webkit-scrollbar{width:3px}
 .log-c::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
 
-/* ── Agent Panel Content ── */
-.agent-content{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
-.agent-content::-webkit-scrollbar{width:3px}
-.agent-content::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
+/* ── AI Panel Content (simplified) ── */
+.agent-body{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.agent-header{padding:14px;border-bottom:1px solid rgba(0,229,255,0.15);display:flex;align-items:center;justify-content:space-between}
+.agent-title{display:flex;align-items:center;gap:8px}
+.agent-title .icon{font-size:18px}
+.agent-title .text{font-size:14px;font-weight:700;letter-spacing:1px;color:var(--cyan)}
+.agent-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-sec)}
+.agent-status .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
 
-.ws-row{display:flex;gap:8px;flex-wrap:wrap}
-.ws-btn{padding:7px 14px;border-radius:8px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:var(--text-sec);font-size:12px;cursor:pointer;transition:all 0.15s}
-.ws-btn:hover{background:rgba(0,229,255,0.12);color:#fff}
-.ws-btn.sel{background:rgba(0,229,255,0.18);border-color:var(--cyan);color:#fff;box-shadow:0 0 8px rgba(0,229,255,0.25)}
+/* Skills trigger button */
+.skills-trigger{margin:14px;padding:10px;border-radius:10px;border:1px dashed rgba(0,229,255,0.3);background:rgba(0,229,255,0.05);color:var(--cyan);font-size:12px;cursor:pointer;text-align:center;transition:all 0.15s}
+.skills-trigger:hover{background:rgba(0,229,255,0.12);border-style:solid}
+.skills-trigger.active{background:rgba(0,229,255,0.15);border-style:solid}
 
-.skills-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.skill-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 6px;border-radius:12px;border:1px solid rgba(0,229,255,0.1);background:rgba(0,229,255,0.03);cursor:pointer;transition:all 0.15s}
-.skill-btn:hover{background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.35);transform:translateY(-1px)}
-.skill-btn .si{font-size:18px}
-.skill-btn .sn{font-size:10px;color:var(--text-sec);text-align:center}
+/* Skills popup */
+.skills-popup{display:none;flex-direction:column;gap:6px;padding:0 14px 14px;animation:slideDown 0.2s ease}
+.skills-popup.show{display:flex}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.skill-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(0,229,255,0.1);background:rgba(0,229,255,0.03);cursor:pointer;transition:all 0.15s}
+.skill-chip:hover{background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.3)}
+.skill-chip .emoji{font-size:16px}
+.skill-chip .name{font-size:12px;color:var(--text-sec)}
 
-.conv-list{display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto}
-.conv-list::-webkit-scrollbar{width:3px}
-.conv-list::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
-.conv-item{padding:10px 12px;border-radius:10px;border:1px solid rgba(0,229,255,0.08);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.15s}
-.conv-item:hover{background:rgba(0,229,255,0.07);border-color:rgba(0,229,255,0.2)}
-.conv-item.act{background:rgba(0,229,255,0.12);border-color:rgba(0,229,255,0.35)}
-.conv-ttl{font-size:12px;font-weight:500;color:rgba(255,255,255,0.88);margin-bottom:3px}
-.conv-meta{font-size:10px;color:var(--text-ter)}
+/* Current conversation */
+.conv-area{flex:1;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.conv-area::-webkit-scrollbar{width:3px}
+.conv-area::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
+.conv-msg{display:flex;gap:10px}
+.conv-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.conv-avatar.ai{background:rgba(0,229,255,0.2);border:1px solid rgba(0,229,255,0.3)}
+.conv-avatar.user{background:rgba(255,255,255,0.1)}
+.conv-bubble{flex:1;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5}
+.conv-bubble.ai{background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.15);color:var(--text-sec)}
+.conv-bubble.user{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text-primary);margin-left:auto;max-width:85%}
 
-.new-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:10px;border:1px dashed rgba(0,229,255,0.3);background:transparent;color:var(--cyan);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;font-family:inherit}
-.new-btn:hover{background:rgba(0,229,255,0.07);border-style:solid}
+/* New conversation button */
+.new-conv-btn{margin:0 14px 14px;padding:12px;border-radius:10px;border:1px dashed rgba(0,229,255,0.3);background:transparent;color:var(--cyan);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;text-align:center;font-family:inherit}
+.new-conv-btn:hover{background:rgba(0,229,255,0.07);border-style:solid}
 
-.qbtn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.1);color:var(--cyan);font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;font-family:inherit}
-.qbtn:hover{background:rgba(0,229,255,0.18)}
-.qbtn-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+/* Agent status bar */
+.agent-footer{padding:12px 14px;border-top:1px solid rgba(0,229,255,0.1);display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-ter)}
+.agent-footer .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
 </style>
 </head>
 <body>
 
 <div class="app">
-  <!-- AI Agent Panel (left, slides in/out independently) -->
+  <!-- AI Agent Panel (left) -->
   <div class="agent-panel" id="agentPanel">
-    <div class="topbar" style="border-bottom:1px solid rgba(0,229,255,0.2)">
-      <div class="topbar-brand">
-        <span style="font-size:16px">🤖</span>
-        <span class="name" style="font-size:13px">AI Agent</span>
+    <!-- Header -->
+    <div class="agent-header">
+      <div class="agent-title">
+        <span class="icon">🤖</span>
+        <span class="text">AI Agent</span>
       </div>
-      <div class="topbar-right">
-        <div class="pill pill-cyan" id="agentStatus">就绪</div>
+      <div class="agent-status">
+        <div class="dot"></div>
+        <span id="agentStatusText">就绪</span>
       </div>
     </div>
-    
-    <div class="agent-content">
-      <div class="gcard">
-        <div class="shdr"><div class="bar"></div><div class="ttl">工作区</div></div>
-        <div class="ws-row">
-          <div class="ws-btn sel" onclick="selWS(this)">不选择工作区</div>
-          <div class="ws-btn" onclick="selWS(this)">异环游戏</div>
-          <div class="ws-btn" onclick="selWS(this)">自动驾驶录制</div>
+
+    <div class="agent-body">
+      <!-- Skills trigger -->
+      <div class="skills-trigger" id="skillsTrigger" onclick="toggleSkills()">
+        ⚡ 选择技能
+      </div>
+      
+      <!-- Skills popup -->
+      <div class="skills-popup" id="skillsPopup">
+        <div class="skill-chip"><span class="emoji">🚗</span><span class="name">导航到坐标</span></div>
+        <div class="skill-chip"><span class="emoji">🎣</span><span class="name">自动钓鱼</span></div>
+        <div class="skill-chip"><span class="emoji">☕</span><span class="name">自动做咖啡</span></div>
+        <div class="skill-chip"><span class="emoji">🏠</span><span class="name">收取家具</span></div>
+        <div class="skill-chip"><span class="emoji">🎁</span><span class="name">领取奖励</span></div>
+        <div class="skill-chip"><span class="emoji">⚔️</span><span class="name">自动战斗</span></div>
+        <div class="skill-chip"><span class="emoji">🏐</span><span class="name">自动排球</span></div>
+        <div class="skill-chip"><span class="emoji">🎮</span><span class="name">俄罗斯方块</span></div>
+        <div class="skill-chip"><span class="emoji">🎹</span><span class="name">自动钢琴</span></div>
+      </div>
+
+      <!-- Current conversation -->
+      <div class="conv-area" id="convArea">
+        <div class="conv-msg">
+          <div class="conv-avatar ai">🤖</div>
+          <div class="conv-bubble ai">你好！我是 AuroraDrive AI 助手。我可以帮你完成各种游戏任务，比如钓鱼、做咖啡、领取奖励等。需要我做什么？</div>
+        </div>
+        <div class="conv-msg" style="flex-direction:row-reverse">
+          <div class="conv-avatar user">👤</div>
+          <div class="conv-bubble user">帮我钓鱼然后卖鱼</div>
+        </div>
+        <div class="conv-msg">
+          <div class="conv-avatar ai">🤖</div>
+          <div class="conv-bubble ai">好的，我来帮你完成钓鱼任务。首先我会导航到钓鱼点，然后自动钓鱼，最后出售鱼类。开始执行...</div>
         </div>
       </div>
 
-      <div class="gcard">
-        <div class="shdr"><div class="bar"></div><div class="ttl">技能</div></div>
-        <div class="skills-grid">
-          <div class="skill-btn"><div class="si">🚗</div><div class="sn">导航</div></div>
-          <div class="skill-btn"><div class="si">🎣</div><div class="sn">钓鱼</div></div>
-          <div class="skill-btn"><div class="si">☕</div><div class="sn">咖啡</div></div>
-          <div class="skill-btn"><div class="si">🏠</div><div class="sn">家具</div></div>
-          <div class="skill-btn"><div class="si">🎁</div><div class="sn">奖励</div></div>
-          <div class="skill-btn"><div class="si">⚔️</div><div class="sn">战斗</div></div>
-          <div class="skill-btn"><div class="si">🏐</div><div class="sn">排球</div></div>
-          <div class="skill-btn"><div class="si">🎮</div><div class="sn">方块</div></div>
-          <div class="skill-btn"><div class="si">🎹</div><div class="sn">钢琴</div></div>
-        </div>
-      </div>
+      <!-- New conversation -->
+      <button class="new-conv-btn" onclick="newConv()">+ 新建对话</button>
 
-      <div class="gcard">
-        <div class="shdr"><div class="bar"></div><div class="ttl">对话历史</div></div>
-        <div class="conv-list">
-          <div class="conv-item act"><div class="conv-ttl">帮我完成钓鱼任务</div><div class="conv-meta">3 分钟前 · 12 步</div></div>
-          <div class="conv-item"><div class="conv-ttl">去喷泉领活跃度</div><div class="conv-meta">1 小时前 · 8 步</div></div>
-          <div class="conv-item"><div class="conv-ttl">自动做咖啡 ×10</div><div class="conv-meta">昨天 · 15 步</div></div>
-          <div class="conv-item"><div class="conv-ttl">粉爪大劫案 - 方案1</div><div class="conv-meta">2 天前 · 47 步</div></div>
-        </div>
-      </div>
-
-      <button class="new-btn" onclick="newConv()"><span style="font-size:16px">+</span><span>新建对话</span></button>
-
-      <div class="gcard">
-        <div class="shdr"><div class="bar"></div><div class="ttl">快捷操作</div></div>
-        <div class="qbtn-row">
-          <button class="qbtn">📍 传送</button>
-          <button class="qbtn">🗺️ 地图</button>
-          <button class="qbtn">⏹️ 停止</button>
-          <button class="qbtn">🚗 开始驾驶</button>
-        </div>
-      </div>
-
-      <div class="gcard">
-        <div class="shdr"><div class="bar"></div><div class="ttl">AGENT 状态</div></div>
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 0">
-          <div style="width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan)"></div>
-          <span style="font-size:12px;color:var(--text-sec)">就绪，等待任务</span>
-        </div>
+      <!-- Status -->
+      <div class="agent-footer">
+        <div class="dot"></div>
+        <span id="footerStatus">等待指令...</span>
       </div>
     </div>
   </div>
 
-  <!-- Main Area (right, always visible) -->
+  <!-- Main Area (right) -->
   <div class="main-area" id="mainArea">
     <!-- Top Toolbar -->
     <div class="topbar">
@@ -321,7 +284,7 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
         </div>
       </div>
 
-      <!-- Right Sidebar (AuroraDrive controls) -->
+      <!-- Right Sidebar -->
       <div class="right-sidebar" id="rightSidebar">
         <div class="sb-scroll">
           <div class="gcard">
@@ -401,8 +364,8 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
       </div>
     </div>
 
-    <!-- Toggle Button (between viewport and sidebar) -->
-    <div class="toggle-btn" onclick="toggleAgent()">
+    <!-- Toggle Button -->
+    <div class="toggle-btn" id="toggleBtn" onclick="toggleAgent()">
       <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
     </div>
   </div>
@@ -416,7 +379,13 @@ function toggleAgent(){
   document.getElementById('agentPanel').classList.toggle('open',agentOpen);
 }
 
-function selWS(el){document.querySelectorAll('.ws-btn').forEach(b=>b.classList.remove('sel'));el.classList.add('sel')}
+function toggleSkills(){
+  const popup=document.getElementById('skillsPopup');
+  const trigger=document.getElementById('skillsTrigger');
+  popup.classList.toggle('show');
+  trigger.classList.toggle('active');
+  trigger.textContent=popup.classList.contains('show')?'⚡ 选择技能 ✓':'⚡ 选择技能';
+}
 
 function toggleDrive(){
   driving=!driving;
@@ -484,13 +453,23 @@ document.addEventListener('keyup',e=>{
   if(c)c.classList.remove('active');
 });
 
-// Conv click
-document.querySelectorAll('.conv-item').forEach(item=>{
-  item.addEventListener('click',()=>{
-    document.querySelectorAll('.conv-item').forEach(i=>i.classList.remove('act'));
-    item.classList.add('act');
-  });
-});
+function newConv(){
+  document.getElementById('convArea').innerHTML='';
+  addMessage('ai','新对话已创建，请告诉我你需要什么帮助？');
+}
+
+function addMessage(type,text){
+  const area=document.getElementById('convArea');
+  const div=document.createElement('div');
+  div.className='conv-msg';
+  if(type==='user')div.style.flexDirection='row-reverse';
+  div.innerHTML=`
+    <div class="conv-avatar ${type}">${type==='ai'?'🤖':'👤'}</div>
+    <div class="conv-bubble ${type}">${text}</div>
+  `;
+  area.appendChild(div);
+  area.scrollTop=area.scrollHeight;
+}
 </script>
 </body>
 </html>
