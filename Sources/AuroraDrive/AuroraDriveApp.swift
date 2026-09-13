@@ -2946,42 +2946,87 @@ struct GameViewportView: View {
 // ============================================================================
 
 /// 底部键盘可视化条
-/// 显示 WASD + 空格 + Shift 共6个键，按下时变青绿色发光
-/// 读取物理键盘状态（keyboardMonitor），实时反映用户真实按键
-/// 薄薄一条（约28pt 高），不挡画面主体
+/// AI Agent 模式：显示所有游戏键（WASD + F/E/ESC/Q/R + 1-4）
+/// 驾驶模式：显示 WASD + 空格 + Shift
+/// active=true 时青色发光，来自物理键盘或 AI 注入
 struct KeyboardBar: View {
     let state: DriveState
+    var agentMode = false
+
+    /// 检查某个键是否被 AI 按住
+    private func isAIHeld(_ key: ControlEngine.GameKey) -> Bool {
+        return state.controlEngine.isHeld(key)
+    }
+
+    /// 检查某个键是否被物理键盘按住
+    private func isPhysicalHeld(_ keyCode: CGKeyCode) -> Bool {
+        return state.keyboardMonitor.isHeld(keyCode)
+    }
 
     var body: some View {
-        HStack(spacing: 6) {
-            // 读取物理键盘状态（keyboardMonitor.heldKeys）
-            // keyMap.keyCode(for:) 把语义动作转成键码，再查是否物理按住
-            KeyCap(label: "W", active: state.keyboardMonitor.isHeld(state.controlEngine.keyMap.keyCode(for: .throttle)))
-            KeyCap(label: "A", active: state.keyboardMonitor.isHeld(state.controlEngine.keyMap.keyCode(for: .steerLeft)))
-            KeyCap(label: "S", active: state.keyboardMonitor.isHeld(state.controlEngine.keyMap.keyCode(for: .brake)))
-            KeyCap(label: "D", active: state.keyboardMonitor.isHeld(state.controlEngine.keyMap.keyCode(for: .steerRight)))
-            KeyCap(label: "␣", active: state.keyboardMonitor.isHeld(state.controlEngine.keyMap.keyCode(for: .handbrake)), wide: true)
-            KeyCap(label: "⇧", active: state.keyboardMonitor.isHeld(state.controlEngine.keyMap.keyCode(for: .boost)))
+        if agentMode {
+            // AI 模式：显示所有游戏键
+            HStack(spacing: 4) {
+                // 移动
+                KeyCap(label: "W", active: isAIHeld(.w) || isPhysicalHeld(87))
+                KeyCap(label: "A", active: isAIHeld(.a) || isPhysicalHeld(65))
+                KeyCap(label: "S", active: isAIHeld(.s) || isPhysicalHeld(83))
+                KeyCap(label: "D", active: isAIHeld(.d) || isPhysicalHeld(68))
+                // 交互
+                KeyCap(label: "F", active: isAIHeld(.f) || isPhysicalHeld(70))
+                KeyCap(label: "E", active: isAIHeld(.e) || isPhysicalHeld(69))
+                KeyCap(label: "␣", active: isAIHeld(.space) || isPhysicalHeld(32), wide: true)
+                // UI
+                KeyCap(label: "ESC", active: isAIHeld(.esc) || isPhysicalHeld(27), narrow: true)
+                KeyCap(label: "Q", active: isAIHeld(.q) || isPhysicalHeld(81))
+                KeyCap(label: "R", active: isAIHeld(.r) || isPhysicalHeld(82))
+                // 数字
+                KeyCap(label: "1", active: isAIHeld(.one) || isPhysicalHeld(49))
+                KeyCap(label: "2", active: isAIHeld(.two) || isPhysicalHeld(50))
+                KeyCap(label: "3", active: isAIHeld(.three) || isPhysicalHeld(51))
+                KeyCap(label: "4", active: isAIHeld(.four) || isPhysicalHeld(52))
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Color(red: 0.0, green: 0.1, blue: 0.15).opacity(0.85), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.cyan.opacity(0.4), lineWidth: 1))
+        } else {
+            // 驾驶模式：只显示 WASD + 空格 + Shift
+            HStack(spacing: 6) {
+                KeyCap(label: "W", active: isAIHeld(.w) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .throttle)))
+                KeyCap(label: "A", active: isAIHeld(.a) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .steerLeft)))
+                KeyCap(label: "S", active: isAIHeld(.s) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .brake)))
+                KeyCap(label: "D", active: isAIHeld(.d) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .steerRight)))
+                KeyCap(label: "␣", active: isAIHeld(.space) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .handbrake)), wide: true)
+                KeyCap(label: "⇧", active: isAIHeld(.shift) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .boost)))
+            }
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
         }
-        .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
     }
 }
 
 /// 单个键帽
 /// - active: 是否按下（true=青绿色发光，false=暗色边框）
 /// - wide: 是否加宽（空格键）
+/// - narrow: 是否缩小（功能键）
 struct KeyCap: View {
     let label: String
     let active: Bool
     var wide: Bool = false
+    var narrow: Bool = false
+
+    private var keyWidth: CGFloat {
+        if wide { return 60 }
+        if narrow { return 28 }
+        return 22
+    }
 
     var body: some View {
         Text(label)
-            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+            .font(.system(size: active ? 11 : 10, weight: .semibold, design: .monospaced))
             .foregroundStyle(active ? Color.black : Theme.textTertiary)
-            .frame(width: wide ? 60 : 22, height: 18)
+            .frame(width: keyWidth, height: 18)
             .background(
                 RoundedRectangle(cornerRadius: 4)
                     .fill(active ? Color(red: 0.0, green: 1.0, blue: 0.6) : Color.white.opacity(0.04))
