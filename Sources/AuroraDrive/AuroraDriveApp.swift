@@ -2151,6 +2151,12 @@ struct ContentView: View {
                     AgentSelfTest.run(center: AgentSkillCenter.shared)
                 }
             }
+
+            // AI 面板 UI 无头渲染自测：AuroraDriveUI --agent-ui-shot
+            if args.contains("--agent-ui-shot") {
+                print("[UI-SHOT] 收到，开始无头渲染 AI 面板")
+                AgentUIShot.run()
+            }
         }
     }
 }

@@ -962,3 +962,71 @@ private struct AgentBubble: View {
         }
     }
 }
+
+// ============================================================================
+//  UI 无头渲染自测（--agent-ui-shot）
+//  用 SwiftUI ImageRenderer 把 AIAgentPanelView 直接渲染成 PNG 存到
+//  /tmp/aurora_ui_shot.png，用于验证真实布局 —— 完全无头、无屏幕权限依赖、
+//  不影响桌面。与 --agent-selftest 互补：后者验证逻辑链路，前者验证视觉呈现。
+// ============================================================================
+
+enum AgentUIShot {
+
+    /// 执行入口（在 ContentView.onAppear 调用；ImageRenderer 需要 MainActor）
+    @MainActor
+    static func run(delay: TimeInterval = 1.0) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            let path = "/tmp/aurora_ui_shot.png"
+            let ok = Self.renderPanel(to: path)
+            print("[UI-SHOT] saved=\(ok) path=\(path)")
+            fflush(stdout)
+            exit(ok ? 0 : 1)
+        }
+    }
+
+    /// 无头渲染 AI 面板视图（连状态条一起，验证完整布局）
+    @MainActor
+    private static func renderPanel(to path: String) -> Bool {
+        // 注入几条示例会话 + 一个运行中的技能，让渲染内容更充分
+        let center = AgentSkillCenter.shared
+        center.messages = [
+            AgentMessage(role: .system,
+                         text: "AI 助手就绪。可以点左侧技能按钮，或输入「登录」「排球」等指令。",
+                         time: Date(), source: .ai),
+            AgentMessage(role: .user, text: "帮我登录游戏", time: Date(), source: .human),
+            AgentMessage(role: .system, text: "🤖 指令命中技能「自动登录」", time: Date(), source: .ai),
+            AgentMessage(role: .assistant,
+                         text: "✅ 登录成功：已点击「点击进入」。守护模式已停止。",
+                         time: Date(), source: .ai),
+        ]
+        center.runningSkills = ["volleyball"]
+
+        // 渲染整个面板（含底部状态条）：348 宽 × 固定高
+        let panel = AIAgentPanelView(center: center)
+            .frame(width: 348, height: 880)
+            .background(Theme.bgPure)
+            .preferredColorScheme(.dark)
+
+        let renderer = ImageRenderer(content: panel)
+        renderer.scale = 2.0   // @2x，验证 Retina 布局
+        guard let image = renderer.nsImage else {
+            print("[UI-SHOT] ImageRenderer 渲染失败")
+            return false
+        }
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else {
+            print("[UI-SHOT] 转 PNG 失败")
+            return false
+        }
+        do {
+            try png.write(to: URL(fileURLWithPath: path))
+            print("[UI-SHOT] 已渲染 \(Int(image.size.width))x\(Int(image.size.height))")
+            return true
+        } catch {
+            print("[UI-SHOT] 写文件失败 \(error)")
+            return false
+        }
+    }
+}
