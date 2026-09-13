@@ -58,3 +58,8 @@ tools/ppocrv6_finetune/output/
 
 # 量化回滚备份（本地保留，69MB 不入库）
 models/_backup_fp16/
+
+# ===== 大模型权重（>50MB，不入库）=====
+tools/ppocrv6_finetune/output/**/*.pdopt
+tools/ppocrv6_finetune/pretrained/*.pdparams
+
