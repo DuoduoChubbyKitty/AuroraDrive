@@ -199,25 +199,31 @@ final class AgentSkillCenter: @unchecked Sendable {
     // MARK: - 技能执行（真实动作）
 
     private func execute(_ skill: AgentSkill, source: AgentInvokeSource) {
+        // 捕获启动瞬间的 dryRun 状态：异步队列执行时自测标记可能已被外部重置，
+        // 必须用启动时的快照决定是否真发输入，保证自测语义确定。
+        let dryRun = isDryRun
         switch skill.id {
         case "auto_login":
-            performAutoLogin(skill: skill, source: source)
+            performAutoLogin(skill: skill, source: source, dryRun: dryRun)
         case "volleyball":
-            startVolleyballLoop(skill: skill, source: source)
+            startVolleyballLoop(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
         }
     }
 
-    /// 自动登录（全真实链路）
-    private func performAutoLogin(skill: AgentSkill, source: AgentInvokeSource) {
+    /// 自动登录（全真实链路 + 守护模式）
+    /// 点一次 → 立即尝试；若游戏还没启动到登录界面，进入守护模式：
+    /// 每 8 秒重新截图检测一次，直到成功进入游戏或 80 秒超时自动停止。
+    /// 用户想中断可再点一次技能按钮（停止）。
+    private func performAutoLogin(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
         guard let mouse = makeMouse() else {
             appendSystem("❌ 辅助功能权限未授权，无法注入鼠标")
             runningSkills.remove(skill.id)
             return
         }
-        guard !isDryRun else {
+        guard !dryRun else {
             // 自测模式：只定位不点击
             let hit = loginAssistant.dryRunLocate(capture: capture)
             appendSystem(hit != nil
@@ -231,24 +237,81 @@ final class AgentSkillCenter: @unchecked Sendable {
             self?.appendSystem(msg)
             self?.dlog("[Login] \(msg)")
         }
-        let result = loginAssistant.runAutoLogin(capture: capture, mouse: mouse, logger: logger)
 
+        // 第一轮：立即尝试（完整 3 轮关键词）
+        let result = loginAssistant.runAutoLogin(capture: capture, mouse: mouse, logger: logger)
         switch result {
         case .success(let text):
             appendSystem("✅ 登录成功：已点击「\(text)」")
-        case .noMatchingText:
-            appendSystem("ℹ️ 屏幕没有登录按钮，可能已进入游戏")
-        case .clickedButStillStuck:
-            appendSystem("❌ 多轮点击后仍在登录界面，请人工确认")
+            runningSkills.remove(skill.id)
+            return
         case .noFrame:
             appendSystem("❌ 拿不到截屏帧（截屏权限未授权？）")
+            runningSkills.remove(skill.id)
+            return
+        case .noMatchingText, .clickedButStillStuck:
+            // 没按钮（游戏还在启动）或点不动 → 进入守护模式
+            startLoginWatch(mouse: mouse, logger: logger, source: source)
         }
-        runningSkills.remove(skill.id)
+    }
+
+    /// 登录守护定时器（80 秒上限）
+    @ObservationIgnored private var loginWatchTimer: DispatchSourceTimer?
+    @ObservationIgnored private var loginWatchAttempts = 0
+    private static let loginWatchMaxAttempts = 10   // 10 × 8s = 80s
+
+    /// 守护模式：每 8s 检测登录界面并点击，直到成功或超时
+    private func startLoginWatch(mouse: MouseController,
+                                 logger: @escaping (String) -> Void,
+                                 source: AgentInvokeSource) {
+        guard loginWatchTimer == nil else { return }
+        loginWatchAttempts = 0
+        logger("🔍 登录守护启动：每 8 秒检测登录界面（最多 \(Self.loginWatchMaxAttempts) 次，再次点击技能可停止）")
+
+        let timer = DispatchSource.makeTimerSource(queue: workQueue)
+        timer.schedule(deadline: .now() + 8.0, repeating: 8.0)
+        timer.setEventHandler { [weak self] in
+            guard let self,
+                  self.runningSkills.contains("auto_login"),
+                  self.loginWatchTimer != nil else { return }
+            self.loginWatchAttempts += 1
+
+            // 超时停止：80 秒都没等到登录界面
+            if self.loginWatchAttempts > Self.loginWatchMaxAttempts {
+                logger("⏹️ 守护 80 秒未发现登录界面，自动停止（可能已在游戏内或游戏未启动）")
+                self.runningSkills.remove("auto_login")
+                self.loginWatchTimer?.cancel()
+                self.loginWatchTimer = nil
+                return
+            }
+
+            // 每轮只认主按钮（maxRounds 1），避免反复狂点
+            let r = self.loginAssistant.runAutoLogin(capture: self.capture,
+                                                     mouse: mouse,
+                                                     logger: logger,
+                                                     maxRounds: 1)
+            switch r {
+            case .success(let text):
+                logger("✅ 守护点击成功：已进入游戏（「\(text)」）")
+                self.runningSkills.remove("auto_login")
+                self.loginWatchTimer?.cancel()
+                self.loginWatchTimer = nil
+            case .noFrame:
+                logger("❌ 守护中断：截屏不可用")
+                self.runningSkills.remove("auto_login")
+                self.loginWatchTimer?.cancel()
+                self.loginWatchTimer = nil
+            case .noMatchingText, .clickedButStillStuck:
+                logger("🔍 第 \(self.loginWatchAttempts) 次检测：仍在等待登录界面…")
+            }
+        }
+        timer.resume()
+        loginWatchTimer = timer
     }
 
     /// 自动排球（真实 K 键循环，MaaNTE auto_volleyball 核心循环直移植）
-    private func startVolleyballLoop(skill: AgentSkill, source: AgentInvokeSource) {
-        guard !isDryRun else {
+    private func startVolleyballLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard !dryRun else {
             appendSystem("✅ 自测：排球循环（K 键 0.6s）链路就绪")
             runningSkills.remove(skill.id)
             return
@@ -294,6 +357,10 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "volleyball":
             volleyballTimer?.cancel()
             volleyballTimer = nil
+        case "auto_login":
+            loginWatchTimer?.cancel()
+            loginWatchTimer = nil
+            loginWatchAttempts = 0
         default:
             break
         }
