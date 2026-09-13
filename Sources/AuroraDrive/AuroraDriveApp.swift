@@ -779,6 +779,9 @@ final class DriveState {
     var daemonInstallMessage = ""  // 安装结果消息
     var daemonInstalling = false  // 正在安装中
     var isDaemonMode = false  // 当前是否为 daemon 模式运行
+
+    /// AI Agent 模式：开启后显示更多游戏键位，支持模型直接操作
+    var agentMode = false
     
     var networkLocateX: Double = 0
     var networkLocateY: Double = 0
@@ -2867,7 +2870,7 @@ struct GameViewportView: View {
             // 观察控制引擎的按键状态，实时高亮
             VStack {
                 Spacer()
-                KeyboardBar(state: state)
+                KeyboardBar(state: state, agentMode: state.agentMode)
                     .padding(.bottom, 8)
             }
             }
