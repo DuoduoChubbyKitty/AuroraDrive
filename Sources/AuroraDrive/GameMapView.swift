@@ -199,8 +199,9 @@ struct GameMapView: View {
     // ⚠️ 原 yihuan_map_z5.png 为游戏地图，道路拼接错乱，已弃用
     // 主底图改用 IMG_1366 截图，经 PIL Lanczos 4x 超分（8636×8592，文字平滑抗锯齿、不被改写）
     // ⚠️ 旧底图 enhanced_1366.png 已废弃（一张无内容的超分截图，缓兵之计），由用户手动删除。
-    // 新底图改用 MaaNTE 官方大世界地图 bigworldmapSecond.png（11264×11264 高清路网，与现地图同版）。
-    private let mapImagePath = "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmapSecond.png"
+    // 新底图改用 MaaNTE-Map map-2026-08 扩图版 bigworldmap-13056.jpg
+    // （13056×13056，2026-09-13 自 Maa-NTE/MapSource 51×51 瓦片拼合，含全部新区域）。
+    private let mapImagePath = "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmap-13056.jpg"
     private let altMapImagePath = "/Users/dupi/Desktop/自动驾驶系统/models/yihuan_map_z4.png"
     private let dataPath = "/Users/dupi/Desktop/自动驾驶系统/models/FINAL_complete_map_database.json"
 

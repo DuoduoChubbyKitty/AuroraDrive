@@ -804,7 +804,9 @@ final class DriveState {
         let execPath = CommandLine.arguments[0]
         let execDir = (execPath as NSString).deletingLastPathComponent
         let candidates = [
+            "\(execDir)/models/bigworldmap-13056.jpg",
             "\(execDir)/models/bigworldmapSecond.png",
+            "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmap-13056.jpg",
             "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmapSecond.png",
         ]
         for path in candidates {
@@ -2159,8 +2161,8 @@ struct FloatingMinimap: View {
 
     private static let size = MinimapTileCache.minimapPx   // 200
 
-    /// 网络定位是否有效。networkLocateX/Y 是 11264 像素坐标（参考坐标系，非百分比），
-    /// 故有效区间为 (0, 11264)。
+    /// 网络定位是否有效。networkLocateX/Y 是 13056 像素坐标（map-2026-08 参考坐标系，
+    /// 非百分比），故有效区间为 (0, 13056)。
     private var hasValidLocate: Bool {
         state.networkLocateScore > 0.3
             && state.networkLocateX > 0 && state.networkLocateY > 0

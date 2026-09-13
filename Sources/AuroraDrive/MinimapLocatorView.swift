@@ -8,7 +8,8 @@ import ImageIO
 struct MinimapLocatorView: View {
     @Bindable var state: DriveState
 
-    static let mapSide: Double = 11264
+    /// 2026-09-13 升级：MaaNTE-Map map-2026-08 扩图版底图（11264 → 13056）。
+    static let mapSide: Double = 13056
     static let blocksPerEdge = 8
     static let blockSide: Double = mapSide / Double(blocksPerEdge)
 
@@ -145,7 +146,9 @@ struct MinimapLocatorView: View {
     private static func loadDisplayMap() -> CGImage? {
         let path: String = {
             let candidates = [
+                "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmap-13056.jpg",
                 "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmapSecond.png",
+                "\(FileManager.default.currentDirectoryPath)/models/bigworldmap-13056.jpg",
                 "\(FileManager.default.currentDirectoryPath)/models/bigworldmapSecond.png",
             ]
             for p in candidates { if FileManager.default.fileExists(atPath: p) { return p } }

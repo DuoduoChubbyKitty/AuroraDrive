@@ -69,10 +69,16 @@ private let kMaxLocationAbs: Double = 2_000_000.0
 private let kMaxRotationAbs: Double = 180.001
 
 // 坐标变换常量（与NetworkLocator.swift同步）
+// 底图坐标系: map-2026-08（MaaNTE-Map 13056×13056 扩图版，2026-09-13 升级，
+// 新增区域：旧图左侧+1、顶部+7、右侧+6 瓦片，51×51@512px）。
+// 旧帧 map-2026-06 (11264): A/B 相同, TX=6293.474380746091, TY=3472.664390686138。
+// 扩图相对旧图整体平移 (+233, +1738)——MaaNTE-Map navi-coordinate-calibration.json
+// 三个标定点 delta 完全一致，README 同值——故 TX/TY 直接加偏移，A/B 不变。
+// 标定点验证: raw(-134394.56, 199913.53) → map(4323, 8488) ✓
 private let kCalibA: Double = 0.016394586684750773
 private let kCalibB: Double = 5.693519256055879e-08
-private let kCalibTX: Double = 6293.474380746091
-private let kCalibTY: Double = 3472.664390686138
+private let kCalibTX: Double = 6526.474380746091
+private let kCalibTY: Double = 5210.664390686138
 
 // MARK: - 类型
 

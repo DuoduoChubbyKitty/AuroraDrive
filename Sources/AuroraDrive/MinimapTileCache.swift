@@ -5,15 +5,15 @@
 // MinimapTileCache.swift — 左上角小地图瓦片缓存
 //
 // 坐标语义移植自参考项目 MaaNTE/agent/custom/action/Navi/coordinate_position.py：
-//   COORDINATE_MAP_SIZE = (11264, 11264)，底图 bigworldmapSecond.png 即此尺寸。
-//   NetworkPacketCapture 抓包解码后经标定变换输出的 point.x/y ∈ [0, 11264) 像素。
+//   2026-09-13 起底图升级为 MaaNTE-Map map-2026-08 扩图版（13056×13056，
+//   bigworldmap-13056.jpg），抓包解码后经标定变换输出的 point.x/y ∈ [0, 13056) 像素。
 //
-// 本类把 11264×11264 底图预切成 8×8=64 块（每块 1408×1408），并各自缩到
+// 本类把 13056×13056 底图预切成 8×8=64 块（每块 1632×1632），并各自缩到
 // minimapPx×minimapPx 缓存。小地图只显示角色当前所在瓦片（局部放大视图，
 // 与参考 MapLocator.MINI_MAP_ROI 的"局部小地图"语义一致），瓦片切换 = 数组索引 O(1)。
 //
 // 切图在后台 utility 队列一次性完成；主线程（30Hz tick / SwiftUI body）只读缓存，
-// 绝不重复解码大图——11264 PNG 解码百毫秒级，放热路径必卡顿。
+// 绝不重复解码大图——13056 大图解码数百毫秒级，放热路径必卡顿。
 // ============================================================================
 
 import AppKit
@@ -24,10 +24,11 @@ final class MinimapTileCache: ObservableObject {
     // MARK: 常量（来源：参考项目坐标系 + 用户需求）
 
     /// 参考项目 COORDINATE_MAP_SIZE：游戏世界→地图像素的变换目标尺寸。
-    static let mapPixelSize: Int = 11264
+    /// 2026-09-13 升级为 MaaNTE-Map map-2026-08 扩图版（11264 → 13056）。
+    static let mapPixelSize: Int = 13056
     /// 用户需求：把地图切成 8×8 = 64 块。
     static let tilesPerSide: Int = 8
-    /// 单瓦片像素尺寸 = 11264 / 8。
+    /// 单瓦片像素尺寸 = 13056 / 8。
     static let tilePixelSize: Int = mapPixelSize / tilesPerSide
     /// 小地图显示边长（pt）。
     static let minimapPx: CGFloat = 200
@@ -94,7 +95,7 @@ final class MinimapTileCache: ObservableObject {
         let t0 = Date()
         guard let url = resolveMapURL() else {
             DispatchQueue.main.async { [weak self] in
-                self?.loadError = "未找到 bigworldmapSecond.png（11264×11264 底图）"
+                self?.loadError = "未找到 bigworldmap-13056.jpg（13056×13056 底图）"
             }
             return
         }
@@ -139,8 +140,11 @@ final class MinimapTileCache: ObservableObject {
     /// 覆盖交付场景：根目录裸可执行文件运行时 cwd 不确定，故多级回退。
     private func resolveMapURL() -> URL? {
         let candidates: [String] = [
+            "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmap-13056.jpg",
+            "/Users/Shared/AuroraDrive/bigworldmap-13056.jpg",
             "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmapSecond.png",
             "/Users/Shared/AuroraDrive/bigworldmapSecond.png",
+            Bundle.main.path(forResource: "bigworldmap-13056", ofType: "jpg") ?? "",
             Bundle.main.path(forResource: "bigworldmapSecond", ofType: "png") ?? "",
             Bundle.main.path(forResource: "map", ofType: "png") ?? "",
         ]
