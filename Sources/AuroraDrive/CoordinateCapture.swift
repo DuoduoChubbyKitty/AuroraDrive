@@ -313,8 +313,11 @@ final class UE5Decoder {
             if locBits < 20 || locBits > 32 { continue }
             if max(abs(location.0), max(abs(location.1), abs(location.2))) > kMaxLocationAbs { continue }
 
-            // 检查旋转有效性（locEnd已含header+3值，只需加7位padding）
-            let rotationOffset = locEnd + 7
+            // ★ 关键修复(20260913): ue5Vector 返回的 locEnd 已经是"位置向量结束后"的位偏移
+            // （= offset + 7位header + 3*width 值位），即 rotation 的起始位。
+            // 旧代码 locEnd + 7 多加 7 位 → rotation 解析错位 → hasValidRotation 永远失败 → 0 候选。
+            // MaaNTE 原版语义: location_end = location_start + 7 + width*3 == ue5Vector 返回的 cursor。
+            let rotationOffset = locEnd
             if !hasValidRotation(payload, offset: rotationOffset) { continue }
 
             output.append(Candidate(clientTime: Double(clientTime), offset: offset, acceleration: accel, location: location))
