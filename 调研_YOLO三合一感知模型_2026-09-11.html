@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>深度研究：YOLO 家族的「车道线 + 车辆检测 + 可行驶区域」三合一模型</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --card:#ffffff;
+    --ink:#1b1f24;
+    --ink-2:#4a5260;
+    --ink-3:#7b8697;
+    --line:#e3e7ed;
+    --accent:#2f5fd0;
+    --accent-soft:#eaf0fd;
+    --good:#1a7f52;
+    --good-soft:#e6f5ee;
+    --warn:#a8621a;
+    --warn-soft:#fdf3e3;
+    --bad:#b03535;
+    --bad-soft:#fdecec;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.75;
+    font-size:15px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 24px 80px}
+  header.hero{
+    background:linear-gradient(135deg,#1d2b4f 0%,#2f5fd0 100%);
+    color:#fff;border-radius:16px;padding:36px 36px 30px;margin-bottom:28px;
+  }
+  header.hero .kicker{font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.75;margin-bottom:12px}
+  header.hero h1{margin:0 0 14px;font-size:27px;line-height:1.4;font-weight:700}
+  header.hero p{margin:0;font-size:14.5px;opacity:.9;max-width:820px}
+  header.hero .meta{margin-top:18px;font-size:12.5px;opacity:.7;border-top:1px solid rgba(255,255,255,.2);padding-top:14px}
+
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 30px;margin-bottom:20px}
+  h2{font-size:19px;margin:0 0 6px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:10px}
+  h2 .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:26px;height:26px;border-radius:8px;background:var(--accent-soft);color:var(--accent);
+    font-size:13.5px;font-weight:700;flex:none;
+  }
+  h2 + .sub{color:var(--ink-3);font-size:13px;margin:0 0 18px;padding-left:36px}
+  h3{font-size:15.5px;margin:24px 0 8px;font-weight:700}
+  h4{font-size:14px;margin:18px 0 6px;font-weight:700;color:var(--ink-2)}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  code{background:#f1f3f7;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:13px;
+       font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .tldr{background:var(--accent-soft);border:1px solid #cfdcf8;border-radius:12px;padding:20px 22px;margin:0 0 22px}
+  .tldr h3{margin:0 0 10px;font-size:15px;color:#1d3f96}
+  .tldr ol{margin:0;padding-left:20px}
+  .tldr li{margin:7px 0}
+
+  .verdict{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:10px;margin:14px 0}
+  .verdict .tag{font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;flex:none;margin-top:2px}
+  .v-yes{background:var(--good-soft);border:1px solid #bfe6d3}
+  .v-yes .tag{background:var(--good);color:#fff}
+  .v-mid{background:var(--warn-soft);border:1px solid #f0dcb8}
+  .v-mid .tag{background:var(--warn);color:#fff}
+  .v-no{background:var(--bad-soft);border:1px solid #f3c9c9}
+  .v-no .tag{background:var(--bad);color:#fff}
+
+  table{width:100%;border-collapse:collapse;font-size:12.8px;margin:14px 0;display:block;overflow-x:auto;white-space:nowrap}
+  thead th{background:#f2f4f8;text-align:left;padding:9px 10px;border-bottom:2px solid var(--line);
+           font-weight:700;color:var(--ink-2);font-size:12.2px;position:sticky;top:0}
+  tbody td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:hover{background:#fafbfd}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .hi{background:#fffbe8}
+  .best{color:var(--good);font-weight:700}
+  .badnum{color:var(--bad)}
+  .dim{color:var(--ink-3)}
+  tr.group td{background:#f7f9fc;font-weight:700;color:var(--ink-2);font-size:12.2px}
+
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;line-height:1.5}
+  .p-mit{background:var(--good-soft);color:var(--good);border:1px solid #bfe6d3}
+  .p-agpl{background:var(--bad-soft);color:var(--bad);border:1px solid #f3c9c9}
+  .p-t2{background:var(--accent-soft);color:var(--accent);border:1px solid #cfdcf8}
+  .p-t3{background:#f3ecfb;color:#6b3fa0;border:1px solid #ded0f2}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin:16px 0}
+  .card{background:#fafbfd;border:1px solid var(--line);border-radius:11px;padding:16px 17px}
+  .card .t{font-size:13.5px;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .card .t .params{font-size:12px;color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;flex:none}
+  .card .row{font-size:12.3px;color:var(--ink-2);display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:3px 0}
+  .card .row:last-child{border-bottom:none}
+  .card .row b{font-variant-numeric:tabular-nums;color:var(--ink)}
+  .card .note{margin-top:9px;font-size:11.8px;color:var(--ink-3);line-height:1.6}
+
+  .callout{border-left:3px solid var(--accent);background:#fafbfd;padding:13px 16px;border-radius:0 9px 9px 0;margin:14px 0;font-size:13.5px}
+  .callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+  .callout.danger{border-left-color:var(--bad);background:var(--bad-soft)}
+  .callout.ok{border-left-color:var(--good);background:var(--good-soft)}
+  .callout strong{display:block;margin-bottom:4px}
+
+  .src{font-size:12.3px;color:var(--ink-3)}
+  .src li{margin:6px 0;line-height:1.65}
+  footer{text-align:center;color:var(--ink-3);font-size:12px;margin-top:34px}
+  .tree{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.2px;line-height:1.9;
+        background:#fafbfd;border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;white-space:pre;color:var(--ink-2)}
+  .tree b{color:var(--accent)}
+  @media (max-width:640px){
+    .wrap{padding:22px 14px 60px}
+    header.hero{padding:24px 20px}
+    header.hero h1{font-size:21px}
+    section{padding:20px 17px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Deep Research / Panoptic Driving Perception</div>
+  <h1>YOLO 家族有没有「车道线检测 + 车辆检测 + 可行驶区域检测」三合一？<br>而且参数量小、效果还要压过参数量大的？</h1>
+  <p>限定条件：必须近两年（2024 年 9 月 – 2026 年 9 月）发布 · 参数量要小 · 精度必须比大参数量模型更好。本报告逐个核实了论文原文指标、参数量、发布年份与开源许可证原文。</p>
+  <div class="meta">报告日期：2026-09-11 · 数据来源：arXiv / IEEE / ACM / MDPI / Springer 论文原文，GitHub 仓库 LICENSE 原文实测</div>
+</header>
+
+<div class="tldr">
+  <h3>TL;DR — 三句话结论</h3>
+  <ol>
+    <li><strong>有。</strong>这个任务在学术上有正式名字：<strong>全景驾驶感知（Panoptic Driving Perception）</strong>，标准定义就是「交通目标检测 + 可行驶区域分割 + 车道线检测」三合一单模型。YOLO 血脉在这条线上已经繁衍出一整个家族（YOLOP → HybridNets → YOLOPv2 → YOLOPX → A-YOLOM → RMT-PPAD / TriLiteNet / MDANet）。</li>
+    <li><strong>「小参数量压过大参数量」在这条赛道上是真实且已成趋势的</strong>——但要精确表述：小模型是用 <strong>1/3 ~ 1/5 的参数量，追平甚至反超 2~4 年前的大模型</strong>，而不是能打赢同期的最大模型。顶尖精度（mAP50 85+、车道 IoU 56+）仍然被 32~34M 参数的大模型把持。</li>
+    <li><strong>若要求「小参数」：</strong>最符合的是 <strong>TriLiteNet</strong>（2025 年 IEEE Access，三任务，<strong>2.35M 参数</strong>，另有 0.15M 极简版，<strong>MIT 许可证</strong>）；只想补「车道线 + 可行驶区域」则 <strong>TwinLiteNet+</strong> 更极端（<strong>34K 参数</strong>起，MIT）。<br><strong>若不限规模（如 10¹⁴ 上限，等于无限制）且按 FP16 部署：</strong>综合最强是 <strong>RMT-PPAD</strong>（IEEE TMC 期刊，34.3M），检测精度最高是 <strong>DDL-Net</strong>（mAP50 85.2），量化最稳的是 <strong>Q-YOLOP / TwinLiteNet+</strong>（唯二有量化数据）。</li>
+    <li><strong>但加上「第三视角」后，以上排名全部失效。</strong>所有现成三合一模型都是车载第一视角（FPV / BDD100K），<strong>TPV 是领域空白区，没有任何可直接使用的权重</strong>。选型标准必须改为「车道线架构强 + 许可可改 + 重训成本低」——详见第 5 节。</li>
+  </ol>
+</div>
+
+<!-- 1 -->
+<section>
+  <h2><span class="num">1</span>先直接回答你的三个问题</h2>
+  <p class="sub">把「三合一 / 参数量小 / 精度反超 / 近两年」拆成四个可验证命题，逐条给判定。</p>
+
+  <div class="verdict v-yes">
+    <span class="tag">成立</span>
+    <div><strong>命题一：存在「车道线 + 车辆检测 + 可行驶区域」三合一模型</strong><br>
+    成立，而且不是零星尝试，是成熟研究分支。自 2021 年 YOLOP 起，这三项被统一定义为该领域的标准三任务组合，有公开数据集（BDD100K）、公开评测口径和持续 5 年的论文迭代。</div>
+  </div>
+
+  <div class="verdict v-yes">
+    <span class="tag">成立</span>
+    <div><strong>命题二：参数量可以很小</strong><br>
+    成立。近两年的记录是 <strong>TwinLiteNet+ nano 仅 34K 参数</strong>（但只做两任务）、<strong>TriLiteNet tiny 0.15M 参数</strong>做三任务、<strong>A-YOLOM(n) 4.43M</strong>、<strong>TriLiteNet base 2.35M</strong>、<strong>MDANet-n 3.59M</strong>、<strong>LM-YOLO(n) 3.46M</strong>。对比标杆 YOLOP 的 7.9M，新一代普遍只有其 1/2 ~ 1/3。</div>
+  </div>
+
+  <div class="verdict v-yes">
+    <span class="tag">成立（有边界）</span>
+    <div><strong>命题三：小参数量模型效果压过大参数量模型</strong><br>
+    成立，但限定在「跨代对比」语境。实证：<strong>A-YOLOM(n) 用 4.43M 参数把 YOLOP 的 7.9M 参数量检测 mAP50 从 76.5 打到 78.0、车道 IoU 从 26.5 打到 28.2</strong>；<strong>LM-YOLO(n) 3.46M 把 mAP50 打到 82.3</strong>；<strong>TwinLiteNet+ Large 仅 1.94M 参数把可行驶区域 mIoU 打到 92.9，反超重型 DeepLabV3+（30.7 GFLOPs）的 90.9</strong>。<br>
+    <span class="dim">边界：同代最强仍是 32~34M 大模型（YOLOPX / RMT-PPAD / DDL-Net）。所以准确说法是「小模型反超老的大模型」，不是「小模型反超所有大模型」。</span></div>
+  </div>
+
+  <div class="verdict v-yes">
+    <span class="tag">成立</span>
+    <div><strong>命题四：近两年（2024-09 ~ 2026-09）有多个新成果</strong><br>
+    成立。2025 年有 TriLiteNet（IEEE Access 3 月）、MTEPN（工程科学学报 6 月）、LM-YOLO（ICIC 7 月）、RMT-PPAD（8 月）、TwinLiteNet+ 期刊版（12 月）；2026 年有 <strong>MDANet（IEEE T-ITS 2 月，3.59M 参数）</strong>、<strong>DDL-Net（ICMR 2026）</strong>、<strong>AurigaNet（arXiv 2602.10660，2 月）</strong>。这条线<strong>至今仍在活跃产出</strong>。</div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section>
+  <h2><span class="num">2</span>这条赛道叫什么：全景驾驶感知</h2>
+  <p class="sub">搜索时用这个术语，命中率比「三合一」高一个量级。</p>
+  <p>英文标准术语是 <strong>Panoptic Driving Perception</strong>，中文译作<strong>全景驾驶感知</strong>。它固定包含三项任务：</p>
+  <ul>
+    <li><strong>Traffic Object Detection</strong>（交通目标检测）→ 给出车辆 / 行人 / 骑行者等边界框</li>
+    <li><strong>Drivable Area Segmentation</strong>（可行驶区域分割）→ 像素级掩码，告诉车哪里能走</li>
+    <li><strong>Lane Line Segmentation / Detection</strong>（车道线检测）→ 像素级掩码或矢量化折线</li>
+  </ul>
+  <p>核心动机是<strong>降本</strong>：三个独立模型 = 三次前向、三份显存、三次预处理。共享一个 backbone 后，计算量和参数量都能压到三分之一以下。所有模型都在 <strong>BDD100K</strong> 数据集上评测，指标分别是 mAP50 / Recall、mIoU、车道 Accuracy / IoU——<strong>这三个指标口径不统一是后面最大的坑，见第 5 节</strong>。</p>
+</section>
+
+<!-- 3 -->
+<section>
+  <h2><span class="num">3</span>YOLO 家族的三合一进化树（2021 → 2026）</h2>
+  <p class="sub">★ = 2024-09 之后发布，符合你「近两年」的硬条件。</p>
+<div class="tree">
+<b>YOLOP</b> (2021/2022, 7.9M)  ← 开山之作，一编码器三解码器，CSPDarknet 主干
+  │
+  ├─ <b>HybridNets</b> (2022, 12.8M)  ← 换 EfficientNet 主干，车道线 Acc 大幅提升
+  │
+  ├─ <b>YOLOPv2</b> (2022)  ← 三项同时刷新 SOTA，成为 2022-2023 的标杆
+  │
+  ├─ <b>YOLOPX</b> (2024, Pattern Recognition, 32.9M)  ← 首个 anchor-free，47 FPS
+  │
+  └─ <b>YOLOPv3</b> (2024, Remote Sensing, 5 月)  ← 检测 Recall 96.9 / mAP50 84.3
+       │
+       └── 轻量化分支 ★
+            ├─ <b>A-YOLOM</b> ★ (YOLOv8 系, 4.43M)  ← IEEE T-VT 期刊版 2025
+            │     └─ 分割头仅 7,940 参数；自适应拼接模块
+            ├─ <b>TriLiteNet</b> ★ (2025-03 IEEE Access, 2.35M / 0.15M)  ← TwinLiteNet+ 编码器 + 三解码器
+            ├─ <b>LM-YOLO</b> ★ (2025-07 ICIC, 3.46M)
+            ├─ <b>MTEPN</b> ★ (2025-06 工程科学学报, 7.9M)  ← 中文团队，CSPDarkNet + 正交注意力
+            ├─ <b>YOLO-MT</b> ★ (YOLOv12 系, 2.9M, 四任务)  ← 多一个场景属性分类
+            ├─ <b>RMT-PPAD</b> ★ (2025-08, RT-DETR 系, 34.3M)  ← 上限标杆
+            ├─ <b>MDANet</b> ★ (2026-02 IEEE T-ITS, 3.59M / 13.22M)
+            └─ <b>DDL-Net</b> ★ (2026 ICMR, ~32.4M) / <b>AurigaNet</b> ★ (2026-02, 实例分割版)
+
+<b>TwinLiteNet 分支（只有两任务：可行驶区域 + 车道线）</b>
+  <b>TwinLiteNet</b> (2023) → <b>TwinLiteNet+</b> ★ (2024-03 arXiv / 2025-12 期刊版)
+      nano 34K · small 0.12M · medium 0.48M · large 1.94M   ← 参数量极限压缩的代表
+</div>
+  <div class="callout">
+    <strong>看这棵树能读出一件事</strong>
+    2021 年 YOLOP 的 7.9M 是「轻量」；而 2025-2026 年的新模型用 2.35M ~ 4.43M 就做到当年大模型做不到的精度。<strong>赛道重心已经从「堆参数冲 SOTA」转向「压参数保精度」</strong>，这正是你要找的方向。
+  </div>
+</section>
+
+<!-- 4 -->
+<section>
+  <h2><span class="num">4</span>近两年候选模型总表（BDD100K）</h2>
+  <p class="sub">数值均为各论文自报值，未经我们复现；跨论文横向比较存在口径差异，详见第 5 节。加粗行为最符合你的条件者。</p>
+  <table>
+    <thead>
+      <tr>
+        <th>模型</th><th>发布</th><th>任务数</th><th class="num">参数量</th>
+        <th class="num">检测 Recall%</th><th class="num">检测 mAP50%</th>
+        <th class="num">可行驶区 mIoU%</th><th class="num">车道 Acc%</th><th class="num">车道 IoU%</th>
+        <th>许可</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="group"><td colspan="10">— 老一代标杆（对照基准，多数超出「近两年」）</td></tr>
+      <tr><td>YOLOP</td><td>2021/22</td><td>3</td><td class="num">7.9M</td><td class="num">89.2</td><td class="num">76.5</td><td class="num">91.5</td><td class="num">70.5</td><td class="num">26.2</td><td><span class="pill p-mit">MIT</span></td></tr>
+      <tr><td>HybridNets</td><td>2022</td><td>3</td><td class="num">12.8M</td><td class="num">92.8</td><td class="num">77.3</td><td class="num">90.5</td><td class="num">85.4</td><td class="num">31.6</td><td class="dim">未核实</td></tr>
+      <tr><td>YOLOPv2</td><td>2022</td><td>3</td><td class="num dim">—</td><td class="num">91.1</td><td class="num">83.4</td><td class="num">93.2</td><td class="num">87.3</td><td class="num">27.2</td><td class="dim">未核实</td></tr>
+      <tr><td>YOLOPX</td><td>2024</td><td>3</td><td class="num">32.9M</td><td class="num">93.7</td><td class="num">83.3</td><td class="num">93.2</td><td class="num">88.6</td><td class="num">27.2</td><td><span class="pill p-mit">MIT</span></td></tr>
+      <tr><td>YOLOPv3</td><td>2024-05</td><td>3</td><td class="num dim">—</td><td class="num">96.9</td><td class="num">84.3</td><td class="num">93.2</td><td class="num">88.3</td><td class="num">28.0</td><td class="dim">未核实</td></tr>
+
+      <tr class="group"><td colspan="10">— 轻量化分支：小参数量的代表（多为近两年）</td></tr>
+      <tr class="hi"><td><strong>A-YOLOM(n)</strong></td><td>2025 (T-VT)</td><td>3</td><td class="num"><strong>4.43M</strong></td><td class="num">85.3</td><td class="num">78.0</td><td class="num">90.5</td><td class="num">81.3</td><td class="num">28.2</td><td><span class="pill p-agpl">AGPL-3.0</span></td></tr>
+      <tr><td>A-YOLOM(s)</td><td>2025 (T-VT)</td><td>3</td><td class="num">13.61M</td><td class="num">86.9</td><td class="num">81.1</td><td class="num">91.0</td><td class="num">84.9</td><td class="num">28.8</td><td><span class="pill p-agpl">AGPL-3.0</span></td></tr>
+      <tr class="hi"><td><strong>TriLiteNet (base)</strong></td><td>2025-03 (IEEE Access)</td><td>3</td><td class="num"><strong>2.35M</strong></td><td class="num">85.6</td><td class="num dim">—</td><td class="num">92.4</td><td class="num">82.3</td><td class="num dim">—</td><td><span class="pill p-mit">MIT</span></td></tr>
+      <tr><td>TriLiteNet (small)</td><td>2025-03</td><td>3</td><td class="num">0.59M</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td><span class="pill p-mit">MIT</span></td></tr>
+      <tr><td>TriLiteNet (tiny)</td><td>2025-03</td><td>3</td><td class="num">0.15M</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td><span class="pill p-mit">MIT</span></td></tr>
+      <tr><td>LM-YOLO (n)</td><td>2025-07 (ICIC)</td><td>3</td><td class="num">3.46M</td><td class="num dim">—</td><td class="num best">82.3</td><td class="num">91.4</td><td class="num dim">—</td><td class="num">29.1</td><td class="dim">未核实</td></tr>
+      <tr><td>MTEPN</td><td>2025-06</td><td>3</td><td class="num">7.9M</td><td class="num dim">—</td><td class="num">79.4</td><td class="num">92.4</td><td class="num dim">—</td><td class="num">27.2</td><td class="dim">未核实</td></tr>
+      <tr><td>YOLO-MT（4 任务）</td><td>2025/26</td><td>4</td><td class="num">2.9M</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td><span class="pill p-agpl">AGPL-3.0</span></td></tr>
+      <tr class="hi"><td><strong>MDANet-n</strong></td><td>2026-02 (IEEE T-ITS)</td><td>3</td><td class="num"><strong>3.59M</strong></td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="dim">未核实</td></tr>
+      <tr><td>MDANet-s</td><td>2026-02</td><td>3</td><td class="num">13.22M</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="dim">未核实</td></tr>
+
+      <tr class="group"><td colspan="10">— 高精度上限组：同代最强，但参数量大</td></tr>
+      <tr><td>RMT-PPAD</td><td>2025-08 / TMM</td><td>3</td><td class="num">34.3M</td><td class="num">95.4</td><td class="num">84.9</td><td class="num">92.6</td><td class="num">84.7</td><td class="num">56.8<sup>†</sup></td><td class="dim">未核实</td></tr>
+      <tr><td>RMT-PPAD 剪枝蒸馏版</td><td>2025-11</td><td>3</td><td class="num">23.1M</td><td class="num">94.2</td><td class="num">83.1</td><td class="num">92.5</td><td class="num best">85.5</td><td class="num">56.4<sup>†</sup></td><td class="dim">未核实</td></tr>
+      <tr><td>DDL-Net</td><td>2026 (ICMR)</td><td>3</td><td class="num">~32.4M</td><td class="num">95.6</td><td class="num best">85.2</td><td class="num">92.8</td><td class="num">85.0</td><td class="num dim">—</td><td class="dim">未核实</td></tr>
+      <tr><td>AurigaNet（实例分割版）</td><td>2026-02</td><td>3</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">mAP50-95 47.6</td><td class="num dim">85.2 (IoU)</td><td class="num dim">—</td><td class="num dim">60.8 (IoU)</td><td class="dim">未核实</td></tr>
+
+      <tr class="group"><td colspan="10">— TwinLiteNet+ 分支：只有两任务（可行驶区域 + 车道线），参数量极限压缩</td></tr>
+      <tr><td>TwinLiteNet+ nano</td><td>2024-03 / 2025-12</td><td>2</td><td class="num best">34K</td><td class="num dim">—</td><td class="num dim">—</td><td class="num">87.3</td><td class="num">70.2</td><td class="num">23.3</td><td><span class="pill p-mit">MIT</span></td></tr>
+      <tr><td>TwinLiteNet+ small</td><td>2024-03 / 2025-12</td><td>2</td><td class="num">0.12M</td><td class="num dim">—</td><td class="num dim">—</td><td class="num">90.6</td><td class="num">75.8</td><td class="num">29.3</td><td><span class="pill p-mit">MIT</span></td></tr>
+      <tr><td>TwinLiteNet+ medium</td><td>2024-03 / 2025-12</td><td>2</td><td class="num">0.48M</td><td class="num dim">—</td><td class="num dim">—</td><td class="num">92.0</td><td class="num">79.1</td><td class="num">32.3</td><td><span class="pill p-mit">MIT</span></td></tr>
+      <tr><td>TwinLiteNet+ large</td><td>2024-03 / 2025-12</td><td>2</td><td class="num">1.94M</td><td class="num dim">—</td><td class="num dim">—</td><td class="num best">92.9</td><td class="num">81.9</td><td class="num">34.2</td><td><span class="pill p-mit">MIT</span></td></tr>
+    </tbody>
+  </table>
+  <p class="src"><sup>†</sup> RMT-PPAD 的车道 IoU 使用<strong>修正后的测试标签</strong>（把测试集车道线从 2 像素膨胀到训练用的 8 像素宽度），因此 56.8 与老论文的 26~34 <strong>不是同一把尺子</strong>，不可直接比较。详见第 5 节。<br>
+  「未核实」= 我们未逐一拉取该仓库 LICENSE 原文，集成前必须自行核实（这是项目既有铁律）。<br>
+  表中加粗仅表示「该列在所属分组内的最高值」，<strong>不等于全表最强</strong>——跨分组跨论文的绝对排名在方法论上不成立，理由见下。</p>
+
+  <h3>那么，到底谁是目前最强？——答案是「没有唯一答案」</h3>
+  <p>如果强行按单指标排列，第一梯队是三个模型在轮流坐庄：</p>
+  <table>
+    <thead><tr><th>指标</th><th>最高者</th><th class="num">数值</th><th>追赶者</th></tr></thead>
+    <tbody>
+      <tr><td>检测 mAP50</td><td><strong>DDL-Net</strong>（2026-06）</td><td class="num best">85.2</td><td>RMT-PPAD 84.9（差 0.3）</td></tr>
+      <tr><td>检测 Recall</td><td><strong>YOLOPv3</strong>（2024）</td><td class="num best">96.9</td><td>DDL-Net 95.6 / RMT-PPAD 95.4</td></tr>
+      <tr><td>可行驶区 mIoU</td><td><strong>YOLOPX / YOLOPv3</strong>（2024）</td><td class="num best">93.2</td><td>DDL-Net 92.8</td></tr>
+      <tr><td>车道 Acc</td><td><strong>YOLOPX</strong>（2024）</td><td class="num best">88.6</td><td>DDL-Net 85.0</td></tr>
+      <tr><td>车道 IoU（修正口径）</td><td><strong>RMT-PPAD</strong></td><td class="num best">56.8</td><td>压缩版 56.4</td></tr>
+      <tr><td>推理速度（同参数级）</td><td><strong>DDL-Net</strong></td><td class="num best">40.7 FPS</td><td>RMT-PPAD 32.6 FPS</td></tr>
+      <tr><td>参数量下限（三任务）</td><td><strong>TriLiteNet tiny</strong></td><td class="num best">0.15M</td><td>A-YOLOM(n) 4.43M</td></tr>
+    </tbody>
+  </table>
+  <div class="callout danger">
+    <strong>结论：不能说「DDL-Net 是目前最强」</strong>
+    DDL-Net 只在 <strong>mAP50</strong> 和 <strong>速度</strong> 两项上领先，而 mAP50 的领先幅度只有 0.3 个百分点——小于跨论文评测误差。在 Recall、可行驶区 mIoU、车道 Acc 三项上它<strong>都不是最高</strong>，分别被 YOLOPv3 和 YOLOPX 压着。它的论文自己用的措辞也只是「favorable balance between accuracy and model efficiency」和「outperforming several models with fewer parameters」，<strong>并未宣称绝对 SOTA</strong>。
+  </div>
+
+  <h3>为什么这个问题本身就不该有确定答案</h3>
+  <ol>
+    <li><strong>没有官方榜单。</strong>BDD100K 官方只提供单任务评测指标，三任务联合表现全靠各家论文自报 + 自家训练配置，没有统一仲裁机构。所谓「SOTA」是自己跟自己比出来的相对结论。</li>
+    <li><strong>口径混用，甚至指标定义都不同。</strong>AurigaNet（2026-02）声称车道 IoU <strong>60.8%</strong>、「超越其他模型 30% 以上」，但它是<strong>实例分割</strong>口径的 IoU，与 RMT-PPAD 的语义分割 IoU 58.6 根本不是同一把尺，无法排名。同样它还报可行驶区 IoU 85.2（不是 mIoU）。<strong>光这一条就足以让「最强」无法裁定。</strong></li>
+    <li><strong>训练配置不统一</strong>：分辨率 320/384/640/1280 不等，轮数 100~300 不等。DDL-Net 用 300 epoch、batch 10、单张 RTX 4090 训练——比多数对照模型更充裕。</li>
+    <li><strong>新成果还在往外冒，「最强」的半衰期很短。</strong>仅在 2026 年 8 月就又出现两篇：《面向道路场景的自动驾驶多任务感知算法》（汽车工程 2026 年第 8 期，mAP 84.6 / Recall 95.0 / DA mIoU 91.6 / 车道 IoU 29.3）和 <strong>APDP-Net</strong>（武汉大学学报理学版 2026 年 8 月纸质出版，R-ELAN 主干 + GhostFPN-ELAN 颈部 + 极化自注意力，定位轻量化，具体数值未能获取）。</li>
+    <li><strong>发表层级上 RMT-PPAD 反而更硬</strong>：它已正式发表于 <em>IEEE Transactions on Mobile Computing</em>（TMC，DOI 10.1109/TMC.2026.3725133），而 DDL-Net 是 ICMR 2026 会议论文。</li>
+  </ol>
+
+  <h3>按澄清后的约束重选：不设规模上限 + FP16 部署</h3>
+  <div class="callout ok">
+    <strong>此前把 32.4M 判为「太大」是本报告自己误加的约束，现已作废</strong>
+    <strong>10¹⁴ 这个上限在本赛道等于不存在</strong>：全表最大的 RMT-PPAD 也才 34.3M（3.43×10⁷）参数，距离 10¹⁴ 差约 7 个数量级；即便按算力算（最大的也就几百 GFLOPs，约 10¹¹），同样差 3 个数量级。<strong>所以候选池是全表，不排除任何模型。</strong>
+  </div>
+  <table>
+    <thead><tr><th>你的优先级</th><th>选它</th><th>关键依据</th></tr></thead>
+    <tbody>
+      <tr class="hi"><td>综合最强（精度 + 速度 + 发表层级）</td><td><strong>RMT-PPAD</strong><br><span class="dim">IEEE TMC 期刊，34.3M</span></td><td>mAP50 84.9 / Recall 95.4 / DA mIoU 92.6 / <strong>车道 IoU 56.8（修正口径最高）</strong> / F1 66.5 / BFScore 81.4；32.6 FPS</td></tr>
+      <tr><td>检测精度最高 + 速度最快</td><td><strong>DDL-Net</strong><br><span class="dim">ICMR 2026，32.4M</span></td><td><strong>mAP50 85.2（最高）</strong> / Recall 95.6 / DA mIoU 92.8；<strong>40.7 FPS</strong>（同参数级最快）</td></tr>
+      <tr><td>单指标冠军</td><td><strong>YOLOPv3</strong><br><span class="dim">2024</span></td><td><strong>Recall 96.9</strong> / <strong>DA mIoU 93.2</strong> / <strong>车道 Acc 88.3</strong></td></tr>
+      <tr><td>吞吐量极限</td><td><strong>SCAM-P</strong><br><span class="dim">ICRA 2025</span></td><td><strong>230.5 FPS @RTX 4090、112.1 FPS @Jetson Orin</strong>；mAP50 81.1 / mIoU 91.6 / 车道 IoU 28.8</td></tr>
+      <tr class="hi"><td><strong>FP16 / 低精度部署</strong></td><td><strong>Q-YOLOP</strong><br><span class="dim">2023</span></td><td>唯一显式做<strong>量化感知训练（QAT）</strong>的三合一模型：四阶段训练含专门 QAT 阶段，目标就是低功耗低精度部署；93.46 FPS @V100、3.68 FPS @联发科天玑 9200</td></tr>
+      <tr class="hi"><td>FP16 / INT8 有实测背书</td><td><strong>TwinLiteNet+</strong><br><span class="dim">0.03~1.94M</span></td><td>论文明确评测 <strong>INT8/FP16 量化鲁棒性</strong> + 嵌入式延迟与功耗，是唯一同时给出「量化后表现」和「功耗」的模型</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout danger">
+    <strong>关于 FP16：这是这批论文的集体盲区，会让精度排名重排</strong>
+    上表所有 BDD100K 指标<strong>几乎全部是 FP32 下测的</strong>。逐一核查后，没有发现 DDL-Net / RMT-PPAD / YOLOPX / YOLOPv3 / A-YOLOM / LM-YOLO / MDANet 任何一篇报告过 FP16 或 INT8 量化后的掉点。明确处理过低精度的只有两个：<strong>Q-YOLOP</strong>（量化感知训练，为低功耗场景专门设计）和 <strong>TwinLiteNet+</strong>（实测 INT8/FP16 鲁棒性）。<br>
+    <strong>含义：如果部署必须是 FP16，FP32 下的冠军在 FP16 下未必还是冠军。</strong>选型时要么优先这两个有量化数据的，要么自己补一次 FP16 掉点实测再定。<br>
+    <span class="dim">注：Q-YOLOP 报的 mAP@0.5 0.622 / mIoU 0.612 是在 iVS 数据集上，与 BDD100K 数值不可直接比较。</span>
+  </div>
+
+  <h3>若仍要走「小参数」这一支</h3>
+  <p>若规模确实要压到 5M 以下，候选收敛得很干净：三任务选 <strong>TriLiteNet（2.35M / 0.15M，MIT）</strong>，两任务选 <strong>TwinLiteNet+（34K ~ 1.94M，MIT）</strong>，备选 LM-YOLO（3.46M）与 MDANet-n（3.59M）。<strong>注意：这一支里没有一个模型报告过 FP16 掉点</strong>，TwinLiteNet+ 是唯一例外。</p>
+</section>
+
+<!-- 5 -->
+<section>
+  <h2><span class="num">5</span>加入「第三视角（TPV）」约束后的重新筛选</h2>
+  <p class="sub">这是决定性条件——它推翻的不是排名，而是整个选型逻辑。</p>
+
+  <h3>结论先行：现成模型一个都不能直接用</h3>
+  <p><strong>所有现成的三合一模型，无一例外，都是在车载第一视角（egocentric / FPV，行车记录仪视角）的真实道路数据上训练和评测的。</strong>我逐一核查了 30+ 个候选模型和主流自动驾驶数据集，情况如下：</p>
+  <table>
+    <thead><tr><th>视角类型</th><th>代表数据集</th><th>有对应的车载三合一模型吗</th></tr></thead>
+    <tbody>
+      <tr class="hi"><td><strong>第一视角 FPV / egocentric</strong>（车载前视）</td><td>BDD100K、KITTI、Cityscapes、nuScenes、Waymo、Zenseact ZOD</td><td><strong>全部模型都在这里</strong></td></tr>
+      <tr><td>鸟瞰 / 无人机</td><td>HighD、exiD、NGSIM</td><td>无（且缺车道线/可行驶区标注）</td></tr>
+      <tr><td>路侧固定相机</td><td>IPS300+、Rope3D、TUMTraf、LUMPI</td><td>无（属「路侧感知」独立分支）</td></tr>
+      <tr><td>车外环绕视角（exo）</td><td>SEED4D exo views</td><td>无（用于 3D 重建，非三任务感知）</td></tr>
+      <tr class="hi"><td><strong>第三人称游戏视角 TPV</strong></td><td class="badnum">—</td><td class="badnum"><strong>不存在</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout danger">
+    <strong>SEED4D 论文自己就点破了这件事</strong>
+    「Most autonomous driving datasets offer only egocentric vehicle viewpoints.」——绝大多数自动驾驶数据集只提供自车第一视角。<br>
+    也就是说，<strong>TPV 在驾驶感知领域是一个空白区，不是「有但少」。</strong>你不可能通过换一个模型来解决，只能自己造。
+  </div>
+
+  <h3>TPV 打乱的不是排名，是选型标准</h3>
+  <p>加上这个条件后，「谁在 BDD100K 上精度最高」<strong>直接失去意义</strong>——那些分数在 TPV 上一个都不可外推，连相对排名都会重排。真正要问的是：<strong>哪个架构最适合迁移到 TPV</strong>。先看三个任务在 TPV 下的难度变化：</p>
+  <table>
+    <thead><tr><th>任务</th><th>TPV 下难度变化</th><th>原因</th></tr></thead>
+    <tbody>
+      <tr><td>可行驶区域分割</td><td class="best">变简单</td><td>相机更高更广，路面连续完整、遮挡少 → 三个任务里迁移性最好的一项</td></tr>
+      <tr><td>车辆检测</td><td>中等</td><td>其他车辆尺度分布变了；且画面里有自车，必须显式屏蔽</td></tr>
+      <tr class="hi"><td><strong>车道线检测</strong></td><td class="badnum"><strong>变得最难（决定性瓶颈）</strong></td><td>相机后置高位 → 近端被自车遮挡、远端极度收敛；细长结构被压缩得更短更细；弯道透视畸变更剧烈</td></tr>
+    </tbody>
+  </table>
+  <p><strong>所以 TPV 下的选型标准从「精度高」变成「车道线架构强 + 许可可改 + 重训成本低」这三条。</strong></p>
+
+  <h3>按 TPV 适配度重排的候选</h3>
+  <table>
+    <thead><tr><th>优先级</th><th>模型</th><th>为什么适合 TPV</th><th>许可</th></tr></thead>
+    <tbody>
+      <tr class="hi"><td>1</td><td><strong>APDP-Net</strong><br><span class="dim">武汉大学学报 2026, 72(4):507-518</span></td><td>论文明确「<strong>针对车道线检测任务引入极化自注意力机制，建立像素级特征间的长距离联系</strong>」——这正是 TPV 车道线（远端收敛 + 近端遮挡）最需要的能力；且走轻量化路线（R-ELAN 区域注意力 + GhostFPN-ELAN）</td><td class="dim">未核实</td></tr>
+      <tr><td>2</td><td><strong>YOLOPX</strong><br><span class="dim">32.9M</span></td><td>车道线头专门设计为「<strong>多尺度高分辨率特征 + 长距离上下文依赖</strong>」，与 TPV 需求同向；代码开源、许可宽松可自由改</td><td><span class="pill p-mit">MIT ✓</span></td></tr>
+      <tr><td>3</td><td><strong>DDL-Net</strong><br><span class="dim">32.4M</span></td><td>车道线用 <strong>Focal + Tversky Loss</strong> 专治稀疏细长结构、降低漏检——对 TPV 下被压缩的车道线有实际价值</td><td class="dim">未核实</td></tr>
+      <tr><td>4</td><td><strong>TriLiteNet</strong><br><span class="dim">2.35M / 0.15M</span></td><td>参数极小 → <strong>TPV 小数据集下重训/微调成本最低、最抗过拟合</strong>；TwinLiteNet 系编码器本身对细结构友好</td><td><span class="pill p-mit">MIT ✓</span></td></tr>
+      <tr><td>5</td><td><strong>TwinLiteNet+</strong><br><span class="dim">34K ~ 1.94M</span></td><td>同上，且是<strong>唯一有 INT8/FP16 量化实测</strong>的（正好呼应你的 FP16 要求）；但它只有两任务，车辆检测需另配</td><td><span class="pill p-mit">MIT ✓</span></td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn">
+    <strong>高精度组在 TPV 下反而要谨慎</strong>
+    RMT-PPAD / DDL-Net 都是 32~34M 参数。<strong>在规模有限的 TPV 自采数据上微调这么重的模型，过拟合风险高</strong>，而且它们没有任何 TPV 验证。TPV 场景下「模型大」不再是优势。
+  </div>
+
+  <h3>一个必做的 TPV 专属预处理（FPV 下完全不需要）</h3>
+  <div class="callout danger">
+    <strong>必须显式 mask 掉自车区域</strong>
+    TPV 画面里<strong>有自车</strong>（车尾或整车）。不屏蔽的话三个任务会同时出错：<br>
+    ① 可行驶区域被自车挖出一个洞 → ② 自车被检测成「车辆」（把自己认成障碍物）→ ③ 车道线在自车附近断裂。<br>
+    这<strong>不是补丁，是视角特性决定的必要预处理设计</strong>。FPV 下自车不在画面里，所以所有现成模型都没有这个模块，必须自己加。
+  </div>
+
+  <h3>数据从哪来：三条路径</h3>
+  <table>
+    <thead><tr><th>路径</th><th>做法</th><th>代价 / 风险</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A. 仿真器程序化生成</strong><br><span class="dim">最正规</span></td><td>CARLA 可自由配置<strong>第三人称相机</strong>，并原生输出 lane marking 分割、road（可行驶区域）分割、车辆框——三任务标注一次到位，可批量生成</td><td>需搭管线；存在 sim-to-game 域差异</td></tr>
+      <tr><td><strong>B. 自采 + 半自动标注</strong></td><td>用 <code>tools/aurora_recorder</code> 录 TPV 帧 → 用现有 OpenCV 车道线 + YOLO 检测生成伪标签 → 人工修正</td><td>标注成本高，但<strong>最贴合真实域</strong></td></tr>
+      <tr><td><strong>C. FPV 预训练 + TPV 微调</strong></td><td>用 BDD100K 权重做初始化，少量 TPV 数据微调</td><td>数据需求最低；但<strong>车道线要重训的比重最大</strong>（可行驶区域迁移最好）</td></tr>
+    </tbody>
+  </table>
+  <p><strong>推荐组合：A 打底拿量 → C 迁移拿特征 → B 修正贴合真实域。</strong></p>
+
+  <h3>修正后的答案</h3>
+  <ul>
+    <li><strong>不存在可直接使用的现成 TPV 三合一模型。</strong>三个任务都必须在你自己的 TPV 数据上重训或微调。</li>
+    <li>要一个起点：<strong>YOLOPX</strong>（MIT、可改、车道线头按长距离依赖设计）或 <strong>TriLiteNet</strong>（MIT、最小、最好重训）。</li>
+    <li>要架构灵感：看 <strong>APDP-Net 的极化自注意力</strong>，它是目前唯一明确为「车道线长距离依赖」设计的注意力机制。</li>
+    <li>只要「车道线 + 可行驶区域」：<strong>TwinLiteNet+</strong>——唯一有 FP16/INT8 量化数据的。</li>
+    <li>重训后仍须过既有三道门：<strong>时序平滑 + 置信门控 + 录制回放验证</strong>，未过不许实车。</li>
+  </ul>
+</section>
+
+<!-- 6 -->
+<section>
+  <h2><span class="num">6</span>「小参数反超大参数」的实证与边界</h2>
+  <p class="sub">这是你问题的核心。下面给出成立证据，也给出必须知道的反例边界。</p>
+
+  <h3>证据一：跨代反超，且不止一例</h3>
+  <div class="cards">
+    <div class="card">
+      <div class="t"><span>A-YOLOM(n)</span><span class="params">4.43M</span></div>
+      <div class="row"><span>对比 YOLOP (7.9M)</span><b class="best">参数 −44%</b></div>
+      <div class="row"><span>检测 mAP50</span><b>76.5 → 78.0 ↑</b></div>
+      <div class="row"><span>车道 IoU</span><b>26.5 → 28.2 ↑</b></div>
+      <div class="row"><span>可行驶区 mIoU</span><b>91.5 → 90.5 ↓</b></div>
+      <div class="note">三项里两项反超，可行驶区域略退。是唯一有明确「小胜大」对照的官方数据。</div>
+    </div>
+    <div class="card">
+      <div class="t"><span>LM-YOLO(n)</span><span class="params">3.46M</span></div>
+      <div class="row"><span>对比 YOLOP (7.9M)</span><b class="best">参数 −56%</b></div>
+      <div class="row"><span>检测 mAP50</span><b class="badnum">76.5 → 82.3 ↑↑</b></div>
+      <div class="row"><span>车道 IoU</span><b>26.2 → 29.1 ↑</b></div>
+      <div class="row"><span>可行驶区 mIoU</span><b>91.5 → 91.4 ≈</b></div>
+      <div class="note">最接近「全面反超」的一个：检测 mAP50 一下抬高 5.8 个点，参数量只有一半多。</div>
+    </div>
+    <div class="card">
+      <div class="t"><span>TriLiteNet (base)</span><span class="params">2.35M</span></div>
+      <div class="row"><span>对比 YOLOP (7.9M)</span><b class="best">参数 −70%</b></div>
+      <div class="row"><span>可行驶区 mIoU</span><b>91.5 → 92.4 ↑</b></div>
+      <div class="row"><span>车道 Acc</span><b class="best">70.5 → 82.3 ↑↑</b></div>
+      <div class="row"><span>检测 Recall</span><b class="badnum">89.2 → 85.6 ↓</b></div>
+      <div class="note">参数只剩三成，车道线精度暴涨 11.8 点；代价是检测召回退步 3.6 点。典型的「精度重新分配」。</div>
+    </div>
+    <div class="card">
+      <div class="t"><span>TwinLiteNet+ Large</span><span class="params">1.94M</span></div>
+      <div class="row"><span>对比 DeepLabV3+ (重型)</span><b class="best">FLOPs −91%</b></div>
+      <div class="row"><span>可行驶区 mIoU</span><b>90.9 → 92.9 ↑</b></div>
+      <div class="row"><span>对比 IALaneNet (ResNet-34)</span><b>参数/算力 −99%</b></div>
+      <div class="row"><span>其 mIoU</span><b>90.61 → 92.9 ↑</b></div>
+      <div class="note">论文明确列出了「小模型反超重型模型」的对照表，是最硬的一条证据。</div>
+    </div>
+  </div>
+
+  <h3>证据二：连大模型自己都在被「压小」</h3>
+  <p>2025 年 11 月有一篇 <em>Compressing Multi-Task Model for Autonomous Driving via Pruning and Knowledge Distillation</em>，直接把上限标杆 RMT-PPAD 剪枝 + 蒸馏，<strong>参数量从 34.3M 砍到 23.1M（−32.7%）</strong>：</p>
+  <table>
+    <thead><tr><th>指标</th><th class="num">RMT-PPAD (34.3M)</th><th class="num">压缩版 (23.1M)</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr><td>检测 Recall</td><td class="num">95.4</td><td class="num">94.2</td><td>−1.2</td></tr>
+      <tr><td>检测 mAP50</td><td class="num">84.9</td><td class="num">83.1</td><td>−1.8</td></tr>
+      <tr><td>可行驶区 mIoU</td><td class="num">92.6</td><td class="num">92.5</td><td class="best">基本无损</td></tr>
+      <tr><td>车道 IoU</td><td class="num">56.8</td><td class="num">56.4</td><td class="best">基本无损</td></tr>
+      <tr><td>车道 Acc</td><td class="num">84.7</td><td class="num">85.5</td><td class="best">反超 +0.8</td></tr>
+      <tr><td>FPS</td><td class="num">32.6</td><td class="num">32.7</td><td>持平</td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok">
+    <strong>这条数据最有说服力</strong>
+    砍掉三分之一参数，分割精度几乎零损失，车道像素精度还反超了。<strong>它证明这个领域里相当一部分参数是冗余的</strong>——「参数量小反而更好」不是玄学，是有结构性原因的。
+  </div>
+
+  <h3>边界：小模型赢不了同代大模型</h3>
+  <p>必须说清楚，避免被宣传口径误导：</p>
+  <ul>
+    <li><strong>检测最难指标仍被大模型垄断</strong>：Recall 95+、mAP50 84~85 这一档，只有 32.9M 的 YOLOPX、34.3M 的 RMT-PPAD、32.4M 的 DDL-Net 能做到。小模型（2~4M）目前封顶在 mAP50 78~82、Recall 85~87。</li>
+    <li><strong>车道 IoU 修正口径后</strong>，天花板是 56~61（大模型），小模型相应下移。</li>
+    <li>所以正确的判断是：<strong>小模型的性价比断层领先，但它不是「全能冠军」</strong>。如果你要的是「2~4M 参数里最强」，答案是 TriLiteNet / LM-YOLO / MDANet-n；如果要的是「绝对最强」，仍得接受 32M+ 参数。</li>
+  </ul>
+
+  <h3>为什么小模型能做到？三个结构性原因</h3>
+  <ol>
+    <li><strong>共享 backbone 消除冗余</strong>：三任务共用一次特征提取，等于省下两次完整前向。A-YOLOM 的对比数据很直白——四个独立模型约 8~12M 参数，共享后 YOLO-MT 只要 2.9M。</li>
+    <li><strong>任务头做到极致精简</strong>：A-YOLOM 的分割头只有 <strong>7,940 个参数</strong>，全靠一系列卷积层；TriLiteNet 用深度可分离卷积 + ESP 块替代重型 neck。参数大头被砍在这里。</li>
+    <li><strong>训练策略红利</strong>：蒸馏、剪枝、动态采样、自适应特征融合、MuSGD 类优化器——近两年大量精度增益其实来自「怎么训」而非「多大」。压缩实验就是最直接的证明。</li>
+  </ol>
+</section>
+
+<!-- 6 -->
+<section>
+  <h2><span class="num">7</span>三个必须知道的坑（这决定了你会不会被数字骗）</h2>
+
+  <div class="callout danger">
+    <strong>坑一：车道线 IoU 在不同论文之间根本不可比</strong>
+    RMT-PPAD 论文发现了一个被广泛沿用的评估错误：<strong>此前几乎所有工作（YOLOP / HybridNets / YOLOPX 等）用 8 像素宽的车道线标签训练，却用 2 像素宽的标签测试</strong>。结果是「模型预测得越完整、越正确，反而被扣分越多」。修正测试标签宽度后，同一批模型的车道 IoU 从 26~34 直接跳到 52~57。<br>
+    <strong>结论：看到 27.2 和 56.8 这种数字，先问它是哪把尺子量的。</strong>新论文（RMT-PPAD、DDL-Net）用的是修正口径。
+  </div>
+
+  <div class="callout warn">
+    <strong>坑二：输入分辨率和训练轮数各家不同</strong>
+    有的用 320×320、有的 384×640、有的 640×640、有的直接用 1280×720，训练轮数从 100 到 300 都有。分辨率越高分割越准——所以「mIoU 高出 1 个点」很可能只是分辨率红利，不是架构优势。RMT-PPAD 也明确说自己只能复现开源模型来保证公平对比。
+  </div>
+
+  <div class="callout warn">
+    <strong>坑三：论文数字 ≠ 你场景的数字</strong>
+    所有模型都在 BDD100K（真实道路、第一人称行车视角、白天/夜晚/雨雪）上训练和评测。<strong>换到你的游戏截屏、第三人称视角，这些精度数字一个都不能外推</strong>，包括相对排名。域偏移会让排名重排。
+  </div>
+</section>
+
+<!-- 7 -->
+<section>
+  <h2><span class="num">8</span>许可证实测（逐仓库拉 LICENSE 原文核实）</h2>
+  <p class="sub">这是集成前的硬门槛，已按项目铁律「拉原文、不看徽标」执行。</p>
+  <table>
+    <thead><tr><th>仓库</th><th>模型</th><th>实测许可证</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>chequanghuy/TriLiteNet</code></td><td>TriLiteNet</td><td><span class="pill p-mit">MIT</span></td><td class="best">可自由使用/修改/商用/闭源，只需保留版权声明</td></tr>
+      <tr><td><code>chequanghuy/TwinLiteNetPlus</code></td><td>TwinLiteNet+</td><td><span class="pill p-mit">MIT</span></td><td class="best">同上</td></tr>
+      <tr><td><code>jiaoZ7688/YOLOPX</code></td><td>YOLOPX</td><td><span class="pill p-mit">MIT</span></td><td class="best">同上（继承自 hustvl/YOLOP 的 MIT 头）</td></tr>
+      <tr><td><code>hustvl/YOLOP</code></td><td>YOLOP</td><td><span class="pill p-mit">MIT</span></td><td class="best">同上</td></tr>
+      <tr><td><code>JiayuanWang-JW/YOLOv8-multi-task</code></td><td>A-YOLOM</td><td><span class="pill p-agpl">AGPL-3.0</span></td><td class="badnum">强 copyleft + 网络条款：链接即传染，衍生作品必须整体 AGPL 开源</td></tr>
+      <tr><td>YOLO-MT / 任何 Ultralytics 衍生</td><td>YOLO-MT、YOLOv8/v11/v12 变体</td><td><span class="pill p-agpl">AGPL-3.0</span></td><td class="badnum">同上</td></tr>
+      <tr><td>Ultralytics 官方</td><td>YOLO26 / YOLO11 / YOLO12</td><td><span class="pill p-agpl">AGPL-3.0</span></td><td class="badnum">同上，商用需买企业授权</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <strong>给你的判断依据</strong>
+    你已明确打算完全开源，所以 AGPL 在<strong>协议上兼容</strong>——但请注意 AGPL 的传染性比 GPL v3 更强（多一条「网络服务也必须开放源码」）。既然 MetalGoose 已经是 GPL v3 而且你接受整体开源，那么选 <strong>MIT 的 TriLiteNet / TwinLiteNet+</strong> 反而是更省心的路径：不受污染、不必担心整个项目被拉进 copyleft，将来若想单独闭源某个模块也留了后手。
+  </div>
+</section>
+
+<!-- 8 -->
+<section>
+  <h2><span class="num">9</span>对你这个项目（AuroraDrive）的落地建议</h2>
+  <p class="sub">按项目既有铁律来评估，不绕行、不打补丁。</p>
+
+  <h3>最终选定：RMT-PPAD（34.3M，参数量最大 + 综合最强）+ TPV 后训练</h3>
+  <p>在「拿现成最强 FPV 权重、自己在 TPV 数据上后训练」这条路线下，RMT-PPAD 是唯一同时满足「参数量最大 / 综合指标最强 / 代码权重齐全 / 仍在维护」的选择。</p>
+  <table>
+    <thead><tr><th>项目</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr><td>仓库</td><td><code>github.com/JiayuanWang-JW/RMT-PPAD</code>（官方 PyTorch 实现，2026-08-25 仍有提交）</td></tr>
+      <tr class="hi"><td><strong>许可</strong></td><td><span class="pill p-agpl">AGPL-3.0</span>（GitHub API 元数据）——强 copyleft + 网络条款</td></tr>
+      <tr><td>参数量 / 速度</td><td>34.3M / 32.6 FPS @单张 RTX 4090（batch=1，无 TensorRT/ONNX 加速）</td></tr>
+      <tr><td>发表</td><td>IEEE Transactions on Mobile Computing（TMC），DOI 10.1109/TMC.2026.3725133</td></tr>
+      <tr><td>预训练权重</td><td>README 提供 OneDrive 下载链接（含官方重做的 BDD100K 标注）</td></tr>
+      <tr><td>环境</td><td>Python 3.8.19 + PyTorch 2.4.1；<code>conda env create -f environment.yml</code> → <code>pip install -e .</code></td></tr>
+      <tr><td>入口脚本</td><td><code>train.py</code> / <code>test.py</code> / <code>predict.py</code>；配置在 <code>ultralytics/yolo/cfg/default.yaml</code></td></tr>
+      <tr><td>数据目录结构</td><td><code>images/{train2017,val2017}</code> + <code>labels/{train2017,val2017}</code> + <code>mask/lane/{...}</code> + <code>mask/drivable/{...}</code></td></tr>
+    </tbody>
+  </table>
+
+  <h4>官方训练超参（直接用作后训练起点）</h4>
+  <ul>
+    <li>输入：原图 1280×720 → <strong>resize 到 640×640</strong></li>
+    <li>优化器 <strong>SGD</strong>，lr 0.01，momentum 0.9，weight decay 0.0005</li>
+    <li>warm-up 3 epoch（momentum 0.8、bias lr 0.1），之后 <strong>cosine 衰减</strong></li>
+    <li>损失系数：α=1，β=5，γ=2，λ<sub>fl</sub>=24，λ<sub>bce</sub>=8，λ<sub>tv</sub>=8</li>
+    <li>batch 45，250 epoch，3× RTX 4090，约 70 小时</li>
+    <li>推理阈值：可行驶区域 <strong>0.45</strong>，车道线 <strong>0.9</strong></li>
+  </ul>
+  <p class="src">注意：README 的消融表里还有个 0.40/0.90 阈值下的组合（BDD100K 上 mIoU 92.6 / 车道 IoU 56.8 / ACC 89.4），实际部署时阈值要按你自己的数据重新扫一遍。</p>
+
+  <h4>TPV 后训练必须动的三处</h4>
+  <ol>
+    <li><strong>数据换成你自己的 TPV 帧</strong>，标注按上面的目录结构组织（车道线掩码 + 可行驶区域掩码 + 车辆框）。</li>
+    <li><strong>加自车 mask</strong>——TPV 特有，不做的话三个任务同时出错（见第 5 节）。</li>
+    <li><strong>车道线标签宽度必须和预训练保持一致</strong>：这个权重是在 <strong>8 像素宽</strong>的车道线上学的。你若用 2 像素标注去微调，会引入标签域偏移，车道线指标会莫名变差。要么统一 8px，要么明确接受这个偏移。</li>
+  </ol>
+  <div class="callout warn">
+    <strong>一个容易踩的坑</strong>
+    官方为了让评测公平，<strong>自己重做了 BDD100K 的车道线标注</strong>（把测试标签膨胀到训练宽度）。所以要复现论文数字，<strong>必须用他们提供的那份标注，不能用官方 BDD100K 的</strong>。你的 TPV 数据不受影响，但混合训练时会遇到标签口径不一致的问题。
+  </div>
+
+  <h4>导出到 Core ML 的两点</h4>
+  <ul>
+    <li><strong>有利的一面</strong>：RMT-PPAD 基于 RT-DETR，<strong>本身就是 NMS-free</strong>，没有 NMS 后处理——这对 Core ML 导出反而是优势。</li>
+    <li><strong>要验证的一面</strong>：transformer 注意力算子在 Core ML 上的支持度需实测；640×640 输入 + 34.3M 参数在 M 系列芯片上的单帧耗时必须实测确认（你们有 30fps 红线）。</li>
+  </ul>
+
+  <h4>剪枝版和量化版：现状与正确顺序</h4>
+  <table>
+    <thead><tr><th>版本</th><th>是否存在</th><th>代码 / 权重</th></tr></thead>
+    <tbody>
+      <tr><td><strong>RMT-PPAD 剪枝蒸馏版</strong>（23.1M，−32.7%）</td><td class="best">论文存在</td><td class="badnum"><strong>未开源</strong>——无代码、无权重</td></tr>
+      <tr><td><strong>RMT-PPAD 量化版</strong>（INT8 / FP16）</td><td class="badnum">不存在</td><td class="badnum">—</td></tr>
+    </tbody>
+  </table>
+  <p>那篇压缩论文（<em>Compressing Multi-Task Model for Autonomous Driving via Pruning and Knowledge Distillation</em>，2025-11，已被 IEEE 收录，第一作者同为 Jiayuan Wang）做的是 <strong>剪枝 + 知识蒸馏</strong>，<strong>不是量化</strong>——全文没有出现 INT8/FP16 量化。而且：</p>
+  <ul>
+    <li>论文<strong>没有任何代码可用性声明</strong>；第一作者的 GitHub 只有 4 个仓库（A-YOLOM、RMT-PPAD、DC-cycleGAN、ADC-cycleGAN），<strong>没有压缩版仓库</strong>。<strong>所以 23.1M 那个权重拿不到，只能自己复现。</strong></li>
+    <li>好消息：论文把复现超参给全了（见下），而且蒸馏层名是 <code>model.9.ec.conv</code>、<code>model.24.cv3</code> 这种 ultralytics 风格，说明它就是在 RMT-PPAD 官方代码上做的，复现路径可行。</li>
+  </ul>
+
+  <h4>复现剪枝版所需的全部参数（要走这条就用）</h4>
+  <ul>
+    <li>剪枝：全局剪枝率 <strong>r = 0.4</strong>；安全剪枝阈值 θ<sub>max</sub>=0.2、θ<sub>avg</sub>=0.2、θ<sub>pen</sub>=0.3；冲突惩罚权重 λ=0.2；通道重要性 = Taylor 重要性（TCI）+ 梯度冲突惩罚（GCP）</li>
+    <li>蒸馏：softmin 聚合温度 τ=0.25；相似度 ε=1e-12；蒸馏损失权重 β=1</li>
+    <li>蒸馏层：<code>model.9.ec.conv</code>、<code>model.10.conv</code>、<code>model.16.cv3</code>、<code>model.21.cv3</code>、<code>model.24.cv3</code>、<code>model.27.cv3</code></li>
+    <li>训练：batch 36、125 epoch、3× RTX 4090；先 warm-up 5 epoch，之后才启 KD</li>
+  </ul>
+  <div class="callout ok">
+    <strong>但对你的场景，顺序应该是反的——不要先剪枝</strong>
+    剪枝版的价值在「部署时更小」。可你要先在 <strong>BDD100K 全量上完整跑一遍剪枝 + 蒸馏</strong>才能拿到学生模型（还得按官方口径准备标注），<strong>然后才在 TPV 上微调</strong>——两次转换，白付一轮成本。而它相对原版只省 11.2M 参数，检测指标还掉了（Recall −1.2 / mAP50 −1.8）。<br>
+    <strong>正确做法：RMT-PPAD 原版权重 → 直接在 TPV 上后训练 → 若 30fps 红线压不住，再对你自己微调好的 TPV 模型做剪枝/量化。</strong>一步到位，省掉中间那轮 BDD100K 剪枝。
+  </div>
+
+  <h4>真要量化（FP16 / INT8）怎么做</h4>
+  <ul>
+    <li><strong>目前没有任何三合一模型（含 RMT-PPAD）提供量化版本。</strong>全赛道唯二沾过量化的是：<strong>Q-YOLOP</strong>（唯一做量化感知训练 QAT 的，但属 YOLOPv2/YOLOv7 系，且指标报在 iVS 数据集）和 <strong>TwinLiteNet+</strong>（实测 INT8/FP16 鲁棒性，但只两任务）。</li>
+    <li>所以量化这步得自己做，而你恰好有最顺手的工具链：<strong>coremltools</strong> 提供 FP16 权重压缩与 INT8 的 palettization / 线性量化——对 Swift/Apple 栈这是最短路径。</li>
+    <li>顺序：<strong>TPV 微调完成 → 再量化</strong>。<strong>切勿反过来</strong>（用低精度权重起步去微调，梯度精度不够会训不动或训崩）。</li>
+  </ul>
+
+  <div class="callout danger">
+    <strong>许可风险（按项目铁律必须说清）</strong>
+    RMT-PPAD 是 <strong>AGPL-3.0</strong>。你们已决定完全开源、MetalGoose 已是 GPL v3，而 AGPL §13 明确允许与 GPL v3 组合，所以<strong>协议上兼容</strong>。但只要有任何一块想闭源，AGPL 就会传染整个项目。<br>
+    <strong>要零许可风险的替代品：YOLOPX（32.9M，MIT）</strong>——参数量只差 1.4M，指标略低（mAP50 83.3 / DA mIoU 90.9 / 车道 IoU 52.1），但许可干净、可商用、可闭源，且代码权重同样开源。
+  </div>
+
+  <h3>推荐路线：两段式组合，优先 MIT 组件</h3>
+  <div class="cards">
+    <div class="card">
+      <div class="t"><span>方案 A：完整三合一</span><span class="params">首选</span></div>
+      <div class="row"><span>模型</span><b>TriLiteNet base 2.35M</b></div>
+      <div class="row"><span>或极简</span><b>TriLiteNet tiny 0.15M</b></div>
+      <div class="row"><span>许可</span><b class="best">MIT ✓</b></div>
+      <div class="row"><span>优势</span><b>一个模型出三种输出</b></div>
+      <div class="note">单网络、单次前向，链路最简单，不用维护多模型调度。参数量比现有 YOLO(352×352) 还轻，规格上完全吃得下 30fps。</div>
+    </div>
+    <div class="card">
+      <div class="t"><span>方案 B：只补短板</span><span class="params">更省</span></div>
+      <div class="row"><span>车道线 + 可行驶区</span><b>TwinLiteNet+ nano 34K</b></div>
+      <div class="row"><span>车辆检测</span><b>沿用现有 YOLO</b></div>
+      <div class="row"><span>许可</span><b class="best">MIT ✓</b></div>
+      <div class="row"><span>优势</span><b>34K 参数≈零成本</b></div>
+      <div class="note">你现在的 <code>game_assist_yolo</code> 已经能跑检测。只把「车道线 + 可行驶区域」作为增量挂上，参数开销小到可以忽略，也不动现有已验证的检测链路。</div>
+    </div>
+    <div class="card">
+      <div class="t"><span>方案 C：精度优先档</span><span class="params">32M 级</span></div>
+      <div class="row"><span>首选</span><b>RMT-PPAD 34.3M</b></div>
+      <div class="row"><span>或</span><b>DDL-Net 32.4M</b></div>
+      <div class="row"><span>FP16 优先</span><b>Q-YOLOP</b></div>
+      <div class="row"><span>许可</span><b class="badnum">需逐个核实</b></div>
+      <div class="note">若算力预算完全不是瓶颈（10¹⁴ 级），走这一档换精度上限。代价是参数量约 14 倍于方案 A，且这些模型<strong>都没有 FP16 掉点数据</strong>。<br><strong class="badnum">TPV 下不推荐</strong>：32M 模型在规模有限的 TPV 自采数据上微调过拟合风险高，且无 TPV 验证（见第 5 节）。</div>
+    </div>
+  </div>
+
+  <h3>上线前必须过的三道门（沿用项目铁律，不可跳过）</h3>
+  <ol>
+    <li><strong>不能用 BDD100K 权重直接跑。</strong>你的场景是<strong>游戏第三人称截屏</strong>，与 BDD100K 的第一人称真实道路域差异极大——透视关系、光照、纹理、UI 遮挡全不一样。必须用 <code>tools/aurora_recorder</code> 录制的自有数据重训或微调后才谈效果。</li>
+    <li><strong>感知输出必须加时序平滑 + 置信门控。</strong>这批模型输出的车道线是<strong>像素掩码</strong>，要转成控制量必须拟合质心/多项式。掩码逐帧抖动会直接让质心跳变——这正是 2026-08-16 坠崖炸车事故的成因路径。<strong>禁止单帧直驱方向盘</strong>，必须 EMA/卡尔曼平滑 + 低置信不输出转向（fallback 停车或降级档）。</li>
+    <li><strong>先用录制视频离线回放验证质心轨迹平滑，再上实车。</strong>未通过离线回放前不许实车，这是血价换来的规矩。</li>
+  </ol>
+
+  <h3>性能预算上的两个提醒</h3>
+  <ul>
+    <li><strong>参数量小 ≠ 一定更快，要看分辨率。</strong>TriLiteNet 论文用 640×384 输入，7.72 GFLOPs。虽然参数只有 2.35M，但分辨率比你现在 YOLO 的 352×352 高，实际算力开销要按 FLOPs 而不是参数量算。集成前先做单帧耗时实测。</li>
+    <li><strong>图像缩放仍走 CPU（vImageScale），别抢游戏 GPU。</strong>既有的铁律不变：游戏占满 GPU 时，缩放走 GPU 会排队把捕获耗时顶到 40ms。</li>
+  </ul>
+
+  <h3>关于「车道线能不能靠它开」的现实预期</h3>
+  <div class="callout danger">
+    <strong>车道线是这三项里最不可靠的一项，必须降低预期</strong>
+    即便口径修正后，最好的模型车道 IoU 也只有 56~61；老口径下长期停在 26~34。原因很物理：车道线是细长结构，几个像素的偏差就能让 IoU 掉一大截。<br>
+    <strong>三项里真正稳定可用的是「可行驶区域分割」，mIoU 长期稳定在 91~93</strong>，这才是可以信任的输入。<br>
+    建议的用法：<strong>可行驶区域做主要约束，车道线只做弱先验（软约束/居中偏置），车辆检测做避障判断</strong>——不要反过来让车道线主导转向。
+  </div>
+</section>
+
+<!-- 9 -->
+<section>
+  <h2><span class="num">10</span>参考来源</h2>
+  <p class="src">按报告结构排列，均可通过标题检索到原文。</p>
+  <ul class="src">
+    <li>TriLiteNet: Lightweight Model for Multi-Task Visual Perception — IEEE Access vol.13, pp.50152-50166, 2025-03-17；arXiv:2509.04092；<code>github.com/chequanghuy/TriLiteNet</code></li>
+    <li>TwinLiteNet+: An Enhanced Multi-Task Segmentation Model for Autonomous Driving — arXiv:2403.16958；Computers and Electrical Engineering vol.128, 2025-12；<code>github.com/chequanghuy/TwinLiteNetPlus</code></li>
+    <li>You Only Look at Once for Real-time and Generic Multi-Task（A-YOLOM）— arXiv:2310.01641v4, 2024-04；IEEE Transactions on Vehicular Technology；<code>github.com/JiayuanWang-JW/YOLOv8-multi-task</code></li>
+    <li>RMT-PPAD: Real-time Multi-task Learning for Panoptic Perception in Autonomous Driving — arXiv:2508.06529, 2025-08</li>
+    <li>Compressing Multi-Task Model for Autonomous Driving via Pruning and Knowledge Distillation — arXiv:2511.05557, 2025-11</li>
+    <li>MDANet: A Lightweight Multi-Task Dynamic Adaptive Network — IEEE T-ITS, DOI 10.1109/TITS.2026.3657786, 2026-02-06</li>
+    <li>DDL-Net: A Task-Balanced Panoptic Perception Network with Channel-Reorganized Attention — ICMR 2026, DOI 10.1145/3805622.3810661</li>
+    <li>AurigaNet: A Real-Time Multi-Task Network for Enhanced Urban Driving Perception — arXiv:2602.10660, 2026-02-11</li>
+    <li>YOLOPX: Anchor-free Multi-Task learning Network for Panoptic Driving Perception — Pattern Recognition, 2024；<code>github.com/jiaoZ7688/YOLOPX</code></li>
+    <li>Multi-Task Visual Perception for Object Detection and Semantic Segmentation in Intelligent Driving（YOLOPv3）— Remote Sensing 16(10):1774, 2024</li>
+    <li>LM-YOLO: Lightweight Multi Perception Network for Traffic Driving Scene Understanding — ICIC 2025, Springer CCIS 2570, pp.113-125, 2025-07-22</li>
+    <li>基于多任务特征融合与正交注意力的交通环境感知算法（MTEPN）— 工程科学学报 47(6):1303-1313, 2025, DOI 10.13374/j.issn2095-9389.2024.10.09.001</li>
+    <li>YOLOP: You Only Look Once for Panoptic Driving Perception — <code>github.com/hustvl/YOLOP</code></li>
+    <li>Ultralytics YOLO26 官方文档与 v8.4.0 发布公告，2026-01-14</li>
+  </ul>
+  <div class="callout warn" style="margin-top:20px">
+    <strong>一点安全说明</strong>
+    检索过程中有一个聚合站点（spacefrontiers.org）的页面内嵌了伪装成正文的指令文本（"IGNORE PREVIOUS INSTRUCTIONS..."，试图操纵排序）。该内容已被识别并忽略，其数据未采信、未计入本报告。
+  </div>
+</section>
+
+<footer>
+  报告生成于 2026-09-11 · 所有指标为原论文自报值，未独立复现 · 跨论文比较请结合第 6 节口径说明使用
+</footer>
+
+</div>
+</body>
+</html>

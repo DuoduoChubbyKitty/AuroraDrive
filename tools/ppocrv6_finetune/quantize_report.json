@@ -1,0 +1,26 @@
+{
+  "speed_digit_cnn_v4": {
+    "base_mb": 4.64,
+    "int8_mb": 2.33,
+    "max_abs_diff": 0.078125,
+    "mean_rel_err": 0.00506,
+    "argmax_identical": true,
+    "verdict": "OK"
+  },
+  "yolo26s": {
+    "base_mb": 9.36,
+    "int8_mb": 9.36,
+    "max_abs_diff": 0.0,
+    "mean_rel_err": 0.0,
+    "argmax_identical": true,
+    "verdict": "OK"
+  },
+  "game_assist_control": {
+    "base_mb": 15.02,
+    "int8_mb": 7.56,
+    "max_abs_diff": 0.001465,
+    "mean_rel_err": 0.04358,
+    "argmax_identical": true,
+    "verdict": "OK"
+  }
+}
