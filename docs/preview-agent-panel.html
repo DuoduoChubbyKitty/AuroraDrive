@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AuroraDrive — AI Agent Preview</title>
+<style>
+:root{--cyan:#00e5ff;--cyan-dim:rgba(0,229,255,0.55);--orange-red:#ff5c38;--danger:#ff3d47;--bg-card:rgba(255,255,255,0.045);--text-sec:rgba(255,255,255,0.62);--text-ter:rgba(255,255,255,0.38)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-serif;height:100vh;overflow:hidden}
+
+/* ── Layout ── */
+.app{display:flex;height:100vh;width:100vw}
+
+/* ── Sidebar (left 25%) ── */
+.sidebar{
+  width:25%;min-width:320px;max-width:420px;
+  background:rgba(0,0,0,0.6);
+  border-right:1px solid rgba(0,229,255,0.15);
+  display:flex;flex-direction:column;
+  transform:translateX(-100%);
+  transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  z-index:100;position:relative;
+}
+.sidebar.open{transform:translateX(0)}
+
+/* ── Viewport (right 75%) ── */
+.viewport{flex:1;position:relative;background:#000;display:flex;align-items:center;justify-content:center}
+
+/* ── Toggle Arrow ── */
+.toggle-arrow{
+  position:fixed;right:0;top:50%;transform:translateY(-50%);
+  width:28px;height:64px;
+  background:rgba(0,229,255,0.15);
+  border:1px solid rgba(0,229,255,0.4);
+  border-right:none;
+  border-radius:8px 0 0 8px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  z-index:200;transition:all 0.3s;
+}
+.toggle-arrow:hover{background:rgba(0,229,255,0.25);box-shadow:0 0 12px rgba(0,229,255,0.4)}
+.toggle-arrow svg{width:14px;height:14px;fill:var(--cyan);transition:transform 0.3s}
+.sidebar.open~.toggle-arrow svg{transform:rotate(180deg)}
+
+/* ── Top Toolbar ── */
+.topbar{height:44px;display:flex;align-items:center;padding:0 16px;gap:12px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.5);flex-shrink:0}
+.topbar-brand{display:flex;align-items:center;gap:8px}
+.topbar-brand .logo{font-size:13px;color:var(--cyan);text-shadow:0 0 6px var(--cyan)}
+.topbar-brand .name{font-size:14px;font-weight:700;letter-spacing:1.2px;color:var(--cyan)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.pill{display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:20px;font-size:10px;font-weight:600}
+.pill-cyan{background:rgba(0,229,255,0.2);color:var(--cyan)}
+.pill-orange{background:rgba(255,92,56,0.15);color:var(--orange-red)}
+.pill-dot{width:7px;height:7px;border-radius:50%;background:var(--text-ter);transition:all 0.3s}
+.pill-dot.on{background:var(--cyan);box-shadow:0 0 5px var(--cyan)}
+.topbar-mode{font-size:11px;font-weight:600;font-family:'SF Mono',monospace;color:var(--cyan)}
+.topbar-m9{font-size:9px;font-weight:600;font-family:'SF Mono',monospace;color:var(--text-sec)}
+
+/* ── Scroll Area ── */
+.sb-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+.sb-scroll::-webkit-scrollbar{width:3px}
+.sb-scroll::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
+
+/* ── GlowCard ── */
+.gcard{background:var(--bg-card);border-radius:16px;border:1px solid rgba(255,255,255,0.08);padding:16px;position:relative;overflow:hidden}
+.gcard::before{content:'';position:absolute;inset:0;border-radius:16px;padding:1px;background:linear-gradient(135deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+
+/* ── SectionHeader ── */
+.shdr{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.shdr .bar{width:3px;height:12px;background:var(--cyan);border-radius:1.5px;box-shadow:0 0 4px var(--cyan)}
+.shdr .ttl{font-size:11px;font-weight:700;letter-spacing:2.5px;color:var(--text-sec);text-transform:uppercase}
+
+/* ── ModeChip ── */
+.mchip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);cursor:pointer;transition:all 0.2s;margin-bottom:8px}
+.mchip:last-child{margin-bottom:0}
+.mchip.active{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,229,255,0.8)}
+.mchip.active *{color:#000!important}
+.mchip-icon{font-size:11px}
+.mchip-lbl{font-size:11px;font-weight:600}
+.mchip-desc{font-size:9px;opacity:0.85}
+
+/* ── Confidence ── */
+.crow{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.clbl{font-size:11px;font-weight:500;color:var(--text-sec)}
+.cval{font-size:12px;font-weight:700;font-family:'SF Mono',monospace;color:var(--cyan)}
+.ctrack{height:8px;border-radius:4px;background:rgba(255,255,255,0.08);overflow:hidden}
+.cfill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--cyan-dim),var(--cyan));box-shadow:0 0 8px rgba(0,229,255,0.6);transition:width 0.3s}
+
+/* ── Speed ── */
+.srow{display:flex;align-items:baseline;gap:6px;margin-top:4px}
+.sval{font-size:52px;font-weight:800;font-family:'SF Mono',monospace;color:#fff;text-shadow:0 0 12px rgba(0,229,255,0.45)}
+.sunit{font-size:12px;color:var(--text-ter)}
+.seng{margin-left:auto;font-size:9px;font-weight:700;font-family:'SF Mono',monospace;color:var(--cyan);padding:2px 5px;background:rgba(0,229,255,0.15);border-radius:4px}
+
+/* ── Start Button ── */
+.sbtn{width:100%;padding:16px;border-radius:14px;border:none;cursor:pointer;font-size:16px;font-weight:700;letter-spacing:0.5px;transition:all 0.2s;margin:4px 0;font-family:inherit}
+.sbtn.on{background:linear-gradient(180deg,var(--cyan),rgba(0,229,255,0.75));color:#000;box-shadow:0 0 18px rgba(0,229,255,0.65)}
+.sbtn.off{background:linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0.08));color:#fff;border:1px solid rgba(255,61,71,0.7)}
+
+/* ── Control Row ── */
+.crow2{display:flex;align-items:center;justify-content:space-between;padding:4px 0}
+.crow2-label{display:flex;align-items:center;gap:8px}
+.crow2-icon{font-size:13px;font-weight:600}
+.crow2-title{font-size:13px;font-weight:600}
+.crow2-sub{font-size:10px;color:var(--text-ter)}
+
+/* ── Toggle ── */
+.tog{width:36px;height:20px;border-radius:10px;background:rgba(255,255,255,0.15);position:relative;cursor:pointer;transition:all 0.2s}
+.tog.on{background:var(--cyan)}
+.tog-knob{width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:all 0.2s}
+.tog.on .tog-knob{left:18px}
+
+/* ── Slider ── */
+.sldr{display:flex;flex-direction:column;gap:6px}
+.sldr-head{display:flex;justify-content:space-between}
+.sldr-lbl{font-size:12px;font-weight:500;color:var(--text-sec)}
+.sldr-val{font-size:12px;font-weight:700;font-family:'SF Mono',monospace;color:var(--cyan)}
+.sldr input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,0.08);outline:none}
+.sldr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 6px rgba(0,229,255,0.8)}
+
+/* ── Automation Item ── */
+.auto-item{display:flex;align-items:center;gap:9px;padding:0 10px;height:36px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:all 0.15s;margin-bottom:6px}
+.auto-item:last-child{margin-bottom:0}
+.auto-item:hover{background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.2)}
+.auto-item.run{background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.4)}
+.auto-em{font-size:15px}
+.auto-nm{font-size:12.5px;font-weight:500;flex:1}
+.auto-warn{font-size:8px;font-weight:700;color:var(--danger)}
+.auto-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.15);transition:all 0.2s}
+.auto-item.run .auto-dot{background:var(--cyan);box-shadow:0 0 5px var(--cyan)}
+
+/* ── Train Button ── */
+.tbtn{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.1);color:var(--cyan);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;flex:1;font-family:inherit}
+.tbtn:hover{background:rgba(0,229,255,0.18)}
+.tbtn.fill{background:var(--cyan);color:#000;border-color:var(--cyan)}
+.tbtn-row{display:flex;gap:8px;margin-top:8px}
+
+/* ── Map ── */
+.map-mini{height:100px;border-radius:10px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);display:flex;align-items:center;justify-content:center;color:var(--text-ter);font-size:12px;position:relative;overflow:hidden}
+.map-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+
+/* ── Log ── */
+.log-c{font-size:9px;font-family:'SF Mono',monospace;color:var(--text-sec);max-height:60px;overflow-y:auto;line-height:1.6}
+.log-c::-webkit-scrollbar{width:3px}
+.log-c::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
+
+/* ── Viewport Content ── */
+.viewport-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.viewport-placeholder{text-align:center;opacity:0.25}
+.viewport-placeholder .icon{font-size:48px;font-weight:100;margin-bottom:12px}
+.viewport-placeholder .label{font-size:12px;letter-spacing:1px;color:#fff}
+.fps-hud{position:absolute;top:12px;left:12px;font-size:10px;font-family:'SF Mono',monospace;color:var(--cyan);opacity:0.7}
+.rec-bar{position:absolute;bottom:56px;left:20px;display:none;align-items:center;gap:8px;padding:7px 12px;background:rgba(0,0,0,0.45);border-radius:20px;border:1px solid rgba(255,255,255,0.1)}
+.rec-bar.show{display:flex}
+.rec-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);box-shadow:0 0 6px var(--danger)}
+.rec-text{font-size:11px;font-weight:700;font-family:'SF Mono',monospace;color:var(--danger)}
+.frames-text{font-size:10px;font-weight:500;font-family:'SF Mono',monospace;color:var(--text-ter)}
+
+/* ── Keyboard Bar ── */
+.kb-bar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:4px;padding:4px 8px;background:rgba(0,10,15,0.85);border-radius:8px;border:1px solid rgba(0,229,255,0.4)}
+.kcap{width:28px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;font-family:'SF Mono',monospace;color:var(--text-ter);background:rgba(255,255,255,0.04);border:1px solid rgba(0,229,255,0.3);transition:all 0.08s;cursor:default;user-select:none}
+.kcap.active{color:#000;background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,229,255,0.8)}
+.kcap.wide{width:48px}
+.kcap.narrow{width:32px;font-size:9px}
+
+/* ── Agent Panel ── */
+.agent-panel{display:none;flex-direction:column;gap:14px;animation:fadeIn 0.3s ease}
+.agent-panel.vis{display:flex}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+
+.ws-row{display:flex;gap:8px;flex-wrap:wrap}
+.ws-btn{padding:7px 14px;border-radius:8px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:var(--text-sec);font-size:12px;cursor:pointer;transition:all 0.15s}
+.ws-btn:hover{background:rgba(0,229,255,0.12);color:#fff}
+.ws-btn.sel{background:rgba(0,229,255,0.18);border-color:var(--cyan);color:#fff;box-shadow:0 0 8px rgba(0,229,255,0.25)}
+
+.skills-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.skill-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 6px;border-radius:12px;border:1px solid rgba(0,229,255,0.1);background:rgba(0,229,255,0.03);cursor:pointer;transition:all 0.15s}
+.skill-btn:hover{background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.35);transform:translateY(-1px)}
+.skill-btn .si{font-size:18px}
+.skill-btn .sn{font-size:10px;color:var(--text-sec);text-align:center}
+
+.conv-list{display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto}
+.conv-list::-webkit-scrollbar{width:3px}
+.conv-list::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
+.conv-item{padding:10px 12px;border-radius:10px;border:1px solid rgba(0,229,255,0.08);background:rgba(255,255,255,0.02);cursor:pointer;transition:all 0.15s}
+.conv-item:hover{background:rgba(0,229,255,0.07);border-color:rgba(0,229,255,0.2)}
+.conv-item.act{background:rgba(0,229,255,0.12);border-color:rgba(0,229,255,0.35)}
+.conv-ttl{font-size:12px;font-weight:500;color:rgba(255,255,255,0.88);margin-bottom:3px}
+.conv-meta{font-size:10px;color:var(--text-ter)}
+
+.new-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:10px;border:1px dashed rgba(0,229,255,0.3);background:transparent;color:var(--cyan);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;font-family:inherit}
+.new-btn:hover{background:rgba(0,229,255,0.07);border-style:solid}
+
+.qbtn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.1);color:var(--cyan);font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;font-family:inherit}
+.qbtn:hover{background:rgba(0,229,255,0.18)}
+.qbtn-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar (left, slides in) -->
+  <div class="sidebar" id="sidebar">
+    <!-- Top Toolbar -->
+    <div class="topbar">
+      <div class="topbar-brand">
+        <span class="logo">🎯</span>
+        <span class="name">AuroraDrive</span>
+      </div>
+      <div class="topbar-right">
+        <div class="pill pill-orange">🔑 BPF</div>
+        <div class="pill-dot" id="sDot"></div>
+        <span class="topbar-mode" id="mLbl">待机</span>
+        <span class="topbar-m9" id="m9Lbl">M9未加载</span>
+      </div>
+    </div>
+
+    <div class="sb-scroll">
+      <!-- Normal Panel -->
+      <div id="normalPanel">
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">STATUS</div></div>
+          <div class="mchip active" onclick="setMode(this,'e2e')">
+            <span class="mchip-icon">🧠</span>
+            <div><div class="mchip-lbl">端到端主驾</div><div class="mchip-desc">M9 端到端模型直接开车</div></div>
+          </div>
+          <div class="mchip" onclick="setMode(this,'rule')">
+            <span class="mchip-icon">🛡️</span>
+            <div><div class="mchip-lbl">规则兜底</div><div class="mchip-desc">YOLO 检测 + 手写规则</div></div>
+          </div>
+          <div class="crow"><span class="clbl">置信度</span><span class="cval" id="cv">92.4%</span></div>
+          <div class="ctrack"><div class="cfill" id="cf" style="width:92%"></div></div>
+          <div class="srow">
+            <span class="sval" id="sv">0</span>
+            <span class="sunit">km/h</span>
+            <span class="seng">PP-OCR</span>
+            <span style="margin-left:auto;font-size:10px;font-family:'SF Mono',monospace;color:var(--text-ter)" id="fpsV">30 FPS</span>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">CONTROL</div></div>
+          <button class="sbtn on" id="sBtn" onclick="toggleDrive()">启动自动驾驶</button>
+          <div class="crow2">
+            <div class="crow2-label">
+              <span class="crow2-icon" id="flame" style="color:var(--text-ter)">🔥</span>
+              <div><div class="crow2-title">极速模式</div><div class="crow2-sub">解除限速，全速冲刺</div></div>
+            </div>
+            <div class="tog" id="sportTog" onclick="togSport()"><div class="tog-knob"></div></div>
+          </div>
+          <div class="tbtn-row">
+            <button class="tbtn" id="recBtn" onclick="togRec()">🔴 录制</button>
+            <button class="tbtn" onclick="alert('训练功能开发中')">🧩 训练</button>
+          </div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-ter)">
+            <span>📦</span><span>模型版本</span>
+            <span style="margin-left:auto;font-family:'SF Mono',monospace;color:var(--text-sec)">v2.4.1-e2e-fsd</span>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">CONFIG</div></div>
+          <div class="sldr">
+            <div class="sldr-head"><span class="sldr-lbl">速度上限</span><span class="sldr-val" id="slVal">120 km/h</span></div>
+            <input type="range" min="40" max="200" value="120" step="5" oninput="document.getElementById('slVal').textContent=this.value+' km/h'">
+          </div>
+          <div class="sldr" style="margin-top:10px">
+            <div class="sldr-head"><span class="sldr-lbl">降级阈值</span><span class="sldr-val" id="dgVal">0.65</span></div>
+            <input type="range" min="30" max="90" value="65" step="1" oninput="document.getElementById('dgVal').textContent=(this.value/100).toFixed(2)">
+          </div>
+          <div class="crow2" style="margin-top:10px">
+            <div class="crow2-label">
+              <span class="crow2-icon">✨</span>
+              <div><div class="crow2-title">显示插帧</div><div class="crow2-sub">MetalGoose MGFG-1</div></div>
+            </div>
+            <div class="tog" onclick="this.classList.toggle('on')"><div class="tog-knob"></div></div>
+          </div>
+          <div class="crow2">
+            <div class="crow2-label">
+              <span class="crow2-icon">⚡</span>
+              <div><div class="crow2-title">游戏模式兼容</div><div class="crow2-sub">对抗全屏游戏降权</div></div>
+            </div>
+            <div class="tog on" onclick="this.classList.toggle('on')"><div class="tog-knob"></div></div>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">TRAINING</div></div>
+          <div class="crow2">
+            <div class="crow2-label">
+              <span class="crow2-icon">👤</span>
+              <div><div class="crow2-title">专家模式（录真人键）</div></div>
+            </div>
+            <div class="tog" onclick="this.classList.toggle('on')"><div class="tog-knob"></div></div>
+          </div>
+          <div class="crow2" style="margin-top:6px">
+            <div class="crow2-label">
+              <span class="crow2-icon">#️⃣</span>
+              <div><div class="crow2-title">字模模式（录原生速度表）</div></div>
+            </div>
+            <div class="tog" onclick="this.classList.toggle('on')"><div class="tog-knob"></div></div>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">MAP</div></div>
+          <div class="map-mini">
+            <div class="map-dot" style="top:40%;left:55%"></div>
+            <span style="position:absolute;bottom:8px;font-size:10px;color:var(--text-ter)">网络定位 · (0.52, 0.38)</span>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">AUTOMATION</div></div>
+          <div id="autoList">
+            <div class="auto-item" onclick="togAuto(this)"><span class="auto-em">🎣</span><span class="auto-nm">自动钓鱼</span><div class="auto-dot"></div></div>
+            <div class="auto-item" onclick="togAuto(this)"><span class="auto-em">🥤</span><span class="auto-nm">自动做咖啡</span><div class="auto-dot"></div></div>
+            <div class="auto-item" onclick="togAuto(this)"><span class="auto-em">🐾</span><span class="auto-nm">粉爪大劫案</span><span class="auto-warn">最凶</span><div class="auto-dot"></div></div>
+            <div class="auto-item" onclick="togAuto(this)"><span class="auto-em">🪑</span><span class="auto-nm">自动收家具</span><div class="auto-dot"></div></div>
+            <div class="auto-item" onclick="togAuto(this)"><span class="auto-em">💎</span><span class="auto-nm">自动领奖励</span><div class="auto-dot"></div></div>
+            <div class="auto-item" onclick="togAuto(this)"><span class="auto-em">🎹</span><span class="auto-nm">自动弹钢琴</span><div class="auto-dot"></div></div>
+            <div class="auto-item" onclick="togAuto(this)"><span class="auto-em">🎵</span><span class="auto-nm">自动超强音</span><div class="auto-dot"></div></div>
+            <div class="auto-item" onclick="togAuto(this)"><span class="auto-em">⚔️</span><span class="auto-nm">自动闪避</span><div class="auto-dot"></div></div>
+            <div class="auto-item" onclick="togAuto(this)"><span class="auto-em">🕛</span><span class="auto-nm">实时辅助</span><div class="auto-dot"></div></div>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <div class="shdr">
+            <div class="bar"></div><div class="ttl">DEBUG LOG</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+              <div class="tog" style="width:28px;height:16px" onclick="this.classList.toggle('on')"><div class="tog-knob" style="width:12px;height:12px"></div></div>
+              <span style="font-size:10px;color:var(--text-ter)">自动刷新</span>
+            </div>
+          </div>
+          <div class="log-c">[tick] 30Hz · speed=0 · conf=0.92 · mode=e2e</div>
+        </div>
+      </div>
+
+      <!-- Agent Panel (hidden initially) -->
+      <div class="agent-panel" id="agentPanel">
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">工作区</div></div>
+          <div class="ws-row">
+            <div class="ws-btn sel" onclick="selWS(this)">不选择工作区</div>
+            <div class="ws-btn" onclick="selWS(this)">异环游戏</div>
+            <div class="ws-btn" onclick="selWS(this)">自动驾驶录制</div>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">技能</div></div>
+          <div class="skills-grid">
+            <div class="skill-btn" onclick="runSkill('drive')"><div class="si">🚗</div><div class="sn">导航</div></div>
+            <div class="skill-btn" onclick="runSkill('fish')"><div class="si">🎣</div><div class="sn">钓鱼</div></div>
+            <div class="skill-btn" onclick="runSkill('coffee')"><div class="si">☕</div><div class="sn">咖啡</div></div>
+            <div class="skill-btn" onclick="runSkill('furniture')"><div class="si">🏠</div><div class="sn">家具</div></div>
+            <div class="skill-btn" onclick="runSkill('reward')"><div class="si">🎁</div><div class="sn">奖励</div></div>
+            <div class="skill-btn" onclick="runSkill('combat')"><div class="si">⚔️</div><div class="sn">战斗</div></div>
+            <div class="skill-btn" onclick="runSkill('volleyball')"><div class="si">🏐</div><div class="sn">排球</div></div>
+            <div class="skill-btn" onclick="runSkill('tetris')"><div class="si">🎮</div><div class="sn">方块</div></div>
+            <div class="skill-btn" onclick="runSkill('piano')"><div class="si">🎹</div><div class="sn">钢琴</div></div>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">对话历史</div></div>
+          <div class="conv-list">
+            <div class="conv-item act"><div class="conv-ttl">帮我完成钓鱼任务</div><div class="conv-meta">3 分钟前 · 12 步</div></div>
+            <div class="conv-item"><div class="conv-ttl">去喷泉领活跃度</div><div class="conv-meta">1 小时前 · 8 步</div></div>
+            <div class="conv-item"><div class="conv-ttl">自动做咖啡 ×10</div><div class="conv-meta">昨天 · 15 步</div></div>
+            <div class="conv-item"><div class="conv-ttl">粉爪大劫案 - 方案1</div><div class="conv-meta">2 天前 · 47 步</div></div>
+          </div>
+        </div>
+
+        <button class="new-btn" onclick="newConv()"><span style="font-size:16px">+</span><span>新建对话</span></button>
+
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">快捷操作</div></div>
+          <div class="qbtn-row">
+            <button class="qbtn" onclick="agentAct('teleport')">📍 传送</button>
+            <button class="qbtn" onclick="agentAct('map')">🗺️ 地图</button>
+            <button class="qbtn" onclick="agentAct('stop')">⏹️ 停止</button>
+            <button class="qbtn" onclick="agentAct('drive')">🚗 开始驾驶</button>
+          </div>
+        </div>
+
+        <div class="gcard">
+          <div class="shdr"><div class="bar"></div><div class="ttl">AGENT 状态</div></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 0">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan)" id="agentDot"></div>
+            <span style="font-size:12px;color:var(--text-sec)" id="agentStatus">就绪，等待任务</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Viewport (right side) -->
+  <div class="viewport" id="viewport">
+    <div class="viewport-inner" id="vpInner">
+      <div class="viewport-placeholder" id="vpPH">
+        <div class="icon">🎮</div>
+        <div class="label">点击侧边栏「启动自动驾驶」</div>
+      </div>
+    </div>
+    <div class="fps-hud" id="fpsHud">-- fps · --×--</div>
+    <div class="rec-bar" id="recBar">
+      <div class="rec-dot"></div>
+      <span class="rec-text">REC</span>
+      <span class="frames-text" id="frCnt">FRAMES 0</span>
+    </div>
+    <div class="kb-bar" id="kbBar">
+      <div class="kcap" data-k="w">W</div>
+      <div class="kcap" data-k="a">A</div>
+      <div class="kcap" data-k="s">S</div>
+      <div class="kcap" data-k="d">D</div>
+      <div class="kcap wide" data-k=" ">␣</div>
+      <div class="kcap" data-k="shift">⇧</div>
+    </div>
+  </div>
+
+  <!-- Toggle Arrow (right edge) -->
+  <div class="toggle-arrow" id="toggleArrow" onclick="toggleSidebar()">
+    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+  </div>
+</div>
+
+<script>
+let sidebarOpen=false, driving=false, recording=false, sportOn=false, simInt=null, agentMode=false;
+
+function toggleSidebar(){
+  sidebarOpen=!sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('open',sidebarOpen);
+  document.getElementById('toggleArrow').style.right=sidebarOpen?'25%':'0';
+}
+
+function selWS(el){document.querySelectorAll('.ws-btn').forEach(b=>b.classList.remove('sel'));el.classList.add('sel')}
+function setMode(el,m){
+  document.querySelectorAll('.mchip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('mLbl').textContent=m==='e2e'?'端到端主驾':'规则兜底';
+}
+
+function toggleDrive(){
+  driving=!driving;
+  const btn=document.getElementById('sBtn');
+  const dot=document.getElementById('sDot');
+  const mL=document.getElementById('mLbl');
+  const m9=document.getElementById('m9Lbl');
+  const rec=document.getElementById('recBar');
+  const ph=document.getElementById('vpPH');
+
+  if(driving){
+    btn.className='sbtn off';btn.textContent='停止自动驾驶';
+    dot.className='pill-dot on';
+    mL.textContent='端到端主驾';mL.style.color='var(--cyan)';
+    m9.textContent='M9活跃';m9.style.color='var(--cyan)';
+    ph.innerHTML='<div style="opacity:0.15;text-align:center"><div style="font-size:32px">🎮</div><div style="font-size:11px">游戏运行中...</div></div>';
+    rec.classList.add('show');
+    simInt=setInterval(()=>{
+      if(!driving)return;
+      const sp=Math.floor(Math.random()*60);
+      const cf=(0.85+Math.random()*0.14).toFixed(1);
+      document.getElementById('sv').textContent=sp;
+      document.getElementById('cv').textContent=cf+'%';
+      document.getElementById('cf').style.width=cf+'%';
+    },500);
+  }else{
+    btn.className='sbtn on';btn.textContent='启动自动驾驶';
+    dot.className='pill-dot';
+    mL.textContent='待机';mL.style.color='var(--text-ter)';
+    m9.textContent='M9未加载';m9.style.color='var(--text-sec)';
+    ph.innerHTML='<div class="viewport-placeholder"><div class="icon">🎮</div><div class="label">点击侧边栏「启动自动驾驶」</div></div>';
+    rec.classList.remove('show');
+    document.getElementById('sv').textContent='0';
+    document.getElementById('cv').textContent='--';
+    document.getElementById('cf').style.width='0%';
+    clearInterval(simInt);
+  }
+}
+
+function togSport(){
+  sportOn=!sportOn;
+  document.getElementById('sportTog').classList.toggle('on',sportOn);
+  const f=document.getElementById('flame');
+  f.style.color=sportOn?'var(--orange-red)':'var(--text-ter)';
+  f.style.textShadow=sportOn?'0 0 6px var(--orange-red)':'none';
+}
+
+function togRec(){
+  recording=!recording;
+  const btn=document.getElementById('recBtn');
+  btn.classList.toggle('fill',recording);
+  btn.textContent=recording?'⏹ 录制中':'🔴 录制';
+  document.getElementById('frCnt').textContent='FRAMES '+Math.floor(Math.random()*9999);
+}
+
+function togAuto(el){el.classList.toggle('run')}
+
+function runSkill(s){console.log('skill:',s)}
+function newConv(){console.log('new conv')}
+function agentAct(a){console.log('act:',a)}
+
+// Double-click arrow to switch to agent mode
+document.getElementById('toggleArrow').addEventListener('dblclick',()=>{
+  agentMode=!agentMode;
+  document.getElementById('normalPanel').style.display=agentMode?'none':'flex';
+  document.getElementById('agentPanel').className=agentMode?'agent-panel vis':'agent-panel';
+});
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  const c=document.querySelector(`.kcap[data-k="${k}"]`);
+  if(c)c.classList.add('active');
+});
+document.addEventListener('keyup',e=>{
+  const k=e.key.toLowerCase();
+  const c=document.querySelector(`.kcap[data-k="${k}"]`);
+  if(c)c.classList.remove('active');
+});
+
+// Conv click
+document.querySelectorAll('.conv-item').forEach(item=>{
+  item.addEventListener('click',()=>{
+    document.querySelectorAll('.conv-item').forEach(i=>i.classList.remove('act'));
+    item.classList.add('act');
+  });
+});
+</script>
+</body>
+</html>
