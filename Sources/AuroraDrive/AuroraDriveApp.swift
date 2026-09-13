@@ -305,6 +305,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 window.orderFrontRegardless()
             }
         }
+
+        // ── 启动即自动登录（--auto-login）──
+        // 放在 applicationDidFinishLaunching 而非 ContentView.onAppear：
+        // 登录守护与 UI 渲染解耦 —— 引擎/权限环境异常导致窗口创建延迟或失败时，
+        // 守护照样启动，不会"卡死在等窗口"。守护内部已有安全护栏：
+        //   ① 只有检测到游戏窗口（异环/NTE）才允许点击，绝不误点其他窗口
+        //   ② 每 8s 一次、最多 10 次（80s 超时自动停止）
+        //   ③ 游戏未开/已登录时安静等待或退出，无副作用
+        if CommandLine.arguments.contains("--auto-login") {
+            fputs("[AUTO-LOGIN] 收到 --auto-login，1.5s 后启动登录守护（独立于 UI）\n", stderr)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                AgentSkillCenter.shared.requestAutoLoginOnStartup()
+            }
+        }
     }
     
     /// 正常退出前通知后台引擎「我走了，继续跑」：
@@ -504,6 +518,10 @@ struct AuroraDriveLauncher {
     }
 
     static func main() {
+        // stdout 改行缓冲：print 立即落盘（重定向到文件/管道时不再等到进程
+        // 退出才 flush —— 否则 crash/卡死时日志全丢，无法定位）
+        setvbuf(stdout, nil, _IOLBF, 0)
+
         let args = CommandLine.arguments
         if args.contains("--engine") {
             EngineMain.run()   // 永不返回（dispatchMain 常驻；自身已有 engine.lock）
@@ -2157,6 +2175,12 @@ struct ContentView: View {
                 print("[UI-SHOT] 收到，开始无头渲染 AI 面板")
                 AgentUIShot.run()
             }
+
+            // 注：--auto-login 已移到 AppDelegate（applicationDidFinishLaunching）
+            // 处理，与 UI 渲染解耦（见 AppDelegate 中「启动即自动登录」注释）。
+            // 这里仅负责把引擎注入给技能中心（ContentView 持有 DriveState）。
+            AgentSkillCenter.shared.configure(control: state.controlEngine,
+                                              capture: state.captureEngine)
         }
     }
 }

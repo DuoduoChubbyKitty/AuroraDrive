@@ -118,8 +118,10 @@ elif [ "$1" = "--yolo-bench" ] && [ -n "$2" ]; then
 else
     echo "启动 AuroraDrive..."
     # 优先用 .app bundle (LaunchServices 干净父进程)
-    open "$BUNDLE_DIR"
-    echo "已启动。如果没出现窗口,检查:"
+    # --auto-login: 启动即自动进入登录守护（每 8s 检测登录界面并点击，
+    #   直到进游戏或 80s 超时）。游戏已登录/未开时守护安静退出，无副作用。
+    open "$BUNDLE_DIR" --args --auto-login
+    echo "已启动（--auto-login 自动登录守护已开启）。如果没出现窗口,检查:"
     echo "  1. 屏幕录制权限: 系统设置 → 隐私 → 屏幕录制"
     echo "  2. 辅助功能权限: 系统设置 → 隐私 → 辅助功能"
     echo "  3. 手动跑裸文件: ./$BIN_DST"

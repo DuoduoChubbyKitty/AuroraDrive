@@ -136,10 +136,38 @@ final class AgentSkillCenter: @unchecked Sendable {
 
     // MARK: 依赖注入
 
+    /// 引擎未注入前排队的自动登录请求（--auto-login 在 AppDelegate 触发，
+    /// 而截屏/按键引擎属于 DriveState，在 ContentView.onAppear 才注入）
+    @ObservationIgnored private var pendingAutoLogin = false
+
     func configure(control: ControlEngine?, capture: CaptureEngine?) {
         self.control = control
         self.capture = capture
         if let c = control { _ = c.checkPermission() }
+
+        // 引擎就绪后，补上启动期间排队的自动登录
+        if pendingAutoLogin {
+            pendingAutoLogin = false
+            runSkill("auto_login", source: .ai)
+        }
+    }
+
+    /// AppDelegate 调用：启动自动登录（引擎可能还没注入，先排队）
+    func requestAutoLoginOnStartup() {
+        guard !runningSkills.contains("auto_login") else { return }
+        if control == nil || capture == nil {
+            pendingAutoLogin = true
+            // 兜底：若引擎一直没注入（异常路径），最多等 8 秒后仍尝试
+            workQueue.asyncAfter(deadline: .now() + 8.0) { [weak self] in
+                guard let self else { return }
+                if self.pendingAutoLogin {
+                    self.pendingAutoLogin = false
+                    self.runSkill("auto_login", source: .ai)
+                }
+            }
+        } else {
+            runSkill("auto_login", source: .ai)
+        }
     }
 
     // MARK: - 统一入口：人类点击 / AI 指令都走这里
@@ -241,6 +269,15 @@ final class AgentSkillCenter: @unchecked Sendable {
             self?.dlog("[Login] \(msg)")
         }
 
+        // 安全前提：只自动操作游戏窗口。屏幕上没有【异环/NTE】窗口时
+        // 绝不点击任何「登录」按钮（否则会误点浏览器/QQ 等窗口的登录按钮）。
+        // 游戏可能还在启动中 → 进入守护模式等待窗口出现。
+        if !GameWindowDetector.isGameVisible() {
+            logger("🎮 未检测到游戏窗口（异环/NTE），进入守护等待…")
+            startLoginWatch(mouse: mouse, logger: logger, source: source)
+            return
+        }
+
         // 第一轮：立即尝试（完整 3 轮关键词）
         let result = loginAssistant.runAutoLogin(capture: capture, mouse: mouse, logger: logger)
         switch result {
@@ -285,6 +322,14 @@ final class AgentSkillCenter: @unchecked Sendable {
                 self.runningSkills.remove("auto_login")
                 self.loginWatchTimer?.cancel()
                 self.loginWatchTimer = nil
+                return
+            }
+
+            // 只有检测到游戏窗口才允许点击（防止误点其他窗口的「登录」）。
+            // 无游戏窗口 = 游戏还没启动或窗口在切换 —— 不点击、不停止，
+            // 安静等待下一轮（超时兜底已在上面）。
+            guard GameWindowDetector.isGameVisible() else {
+                logger("🔍 第 \(self.loginWatchAttempts) 次检测：等待游戏窗口出现…")
                 return
             }
 
@@ -1119,5 +1164,39 @@ enum AgentUIShot {
             print("[UI-SHOT] 写文件失败 \(error)")
             return false
         }
+    }
+}
+
+// ============================================================================
+//  GameWindowDetector — 游戏窗口检测（自动登录的安全护栏）
+//
+//  为什么必须有它：
+//  自动登录守护是全屏 OCR，会把屏幕上所有文字都识别一遍。如果没有这道
+//  护栏，浏览器、QQ、甚至 DSH 自己窗口里的「登录」二字都会被当成游戏登录
+//  按钮点掉 —— 那是灾难。只有确认屏幕上存在【异环/NTE】游戏窗口时，
+//  才被允许执行任何鼠标点击。
+// ============================================================================
+
+enum GameWindowDetector {
+
+    /// 屏幕当前是否存在游戏窗口（异环 NTE）
+    static func isGameVisible() -> Bool {
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly],
+                                                       kCGNullWindowID) as? [[String: Any]] else {
+            return false
+        }
+        for w in windows {
+            let owner = w[kCGWindowOwnerName as String] as? String ?? ""
+            let name  = w[kCGWindowName as String] as? String ?? ""
+            // 异环 NTE：窗口标题或进程名含「异环 / NTE」即命中
+            // （NTE 全大写的窗口层名，owner 可能是 launcher 进程）
+            let hit = owner.contains("NTE") || owner.contains("异环")
+                   || name.contains("NTE") || name.contains("异环")
+            if hit {
+                // print("[GameWindow] 命中游戏窗口 owner=\(owner) name=\(name)")
+                return true
+            }
+        }
+        return false
     }
 }
