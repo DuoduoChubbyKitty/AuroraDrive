@@ -226,11 +226,121 @@ final class ControlEngine: @unchecked Sendable {
         postedEventCount &+= 1
     }
 
+    // MARK: - AI Agent 游戏键位支持
+
+    /// 游戏常用键枚举（MaaNTE 实际使用的所有键）
+    /// CGKeyCode 值来自 macOS HID Usage Table
+    enum GameKey: String, CaseIterable {
+        // 移动
+        case w = "W"   // 87
+        case a = "A"   // 65
+        case s = "S"   // 83
+        case d = "D"   // 68
+        // 交互
+        case f = "F"   // 70
+        case e = "E"   // 69
+        case space = "Space"  // 32
+        // UI
+        case esc = "ESC"  // 27
+        case q = "Q"     // 81
+        case r = "R"     // 82
+        case m = "M"     // 77
+        case b = "B"     // 66
+        case t = "T"     // 84
+        // 修饰键
+        case shift = "Shift"   // 160 (Left Shift)
+        case ctrl = "Ctrl"     // 162 (Right Ctrl)
+        // 数字选择
+        case one = "1"   // 49
+        case two = "2"   // 50
+        case three = "3" // 51
+        case four = "4"  // 52
+        case five = "5"  // 53
+        case six = "6"   // 54
+        case seven = "7" // 55
+        // 俄罗斯方块 / 节奏游戏
+        case j = "J"     // 74
+        case k = "K"     // 75
+        case l = "L"     // 76
+        // 钢琴低音
+        case z = "Z"     // 90
+        case x = "X"     // 88
+        case c = "C"     // 67
+        case v = "V"     // 86
+        case n = "N"     // 78
+        // 钢琴中音
+        case g = "G"     // 71
+        case h = "H"     // 72
+        case i = "I"     // 73
+        // 钢琴高音
+        case y = "Y"     // 89
+        case u = "U"     // 85
+    }
+
+    /// GameKey → CGKeyCode 映射表
+    private static let gameKeyToKeyCode: [GameKey: CGKeyCode] = [
+        .w: 87, .a: 65, .s: 83, .d: 68,
+        .f: 70, .e: 69, .space: 32,
+        .esc: 27, .q: 81, .r: 82, .m: 77, .b: 66, .t: 84,
+        .shift: 0xA0, .ctrl: 0xA2,
+        .one: 49, .two: 50, .three: 51, .four: 52,
+        .five: 53, .six: 54, .seven: 55,
+        .j: 74, .k: 75, .l: 76,
+        .z: 90, .x: 88, .c: 67, .v: 86, .n: 78,
+        .g: 71, .h: 72, .i: 73,
+        .y: 89, .u: 85,
+    ]
+
+    /// 根据游戏键名获取 CGKeyCode
+    func keyCode(for key: GameKey) -> CGKeyCode? {
+        return Self.gameKeyToKeyCode[key]
+    }
+
+    /// 按下并释放一个游戏键（短按）
+    func pressGameKey(_ key: GameKey, duration: TimeInterval = 0.05) {
+        guard let keyCode = keyCode(for: key) else { return }
+        postKeyEvent(keyCode: keyCode, keyDown: true)
+        usleep(useconds_t(duration * 1_000_000))
+        postKeyEvent(keyCode: keyCode, keyDown: false)
+    }
+
+    /// 持续按住一个游戏键
+    func holdGameKey(_ key: GameKey) {
+        guard let keyCode = keyCode(for: key) else { return }
+        if heldKeys.contains(keyCode) { return }
+        postKeyEvent(keyCode: keyCode, keyDown: true)
+        heldKeys.insert(keyCode)
+    }
+
+    /// 释放一个游戏键
+    func releaseGameKey(_ key: GameKey) {
+        guard let keyCode = keyCode(for: key) else { return }
+        guard heldKeys.contains(keyCode) else { return }
+        postKeyEvent(keyCode: keyCode, keyDown: false)
+        heldKeys.remove(keyCode)
+    }
+
+    /// 批量释放所有游戏键（不影响驾驶语义键的追踪，但清理所有 held 状态）
+    func releaseAllGameKeys() {
+        let gameKeyCodes = Self.gameKeyToKeyCode.map { $0.value }
+        let toRelease = heldKeys.filter { gameKeyCodes.contains($0) }
+        for keyCode in toRelease {
+            postKeyEvent(keyCode: keyCode, keyDown: false)
+        }
+        heldKeys.subtract(toRelease)
+    }
+
     // MARK: - 状态查询
 
     /// 某个键是否正在按住
     func isHeld(_ action: Action) -> Bool {
         let keyCode = keyMap.keyCode(for: action)
+        return heldKeys.contains(keyCode)
+    }
+
+    /// 某个游戏键是否正在按住
+    func isHeld(_ key: GameKey) -> Bool {
+        guard let keyCode = keyCode(for: key) else { return false }
         return heldKeys.contains(keyCode)
     }
 
