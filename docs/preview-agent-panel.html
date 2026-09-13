@@ -11,7 +11,7 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 
 /* ── AI Agent Panel (left) ── */
 .agent-panel{
-  width:320px;min-width:280px;max-width:380px;
+  width:340px;min-width:300px;max-width:400px;
   background:rgba(0,10,20,0.95);
   border-right:1px solid rgba(0,229,255,0.2);
   display:flex;flex-direction:column;
@@ -71,8 +71,8 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 .kcap.active{color:#000;background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,229,255,0.8)}
 .kcap.wide{width:48px}
 
-/* ── Right Sidebar ── */
-.right-sidebar{width:360px;background:rgba(0,0,0,0.55);border-left:1px solid rgba(0,229,255,0.1);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+/* ── Right Sidebar (simplified, no AUTOMATION) ── */
+.right-sidebar{width:320px;background:rgba(0,0,0,0.55);border-left:1px solid rgba(0,229,255,0.1);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
 .sb-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
 .sb-scroll::-webkit-scrollbar{width:3px}
 .sb-scroll::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
@@ -115,20 +115,11 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 .sldr-val{font-size:12px;font-weight:700;font-family:'SF Mono',monospace;color:var(--cyan)}
 .sldr input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,0.08);outline:none}
 .sldr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 6px rgba(0,229,255,0.8)}
-.auto-item{display:flex;align-items:center;gap:9px;padding:0 10px;height:36px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:all 0.15s;margin-bottom:6px}
-.auto-item:last-child{margin-bottom:0}
-.auto-item:hover{background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.2)}
-.auto-item.run{background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.4)}
-.auto-em{font-size:15px}
-.auto-nm{font-size:12.5px;font-weight:500;flex:1}
-.auto-warn{font-size:8px;font-weight:700;color:var(--danger)}
-.auto-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.15);transition:all 0.2s}
-.auto-item.run .auto-dot{background:var(--cyan);box-shadow:0 0 5px var(--cyan)}
 .tbtn{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:10px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.1);color:var(--cyan);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;flex:1;font-family:inherit}
 .tbtn:hover{background:rgba(0,229,255,0.18)}
 .tbtn.fill{background:var(--cyan);color:#000;border-color:var(--cyan)}
 .tbtn-row{display:flex;gap:8px;margin-top:8px}
-.map-mini{height:100px;border-radius:10px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);display:flex;align-items:center;justify-content:center;color:var(--text-ter);font-size:12px;position:relative;overflow:hidden}
+.map-mini{height:80px;border-radius:10px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);display:flex;align-items:center;justify-content:center;color:var(--text-ter);font-size:11px;position:relative;overflow:hidden}
 .map-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
 .log-c{font-size:9px;font-family:'SF Mono',monospace;color:var(--text-sec);max-height:60px;overflow-y:auto;line-height:1.6}
 .log-c::-webkit-scrollbar{width:3px}
@@ -143,68 +134,63 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 .agent-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-sec)}
 .agent-status .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
 
-/* Skills trigger */
-.skills-trigger{margin:12px 14px 8px;padding:10px;border-radius:10px;border:1px dashed rgba(0,229,255,0.3);background:rgba(0,229,255,0.05);color:var(--cyan);font-size:12px;cursor:pointer;text-align:center;transition:all 0.15s;flex-shrink:0}
-.skills-trigger:hover{background:rgba(0,229,255,0.12);border-style:solid}
-.skills-trigger.active{background:rgba(0,229,255,0.15);border-style:solid}
-
-/* Skills popup */
-.skills-popup{display:none;flex-direction:column;gap:6px;padding:0 14px 12px;animation:slideDown 0.2s ease;flex-shrink:0}
-.skills-popup.show{display:flex}
-@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-.skill-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(0,229,255,0.1);background:rgba(0,229,255,0.03);cursor:pointer;transition:all 0.15s}
-.skill-chip:hover{background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.3)}
-.skill-chip .emoji{font-size:16px}
-.skill-chip .name{font-size:12px;color:var(--text-sec)}
+/* Skills grid - bigger, more prominent */
+.skills-section{padding:12px 14px 8px;flex-shrink:0}
+.skills-label{font-size:10px;font-weight:600;letter-spacing:1.5px;color:var(--text-ter);text-transform:uppercase;margin-bottom:8px}
+.skills-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.skill-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:10px;border:1px solid rgba(0,229,255,0.1);background:rgba(0,229,255,0.03);cursor:pointer;transition:all 0.15s}
+.skill-btn:hover{background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.35);transform:translateY(-1px)}
+.skill-btn.running{background:rgba(0,229,255,0.15);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,229,255,0.3)}
+.skill-btn .emoji{font-size:16px}
+.skill-btn .name{font-size:9px;color:var(--text-sec);text-align:center;line-height:1.2}
 
 /* Conversation area */
-.conv-area{flex:1;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;min-height:0}
+.conv-area{flex:1;padding:12px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
 .conv-area::-webkit-scrollbar{width:3px}
 .conv-area::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px}
-.conv-msg{display:flex;gap:10px}
-.conv-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.conv-msg{display:flex;gap:8px}
+.conv-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
 .conv-avatar.ai{background:rgba(0,229,255,0.2);border:1px solid rgba(0,229,255,0.3)}
 .conv-avatar.user{background:rgba(255,255,255,0.1)}
-.conv-bubble{flex:1;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5}
+.conv-bubble{flex:1;padding:8px 12px;border-radius:12px;font-size:12px;line-height:1.5}
 .conv-bubble.ai{background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.15);color:var(--text-sec)}
 .conv-bubble.user{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text-primary);margin-left:auto;max-width:85%}
 
 /* Input area */
-.input-area{padding:14px;border-top:1px solid rgba(0,229,255,0.1);flex-shrink:0}
-.input-box{width:100%;min-height:80px;max-height:160px;padding:12px;border-radius:12px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:#fff;font-size:13px;font-family:inherit;resize:none;outline:none;transition:all 0.2s}
+.input-area{padding:12px 14px;border-top:1px solid rgba(0,229,255,0.1);flex-shrink:0;position:relative}
+.input-box{width:100%;min-height:60px;max-height:120px;padding:10px;border-radius:10px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:#fff;font-size:12px;font-family:inherit;resize:none;outline:none;transition:all 0.2s}
 .input-box:focus{border-color:var(--cyan);background:rgba(0,229,255,0.08);box-shadow:0 0 12px rgba(0,229,255,0.2)}
 .input-box::placeholder{color:var(--text-ter)}
 .input-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
-.model-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:var(--cyan);font-size:11px;cursor:pointer;transition:all 0.15s}
+.controls-left{display:flex;flex-direction:column;gap:6px;flex:1}
+.model-btn{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;border:1px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05);color:var(--cyan);font-size:11px;cursor:pointer;transition:all 0.15s}
 .model-btn:hover{background:rgba(0,229,255,0.12)}
-.send-btn{padding:8px 16px;border-radius:8px;border:none;background:var(--cyan);color:#000;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;font-family:inherit}
+.thinking-row{display:flex;align-items:center;gap:6px}
+.thinking-label{font-size:10px;color:var(--text-ter);white-space:nowrap}
+.thinking-slider{-webkit-appearance:none;width:100%;height:3px;border-radius:2px;background:rgba(255,255,255,0.1);outline:none}
+.thinking-slider::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 4px rgba(0,229,255,0.6)}
+.thinking-val{font-size:10px;font-family:'SF Mono',monospace;color:var(--cyan);min-width:24px;text-align:right}
+.send-btn{padding:8px 14px;border-radius:8px;border:none;background:var(--cyan);color:#000;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;font-family:inherit}
 .send-btn:hover{box-shadow:0 0 12px rgba(0,229,255,0.5)}
 .send-btn:disabled{opacity:0.5;cursor:not-allowed}
 
 /* Model dropdown */
-.model-dropdown{display:none;position:absolute;bottom:60px;left:14px;background:rgba(0,10,20,0.98);border:1px solid rgba(0,229,255,0.3);border-radius:12px;padding:8px;z-index:300;min-width:200px;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.model-dropdown{display:none;position:absolute;bottom:50px;left:14px;background:rgba(0,10,20,0.98);border:1px solid rgba(0,229,255,0.3);border-radius:10px;padding:6px;z-index:300;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
 .model-dropdown.show{display:block;animation:fadeIn 0.15s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-.model-option{padding:10px 12px;border-radius:8px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:space-between}
+.model-option{padding:8px 10px;border-radius:6px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:space-between}
 .model-option:hover{background:rgba(0,229,255,0.1)}
 .model-option.selected{background:rgba(0,229,255,0.15);color:var(--cyan)}
-.model-option .name{font-size:12px;font-weight:500}
-.model-option .tag{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(0,229,255,0.15);color:var(--cyan)}
-
-/* Thinking slider */
-.thinking-row{display:flex;align-items:center;gap:8px;padding:8px 0}
-.thinking-label{font-size:11px;color:var(--text-sec);white-space:nowrap}
-.thinking-slider{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,0.1);outline:none}
-.thinking-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 6px rgba(0,229,255,0.6)}
-.thinking-val{font-size:11px;font-family:'SF Mono',monospace;color:var(--cyan);min-width:30px;text-align:right}
+.model-option .name{font-size:11px;font-weight:500}
+.model-option .tag{font-size:9px;padding:2px 5px;border-radius:4px;background:rgba(0,229,255,0.15);color:var(--cyan)}
 
 /* New conversation */
-.new-conv-btn{margin:0 14px 12px;padding:12px;border-radius:10px;border:1px dashed rgba(0,229,255,0.3);background:transparent;color:var(--cyan);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;text-align:center;font-family:inherit;flex-shrink:0}
+.new-conv-btn{margin:0 14px 10px;padding:10px;border-radius:8px;border:1px dashed rgba(0,229,255,0.3);background:transparent;color:var(--cyan);font-size:12px;font-weight:500;cursor:pointer;transition:all 0.15s;text-align:center;font-family:inherit;flex-shrink:0}
 .new-conv-btn:hover{background:rgba(0,229,255,0.07);border-style:solid}
 
 /* Agent status */
-.agent-footer{padding:10px 14px;border-top:1px solid rgba(0,229,255,0.1);display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-ter);flex-shrink:0}
-.agent-footer .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+.agent-footer{padding:8px 14px;border-top:1px solid rgba(0,229,255,0.1);display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text-ter);flex-shrink:0}
+.agent-footer .dot{width:5px;height:5px;border-radius:50%;background:var(--cyan);box-shadow:0 0 4px var(--cyan)}
 </style>
 </head>
 <body>
@@ -225,49 +211,45 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
     </div>
 
     <div class="agent-body">
-      <!-- Skills trigger -->
-      <div class="skills-trigger" id="skillsTrigger" onclick="toggleSkills()">
-        ⚡ 选择技能
-      </div>
-      
-      <!-- Skills popup -->
-      <div class="skills-popup" id="skillsPopup">
-        <div class="skill-chip"><span class="emoji">🚗</span><span class="name">导航到坐标</span></div>
-        <div class="skill-chip"><span class="emoji">🎣</span><span class="name">自动钓鱼</span></div>
-        <div class="skill-chip"><span class="emoji">☕</span><span class="name">自动做咖啡</span></div>
-        <div class="skill-chip"><span class="emoji">🏠</span><span class="name">收取家具</span></div>
-        <div class="skill-chip"><span class="emoji">🎁</span><span class="name">领取奖励</span></div>
-        <div class="skill-chip"><span class="emoji">⚔️</span><span class="name">自动战斗</span></div>
-        <div class="skill-chip"><span class="emoji">🏐</span><span class="name">自动排球</span></div>
-        <div class="skill-chip"><span class="emoji">🎮</span><span class="name">俄罗斯方块</span></div>
-        <div class="skill-chip"><span class="emoji">🎹</span><span class="name">自动钢琴</span></div>
+      <!-- Skills Grid -->
+      <div class="skills-section">
+        <div class="skills-label">技能</div>
+        <div class="skills-grid">
+          <div class="skill-btn" onclick="runSkill('drive', this)"><span class="emoji">🚗</span><span class="name">导航</span></div>
+          <div class="skill-btn" onclick="runSkill('fish', this)"><span class="emoji">🎣</span><span class="name">钓鱼</span></div>
+          <div class="skill-btn" onclick="runSkill('coffee', this)"><span class="emoji">☕</span><span class="name">咖啡</span></div>
+          <div class="skill-btn" onclick="runSkill('furniture', this)"><span class="emoji">🏠</span><span class="name">家具</span></div>
+          <div class="skill-btn" onclick="runSkill('reward', this)"><span class="emoji">🎁</span><span class="name">奖励</span></div>
+          <div class="skill-btn" onclick="runSkill('combat', this)"><span class="emoji">⚔️</span><span class="name">战斗</span></div>
+          <div class="skill-btn" onclick="runSkill('volleyball', this)"><span class="emoji">🏐</span><span class="name">排球</span></div>
+          <div class="skill-btn" onclick="runSkill('tetris', this)"><span class="emoji">🎮</span><span class="name">方块</span></div>
+          <div class="skill-btn" onclick="runSkill('piano', this)"><span class="emoji">🎹</span><span class="name">钢琴</span></div>
+        </div>
       </div>
 
       <!-- Conversation area -->
       <div class="conv-area" id="convArea">
         <div class="conv-msg">
           <div class="conv-avatar ai">🤖</div>
-          <div class="conv-bubble ai">你好！我是 AuroraDrive AI 助手。我可以帮你完成各种游戏任务，比如钓鱼、做咖啡、领取奖励等。需要我做什么？</div>
+          <div class="conv-bubble ai">你好！我是 AuroraDrive AI 助手。我可以帮你完成各种游戏任务，也可以直接控制游戏。需要我做什么？</div>
         </div>
       </div>
 
       <!-- Input area -->
       <div class="input-area" style="position:relative">
-        <textarea class="input-box" id="inputBox" placeholder="输入指令给 AI..." rows="3"></textarea>
+        <textarea class="input-box" id="inputBox" placeholder="输入指令给 AI... (Ctrl+Enter 发送)" rows="2"></textarea>
         <div class="input-footer">
-          <div style="display:flex;flex-direction:column;gap:6px;flex:1">
-            <!-- Thinking slider -->
+          <div class="controls-left">
+            <button class="model-btn" id="modelBtn" onclick="toggleModelDropdown()">
+              <span>🧠</span>
+              <span id="currentModel">Claude 3.5</span>
+              <span style="font-size:10px">▼</span>
+            </button>
             <div class="thinking-row">
-              <span class="thinking-label">思考深度</span>
+              <span class="thinking-label">思考</span>
               <input type="range" class="thinking-slider" id="thinkingSlider" min="1" max="10" value="5" oninput="updateThinking(this.value)">
               <span class="thinking-val" id="thinkingVal">5</span>
             </div>
-            <!-- Model button -->
-            <button class="model-btn" id="modelBtn" onclick="toggleModelDropdown()">
-              <span>🧠</span>
-              <span id="currentModel">Claude 3.5 Sonnet</span>
-              <span style="font-size:10px">▼</span>
-            </button>
           </div>
           <button class="send-btn" id="sendBtn" onclick="sendMessage()">发送</button>
         </div>
@@ -275,22 +257,10 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 
       <!-- Model dropdown -->
       <div class="model-dropdown" id="modelDropdown">
-        <div class="model-option selected" onclick="selectModel('Claude 3.5 Sonnet', this)">
-          <span class="name">Claude 3.5 Sonnet</span>
-          <span class="tag">推荐</span>
-        </div>
-        <div class="model-option" onclick="selectModel('GPT-4o', this)">
-          <span class="name">GPT-4o</span>
-          <span class="tag">快速</span>
-        </div>
-        <div class="model-option" onclick="selectModel('Gemini 1.5 Pro', this)">
-          <span class="name">Gemini 1.5 Pro</span>
-          <span class="tag">长上下文</span>
-        </div>
-        <div class="model-option" onclick="selectModel('DeepSeek-V3', this)">
-          <span class="name">DeepSeek-V3</span>
-          <span class="tag">性价比</span>
-        </div>
+        <div class="model-option selected" onclick="selectModel('Claude 3.5', this)"><span class="name">Claude 3.5 Sonnet</span><span class="tag">推荐</span></div>
+        <div class="model-option" onclick="selectModel('GPT-4o', this)"><span class="name">GPT-4o</span><span class="tag">快速</span></div>
+        <div class="model-option" onclick="selectModel('Gemini', this)"><span class="name">Gemini 1.5 Pro</span><span class="tag">长上下文</span></div>
+        <div class="model-option" onclick="selectModel('DeepSeek', this)"><span class="name">DeepSeek-V3</span><span class="tag">性价比</span></div>
       </div>
 
       <!-- New conversation -->
@@ -346,7 +316,7 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
         </div>
       </div>
 
-      <!-- Right Sidebar -->
+      <!-- Right Sidebar (Simplified - no AUTOMATION) -->
       <div class="right-sidebar" id="rightSidebar">
         <div class="sb-scroll">
           <div class="gcard">
@@ -400,22 +370,7 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 
           <div class="gcard">
             <div class="shdr"><div class="bar"></div><div class="ttl">MAP</div></div>
-            <div class="map-mini"><div class="map-dot" style="top:40%;left:55%"></div><span style="position:absolute;bottom:8px;font-size:10px;color:var(--text-ter)">网络定位 · (0.52, 0.38)</span></div>
-          </div>
-
-          <div class="gcard">
-            <div class="shdr"><div class="bar"></div><div class="ttl">AUTOMATION</div></div>
-            <div>
-              <div class="auto-item"><span class="auto-em">🎣</span><span class="auto-nm">自动钓鱼</span><div class="auto-dot"></div></div>
-              <div class="auto-item"><span class="auto-em">🥤</span><span class="auto-nm">自动做咖啡</span><div class="auto-dot"></div></div>
-              <div class="auto-item"><span class="auto-em">🐾</span><span class="auto-nm">粉爪大劫案</span><span class="auto-warn">最凶</span><div class="auto-dot"></div></div>
-              <div class="auto-item"><span class="auto-em">🪑</span><span class="auto-nm">自动收家具</span><div class="auto-dot"></div></div>
-              <div class="auto-item"><span class="auto-em">💎</span><span class="auto-nm">自动领奖励</span><div class="auto-dot"></div></div>
-              <div class="auto-item"><span class="auto-em">🎹</span><span class="auto-nm">自动弹钢琴</span><div class="auto-dot"></div></div>
-              <div class="auto-item"><span class="auto-em">🎵</span><span class="auto-nm">自动超强音</span><div class="auto-dot"></div></div>
-              <div class="auto-item"><span class="auto-em">⚔️</span><span class="auto-nm">自动闪避</span><div class="auto-dot"></div></div>
-              <div class="auto-item"><span class="auto-em">🕛</span><span class="auto-nm">实时辅助</span><div class="auto-dot"></div></div>
-            </div>
+            <div class="map-mini"><div class="map-dot" style="top:40%;left:55%"></div><span style="position:absolute;bottom:6px;font-size:10px;color:var(--text-ter)">网络定位</span></div>
           </div>
 
           <div class="gcard">
@@ -435,25 +390,17 @@ body{background:#000;color:#fff;font-family:-apple-system,'SF Pro Text',sans-ser
 
 <script>
 let agentOpen=false, driving=false, recording=false, sportOn=false, simInt=null;
-let currentModel='Claude 3.5 Sonnet';
+let currentModel='Claude 3.5';
 let thinkingLevel=5;
+const runningSkills=new Set();
 
 function toggleAgent(){
   agentOpen=!agentOpen;
   document.getElementById('agentPanel').classList.toggle('open',agentOpen);
 }
 
-function toggleSkills(){
-  const popup=document.getElementById('skillsPopup');
-  const trigger=document.getElementById('skillsTrigger');
-  popup.classList.toggle('show');
-  trigger.classList.toggle('active');
-  trigger.textContent=popup.classList.contains('show')?'⚡ 选择技能 ✓':'⚡ 选择技能';
-}
-
 function toggleModelDropdown(){
-  const dd=document.getElementById('modelDropdown');
-  dd.classList.toggle('show');
+  document.getElementById('modelDropdown').classList.toggle('show');
 }
 
 function selectModel(name, el){
@@ -476,6 +423,27 @@ document.addEventListener('click',e=>{
   }
 });
 
+function runSkill(skill, el){
+  if(runningSkills.has(skill)){
+    runningSkills.delete(skill);
+    el.classList.remove('running');
+    document.getElementById('footerStatus').textContent='技能已停止';
+    return;
+  }
+  runningSkills.add(skill);
+  el.classList.add('running');
+  document.getElementById('footerStatus').textContent='执行中: '+skill;
+  document.getElementById('agentStatusText').textContent='运行中';
+  
+  // Simulate completion
+  setTimeout(()=>{
+    runningSkills.delete(skill);
+    el.classList.remove('running');
+    document.getElementById('footerStatus').textContent='就绪';
+    document.getElementById('agentStatusText').textContent='就绪';
+  },3000);
+}
+
 function sendMessage(){
   const input=document.getElementById('inputBox');
   const text=input.value.trim();
@@ -485,23 +453,21 @@ function sendMessage(){
   input.value='';
   input.style.height='auto';
   
-  // Simulate AI thinking
   document.getElementById('footerStatus').textContent='思考中...';
   document.getElementById('agentStatusText').textContent='思考中';
   
   setTimeout(()=>{
     const responses=[
-      '好的，我来帮你执行这个任务。首先我需要导航到目标位置...',
-      '收到！正在规划任务路径，预计需要 3 分钟完成。',
-      '明白了，我会使用「自动钓鱼」技能来完成这个任务。',
-      '正在分析当前游戏状态，准备执行操作序列...',
-      '任务已添加到队列，我将按顺序执行各个步骤。'
+      '好的，正在执行任务...',
+      '收到，我来处理。',
+      '明白了，开始执行。',
+      '正在规划最优路径...'
     ];
     const reply=responses[Math.floor(Math.random()*responses.length)];
     addMessage('ai',reply);
     document.getElementById('footerStatus').textContent='就绪';
     document.getElementById('agentStatusText').textContent='就绪';
-  },1500);
+  },1200);
 }
 
 function addMessage(type,text){
@@ -579,14 +545,12 @@ function togRec(){
 // Auto-resize textarea
 document.getElementById('inputBox').addEventListener('input',function(){
   this.style.height='auto';
-  this.style.height=Math.min(this.scrollHeight,160)+'px';
+  this.style.height=Math.min(this.scrollHeight,120)+'px';
 });
 
 // Send on Ctrl+Enter
 document.getElementById('inputBox').addEventListener('keydown',e=>{
-  if(e.ctrlKey&&e.key==='Enter'){
-    sendMessage();
-  }
+  if(e.ctrlKey&&e.key==='Enter'){sendMessage();}
 });
 
 // Keyboard
