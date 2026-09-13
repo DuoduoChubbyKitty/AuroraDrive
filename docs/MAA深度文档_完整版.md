@@ -2604,6 +2604,511 @@ def match_template_in_region(img, region, template, min_similarity=0.8, green_ma
 
 ---
 
+## 十七、其他功能模块
+
+### 17.1 拍卖王（BidKing）
+
+```json
+// assets/resource/tasks/BidKing.json
+{
+    "task": [{
+        "name": "BidKing",
+        "entry": "BidKingEntrance",
+        "option": ["BidKingLoopCount"],
+        "controller": ["Win32-Front"],
+        "group": ["HethereauHobbies"]
+    }]
+}
+```
+
+**配置选项**：
+- `BidKingLoopCount` — 循环竞拍次数（input，默认 1，正则 `^[1-9]\\d{0,3}$`）
+- `pipeline_override` 将 `{count}` 注入到 `BidKingRound` 节点的 `max_hit`
+
+**流程**：进入拍卖行 → 检测当前竞拍项 → 自动出价 → 等待结果 → 循环
+
+### 17.2 领取奖励（ClaimRewards）
+
+```json
+// assets/resource/tasks/ClaimRewards.json
+{
+    "task": [{
+        "name": "ClaimRewards",
+        "entry": "ClaimRewardsEntrance",
+        "option": ["ClaimRewardsActivity", "ClaimRewardsBattlePass"],
+        "group": ["Daily"]
+    }]
+}
+```
+
+**配置选项**：
+- `ClaimRewardsActivity` — 领取活跃度奖励（switch，默认 Yes）
+- `ClaimRewardsBattlePass` — 领取环期赏令奖励（switch，默认 Yes）
+
+**Pipeline 节点**：
+- `ClaimRewardsActivity` — 检测活跃度界面并领取
+- `ClaimRewardsBattlePass` — 检测环期赏令界面并领取
+- `ClaimRewardsEntrance` — 入口：打开奖励界面
+
+### 17.3 喷泉打卡（FountainCheckin）
+
+```json
+// assets/resource/tasks/FountainCheckin.json
+{
+    "task": [{
+        "name": "FountainCheckin",
+        "entry": "FountainCheckinEntrance",
+        "group": ["Daily"]
+    }]
+}
+```
+
+**功能**：自动前往指定喷泉位置打卡，完成后领取奖励。
+
+### 17.4 女巫占卜（WitchDivination）
+
+```json
+// assets/resource/tasks/WitchDivination.json
+{
+    "task": [{
+        "name": "WitchDivination",
+        "entry": "WitchDivinationEntrance",
+        "controller": ["Win32-Front"]
+    }]
+}
+```
+
+**Pipeline 节点**（`assets/resource/base/pipeline/WitchDivination/`）：
+- `WitchDivination.json` — 主流程
+- `ShuffleStep.json` — 洗牌步骤识别
+- `WitchDivinationAction.json` — 占卜执行
+- `WitchDivinationChat.json` — 聊天确认
+
+**流程**：选择占卜师 → 洗牌动画识别 → 选择卡牌 → 等待结果
+
+### 17.5 提款机（WithdrawMoney）
+
+```python
+# withdraw_money_choose_item.py
+
+@AgentServer.custom_action("withdraw_money_choose_item")
+class WithdrawMoneyChooseItem(CustomAction):
+    """自动选择提款机商品，按价格/小时排序选取最优"""
+
+    def run(self, context, argv):
+        controller = context.tasker.controller
+
+        def _screencap():
+            return controller.post_screencap().wait().get()
+
+        def _filtered_boxes(result):
+            """从 OCR 结果中提取所有命中框"""
+            if result is None or not result.hit:
+                return []
+            return [r.box for r in result.filtered_results if r.box is not None]
+
+        def _parse_value(text):
+            """从 OCR 文本解析价格，支持 1,234 / 1.5K 格式"""
+            if not text:
+                return None
+            text = text.strip().upper().replace(",", "").replace("，", "")
+            m = re.search(r"(\d+(?:\.\d+)?)\s*(K)?\s*/", text)
+            if not m:
+                return None
+            value = float(m.group(1))
+            if m.group(2) == "K":
+                value *= 1000
+            return value
+
+        # Step 0: 向上滑动到列表顶部
+        context.run_action("WithdrawMoneySwipeUp")
+        time.sleep(1)
+
+        # Step 1-3: 关闭灰色背景角标（上下各一次）
+        # Step 4: 向下位置匹配商品价格 /h
+        down_items = [(v, r, "down") for v, r in collect_product_values("WithdrawMoneyItemValueDown")]
+
+        # Step 5-6: 向上滑动并匹配
+        up_items = [(v, r, "up") for v, r in collect_product_values("WithdrawMoneyItemValueUp")]
+
+        # Step 7: 按 value 降序排序，只点前五个
+        all_items = down_items + up_items
+        sorted_items = sorted(all_items, key=lambda x: x[0], reverse=True)
+        top5 = sorted_items[:5]
+
+        current_swipe = "up"
+        for value, rect, item_swipe in top5:
+            if item_swipe != current_swipe:
+                if item_swipe == "up":
+                    context.run_action("WithdrawMoneySwipeUp")
+                else:
+                    context.run_action("WithdrawMoneySwipeDown")
+                current_swipe = item_swipe
+                time.sleep(1)
+            _click_rect(controller, rect)
+            time.sleep(0.5)
+```
+
+**Task 配置**：
+- `Restock` — 自动补货（switch，默认 No）
+- `ChooseProduct` — 自动选择商品（switch，默认 Yes）
+
+**智能选品逻辑**：
+1. OCR 识别所有商品的价格/小时
+2. 按价格降序排序
+3. 选取 top 5 点击
+4. 自动处理上下翻页
+
+### 17.6 自动滚书（AutoFScroll）
+
+```python
+# auto_f_scroll.py
+
+@AgentServer.custom_action("auto_f_scroll")
+class AutoFScroll(CustomAction):
+    """长按 F 键触发极速连点 + 滚轮联动"""
+
+    def run(self, context, argv):
+        controller = context.tasker.controller
+        KEY_F = 70       # MAA 控制器用的 F 键码
+        VK_F = 0x46      # Windows API 用的 F 键码
+        MOUSEEVENTF_WHEEL = 0x0800
+
+        while not context.tasker.stopping:
+            # 检测物理键盘 F 键是否按下
+            is_f_pressed = ctypes.windll.user32.GetAsyncKeyState(VK_F) & 0x8000
+            if is_f_pressed:
+                # 发送 MAA 按键
+                controller.post_key_down(KEY_F)
+                time.sleep(0.1)
+                controller.post_key_up(KEY_F)
+
+                # 同时发送鼠标滚轮下滚
+                try:
+                    ctypes.windll.user32.mouse_event(
+                        MOUSEEVENTF_WHEEL, 0, 0, -120, 0
+                    )
+                except Exception:
+                    pass
+                time.sleep(0.1)
+            else:
+                time.sleep(0.05)
+
+        return CustomAction.RunResult(success=True)
+```
+
+**原理**：通过 `GetAsyncKeyState` 检测物理键盘 F 键状态，长按 F 时同时发送 MAA 按键和 Windows 滚轮事件，实现极速翻页。
+
+### 17.7 自动咖啡 Lite（AutoMakeCoffeeLite）
+
+```python
+# AutoCoffee/auto_make_coffee_lite.py
+
+@AgentServer.custom_action("auto_make_coffee_lite")
+class AutoMakeCoffeeLite(CustomAction):
+    """简化版咖啡制作：依次制作三道菜（可颂、蛋糕、面包）"""
+
+    def run(self, context, argv):
+        # 参数
+        make_count = params.get("count", 10)
+        check_freq = params.get("freq", 0.5)
+        timeout = params.get("timeout", 5)
+
+        for count in range(make_count):
+            # Step 1: 选择关卡并开始营业
+            while True:
+                img = get_image(controller)
+                start_result = context.run_recognition("MakeCoffeeStart", img)
+                if start_result and start_result.hit:
+                    # 滚动到目标并点击
+                    context.run_action("MakeCoffeeScrollToTop")
+                    time.sleep(1)
+                    target_result = context.run_recognition("MakeCoffeeTargetCoffeeMaster", img)
+                    if target_result and target_result.hit:
+                        click_rect_multiple(controller, [target_result.box.x, ...])
+                    break
+                time.sleep(check_freq)
+
+            # Step 2: 制作三道菜
+            make_croissant(context)   # 可颂
+            make_cake(context)        # 蛋糕
+            make_bread(context)       # 面包
+
+            # Step 3: 等待营业额达标
+            # Step 4: 领取奖励
+            wait_and_claim(context, controller, check_freq)
+            press_key_f(controller)
+```
+
+### 17.8 番茄汁制作（AutoMakeTomatoJuice）
+
+```python
+# AutoCoffee/auto_make_tomato_juice.py
+
+@AgentServer.custom_action("auto_make_tomato_juice")
+class AutoMakeTomatoJuice(CustomAction):
+    """特调番茄汁：连续制作两杯，等待第二位客人到店"""
+
+    # 常量
+    TOMATO_JUICE_SERVINGS = 2        # 每次制作 2 杯
+    SECOND_GUEST_REMAINING_SECONDS = 111  # 等待第二位客人的阈值
+    COUNTDOWN_DETECT_TIMEOUT = 20     # 倒计时检测超时
+
+    def run(self, context, argv):
+        make_count, check_freq = _load_params(argv.custom_action_param)
+
+        for count in range(make_count):
+            # Step 1: 选择"新品练习 I"并开始营业
+            # Step 2: 等待第二位客人到店（检测营业倒计时 ≤ 111秒）
+            if not _wait_for_customers_ready(context, controller, check_freq):
+                return CustomAction.RunResult(success=False)
+
+            # Step 3: 连续制作两杯番茄汁
+            for _ in range(TOMATO_JUICE_SERVINGS):
+                context.run_action("MakeTomatoJuiceSelectGlass")
+                context.run_action("MakeTomatoJuiceAddTomato")
+
+            # Step 4: 检测营业额星标，未达标则继续制作
+            while True:
+                img = get_image(controller)
+                star_result = context.run_recognition("MakeCoffeeStar", img)
+                if star_result and star_result.hit:
+                    break
+                _make_tomato_juice(context)
+
+            # Step 5: 领取奖励
+            wait_and_claim(context, controller, check_freq)
+            press_key_f(controller)
+```
+
+**倒计时解析**：支持多种语言格式 `X分Y秒` / `X:Y` / `X m Y s`
+
+### 17.9 角色都市技能同步（SyncCharacterAbilityCityAbility）
+
+```python
+# SyncCharacterAbilityCityAbility.py
+
+_TEMPLATE_TO_NAME = {
+    "Adler.png": "阿德勒",
+    "Aurelia.png": "海月",
+    "Baicang.png": "白藏",
+    "Chaos.png": "卡厄斯",
+    "Chiz.png": "小吱",
+    "Daffodill.png": "达芙蒂尔",
+    "Edgar.png": "埃德嘉",
+    "Fadia.png": "法帝娅",
+    "Haniel.png": "哈尼娅",
+    "Hathor.png": "哈索尔",
+    "Hotori.png": "浔",
+    "Jiuyuan.png": "九原",
+    "Lacrimosa.png": "安魂曲",
+    "Mint.png": "薄荷",
+    "Nanally.png": "娜娜莉",
+    "Sakiri.png": "早雾",
+    "Skia.png": "翳",
+    "Zero.png": "零",
+}
+
+@AgentServer.custom_action("SyncCharacterAbilityCityAbilityMainAction")
+class SyncCharacterAbilityCityAbilityMainAction(CustomAction):
+    """遍历角色列表，OCR 识别名字+技能等级，持久化存储"""
+
+    def run(self, context, argv):
+        fresh_record = params.get("fresh_record", False)
+
+        # 设置锚点防止递归
+        context.set_anchor("CityAbilityAfterClick", "")
+
+        last_name = None
+        no_change = 0
+
+        for iteration in range(300):  # 安全上限
+            if context.tasker.stopping:
+                break
+
+            # 1. 识别角色名（OCR → TemplateMatch 优先）
+            name = _get_character_name(context)
+
+            if name is None:
+                no_change += 1
+            else:
+                # 2. OCR 技能等级
+                levels = _ocr_skills(context)  # [skill0, skill1]
+
+                if fresh_record:
+                    results[name] = levels
+                else:
+                    set_character_abilities(name, levels)
+
+                if name == last_name:
+                    no_change += 1
+                else:
+                    no_change = 0
+                    last_name = name
+
+            # 3. 列表末尾检测
+            if no_change >= 3:
+                self._scan_remaining_characters(context, results if fresh_record else None)
+                break
+
+            # 4. 切换到下一个角色
+            context.run_task("SyncCharacterAbilityCityAbilityOpenInfoPage")
+            context.run_task("SyncCharacterAbilityCityAbilityNextCharacter")
+
+        # 5. 全新记录模式：清空旧数据 + 批量存入
+        if fresh_record and results:
+            clear_all()
+            for char_name, levels in results.items():
+                set_character_abilities(char_name, levels)
+```
+
+**角色名识别策略**：
+1. OCR 先在信息页识别名字
+2. 进入技能页后，TemplateMatch 以 ≥0.9 置信度优先采用
+3. TM 失败时回退 OCR
+
+**数据存储**：通过 `CharacterAbility_CityAbility` 管理器持久化，支持全新记录模式（`fresh_record: true`）
+
+### 17.10 在线地图导航（OnlineMapNavigation）
+
+```python
+# Navi/online_map_navigation_action.py
+
+@AgentServer.custom_action("online_map_navigation")
+class OnlineMapNavigationAction(CustomAction):
+    """启动 WebSocket 服务，接收外部路由请求并执行寻路"""
+
+    def run(self, context, argv):
+        params = self.load_option_params(context)
+        port = int(params.get("port", 14514))
+        tolerance = float(params.get("tolerance", 5.0))
+        frame_interval = max(0.05, float(params.get("frame_interval", 0.1)))
+        angle_backend = str(params.get("angle_backend", "auto"))
+        position_backend = str(params.get("position_backend", "auto"))
+        debug = bool(params.get("debug", False))
+
+        route = RouteSession()
+        runner = RouteRunner(context, route,
+            angle_backend=angle_backend,
+            position_backend=position_backend,
+            tolerance=tolerance,
+            frame_interval=frame_interval,
+            debug=debug)
+        network = RouteWebSocketService(route, port=port,
+            get_source_size=runner.source_size,
+            get_current_point=runner.current_point)
+        runner.on_frame = network.publish_frame
+
+        try:
+            network.start()
+            runner.start()
+            logger.info("OnlineMapNavigation service started: ws://0.0.0.0:%s", port)
+            runner.run_until_stopped(on_tick=network.publish_route)
+        finally:
+            runner.close()
+            network.stop()
+```
+
+**WebSocket 协议**（port 14514）：
+
+| 消息类型 | 说明 |
+|---|---|
+| `navi-route-set` | 设置完整路线并开始 |
+| `navi-route-add` | 添加单个航点 |
+| `navi-route-clear` | 清除路线 |
+| `navi-route-start` | 开始执行 |
+| `navi-route-stop` | 停止执行 |
+| `navi-route-ack` | 操作确认响应 |
+| `navi-state` | 推送当前位置/朝向/路线状态 |
+
+**位置推送格式**：
+```json
+{
+    "type": "navi-state",
+    "version": 1,
+    "position": {"x": 6500.5, "y": 5200.3, "pixelX": 6520, "pixelY": 5210, "score": 0.95, "mode": "coordinate"},
+    "angle": 180.5,
+    "pitch": -15.2,
+    "angleConfidence": 0.98,
+    "route": {"waypoints": [...], "active": true, "currentIndex": 2, "status": "running"},
+    "timestamp": 1726234567.0
+}
+```
+
+---
+
+## 十八、新增功能开发指南
+
+### 16.1 Common/utils.py
+
+```python
+def load_params(custom_action_param) -> dict:
+    """兼容 None / dict / JSON 字符串的 custom_action_param 解析"""
+    if not custom_action_param:
+        return {}
+    if isinstance(custom_action_param, dict):
+        return custom_action_param
+    try:
+        params = json.loads(custom_action_param)
+    except Exception:
+        return {}
+    return params if isinstance(params, dict) else {}
+
+
+def get_image(controller):
+    """获取当前屏幕截图"""
+    job = controller.post_screencap()
+    job.wait()
+    img = controller.cached_image
+    return img
+
+
+def click_rect(controller, rect, delay=0.001):
+    """点击矩形区域中心"""
+    x, y, w, h = rect
+    cx = x + w // 2
+    cy = y + h // 2
+    controller.post_touch_move(cx, cy).wait()
+    time.sleep(delay)
+    controller.post_touch_down(cx, cy).wait()
+    time.sleep(delay)
+    controller.post_touch_up().wait()
+
+
+def match_template_in_region(img, region, template, min_similarity=0.8, green_mask=False):
+    """在指定 ROI 内进行模板匹配"""
+    x1, y1, w, h = region
+    x2, y2 = x1 + w, y1 + h
+    h_img, w_img = img.shape[:2]
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w_img, x2), min(h_img, y2)
+
+    if x2 <= x1 or y2 <= y1:
+        return False, 0.0, 0, 0
+
+    roi = img[y1:y2, x1:x2]
+    if len(roi.shape) == 3 and roi.shape[2] == 4:
+        roi = cv2.cvtColor(roi, cv2.COLOR_BGRA2BGR)
+
+    if green_mask:
+        lower_green = np.array([0, 255, 0], dtype=np.uint8)
+        mask = cv2.bitwise_not(cv2.inRange(template, lower_green, lower_green))
+        res = cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED, mask=mask)
+    else:
+        res = cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED)
+
+    res = np.nan_to_num(res, nan=-1.0, posinf=-1.0, neginf=-1.0)
+    res[(res < -1e-6) | (res > 1.0 + 1e-6)] = -1.0
+    np.clip(res, 0.0, 1.0, out=res)
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+
+    if max_val >= min_similarity:
+        return True, max_val, x1 + max_loc[0], y1 + max_loc[1]
+    return False, max_val, 0, 0
+```
+
+---
+
 ## 十七、新增功能开发指南
 
 ### 17.1 完整流程
