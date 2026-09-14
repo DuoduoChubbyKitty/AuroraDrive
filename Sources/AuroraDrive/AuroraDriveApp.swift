@@ -549,9 +549,7 @@ struct AuroraDriveLauncher {
         // 提前处理（不需要 GUI），发真实 HTTP 请求到配置的云端模型
         // 修复：纯同步 URLSession + 30s 硬超时（不依赖 Swift concurrency / Keychain 解锁）
         if args.contains("--agent-llm-test") {
-            print("[LLM-TEST] 启动...")
-            fflush(stdout)
-            // 非阻塞读取配置：UserDefaults 读 baseUrl/model，env 或 Keychain 读 key
+            // 非阻塞读取配置：UserDefaults 读 baseUrl/model，env 读 key
             let d = UserDefaults(suiteName: "com.aurora.drive.aiagent") ?? .standard
             var s = AgentSettings()
             s.baseUrl = d.string(forKey: "baseUrl") ?? "https://api.agnes-ai.cn/v1"
