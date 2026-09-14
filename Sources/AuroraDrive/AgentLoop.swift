@@ -102,18 +102,49 @@ final class AgentLoop {
         // 循环执行：先跑 plan 的序列，然后 nextStep 补后续，直到完成或超步
         var executed: [AgentToolCall] = []
         var steps = 0
+        // 弱模型容错防线 5/6：单技能调用次数上限 + 硬熔断（总时长/连续失败）
+        var callCounts: [String: Int] = [:]
+        let maxDuration: TimeInterval = 120
+        let maxFailedSteps = 2
+        let startTime = Date()
+        var consecutiveFailures = 0
+        var aborted = false
 
         while steps < maxSteps {
             guard !calls.isEmpty else { break }
+            // 防线 6：总时长熔断
+            if Date().timeIntervalSince(startTime) > maxDuration {
+                progress("⏱️ 任务超过 \(Int(maxDuration))s 上限，强制终止（已执行 \(history.count) 步）")
+                break
+            }
             steps += 1
 
             // 逐个执行
             for call in calls {
+                // 防线 5：同一技能调用次数封顶（防弱模型反复调用同一技能）
+                let n = (callCounts[call.skillID] ?? 0) + 1
+                callCounts[call.skillID] = n
+                if n > 3 {
+                    progress("⚠️ 技能「\(skillName(call.skillID))」已调用 \(n) 次，跳过（防死循环）")
+                    continue
+                }
                 progress("⚙️ 执行技能：\(skillName(call.skillID))")
                 let result = execute(call: call)
                 history.append(result)
                 executed.append(call)
+                // 防线 6：连续失败熔断
+                if result.ok {
+                    consecutiveFailures = 0
+                } else {
+                    consecutiveFailures += 1
+                    if consecutiveFailures >= maxFailedSteps {
+                        progress("❌ 连续 \(maxFailedSteps) 步失败，终止任务")
+                        aborted = true
+                        break
+                    }
+                }
             }
+            if aborted { break }
 
             // 让 LLM 看结果，决定下一步（无 → 任务完成）
             if let next = await planner.nextStep(task: task, history: history) {
