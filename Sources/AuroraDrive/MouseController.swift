@@ -147,6 +147,31 @@ final class MouseController: @unchecked Sendable {
         return true
     }
 
+    // MARK: - 滚轮
+
+    /// 滚动鼠标滚轮（游戏内场景：自动滚动拾取/翻页等）
+    /// - Parameter lines: 滚动行数（正值向下，负值向上；-120 约等于一格）
+    /// - Parameter at: 滚轮事件发送位置（默认当前位置）
+    @discardableResult
+    func scrollWheel(lines: Int32, at point: CGPoint? = nil) -> Bool {
+        let pos = point ?? NSEvent.mouseLocation.flippedScreenPoint()
+        guard let event = CGEvent(
+            scrollWheelEvent2Source: eventSource,
+            units: .line,
+            wheelCount: 1,
+            wheel1: lines,
+            wheel2: 0,
+            wheel3: 0
+        ) else {
+            print("[MouseController] CGEvent 创建失败 scrollWheel")
+            return false
+        }
+        event.location = pos
+        event.post(tap: .cghidEventTap)
+        postedEventCount &+= 1
+        return true
+    }
+
     // MARK: - 坐标换算
 
     /// 截图像素坐标 → 全局点坐标
@@ -155,5 +180,13 @@ final class MouseController: @unchecked Sendable {
     ///   - scale: 截图像素/屏幕点 的缩放比（Retina 主屏 = 2.0）
     static func screenPoint(fromPixel pixel: CGPoint, scale: CGFloat) -> CGPoint {
         CGPoint(x: pixel.x / scale, y: pixel.y / scale)
+    }
+}
+
+/// NSEvent.mouseLocation 是左下原点（AppKit），转 CGEvent 的左上原点
+private extension NSPoint {
+    func flippedScreenPoint() -> CGPoint {
+        let screenH = NSScreen.screens.first?.frame.height ?? 0
+        return CGPoint(x: x, y: screenH - y)
     }
 }

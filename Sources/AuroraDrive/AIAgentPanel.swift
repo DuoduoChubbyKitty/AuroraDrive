@@ -67,6 +67,78 @@ enum AgentModel: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// AI 面板配置（API Key / 模型 / 端点）——用户自己填写，安全存 Keychain
+struct AgentSettings: Codable, Sendable {
+    var apiKey: String = ""
+    var baseUrl: String = "https://api.deepseek.com"
+    var model: String = "deepseek-chat"
+    var thinkingDepth: Int = 1  // 1-5，对应不同模型参数
+
+    static let service = "com.aurora.drive.aiagent"
+    static let keyApi = "apiKey"
+    static let keyBase = "baseUrl"
+    static let keyModel = "model"
+    static let keyDepth = "thinkingDepth"
+
+    /// 保存到 Keychain（安全存储，不写磁盘明文）
+    func save() throws {
+        guard !apiKey.isEmpty else { return }
+        let encoder = JSONEncoder()
+        try? SecItemDelete([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: AgentSettings.service,
+        ] as NSDictionary)
+        let params: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: AgentSettings.service,
+            kSecAttrAccount as String: AgentSettings.keyApi,
+            kSecValueData as String: apiKey.data(using: .utf8) ?? Data(),
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        ]
+        var status = SecItemAdd(params as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            try? SecItemUpdate([kSecAttrAccount as String: AgentSettings.keyApi] as NSDictionary,
+                               [kSecValueData as String: apiKey.data(using: .utf8) ?? Data()] as NSDictionary)
+        }
+        // 非敏感字段存 UserDefaults（Keychain 只存 key）
+        UserDefaults.standard.set(baseUrl, forKey: AgentSettings.keyBase)
+        UserDefaults.standard.set(model, forKey: AgentSettings.keyModel)
+        UserDefaults.standard.set(thinkingDepth, forKey: AgentSettings.keyDepth)
+    }
+
+    /// 从 Keychain 加载
+    static func load() -> AgentSettings {
+        var settings = AgentSettings()
+        // 读取 apiKey
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: keyApi,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: 1,
+        ]
+        var item: CFTypeRef?
+        if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+           let data = item as? Data {
+            settings.apiKey = String(data: data, encoding: .utf8) ?? ""
+        }
+        // 读取非敏感字段
+        settings.baseUrl = UserDefaults.standard.string(forKey: keyBase) ?? settings.baseUrl
+        settings.model = UserDefaults.standard.string(forKey: keyModel) ?? settings.model
+        settings.thinkingDepth = UserDefaults.standard.integer(forKey: keyDepth)
+        return settings
+    }
+
+    /// 删除 Keychain 中的 API Key
+    static func deleteKeychain() {
+        try? SecItemDelete([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: keyApi,
+        ] as NSDictionary)
+    }
+}
+
 // MARK: - 技能清单（人类 + AI 共用同一份）
 
 enum AgentSkillLibrary {
@@ -75,7 +147,7 @@ enum AgentSkillLibrary {
                    keywords: ["登录", "登陆", "进游戏", "上线"]),
         AgentSkill(id: "volleyball", emoji: "🏐", name: "自动排球", ported: true,
                    keywords: ["排球"]),
-        AgentSkill(id: "fishing", emoji: "🎣", name: "自动钓鱼",
+        AgentSkill(id: "fishing", emoji: "🎣", name: "自动钓鱼", ported: true,
                    keywords: ["钓鱼", "钓个鱼"]),
         AgentSkill(id: "coffee", emoji: "🥤", name: "自动做咖啡",
                    keywords: ["咖啡"]),
@@ -89,8 +161,10 @@ enum AgentSkillLibrary {
                    keywords: ["钢琴", "弹琴"]),
         AgentSkill(id: "rhythm", emoji: "🎵", name: "自动超强音",
                    keywords: ["超强音", "音游"]),
-        AgentSkill(id: "dodge", emoji: "⚔️", name: "自动闪避",
+        AgentSkill(id: "dodge", emoji: "⚔️", name: "自动闪避", ported: true,
                    keywords: ["闪避", "躲避"]),
+        AgentSkill(id: "auto_scroll", emoji: "📜", name: "自动滚动", ported: true,
+                   keywords: ["滚动", "拾取", "捡东西", "翻页"]),
     ]
 }
 
@@ -101,6 +175,16 @@ enum AgentSkillLibrary {
 final class AgentSkillCenter: @unchecked Sendable {
 
     static let shared = AgentSkillCenter()
+
+    // ── AI 配置（用户通过设置界面填写，存 Keychain）──
+    var aiSettings: AgentSettings = {
+        var s = AgentSettings.load()
+        // 如果已有配置，同步到 currentModel/model 字段
+        if s.model == "deepseek-chat" {
+            s.thinkingDepth = 3
+        }
+        return s
+    }()
 
     // ── 注入的引擎（由 DriveState 在启动时配置）──
     private var control: ControlEngine?
@@ -123,6 +207,114 @@ final class AgentSkillCenter: @unchecked Sendable {
     /// 排球循环定时器
     @ObservationIgnored private var volleyballTimer: DispatchSourceTimer?
     @ObservationIgnored private let workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)
+
+    // MARK: LLM 调用（OpenAI 兼容协议）
+
+    /// 调用云端 LLM（DeepSeek/OpenAI/Claude 等均支持）
+    /// - Parameters:
+    ///   - task: 用户任务描述
+    ///   - history: 之前的工具调用结果
+    /// - Returns: 工具调用列表（空表示任务完成）
+    func callLLM(task: String, history: [AgentToolResult]) async -> [AgentToolCall] {
+        let settings = aiSettings
+        guard !settings.apiKey.isEmpty else {
+            appendSystem("⚠️ 未配置 API Key，请先在设置中填写")
+            return []
+        }
+        guard !settings.baseUrl.isEmpty, !settings.model.isEmpty else {
+            appendSystem("⚠️ 未配置模型端点")
+            return []
+        }
+
+        // 构建 messages：系统提示 + 用户任务 + 历史工具结果
+        var messages: [[String: Any]] = [
+            ["role": "system", "content": """
+            你是异环游戏的自动化助手。你可以调用以下技能完成任务：
+            - auto_login: 自动登录游戏
+            - volleyball: 自动排球（每0.6秒按K）
+            - rewards: 自动领奖励（OCR定位按钮点击）
+            - furniture: 自动收家具（OCR定位按钮点击）
+            - fishing: 自动钓鱼（F抛竿/收杆循环）
+            - dodge: 自动闪避（Space+Shift组合）
+            - auto_scroll: 自动滚动拾取（F连点+滚轮）
+            
+            返回 JSON 数组，每个元素包含 skillID 和 args。
+            只返回技能 ID，不要多余解释。
+            """],
+            ["role": "user", "content": task]
+        ]
+
+        // 追加历史工具结果
+        for result in history {
+            messages.append([
+                "role": "tool",
+                "tool_call_id": result.id,
+                "content": result.summary
+            ])
+        }
+
+        // 定义可用工具（函数声明）
+        let tools: [[String: Any]] = [
+            ["type": "function", "function": ["name": "auto_login", "description": "自动登录游戏"]],
+            ["type": "function", "function": ["name": "volleyball", "description": "自动排球循环"]],
+            ["type": "function", "function": ["name": "rewards", "description": "自动领奖励"]],
+            ["type": "function", "function": ["name": "furniture", "description": "自动收家具"]],
+            ["type": "function", "function": ["name": "fishing", "description": "自动钓鱼"]],
+            ["type": "function", "function": ["name": "dodge", "description": "自动闪避"]],
+            ["type": "function", "function": ["name": "auto_scroll", "description": "自动滚动拾取"]],
+        ]
+
+        let body: [String: Any] = [
+            "model": settings.model,
+            "messages": messages,
+            "tools": tools,
+            "temperature": Double(settings.thinkingDepth) / 5.0,  // 1-5 → 0.2-1.0
+            "max_tokens": 1024,
+        ]
+
+        do {
+            guard let url = URL(string: "\(settings.baseUrl)/v1/chat/completions") else {
+                appendSystem("❌ 无效的 BaseUrl")
+                return []
+            }
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(settings.apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                appendSystem("❌ LLM 调用失败：\(response)")
+                return []
+            }
+
+            // 解析响应
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let choices = json["choices"] as? [[String: AnyHashable]],
+               let first = choices.first,
+               let message = first["message"] as? [String: AnyHashable],
+               let toolCalls = message["tool_calls"] as? [[String: AnyHashable]] {
+                // 解析工具调用
+                return toolCalls.compactMap { tc in
+                    guard let id = tc["id"] as? String,
+                          let function = tc["function"] as? [String: AnyHashable],
+                          let name = function["name"] as? String else { return nil }
+                    let args: [String: String] = [:]
+                    return AgentToolCall(id: id, skillID: name, args: args)
+                }
+            }
+
+            // 无 tool_calls，返回空（LLM 认为任务完成）
+            return []
+
+        } catch {
+            appendSystem("❌ LLM 请求异常：\(error.localizedDescription)")
+            return []
+        }
+    }
 
     /// 是否处于自测模式（跳过真实点击/按键，只验证链路）
     @ObservationIgnored var isDryRun = false
@@ -238,6 +430,15 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "rewards", "furniture":
             // 纯 UI 点击型：OCR 定位「领取/收取」按钮 → 循环点击直到没有
             performUIClickLoop(skill: skill, source: source, dryRun: dryRun)
+        case "fishing":
+            // 自动钓鱼基础版：F 抛竿 → 等收杆节奏 → F 再抛（循环）
+            performFishingLoop(skill: skill, source: source, dryRun: dryRun)
+        case "dodge":
+            // 自动闪避：持续闪避按键循环（躲避追踪弹/红圈，配合走位）
+            performDodgeLoop(skill: skill, source: source, dryRun: dryRun)
+        case "auto_scroll":
+            // 自动滚动：周期性 F 连点 + 滚轮（拾取/翻页类交互）
+            performAutoScroll(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
@@ -458,6 +659,106 @@ final class AgentSkillCenter: @unchecked Sendable {
         runningSkills.remove(skill.id)
     }
 
+    /// 自动钓鱼基础版（MaaNTE AutoFish 核心循环移植）
+    /// 真实链路：F 抛竿 → 等收杆节奏 → F 收杆 → 再抛（循环，最多 12 轮）
+    /// 说明：MaaNTE 完整版带 CV 鱼漂检测；macOS 基础版按游戏节奏固定时间，
+    /// 真实动作 + 可中途停止，后续可接 Vision 升级。
+    private func performFishingLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard let control else {
+            appendSystem("❌ 按键引擎未注入")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard !dryRun else {
+            appendSystem("✅ 自测：钓鱼循环（F 抛竿/收杆）链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+
+        let maxRounds = 12
+        appendSystem("🎣 钓鱼循环启动：F 抛竿/收杆 × \(maxRounds) 轮（点击技能可停止）")
+        for round in 1...maxRounds {
+            guard runningSkills.contains(skill.id) else {
+                appendSystem("⏹️ 钓鱼已停止")
+                return
+            }
+            // 抛竿：F 短按
+            control.pressGameKey(.f, duration: 0.08)
+            usleep(useconds_t(2.0 * 1_000_000))   // 等鱼漂落水
+            // 收杆：F 短按（游戏内抛竿/收杆同一键）
+            control.pressGameKey(.f, duration: 0.08)
+            usleep(useconds_t(1.0 * 1_000_000))
+            appendSystem("🎣 第 \(round) 轮：抛竿→收杆完成")
+        }
+        appendSystem("🏁 钓鱼 \(maxRounds) 轮完成")
+        runningSkills.remove(skill.id)
+    }
+
+    /// 自动闪避（MaaNTE SoundDodge 思路移植）
+    /// 真实链路：周期性快速闪避（空格跳跃 + Shift 疾跑闪避组合），
+    /// 用于躲红圈/追踪弹；可中途停止。
+    private func performDodgeLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard let control else {
+            appendSystem("❌ 按键引擎未注入")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard !dryRun else {
+            appendSystem("✅ 自测：闪避循环（Space/Shift）链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+
+        let maxRounds = 20
+        appendSystem("⚔️ 闪避循环启动：周期性跳+疾跑闪避 × \(maxRounds) 轮（点击技能可停止）")
+        for round in 1...maxRounds {
+            guard runningSkills.contains(skill.id) else {
+                appendSystem("⏹️ 闪避已停止")
+                return
+            }
+            // 闪避动作：Space 跳跃 + Shift 疾跑短闪
+            control.pressGameKey(.space, duration: 0.12)
+            control.pressGameKey(.shift, duration: 0.10)
+            usleep(useconds_t(0.9 * 1_000_000))
+        }
+        appendSystem("🏁 闪避 \(maxRounds) 轮完成")
+        runningSkills.remove(skill.id)
+    }
+
+    /// 自动滚动（MaaNTE auto_f_scroll 移植）
+    /// 真实链路：周期性 F 连点 + 鼠标滚轮向下（拾取/翻页类交互）
+    private func performAutoScroll(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard let control else {
+            appendSystem("❌ 按键引擎未注入")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard !dryRun else {
+            appendSystem("✅ 自测：滚动循环（F+滚轮）链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+
+        let mouse = makeMouse()
+        let maxRounds = 15
+        appendSystem("📜 自动滚动启动：F 连点 + 滚轮 × \(maxRounds) 轮（点击技能可停止）")
+        for round in 1...maxRounds {
+            guard runningSkills.contains(skill.id) else {
+                appendSystem("⏹️ 滚动已停止")
+                return
+            }
+            // F 连点（交互键）2 次
+            control.pressGameKey(.f, duration: 0.06)
+            usleep(useconds_t(0.12 * 1_000_000))
+            control.pressGameKey(.f, duration: 0.06)
+            // 滚轮向下（拾取/翻页）
+            mouse?.scrollWheel(lines: -3)
+            usleep(useconds_t(0.5 * 1_000_000))
+        }
+        appendSystem("🏁 滚动 \(maxRounds) 轮完成")
+        runningSkills.remove(skill.id)
+    }
+
     /// 待移植技能：现场快照 + 如实回报
     private func performSnapshotStub(skill: AgentSkill, source: AgentInvokeSource) {
         let snapshotPath = "/tmp/aurora_agent_\(skill.id).png"
@@ -508,17 +809,56 @@ final class AgentSkillCenter: @unchecked Sendable {
             return
         }
 
-        // 技能匹配：关键词包含即调用（同一通道）
-        for skill in AgentSkillLibrary.all {
-            if skill.keywords.contains(where: { trimmed.contains($0) }) {
-                appendSystem("\(source.rawValue) 指令命中技能「\(skill.name)」")
-                runSkill(skill.id, source: source)
-                return
+        // ── 第一步：先看是复合任务还是单技能 ───────────────────────────
+        let matchedSkills = AgentSkillLibrary.all.filter { skill in
+            skill.keywords.contains(where: { trimmed.contains($0) })
+        }
+        let matchedCount = matchedSkills.count
+
+        // 复合任务（多技能关键词 / 单技能但带任务动词）→ AgentLoop 端到端规划
+        if matchedCount >= 2 || (matchedCount == 1 && isComplexTask(trimmed)) {
+            appendSystem("🧠 检测到复合任务，启动端到端规划…")
+            let loop = AgentLoop.shared
+            loop.onProgress = { [weak self] msg in
+                self?.appendSystem(msg)
             }
+            let task = trimmed
+            let source = source
+            workQueue.async { [weak self] in
+                let semaphore = DispatchSemaphore(value: 0)
+                var summary = ""
+                Task {
+                    summary = await loop.handle(task: task, from: source) { msg in
+                        DispatchQueue.main.async { self?.appendSystem(msg) }
+                    }
+                    semaphore.signal()
+                }
+                semaphore.wait()
+                DispatchQueue.main.async {
+                    self?.replyAssistant(summary)
+                }
+            }
+            return
+        }
+
+        // 单技能直配（兼容旧路径）
+        if matchedCount == 1 {
+            let skill = matchedSkills[0]
+            appendSystem("\(source.rawValue) 指令命中技能「\(skill.name)」")
+            runSkill(skill.id, source: source)
+            return
         }
 
         // 本地命令回复（未接入外部 LLM 时的诚实行为）
         replyAssistant(localReply(to: trimmed))
+    }
+
+    /// 判断是否为需要端到端规划的复合任务
+    /// 规则：单技能但无顺序词 → 单技能直配；含顺序词（然后/先/再/依次）→ 复合任务
+    private func isComplexTask(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let sequentialWords = ["然后", "接着", "先", "再", "依次", "最后", "顺"]
+        return sequentialWords.contains { lower.contains($0) }
     }
 
     /// 本地回复：状态汇总 + 可执行指令提示
@@ -547,7 +887,7 @@ final class AgentSkillCenter: @unchecked Sendable {
         messages.append(AgentMessage(role: .assistant, text: text, time: Date(), source: .ai))
     }
 
-    private func appendSystem(_ text: String) {
+    func appendSystem(_ text: String) {
         messages.append(AgentMessage(role: .system, text: text, time: Date(), source: .ai))
     }
 
@@ -623,9 +963,21 @@ enum AgentSelfTest {
         center.sendUserMessage("收家具", source: .ai)
         let furnitureRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动收家具") }
         center.stopAll(source: .ai)
+        center.sendUserMessage("帮我滚动一下", source: .ai)
+        let scrollRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动滚动") }
+        center.stopAll(source: .ai)
         center.isDryRun = false
         log(rewardsRouted, "指令解析→领奖励", rewardsRouted ? "命中 rewards" : "未命中")
         log(furnitureRouted, "指令解析→收家具", furnitureRouted ? "命中 furniture" : "未命中")
+        log(scrollRouted, "指令解析→滚动", scrollRouted ? "命中 auto_scroll" : "未命中")
+
+        // 3.6 AgentLoop 端到端规划（复合任务：登录→领奖励）
+        center.isDryRun = true
+        center.sendUserMessage("先登录然后再领奖励", source: .ai)
+        let loopPlanned = center.messages.contains { $0.text.contains("端到端规划") }
+        center.stopAll(source: .ai)
+        center.isDryRun = false
+        log(loopPlanned, "AgentLoop 复合任务规划", loopPlanned ? "触发端到端" : "未触发")
 
         // 4. 人类点击同一通道（toggle → running）
         center.isDryRun = true
@@ -716,6 +1068,7 @@ struct AIAgentPanelView: View {
     @State private var draftText = ""
     @State private var showModelPicker = false
     @State private var appeared = false
+    @State private var showSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -749,6 +1102,23 @@ struct AIAgentPanelView: View {
                         .lineLimit(1)
                 }
                 Spacer()
+                // ── 设置按钮：配置 API Key / BaseUrl / Model ──
+                Button {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.68)) {
+                        showSettings = true
+                    }
+                } label: {
+                    Image(systemName: "gear")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.white.opacity(0.06)))
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .help("AI 配置")
+
+                // ── 收起按钮 ──
                 Button {
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.68)) {
                         center.isPanelOpen = false
@@ -941,12 +1311,104 @@ struct AIAgentPanelView: View {
                 Spacer()
             }
         }
+        .sheet(isPresented: $showSettings) {
+            AgentSettingsSheet(center: center)
+        }
     }
 
     private func sendDraft() {
         let text = draftText
         draftText = ""
         center.sendUserMessage(text, source: .human)
+    }
+}
+
+// MARK: - AI 配置 Sheet
+
+struct AgentSettingsSheet: View {
+    @Bindable var center: AgentSkillCenter
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("API 配置（安全存 Keychain）") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("API Key — 粘贴你的 DeepSeek/OpenAI/Claude API Key")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Theme.textSecondary)
+                        TextField("sk-...", text: $center.aiSettings.apiKey,
+                                  prompt: Text("sk-xxxxxxxx"))
+                            .font(.system(.body, design: .monospaced))
+                            .textContentType(.password)
+                            .autocorrectionDisabled(true)
+                        Text("存储在 macOS Keychain，不写磁盘明文")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Theme.textTertiary)
+                    }
+                }
+
+                Section("端点 & 模型") {
+                    TextField("Base URL", text: $center.aiSettings.baseUrl,
+                              prompt: Text("https://api.deepseek.com"))
+                        .font(.system(.body, design: .monospaced))
+                    TextField("Model", text: $center.aiSettings.model,
+                              prompt: Text("deepseek-chat"))
+                        .font(.system(.body, design: .monospaced))
+                    Picker("思考深度", selection: $center.aiSettings.thinkingDepth) {
+                        Text("低 (1)").tag(1)
+                        Text("中 (3)").tag(3)
+                        Text("高 (5)").tag(5)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section("快速填充（示例配置）") {
+                    Button("DeepSeek 默认") {
+                        center.aiSettings = AgentSettings(
+                            apiKey: "",
+                            baseUrl: "https://api.deepseek.com",
+                            model: "deepseek-chat",
+                            thinkingDepth: 3
+                        )
+                    }
+                    Button("OpenAI") {
+                        center.aiSettings = AgentSettings(
+                            apiKey: "",
+                            baseUrl: "https://api.openai.com",
+                            model: "gpt-4o-mini",
+                            thinkingDepth: 3
+                        )
+                    }
+                    Button("Anthropic Claude") {
+                        center.aiSettings = AgentSettings(
+                            apiKey: "",
+                            baseUrl: "https://api.anthropic.com",
+                            model: "claude-3-5-haiku-20241022",
+                            thinkingDepth: 5
+                        )
+                    }
+                }
+            }
+            .navigationTitle("AI 配置")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        do {
+                            try center.aiSettings.save()
+                            center.appendSystem("✅ API Key 已安全保存（Keychain）")
+                            dismiss()
+                        } catch {
+                            center.appendSystem("❌ 保存失败：\(error.localizedDescription)")
+                        }
+                    }
+                    .disabled(center.aiSettings.apiKey.isEmpty)
+                }
+            }
+        }
     }
 }
 

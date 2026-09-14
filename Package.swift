@@ -52,6 +52,7 @@ let package = Package(
             sources: [
                 "Sources/AuroraDrive/AuroraDriveApp.swift",
                 "Sources/AuroraDrive/AuroraPaths.swift",
+                "Sources/AuroraDrive/AgentLoop.swift",
                 "Sources/AuroraDrive/AIAgentPanel.swift",
                 "Sources/AuroraDrive/AutomationPanel.swift",
                 "Sources/AuroraDrive/CaptureEngine.swift",
