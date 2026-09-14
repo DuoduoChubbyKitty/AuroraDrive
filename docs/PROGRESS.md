@@ -48,3 +48,8 @@ bbf461c feat: drive_dataset
 f67b9f2 feat: touch
 4186aa8 fix: 4个稳定性缺陷
 ```
+
+### 环境性阻塞（本轮确证）
+- TCC 辅助功能授权丢失：AuroraTCCSelfTest.log 历史 ax=true→false（redeploy 重签后 CDHash 变化）
+- 因果链：TCC ax=false → 引擎 fail-fast → UI 本地模式 → 主窗口创建被权限门控（AuroraDriveApp.swift:312 注释）→ --agent-selftest（触发点在 ContentView.body :2258）永不启动
+- GUI 自测（验收#2）与窗口级 computer-use 走查（验收#6）需用户在正常桌面 session + TCC 恢复后手动完成
