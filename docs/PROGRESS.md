@@ -20,16 +20,14 @@
 - [x] LLM CLI 测试修复（AURORA_API_KEY env var，不走 Keychain）
 
 ### 进行中
-- [ ] 移植 piano 技能（3首内置曲目，完整节拍）
-- [ ] 编译验证（上次被打断）
+- [ ] 编译验证（后台全量 rebuild 中，缓存被误删需等待）
+- [ ] 移植 coffee / fountain / bagel_spam（均为 C 类实际，需 OCR，标"待移植"）
+- [ ] C类评估文档更新
 
 ### 待做
-- [ ] 移植 coffee / coffee_lite / tomato_juice（A类）
-- [ ] 移植 fountain / witch（A类，需点击序列）
-- [ ] 移植 bagel_spam（需 ControlEngine.typeText）
-- [ ] C类评估 + 待移植标注
 - [ ] 阶段 3 电脑操作验收（computer-use）
 - [ ] 最终报告
+- [ ] 编译验证 + 部署（build cache 恢复后）
 
 ### 关键约束
 - 不走 Keychain（用 AURORA_API_KEY 环境变量）
