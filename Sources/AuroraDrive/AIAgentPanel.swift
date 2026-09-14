@@ -176,6 +176,8 @@ enum AgentSkillLibrary {
                    keywords: ["滚动", "拾取", "捡东西", "翻页"]),
         AgentSkill(id: "touch", emoji: "✋", name: "自动抚摸", ported: true,
                    keywords: ["抚摸", "摸", "宠物", "touch"]),
+        AgentSkill(id: "drive_dataset", emoji: "🎬", name: "驾驶数据采集", ported: true,
+                   keywords: ["数据集", "采集", "录制", "驾驶数据", "drive"]),
     ]
 }
 
@@ -200,6 +202,8 @@ final class AgentSkillCenter: @unchecked Sendable {
     // ── 注入的引擎（由 DriveState 在启动时配置）──
     private var control: ControlEngine?
     private var capture: CaptureEngine?
+    /// 驾驶数据集录制引擎（可选注入；nil 时 drive_dataset 报未注入）
+    @ObservationIgnored var recordEngine: RecordEngine?
 
     // ── 会话状态（UI 直接观察）──
     var messages: [AgentMessage] = []
@@ -220,6 +224,7 @@ final class AgentSkillCenter: @unchecked Sendable {
     /// 抚摸循环定时器
     @ObservationIgnored private var touchTimer: DispatchSourceTimer?
     @ObservationIgnored private var touchLoopCount = 0
+    @ObservationIgnored private var driveDatasetTimer: DispatchSourceTimer?
     @ObservationIgnored private let workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)
 
     /// LLM 专用 URLSession：30s 请求超时 + 45s 资源总超时（防挂起占满线程）
@@ -542,6 +547,9 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "touch":
             // 自动抚摸：F交互 → 点击抚摸区 → ESC退出（MaaNTE Touch 直移植）
             startTouchLoop(skill: skill, source: source, dryRun: dryRun)
+        case "drive_dataset":
+            // 驾驶数据采集：2Hz 采样 W/A/S/D → RecordEngine（MaaNTE AutonomousDrivingDataset）
+            startDriveDatasetLoop(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
@@ -739,6 +747,61 @@ final class AgentSkillCenter: @unchecked Sendable {
         timer.resume()
         touchTimer = timer
         appendSystem("✋ 抚摸循环运行中（每 3s 一轮 ×\(maxLoops)，再次点击或输入「停止」结束）")
+    }
+
+    /// 驾驶数据集采集（MaaNTE AutonomousDrivingDataset 直移植 · 复用 RecordEngine）
+    /// 采样率 2Hz，每帧记录 steer/throttle/brake 按键状态
+    private func startDriveDatasetLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard !dryRun else {
+            appendSystem("✅ 自测：驾驶数据采集（RecordEngine 2Hz）链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard let recorder = recordEngine else {
+            appendSystem("❌ 录制引擎未注入，无法采集驾驶数据")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，数据采集已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
+
+        // 启动录制
+        recorder.start(perspective: "first")
+
+        // 2Hz 采样（0.5s 间隔）
+        let timer = DispatchSource.makeTimerSource(queue: workQueue)
+        timer.schedule(deadline: .now() + 0.5, repeating: 0.5)
+        var elapsed: Double = 0
+        let maxDuration: Double = 60.0
+        timer.setEventHandler { [weak self] in
+            guard let self, self.runningSkills.contains("drive_dataset") else { return }
+            elapsed += 0.5
+            if elapsed >= maxDuration {
+                appendSystem("🎬 驾驶数据采集完成（\(Int(maxDuration))s），自动停止")
+                recorder.stop()
+                recorder.flushSync()
+                self.teardown(id: "drive_dataset")
+                runningSkills.remove("drive_dataset")
+                return
+            }
+            // macOS 按键状态采样（替代 Windows GetAsyncKeyState）
+            let w = CGEventSource.keyState(.combinedSessionState, key: 13)   // W
+            let a = CGEventSource.keyState(.combinedSessionState, key: 0)    // A
+            let s = CGEventSource.keyState(.combinedSessionState, key: 1)    // S
+            let d = CGEventSource.keyState(.combinedSessionState, key: 2)    // D
+            let steer = Double(d ? 1 : 0) - Double(a ? 1 : 0)
+            let throttle: Double = w ? 1.0 : 0.0
+            let brake: Double = s ? 1.0 : 0.0
+            if let frame = self.capture?.currentFrame {
+                recorder.appendFrame(image: frame, steer: steer, throttle: throttle, brake: brake)
+            }
+        }
+        timer.resume()
+        driveDatasetTimer = timer
+        appendSystem("🎬 驾驶数据采集运行中（2Hz × 60s，再次点击或输入「停止」结束）")
     }
 
     /// 通用 UI 点击技能（自动领奖励 / 自动收家具）
@@ -944,6 +1007,11 @@ final class AgentSkillCenter: @unchecked Sendable {
             touchTimer?.cancel()
             touchTimer = nil
             touchLoopCount = 0
+        case "drive_dataset":
+            driveDatasetTimer?.cancel()
+            driveDatasetTimer = nil
+            recordEngine?.stop()
+            recordEngine?.flushSync()
         case "auto_login":
             loginWatchTimer?.cancel()
             loginWatchTimer = nil
