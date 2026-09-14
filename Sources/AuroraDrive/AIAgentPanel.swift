@@ -160,6 +160,8 @@ enum AgentSkillLibrary {
                    keywords: ["钓鱼", "钓个鱼"]),
         AgentSkill(id: "coffee", emoji: "🥤", name: "自动做咖啡", ported: true,
                    keywords: ["咖啡"]),
+        AgentSkill(id: "coffee_lite", emoji: "🥛", name: "轻量做咖啡", ported: true,
+                   keywords: ["轻量", "lite"]),
         AgentSkill(id: "pinkpaw", emoji: "🐾", name: "粉爪大劫案", warn: true,
                    keywords: ["粉爪", "大劫案"]),
         AgentSkill(id: "furniture", emoji: "🪑", name: "自动收家具", ported: true,
@@ -235,6 +237,8 @@ final class AgentSkillCenter: @unchecked Sendable {
     @ObservationIgnored private var pianoStepIndex = 0
     @ObservationIgnored private var coffeeTimer: DispatchSourceTimer?
     @ObservationIgnored private var coffeeIter = 0
+    @ObservationIgnored private var coffeeLiteTimer: DispatchSourceTimer?
+    @ObservationIgnored private var coffeeLiteIter = 0
     @ObservationIgnored private var tomatoTimer: DispatchSourceTimer?
     @ObservationIgnored private var tomatoIter = 0
     @ObservationIgnored private let workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)
@@ -586,6 +590,9 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "coffee":
             // 自动做咖啡：F 键交互 × 20 轮（MaaNTE AutoMakeCoffee）
             startCoffeeLoop(skill: skill, source: source, dryRun: dryRun)
+        case "coffee_lite":
+            // 轻量做咖啡：F 键交互 × 10 轮（MaaNTE AutoMakeCoffeeLite）
+            startCoffeeLiteLoop(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
@@ -970,6 +977,43 @@ final class AgentSkillCenter: @unchecked Sendable {
         appendSystem("☕ 做咖啡运行中（每 2s 按 F × \(maxIter) 轮，再次点击或「停止」结束）")
     }
 
+    /// 轻量做咖啡（MaaNTE AutoMakeCoffeeLite）：快速 10 轮 × 1s 的 F 交互（对应 MaaNTE make_count=10）
+    private func startCoffeeLiteLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard !dryRun else {
+            appendSystem("✅ 自测：轻量做咖啡链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard let control else {
+            appendSystem("❌ 按键引擎未注入，无法轻量做咖啡")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，轻量做咖啡已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
+        coffeeLiteIter = 0
+        let maxIter = 10
+        let timer = DispatchSource.makeTimerSource(queue: workQueue)
+        timer.schedule(deadline: .now() + 0.6, repeating: 1.0)
+        timer.setEventHandler { [weak self] in
+            guard let self, self.runningSkills.contains("coffee_lite") else { return }
+            self.coffeeLiteIter += 1
+            control.pressGameKey(.f, duration: 0.1)
+            if self.coffeeLiteIter >= maxIter {
+                self.appendSystem("🥛 轻量做咖啡完成（\(maxIter) 轮 F 交互），自动停止")
+                self.coffeeLiteTimer?.cancel()
+                self.coffeeLiteTimer = nil
+                self.runningSkills.remove("coffee_lite")
+            }
+        }
+        timer.resume()
+        coffeeLiteTimer = timer
+        appendSystem("🥛 轻量做咖啡运行中（每 1s 按 F × \(maxIter) 轮，快速版；再次点击或「停止」结束）")
+    }
+
     private func startTomatoJuiceLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
         guard !dryRun else {
             appendSystem("✅ 自测：番茄汁 链路就绪")
@@ -1225,6 +1269,10 @@ final class AgentSkillCenter: @unchecked Sendable {
             coffeeTimer?.cancel()
             coffeeTimer = nil
             coffeeIter = 0
+        case "coffee_lite":
+            coffeeLiteTimer?.cancel()
+            coffeeLiteTimer = nil
+            coffeeLiteIter = 0
         case "auto_login":
             loginWatchTimer?.cancel()
             loginWatchTimer = nil
@@ -1420,6 +1468,9 @@ enum AgentSelfTest {
         center.sendUserMessage("做杯咖啡", source: .ai)
         let coffeeRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动做咖啡") }
         center.stopAll(source: .ai)
+        center.sendUserMessage("来点轻量的", source: .ai)
+        let coffeeLiteRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("轻量做咖啡") }
+        center.stopAll(source: .ai)
         center.sendUserMessage("做杯番茄汁", source: .ai)
         let tomatoRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动做番茄汁") }
         center.stopAll(source: .ai)
@@ -1441,6 +1492,7 @@ enum AgentSelfTest {
         center.isDryRun = false
         log(touchRouted, "指令解析→抚摸", touchRouted ? "命中 touch" : "未命中")
         log(coffeeRouted, "指令解析→咖啡", coffeeRouted ? "命中 coffee" : "未命中")
+        log(coffeeLiteRouted, "指令解析→轻量咖啡", coffeeLiteRouted ? "命中 coffee_lite" : "未命中")
         log(tomatoRouted, "指令解析→番茄汁", tomatoRouted ? "命中 tomato_juice" : "未命中")
         log(pianoRouted, "指令解析→钢琴", pianoRouted ? "命中 piano" : "未命中")
         log(fishingRouted, "指令解析→钓鱼", fishingRouted ? "命中 fishing" : "未命中")
@@ -1470,7 +1522,7 @@ enum AgentSelfTest {
 
         // 6. ported 一致性：ported==true 的技能必须有 execute case（不落入 default）
         let portedSkills = AgentSkillLibrary.all.filter { $0.ported }
-        let knownImplemented: Set<String> = ["auto_login","rewards","furniture","fishing","volleyball","dodge","auto_scroll","touch","drive_dataset","preset_afk","piano","coffee"]
+        let knownImplemented: Set<String> = ["auto_login","rewards","furniture","fishing","volleyball","dodge","auto_scroll","touch","drive_dataset","preset_afk","piano","coffee","coffee_lite","tomato_juice"]
         let unimplementedPorted = portedSkills.filter { !knownImplemented.contains($0.id) }
         log(unimplementedPorted.isEmpty,
             "ported一致性①", unimplementedPorted.isEmpty ? "所有 ported:true 技能均有实现" : "漏标: \(unimplementedPorted.map(\.id).joined(separator: ","))")
