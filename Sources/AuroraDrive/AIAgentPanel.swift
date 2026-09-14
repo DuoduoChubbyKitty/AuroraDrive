@@ -1412,6 +1412,42 @@ enum AgentSelfTest {
         log(furnitureRouted, "指令解析→收家具", furnitureRouted ? "命中 furniture" : "未命中")
         log(scrollRouted, "指令解析→滚动", scrollRouted ? "命中 auto_scroll" : "未命中")
 
+        // 3.7 新移植技能路由（dryRun：只验证链路，不真实按键/点击）
+        center.isDryRun = true
+        center.sendUserMessage("帮我抚摸一下", source: .ai)
+        let touchRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动抚摸") }
+        center.stopAll(source: .ai)
+        center.sendUserMessage("做杯咖啡", source: .ai)
+        let coffeeRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动做咖啡") }
+        center.stopAll(source: .ai)
+        center.sendUserMessage("做杯番茄汁", source: .ai)
+        let tomatoRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动做番茄汁") }
+        center.stopAll(source: .ai)
+        center.sendUserMessage("帮我弹钢琴", source: .ai)
+        let pianoRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动弹钢琴") }
+        center.stopAll(source: .ai)
+        center.sendUserMessage("去钓鱼", source: .ai)
+        let fishingRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动钓鱼") }
+        center.stopAll(source: .ai)
+        center.sendUserMessage("自动闪避", source: .ai)
+        let dodgeRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("自动闪避") }
+        center.stopAll(source: .ai)
+        center.sendUserMessage("开始采集数据集", source: .ai)
+        let datasetRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("驾驶数据采集") }
+        center.stopAll(source: .ai)
+        center.sendUserMessage("挂机", source: .ai)
+        let afkRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("挂机预设") }
+        center.stopAll(source: .ai)
+        center.isDryRun = false
+        log(touchRouted, "指令解析→抚摸", touchRouted ? "命中 touch" : "未命中")
+        log(coffeeRouted, "指令解析→咖啡", coffeeRouted ? "命中 coffee" : "未命中")
+        log(tomatoRouted, "指令解析→番茄汁", tomatoRouted ? "命中 tomato_juice" : "未命中")
+        log(pianoRouted, "指令解析→钢琴", pianoRouted ? "命中 piano" : "未命中")
+        log(fishingRouted, "指令解析→钓鱼", fishingRouted ? "命中 fishing" : "未命中")
+        log(dodgeRouted, "指令解析→闪避", dodgeRouted ? "命中 dodge" : "未命中")
+        log(datasetRouted, "指令解析→驾驶数据集", datasetRouted ? "命中 drive_dataset" : "未命中")
+        log(afkRouted, "指令解析→挂机预设", afkRouted ? "命中 preset_afk" : "未命中")
+
         // 3.6 AgentLoop 端到端规划（复合任务：登录→领奖励）
         center.isDryRun = true
         center.sendUserMessage("先登录然后再领奖励", source: .ai)
