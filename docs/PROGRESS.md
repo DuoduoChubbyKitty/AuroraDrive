@@ -6,28 +6,29 @@
 ## 当前进度（2026-09-14）
 
 ### 已完成
-- [x] 4 个稳定性缺陷修复（commit 4186aa8）
-  - ① --agent-llm-test 死锁 → 纯同步 HTTP + 30s 超时
-  - ② sendUserMessage 信号量 → Task 后台 + MainActor
-  - ③ URLSession 无超时 → 专用 llmSession (30s/45s)
-  - ④ ported 默认值 true → false
-- [x] 弱模型防线 1（提示词与 tool calling 一致）+ 防线 3（三重校验）
-- [x] LLM 动态 tools 过滤（只给 ported:true 的技能）
-- [x] 移植 touch 技能（commit f67b9f2）
-- [x] 移植 drive_dataset 技能（commit bbf461c）
-- [x] 移植 preset_afk 技能（commit 62b8851）
-- [x] MaaNTE 移植对照表文档（commit 6c9de25）
-- [x] LLM CLI 测试修复（AURORA_API_KEY env var，不走 Keychain）
+- [x] 4 个稳定性缺陷修复
+- [x] 弱模型防线 1+3
+- [x] LLM 动态 tools 过滤
+- [x] 移植 touch / drive_dataset / preset_afk / piano
+- [x] MaaNTE 移植对照表文档
+- [x] LLM CLI 测试（env var，不走 Keychain）
+- [x] 编译 0 error 验证通过
+- [x] LLM 实测通过（1+1=2 + tool_calls）
 
 ### 进行中
-- [ ] 编译验证（后台全量 rebuild 中，缓存被误删需等待）
-- [ ] 移植 coffee / fountain / bagel_spam（均为 C 类实际，需 OCR，标"待移植"）
-- [ ] C类评估文档更新
+- [ ] 阶段 3 电脑操作验收（SwiftUI 窗口 accessibility 受限）
+- [ ] C 类评估文档（coffee/fountain/bagel 确认需 OCR）
+- [ ] 最终报告
 
 ### 待做
-- [ ] 阶段 3 电脑操作验收（computer-use）
-- [ ] 最终报告
-- [ ] 编译验证 + 部署（build cache 恢复后）
+- [ ] 部署 run.sh（双目标同步）
+- [ ] 部署后验证 md5 一致
+- [ ] 完整 13 条验收
+
+### 关键约束
+- 不走 Keychain（用 AURORA_API_KEY 环境变量）
+- 编译用 scratch path
+- 不删 .build/scratch（上次误删导致全量重建）
 
 ### 关键约束
 - 不走 Keychain（用 AURORA_API_KEY 环境变量）
