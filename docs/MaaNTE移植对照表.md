@@ -25,7 +25,7 @@
 | 10 | Rhythm | `rhythm` | C | ⚠️ 待移植 | 音游音符识别；YoloEngine 可检测但 60fps 下性能未验证 |
 | 11 | Tetris | `tetris` | C | ❌ 缺失 | 棋盘格识别；需 YoloEngine 检测方块+切分网格，缺专用训练数据 |
 | 12 | Volleyball | `volleyball` | — | ✅ | `AIAgentPanel.swift` startVolleyballLoop（K 键 0.6s 循环） |
-| 13 | BagelSpam | `bagel_spam` | A | ❌ 缺失 | 文本输入刷屏；ControlEngine 无 typeText 方法，需先加文本输入支持 |
+| 13 | BagelSpam | `bagel_spam` | A | ✅ 已移植 | 内置中性文案 6 轮 × 2s 刷屏（ControlEngine.typeText Unicode 注入 f2eb1cd；需先开聊天框聚焦；MaaNTE 原版 LLM 文案未做） |
 | 14 | RealTime | `realtime` | C | ❌ 缺失 | 实时战斗辅助；需 YoloEngine 识别+快速反应，缺专用模型 |
 | 15 | OnlineMapNavigation | `online_nav` | C | ❌ 缺失 | 地图定位+路线；NetworkLocator 已有地图能力，缺路线生成+自动走 |
 | 16 | SoundDodge | `dodge` | — | ✅ | `AIAgentPanel.swift` performDodgeLoop（Space+Shift 闪避循环） |
