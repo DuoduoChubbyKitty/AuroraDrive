@@ -174,6 +174,8 @@ enum AgentSkillLibrary {
                    keywords: ["闪避", "躲避"]),
         AgentSkill(id: "auto_scroll", emoji: "📜", name: "自动滚动", ported: true,
                    keywords: ["滚动", "拾取", "捡东西", "翻页"]),
+        AgentSkill(id: "touch", emoji: "✋", name: "自动抚摸", ported: true,
+                   keywords: ["抚摸", "摸", "宠物", "touch"]),
     ]
 }
 
@@ -215,6 +217,9 @@ final class AgentSkillCenter: @unchecked Sendable {
 
     /// 排球循环定时器
     @ObservationIgnored private var volleyballTimer: DispatchSourceTimer?
+    /// 抚摸循环定时器
+    @ObservationIgnored private var touchTimer: DispatchSourceTimer?
+    @ObservationIgnored private var touchLoopCount = 0
     @ObservationIgnored private let workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)
 
     /// LLM 专用 URLSession：30s 请求超时 + 45s 资源总超时（防挂起占满线程）
@@ -534,6 +539,9 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "auto_scroll":
             // 自动滚动：周期性 F 连点 + 滚轮（拾取/翻页类交互）
             performAutoScroll(skill: skill, source: source, dryRun: dryRun)
+        case "touch":
+            // 自动抚摸：F交互 → 点击抚摸区 → ESC退出（MaaNTE Touch 直移植）
+            startTouchLoop(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
@@ -676,6 +684,61 @@ final class AgentSkillCenter: @unchecked Sendable {
         timer.resume()
         volleyballTimer = timer
         appendSystem("🏐 排球循环运行中（每 0.6s 击球一次，再次点击或输入「停止」结束）")
+    }
+
+    /// 自动抚摸（MaaNTE Touch 直移植）
+    /// 序列：F 交互 → 点击抚摸区域 → ESC 退出，循环最多 10 轮
+    private func startTouchLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard !dryRun else {
+            appendSystem("✅ 自测：抚摸链路（F→点击→ESC ×10）就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard let control else {
+            appendSystem("❌ 按键引擎未注入，无法执行抚摸")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，抚摸已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
+
+        touchLoopCount = 0
+        let maxLoops = 10
+        // 每 3 秒一轮（F→0.5s→点击→0.5s→ESC）
+        let timer = DispatchSource.makeTimerSource(queue: workQueue)
+        timer.schedule(deadline: .now() + 1.0, repeating: 3.0)
+        timer.setEventHandler { [weak self] in
+            guard let self, self.runningSkills.contains("touch") else { return }
+            self.touchLoopCount += 1
+            if self.touchLoopCount > maxLoops {
+                appendSystem("✋ 抚摸完成（\(maxLoops) 轮），自动停止")
+                self.teardown(id: "touch")
+                runningSkills.remove("touch")
+                return
+            }
+            // F → 交互模式
+            control.pressGameKey(.f, duration: 0.05)
+            // 0.5s 后点击抚摸区（模拟 MaaNTE 的 Click [660,480]）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self else { return }
+                if let mouse = self.makeMouse() {
+                    let scale = MouseController.displayScale
+                    let point = MouseController.screenPoint(fromPixel: CGPoint(x: 660, y: 480), scale: scale)
+                    mouse.click(at: point, settleDelay: 0.3)
+                }
+            }
+            // 1s 后 ESC 退出交互
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self else { return }
+                self.control?.pressGameKey(.esc, duration: 0.05)
+            }
+        }
+        timer.resume()
+        touchTimer = timer
+        appendSystem("✋ 抚摸循环运行中（每 3s 一轮 ×\(maxLoops)，再次点击或输入「停止」结束）")
     }
 
     /// 通用 UI 点击技能（自动领奖励 / 自动收家具）
@@ -877,6 +940,10 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "volleyball":
             volleyballTimer?.cancel()
             volleyballTimer = nil
+        case "touch":
+            touchTimer?.cancel()
+            touchTimer = nil
+            touchLoopCount = 0
         case "auto_login":
             loginWatchTimer?.cancel()
             loginWatchTimer = nil
@@ -884,6 +951,8 @@ final class AgentSkillCenter: @unchecked Sendable {
         default:
             break
         }
+        // 停止时释放所有按键（防角色卡住）
+        control?.releaseAllGameKeys()
     }
 
     // MARK: - AI 对话入口
