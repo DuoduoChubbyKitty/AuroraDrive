@@ -180,6 +180,8 @@ enum AgentSkillLibrary {
                    keywords: ["数据集", "采集", "录制", "驾驶数据", "drive"]),
         AgentSkill(id: "preset_afk", emoji: "🛋️", name: "挂机预设", ported: true,
                    keywords: ["挂机", "AFK", "预设", "一键全做"]),
+        AgentSkill(id: "preset_realtime", emoji: "⚡", name: "实时辅助预设", ported: false,
+                   keywords: ["实时", "辅助", "realtime"]),
     ]
 }
 
