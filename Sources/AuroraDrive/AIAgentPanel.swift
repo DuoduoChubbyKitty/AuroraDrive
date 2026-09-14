@@ -158,7 +158,7 @@ enum AgentSkillLibrary {
                    keywords: ["排球"]),
         AgentSkill(id: "fishing", emoji: "🎣", name: "自动钓鱼", ported: true,
                    keywords: ["钓鱼", "钓个鱼"]),
-        AgentSkill(id: "coffee", emoji: "🥤", name: "自动做咖啡",
+        AgentSkill(id: "coffee", emoji: "🥤", name: "自动做咖啡", ported: true,
                    keywords: ["咖啡"]),
         AgentSkill(id: "pinkpaw", emoji: "🐾", name: "粉爪大劫案", warn: true,
                    keywords: ["粉爪", "大劫案"]),
@@ -231,6 +231,8 @@ final class AgentSkillCenter: @unchecked Sendable {
     @ObservationIgnored private var driveDatasetTimer: DispatchSourceTimer?
     @ObservationIgnored private var pianoTimer: DispatchSourceTimer?
     @ObservationIgnored private var pianoStepIndex = 0
+    @ObservationIgnored private var coffeeTimer: DispatchSourceTimer?
+    @ObservationIgnored private var coffeeIter = 0
     @ObservationIgnored private let workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)
 
     /// LLM 专用 URLSession：30s 请求超时 + 45s 资源总超时（防挂起占满线程）
@@ -570,6 +572,9 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "piano":
             // 自动弹钢琴：内置"小星星"旋律（G/H/I 音键，0.4s 间隔循环）
             startPianoLoop(skill: skill, source: source, dryRun: dryRun)
+        case "coffee":
+            // 自动做咖啡：F 键交互 × 20 轮（MaaNTE AutoMakeCoffee）
+            startCoffeeLoop(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
@@ -916,6 +921,44 @@ final class AgentSkillCenter: @unchecked Sendable {
         appendSystem("🎹 钢琴运行中：\(song.name)（\(totalNotes) 音符 × \(interval)s，再次点击或「停止」结束）")
     }
 
+    /// 自动做咖啡：F 键交互循环（MaaNTE AutoMakeCoffee）
+    /// 每 2s 按一次 F（交互），最多 20 轮（≈40s 制作周期）
+    private func startCoffeeLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard !dryRun else {
+            appendSystem("✅ 自测：做咖啡链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard let control else {
+            appendSystem("❌ 按键引擎未注入，无法做咖啡")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，做咖啡已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
+        coffeeIter = 0
+        let maxIter = 20
+        let timer = DispatchSource.makeTimerSource(queue: workQueue)
+        timer.schedule(deadline: .now() + 1.0, repeating: 2.0)
+        timer.setEventHandler { [weak self] in
+            guard let self, self.runningSkills.contains("coffee") else { return }
+            self.coffeeIter += 1
+            control.pressGameKey(.f, duration: 0.1)
+            if self.coffeeIter >= maxIter {
+                self.appendSystem("☕ 做咖啡完成（\(maxIter) 轮 F 交互），自动停止")
+                self.coffeeTimer?.cancel()
+                self.coffeeTimer = nil
+                self.runningSkills.remove("coffee")
+            }
+        }
+        timer.resume()
+        coffeeTimer = timer
+        appendSystem("☕ 做咖啡运行中（每 2s 按 F × \(maxIter) 轮，再次点击或「停止」结束）")
+    }
+
     /// 通用 UI 点击技能（自动领奖励 / 自动收家具）
     /// 真实链路：截图 → Vision OCR 定位「领取/收取」按钮 → 鼠标点击 →
     /// 等 UI 反应后重试，最多 N 轮；按钮消失即完成。
@@ -1128,6 +1171,10 @@ final class AgentSkillCenter: @unchecked Sendable {
             pianoTimer?.cancel()
             pianoTimer = nil
             pianoStepIndex = 0
+        case "coffee":
+            coffeeTimer?.cancel()
+            coffeeTimer = nil
+            coffeeIter = 0
         case "auto_login":
             loginWatchTimer?.cancel()
             loginWatchTimer = nil
@@ -1337,7 +1384,7 @@ enum AgentSelfTest {
 
         // 6. ported 一致性：ported==true 的技能必须有 execute case（不落入 default）
         let portedSkills = AgentSkillLibrary.all.filter { $0.ported }
-        let knownImplemented: Set<String> = ["auto_login","rewards","furniture","fishing","volleyball","dodge","auto_scroll","touch","drive_dataset","preset_afk","piano"]
+        let knownImplemented: Set<String> = ["auto_login","rewards","furniture","fishing","volleyball","dodge","auto_scroll","touch","drive_dataset","preset_afk","piano","coffee"]
         let unimplementedPorted = portedSkills.filter { !knownImplemented.contains($0.id) }
         log(unimplementedPorted.isEmpty,
             "ported一致性①", unimplementedPorted.isEmpty ? "所有 ported:true 技能均有实现" : "漏标: \(unimplementedPorted.map(\.id).joined(separator: ","))")
