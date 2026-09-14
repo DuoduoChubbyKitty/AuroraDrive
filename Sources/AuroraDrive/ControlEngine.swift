@@ -340,8 +340,8 @@ final class ControlEngine: @unchecked Sendable {
             print("[ControlEngine] typeText CGEvent 创建失败")
             return
         }
-        down.keyboardSetUnicodeString(length: utf16.count, unicodeString: utf16)
-        up.keyboardSetUnicodeString(length: utf16.count, unicodeString: utf16)
+        down.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
+        up.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         down.post(tap: .cghidEventTap)
         up.post(tap: .cghidEventTap)
         postedEventCount &+= 2
