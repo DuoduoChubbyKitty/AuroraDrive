@@ -95,21 +95,28 @@
 
 | id | 名称 | emoji | 状态 | 真实实现 |
 |---|---|---|---|---|
-| `auto_login` | 自动登录 | 🔑 | ✅ 真实 | OCR 定位登录按钮 → 鼠标点击 → 守护模式 |
-| `volleyball` | 自动排球 | 🏐 | ✅ 真实 | K 键每 0.6s 短按循环（MaaNTE 核心循环直移植） |
-| `rewards` | 自动领奖励 | 💎 | ✅ 真实 | OCR 定位「领取/一键领取」→ 循环点击 |
-| `furniture` | 自动收家具 | 🪑 | ✅ 真实 | OCR 定位「收取/一键收取」→ 循环点击 |
-| `fishing` | 自动钓鱼 | 🎣 | ✅ 真实 | F 抛竿/收杆节奏循环（基础版，后续接 CV） |
-| `dodge` | 自动闪避 | ⚔️ | ✅ 真实 | Space 跳跃 + Shift 疾跑组合循环 |
-| `auto_scroll` | 自动滚动 | 📜 | ✅ 真实 | F 连点 + 鼠标滚轮向下（拾取/翻页类交互） |
-| `coffee` | 自动做咖啡 | 🥤 | ⏳ 待移植 | 需视觉管线（咖啡机 UI 识别） |
-| `pinkpaw` | 粉爪大劫案 | 🐾 | ⏳ 待移植 | 依赖 MaaNTE Win32 控制器 |
-| `piano` | 自动弹钢琴 | 🎹 | ⏳ 待移植 | 需 MIDI 输入 + 键位注入 |
-| `rhythm` | 自动超强音 | 🎵 | ⏳ 待移植 | 需 CNN 音游轨道检测 |
+| `auto_login` | 自动登录 | 🔑 | ✅ 已移植 | OCR 定位登录按钮 → 鼠标点击 → 守护模式 |
+| `volleyball` | 自动排球 | 🏐 | ✅ 已移植 | K 键每 0.6s 短按循环（MaaNTE 核心循环直移植） |
+| `fishing` | 自动钓鱼 | 🎣 | ✅ 已移植 | F 抛竿/收杆节奏循环（基础版，后续接 CV） |
+| `coffee` | 自动做咖啡 | 🥤 | ✅ 已移植 | F 键交互 ×20 轮循环（MaaNTE AutoMakeCoffee 简化版，MaaNTE原版需视觉管线） |
+| `furniture` | 自动收家具 | 🪑 | ✅ 已移植 | OCR 定位「收取/一键收取」→ 循环点击 |
+| `rewards` | 自动领奖励 | 💎 | ✅ 已移植 | OCR 定位「领取/一键领取」→ 循环点击 |
+| `piano` | 自动弹钢琴 | 🎹 | ✅ 已移植 | 内置曲目 G/H/I/Y/U 音键序列（MaaNTE MIDI 文件解析未做） |
+| `dodge` | 自动闪避 | ⚔️ | ✅ 已移植 | Space 跳跃 + Shift 疾跑组合循环 |
+| `auto_scroll` | 自动滚动 | 📜 | ✅ 已移植 | F 连点 + 鼠标滚轮向下（拾取/翻页类交互） |
+| `touch` | 自动抚摸 | ✋ | ✅ 已移植 | 游戏窗口内安全点击序列（MaaNTE TouchDetect 简化版） |
+| `drive_dataset` | 驾驶数据采集 | 🎬 | ✅ 已移植 | 复用 RecordEngine：CGEventSource 采样 WASD → steer/throttle/brake 标签 + 帧 JPEG（MaaNTE B 类，2fps/5帧序） |
+| `preset_afk` | 挂机预设 | 🛋️ | ✅ 已移植 | 串联 rewards→furniture→fishing 三段定时启动（D 类编排，无新注入） |
+| `tomato_juice` | 自动做番茄汁 | 🍅 | ✅ 已移植 | F 键 ×20 轮循环（MaaNTE AutoMakeTomatoJuice 简化版，倒计时/双份服务未实现） |
+| `pinkpaw` | 粉爪大劫案 | 🐾 | ⏳ 待移植 | C 类：多阶段 UI 识别（缺 OCR/CV 适配层，Win32 控制器不适用） |
+| `rhythm` | 自动超强音 | 🎵 | ⏳ 待移植 | C 类：音游轨道实时检测（缺 60fps 级 YOLO 集成） |
+| `preset_realtime` | 实时辅助预设 | ⚡ | ⏳ 待移植 | D 类依赖 C 类 `realtime`（未实现），保守标 false |
 
-> 待移植技能点击后执行 `performSnapshotStub`：保存现场截图到
-> `/tmp/aurora_agent_<id>.png` + 系统消息如实告知「依赖 MaaNTE 视觉管线，
-> macOS 原生版开发中」。UI 上按钮标「待移植」，不做假动作。
+> 待移植技能（`ported: false`）点击后执行 `performSnapshotStub`：保存现场截图到
+> `/tmp/aurora_agent_<id>.png` + 系统消息如实告知。UI 按钮标「待移植」，
+> LLM tools 按 `.filter { $0.ported }` 动态过滤（不暴露给模型），AgentLoop
+> 执行前三重校验（存在 + 已移植 + 未在运行）拦截越界调用。
+> `ported` 默认值为 `false`（漏标即视为待移植），一致性由自测检查项覆盖。
 
 ### OCR 点击全家桶（新增 OCR 类技能只需配关键词）
 

@@ -21,7 +21,7 @@
 | 6 | PinkPawHeist | `pinkpaw` | C | ⚠️ 待移植 | 多阶段 UI（入口/选择/结算）；需 VisualLocator+OCR，缺阶段状态机 |
 | 7 | MakeCoffee | `coffee` | A | ✅ 已移植 | F键交互×20轮（MaaNTE源=press_key_f循环）；commit 7a7e1e6 |
 | 8 | MakeCoffeeLite | `coffee_lite` | A | ❌ 缺失 | 同 coffee 简化版；缺 OCR 定位+点击序列 |
-| 9 | MakeTomatoJuice | `tomato_juice` | A | ❌ 缺失 | 同 coffee 模式；需 OCR 定位+键序循环 |
+| 9 | MakeTomatoJuice | `tomato_juice` | A | ✅ 已移植 | F键×20轮（MaaNTE AutoMakeTomatoJuice 简化版，倒计时/双份服务未实现）；commit 2edce05 |
 | 10 | Rhythm | `rhythm` | C | ⚠️ 待移植 | 音游音符识别；YoloEngine 可检测但 60fps 下性能未验证 |
 | 11 | Tetris | `tetris` | C | ❌ 缺失 | 棋盘格识别；需 YoloEngine 检测方块+切分网格，缺专用训练数据 |
 | 12 | Volleyball | `volleyball` | — | ✅ | `AIAgentPanel.swift` startVolleyballLoop（K 键 0.6s 循环） |
