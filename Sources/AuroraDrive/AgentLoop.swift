@@ -136,6 +136,10 @@ final class AgentLoop {
                 }
                 progress("⚙️ 执行技能：\(skillName(call.skillID))")
                 let result = execute(call: call)
+                // 弱模型防线 10：可观测——被拒绝/失败的调用必须打日志（否则用户看不到"模型越界"）
+                if !result.ok {
+                    progress("⚠️ [LLM] \(result.summary)")
+                }
                 history.append(result)
                 executed.append(call)
                 // 防线 6：连续失败熔断
