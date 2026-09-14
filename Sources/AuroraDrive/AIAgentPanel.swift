@@ -162,6 +162,8 @@ enum AgentSkillLibrary {
                    keywords: ["咖啡"]),
         AgentSkill(id: "coffee_lite", emoji: "🥛", name: "轻量做咖啡", ported: true,
                    keywords: ["轻量", "lite"]),
+        AgentSkill(id: "bagel_spam", emoji: "🥯", name: "贝果刷屏", ported: true,
+                   keywords: ["贝果", "刷屏"]),
         AgentSkill(id: "pinkpaw", emoji: "🐾", name: "粉爪大劫案", warn: true,
                    keywords: ["粉爪", "大劫案"]),
         AgentSkill(id: "furniture", emoji: "🪑", name: "自动收家具", ported: true,
@@ -239,6 +241,8 @@ final class AgentSkillCenter: @unchecked Sendable {
     @ObservationIgnored private var coffeeIter = 0
     @ObservationIgnored private var coffeeLiteTimer: DispatchSourceTimer?
     @ObservationIgnored private var coffeeLiteIter = 0
+    @ObservationIgnored private var bagelSpamTimer: DispatchSourceTimer?
+    @ObservationIgnored private var bagelSpamIter = 0
     @ObservationIgnored private var tomatoTimer: DispatchSourceTimer?
     @ObservationIgnored private var tomatoIter = 0
     @ObservationIgnored private let workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)
@@ -593,6 +597,9 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "coffee_lite":
             // 轻量做咖啡：F 键交互 × 10 轮（MaaNTE AutoMakeCoffeeLite）
             startCoffeeLiteLoop(skill: skill, source: source, dryRun: dryRun)
+        case "bagel_spam":
+            // 贝果刷屏：聊天框内置文案输入（MaaNTE BagelSpam，macOS 简化版）
+            startBagelSpamLoop(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
@@ -1014,6 +1021,47 @@ final class AgentSkillCenter: @unchecked Sendable {
         appendSystem("🥛 轻量做咖啡运行中（每 1s 按 F × \(maxIter) 轮，快速版；再次点击或「停止」结束）")
     }
 
+    /// 贝果刷屏（MaaNTE BagelSpam）：向当前焦点聊天框输入内置文案
+    /// 限制（如实说明）：macOS 版使用内置中性文案（MaaNTE 原版文本由 LLM/参数提供，需先开聊天窗口）
+    private func startBagelSpamLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard !dryRun else {
+            appendSystem("✅ 自测：贝果刷屏链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard let control else {
+            appendSystem("❌ 按键引擎未注入，无法贝果刷屏")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，贝果刷屏已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
+        let phrases = ["早上好呀", "今天天气真好", "贝果很好吃"]
+        bagelSpamIter = 0
+        let maxIter = phrases.count * 2   // 6 轮，防止刷屏失控
+        let timer = DispatchSource.makeTimerSource(queue: workQueue)
+        timer.schedule(deadline: .now() + 1.0, repeating: 2.0)
+        timer.setEventHandler { [weak self] in
+            guard let self, self.runningSkills.contains("bagel_spam") else { return }
+            self.bagelSpamIter += 1
+            let phrase = phrases[(self.bagelSpamIter - 1) % phrases.count]
+            control.typeText(phrase)
+            self.appendSystem("🥯 贝果刷屏第 \(self.bagelSpamIter)/\(maxIter) 句：\(phrase)")
+            if self.bagelSpamIter >= maxIter {
+                self.appendSystem("🥯 贝果刷屏完成（\(maxIter) 句），自动停止")
+                self.bagelSpamTimer?.cancel()
+                self.bagelSpamTimer = nil
+                self.runningSkills.remove("bagel_spam")
+            }
+        }
+        timer.resume()
+        bagelSpamTimer = timer
+        appendSystem("🥯 贝果刷屏运行中（每 2s 输入一句内置文案 × \(maxIter) 句；需聊天框已打开并聚焦；再次点击或「停止」结束）")
+    }
+
     private func startTomatoJuiceLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
         guard !dryRun else {
             appendSystem("✅ 自测：番茄汁 链路就绪")
@@ -1273,6 +1321,10 @@ final class AgentSkillCenter: @unchecked Sendable {
             coffeeLiteTimer?.cancel()
             coffeeLiteTimer = nil
             coffeeLiteIter = 0
+        case "bagel_spam":
+            bagelSpamTimer?.cancel()
+            bagelSpamTimer = nil
+            bagelSpamIter = 0
         case "auto_login":
             loginWatchTimer?.cancel()
             loginWatchTimer = nil
@@ -1489,6 +1541,9 @@ enum AgentSelfTest {
         center.sendUserMessage("挂机", source: .ai)
         let afkRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("挂机预设") }
         center.stopAll(source: .ai)
+        center.sendUserMessage("刷个屏", source: .ai)
+        let bagelRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("贝果刷屏") }
+        center.stopAll(source: .ai)
         center.isDryRun = false
         log(touchRouted, "指令解析→抚摸", touchRouted ? "命中 touch" : "未命中")
         log(coffeeRouted, "指令解析→咖啡", coffeeRouted ? "命中 coffee" : "未命中")
@@ -1499,6 +1554,7 @@ enum AgentSelfTest {
         log(dodgeRouted, "指令解析→闪避", dodgeRouted ? "命中 dodge" : "未命中")
         log(datasetRouted, "指令解析→驾驶数据集", datasetRouted ? "命中 drive_dataset" : "未命中")
         log(afkRouted, "指令解析→挂机预设", afkRouted ? "命中 preset_afk" : "未命中")
+        log(bagelRouted, "指令解析→贝果刷屏", bagelRouted ? "命中 bagel_spam" : "未命中")
 
         // 3.6 AgentLoop 端到端规划（复合任务：登录→领奖励）
         center.isDryRun = true
@@ -1522,7 +1578,7 @@ enum AgentSelfTest {
 
         // 6. ported 一致性：ported==true 的技能必须有 execute case（不落入 default）
         let portedSkills = AgentSkillLibrary.all.filter { $0.ported }
-        let knownImplemented: Set<String> = ["auto_login","rewards","furniture","fishing","volleyball","dodge","auto_scroll","touch","drive_dataset","preset_afk","piano","coffee","coffee_lite","tomato_juice"]
+        let knownImplemented: Set<String> = ["auto_login","rewards","furniture","fishing","volleyball","dodge","auto_scroll","touch","drive_dataset","preset_afk","piano","coffee","coffee_lite","tomato_juice","bagel_spam"]
         let unimplementedPorted = portedSkills.filter { !knownImplemented.contains($0.id) }
         log(unimplementedPorted.isEmpty,
             "ported一致性①", unimplementedPorted.isEmpty ? "所有 ported:true 技能均有实现" : "漏标: \(unimplementedPorted.map(\.id).joined(separator: ","))")

@@ -330,6 +330,23 @@ final class ControlEngine: @unchecked Sendable {
         heldKeys.subtract(toRelease)
     }
 
+    /// 文本输入（聊天刷屏类技能用）：Unicode 字符串注入到当前焦点输入框
+    /// 注意：文字进入「当前拥有键盘焦点的输入框」，调用方需先自行把焦点切到目标
+    /// （如按 F/回车打开游戏聊天框），并受游戏窗口护栏约束
+    func typeText(_ text: String) {
+        let utf16 = Array(text.utf16)
+        guard let down = CGEvent(keyboardEventSource: eventSource, virtualKey: 0, keyDown: true),
+              let up = CGEvent(keyboardEventSource: eventSource, virtualKey: 0, keyDown: false) else {
+            print("[ControlEngine] typeText CGEvent 创建失败")
+            return
+        }
+        down.keyboardSetUnicodeString(length: utf16.count, unicodeString: utf16)
+        up.keyboardSetUnicodeString(length: utf16.count, unicodeString: utf16)
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        postedEventCount &+= 2
+    }
+
     // MARK: - 状态查询
 
     /// 某个键是否正在按住
