@@ -99,6 +99,12 @@ final class AgentLoop {
             return summary
         }
 
+        // 弱模型防线 4：单步化——模型一次返回多个调用时只执行第一个（防发散/重复/顺序错乱）
+        if calls.count > 1 {
+            progress("⚠️ 模型一次返回 \(calls.count) 个调用，只执行第一个（防发散）")
+            calls = [calls[0]]
+        }
+
         // 循环执行：先跑 plan 的序列，然后 nextStep 补后续，直到完成或超步
         var executed: [AgentToolCall] = []
         var steps = 0
