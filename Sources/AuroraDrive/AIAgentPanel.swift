@@ -356,16 +356,21 @@ final class AgentSkillCenter: @unchecked Sendable {
                let message = first["message"] as? [String: AnyHashable],
                let toolCalls = message["tool_calls"] as? [[String: AnyHashable]] {
                 // 解析工具调用
-                return toolCalls.compactMap { tc in
+                let parsed = toolCalls.compactMap { tc -> AgentToolCall? in
                     guard let id = tc["id"] as? String,
                           let function = tc["function"] as? [String: AnyHashable],
                           let name = function["name"] as? String else { return nil }
                     let args: [String: String] = [:]
                     return AgentToolCall(id: id, skillID: name, args: args)
                 }
+                // 弱模型防线 10：可观测——每次调用记录请求 tool 数与解析出的调用（出问题能查）
+                appendSystem("🧠 [LLM] 请求 \(tools.count) 个工具，解析出 \(parsed.count) 个调用"
+                    + (parsed.isEmpty ? "" : "（\(parsed.map { $0.skillID }.joined(separator: "、"))）"))
+                return parsed
             }
 
-            // 无 tool_calls，返回空（LLM 认为任务完成）
+            // 无 tool_calls（LLM 认为任务完成）或响应结构解析失败——如实告知，不静默
+            appendSystem("🧠 [LLM] 未返回工具调用（LLM 判定任务完成，或响应解析失败）")
             return []
 
         } catch {
