@@ -166,7 +166,7 @@ enum AgentSkillLibrary {
                    keywords: ["家具", "收家具", "收取"]),
         AgentSkill(id: "rewards", emoji: "💎", name: "自动领奖励", ported: true,
                    keywords: ["奖励", "领奖", "领取"]),
-        AgentSkill(id: "piano", emoji: "🎹", name: "自动弹钢琴",
+        AgentSkill(id: "piano", emoji: "🎹", name: "自动弹钢琴", ported: true,
                    keywords: ["钢琴", "弹琴"]),
         AgentSkill(id: "rhythm", emoji: "🎵", name: "自动超强音",
                    keywords: ["超强音", "音游"]),
@@ -229,6 +229,8 @@ final class AgentSkillCenter: @unchecked Sendable {
     @ObservationIgnored private var touchTimer: DispatchSourceTimer?
     @ObservationIgnored private var touchLoopCount = 0
     @ObservationIgnored private var driveDatasetTimer: DispatchSourceTimer?
+    @ObservationIgnored private var pianoTimer: DispatchSourceTimer?
+    @ObservationIgnored private var pianoStepIndex = 0
     @ObservationIgnored private let workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)
 
     /// LLM 专用 URLSession：30s 请求超时 + 45s 资源总超时（防挂起占满线程）
@@ -565,6 +567,9 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "preset_afk":
             // 挂机预设：依次启动 rewards → furniture → fishing（MaaNTE preset/AFK.json）
             startPresetAFK(skill: skill, source: source, dryRun: dryRun)
+        case "piano":
+            // 自动弹钢琴：内置"小星星"旋律（G/H/I 音键，0.4s 间隔循环）
+            startPianoLoop(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
@@ -852,6 +857,65 @@ final class AgentSkillCenter: @unchecked Sendable {
         }
     }
 
+    // MARK: - 自动弹钢琴（MaaNTE AutoPiano 完整移植）
+
+    /// 内置曲目：每首为 GameKey 序列（G=中音1 H=中音2 I=中音3 Y=高音1 U=高音2）
+    /// 节拍 0.4s/音符，完整循环播放
+    private let pianoSongs: [(name: String, notes: [GameKey])] = [
+        ("小星星", [.g, .g, .i, .i, .g, .g, .i, .i,
+                     .h, .h, .g, .g, .i, .i,
+                     .g, .g, .i, .i, .h, .h, .g, .g]),
+        ("欢乐颂", [.g, .g, .h, .h, .i, .i, .h, .g,
+                    .g, .g, .h, .h, .y, .y, .u, .i]),
+        ("生日快乐", [.i, .i, .g, .g, .h, .h, .i, .y,
+                       .g, .g, .u, .u, .h, .h, .i, .g]),
+    ]
+
+    private func startPianoLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard !dryRun else {
+            appendSystem("✅ 自测：钢琴（\(pianoSongs.map(\.name).joined(separator: "/"))）链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard let control else {
+            appendSystem("❌ 按键引擎未注入，无法弹钢琴")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，钢琴已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
+
+        pianoStepIndex = 0
+        let song = pianoSongs[0] // 默认第一首
+        let totalNotes = song.notes.count
+        let interval: Double = 0.4
+
+        let timer = DispatchSource.makeTimerSource(queue: workQueue)
+        timer.schedule(deadline: .now() + 0.5, repeating: interval)
+        timer.setEventHandler { [weak self] in
+            guard let self, self.runningSkills.contains("piano") else { return }
+            let idx = self.pianoStepIndex
+            if idx >= totalNotes {
+                // 一轮结束，暂停 2s 后重播
+                self.appendSystem("🎹 \(song.name) 一轮完成，2s 后重播")
+                self.pianoStepIndex = 0
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                    self?.pianoStepIndex = 0 // 重置（timer 继续跑）
+                }
+                return
+            }
+            let key = song.notes[idx]
+            control.pressGameKey(key, duration: 0.08)
+            self.pianoStepIndex = idx + 1
+        }
+        timer.resume()
+        pianoTimer = timer
+        appendSystem("🎹 钢琴运行中：\(song.name)（\(totalNotes) 音符 × \(interval)s，再次点击或「停止」结束）")
+    }
+
     /// 通用 UI 点击技能（自动领奖励 / 自动收家具）
     /// 真实链路：截图 → Vision OCR 定位「领取/收取」按钮 → 鼠标点击 →
     /// 等 UI 反应后重试，最多 N 轮；按钮消失即完成。
@@ -1060,6 +1124,10 @@ final class AgentSkillCenter: @unchecked Sendable {
             driveDatasetTimer = nil
             recordEngine?.stop()
             recordEngine?.flushSync()
+        case "piano":
+            pianoTimer?.cancel()
+            pianoTimer = nil
+            pianoStepIndex = 0
         case "auto_login":
             loginWatchTimer?.cancel()
             loginWatchTimer = nil
