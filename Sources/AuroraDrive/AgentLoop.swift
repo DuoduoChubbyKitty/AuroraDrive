@@ -130,9 +130,18 @@ final class AgentLoop {
     /// 执行一次技能调用（走 AgentSkillCenter 统一通道）
     private func execute(call: AgentToolCall) -> AgentToolResult {
         let center = AgentSkillCenter.shared
-        guard AgentSkillLibrary.all.contains(where: { $0.id == call.skillID }) else {
+        guard let skill = AgentSkillLibrary.all.first(where: { $0.id == call.skillID }) else {
             return AgentToolResult(id: call.id, skillID: call.skillID, ok: false,
-                                   summary: "未知技能「\(call.skillID)」")
+                                   summary: "未知技能「\(call.skillID)」（模型幻觉，已丢弃）")
+        }
+        // 三重校验：存在 + 已移植 + 未在运行
+        guard skill.ported else {
+            return AgentToolResult(id: call.id, skillID: call.skillID, ok: false,
+                                   summary: "技能「\(skill.name)」尚未移植（模型越界，已拒绝）")
+        }
+        guard !center.runningSkills.contains(call.skillID) else {
+            return AgentToolResult(id: call.id, skillID: call.skillID, ok: false,
+                                   summary: "技能「\(skill.name)」已在运行（重复调用，已跳过）")
         }
         // 记录执行前消息数，执行后取新增消息做摘要
         let before = center.messages.count

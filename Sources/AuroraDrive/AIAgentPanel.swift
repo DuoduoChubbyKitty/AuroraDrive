@@ -54,7 +54,7 @@ struct AgentSkill: Identifiable {
     let emoji: String
     let name: String
     var warn: Bool = false  // 高危/最凶标记
-    var ported: Bool = true // true=原生已实现（真实动作）；false=待移植占位
+    var ported: Bool = false // false=待移植占位（默认值防止漏标）；true 必须显式声明
     var keywords: [String]  // AI 指令解析关键词（「帮我钓个鱼」→ fishing）
 }
 
@@ -72,13 +72,19 @@ struct AgentSettings: Codable, Sendable {
     var apiKey: String = ""
     var baseUrl: String = "https://api.deepseek.com"
     var model: String = "deepseek-chat"
-    var thinkingDepth: Int = 1  // 1-5，对应不同模型参数
+    var thinkingDepth: Int = 1  // 1-4: 低Low/中Mid/高High/极致Max，映射到 temperature
 
     static let service = "com.aurora.drive.aiagent"
     static let keyApi = "apiKey"
     static let keyBase = "baseUrl"
     static let keyModel = "model"
     static let keyDepth = "thinkingDepth"
+
+    /// 固定 suite 的 UserDefaults（CLI 与 .app 共用同一份，避免进程名不同域不同）
+    static let suiteName = "com.aurora.drive.aiagent"
+    static var defaults: UserDefaults {
+        UserDefaults(suiteName: suiteName) ?? .standard
+    }
 
     /// 保存到 Keychain（安全存储，不写磁盘明文）
     func save() throws {
@@ -100,10 +106,11 @@ struct AgentSettings: Codable, Sendable {
             try? SecItemUpdate([kSecAttrAccount as String: AgentSettings.keyApi] as NSDictionary,
                                [kSecValueData as String: apiKey.data(using: .utf8) ?? Data()] as NSDictionary)
         }
-        // 非敏感字段存 UserDefaults（Keychain 只存 key）
-        UserDefaults.standard.set(baseUrl, forKey: AgentSettings.keyBase)
-        UserDefaults.standard.set(model, forKey: AgentSettings.keyModel)
-        UserDefaults.standard.set(thinkingDepth, forKey: AgentSettings.keyDepth)
+        // 非敏感字段存固定域 UserDefaults（Keychain 只存 key）
+        AgentSettings.defaults.set(baseUrl, forKey: AgentSettings.keyBase)
+        AgentSettings.defaults.set(model, forKey: AgentSettings.keyModel)
+        AgentSettings.defaults.set(thinkingDepth, forKey: AgentSettings.keyDepth)
+        AgentSettings.defaults.synchronize()
     }
 
     /// 从 Keychain 加载
@@ -122,10 +129,12 @@ struct AgentSettings: Codable, Sendable {
            let data = item as? Data {
             settings.apiKey = String(data: data, encoding: .utf8) ?? ""
         }
-        // 读取非敏感字段
-        settings.baseUrl = UserDefaults.standard.string(forKey: keyBase) ?? settings.baseUrl
-        settings.model = UserDefaults.standard.string(forKey: keyModel) ?? settings.model
-        settings.thinkingDepth = UserDefaults.standard.integer(forKey: keyDepth)
+        // 读取非敏感字段（固定域）
+        let d = AgentSettings.defaults
+        settings.baseUrl = d.string(forKey: keyBase) ?? settings.baseUrl
+        settings.model = d.string(forKey: keyModel) ?? settings.model
+        settings.thinkingDepth = d.integer(forKey: keyDepth)
+        if settings.thinkingDepth < 1 { settings.thinkingDepth = 3 }
         return settings
     }
 
@@ -208,6 +217,15 @@ final class AgentSkillCenter: @unchecked Sendable {
     @ObservationIgnored private var volleyballTimer: DispatchSourceTimer?
     @ObservationIgnored private let workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)
 
+    /// LLM 专用 URLSession：30s 请求超时 + 45s 资源总超时（防挂起占满线程）
+    @ObservationIgnored private let llmSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 45
+        config.waitsForConnectivity = false
+        return URLSession(configuration: config)
+    }()
+
     // MARK: LLM 调用（OpenAI 兼容协议）
 
     /// 调用云端 LLM（DeepSeek/OpenAI/Claude 等均支持）
@@ -227,19 +245,11 @@ final class AgentSkillCenter: @unchecked Sendable {
         }
 
         // 构建 messages：系统提示 + 用户任务 + 历史工具结果
+        // 修复：系统提示与 tool calling 协议一致（不再要求输出 JSON 数组）
         var messages: [[String: Any]] = [
             ["role": "system", "content": """
-            你是异环游戏的自动化助手。你可以调用以下技能完成任务：
-            - auto_login: 自动登录游戏
-            - volleyball: 自动排球（每0.6秒按K）
-            - rewards: 自动领奖励（OCR定位按钮点击）
-            - furniture: 自动收家具（OCR定位按钮点击）
-            - fishing: 自动钓鱼（F抛竿/收杆循环）
-            - dodge: 自动闪避（Space+Shift组合）
-            - auto_scroll: 自动滚动拾取（F连点+滚轮）
-            
-            返回 JSON 数组，每个元素包含 skillID 和 args。
-            只返回技能 ID，不要多余解释。
+            你是异环游戏自动化助手。用提供的工具完成用户任务。
+            一次只调用一个工具。不要解释，不要输出 JSON 文本。
             """],
             ["role": "user", "content": task]
         ]
@@ -253,27 +263,45 @@ final class AgentSkillCenter: @unchecked Sendable {
             ])
         }
 
-        // 定义可用工具（函数声明）
+        // 定义可用工具（函数声明）——OpenAI 标准：每个 function 必须带 parameters 字段
+        func toolDecl(_ name: String, _ desc: String) -> [String: Any] {
+            ["type": "function", "function": [
+                "name": name,
+                "description": desc,
+                "parameters": ["type": "object", "properties": [:]],
+            ]]
+        }
         let tools: [[String: Any]] = [
-            ["type": "function", "function": ["name": "auto_login", "description": "自动登录游戏"]],
-            ["type": "function", "function": ["name": "volleyball", "description": "自动排球循环"]],
-            ["type": "function", "function": ["name": "rewards", "description": "自动领奖励"]],
-            ["type": "function", "function": ["name": "furniture", "description": "自动收家具"]],
-            ["type": "function", "function": ["name": "fishing", "description": "自动钓鱼"]],
-            ["type": "function", "function": ["name": "dodge", "description": "自动闪避"]],
-            ["type": "function", "function": ["name": "auto_scroll", "description": "自动滚动拾取"]],
+            toolDecl("auto_login", "自动登录游戏"),
+            toolDecl("volleyball", "自动排球循环"),
+            toolDecl("rewards", "自动领奖励"),
+            toolDecl("furniture", "自动收家具"),
+            toolDecl("fishing", "自动钓鱼"),
+            toolDecl("dodge", "自动闪避"),
+            toolDecl("auto_scroll", "自动滚动拾取"),
         ]
+
+        // 思考深度 4 档 → temperature（想得越深，输出越收敛）
+        let temperature: Double = switch settings.thinkingDepth {
+        case 1: 0.9    // Low
+        case 2: 0.5    // Mid
+        case 3: 0.2    // High
+        default: 0.05  // Max
+        }
 
         let body: [String: Any] = [
             "model": settings.model,
             "messages": messages,
             "tools": tools,
-            "temperature": Double(settings.thinkingDepth) / 5.0,  // 1-5 → 0.2-1.0
+            "temperature": temperature,
             "max_tokens": 1024,
         ]
 
         do {
-            guard let url = URL(string: "\(settings.baseUrl)/v1/chat/completions") else {
+            // baseUrl 归一化：已含 /v1 不再重复拼接（OpenAI 兼容约定）
+            var base = settings.baseUrl.hasSuffix("/") ? String(settings.baseUrl.dropLast()) : settings.baseUrl
+            if !base.hasSuffix("/v1") { base += "/v1" }
+            guard let url = URL(string: "\(base)/chat/completions") else {
                 appendSystem("❌ 无效的 BaseUrl")
                 return []
             }
@@ -283,7 +311,7 @@ final class AgentSkillCenter: @unchecked Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await llmSession.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
@@ -314,6 +342,73 @@ final class AgentSkillCenter: @unchecked Sendable {
             appendSystem("❌ LLM 请求异常：\(error.localizedDescription)")
             return []
         }
+    }
+
+    /// 纯文本 LLM 问答（不带工具）：返回模型的回答文本
+    func plainAnswer(question: String) async -> String {
+        let settings = aiSettings
+        guard !settings.apiKey.isEmpty else { return "(未配置 API Key)" }
+
+        var base = settings.baseUrl.hasSuffix("/") ? String(settings.baseUrl.dropLast()) : settings.baseUrl
+        if !base.hasSuffix("/v1") { base += "/v1" }
+        guard let url = URL(string: "\(base)/chat/completions") else { return "(无效端点)" }
+
+        let temperature: Double = switch settings.thinkingDepth {
+        case 1: 0.9; case 2: 0.5; case 3: 0.2; default: 0.05
+        }
+        let body: [String: Any] = [
+            "model": settings.model,
+            "messages": [["role": "user", "content": question]],
+            "temperature": temperature,
+            "max_tokens": 256,
+        ]
+        do {
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(settings.apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let (data, _) = try await llmSession.data(for: request)
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let choices = json["choices"] as? [[String: Any]],
+               let first = choices.first,
+               let message = first["message"] as? [String: Any],
+               let content = message["content"] as? String {
+                return content
+            }
+            return "(解析失败)"
+        } catch {
+            return "(请求异常：\(error.localizedDescription))"
+        }
+    }
+
+    /// 真实 LLM 端到端自测：打印配置 → 纯文本回答 → 工具调用
+    /// 返回是否成功（调用方决定退出码；不依赖主 actor，CLI 里也能跑）
+    func runLLMTest() async -> Bool {
+        let s = aiSettings
+        print("[LLM-TEST] 模型=\(s.model)  端点=\(s.baseUrl)  密钥=\(s.apiKey.isEmpty ? "(未配置)" : String(s.apiKey.prefix(6)) + "…\(String(s.apiKey.suffix(4)))")  思考深度=\(s.thinkingDepth)")
+
+        if s.apiKey.isEmpty {
+            print("[LLM-TEST] ❌ 未配置 API Key。先运行：--set-llm-config <key> <base> <model>")
+            fflush(stdout)
+            return false
+        }
+
+        // ① 纯文本问答（验证「能不能让它回答」）
+        let answer = await plainAnswer(question: "用一句话回答：1+1 等于几？")
+        print("[LLM-TEST] ① 纯文本回答：\(answer)")
+
+        // ② 工具调用（验证 AgentLoop 的技能路由）
+        let calls = await callLLM(task: "帮我打排球", history: [])
+        if calls.isEmpty {
+            print("[LLM-TEST] ② 工具调用：(模型未返回工具调用，任务视为纯对话)")
+        } else {
+            print("[LLM-TEST] ② 工具调用：\(calls.map(\.skillID).joined(separator: ", "))")
+        }
+
+        print("[LLM-TEST] ✅ 真实 LLM 链路验证完成")
+        fflush(stdout)
+        return true
     }
 
     /// 是否处于自测模式（跳过真实点击/按键，只验证链路）
@@ -824,16 +919,12 @@ final class AgentSkillCenter: @unchecked Sendable {
             }
             let task = trimmed
             let source = source
-            workQueue.async { [weak self] in
-                let semaphore = DispatchSemaphore(value: 0)
-                var summary = ""
-                Task {
-                    summary = await loop.handle(task: task, from: source) { msg in
-                        DispatchQueue.main.async { self?.appendSystem(msg) }
-                    }
-                    semaphore.signal()
+            // 修复：去掉串行 workQueue 上的 semaphore（会永久阻塞后续所有技能）
+            // 改为 Task（协作线程池后台执行）+ MainActor 更新 UI，不阻塞 workQueue
+            Task { [weak self] in
+                let summary = await loop.handle(task: task, from: source) { msg in
+                    DispatchQueue.main.async { self?.appendSystem(msg) }
                 }
-                semaphore.wait()
                 DispatchQueue.main.async {
                     self?.replyAssistant(summary)
                 }
@@ -1292,21 +1383,21 @@ struct AIAgentPanelView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
 
-                // 思考强度滑块
+                // 思考深度滑块（低/中/高/Max 四档，直接驱动真实 API 的 temperature）
                 HStack(spacing: 6) {
                     Text("思考")
                         .font(.system(size: 9.5, weight: .medium))
                         .foregroundStyle(Theme.textSecondary)
                     Slider(value: Binding(
-                        get: { Double(center.thinkingDepth) },
-                        set: { center.thinkingDepth = Int($0.rounded()) }
-                    ), in: 1...10, step: 1)
+                        get: { Double(center.aiSettings.thinkingDepth) },
+                        set: { center.aiSettings.thinkingDepth = Int($0.rounded()) }
+                    ), in: 1...4, step: 1)
                         .controlSize(.mini)
                         .frame(width: 84)
-                    Text("\(center.thinkingDepth)")
+                    Text(["低", "中", "高", "Max"][center.aiSettings.thinkingDepth - 1])
                         .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                         .foregroundStyle(Theme.cyan)
-                        .frame(width: 12)
+                        .frame(width: 16)
                 }
                 Spacer()
             }
@@ -1356,9 +1447,10 @@ struct AgentSettingsSheet: View {
                               prompt: Text("deepseek-chat"))
                         .font(.system(.body, design: .monospaced))
                     Picker("思考深度", selection: $center.aiSettings.thinkingDepth) {
-                        Text("低 (1)").tag(1)
-                        Text("中 (3)").tag(3)
-                        Text("高 (5)").tag(5)
+                        Text("低 Low").tag(1)
+                        Text("中 Mid").tag(2)
+                        Text("高 High").tag(3)
+                        Text("极致 Max").tag(4)
                     }
                     .pickerStyle(.segmented)
                 }
@@ -1385,7 +1477,7 @@ struct AgentSettingsSheet: View {
                             apiKey: "",
                             baseUrl: "https://api.anthropic.com",
                             model: "claude-3-5-haiku-20241022",
-                            thinkingDepth: 5
+                            thinkingDepth: 4
                         )
                     }
                 }

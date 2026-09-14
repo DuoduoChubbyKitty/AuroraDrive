@@ -526,6 +526,42 @@ struct AuroraDriveLauncher {
         if args.contains("--engine") {
             EngineMain.run()   // 永不返回（dispatchMain 常驻；自身已有 engine.lock）
         }
+
+        // ── LLM 配置写入：--set-llm-config <apiKey> <baseUrl> <model> ──
+        // 提前处理（不需要 GUI / 引擎），写入 Keychain + 固定域 UserDefaults
+        if let i = args.firstIndex(of: "--set-llm-config"), i + 3 < args.count {
+            var s = AgentSettings()
+            s.apiKey = args[i + 1]
+            s.baseUrl = args[i + 2]
+            s.model = args[i + 3]
+            do {
+                try s.save()
+                print("[LLM-CONFIG] ✅ 已保存到 Keychain：model=\(s.model)  base=\(s.baseUrl)  key=\(String(s.apiKey.prefix(6)))…\(String(s.apiKey.suffix(4)))")
+                exit(0)
+            } catch {
+                print("[LLM-CONFIG] ❌ 保存失败：\(error)")
+                exit(1)
+            }
+        }
+
+        // ── 真实 LLM 请求自测：--agent-llm-test ──
+        // 提前处理（不需要 GUI），发真实 HTTP 请求到配置的云端模型
+        // 修复：Task.detached（后台线程）+ 30s 硬超时，防主线程死锁
+        if args.contains("--agent-llm-test") {
+            let center = AgentSkillCenter.shared
+            let semaphore = DispatchSemaphore(value: 0)
+            Task.detached(priority: .userInitiated) {
+                let ok = await center.runLLMTest()
+                semaphore.signal()
+                exit(ok ? 0 : 1)
+            }
+            if semaphore.wait(timeout: .now() + 30.0) == .timedOut {
+                print("[LLM-TEST] ⚠️ 30s 硬超时：请求未能在时限内完成")
+                fflush(stdout)
+                exit(1)
+            }
+            exit(0)
+        }
         // 一次性自检/守护模式不参与 UI 锁：它们是短命进程或被 launchd 托管，
         // 若参与锁会与常驻 UI 互斥，导致自检失败或用户无法启动界面。
         let oneShotFlags = ["--speed-selftest", "--tcc-selftest", "--test-xpc",
