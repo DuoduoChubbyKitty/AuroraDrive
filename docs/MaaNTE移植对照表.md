@@ -31,7 +31,7 @@
 | 16 | SoundDodge | `dodge` | — | ✅ | `AIAgentPanel.swift` performDodgeLoop（Space+Shift 闪避循环） |
 | 17 | AutoFScroll | `auto_scroll` | — | ✅ | `AIAgentPanel.swift` performAutoScroll（F 连点+滚轮） |
 | 18 | FountainCheckin | `fountain` | A | ❌ 缺失 | 需路线导航+OCR 识别喷泉名；复杂多阶段流程，缺导航+识别 |
-| 19 | AutoPiano | `piano` | A | ⚠️ 待移植 | MIDI 曲目键序；macOS 版需内置曲目（GameKey G/H/I/Y/U），缺 MIDI 解析 |
+| 19 | AutoPiano | `piano` | A | ✅ 已移植 | 3首内置曲目（小星星/欢乐颂/生日快乐），0.4s节拍循环 |
 | 20 | WitchDivination | `witch` | A | ❌ 缺失 | 固定点击序列+OCR；需先完成 fountain 级别的 OCR 定位 |
 | 21 | AutonomousDrivingDataset | `drive_dataset` | B | ✅ | `AIAgentPanel.swift` startDriveDatasetLoop（2Hz WASD 采样+RecordEngine） |
 | 22 | SyncCharacterAbilityCityAbility | `sync_ability` | C | ❌ 缺失 | 多步 UI 操作（角色能力面板）；步骤可固定但需 OCR 定位每个按钮 |
