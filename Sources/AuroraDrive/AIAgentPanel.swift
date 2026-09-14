@@ -1854,6 +1854,19 @@ struct AgentSettingsSheet: View {
                     .pickerStyle(.segmented)
                 }
 
+                Section("AI 规划（弱模型防线 8 熔断）") {
+                    Button {
+                        AgentLoop.shared.resetLLMDowngrade()
+                        center.appendSystem("✅ [LLM] AI 规划熔断已手动复位，重新启用 LLM 规划")
+                    } label: {
+                        Text("复位 AI 规划熔断（恢复 LLM 规划）")
+                    }
+                    Text("说明：LLM 规划任务连续失败 3 次会自动降级为本地规则模式（零幻觉），"
+                        + "降级日志见面板；点击上方按钮可随时手动恢复。")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+
                 Section("快速填充（示例配置）") {
                     Button("DeepSeek 默认") {
                         center.aiSettings = AgentSettings(
