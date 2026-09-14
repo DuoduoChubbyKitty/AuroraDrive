@@ -99,6 +99,7 @@
 | `volleyball` | 自动排球 | 🏐 | ✅ 已移植 | K 键每 0.6s 短按循环（MaaNTE 核心循环直移植） |
 | `fishing` | 自动钓鱼 | 🎣 | ✅ 已移植 | F 抛竿/收杆节奏循环（基础版，后续接 CV） |
 | `coffee` | 自动做咖啡 | 🥤 | ✅ 已移植 | F 键交互 ×20 轮循环（MaaNTE AutoMakeCoffee 简化版，MaaNTE原版需视觉管线） |
+| `coffee_lite` | 轻量做咖啡 | 🥛 | ✅ 已移植 | F 键交互 ×10 轮循环（MaaNTE AutoMakeCoffeeLite，make_count=10 快速版） |
 | `furniture` | 自动收家具 | 🪑 | ✅ 已移植 | OCR 定位「收取/一键收取」→ 循环点击 |
 | `rewards` | 自动领奖励 | 💎 | ✅ 已移植 | OCR 定位「领取/一键领取」→ 循环点击 |
 | `piano` | 自动弹钢琴 | 🎹 | ✅ 已移植 | 内置曲目 G/H/I/Y/U 音键序列（MaaNTE MIDI 文件解析未做） |

@@ -20,7 +20,7 @@
 | 5 | BidKing | `bid_king` | C | ❌ 缺失 | 需识别拍卖 UI 价格数字+倒计时；SpeedOCRReader 可读数字，缺决策逻辑 |
 | 6 | PinkPawHeist | `pinkpaw` | C | ⚠️ 待移植 | 多阶段 UI（入口/选择/结算）；需 VisualLocator+OCR，缺阶段状态机 |
 | 7 | MakeCoffee | `coffee` | A | ✅ 已移植 | F键交互×20轮（MaaNTE源=press_key_f循环）；commit 7a7e1e6 |
-| 8 | MakeCoffeeLite | `coffee_lite` | A | ❌ 缺失 | 同 coffee 简化版；缺 OCR 定位+点击序列 |
+| 8 | MakeCoffeeLite | `coffee_lite` | A | ✅ 已移植 | 轻量 10 轮 × 1s F 交互（对应 MaaNTE make_count=10；macOS 用 F 键位等价，无 OCR 依赖） |
 | 9 | MakeTomatoJuice | `tomato_juice` | A | ✅ 已移植 | F键×20轮（MaaNTE AutoMakeTomatoJuice 简化版，倒计时/双份服务未实现）；commit 2edce05 |
 | 10 | Rhythm | `rhythm` | C | ⚠️ 待移植 | 音游音符识别；YoloEngine 可检测但 60fps 下性能未验证 |
 | 11 | Tetris | `tetris` | C | ❌ 缺失 | 棋盘格识别；需 YoloEngine 检测方块+切分网格，缺专用训练数据 |
@@ -51,7 +51,7 @@
 2. `piano`：内置 1-2 首简单曲目（G/H/I 音键序列），不需要 MIDI 解析
 
 ### P1（中等复杂度）
-3. `coffee`/`coffee_lite`/`tomato_juice`：OCR 定位"开始营业"按钮 → 固定点击序列
+3. ~~`coffee`/`coffee_lite`/`tomato_juice`~~：☕/🥛/🍅 已移植为键序循环（F 交互，无 OCR 依赖）
 4. `withdraw_money`：OCR 定位金额选项 → 点击
 5. `fountain`/`witch`：多步点击序列（需先有导航到目标位置的能力）
 
