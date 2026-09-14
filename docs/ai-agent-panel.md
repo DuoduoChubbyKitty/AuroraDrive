@@ -99,12 +99,13 @@
 | `volleyball` | 自动排球 | 🏐 | ✅ 真实 | K 键每 0.6s 短按循环（MaaNTE 核心循环直移植） |
 | `rewards` | 自动领奖励 | 💎 | ✅ 真实 | OCR 定位「领取/一键领取」→ 循环点击 |
 | `furniture` | 自动收家具 | 🪑 | ✅ 真实 | OCR 定位「收取/一键收取」→ 循环点击 |
-| `fishing` | 自动钓鱼 | 🎣 | ⏳ 待移植 | 需视觉管线（鱼漂检测），现为快照占位 |
-| `coffee` | 自动做咖啡 | 🥤 | ⏳ 待移植 | 需视觉管线 |
+| `fishing` | 自动钓鱼 | 🎣 | ✅ 真实 | F 抛竿/收杆节奏循环（基础版，后续接 CV） |
+| `dodge` | 自动闪避 | ⚔️ | ✅ 真实 | Space 跳跃 + Shift 疾跑组合循环 |
+| `auto_scroll` | 自动滚动 | 📜 | ✅ 真实 | F 连点 + 鼠标滚轮向下（拾取/翻页类交互） |
+| `coffee` | 自动做咖啡 | 🥤 | ⏳ 待移植 | 需视觉管线（咖啡机 UI 识别） |
 | `pinkpaw` | 粉爪大劫案 | 🐾 | ⏳ 待移植 | 依赖 MaaNTE Win32 控制器 |
 | `piano` | 自动弹钢琴 | 🎹 | ⏳ 待移植 | 需 MIDI 输入 + 键位注入 |
 | `rhythm` | 自动超强音 | 🎵 | ⏳ 待移植 | 需 CNN 音游轨道检测 |
-| `dodge` | 自动闪避 | ⚔️ | ⏳ 待移植 | 需 YOLO 障碍联动 |
 
 > 待移植技能点击后执行 `performSnapshotStub`：保存现场截图到
 > `/tmp/aurora_agent_<id>.png` + 系统消息如实告知「依赖 MaaNTE 视觉管线，
@@ -161,6 +162,46 @@ Vision bbox（归一化，左下原点）
   → 截图像素（左上原点）：px = midX·W，py = (1 − midY)·H
   → 屏幕点（CGEvent 左上原点）：point = pixel / backingScaleFactor
 ```
+
+---
+
+## 4. AgentLoop — 端到端任务循环（原生 Tool-Calling）
+
+```
+用户指令 → LLM 规划 → [技能1] → 结果回传 LLM → [技能2] → ... → 完成总结
+         ↑                                            ↓
+     MockLLMPlanner                              RealLLMPlanner
+     (无 API Key 时)                             (有 API Key 时)
+```
+
+### 4.1 双规划器设计
+
+| 规划器 | 触发条件 | 行为 |
+|---|---|---|
+| `MockLLMPlanner` | 无 API Key | 关键词匹配 → 确定性技能序列 |
+| `RealLLMPlanner` | 有 API Key | 调用云端 LLM → 返回 `tool_use` JSON → 逐个执行 |
+
+### 4.2 用户配置流程（小白友好）
+
+1. 打开 AuroraDrive，点击左侧 AI 面板顶部 ⚙️ **设置**按钮
+2. 粘贴 API Key（如 `sk-xxxxxxxx`）
+3. 填入 BaseUrl（如 `https://api.deepseek.com`）
+4. 填入 Model（如 `deepseek-chat`）
+5. 点击「保存」→ 密钥存入 **macOS Keychain**（不写磁盘明文）
+
+### 4.3 支持的云端 LLM
+
+所有 OpenAI 兼容协议接口：
+- **DeepSeek**: `https://api.deepseek.com` / `deepseek-chat`
+- **OpenAI**: `https://api.openai.com` / `gpt-4o-mini`
+- **Anthropic**: `https://api.anthropic.com` / `claude-3-5-haiku-20241022`
+
+### 4.4 安全设计
+
+- API Key 存 **Keychain**（`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`）
+- BaseUrl / Model 存 **UserDefaults**（非敏感，可同步）
+- 每次调用 LLM 前检查 `apiKey.isEmpty`，未配置时降级到 Mock
+- 不记录、不传输、不缓存 API Key
 
 ---
 
@@ -245,10 +286,11 @@ log(routed, "指令解析→我的技能", routed ? "命中 my_skill" : "未命�
 
 | 参数 | 作用 |
 |---|---|
-| `--agent-selftest` | 逻辑链路自测（7 项：登录/排球/停止/领奖励/收家具/同一通道/按键引擎），PASS 数写 stdout 后 exit(0/1) |
+| `--agent-selftest` | 逻辑链路自测（9 项：登录/排球/停止/领奖励/收家具/滚动/AgentLoop/同一通道/按键引擎），PASS 数写 stdout 后 exit(0/1) |
 | `--agent-ui-shot` | SwiftUI ImageRenderer 无头渲染 AI 面板 → `/tmp/aurora_ui_shot.png`（无需屏幕权限） |
+| `--agent-layout-shot` | 折叠/展开两帧布局对比图 → `/tmp/aurora_layout_compare.png`（验证往外扩展） |
 | `--auto-login` | 启动即自动登录守护（run.sh 默认带） |
-| `--auto-seconds N` | N 秒后自动退出（无人值守测试用，与 --auto-login 同用时引擎注入后正常） |
+| `--auto-seconds N` | N 秒后自动退出（无人值守测试用） |
 
 > 注意：`--auto-seconds` 是测试辅助参数。`--auto-login` 的守护不依赖
 > UI 渲染，两者共用时先由 AppDelegate 起守护、ContentView 注入引擎后补跑。
@@ -265,9 +307,10 @@ log(routed, "指令解析→我的技能", routed ? "命中 my_skill" : "未命�
 
 | 文件 | 内容 |
 |---|---|
-| `Sources/AuroraDrive/AIAgentPanel.swift` | 技能中心 + 面板 UI + GameWindowDetector + 自测（约 1100 行） |
-| `Sources/AuroraDrive/MouseController.swift` | CGEvent 鼠标注入（.hidSystemState + .cghidEventTap） |
+| `Sources/AuroraDrive/AIAgentPanel.swift` | 技能中心 + 面板 UI + AgentSettings + GameWindowDetector + 自测（约 1700 行） |
+| `Sources/AuroraDrive/AgentLoop.swift` | AgentLoop 主循环 + MockLLMPlanner + RealLLMPlanner（~230 行） |
+| `Sources/AuroraDrive/MouseController.swift` | CGEvent 鼠标注入（含 scrollWheel 滚轮） |
 | `Sources/AuroraDrive/LoginAssistant.swift` | OCR 定位 + 自动登录 + 守护引擎 |
 | `Sources/AuroraDrive/ControlEngine.swift` | 按键注入（含 GameKey 30+ 键） |
-| `Sources/AuroraDrive/AuroraDriveApp.swift` | AppDelegate（--auto-login）/ ContentView（面板接入 + configure）/ DriveState |
+| `Sources/AuroraDrive/AuroraDriveApp.swift` | AppDelegate（--auto-login）/ ContentView（HStack 往外扩展布局 + configure）/ DriveState |
 | `run.sh` | 一键编译 + 部署 + 启动（默认 --auto-login） |
