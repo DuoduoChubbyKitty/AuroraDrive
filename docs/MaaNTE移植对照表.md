@@ -19,7 +19,7 @@
 | 4 | Fish | `fishing` | — | ✅ | `AIAgentPanel.swift` performFishingLoop（F 抛竿/收杆循环） |
 | 5 | BidKing | `bid_king` | C | ❌ 缺失 | 需识别拍卖 UI 价格数字+倒计时；SpeedOCRReader 可读数字，缺决策逻辑 |
 | 6 | PinkPawHeist | `pinkpaw` | C | ⚠️ 待移植 | 多阶段 UI（入口/选择/结算）；需 VisualLocator+OCR，缺阶段状态机 |
-| 7 | MakeCoffee | `coffee` | A | ⚠️ 待移植 | 需 OCR 识别"开始营业"按钮+菜单导航；SpeedOCRReader 可用，缺完整流程 |
+| 7 | MakeCoffee | `coffee` | A | ✅ 已移植 | F键交互×20轮（MaaNTE源=press_key_f循环）；commit 7a7e1e6 |
 | 8 | MakeCoffeeLite | `coffee_lite` | A | ❌ 缺失 | 同 coffee 简化版；缺 OCR 定位+点击序列 |
 | 9 | MakeTomatoJuice | `tomato_juice` | A | ❌ 缺失 | 同 coffee 模式；需 OCR 定位+键序循环 |
 | 10 | Rhythm | `rhythm` | C | ⚠️ 待移植 | 音游音符识别；YoloEngine 可检测但 60fps 下性能未验证 |
