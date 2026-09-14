@@ -861,7 +861,7 @@ final class AgentSkillCenter: @unchecked Sendable {
 
     /// 内置曲目：每首为 GameKey 序列（G=中音1 H=中音2 I=中音3 Y=高音1 U=高音2）
     /// 节拍 0.4s/音符，完整循环播放
-    private let pianoSongs: [(name: String, notes: [GameKey])] = [
+    private let pianoSongs: [(name: String, notes: [ControlEngine.GameKey])] = [
         ("小星星", [.g, .g, .i, .i, .g, .g, .i, .i,
                      .h, .h, .g, .g, .i, .i,
                      .g, .g, .i, .i, .h, .h, .g, .g]),
@@ -873,7 +873,7 @@ final class AgentSkillCenter: @unchecked Sendable {
 
     private func startPianoLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
         guard !dryRun else {
-            appendSystem("✅ 自测：钢琴（\(pianoSongs.map(\.name).joined(separator: "/"))）链路就绪")
+            appendSystem("✅ 自测：钢琴（小星星/欢乐颂/生日快乐）链路就绪")
             runningSkills.remove(skill.id)
             return
         }
