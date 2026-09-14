@@ -66,6 +66,17 @@ final class AgentLoop {
     /// 当前规划器：nil = 未配置（走 MockLLM 离线自测）
     var planner: AgentPlanner?
 
+    /// 弱模型防线 8：熔断降级状态（连续 LLM 任务失败计数 + 是否处于降级中）
+    /// 由 handle 内部按"任务成败"维护；handle 有 isRunning 互斥，无并发写。
+    private var llmFailureStreak = 0
+    private(set) var aiPlanningEnabled = true
+
+    /// 手动恢复 AI 规划（面板"AI 规划"开关/CLI 调用此方法）
+    func resetLLMDowngrade() {
+        llmFailureStreak = 0
+        aiPlanningEnabled = true
+    }
+
     /// 是否正在运行任务
     private(set) var isRunning = false
 
@@ -86,12 +97,22 @@ final class AgentLoop {
         defer { isRunning = false }
 
         // 优先用真实 LLM（有 API Key），否则回退 MockLLM
+        // 弱模型防线 8：熔断降级中时即使有 Key 也走本地规则（零幻觉兜底）
         let center = AgentSkillCenter.shared
         let hasAPIKey = !center.aiSettings.apiKey.isEmpty
-        let planner: AgentPlanner = hasAPIKey ? RealLLMPlanner(center: center) : MockLLMPlanner()
+        let useLLM = hasAPIKey && aiPlanningEnabled
+        let planner: AgentPlanner
+        if useLLM {
+            planner = RealLLMPlanner(center: center)
+        } else {
+            if hasAPIKey {
+                progress("⚠️ [LLM] AI 规划处于降级状态：本次使用本地规则规划（MockLLM，零幻觉）")
+            }
+            planner = MockLLMPlanner()
+        }
 
         var history: [AgentToolResult] = []
-        progress("🧠 \(hasAPIKey ? "正在调用 LLM 规划" : "正在离线规划")：\(task)")
+        progress("🧠 \(useLLM ? "正在调用 LLM 规划" : "正在离线规划")：\(task)")
         var calls = await planner.plan(task: task)
 
         guard !calls.isEmpty else {
@@ -162,6 +183,22 @@ final class AgentLoop {
                 calls = [next]
             } else {
                 calls = []
+            }
+        }
+
+        // 弱模型防线 8：熔断统计——本任务用 LLM 且失败（中止/零执行/全被拒）→ 连败+1；
+        // 连败≥3 自动降级本地规则；任务成功则清零（降级后需手动 resetLLMDowngrade 恢复）
+        if useLLM {
+            let allRejectedOrNone = executed.isEmpty || history.allSatisfy { !$0.ok }
+            let taskFailed = aborted || allRejectedOrNone
+            if taskFailed {
+                llmFailureStreak += 1
+                if llmFailureStreak >= 3 {
+                    aiPlanningEnabled = false
+                    progress("⚠️ [LLM] 连续 \(llmFailureStreak) 次规划任务失败，已自动降级为本地规则模式（可在面板重新开启 AI 规划）")
+                }
+            } else {
+                llmFailureStreak = 0
             }
         }
 
