@@ -1335,6 +1335,19 @@ enum AgentSelfTest {
         // 5. 键盘技能注入（排球 key 注入引擎存在性）
         log(center.controlEngineAvailable(), "按键引擎可用", center.controlEngineAvailable() ? "yes" : "no")
 
+        // 6. ported 一致性：ported==true 的技能必须有 execute case（不落入 default）
+        let portedSkills = AgentSkillLibrary.all.filter { $0.ported }
+        let knownImplemented: Set<String> = ["auto_login","rewards","furniture","fishing","volleyball","dodge","auto_scroll","touch","drive_dataset","preset_afk","piano"]
+        let unimplementedPorted = portedSkills.filter { !knownImplemented.contains($0.id) }
+        log(unimplementedPorted.isEmpty,
+            "ported一致性①", unimplementedPorted.isEmpty ? "所有 ported:true 技能均有实现" : "漏标: \(unimplementedPorted.map(\.id).joined(separator: ","))")
+
+        // 7. ported 一致性：ported==false 的技能应走 snapshotStub（不在 knownImplemented 中）
+        let unportedSkills = AgentSkillLibrary.all.filter { !$0.ported }
+        let wronglyPorted = unportedSkills.filter { knownImplemented.contains($0.id) }
+        log(wronglyPorted.isEmpty,
+            "ported一致性②", wronglyPorted.isEmpty ? "所有 ported:false 技能无 case" : "错标: \(wronglyPorted.map(\.id).joined(separator: ","))")
+
         print("[AGENT-SELFTEST] 汇总: PASS=\(pass) FAIL=\(fail)")
         print("[AGENT-SELFTEST] 完成，退出")
         fflush(stdout)
