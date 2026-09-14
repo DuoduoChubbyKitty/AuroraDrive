@@ -178,6 +178,8 @@ enum AgentSkillLibrary {
                    keywords: ["抚摸", "摸", "宠物", "touch"]),
         AgentSkill(id: "drive_dataset", emoji: "🎬", name: "驾驶数据采集", ported: true,
                    keywords: ["数据集", "采集", "录制", "驾驶数据", "drive"]),
+        AgentSkill(id: "preset_afk", emoji: "🛋️", name: "挂机预设", ported: true,
+                   keywords: ["挂机", "AFK", "预设", "一键全做"]),
     ]
 }
 
@@ -558,6 +560,9 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "drive_dataset":
             // 驾驶数据采集：2Hz 采样 W/A/S/D → RecordEngine（MaaNTE AutonomousDrivingDataset）
             startDriveDatasetLoop(skill: skill, source: source, dryRun: dryRun)
+        case "preset_afk":
+            // 挂机预设：依次启动 rewards → furniture → fishing（MaaNTE preset/AFK.json）
+            startPresetAFK(skill: skill, source: source, dryRun: dryRun)
         default:
             // 待移植技能：真实快照 + 如实状态回报（不做假动作）
             performSnapshotStub(skill: skill, source: source)
@@ -810,6 +815,39 @@ final class AgentSkillCenter: @unchecked Sendable {
         timer.resume()
         driveDatasetTimer = timer
         appendSystem("🎬 驾驶数据采集运行中（2Hz × 60s，再次点击或输入「停止」结束）")
+    }
+
+    /// 挂机预设（MaaNTE preset/AFK）：依次启动 rewards → furniture → fishing
+    /// 每个子技能间隔 5s 启动（给前一个时间稳定运行）
+    private func startPresetAFK(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard !dryRun else {
+            appendSystem("✅ 自测：挂机预设（rewards→furniture→fishing）链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，挂机预设已取消")
+            runningSkills.remove(skill.id)
+            return
+        }
+        // 依次启动子技能（每个间隔 5s）
+        let subSkills = ["rewards", "furniture", "fishing"]
+        appendSystem("🛋️ 挂机预设启动：\(subSkills.joined(separator: " → "))")
+        for (i, sid) in subSkills.enumerated() {
+            workQueue.asyncAfter(deadline: .now() + Double(i) * 5.0) { [weak self] in
+                guard let self, self.runningSkills.contains("preset_afk") else { return }
+                self.runSkill(sid, source: .ai)
+                appendSystem("  └ 启动子技能：\(sid)")
+            }
+        }
+        // 30s 后自动标记完成（各子技能有自己上限）
+        workQueue.asyncAfter(deadline: .now() + 30.0) { [weak self] in
+            guard let self else { return }
+            if self.runningSkills.contains("preset_afk") {
+                self.appendSystem("🛋️ 挂机预设子技能已全部启动，自动标记完成")
+                self.runningSkills.remove("preset_afk")
+            }
+        }
     }
 
     /// 通用 UI 点击技能（自动领奖励 / 自动收家具）
