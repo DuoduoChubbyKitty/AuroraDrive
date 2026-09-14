@@ -182,6 +182,8 @@ enum AgentSkillLibrary {
                    keywords: ["挂机", "AFK", "预设", "一键全做"]),
         AgentSkill(id: "preset_realtime", emoji: "⚡", name: "实时辅助预设", ported: false,
                    keywords: ["实时", "辅助", "realtime"]),
+        AgentSkill(id: "tomato_juice", emoji: "🍅", name: "自动做番茄汁", ported: true,
+                   keywords: ["番茄", "番茄汁", "tomato"]),
     ]
 }
 
@@ -233,6 +235,8 @@ final class AgentSkillCenter: @unchecked Sendable {
     @ObservationIgnored private var pianoStepIndex = 0
     @ObservationIgnored private var coffeeTimer: DispatchSourceTimer?
     @ObservationIgnored private var coffeeIter = 0
+    @ObservationIgnored private var tomatoTimer: DispatchSourceTimer?
+    @ObservationIgnored private var tomatoIter = 0
     @ObservationIgnored private let workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)
 
     /// LLM 专用 URLSession：30s 请求超时 + 45s 资源总超时（防挂起占满线程）
@@ -572,6 +576,8 @@ final class AgentSkillCenter: @unchecked Sendable {
         case "piano":
             // 自动弹钢琴：内置"小星星"旋律（G/H/I 音键，0.4s 间隔循环）
             startPianoLoop(skill: skill, source: source, dryRun: dryRun)
+        case "tomato_juice":
+            startTomatoJuiceLoop(skill: skill, source: source, dryRun: dryRun)
         case "coffee":
             // 自动做咖啡：F 键交互 × 20 轮（MaaNTE AutoMakeCoffee）
             startCoffeeLoop(skill: skill, source: source, dryRun: dryRun)
@@ -959,6 +965,42 @@ final class AgentSkillCenter: @unchecked Sendable {
         appendSystem("☕ 做咖啡运行中（每 2s 按 F × \(maxIter) 轮，再次点击或「停止」结束）")
     }
 
+    private func startTomatoJuiceLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
+        guard !dryRun else {
+            appendSystem("✅ 自测：番茄汁 链路就绪")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard let control else {
+            appendSystem("❌ 按键引擎未注入")
+            runningSkills.remove(skill.id)
+            return
+        }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，做番茄汁已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
+        tomatoIter = 0
+        let maxIter = 20
+        let timer = DispatchSource.makeTimerSource(queue: workQueue)
+        timer.schedule(deadline: .now() + 1.0, repeating: 2.0)
+        timer.setEventHandler { [weak self] in
+            guard let self, self.runningSkills.contains("tomato_juice") else { return }
+            self.tomatoIter += 1
+            control.pressGameKey(.f, duration: 0.1)
+            if self.tomatoIter >= maxIter {
+                self.appendSystem("🍅 番茄汁完成（\(maxIter) 轮 F 交互），自动停止")
+                self.tomatoTimer?.cancel()
+                self.tomatoTimer = nil
+                self.runningSkills.remove("tomato_juice")
+            }
+        }
+        timer.resume()
+        tomatoTimer = timer
+        appendSystem("🍅 做番茄汁运行中（每 2s 按 F × \(maxIter) 轮，再次点击或「停止」结束）")
+    }
+
     /// 通用 UI 点击技能（自动领奖励 / 自动收家具）
     /// 真实链路：截图 → Vision OCR 定位「领取/收取」按钮 → 鼠标点击 →
     /// 等 UI 反应后重试，最多 N 轮；按钮消失即完成。
@@ -1171,6 +1213,9 @@ final class AgentSkillCenter: @unchecked Sendable {
             pianoTimer?.cancel()
             pianoTimer = nil
             pianoStepIndex = 0
+        case "tomato_juice":
+            tomatoTimer?.cancel()
+            tomatoTimer = nil
         case "coffee":
             coffeeTimer?.cancel()
             coffeeTimer = nil
