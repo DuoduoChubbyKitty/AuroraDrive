@@ -2036,30 +2036,31 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
+            // 主内容行：AI 面板展开时占左侧 348pt，主 UI（游戏视口+侧边栏）
+            // 整体右移 —— 往外扩展而非覆盖，网络地图/悬浮小地图永不被遮挡
             HStack(spacing: 0) {
+                if AgentSkillCenter.shared.isPanelOpen {
+                    AIAgentPanelView(center: AgentSkillCenter.shared)
+                        .frame(width: 348)
+                        .transition(.move(edge: .leading))
+                }
                 GameViewportView(state: state)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 SidebarView(state: state)
                     .frame(width: 360)
             }
             .padding(.top, 44)
+            .animation(.spring(response: 0.45, dampingFraction: 0.74),
+                       value: AgentSkillCenter.shared.isPanelOpen)
 
             TopToolbar(state: state)
 
-            // ── AI Agent 左侧面板（覆盖层，独立开关，不挤压右侧 Sidebar）──
+            // ── 左侧边缘箭头（始终在最左缘，独立开关 AI 面板）──
             AIAgentEdgeTab(center: AgentSkillCenter.shared, panelWidth: 348)
                 .frame(maxHeight: .infinity, alignment: .center)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 44)
-
-            if AgentSkillCenter.shared.isPanelOpen {
-                AIAgentPanelView(center: AgentSkillCenter.shared)
-                    .frame(maxHeight: .infinity, alignment: .center)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 44)
-                    .transition(.move(edge: .leading))
-                    .zIndex(15)
-            }
+                .zIndex(20)
         }
         .background(Theme.bgPure)
         .preferredColorScheme(.dark)
@@ -2174,6 +2175,12 @@ struct ContentView: View {
             if args.contains("--agent-ui-shot") {
                 print("[UI-SHOT] 收到，开始无头渲染 AI 面板")
                 AgentUIShot.run()
+            }
+
+            // AI 面板布局对比自测：AuroraDriveUI --agent-layout-shot
+            if args.contains("--agent-layout-shot") {
+                print("[UI-SHOT] 收到，渲染折叠/展开布局对比")
+                AgentUIShot.runLayoutCompare()
             }
 
             // 注：--auto-login 已移到 AppDelegate（applicationDidFinishLaunching）

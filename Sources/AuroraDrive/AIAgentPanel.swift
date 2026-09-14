@@ -699,7 +699,10 @@ struct AIAgentEdgeTab: View {
         .onHover { h in
             withAnimation(.easeOut(duration: 0.15)) { hovering = h }
         }
+        // 箭头跟随面板位置：收起贴屏幕左缘，展开移到面板右侧边缘
+        // （面板是 HStack 首元素占 348pt，箭头不能叠在面板上）
         .padding(.leading, 2)
+        .offset(x: center.isPanelOpen ? panelWidth : 0)
         .zIndex(20)
     }
 }
@@ -1164,6 +1167,109 @@ enum AgentUIShot {
             print("[UI-SHOT] 写文件失败 \(error)")
             return false
         }
+    }
+
+    /// 布局对比自测：折叠 vs 展开两帧并排，验证「往外扩展」语义
+    /// （展开时 AI 面板占左 348pt，主 UI 右移；箭头移到面板右侧边缘）
+    @MainActor
+    static func runLayoutCompare() {
+        let center = AgentSkillCenter.shared
+        // 注入示例数据，让面板渲染有内容
+        center.messages = [
+            AgentMessage(role: .system,
+                         text: "AI 助手就绪。点技能或输入指令。",
+                         time: Date(), source: .ai),
+            AgentMessage(role: .user, text: "帮我登录游戏", time: Date(), source: .human),
+        ]
+        center.runningSkills = []
+
+        // 主 UI 占位（简化：色块标注区域，真实 ContentView 无法无头渲染 DriveState）
+        let mainPlaceholder = ZStack {
+            Rectangle().fill(Color(red: 0.1, green: 0.13, blue: 0.16))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("GAME VIEWPORT（主 UI，右移后保持可见）")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.75))
+                Text("↖ 网络地图/小地图在这里，永不遮挡")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.cyan)
+            }
+        }
+        let sidebarPlaceholder = ZStack {
+            Rectangle().fill(Color(red: 0.08, green: 0.09, blue: 0.11))
+            Text("SIDEBAR 360pt").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
+        }
+
+        let frameW: CGFloat = 1100
+        let frameH: CGFloat = 260
+
+        // ── 帧 A：折叠（无面板，箭头贴左缘）──
+        let collapsed = HStack(spacing: 0) {
+            AIAgentEdgeTab(center: center, panelWidth: 348)   // 箭头贴最左
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(width: 348, height: frameH)
+                .zIndex(20)
+            mainPlaceholder
+                .frame(width: frameW - 360, height: frameH)
+            sidebarPlaceholder
+                .frame(width: 360, height: frameH)
+        }
+        .frame(width: frameW, height: frameH)
+        .background(Color.black)
+
+        // ── 帧 B：展开（面板占左 348，箭头 offset 到面板右缘）──
+        let expanded = HStack(spacing: 0) {
+            AIAgentPanelView(center: center)   // 占 348，真实面板
+                .frame(width: 348, height: frameH)
+            // 箭头：跟随面板（offset panelWidth），叠在主 UI 左缘
+            AIAgentEdgeTab(center: center, panelWidth: 348)
+                .frame(width: 22, height: frameH, alignment: .center)
+                .offset(x: -22)   // 对齐到面板右缘（348 - 22/2 附近）
+                .zIndex(20)
+            mainPlaceholder
+                .frame(width: frameW - 360 - 348, height: frameH)
+            sidebarPlaceholder
+                .frame(width: 360, height: frameH)
+        }
+        .frame(width: frameW, height: frameH)
+        .background(Color.black)
+
+        center.isPanelOpen = true   // 让面板内箭头旋转状态正确
+
+        // 上下两帧并排渲染
+        let combo = VStack(spacing: 12) {
+            Text("折叠（主 UI 占满，箭头在左缘）")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white.opacity(0.8))
+            collapsed
+            Text("展开（面板占左 348，主 UI 右移，箭头在面板右缘）")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Theme.cyan)
+            expanded
+        }
+        .padding(14)
+        .background(Color.black)
+        .frame(width: frameW + 28)
+
+        let renderer = ImageRenderer(content: combo)
+        renderer.scale = 2.0
+        guard let image = renderer.nsImage,
+              let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else {
+            print("[UI-SHOT] 布局对比渲染失败")
+            fflush(stdout)
+            exit(1)
+        }
+        let path = "/tmp/aurora_layout_compare.png"
+        do {
+            try png.write(to: URL(fileURLWithPath: path))
+            print("[UI-SHOT] 布局对比已保存 \(path)")
+        } catch {
+            print("[UI-SHOT] 写文件失败 \(error)")
+        }
+        fflush(stdout)
+        exit(0)
     }
 }
 
