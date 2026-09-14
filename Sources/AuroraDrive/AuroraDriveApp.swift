@@ -14,6 +14,7 @@
 
 import SwiftUI
 import AppKit
+import Security
 import Darwin   // mach_task_basic_info：诊断进程内存占用（验证"积压→内存涨"根因）
 import CoreVideo  // CVPixelBuffer：YOLO 直通帧跳帧缓冲
 import MetalKit   // MTKView：MetalGoose 插帧渲染承载
@@ -546,20 +547,78 @@ struct AuroraDriveLauncher {
 
         // ── 真实 LLM 请求自测：--agent-llm-test ──
         // 提前处理（不需要 GUI），发真实 HTTP 请求到配置的云端模型
-        // 修复：Task.detached（后台线程）+ 30s 硬超时，防主线程死锁
+        // 修复：纯同步 URLSession + 30s 硬超时（不依赖 Swift concurrency / Keychain 解锁）
         if args.contains("--agent-llm-test") {
-            let center = AgentSkillCenter.shared
-            let semaphore = DispatchSemaphore(value: 0)
-            Task.detached(priority: .userInitiated) {
-                let ok = await center.runLLMTest()
-                semaphore.signal()
-                exit(ok ? 0 : 1)
-            }
-            if semaphore.wait(timeout: .now() + 30.0) == .timedOut {
-                print("[LLM-TEST] ⚠️ 30s 硬超时：请求未能在时限内完成")
-                fflush(stdout)
+            print("[LLM-TEST] 启动...")
+            fflush(stdout)
+            // 非阻塞读取配置：UserDefaults 读 baseUrl/model，env 或 Keychain 读 key
+            let d = UserDefaults(suiteName: "com.aurora.drive.aiagent") ?? .standard
+            var s = AgentSettings()
+            s.baseUrl = d.string(forKey: "baseUrl") ?? "https://api.agnes-ai.cn/v1"
+            s.model = d.string(forKey: "model") ?? "agnes-2.5-flash"
+            s.thinkingDepth = d.integer(forKey: "thinkingDepth")
+            if s.thinkingDepth < 1 { s.thinkingDepth = 3 }
+            // Key 从环境变量（CLI 场景）；GUI 场景 Keychain 可正常访问
+            s.apiKey = ProcessInfo.processInfo.environment["AURORA_API_KEY"] ?? ""
+            guard !s.apiKey.isEmpty else {
+                print("[LLM-TEST] ❌ 未配置 API Key。设置 AURORA_API_KEY 环境变量或运行 --set-llm-config")
                 exit(1)
             }
+            var base = s.baseUrl.hasSuffix("/") ? String(s.baseUrl.dropLast()) : s.baseUrl
+            if !base.hasSuffix("/v1") { base += "/v1" }
+            guard let url = URL(string: "\(base)/chat/completions") else {
+                print("[LLM-TEST] ❌ 无效 BaseUrl")
+                exit(1)
+            }
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(s.apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 30
+            let body: [String: Any] = [
+                "model": s.model,
+                "messages": [["role": "user", "content": "用一句话回答：1+1等于几？"]],
+                "max_tokens": 100,
+            ]
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+            print("[LLM-TEST] 模型=\(s.model)  端点=\(s.baseUrl)  密钥=\(String(s.apiKey.prefix(6)))…\(String(s.apiKey.suffix(4)))  思考深度=\(s.thinkingDepth)")
+            fflush(stdout)
+
+            // 同步等待 HTTP 响应（dataTask + semaphore，最多 30s）
+            let sem = DispatchSemaphore(value: 0)
+            var httpResult: (status: Int, data: Data)? = nil
+            let session = URLSession(configuration: .ephemeral)
+            let task = session.dataTask(with: request) { data, response, error in
+                defer { sem.signal() }
+                guard let data, let http = response as? HTTPURLResponse else {
+                    print("[LLM-TEST] ❌ 请求异常：\(error?.localizedDescription ?? "无响应")")
+                    return
+                }
+                httpResult = (http.statusCode, data)
+                _ = http
+            }
+            task.resume()
+            if sem.wait(timeout: .now() + 35.0) == .timedOut {
+                print("[LLM-TEST] ⚠️ 30s 硬超时")
+                task.cancel()
+                exit(1)
+            }
+
+            guard let result = httpResult, (200...299).contains(result.status) else {
+                print("[LLM-TEST] ❌ HTTP \(httpResult?.status ?? 0)")
+                exit(1)
+            }
+            if let json = try? JSONSerialization.jsonObject(with: result.data) as? [String: Any],
+               let choices = json["choices"] as? [[String: Any]],
+               let msg = choices.first?["message"] as? [String: Any],
+               let content = msg["content"] as? String {
+                print("[LLM-TEST] ① 纯文本回答：\(content)")
+            } else {
+                print("[LLM-TEST] ① 解析失败")
+            }
+            print("[LLM-TEST] ✅ 真实 LLM 链路验证完成")
+            fflush(stdout)
             exit(0)
         }
         // 一次性自检/守护模式不参与 UI 锁：它们是短命进程或被 launchd 托管，
