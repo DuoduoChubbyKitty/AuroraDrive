@@ -153,7 +153,8 @@ final class AgentLoop {
             if aborted { break }
 
             // 让 LLM 看结果，决定下一步（无 → 任务完成）
-            if let next = await planner.nextStep(task: task, history: history) {
+            // 弱模型防线 7：上下文裁剪——只喂最近 3 步（每条 summary 截断 120 字符），防弱模型丢指令 + 省 token
+            if let next = await planner.nextStep(task: task, history: trimmedHistory(history)) {
                 calls = [next]
             } else {
                 calls = []
@@ -190,6 +191,16 @@ final class AgentLoop {
             ? "技能「\(skillName(call.skillID))」已启动"
             : newMessages.joined(separator: "；")
         return AgentToolResult(id: call.id, skillID: call.skillID, ok: true, summary: summary)
+    }
+
+    /// 弱模型防线 7：历史裁剪——只保留最近 3 步，每条 summary 截断 120 字符。
+    /// 模型不需要知道全部历史，只需要"刚刚发生了什么"；同时省 token。
+    private func trimmedHistory(_ history: [AgentToolResult]) -> [AgentToolResult] {
+        let recent = Array(history.suffix(3))
+        return recent.map { r in
+            AgentToolResult(id: r.id, skillID: r.skillID, ok: r.ok,
+                            summary: String(r.summary.prefix(120)))
+        }
     }
 
     private func skillName(_ id: String) -> String {
