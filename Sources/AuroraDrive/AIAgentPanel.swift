@@ -273,7 +273,7 @@ final class AgentSkillCenter: @unchecked Sendable {
             ])
         }
 
-        // 定义可用工具（函数声明）——OpenAI 标准：每个 function 必须带 parameters 字段
+        // 定义可用工具（函数声明）——动态过滤：只给已移植的技能（防线 2）
         func toolDecl(_ name: String, _ desc: String) -> [String: Any] {
             ["type": "function", "function": [
                 "name": name,
@@ -281,15 +281,23 @@ final class AgentSkillCenter: @unchecked Sendable {
                 "parameters": ["type": "object", "properties": [:]],
             ]]
         }
-        let tools: [[String: Any]] = [
-            toolDecl("auto_login", "自动登录游戏"),
-            toolDecl("volleyball", "自动排球循环"),
-            toolDecl("rewards", "自动领奖励"),
-            toolDecl("furniture", "自动收家具"),
-            toolDecl("fishing", "自动钓鱼"),
-            toolDecl("dodge", "自动闪避"),
-            toolDecl("auto_scroll", "自动滚动拾取"),
-        ]
+        let tools: [[String: Any]] = AgentSkillLibrary.all
+            .filter { $0.ported }
+            .map { skill in
+                let desc: String = switch skill.id {
+                case "auto_login": "自动登录游戏"
+                case "volleyball": "自动排球循环"
+                case "rewards": "自动领奖励"
+                case "furniture": "自动收家具"
+                case "fishing": "自动钓鱼"
+                case "dodge": "自动闪避"
+                case "auto_scroll": "自动滚动拾取"
+                case "touch": "自动抚摸（F交互→点击→ESC）"
+                case "drive_dataset": "驾驶数据采集（WASD 2Hz）"
+                default: "自动\(skill.name)"
+                }
+                return toolDecl(skill.id, desc)
+            }
 
         // 思考深度 4 档 → temperature（想得越深，输出越收敛）
         let temperature: Double = switch settings.thinkingDepth {
