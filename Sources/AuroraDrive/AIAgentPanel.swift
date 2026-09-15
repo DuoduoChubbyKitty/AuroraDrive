@@ -1541,7 +1541,7 @@ enum AgentSelfTest {
         center.sendUserMessage("挂机", source: .ai)
         let afkRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("挂机预设") }
         center.stopAll(source: .ai)
-        center.sendUserMessage("刷个屏", source: .ai)
+        center.sendUserMessage("贝果刷屏", source: .ai)
         let bagelRouted = center.messages.contains { $0.text.contains("命中技能") && $0.text.contains("贝果刷屏") }
         center.stopAll(source: .ai)
         center.isDryRun = false
