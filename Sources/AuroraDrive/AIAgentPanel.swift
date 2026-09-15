@@ -352,6 +352,8 @@ final class AgentSkillCenter: @unchecked Sendable {
             "temperature": temperature,
             "max_tokens": 1024,
         ]
+        // 可观测：规划请求落到文件日志（防线 10；UI appendSystem 之外再 dlog 一份，供无 UI 环境核查）
+        dlog("[LLM] 规划请求：task=\(task.prefix(60)) model=\(settings.model) 端点=\(settings.baseUrl) tools=\(tools.count) key=\(settings.apiKey.isEmpty ? "(空)" : String(settings.apiKey.prefix(4))+"…"+String(settings.apiKey.suffix(2)))")
 
         do {
             // baseUrl 归一化：已含 /v1 不再重复拼接（OpenAI 兼容约定）
@@ -359,6 +361,7 @@ final class AgentSkillCenter: @unchecked Sendable {
             if !base.hasSuffix("/v1") { base += "/v1" }
             guard let url = URL(string: "\(base)/chat/completions") else {
                 appendSystem("❌ 无效的 BaseUrl")
+                dlog("[LLM] ❌ 无效 BaseUrl=\(base)")
                 return []
             }
             var request = URLRequest(url: url)
@@ -372,6 +375,7 @@ final class AgentSkillCenter: @unchecked Sendable {
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
                 appendSystem("❌ LLM 调用失败：\(response)")
+                dlog("[LLM] ❌ 调用失败：\((response as? HTTPURLResponse)?.statusCode ?? -1)（网络/401/限流）")
                 return []
             }
 
@@ -392,15 +396,18 @@ final class AgentSkillCenter: @unchecked Sendable {
                 // 弱模型防线 10：可观测——每次调用记录请求 tool 数与解析出的调用（出问题能查）
                 appendSystem("🧠 [LLM] 请求 \(tools.count) 个工具，解析出 \(parsed.count) 个调用"
                     + (parsed.isEmpty ? "" : "（\(parsed.map { $0.skillID }.joined(separator: "、"))）"))
+                dlog("[LLM] ✅ 响应：解析出 \(parsed.count) 个调用（\(parsed.map { $0.skillID }.joined(separator: "、"))）")
                 return parsed
             }
 
             // 无 tool_calls（LLM 认为任务完成）或响应结构解析失败——如实告知，不静默
             appendSystem("🧠 [LLM] 未返回工具调用（LLM 判定任务完成，或响应解析失败）")
+            dlog("[LLM] ⚠️ 响应未解析出 tool_calls（任务完成或响应结构异常）")
             return []
 
         } catch {
             appendSystem("❌ LLM 请求异常：\(error.localizedDescription)")
+            dlog("[LLM] ❌ 请求异常：\(error.localizedDescription.prefix(120))")
             return []
         }
     }

@@ -2281,6 +2281,18 @@ struct ContentView: View {
             // 这里仅负责把引擎注入给技能中心（ContentView 持有 DriveState）。
             AgentSkillCenter.shared.configure(control: state.controlEngine,
                                               capture: state.captureEngine)
+
+            // AI 发布指令 CLI 入口：--agent-command "<指令>"
+            // 走与对话框输入框【完全相同】的 sendUserMessage(.human) 管线
+            // （关键词/LLM 端到端规划 + 统一技能通道），供无 UI/自动化环境下驱动并验证 AI 指令。
+            // 含顺序词（先/然后/再）的复合指令会触发真实 LLM 规划（AgentLoop）。
+            if let ci = args.firstIndex(of: "--agent-command"), ci + 1 < args.count {
+                let cmd = args[ci + 1]
+                print("[AGENT] --agent-command 收到：\(cmd)，1.5s 后经 sendUserMessage 管线下发")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    AgentSkillCenter.shared.sendUserMessage(cmd, source: .human)
+                }
+            }
         }
     }
 }
