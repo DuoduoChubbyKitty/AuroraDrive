@@ -1687,6 +1687,8 @@ struct AIAgentPanelView: View {
     @State private var showSettings = false
     /// 真实模型清单（从 API /models 拉取；空 = 未拉到，菜单显示当前模型兜底）
     @State private var liveModels: [String] = []
+    /// 技能网格是否显示「待移植」技能（默认隐藏，降低视觉噪音；用户反馈"太乱了没法用"）
+    @State private var showUnportedSkills = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1759,9 +1761,43 @@ struct AIAgentPanelView: View {
             .offset(x: appeared ? 0 : -24)
             .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(0.03), value: appeared)
 
-            // ── 技能网格（人类点 = AI 也能调，同一通道）──
+            // ── 一键自动化（挂机预设：领奖励 → 收家具 → 钓鱼，一条指令开一串技能）──
+            Button {
+                center.toggleSkill("preset_afk", source: .human)
+            } label: {
+                HStack(spacing: 7) {
+                    Text(center.runningSkills.contains("preset_afk") ? "⏸️" : "⚡️")
+                        .font(.system(size: 15))
+                    Text(center.runningSkills.contains("preset_afk")
+                         ? "一键自动化运行中（点击停止）"
+                         : "一键自动化挂机")
+                        .font(.system(size: 12, weight: .bold))
+                    Text(center.runningSkills.contains("preset_afk") ? "" : "领奖励·收家具·钓鱼")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                }
+                .foregroundStyle(center.runningSkills.contains("preset_afk") ? Theme.danger : Theme.cyan)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(center.runningSkills.contains("preset_afk")
+                         ? Theme.danger.opacity(0.12) : Theme.cyan.opacity(0.12)))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(center.runningSkills.contains("preset_afk")
+                                  ? Theme.danger.opacity(0.5) : Theme.cyan.opacity(0.45),
+                                  lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .help("一键挂机：依次启动 领奖励 → 收家具 → 钓鱼（同一执行通道，可整体停止）")
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+
+            // ── 技能网格（人类点 = AI 也能调，同一通道；默认只显示已实现技能）──
             LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(AgentSkillLibrary.all) { skill in
+                ForEach(showUnportedSkills
+                        ? AgentSkillLibrary.all
+                        : AgentSkillLibrary.all.filter { $0.ported }) { skill in
                     AgentSkillButton(skill: skill,
                                      active: center.runningSkills.contains(skill.id),
                                      action: {
@@ -1770,7 +1806,20 @@ struct AIAgentPanelView: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.bottom, 8)
+            .padding(.bottom, 4)
+
+            // 待移植技能显示开关（默认隐藏，用户可展开）
+            HStack {
+                Button(showUnportedSkills ? "收起待移植技能" : "显示待移植技能（\(AgentSkillLibrary.all.filter { !$0.ported }.count)）") {
+                    showUnportedSkills.toggle()
+                }
+                .font(.system(size: 9, weight: .medium))
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.textTertiary)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 6)
 
             // ── 对话区（单对话，无历史列表）──
             AgentConversationView(center: center)
