@@ -16,10 +16,23 @@
 - [x] 电脑走查 #1-#7 computer-use 实测通过（23:2x-23:3x：启动/面板外扩/设置页小本本回显/钓鱼 12 轮自动结束+teardown/复合指令真实 LLM 3s 规划 3 技能/「停止」/权限缺失 0 乱点）；#8 UI 稳定 20min+，引擎连接半项待屏幕录制重授
 - [x] MaaNTE 25 项对照表 + 最终报告六部分（§二/§三 已更新至晚 23:3x 证据）
 
-### 进行中 / 用户侧待办
-- [ ] **重授 TCC 屏幕录制**（当前引擎自检 ax=true / screen=false → fail-fast，UI 本地模式）：系统设置 → 隐私与安全性 → 屏幕录制，AuroraDriveUI 开关一次
-- [ ] **批准 legacy 护栏补丁**（docs/legacy-guard-patch.md，3 处 1 行 guard，锚点复核生效）——★23:24 走查实锤：游戏未开时 legacy 钓鱼在桌面真实按 F 键（§五#9 已升级紧急）；用户回"批"后 1 轮内应用
-- [ ] #8 引擎连接稳定性半项：屏幕录制重授后补验
+### ✅ Round 1（2026-09-16 深夜）——彻底过一遍项目 + 修复所有功能 + 端到端可验证
+- [x] **全项目深度过一遍**：读 PROJECT_ANALYSIS/README/最终报告/ai-agent-panel/PROGRESS + 全源（31 Swift 文件 ~19k 行）+ 引擎/捕获/推理/定位/控制/脱困/自愈全链路，理解到位
+- [x] **功能基线全验证（非假）**：build 0 error；`--agent-selftest` **PASS=21 FAIL=0**；`--agent-llm-test` 真实链路 ✅（`1+1等于2`）；**LLM tool-calling 直连 curl 实测**：`agnes-2.5-flash` + `agnes-3.0-flash` 两模型，「帮我钓个鱼」→`fishing`、「先登录然后再领奖励」→`auto_login`，`finish_reason=tool_calls`（= AI 发布指令的规划核心，真实可用）；`/models` 200（含 agnes-2.5/3.0-flash 等真实清单）
+- [x] **★修复 §五#9 legacy 护栏缺口（升级紧急→已修）adb63ad**：审计**全部** pressGameKey/scrollWheel 注入点，发现 patch doc 漏掉 auto_scroll，实际 **4 个纯按键循环无护栏**（volleyball/fishing/dodge/auto_scroll）——游戏未开会在桌面真实按 F/K 键。已加「启动前 + 每轮」双层 `GameWindowDetector.isGameVisible()` guard（游戏中途消失也自动停），实测 `isGameVisible()`：游戏后台=on-screen 0 hit→false；激活后=3 hit→true。41 行纯新增，0 改老逻辑；build 0 error；selftest PASS=21；已部署到双目标（二进制 UTF-8 复核：钓鱼/闪避/滚动/排球「已取消」各×1 + 「游戏窗口消失」×4）
+- [x] **★「模型配置框」小白友好（用户反馈"没模型配置框没法用"）6ddb752**：输入区上方加配置状态条——**未填 API Key 时醒目橙色「未配置模型·点我填写 API Key 启用 AI 指令」一键直达设置**；已配置显示低调「● AI 已就绪·<model>」。不再需要自己找齿轮。纯视图新增，build 0 error，`--agent-ui-shot` 无头渲染 348x880 通过
+- [x] 双目标部署 + app 已起（pid 99434，`--auto-login`）；特性串字节级复核通过
+
+### 进行中 / 用户侧待办（Round 1 复核后的真实阻塞面）
+- [ ] **① computer-use 插件本轮未在本会话提供**：`@anionex/dsh-computer-use` 在 `profiles/.generations/desired.json` 与 `live/` 中均存在，但 `recovery/plugin-removals.json` 标 `status=removed` → 运行中的 DSH Desktop 未重新服务它，故 `computer_use_activate` 返回 unknown tool、`computer_observe/click/…` 不在本会话工具集。**恢复法**：干净重启 DSH Desktop（或新开一个会话）让 harness 按 desired.json 重新 bootstrap，插件即重新注册。本会话无法安全重启自身宿主 harness，故端到端"电脑操作工具驱动"部分留待插件恢复后的轮次执行
+- [ ] **② TCC 屏幕录制未重授**（引擎自检 ax=true / screen=false → 引擎 fail-fast → UI 本地模式；每次重签 run.sh 会再失效）：系统设置 → 隐私与安全性 → 屏幕录制，对 `AuroraDriveUI` 开关一次（**先做最终部署，再重授 TCC，避免重签重置**）
+- [ ] **③ 端到端实测（插件+TCC 恢复后，1 步）**：见下方「端到端测试流程」
+
+### ★ 端到端测试流程（用户侧 3 步，插件+TCC 恢复后）
+1. **重授 TCC**：系统设置 → 隐私与安全性 → ① 屏幕录制 + ② 辅助功能，均对 `AuroraDriveUI`（bundle `com.aurora.driveui`）开启一次（`engine` 日志应出现 `ax=true screen=true`）
+2. **开游戏**：`open -a 异环`（bundle `com.pwrd.yh.ios`，窗口 owner="异环"，`isGameVisible()` 命中）
+3. **AI 发布指令**：AuroraDrive 左侧 AI 面板输入框打「先登录然后再领奖励」或「帮我钓个鱼」→ 真实 LLM 规划（tool_calls）→ 统一执行通道跑技能 → 游戏内动作。全程 `isGameVisible()` 护栏保证游戏窗口消失即自动停（Round 1 已修）
+   - 验证点：面板出现「🧠 [LLM] 请求 N 个工具，解析出 1 个调用（fishing）」+「🎣 钓鱼循环启动」；非 dryRun 且游戏可见才真按键；游戏不可见→「🎮 未检测到游戏窗口，钓鱼已取消」
 
 ### 关键约束
 - key 只走 **本地小本本**（app 运行时存储）/ `.llm-key-notebook.md`（gitignored 测试源）+ AURORA_API_KEY 环境变量；**app 与 AI 均 0 钥匙串访问**（1b06802 起），日志一律掩码 sk-ZVb…uSSb
@@ -29,8 +42,9 @@
 - 本地 git 只加不 push；每 15 工具调用做一次全项目分析
 
 ### 当前 HEAD 与部署
-- HEAD `a987ccc`；本段 commit 链：d8cf729→1b06802→d43b253→039daba→f53f378→1980bc9→d9d86b9→a987ccc
-- 部署目标：run.sh 双目标（23:12 最后一次重签部署）；app pid 47184 运行中（本地模式，引擎 fail-fast）
+- HEAD `6ddb752`；Round 1 commit 链：a987ccc→**adb63ad**（4 循环护栏）→**6ddb752**（配置 CTA）
+- 部署目标：run.sh 双目标（Round 1 01:37 重签部署，.app 二进制 5,472,464 B）；app pid 99434 运行中（`--auto-login`，本地模式，引擎 fail-fast 因 TCC screen=false）
+- 二进制特性串复核（UTF-8）：`钓鱼已取消/闪避已取消/滚动已取消/排球已取消` 各×1 + `游戏窗口消失`×4 + `AI 已就绪`/`未配置模型·点我填写` 各×1（Round 1 两项修复均在部署体中）
 
 ### 环境性阻塞（晚 23:3x 复核）
 - 引擎自检 ax=true（辅助功能已恢复）/ screen=false（屏幕录制未重授）→ 引擎 fail-fast → UI 本地模式；本地模式下走查 #4-7 仍可完成（已完成）

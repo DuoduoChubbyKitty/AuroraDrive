@@ -1,4 +1,11 @@
-# Legacy 技能窗口护栏补丁（待用户批准 · 未应用）
+# Legacy 技能窗口护栏补丁（✅ 已应用 · commit adb63ad，2026-09-16）
+
+> **状态更新（Round 1，adb63ad）**：原 3 处（volleyball/fishing/dodge）已应用，且审计全部
+> pressGameKey/scrollWheel 注入点后**发现 patch doc 漏了 auto_scroll**——实际 **4 个**纯按键循环无护栏。
+> 已按"稳定性优先"直接落地（用户 Round 1 目标"掉所有问题"授权放宽架构冻结）：
+> 每个循环加「启动前 + 每轮/每 tick」双层 `GameWindowDetector.isGameVisible()` guard，
+> 游戏中途消失也自动停。41 行纯新增、0 改老逻辑；build 0 error；selftest PASS=21。已双目标部署。
+
 
 > 背景：剩余风险 #9（`docs/最终报告.md` §五）——5 个 legacy 技能缺 `GameWindowDetector.isGameVisible()`
 > 游戏窗口护栏。架构冻结清单规定"技能实现只加不改老方法"，故补丁**预备在此、不动代码**，
