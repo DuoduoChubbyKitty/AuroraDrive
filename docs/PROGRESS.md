@@ -21,6 +21,7 @@
 
 ### 关键约束
 - key 只走 Keychain / AURORA_API_KEY 环境变量，日志一律掩码 sk-ZVb…uSSb
+- ★用户新规则（03:xx 明确）：AI 禁止 `security`/改钥匙串；LLM 测试从小本本 `.llm-key-notebook.md`（gitignored）取 key 走 AURORA_API_KEY env（该 CLI 路径 0 次钥匙串访问，AuroraDriveApp.swift:560 证据）
 - 编译 `/usr/bin/swift build -c release --disable-sandbox --scratch-path .build/scratch`
 - 部署走 ./run.sh（双目标原子替换 + 重签）
 - 每次 run.sh 重签会使 CDHash 变化 → TCC 授权再次失效（macOS 行为，无法规避）
