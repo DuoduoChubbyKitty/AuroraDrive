@@ -32,7 +32,11 @@
 - 因果链：redeploy 重签 → TCC 授权丢失 → 引擎 fail-fast → UI 本地模式 → 主窗口创建被权限门控（AuroraDriveApp.swift:312）→ --agent-selftest（触发点在 ContentView.body :2258）永不启动
 - DSH 会话无法代用户授予 TCC；需用户在 系统设置→隐私与安全性→辅助功能/屏幕录制 中重新勾选 AuroraDriveUI
 
-### Git 最近提交（本轮 39-41）
+#### 新防线（41+ 轮）
+- run.sh 构建失败防再犯（6d81bd6）：`swift build > .last-build.log` + 检查 `$?` + 失败打印 error 行并 exit 1（旧管道 `| tail -5` 吞退出码）
+- 钥匙串禁令（4c07134）：LLM 测试走 `.llm-key-notebook.md` + `AURORA_API_KEY` env，禁止 `security`
+
+## Git 最近提交（本轮 39-41）
 ```
 45e2ff1 docs: 验收#8/#9 判据刷新（ControlEngine 允许新增 typeText +17行）
 9e1efd2 docs: bagel_spam 完成 + 构建流程教训记录
