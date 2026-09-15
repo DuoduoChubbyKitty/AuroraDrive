@@ -196,7 +196,7 @@ Vision bbox（归一化，左下原点）
 2. 粘贴 API Key（如 `sk-xxxxxxxx`）
 3. 填入 BaseUrl（如 `https://api.deepseek.com`）
 4. 填入 Model（如 `deepseek-chat`）
-5. 点击「保存」→ 密钥存入 **macOS Keychain**（不写磁盘明文）
+5. 点击「保存」→ 密钥存入 **本地小本本文件**（`~/Library/Application Support/AuroraDrive/llm-key-notebook.txt`，0600，**不再访问 macOS 钥匙串**——2026-09-15 起，启动路径 0 钥匙串接触）
 
 ### 4.3 支持的云端 LLM
 
@@ -207,10 +207,16 @@ Vision bbox（归一化，左下原点）
 
 ### 4.4 安全设计
 
-- API Key 存 **Keychain**（`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`）
+- API Key 存 **本地小本本文件**（0600，`~/Library/Application Support/AuroraDrive/llm-key-notebook.txt`）——2026-09-15 起不再使用 Keychain（每次启动读 Keychain 是启动异常根因，用户指令移除）
 - BaseUrl / Model 存 **UserDefaults**（非敏感，可同步）
 - 每次调用 LLM 前检查 `apiKey.isEmpty`，未配置时降级到 Mock
 - 不记录、不传输、不缓存 API Key
+
+### 4.5 面板 UI 改进（2026-09-15，commit d43b253 / 039daba）
+
+- **模型菜单 = 真实清单**：原硬编码假模型（Claude 3.5/GPT-4o/Gemini 2.0/DeepSeek-V3，从未连通）已移除；改为从 API `/models` 实时拉取（15s 硬超时，过滤 image/video 非对话模型），选中直写 `aiSettings.model`（真实生效）+ UserDefaults 持久化；拉取失败显示当前模型兜底 + 「刷新模型列表」入口
+- **⚡ 一键自动化挂机**：技能网格上方大号按钮，一条指令启动 `preset_afk` 链（领奖励→收家具→钓鱼），运行中变 ⏸ 红色可点停（同一执行通道 `toggleSkill`）
+- **技能网格降噪**：待移植技能（3 项：pinkpaw/rhythm/preset_realtime）默认隐藏，底部「显示/收起待移植技能」开关可展开；默认视图只显示 15 个可用技能
 
 ---
 
