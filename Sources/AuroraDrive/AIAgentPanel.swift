@@ -2065,10 +2065,18 @@ struct AgentSettingsSheet: View {
                         .foregroundStyle(Theme.textTertiary)
                 }
 
-                Section("快速填充（示例配置）") {
-                    Button("DeepSeek 默认") {
+                Section("快速填充（示例配置，已填的 API Key 会保留）") {
+                    Button("Agnes（当前默认）") {
                         center.aiSettings = AgentSettings(
-                            apiKey: "",
+                            apiKey: center.aiSettings.apiKey,  // 保留已填 key，不抹掉
+                            baseUrl: "https://api.agnes-ai.cn",
+                            model: "agnes-2.5-flash",
+                            thinkingDepth: 3
+                        )
+                    }
+                    Button("DeepSeek") {
+                        center.aiSettings = AgentSettings(
+                            apiKey: center.aiSettings.apiKey,  // 保留已填 key，不抹掉
                             baseUrl: "https://api.deepseek.com",
                             model: "deepseek-chat",
                             thinkingDepth: 3
@@ -2076,7 +2084,7 @@ struct AgentSettingsSheet: View {
                     }
                     Button("OpenAI") {
                         center.aiSettings = AgentSettings(
-                            apiKey: "",
+                            apiKey: center.aiSettings.apiKey,  // 保留已填 key，不抹掉
                             baseUrl: "https://api.openai.com",
                             model: "gpt-4o-mini",
                             thinkingDepth: 3
@@ -2084,7 +2092,7 @@ struct AgentSettingsSheet: View {
                     }
                     Button("Anthropic Claude") {
                         center.aiSettings = AgentSettings(
-                            apiKey: "",
+                            apiKey: center.aiSettings.apiKey,  // 保留已填 key，不抹掉
                             baseUrl: "https://api.anthropic.com",
                             model: "claude-3-5-haiku-20241022",
                             thinkingDepth: 4
