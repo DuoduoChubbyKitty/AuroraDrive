@@ -749,12 +749,23 @@ final class AgentSkillCenter: @unchecked Sendable {
             runningSkills.remove(skill.id)
             return
         }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，排球已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
 
         // 0.6s 一次 K 键短按 —— 与 MaaNTE auto_volleyball.py 的节奏一致
         let timer = DispatchSource.makeTimerSource(queue: workQueue)
         timer.schedule(deadline: .now() + 0.6, repeating: 0.6)
         timer.setEventHandler { [weak self] in
             guard let self, self.runningSkills.contains("volleyball") else { return }
+            guard GameWindowDetector.isGameVisible() else {
+                self.appendSystem("🎮 游戏窗口消失，排球已自动停止（安全护栏）")
+                self.teardown(id: "volleyball")
+                self.runningSkills.remove("volleyball")
+                return
+            }
             control.pressGameKey(.k, duration: 0.05)
         }
         timer.resume()
@@ -1207,12 +1218,22 @@ final class AgentSkillCenter: @unchecked Sendable {
             runningSkills.remove(skill.id)
             return
         }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，钓鱼已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
 
         let maxRounds = 12
         appendSystem("🎣 钓鱼循环启动：F 抛竿/收杆 × \(maxRounds) 轮（点击技能可停止）")
         for round in 1...maxRounds {
             guard runningSkills.contains(skill.id) else {
                 appendSystem("⏹️ 钓鱼已停止")
+                return
+            }
+            guard GameWindowDetector.isGameVisible() else {
+                appendSystem("🎮 游戏窗口消失，钓鱼已自动停止（安全护栏）")
+                runningSkills.remove(skill.id)
                 return
             }
             // 抛竿：F 短按
@@ -1241,12 +1262,22 @@ final class AgentSkillCenter: @unchecked Sendable {
             runningSkills.remove(skill.id)
             return
         }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，闪避已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
 
         let maxRounds = 20
         appendSystem("⚔️ 闪避循环启动：周期性跳+疾跑闪避 × \(maxRounds) 轮（点击技能可停止）")
         for round in 1...maxRounds {
             guard runningSkills.contains(skill.id) else {
                 appendSystem("⏹️ 闪避已停止")
+                return
+            }
+            guard GameWindowDetector.isGameVisible() else {
+                appendSystem("🎮 游戏窗口消失，闪避已自动停止（安全护栏）")
+                runningSkills.remove(skill.id)
                 return
             }
             // 闪避动作：Space 跳跃 + Shift 疾跑短闪
@@ -1271,6 +1302,11 @@ final class AgentSkillCenter: @unchecked Sendable {
             runningSkills.remove(skill.id)
             return
         }
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，滚动已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
+        }
 
         let mouse = makeMouse()
         let maxRounds = 15
@@ -1278,6 +1314,11 @@ final class AgentSkillCenter: @unchecked Sendable {
         for round in 1...maxRounds {
             guard runningSkills.contains(skill.id) else {
                 appendSystem("⏹️ 滚动已停止")
+                return
+            }
+            guard GameWindowDetector.isGameVisible() else {
+                appendSystem("🎮 游戏窗口消失，滚动已自动停止（安全护栏）")
+                runningSkills.remove(skill.id)
                 return
             }
             // F 连点（交互键）2 次
