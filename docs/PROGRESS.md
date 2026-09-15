@@ -47,3 +47,10 @@ bfb1515 docs: coffee_lite 移植同步
 6ebc588 feat(技能): 移植 coffee_lite
 ```
 （更早：防线 8 UI 3e2f9d7/16e06cb、咖啡番茄汁 2edce05、钢琴 9661714 等）
+
+## ★ 会话交接快照（round 16 · 13:56）
+- HEAD: 5ead510；小本本 `.llm-key-notebook.md`（gitignored）= LLM 测试唯一取 key 路径（禁 `security`）
+- 代码面收敛：31 Swift 文件、15 移植技能 + 3 记录不实现、防线 1-10、run.sh 构建防线（6d81bd6）
+- 部署：双目标 5,304,736 字节同 mtime；TCC 仍 ax=false/screen=false（03:11 后无新尝试）
+- 待用户：① 系统设置重授 辅助功能+屏幕录制（AuroraDriveUI）② 手动 `./run.sh` + `--agent-selftest`（期望 PASS=21）③ 批准 `docs/legacy-guard-patch.md`（3 处窗口护栏）④ 8 项 GUI 走查
+- 恢复执行顺序：先探 TCC（tail ~/Library/Logs/AuroraEngine.log 看新 ax=true）→ 能自测则跑 → 走查 → 应用护栏补丁 → 终验 13 条
