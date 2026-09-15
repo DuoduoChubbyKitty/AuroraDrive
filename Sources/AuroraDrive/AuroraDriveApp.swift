@@ -299,11 +299,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // SwiftUI WindowGroup 的窗口在 applicationDidFinishLaunching 之后、runloop 下一轮
         // 才创建（此时同步遍历 NSApp.windows 常为空，激活无效）。延迟到下一 runloop 再
         // 激活，确保窗口已创建后置前，避免"进程起来却无可见窗口"。
-        DispatchQueue.main.async {
-            NSApp.activate(ignoringOtherApps: true)
-            for window in NSApp.windows {
-                window.makeKeyAndOrderFront(nil)
-                window.orderFrontRegardless()
+        // --agent-command 模式：后台运行、不抢焦点（保持游戏所在 Space 激活，供键注入落到游戏内）。
+        let commandMode = CommandLine.arguments.contains("--agent-command")
+        if !commandMode {
+            DispatchQueue.main.async {
+                NSApp.activate(ignoringOtherApps: true)
+                for window in NSApp.windows {
+                    window.makeKeyAndOrderFront(nil)
+                    window.orderFrontRegardless()
+                }
             }
         }
 

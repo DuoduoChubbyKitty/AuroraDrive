@@ -1496,6 +1496,8 @@ final class AgentSkillCenter: @unchecked Sendable {
 
     func appendSystem(_ text: String) {
         messages.append(AgentMessage(role: .system, text: text, time: Date(), source: .ai))
+        // 可观测：系统消息同步落盘（此前仅入 UI 会话，无 UI 环境无法核查技能执行/护栏/降级）
+        dlog("[Agent] \(text)")
     }
 
     // MARK: - 工具
