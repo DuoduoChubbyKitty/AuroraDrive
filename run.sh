@@ -56,13 +56,18 @@ echo ""
 echo "[3/4] 编译 (release)"
 # 必须先清缓存! SwiftPM 缓存会导致代码改动不生效
 rm -rf .build
-swift build -c release 2>&1 | tail -5
-if [ -f "$BIN_SRC" ]; then
-    echo "  编译成功 ✓"
-else
-    echo "  编译失败! 请检查错误"
+# 修复：旧写法 `swift build | tail -5` 管道吞掉构建退出码（set -e 失效）
+# → 构建失败时仍继续部署/启动。现在完整记录构建输出并检查 exit code，
+#   失败时打印错误行并中止（防再犯：2026-09-15 bagel_spam 编译失败曾误部署）
+swift build -c release > .last-build.log 2>&1
+BUILD_RC=$?
+tail -5 .last-build.log
+if [ "$BUILD_RC" -ne 0 ] || [ ! -f "$BIN_SRC" ]; then
+    echo "  编译失败! (exit $BUILD_RC) 错误摘录："
+    grep -m 8 "error:" .last-build.log || tail -10 .last-build.log
     exit 1
 fi
+echo "  编译成功 ✓"
 
 # ── 复制+签名 ──
 # 2026-09-12 修复 SIGKILL (Code Signature Invalid)：

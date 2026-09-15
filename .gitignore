@@ -67,3 +67,4 @@ tools/ppocrv6_finetune/pretrained/*.pdparams
 # ===== 含明文凭证的目标提示词（严禁入库）=====
 docs/AI目标提示词*.md
 .llm-key-notebook.md
+.last-build.log
