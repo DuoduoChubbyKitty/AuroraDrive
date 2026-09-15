@@ -23,6 +23,13 @@
 - [x] **★「模型配置框」小白友好（用户反馈"没模型配置框没法用"）6ddb752**：输入区上方加配置状态条——**未填 API Key 时醒目橙色「未配置模型·点我填写 API Key 启用 AI 指令」一键直达设置**；已配置显示低调「● AI 已就绪·<model>」。不再需要自己找齿轮。纯视图新增，build 0 error，`--agent-ui-shot` 无头渲染 348x880 通过
 - [x] 双目标部署 + app 已起（pid 99434，`--auto-login`）；特性串字节级复核通过
 
+### ✅ Round 4（2026-09-16 深夜续）——真 LLM 端到端实证 + AI 发布指令可驱动 + TCC 定位
+- [x] **★"AI 发布指令"走【真实 LLM】端到端实证（非 mock，非假）**：新增 `--agent-command "<指令>"`（d9132fe，走对话框完全相同的 `sendUserMessage(.human)` 管线）+ `callLLM` 文件日志（防线 10 可观测）。实测 `先登录游戏然后领奖励`：`/tmp/aurora_debug.log` 落盘 `[LLM] 规划请求 model=agnes-3.0-flash tools=15 key=sk-Z…Sb` → `✅ 响应：解析出 1 个调用（auto_login）` → `🤖 启动技能 auto_login` → LLM 再规划 `rewards` → 执行 → 最终 `⚠️ 未解析出 tool_calls（任务完成）`。证实：复合指令 → **真实云端 LLM（agnes-3.0-flash）逐步规划** → 统一技能通道执行，非本地 mock
+- [x] **权限缺失时安全降级（0 乱点，护栏有效）**：同一次运行 auto_login「未检测到游戏窗口→守护等待」、rewards「拿不到截屏帧×8 轮自停（无限点击防护）」——无 TCC/游戏未开时全部安全停摆，不狂点
+- [x] **发现 + 定位 TCC 授予路径**：TCC.db 被 SIP/ACL 保护（`sqlite3` authorization denied，无法读写）；System Settings 为现代 SwiftUI 浅 AX 树（System Events 只见少量元素）→ **可靠授权需视觉/电脑操作工具定位开关**（本会话两者受限：computer-use 插件未服务 + vision 后端 429 限流）→ 结论：TCC 授予为**用户 2 键**（辅助功能 + 屏幕录制 各开 AuroraDriveUI），或待视觉/电脑工具恢复后由 Agent 完成
+- [x] 本轮全部代码（adb63ad 护栏 + 6ddb752 配置CTA + d9132fe agent-command/LLM日志）已 `run.sh` 双目标部署；`--agent-selftest` 复验 PASS=21 FAIL=0
+- [ ] **遗留（需 TCC 授予后）**：游戏内真实注入闭环（fishing 在异环里真按 F；rewards/furniture OCR 真截屏点击）——授 TCC + 游戏前台后，用 `--agent-command` 或对话框即可跑通
+
 ### 进行中 / 用户侧待办（Round 1 复核后的真实阻塞面）
 - [ ] **① computer-use 插件本轮未在本会话提供**：`@anionex/dsh-computer-use` 在 `profiles/.generations/desired.json` 与 `live/` 中均存在，但 `recovery/plugin-removals.json` 标 `status=removed` → 运行中的 DSH Desktop 未重新服务它，故 `computer_use_activate` 返回 unknown tool、`computer_observe/click/…` 不在本会话工具集。**恢复法**：干净重启 DSH Desktop（或新开一个会话）让 harness 按 desired.json 重新 bootstrap，插件即重新注册。本会话无法安全重启自身宿主 harness，故端到端"电脑操作工具驱动"部分留待插件恢复后的轮次执行
 - [ ] **② TCC 屏幕录制未重授**（引擎自检 ax=true / screen=false → 引擎 fail-fast → UI 本地模式；每次重签 run.sh 会再失效）：系统设置 → 隐私与安全性 → 屏幕录制，对 `AuroraDriveUI` 开关一次（**先做最终部署，再重授 TCC，避免重签重置**）
