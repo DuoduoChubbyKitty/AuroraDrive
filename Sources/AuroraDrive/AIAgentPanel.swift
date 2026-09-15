@@ -1938,6 +1938,45 @@ struct AIAgentPanelView: View {
     /// 输入区：大输入框 + 模型按钮 + 思考滑块 + 发送
     private var agentInputArea: some View {
         VStack(spacing: 8) {
+            // ── 配置状态条：未配置时醒目 CTA 直达设置（小白友好，一键配模型）；已配置显示就绪 ──
+            if center.aiSettings.apiKey.isEmpty {
+                Button {
+                    showSettings = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gearshape.2.fill")
+                            .font(.system(size: 11))
+                        Text("未配置模型 · 点我填写 API Key 启用 AI 指令")
+                            .font(.system(size: 10, weight: .semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .foregroundStyle(Theme.orangeRed)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Theme.orangeRed.opacity(0.12)))
+                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(Theme.orangeRed.opacity(0.4), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .help("填写 API Key / Base URL / Model，启用 AI 端到端指令")
+            } else {
+                HStack(spacing: 6) {
+                    Circle().fill(Theme.cyan).frame(width: 5, height: 5)
+                    Text("AI 已就绪 · \(center.aiSettings.model)")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(Theme.textTertiary)
+                    Spacer()
+                    Button("配置") { showSettings = true }
+                        .font(.system(size: 9.5))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                .padding(.horizontal, 4)
+            }
+
             // 输入框
             HStack(alignment: .bottom, spacing: 8) {
                 ZStack(alignment: .topLeading) {
