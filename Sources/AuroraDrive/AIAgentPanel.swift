@@ -184,7 +184,7 @@ final class AgentSkillCenter: @unchecked Sendable {
 
     static let shared = AgentSkillCenter()
 
-    // ── AI 配置（用户通过设置界面填写，存 Keychain）──
+    // ── AI 配置（用户通过设置界面填写，存本地小本本，不再访问钥匙串）──
     var aiSettings: AgentSettings = {
         var s = AgentSettings.load()
         // 如果已有配置，同步到 currentModel/model 字段
@@ -193,6 +193,39 @@ final class AgentSkillCenter: @unchecked Sendable {
         }
         return s
     }()
+
+    /// 从 API 拉取真实模型清单（面板模型菜单用；15s 硬超时，过滤非对话模型 image/video）
+    /// 失败不崩：回传空数组，UI 显示当前模型兜底
+    func fetchLiveModels(completion: @escaping ([String]) -> Void) {
+        let s = aiSettings
+        guard !s.apiKey.isEmpty else { completion([]); return }
+        var base = s.baseUrl.hasSuffix("/") ? String(s.baseUrl.dropLast()) : s.baseUrl
+        if !base.hasSuffix("/v1") { base += "/v1" }
+        guard let url = URL(string: "\(base)/models") else { completion([]); return }
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.setValue("Bearer \(s.apiKey)", forHTTPHeaderField: "Authorization")
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 15
+        let session = URLSession(configuration: config)
+        let task = session.dataTask(with: request) { data, response, error in
+            guard error == nil,
+                  let http = response as? HTTPURLResponse,
+                  (200...299).contains(http.statusCode),
+                  let data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let items = json["data"] as? [[String: Any]] else {
+                completion([])
+                return
+            }
+            let ids = items.compactMap { ($0["id"] ?? $0["name"]) as? String }
+                .filter { id in
+                    let low = id.lowercased()
+                    return !low.contains("image") && !low.contains("video")
+                }
+            completion(ids)
+        }
+        task.resume()
+    }
 
     // ── 注入的引擎（由 DriveState 在启动时配置）──
     private var control: ControlEngine?
@@ -1394,13 +1427,13 @@ final class AgentSkillCenter: @unchecked Sendable {
             let running = runningSkills.isEmpty ? "无" : runningSkills.map { id in
                 AgentSkillLibrary.all.first(where: { $0.id == id })?.name ?? id
             }.joined(separator: "、")
-            return "当前运行中：\(running)。模型：\(currentModel.rawValue)，思考强度：\(thinkingDepth)。"
+            return "当前运行中：\(running)。模型：\(aiSettings.model)，思考强度：\(thinkingDepth)。"
         }
         if lower.contains("你好") || lower.contains("hi") || lower.contains("嗨") {
             return "你好！我可以帮你自动登录、打排球，或执行钓鱼/咖啡/钢琴等技能（后几项待移植）。试试输入「登录」或点左侧技能按钮。"
         }
         if lower.contains("模型") {
-            return "当前模型：\(currentModel.rawValue)。可在输入框下方模型按钮切换。"
+            return "当前模型：\(aiSettings.model)。可在输入框下方模型按钮切换。"
         }
         if lower.contains("帮助") || lower.contains("help") {
             let skills = AgentSkillLibrary.all.map { $0.name }.joined(separator: "、")
@@ -1652,6 +1685,8 @@ struct AIAgentPanelView: View {
     @State private var showModelPicker = false
     @State private var appeared = false
     @State private var showSettings = false
+    /// 真实模型清单（从 API /models 拉取；空 = 未拉到，菜单显示当前模型兜底）
+    @State private var liveModels: [String] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1678,7 +1713,7 @@ struct AIAgentPanelView: View {
                                     radius: 4)
                     }
                     Text(center.runningSkills.isEmpty
-                         ? "空闲 · \(center.currentModel.rawValue)"
+                         ? "空闲 · \(center.aiSettings.model)"
                          : "运行中 · \(runningNames)")
                         .font(.system(size: 9.5, weight: .medium))
                         .foregroundStyle(Theme.textTertiary)
@@ -1797,6 +1832,10 @@ struct AIAgentPanelView: View {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                 appeared = true
             }
+            // 拉取真实模型清单（失败静默，菜单显示当前模型兜底）
+            center.fetchLiveModels { ids in
+                liveModels = ids
+            }
         }
     }
 
@@ -1843,26 +1882,43 @@ struct AIAgentPanelView: View {
 
             // 第二行：模型按钮 + 思考滑块
             HStack(spacing: 10) {
-                // 模型选择
+                // 模型选择（真实模型清单：从 API /models 拉取，替换原硬编码假列表）
                 Menu {
-                    ForEach(AgentModel.allCases) { model in
+                    ForEach(liveModels, id: \.self) { id in
                         Button {
-                            center.currentModel = model
-                            showModelPicker = false
+                            center.aiSettings.model = id
+                            AgentSettings.defaults.set(id, forKey: AgentSettings.keyModel)
+                            center.appendSystem("🤖 模型已切换：\(id)")
                         } label: {
-                            if model == center.currentModel {
-                                Label(model.rawValue, systemImage: "checkmark")
+                            if id == center.aiSettings.model {
+                                Label(id, systemImage: "checkmark")
                             } else {
-                                Text(model.rawValue)
+                                Text(id)
                             }
                         }
+                    }
+                    if liveModels.isEmpty {
+                        Text("⚠️ 未拉到模型列表（API Key 未配置或网络不可用）")
+                            .font(.system(size: 10))
+                    }
+                    Divider()
+                    Button {
+                        center.fetchLiveModels { ids in liveModels = ids }
+                    } label: {
+                        Label("刷新模型列表", systemImage: "arrow.clockwise")
+                    }
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Label("自定义 / 编辑配置", systemImage: "gear")
                     }
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "cpu")
                             .font(.system(size: 9))
-                        Text(center.currentModel.rawValue)
+                        Text(center.aiSettings.model)
                             .font(.system(size: 10, weight: .semibold))
+                            .lineLimit(1)
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 7))
                     }
