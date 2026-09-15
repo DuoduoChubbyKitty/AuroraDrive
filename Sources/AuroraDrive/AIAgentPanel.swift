@@ -86,48 +86,37 @@ struct AgentSettings: Codable, Sendable {
         UserDefaults(suiteName: suiteName) ?? .standard
     }
 
-    /// 保存到 Keychain（安全存储，不写磁盘明文）
+    /// API Key「小本本」文件（用户指令：不再访问钥匙串——启动路径每次读 Keychain 是启动异常根因；
+    /// 改存用户目录 0600 文件，启动路径零 Keychain 接触）
+    static var notebookURL: URL {
+        let dir = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("AuroraDrive", isDirectory: true)
+        return dir.appendingPathComponent("llm-key-notebook.txt")
+    }
+
+    /// 保存（API Key → 本地小本本文件 0600；非敏感字段 → 固定域 UserDefaults；全程不碰钥匙串）
     func save() throws {
-        guard !apiKey.isEmpty else { return }
-        let encoder = JSONEncoder()
-        try? SecItemDelete([
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: AgentSettings.service,
-        ] as NSDictionary)
-        let params: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: AgentSettings.service,
-            kSecAttrAccount as String: AgentSettings.keyApi,
-            kSecValueData as String: apiKey.data(using: .utf8) ?? Data(),
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-        ]
-        var status = SecItemAdd(params as CFDictionary, nil)
-        if status == errSecDuplicateItem {
-            try? SecItemUpdate([kSecAttrAccount as String: AgentSettings.keyApi] as NSDictionary,
-                               [kSecValueData as String: apiKey.data(using: .utf8) ?? Data()] as NSDictionary)
-        }
-        // 非敏感字段存固定域 UserDefaults（Keychain 只存 key）
+        // 非敏感字段存固定域 UserDefaults（与进程名无关，CLI 与 GUI 共用）
         AgentSettings.defaults.set(baseUrl, forKey: AgentSettings.keyBase)
         AgentSettings.defaults.set(model, forKey: AgentSettings.keyModel)
         AgentSettings.defaults.set(thinkingDepth, forKey: AgentSettings.keyDepth)
         AgentSettings.defaults.synchronize()
+        guard !apiKey.isEmpty else { return }
+        let fm = FileManager.default
+        try fm.createDirectory(at: AgentSettings.notebookURL.deletingLastPathComponent(),
+                                withIntermediateDirectories: true)
+        try (apiKey.data(using: .utf8) ?? Data()).write(to: AgentSettings.notebookURL, options: .atomic)
+        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: AgentSettings.notebookURL.path)
     }
 
-    /// 从 Keychain 加载
+    /// 从本地小本本加载（不碰钥匙串）
     static func load() -> AgentSettings {
         var settings = AgentSettings()
-        // 读取 apiKey
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: keyApi,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: 1,
-        ]
-        var item: CFTypeRef?
-        if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-           let data = item as? Data {
-            settings.apiKey = String(data: data, encoding: .utf8) ?? ""
+        // 读取 apiKey（本地小本本文件）
+        if let data = try? Data(contentsOf: notebookURL),
+           let key = String(data: data, encoding: .utf8), !key.isEmpty {
+            settings.apiKey = key
         }
         // 读取非敏感字段（固定域）
         let d = AgentSettings.defaults
@@ -138,13 +127,9 @@ struct AgentSettings: Codable, Sendable {
         return settings
     }
 
-    /// 删除 Keychain 中的 API Key
+    /// 删除本地小本本中的 API Key（函数名保留兼容，不再碰钥匙串）
     static func deleteKeychain() {
-        try? SecItemDelete([
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: keyApi,
-        ] as NSDictionary)
+        try? FileManager.default.removeItem(at: notebookURL)
     }
 }
 
@@ -1930,7 +1915,7 @@ struct AgentSettingsSheet: View {
     var body: some View {
         NavigationView {
             Form {
-                Section("API 配置（安全存 Keychain）") {
+                Section("API 配置（本地小本本存储）") {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("API Key — 粘贴你的 DeepSeek/OpenAI/Claude API Key")
                             .font(.system(size: 10, weight: .medium))
@@ -1940,7 +1925,7 @@ struct AgentSettingsSheet: View {
                             .font(.system(.body, design: .monospaced))
                             .textContentType(.password)
                             .autocorrectionDisabled(true)
-                        Text("存储在 macOS Keychain，不写磁盘明文")
+                        Text("存储在本地小本本文件（0600），不再访问钥匙串")
                             .font(.system(size: 9))
                             .foregroundStyle(Theme.textTertiary)
                     }
@@ -2011,7 +1996,7 @@ struct AgentSettingsSheet: View {
                     Button("保存") {
                         do {
                             try center.aiSettings.save()
-                            center.appendSystem("✅ API Key 已安全保存（Keychain）")
+                            center.appendSystem("✅ API Key 已保存（本地小本本，不再访问钥匙串）")
                             dismiss()
                         } catch {
                             center.appendSystem("❌ 保存失败：\(error.localizedDescription)")

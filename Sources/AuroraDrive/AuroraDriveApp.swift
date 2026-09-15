@@ -529,7 +529,7 @@ struct AuroraDriveLauncher {
         }
 
         // ── LLM 配置写入：--set-llm-config <apiKey> <baseUrl> <model> ──
-        // 提前处理（不需要 GUI / 引擎），写入 Keychain + 固定域 UserDefaults
+        // 提前处理（不需要 GUI / 引擎），写入本地小本本文件 + 固定域 UserDefaults（不碰钥匙串）
         if let i = args.firstIndex(of: "--set-llm-config"), i + 3 < args.count {
             var s = AgentSettings()
             s.apiKey = args[i + 1]
@@ -537,7 +537,7 @@ struct AuroraDriveLauncher {
             s.model = args[i + 3]
             do {
                 try s.save()
-                print("[LLM-CONFIG] ✅ 已保存到 Keychain：model=\(s.model)  base=\(s.baseUrl)  key=\(String(s.apiKey.prefix(6)))…\(String(s.apiKey.suffix(4)))")
+                print("[LLM-CONFIG] ✅ 已保存到本地小本本：model=\(s.model)  base=\(s.baseUrl)  key=\(String(s.apiKey.prefix(6)))…\(String(s.apiKey.suffix(4)))")
                 exit(0)
             } catch {
                 print("[LLM-CONFIG] ❌ 保存失败：\(error)")
