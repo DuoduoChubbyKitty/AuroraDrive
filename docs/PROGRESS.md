@@ -50,6 +50,15 @@
 - [ ] **游戏前台稳定化**：`isGameVisible` 需游戏 Space 激活；`open -a` 不一定切 Space，`osascript activate` 偶发挂起（曾 wedge 03:25-04:39）
 - 本轮 commit 链：`adb63ad`→`6ddb752`→`d9132fe`→`7913546`→`e472bb5`(docs) + run.sh 双目标部署
 
+### ✅ Round 9（2026-09-16 12:xx）——焦点修复 + 屏幕录制首次真捕获 + 重签重置 TCC 实证
+- [x] **★抢焦点根因定位并修复（6f8b71a）**：`--agent-command` 模式下还有 2 处无条件 `NSApp.activate(ignoringOtherApps:)`（didFinishLaunching L231 + ContentView.onAppear L652）把 Space 从游戏切回应用 → 1.5s 后指令下发时 `isGameVisible()==false`，fishing 被护栏取消（12:26:46 实测）。修复：命令模式 `setActivationPolicy(.accessory)` + 跳过 activate + 窗口 orderOut。验证：游戏前台启动命令 → 20s 后 frontmost 仍为「异环」✓
+- [x] **★屏幕录制 TCC 首次真正生效（用户手授）**：`CGPreflightScreenCaptureAccess=true`；引擎 SCK 流真实捕获游戏画面——tick 日志 `ocr[PP-OCRv6]=34..111 km/h vld=true`（之前一直是"拿不到截屏帧"）。**OCR 通路在此 CDHash 上打通实证**
+- [x] **重签重置 TCC 实证**：run.sh 重签（新 CDHash）后用户授权立即失效（rewards "拿不到截屏帧×8 自停"，护栏 ✓ 无狂点）→ 正在由 subagent 走系统设置重授；**授权完成前不再重签/重新部署**
+- [x] `--agent-selftest` 复验 PASS=21 FAIL=0（12:22）
+- [x] 游戏世界 grounding（联网）：《异环》官网 [yh.wanmei.com](https://yh.wanmei.com/index.html)（Hotta Studio/完美，超自然都市开放世界 RPG，海特洛市）——驾驶玩法=「泊暮区」（"要做的只有尽情驾驶"，对应本项目 driving 模式）；夏日活动「排球之星」「单骑破浪」；「环期赠礼」签到领骰子 → e2e 目标：驾驶进泊暮区 / 钓鱼 / 领签到奖励
+- [ ] OCR 类 e2e（rewards/furniture 真截屏点击）：待重授 TCC 完成
+- [ ] 驾驶/移动 e2e（操作人物去泊暮区）：游戏前台稳定 + 视情搜索路线
+
 ### 关键约束
 - key 只走 **本地小本本**（app 运行时存储）/ `.llm-key-notebook.md`（gitignored 测试源）+ AURORA_API_KEY 环境变量；**app 与 AI 均 0 钥匙串访问**（1b06802 起），日志一律掩码 sk-ZVb…uSSb
 - 编译 `/usr/bin/swift build -c release --disable-sandbox --scratch-path .build/scratch`
