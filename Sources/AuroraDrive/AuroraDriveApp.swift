@@ -227,8 +227,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.memoryAnchor = buf
         }
 
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        // --agent-command 模式：后台 accessory 运行、不抢焦点（保持游戏所在 Space 激活，
+        // 供键注入落到游戏内）。.accessory 下进程不占 Dock、不触发 Space 切换。
+        let isCommandMode = CommandLine.arguments.contains("--agent-command")
+        NSApp.setActivationPolicy(isCommandMode ? .accessory : .regular)
+        if !isCommandMode {
+            NSApp.activate(ignoringOtherApps: true)
+        }
         
         // IOPMAssertion：声明进程需要持续响应，系统不得因"空闲"判定而冻结
         // PreventUserIdleSystemSleep：防止系统认为用户空闲而降低进程优先级
@@ -648,7 +653,15 @@ struct AuroraDriveApp: App {
                 .frame(minWidth: 880, minHeight: 560)
                 .background(Color.black)
                 .onAppear {
+                    // --agent-command 模式：后台运行、不抢焦点、不前置窗口（保持游戏所在 Space 激活，供键注入落到游戏内）
+                    let isCommandMode = CommandLine.arguments.contains("--agent-command")
                     DispatchQueue.main.async {
+                        if isCommandMode {
+                            for window in NSApp.windows {
+                                window.orderOut(nil)
+                            }
+                            return
+                        }
                         NSApp.activate(ignoringOtherApps: true)
                         for window in NSApp.windows {
                             window.makeKeyAndOrderFront(nil)
