@@ -505,6 +505,37 @@ final class AgentSkillCenter: @unchecked Sendable {
             pendingAutoLogin = false
             runSkill("auto_login", source: .ai)
         }
+
+        // 引擎就绪后，补发启动期间排队的 --agent-command 指令（与视图渲染解耦：
+        // 命令模式 .accessory 下窗口可能被 orderOut，视图 onAppear 不触发 → 派发不能依赖视图）
+        if let cmd = pendingCommand {
+            pendingCommand = nil
+            sendUserMessage(cmd, source: .human)
+        }
+    }
+
+    /// AppDelegate 调用：启动下发 --agent-command 指令（引擎可能还没注入，先排队）
+    /// 命令模式（.accessory，窗口不可见）下视图 onAppear 可能永不触发，
+    /// 故派发放在 AppDelegate + 引擎注入时补发，双保险。
+    @ObservationIgnored private var pendingCommand: String?
+
+    func requestCommandOnStartup(_ cmd: String) {
+        print("[AGENT] --agent-command 收到：\(cmd)，1.5s 后经 sendUserMessage 管线下发")
+        if control != nil && capture != nil {
+            workQueue.async { [weak self] in
+                DispatchQueue.main.async { self?.sendUserMessage(cmd, source: .human) }
+            }
+            return
+        }
+        pendingCommand = cmd
+        // 兜底：若引擎一直没注入（异常路径），最多等 8 秒后直接下发
+        workQueue.asyncAfter(deadline: .now() + 8.0) { [weak self] in
+            guard let self else { return }
+            if self.pendingCommand == cmd {
+                self.pendingCommand = nil
+                self.sendUserMessage(cmd, source: .human)
+            }
+        }
     }
 
     /// AppDelegate 调用：启动自动登录（引擎可能还没注入，先排队）

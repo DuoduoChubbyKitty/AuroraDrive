@@ -25,6 +25,8 @@ import ApplicationServices  // AXIsProcessTrusted：辅助功能权限预检（T
 
 // 应用启动时强制激活窗口到前台（直接 swift 运行时窗口默认不激活）
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// 命令模式（--agent-command）独立引擎组：静态持有，防 Arc 释放导致 SCK 流停摆
+    static var agentEngines: (control: ControlEngine, capture: CaptureEngine)?
     /// 抑制 App Nap 的 activity token（必须持有，否则 activity 立即释放、抑制失效）
     private var napToken: NSObjectProtocol?
     /// CGEventTap 句柄（持有防止释放，系统级实时保护）
@@ -328,6 +330,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 AgentSkillCenter.shared.requestAutoLoginOnStartup()
             }
+        }
+
+        // ── AI 发布指令 CLI（--agent-command "<指令>"）──
+        // 与 --auto-login 同理放在 AppDelegate：命令模式（.accessory）下窗口可能被
+        // orderOut、视图 onAppear 不触发，派发必须与视图渲染解耦。
+        // AgentSkillCenter 内部排队，引擎注入（configure）时补发，8s 兜底。
+        if let ci = CommandLine.arguments.firstIndex(of: "--agent-command"),
+           ci + 1 < CommandLine.arguments.count {
+            let cmd = CommandLine.arguments[ci + 1]
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                AgentSkillCenter.shared.requestCommandOnStartup(cmd)
+            }
+        }
+
+        // ── 命令模式引擎注入（--agent-command）──
+        // 命令模式 .accessory + orderOut 下视图 onAppear 可能不触发 → DriveState 不会创建 →
+        // 技能中心拿不到截屏/按键引擎。这里由 AppDelegate 独立创建一组引擎并注入
+        // （不走 DriveState，避免其 init 副作用：删 /tmp/aurora_debug.log + 装第二套 HUD）。
+        // 视图若随后渲染也会 configure 一次（DriveState 引擎），后注入者生效，二者等价。
+        if CommandLine.arguments.contains("--agent-command") {
+            let ctl = ControlEngine()
+            let cap = CaptureEngine()
+            AppDelegate.agentEngines = (ctl, cap)          // 静态持有防释放
+            AgentSkillCenter.shared.configure(control: ctl, capture: cap)
+            cap.start()                                     // 本地 SCK 全屏流（屏幕录制 TCC）
+            print("[AGENT] 命令模式引擎已注入（ControlEngine + CaptureEngine 独立实例，SCK 流已启动）")
         }
     }
     
@@ -2299,17 +2327,8 @@ struct ContentView: View {
             AgentSkillCenter.shared.configure(control: state.controlEngine,
                                               capture: state.captureEngine)
 
-            // AI 发布指令 CLI 入口：--agent-command "<指令>"
-            // 走与对话框输入框【完全相同】的 sendUserMessage(.human) 管线
-            // （关键词/LLM 端到端规划 + 统一技能通道），供无 UI/自动化环境下驱动并验证 AI 指令。
-            // 含顺序词（先/然后/再）的复合指令会触发真实 LLM 规划（AgentLoop）。
-            if let ci = args.firstIndex(of: "--agent-command"), ci + 1 < args.count {
-                let cmd = args[ci + 1]
-                print("[AGENT] --agent-command 收到：\(cmd)，1.5s 后经 sendUserMessage 管线下发")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    AgentSkillCenter.shared.sendUserMessage(cmd, source: .human)
-                }
-            }
+            // --agent-command 派发已移到 AppDelegate（requestCommandOnStartup）：
+            // 命令模式下窗口被 orderOut、本 onAppear 可能不触发，派发不能依赖视图渲染。
         }
     }
 }
