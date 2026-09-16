@@ -1166,8 +1166,12 @@ final class AgentSkillCenter: @unchecked Sendable {
     }
 
     /// 通用 UI 点击技能（自动领奖励 / 自动收家具）
-    /// 真实链路：截图 → Vision OCR 定位「领取/收取」按钮 → 鼠标点击 →
-    /// 等 UI 反应后重试，最多 N 轮；按钮消失即完成。
+    /// 真实链路：（可选）按入口热键开界面 → 截图 → Vision OCR 定位「领取/收取」按钮
+    /// → 鼠标点击 → 等 UI 反应后重试；按钮消失即完成，换下一入口键。
+    /// 入口键依据（G1 文档 + 实测）：
+    ///   rewards: F4=活动页（实测✓，含「环期赠礼」签到 tab）/ F1、F2=MaaNTE 文档的活动/环期赏令入口（版本待实证）
+    ///   furniture: MaaNTE 原义=开放世界家具物（仓鼠球/棉棉/木箱），非 UI 菜单；
+    ///   此处保留 UI 关键词循环作兜底（面板已标注语义差异，找到即点、找不到安全停）
     private func performUIClickLoop(skill: AgentSkill, source: AgentInvokeSource, dryRun: Bool) {
         guard let mouse = makeMouse() else {
             appendSystem("❌ 辅助功能权限未授权，无法注入鼠标")
@@ -1177,21 +1181,32 @@ final class AgentSkillCenter: @unchecked Sendable {
 
         // 每种技能的关键词（按优先级）
         let keywords: [String]
+        let entryKeys: [ControlEngine.GameKey?]
         let maxRounds: Int
         let clickInterval: TimeInterval
         switch skill.id {
         case "rewards":
-            keywords = ["一键领取", "领取奖励", "领取", "领奖", "确认"]
-            maxRounds = 8
+            keywords = ["一键领取", "免费领取", "立即领取", "领取奖励", "领取", "签到", "确认"]
+            entryKeys = [.f4, .f1, .f2]          // F4 实测=活动页；F1/F2 待实证（MaaNTE 文档）
+            maxRounds = 6
             clickInterval = 1.2
         case "furniture":
             keywords = ["一键收取", "收取家具", "收取", "回收"]
+            entryKeys = [nil]                     // 无 UI 入口（世界物品），直接扫当前屏
             maxRounds = 8
             clickInterval = 1.0
         default:
             keywords = []
+            entryKeys = []
             maxRounds = 0
             clickInterval = 1.0
+        }
+
+        // 键注入安全护栏：游戏窗口不在前台就取消（与 fishing/volleyball 同款）
+        guard GameWindowDetector.isGameVisible() else {
+            appendSystem("🎮 未检测到游戏窗口，\(skill.name)已取消（安全护栏）")
+            runningSkills.remove(skill.id)
+            return
         }
 
         let scale = MouseController.displayScale
@@ -1200,44 +1215,68 @@ final class AgentSkillCenter: @unchecked Sendable {
             self?.dlog("[\(skill.id)] \(msg)")
         }
 
-        var clicked = 0
-        for round in 1...maxRounds {
-            // 技能可能被用户手工停止（runningSkills 被移除），循环感知退出
+        var totalClicked = 0
+        for (i, entryKey) in entryKeys.enumerated() {
             guard runningSkills.contains(skill.id) else {
                 logger("⏹️ 已停止（用户中断）")
                 return
             }
-
-            guard let frame = capture?.currentFrame,
-                  let cg = loginAssistant.cgImage(from: frame) else {
-                logger("⚠️ 拿不到截屏帧（第 \(round) 轮）")
-                continue
+            // 切入口界面：首个直接按；其先关旧界面再按新键
+            if let k = entryKey {
+                if i > 0 {
+                    control?.pressGameKey(.esc, duration: 0.05)
+                    usleep(600_000)
+                }
+                control?.pressGameKey(k, duration: 0.05)
+                logger("⌨️ 入口 \(i+1)/\(entryKeys.count)：按 \(k.rawValue) 开界面")
+                usleep(900_000)   // 等界面切换
             }
 
-            guard let hit = loginAssistant.locateButton(keywords, in: cg, scale: scale) else {
-                // 找不到按钮 = 领完了/收完了，或界面不在
-                logger(clicked > 0
-                       ? "🏁 完成：共点击 \(clicked) 次，界面上已无「\(skill.name)」按钮"
-                       : "ℹ️ 未找到「\(skill.name)」按钮（需要先打开对应界面？）")
-                runningSkills.remove(skill.id)
-                return
+            var clicked = 0
+            for round in 1...maxRounds {
+                guard runningSkills.contains(skill.id) else {
+                    logger("⏹️ 已停止（用户中断）")
+                    return
+                }
+                guard let frame = capture?.currentFrame,
+                      let cg = loginAssistant.cgImage(from: frame) else {
+                    logger("⚠️ 拿不到截屏帧（第 \(round) 轮）")
+                    continue
+                }
+                guard let hit = loginAssistant.locateButton(keywords, in: cg, scale: scale) else {
+                    // 本入口没有按钮 → 换下一个入口键（或全部结束）
+                    logger("ℹ️ 入口 \(i+1) 未找到「\(skill.name)」按钮，\(i + 1 < entryKeys.count ? "换下一入口…" : "全部入口扫完")")
+                    break
+                }
+                guard !dryRun else {
+                    logger("✅ 自测：定位到「\(hit.text)」→ (\(Int(hit.point.x)), \(Int(hit.point.y)))，链路就绪")
+                    runningSkills.remove(skill.id)
+                    return
+                }
+                logger("🖱️ 第 \(round) 轮：点击「\(hit.text)」")
+                mouse.click(at: hit.point)
+                clicked += 1
+                totalClicked += 1
+                usleep(useconds_t(clickInterval * 1_000_000))
+                // 点击后复查：按钮消失 = 领完，结束本入口
+                usleep(500_000)
+                if let frame2 = capture?.currentFrame, let cg2 = loginAssistant.cgImage(from: frame2) {
+                    if loginAssistant.locateButton(keywords, in: cg2, scale: scale) == nil {
+                        logger("🏁 入口 \(i+1)：共点击 \(clicked) 次，按钮已消失（领完/收完）")
+                        runningSkills.remove(skill.id)
+                        return
+                    }
+                }
             }
-
-            guard !dryRun else {
-                // 自测：只验证定位链路，不真点
-                logger("✅ 自测：定位到「\(hit.text)」→ (\(Int(hit.point.x)), \(Int(hit.point.y)))，链路就绪")
-                runningSkills.remove(skill.id)
-                return
-            }
-
-            logger("🖱️ 第 \(round) 轮：点击「\(hit.text)」")
-            mouse.click(at: hit.point)
-            clicked += 1
-            usleep(useconds_t(clickInterval * 1_000_000))
+            // 本入口没点任何东西 → 继续下一个入口键
+            if totalClicked == 0 { continue }
         }
 
-        // 到达轮数上限仍未结束（理论上按钮会消失；兜底停止）
-        logger("⏹️ 已达 \(maxRounds) 轮上限，停止（避免无限点击）")
+        if totalClicked > 0 {
+            logger("✅ 完成：共点击 \(totalClicked) 次（\(skill.name)）")
+        } else {
+            logger("ℹ️ 未在任何入口找到「\(skill.name)」按钮（可能已领完，或需手动打开对应界面）")
+        }
         runningSkills.remove(skill.id)
     }
 

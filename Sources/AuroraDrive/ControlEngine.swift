@@ -247,6 +247,10 @@ final class ControlEngine: @unchecked Sendable {
         case m = "M"     // 77
         case b = "B"     // 66
         case t = "T"     // 84
+        // 异环 HUD 功能热键（G2：rewards 入口页切换用；实测 F3=卡布罗集市 F4=活动页）
+        case f1 = "F1"   // 122
+        case f2 = "F2"   // 120
+        case f4 = "F4"   // 118
         // 修饰键
         case shift = "Shift"   // 160 (Left Shift)
         case ctrl = "Ctrl"     // 162 (Right Ctrl)
@@ -282,6 +286,7 @@ final class ControlEngine: @unchecked Sendable {
         .w: 87, .a: 65, .s: 83, .d: 68,
         .f: 70, .e: 69, .space: 32,
         .esc: 27, .q: 81, .r: 82, .m: 77, .b: 66, .t: 84,
+        .f1: 122, .f2: 120, .f4: 118,
         .shift: 0xA0, .ctrl: 0xA2,
         .one: 49, .two: 50, .three: 51, .four: 52,
         .five: 53, .six: 54, .seven: 55,
