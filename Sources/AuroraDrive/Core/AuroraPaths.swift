@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
 // SPDX-License-Identifier: GPL-3.0-or-later
-// 项目根定位：源码重组进 Sources/AuroraDrive/ 后，#filePath 不再指向项目根。
+// 项目根定位：源码重组进 Sources/AuroraDrive/Core/ 后，#filePath 不再指向项目根。
 // 本文件提供统一的多候选根目录解析，供 models/data/recordings 等资源定位使用。
 
 import Foundation
@@ -15,8 +15,9 @@ enum AuroraPaths {
 
         var candidates: [URL] = []
 
-        // 1. 本文件编译期路径上溯 3 级：Sources/AuroraDrive/Paths.swift → 项目根
+        // 1. 本文件编译期路径上溯 4 级：Sources/AuroraDrive/Core/AuroraPaths.swift → 项目根
         candidates.append(URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent())
