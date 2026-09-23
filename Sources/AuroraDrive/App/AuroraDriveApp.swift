@@ -2073,7 +2073,17 @@ final class DriveState {
     private(set) var currentCommand: ControlCommand = .idle
 
     init() {
-        try? FileManager.default.removeItem(atPath: "/tmp/aurora_debug.log")
+        // 只在「UI 主进程」清空调试日志。
+        // 背景：DriveState 有 5 个创建点（引擎进程 1 + UI 主进程 1 + 三个截图夹具），
+        // 每个都会执行这一行；而引擎与 UI 是两个长驻进程、共用同一个日志文件，
+        // 若引擎启动时也清空，会把 UI 刚写下的启动诊断整段抹掉（两进程互相删）。
+        // 判定方式与下方 gameHUD.install() 的进程判断保持一致。
+        let args = CommandLine.arguments
+        let isEngine = args.contains("--engine")
+        let isSelfTest = args.contains { $0.hasSuffix("-selftest") || $0.hasPrefix("--mc-") }
+        if !isEngine && !isSelfTest {
+            try? FileManager.default.removeItem(atPath: "/tmp/aurora_debug.log")
+        }
         // ── 帧率 HUD（左上角绿色两行）：兼作 Game Mode 对抗的可见窗口 ──
         gameHUD.fpsProvider = { [weak self] in
             guard let self else { return (0, 0) }
