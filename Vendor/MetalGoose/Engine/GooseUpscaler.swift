@@ -57,6 +57,12 @@ public final class GooseUpscaler {
         settings.aaMode = .off
         settings.frameGenMode = .interpolation
         settings.frameGenMultiplier = 2      // MetalFX 插帧固定 2x
+        // 关闭引擎自绘的合成光标：MouseConstraintManager 在 AuroraDrive 侧是
+        // Stubs.swift 的桩实现，currentCursorFraction() 恒返回屏幕正中心 (0.5,0.5)，
+        // 开启时画面正中会永久钉一个不跟随鼠标的假箭头。真实光标已由
+        // CaptureEngine 的 SCStreamConfiguration.showsCursor = true 采集进画面，
+        // 因此这里必须关掉，否则假箭头会盖在真光标之上。
+        settings.captureCursor = false
         engine.updateSettings(settings)
     }
 
