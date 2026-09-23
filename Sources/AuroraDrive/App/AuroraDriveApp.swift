@@ -2664,8 +2664,12 @@ final class DriveState {
             }
             assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
             // YOLO 检测：优先走 CaptureEngine 直通（源头 GPU 缩放好的缓冲）；
-            // 直通未活跃（如尚未接入）时回退到 tick 内转换
-            if !yoloEngine.fastPathActive {
+            // 直通未活跃（如尚未接入）时回退到 tick 内转换。
+            // fastPathActive 是粘性标志（只在 reset() 清），CaptureEngine 一旦停止
+            // 直通它不会自动回落；这里用 lastFastPathTime 做超时判活，超过 1 秒没有
+            // 新的直通推理就认为直通已失效，回退慢路径，避免 YOLO 静默停摆。
+            let fastPathStale = Date().timeIntervalSince(yoloEngine.lastFastPathTime) > 1.0
+            if !yoloEngine.fastPathActive || fastPathStale {
                 yoloEngine.infer(image: cg)
             }
         }

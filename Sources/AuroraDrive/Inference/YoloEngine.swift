@@ -66,6 +66,12 @@ final class YoloEngine {
     /// 活跃后 tick() 不再走 NSImage→CGImage 慢路径，避免双重推理。
     private(set) var fastPathActive = false
 
+    /// 最近一次直通推理的时刻。fastPathActive 是粘性标志（只在 reset() 清），
+    /// 若 CaptureEngine 停止直通，它不会自动回落，tick 会以为直通仍在而永不回退
+    /// 慢路径 → YOLO 停摆。调用方据本时间戳做超时回退判断。
+    /// 标记 @ObservationIgnored：仅供 tick 判活，不参与 UI 观察。
+    @ObservationIgnored private(set) var lastFastPathTime: Date = .distantPast
+
     // MARK: - 状态输出
 
     private(set) var isLoaded = false
@@ -263,11 +269,16 @@ final class YoloEngine {
     /// 这里直接推理，跳过 NSImage/CGImage 大图转换链路（帧率瓶颈所在）。
     func inferFast(pixelBuffer: CVPixelBuffer) {
         guard enabled else { return }
-        fastPathActive = true
         guard isLoaded, let modelRef = model else {
             loadIfNeeded()
             return
         }
+        // fastPathActive 只在「确实开始走直通」时才置位。
+        // 若像原先那样放在上面两个 guard 之前，模型未加载时也会置 true，
+        // 调用方（tick 的 if !fastPathActive）便永远不再回退慢路径，
+        // YOLO 会彻底停摆。同时记录时间戳，供调用方做超时回退判断。
+        fastPathActive = true
+        lastFastPathTime = Date()
         guard !isInferencing else { return }   // 防重叠
 
         // 拷贝到私有缓冲（主线程，640×640×4 ≈ 1.6MB，memcpy 极快），
