@@ -257,10 +257,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             self.stream = nil
             self.isCapturing = false
             self.currentFrame = nil
-            // P2 修复：停捕获时把三个 CVPixelBufferPool 置 nil，释放 ~8MB 空闲缓冲
-            //（下次 start 会按当前分辨率重建）。三个池只在 captureQueue 上被
-            // stream() 回调经 make*BufferPool 读写，这里同样派发到 captureQueue
-            // 串行清理，避免与在途帧回调竞争（否则跨线程写 nil 与建池构成数据竞争）。
+            // P2 修复：停捕获时把四个 CVPixelBufferPool 置 nil，释放空闲缓冲
+            //（下次 start 会按当前分辨率重建）。四个池只在 captureQueue 上被
+            // stream() 回调经 make*BufferPool / upscaleBufferPool 读写，这里同样派发到
+            // captureQueue 串行清理，避免与在途帧回调竞争（否则跨线程写 nil 与建池构成数据竞争）。
             self.captureQueue.sync {
                 self.nativePool = nil
                 self.nativePoolWidth = 0
@@ -270,6 +270,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                 self.uiBufferPool = nil
                 self.uiPoolWidth = 0
                 self.uiPoolHeight = 0
+                // 第四个池：全分辨率插帧缓冲（每块可达数十 MB，之前漏清）
+                self.upscalePool = nil
+                self.upscalePoolWidth = 0
+                self.upscalePoolHeight = 0
             }
             self.onStatusChange?(.stopped)
         }
