@@ -75,10 +75,10 @@ private let kMaxRotationAbs: Double = 180.001
 // 扩图相对旧图整体平移 (+233, +1738)——MaaNTE-Map navi-coordinate-calibration.json
 // 三个标定点 delta 完全一致，README 同值——故 TX/TY 直接加偏移，A/B 不变。
 // 标定点验证: raw(-134394.56, 199913.53) → map(4323, 8488) ✓
-private let kCalibA: Double = 0.016394586684750773
-private let kCalibB: Double = 5.693519256055879e-08
-private let kCalibTX: Double = 6526.474380746091
-private let kCalibTY: Double = 5210.664390686138
+let kCalibA: Double = 0.016394586684750773
+let kCalibB: Double = 5.693519256055879e-08
+let kCalibTX: Double = 6526.474380746091
+let kCalibTY: Double = 5210.664390686138
 
 // MARK: - 类型
 
@@ -285,7 +285,7 @@ final class UE5Decoder {
         let location = sel.location
 
         // 读取加速度和旋转
-        guard let (_, cursor1, _, _) = ue5Vector(payload, offset: bitOffset + 32, scale: 10) else { return nil }
+        guard let (accel, cursor1, _, _) = ue5Vector(payload, offset: bitOffset + 32, scale: 10) else { return nil }
         guard let (_, cursor2, _, _) = ue5Vector(payload, offset: cursor1, scale: 100) else { return nil }
         guard let (rotation, _) = ue5Rotator(payload, offset: cursor2) else { return nil }
 
@@ -293,7 +293,27 @@ final class UE5Decoder {
         lastOffset = bitOffset
         lastCapture = timestamp
         lastLocation = location
+        // 加速度同包取出并留档（2026-09-22 接回）。
+        // 说明：这个向量本来就挨在位置前面，findCandidates 已经解析过了，
+        // 之前 decode 里用 `_` 丢掉。坐标系（世界系 / 车体系）尚未实测确认，
+        // 所以只存不用，等游戏跑起来标定后再决定怎么喂给模型。
+        lastAcceleration = accel
+        lastAccelerationAt = timestamp
         return toPose(location, rotation)
+    }
+
+    /// 最新一帧的加速度（同包解析，scale ÷10）。
+    ///
+    /// ⚠️ 坐标系未确认：UE5 的移动块里这个字段既可能是世界系速度/加速度，
+    /// 也可能是车体系。在没跑游戏实测前**不要**拿它当物理量用，
+    /// 只做展示与后续标定。单位推测为 cm/s²（与位置 cm 同源）。
+    private(set) var lastAcceleration: Vec3?
+    private var lastAccelerationAt: Double?
+
+    /// 对外读取加速度（带新鲜度门，过期返回 nil，避免拿旧值当实时值）
+    func acceleration(maxAge: Double = 0.5) -> Vec3? {
+        guard let a = lastAcceleration, let t = lastAccelerationAt else { return nil }
+        return (Date().timeIntervalSince1970 - t) <= maxAge ? a : nil
     }
 
     /// 扫描包中所有有效的移动块
@@ -422,6 +442,10 @@ final class CoordinateCapture {
 
     // 15秒窗口统计（仅 captureLoop 线程读写）
     private var statWindowStart = Date().timeIntervalSince1970
+    /// 最近一次收到任意包的时间（用于 hasRecentTraffic）
+    private var lastPacketWall = Date().timeIntervalSince1970
+    /// 自启动以来的包总数（跨统计窗口不清零）
+    private var statPacketsTotal = 0
     private var statPackets = 0
     private var statS2C = 0
     private var statC2S = 0
@@ -460,7 +484,7 @@ final class CoordinateCapture {
             
             // 尝试打开这个网卡
             let handle = name.withCString { namePtr in
-                pcap_open_live(namePtr, 65535, 0, 20, &errbuf)
+                pcap_open_live(namePtr, 65535, 0, 100, &errbuf)
             }
             if handle == nil {
                 let errMsg = String(cString: errbuf)
@@ -469,9 +493,16 @@ final class CoordinateCapture {
                 continue
             }
             
-            // 设置过滤器：TCP 30031 + 全部UDP（对齐MaaNTE原版 "tcp port 30031 or udp"，UE5移动同步可能走UDP）
+            // 设置过滤器：**只抓游戏 30031 端口**（TCP + UDP 两种承载）。
+            //
+            // 历史坑：原过滤器是 "tcp port 30031 or udp"，后半句是裸的 ——
+            // 它会把机器上**所有 UDP 流量**（DNS、mDNS、系统广播、其它 App）
+            // 全部抓进来。解码器又不校验来源，于是任意 ≥32 字节的杂包都会被
+            // 硬解成一组坐标，表现就是「游戏都没启动，定位疯狂乱跳」。
+            // 现在锁死端口：非 30031 的包在内核 BPF 层就被丢弃，进不来。
             var filterProgram = bpf_program(bf_len: 0, bf_insns: nil)
-            let compileResult: Int32 = "tcp port 30031 or udp".withCString { cStr in
+            let filterExpr = "(tcp port 30031) or (udp port 30031)"
+            let compileResult: Int32 = filterExpr.withCString { cStr in
                 pcap_compile(handle!, &filterProgram, cStr, 0, 0)
             }
             if compileResult < 0 {
@@ -490,7 +521,7 @@ final class CoordinateCapture {
             // 这个网卡可用！
             devName = name
             pcapHandle = handle
-            pcapLog("[CoordinateCapture] ✓ 选中网卡: \(name) (过滤器: tcp port 30031 or udp)")
+            pcapLog("[CoordinateCapture] ✓ 选中网卡: \(name) (过滤器: \(filterExpr))")
             break
         }
         
@@ -507,7 +538,7 @@ final class CoordinateCapture {
         }
         captureThread?.name = "com.aurora.coordinate-capture"
         captureThread?.start()
-        pcapLog("[CoordinateCapture] 抓包已启动 (tcp port 30031 or udp)")
+        pcapLog("[CoordinateCapture] 抓包已启动 (过滤器: TCP/UDP 30031)")
         return true
     }
 
@@ -519,7 +550,14 @@ final class CoordinateCapture {
             var headerPtr: UnsafeMutablePointer<pcap_pkthdr>? = nil
             var packetPtr: UnsafePointer<UInt8>? = nil
             let result = pcap_next_ex(handle, &headerPtr, &packetPtr)
-            if result == 0 { continue }
+            if result == 0 {
+                // 超时无包。pcap_open_live 的 to_ms=20，这里若立刻 continue，
+                // 无流量时（游戏没开）就变成每秒上千次的忙等 —— 白烧一个 CPU 核心。
+                // 让出时间片再重试：有流量时 pcap 会正常返回，不受影响；
+                // 没流量时线程几乎不占 CPU。用 5ms 而非更大值，保证有包时的实时性。
+                usleep(5_000)
+                continue
+            }
             if result < 0 { break }
             guard let h = headerPtr, let p = packetPtr else { continue }
             processPacket(header: h.pointee, packet: p)
@@ -529,6 +567,12 @@ final class CoordinateCapture {
     /// 处理抓到的包（单线程：captureLoop 串行调用，统计字段无需加锁）
     func processPacket(header: pcap_pkthdr, packet: UnsafePointer<UInt8>) {
         statPackets += 1
+        // 记录"刚才有包"的时间戳：这是 hasRecentTraffic 的唯一依据。
+        // 注意在锁内更新，与 hasRecentTraffic 的读保持同步。
+        lock.lock()
+        lastPacketWall = Date().timeIntervalSince1970
+        statPacketsTotal += 1
+        lock.unlock()
         defer { logStats() }
         let timestamp = Double(header.ts.tv_sec) + Double(header.ts.tv_usec) / 1_000_000.0
         let caplen = Int(header.caplen)
@@ -598,6 +642,31 @@ final class CoordinateCapture {
         statDecodeCalls = 0; statCandHits = 0; statCandPeak = 0; statSamples = 0
     }
 
+    /// 30031 端口最近一段时间是否真有数据包。
+    ///
+    /// 这是判断「游戏到底在不在跑」最直接、也最便宜的信号：
+    ///   · 直接、可靠 —— 定位数据全部来自这个端口，有包=游戏在通信；
+    ///     比查进程名可靠得多（辅助进程 crashpad_handler 也叫「异环」，
+    ///     曾被它骗成"游戏在跑"）。
+    ///   · 极便宜 —— 只读一个自增计数器，零 IPC、零 sysctl、零遍历。
+    ///
+    /// 判定窗口：最近 `window` 秒内收到过包。游戏运行时同步包是持续的
+    /// （几十 Hz），所以 3 秒窗口足够灵敏，也不会因短暂卡顿误判掉线。
+    func hasRecentTraffic(window: Double = 3.0) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        let now = Date().timeIntervalSince1970
+        return (now - lastPacketWall) <= window
+    }
+
+    /// 自抓包启动以来收到的包总数（含非 30031 的，用于区分
+    /// 「端口没流量」与「抓包本身没跑起来」两种不同故障）。
+    var totalPackets: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return statPacketsTotal
+    }
+
     /// 读取最新坐标
     func read(maxAge: Double = 1.0) -> Pose? {
         lock.lock()
@@ -606,6 +675,14 @@ final class CoordinateCapture {
         let now = Date().timeIntervalSince1970
         if now - lastSampleWall > maxAge { return nil }
         return s
+    }
+
+    /// 读取最新加速度（来自同一个 30031 包，与坐标同源）。
+    ///
+    /// 注意：坐标系尚未实测确认（世界系 vs 车体系），单位推测为 cm/s²。
+    /// 目前仅供 UI 展示与后续标定，**不要**直接当作物理加速度喂给控制逻辑。
+    func readAcceleration(maxAge: Double = 0.5) -> Vec3? {
+        decoder.acceleration(maxAge: maxAge)
     }
 
     /// 停止抓包

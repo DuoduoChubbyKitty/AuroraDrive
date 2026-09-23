@@ -25,7 +25,7 @@ import Observation
 /// - brake: 刹车 [0, 1]（游戏里 S 键通常兼作倒车）
 /// - confidence: 本次决策的置信度 [0, 1]，供状态机降级用（E2E 填模型置信度，
 ///   Rule 填启发式分，Escape 固定 0.3 表示低置信脱困中）
-struct ControlCommand {
+struct ControlCommand: Equatable {
     var steer: Double = 0
     var throttle: Double = 0
     var brake: Double = 0

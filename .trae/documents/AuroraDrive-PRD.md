@@ -1,6 +1,6 @@
 # AuroraDrive 极光智行 — 产品需求文档（PRD）
 
-> ⚠️ 本文档为 Python Sidecar 路线产品需求，已被 Route B 纯 C++ 迁移取代。实际架构见 REFACTOR_CHANGELOG.md 阶段7 Route B 说明。
+> ⚠️ 本文档为 Python Sidecar 路线产品需求，**已被取代**。（2026-09-19 注：头注原写"Route B 纯 C++ 迁移"——纯 C++ 只是历史中间路线，当前架构为 **Swift 原生**：`Sources/AuroraDrive`（31 个 Swift 文件）+ `Sources/AuroraDriveUserAgent` + `Sources/AuroraDriveShared`，0 个 C++/mm 文件。旧引用的 REFACTOR_CHANGELOG.md 已不存在，实际架构见 `docs/dev/01-architecture.md` 与 `docs/DEVELOPER_GUIDE.md`。Web/Python 侧文件（`run_web.py`、前端、`cpp_bridge.py` 等）均已删除，正文只作存档阅读。）
 
 > 本文档为自动驾驶仿真系统的产品级可视化 HMI 设计规范，对标小鹏 XNGP / 华为 ADS 3.0 / 蔚来 NOP+ 的智驾座舱观感，作为仿真观测与能力展示的前端。
 

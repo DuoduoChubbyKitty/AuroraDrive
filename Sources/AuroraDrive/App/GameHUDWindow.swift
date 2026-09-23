@@ -58,6 +58,9 @@ final class GameHUDWindow {
                            styleMask: [.borderless],
                            backing: .buffered,
                            defer: false)
+        // 标识为「有意创建的辅助窗口」：主窗口置前逻辑会跳过所有带此标识的窗口，
+        // 避免把 HUD 误判成退化空壳而关掉。
+        win.identifier = NSUserInterfaceItemIdentifier("AuroraAuxHUD")
         win.isOpaque = false
         win.backgroundColor = NSColor.black.withAlphaComponent(0.28)  // 半透明黑底，保证绿字可读
         win.hasShadow = false

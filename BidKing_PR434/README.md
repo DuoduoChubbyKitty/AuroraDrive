@@ -14,7 +14,7 @@ BidKing_PR434/
 ├── README.md                ← 本文档
 ├── pipeline/                ← Pipeline 流程定义（MaaFramework V2 格式）
 │   ├── BidKing.json         ← 主流程：入口→轮次循环→开始→出价轮询→退出
-│   └── BidKingStatus.json   ← 状态识别节点（弹窗/跳过/面板残留/出价 可用性）
+│   └── BidKingStatus.json   ← 轮询候选状态节点（二次确认弹窗/面板残留自愈；跳过与出价节点在主流程里）
 └── agent/                   ← Python 自定义动作（MaNTE agent 侧）
     ├── place_bid.py         ← 出价入口动作（策略调度 + 公共输入层）
     ├── layout.py            ← 固定屏幕布局常量（1280×720）
@@ -47,7 +47,7 @@ BidKingEntrance（进拍卖界面）
                   → BidKingConfirmBid（点确认出价）→ 回轮询
 ```
 
-任一步失败都回 `BidKingWaitBidOrSkip` 自愈；一轮完整结束后点退出，进入下一轮。
+出价输入/确认两步（`BidKingSelectOne`/`BidKingConfirmBid`）配了 `on_error` 回 `BidKingWaitBidOrSkip` 自愈；一轮完整结束后点退出（`BidKingExit`）进入下一轮，`max_hit` 20 轮用尽则由 `BidKingTaskExit` 结束任务。
 
 ---
 
@@ -62,7 +62,7 @@ DEFAULT_STRATEGY = "fixed"                 # 未知策略回落
 @register("fixed")                         # 导入即注册
 def decide(context, controller, params, ui) -> Optional[int]: ...
 
-def get_strategy(name): ...                # 未知名字回落默认策略
+def get_strategy(name) -> tuple[Strategy, bool]: ...   # (策略实现, 是否回落)；未知名字回落默认策略
 ```
 
 新增策略两步：新建模块 + `@register("名字")`，末尾 import 一次。
@@ -77,7 +77,7 @@ def get_strategy(name): ...                # 未知名字回落默认策略
 ### 3. 价格解析防误读（utils.py `extract_price`）
 
 - 全角转半角（OCR 常返回全角数字）
-- **整串匹配**两种写法：千位分隔 `1,222,418` / 纯数字 `839`
+- **整串匹配**两种写法：千位分隔 `1,222,418`（分隔符 `,` 或 `.` 都接受，OCR 常把逗号读成小数点）/ 纯数字 `839`
 - 不匹配直接返回 None —— `可输入范围0~2,524,741`、`1.23M` 这类文本**必须失败**，
   避免把提示文字读成余额
 

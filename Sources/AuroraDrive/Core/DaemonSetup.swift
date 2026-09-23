@@ -55,64 +55,13 @@ struct DaemonSetupManager {
 
     // MARK: - BPF root LaunchDaemon
 
+    /// ⚠️ 已停用（2026-09-23）：原生授权路径。
+    ///
+    /// 这里原来是 `do shell script "/bin/sh ..." with administrator privileges`，
+    /// 会弹 macOS 系统授权框 —— 用户明确要求不要用原生授权。
+    /// 提权统一改走 `PrivilegePill`（应用内输密码 + sudo -S）。
     private static func installBPFWithSystemAuthorization() -> (success: Bool, message: String) {
-        let script = """
-        #!/bin/sh
-        set -eu
-        umask 022
-        BPF_SCRIPT=/usr/local/bin/aurora-bpf-setup.sh
-        BPF_PLIST=/Library/LaunchDaemons/com.aurora.bpf-setup.plist
-        TMP_SCRIPT=$(mktemp /tmp/aurora-bpf.XXXXXX)
-        TMP_PLIST=$(mktemp /tmp/aurora-bpf-plist.XXXXXX)
-        trap 'rm -f "$TMP_SCRIPT" "$TMP_PLIST"' EXIT
-        cat > "$TMP_SCRIPT" <<'EOF_BPF_SCRIPT'
-        #!/bin/sh
-        set -eu
-        chmod 666 /dev/bpf* 2>/dev/null || true
-        EOF_BPF_SCRIPT
-        chmod 755 "$TMP_SCRIPT"
-        install -o root -g wheel -m 755 "$TMP_SCRIPT" "$BPF_SCRIPT"
-        cat > "$TMP_PLIST" <<'EOF_BPF_PLIST'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0"><dict>
-          <key>Label</key><string>com.aurora.bpf-setup</string>
-          <key>ProgramArguments</key><array><string>/usr/local/bin/aurora-bpf-setup.sh</string></array>
-          <key>RunAtLoad</key><true/>
-        </dict></plist>
-        EOF_BPF_PLIST
-        install -o root -g wheel -m 644 "$TMP_PLIST" "$BPF_PLIST"
-        /bin/launchctl bootout system/com.aurora.bpf-setup 2>/dev/null || true
-        /bin/launchctl bootstrap system "$BPF_PLIST"
-        /bin/launchctl kickstart -k system/com.aurora.bpf-setup
-        /bin/launchctl print system/com.aurora.bpf-setup >/dev/null
-        test -r /dev/bpf0
-        test -w /dev/bpf0
-        """
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("AuroraDrive-Install-\(UUID().uuidString)", isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true,
-                                                    attributes: [.posixPermissions: 0o700])
-            let scriptURL = tempDir.appendingPathComponent("install.sh")
-            try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
-            defer { try? FileManager.default.removeItem(at: tempDir) }
-
-            // 使用 macOS 原生管理员授权，不把密码放入 argv 或脚本。
-            let quotedPath = shellQuote(scriptURL.path)
-            let appleScript = "do shell script \"/bin/sh \(quotedPath)\" with administrator privileges"
-            let result = run("/usr/bin/osascript", ["-e", appleScript], timeout: 30)
-            guard result.status == 0 else {
-                return (false, "BPF 管理员授权或安装失败：\(result.output)")
-            }
-            guard BPFSetupManager.isBPFAvailable() else {
-                return (false, "授权流程返回成功，但 /dev/bpf0 仍不可读写")
-            }
-            return (true, "BPF root LaunchDaemon 已安装并验证")
-        } catch {
-            return (false, "准备 BPF 安装事务失败：\(error.localizedDescription)")
-        }
+        return (false, "此路径已停用：请使用应用内提权（PrivilegePill），不要调用原生授权")
     }
 
     private static func shellQuote(_ value: String) -> String {

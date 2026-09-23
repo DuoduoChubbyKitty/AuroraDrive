@@ -4,9 +4,9 @@
 
 **macOS 第三方《异环》(NTE) 视角自动驾驶系统**
 
-屏幕捕获 → CoreML 推理 → 按键注入，附带网络抓包定位、速度表 CNN 识别与 MetalFX 显示增强
+屏幕捕获 → CoreML 推理 → 按键注入，附带网络抓包定位、速度识别（PP-OCRv6 微调 int8）与 MetalFX 显示增强
 
-[English Documentation](README.en.md) · 开发者文档 · [Developer Guide (EN)](docs/DEVELOPER_GUIDE.en.md)
+[English Documentation](README.en.md) · 开发者文档 · [Developer Guide (EN)](docs/文档库/英文版/DEVELOPER_GUIDE.en.md)
 
 </div>
 
@@ -29,8 +29,8 @@
 ## ✨ 核心功能 / Features
 
 - **端到端自动驾驶**：M9 单目模型直接从画面输出操控量，四档降级保底（端到端 → YOLO 接管 → 脱困 → 规则兜底）
-- **网络抓包定位**：libpcap 捕获 UE5 移动同步包（tcp/30031），位流解码出世界坐标 + 朝向，映射到 11264×11264 大地图像素
-- **速度表 CNN 识别**：5 层卷积网络（`speed_digit_cnn_v4.mlpackage`，INT4 量化），三槽位逐位识别 + 三层校验
+- **网络抓包定位**：libpcap 捕获 UE5 移动同步包（tcp/30031），位流解码出世界坐标 + 朝向，映射到 13056×13056 大地图像素（map-2026-08，2026-09-13 升级）
+- **速度识别**：PP-OCRv6 微调整行模型（`models/ppocrv6_tiny_ft_int8.mlpackage`，int8 量化，GPU 推理）为主路径，逐位 CNN（`speed_digit_cnn_v4*`）为备用，三层校验
 - **BPF 权限自动安装**：App 内输入一次管理员密码，自动安装 LaunchDaemon，每次开机自动恢复 `/dev/bpf*` 读写权
 - **自愈式定位**：网络失效 → 视觉模板匹配顶班 → 后台 8 种诊断 + 自动修复 → 自动切回
 - **全收集交互地图**：多图层开关（传送点/材料/宝箱/谕石），实时玩家位置 + 朝向
@@ -58,28 +58,40 @@ cd AuroraDrive
 ┌─ 捕获层 Capture ──────┐   ┌─ 推理层 Inference ───────┐   ┌─ 执行层 Actuate ───┐
 │ ScreenCaptureKit      │ → │ E2E(m9_mono) 30Hz        │ → │ CGEvent 按键注入    │
 │ 30Hz CVPixelBuffer    │   │ YOLO(yolo26s) 检测        │   │ (ControlEngine)     │
-├─ 定位层 Locate ───────┤   │ 速度CNN(v4) 30Hz          │   ├─ 显示层 Display ───┤
+├─ 定位层 Locate ───────┤   │ 速度OCR(PP-OCRv6) 30Hz  │   ├─ 显示层 Display ───┤
 │ libpcap tcp/30031     │   ├─ 决策层 Decide ──────────┤   │ MetalFX 超分+插帧   │
 │ UE5位流→世界坐标       │   │ 四档降级状态机             │   │ 全收集交互地图      │
-│ →11264px 地图像素      │   │ e2e/yolo/recover/rule     │   │ (仅人眼观看)        │
+│ →13056px 地图像素     │   │ e2e/yolo/recover/rule     │   │ (仅人眼观看)        │
 └───────────────────────┘   └───────────────────────────┘   └────────────────────┘
 ```
 
 **架构红线**：插帧/超分只作用于显示叠加层，绝不进入决策链路。
 *Frame interpolation / upscaling ONLY applies to the display overlay — never to the capture → inference → key-injection decision path.*
 
+## 🧹 2026-09-19 磁盘清理 / Disk cleanup
+
+为释放本地磁盘，以下路径已迁至外置硬盘 `/Volumes/代码项目/删除_20260919/自动驾驶系统清理/`（完整对照表见 `docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md` §七）：
+
+- `data/web_frames`（19G）、`build/vid_*.mp4`、`build/template_scratch`、`build/contact`、`build/ocr_batch(2)`、`data/_gray_cache`
+- `tools/ppocrv6_finetune/output`（可重训再生，内容已迁外置硬盘，本地目录已删）
+- `.build`（swift build 自动重建）
+
+本地保留的相关数据：`build/new_templates`（291 条目 / 268 张 png）、`build/dig_*.json`（52 份挖掘证据）、`build/maa_pipeline_override.json`（250 节点 ROI override）、`data/mac_shots`（208 张实机截图）。
+
+铁律：**不降帧率、不打补丁绕过**。
+
 ## 📚 文档 / Documentation
 
 | 层级 | 中文 | English |
 |---|---|---|
 | 入口 Overview | [README（本页）](README.md) | [README.en](README.en.md) |
-| 二级 Developer Guide | [开发者文档](docs/DEVELOPER_GUIDE.md) | [Developer Guide](docs/DEVELOPER_GUIDE.en.md) |
-| 三级 Architecture | [系统架构](docs/dev/01-architecture.md) | [Architecture](docs/dev/en/01-architecture.en.md) |
-| 三级 Network Locate | [网络定位](docs/dev/02-network-locate.md) | [Network Localization](docs/dev/en/02-network-locate.en.md) |
-| 三级 Speed OCR | [速度识别](docs/dev/03-speed-ocr.md) | [Speed Recognition](docs/dev/en/03-speed-ocr.en.md) |
-| 三级 Vision & Inference | [视觉与推理](docs/dev/04-vision-inference.md) | [Vision & Inference](docs/dev/en/04-vision-inference.en.md) |
-| 三级 Control & Safety | [控制与安全](docs/dev/05-control-safety.md) | [Control & Safety](docs/dev/en/05-control-safety.en.md) |
-| 四级 Internals | [核心实现原理](docs/internals/) | [Internals](docs/internals/en/) |
+| 二级 Developer Guide | [开发者文档](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) | [Developer Guide](docs/文档库/英文版/DEVELOPER_GUIDE.en.md) |
+| 三级 Architecture | [系统架构](docs/文档库/自动驾驶与功能/01-architecture.md) | [Architecture](docs/文档库/英文版/01-architecture.en.md) |
+| 三级 Network Locate | [网络定位](docs/文档库/自动驾驶与功能/02-network-locate.md) | [Network Localization](docs/文档库/英文版/02-network-locate.en.md) |
+| 三级 Speed OCR | [速度识别](docs/文档库/自动驾驶与功能/03-speed-ocr.md) | [Speed Recognition](docs/文档库/英文版/03-speed-ocr.en.md) |
+| 三级 Vision & Inference | [视觉与推理](docs/文档库/自动驾驶与功能/04-vision-inference.md) | [Vision & Inference](docs/文档库/英文版/04-vision-inference.en.md) |
+| 三级 Control & Safety | [控制与安全](docs/文档库/自动驾驶与功能/05-control-safety.md) | [Control & Safety](docs/文档库/英文版/05-control-safety.en.md) |
+| 四级 Internals | [核心实现原理](docs/文档库/自动驾驶与功能/) | [Internals](docs/文档库/英文版/) |
 
 ## 📄 许可证 / License
 

@@ -6,12 +6,55 @@ import Foundation
 /// BPF权限自动安装器：首次启动检测BPF权限，通过App内密码输入安装开机自启LaunchDaemon
 /// 用户只需输入一次密码，之后每次重启自动chmod 666 /dev/bpf*，永久无需再输
 struct BPFSetupManager {
-    
-    /// 检查BPF是否可读写
+
+    /// 检查 BPF 是否可读写。
+    ///
+    /// ⚠️ 2026-09-23 修复（这是「小药丸弹不出来」的根因）：
+    /// 旧实现只探测 `/dev/bpf0`，而它长期是 666 → 恒返回 true →
+    /// 上层判定「已授权」→ 密码弹窗永远不弹。但真正要用的那个设备
+    /// （pcap 按需分配，可能是 bpf4/bpf5…）却可能是 `crw-------`，
+    /// 于是「界面显示已授权，实际抓不到包」。
+    ///
+    /// 正解：**逐个探测所有已存在的 bpf 设备**，只要有一个可读写就算可用；
+    /// 且必须与 pcap 的真实分配行为对齐 —— 只看 bpf0 是错的。
     static func isBPFAvailable() -> Bool {
-        return "/dev/bpf0".withCString { access($0, Int32(O_RDWR)) } == 0
+        return firstWritableBPFDevice() != nil
     }
-    
+
+    /// 返回第一个可读写的 /dev/bpfN，全不可用则 nil。
+    /// pcap 内核按需创建 bpf 设备，数量不固定，所以必须动态枚举而不是写死 0..3。
+    static func firstWritableBPFDevice() -> String? {
+        for i in 0..<64 {
+            let path = "/dev/bpf\(i)"
+            guard FileManager.default.fileExists(atPath: path) else {
+                // bpf 设备编号连续创建，遇到第一个不存在的就可以停了；
+                // 但仍多扫几个，避免中间被其它进程占用后留下的空洞。
+                if i > 8 { break }
+                continue
+            }
+            if path.withCString({ access($0, Int32(O_RDWR)) }) == 0 {
+                return path
+            }
+        }
+        return nil
+    }
+
+    /// 列出所有不可读写的 bpf 设备（诊断用，让 UI 能如实说明卡在哪）
+    static func lockedBPFDevices() -> [String] {
+        var out: [String] = []
+        for i in 0..<64 {
+            let path = "/dev/bpf\(i)"
+            guard FileManager.default.fileExists(atPath: path) else {
+                if i > 8 { break }
+                continue
+            }
+            if path.withCString({ access($0, Int32(O_RDWR)) }) != 0 {
+                out.append(path)
+            }
+        }
+        return out
+    }
+
     /// 检查LaunchDaemon是否已安装
     static func isLaunchDaemonInstalled() -> Bool {
         return FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/com.aurora.bpf-setup.plist")
@@ -41,93 +84,22 @@ struct BPFSetupManager {
         return isLaunchDaemonInstalled() && !isLaunchDaemonLoaded()
     }
     
-    /// 写setup脚本到/tmp，然后用AppleScript以管理员权限运行
-    /// - Parameter password: 用户在App内输入的密码
-    /// - Returns: 是否安装成功
+    /// ⚠️ 已停用（2026-09-23）：原生授权路径。
+    ///
+    /// 这里原来是 `do shell script ... password "..." with administrator privileges`，
+    /// 有两个致命问题：
+    ///   ① 密码硬编码/明文进 argv —— 发布版别人的密码当然不是本机那个，必然失败；
+    ///   ② 走 macOS 原生授权弹窗 —— 用户明确要求**不要**用原生授权
+    ///      （反复索要系统授权会被 macOS 标记为可疑行为，对开源项目声誉有害）。
+    ///
+    /// 提权已统一改走 `PrivilegePill`（应用内输密码 + `sudo -S`，密码经 stdin）。
+    /// 这个函数保留仅为兼容旧调用点，调用即返回失败，绝不执行任何提权动作。
+    @available(*, deprecated, message: "已改用 PrivilegePill.shared.install(password:)")
     static func install(password: String) -> (success: Bool, message: String) {
-        // 1. 写setup脚本到/tmp
-        let scriptContent = """
-#!/bin/bash
-# 创建开机自启脚本
-cat > /usr/local/bin/aurora-bpf-setup.sh << 'SCRIPT_EOF'
-#!/bin/bash
-chmod 666 /dev/bpf* 2>/dev/null
-SCRIPT_EOF
-chmod 755 /usr/local/bin/aurora-bpf-setup.sh
-
-# 创建LaunchDaemon plist
-cat > /Library/LaunchDaemons/com.aurora.bpf-setup.plist << 'PLIST_EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.aurora.bpf-setup</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/bin/sh</string>
-        <string>/usr/local/bin/aurora-bpf-setup.sh</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-</dict>
-</plist>
-PLIST_EOF
-chown root:wheel /Library/LaunchDaemons/com.aurora.bpf-setup.plist
-chmod 644 /Library/LaunchDaemons/com.aurora.bpf-setup.plist
-launchctl load /Library/LaunchDaemons/com.aurora.bpf-setup.plist
-
-# 立即chmod BPF
-chmod 666 /dev/bpf* 2>/dev/null
-echo "BPF_SETUP_DONE"
-"""
-        
-        let scriptPath = "/tmp/aurora_bpf_setup.sh"
-        do {
-            try scriptContent.write(toFile: scriptPath, atomically: true, encoding: .utf8)
-            // 设置可执行权限
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptPath)
-        } catch {
-            return (false, "写脚本失败: \(error.localizedDescription)")
-        }
-        
-        // 2. 用AppleScript以管理员权限运行setup脚本（不弹系统弹窗，密码通过参数传）
-        let escapedPwd = password.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let appleScript = "do shell script \"bash \(scriptPath)\" password \"\(escapedPwd)\" with administrator privileges"
-        
-        let task = Process()
-        task.launchPath = "/usr/bin/osascript"
-        task.arguments = ["-e", appleScript]
-        
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-        
-        do {
-            try task.run()
-            task.waitUntilExit()
-            
-            if task.terminationStatus == 0 {
-                // 验证BPF是否可用了
-                if isBPFAvailable() {
-                    return (true, "BPF权限已安装，开机自动生效")
-                } else {
-                    return (true, "LaunchDaemon已安装，请重启电脑后生效")
-                }
-            } else {
-                let errData = pipe.fileHandleForReading.readDataToEndOfFile()
-                let errMsg = String(data: errData, encoding: .utf8) ?? ""
-                if errMsg.contains("Authentication") || errMsg.contains("password") {
-                    return (false, "密码错误")
-                }
-                return (false, "安装失败: \(errMsg)")
-            }
-        } catch {
-            return (false, "执行失败: \(error.localizedDescription)")
-        }
+        _ = password
+        return (false, "此路径已停用：请使用应用内提权（PrivilegePill），不要调用原生授权")
     }
-    
+
     /// 尝试立即chmod BPF（不需要密码，如果LaunchDaemon已装但BPF还没chmod）
     static func tryImmediateChmod() -> Bool {
         let task = Process()

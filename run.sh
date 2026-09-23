@@ -23,9 +23,16 @@ echo "  Swift: $SWIFT_VER"
 MACOS_VER=$(sw_vers -productVersion 2>/dev/null)
 echo "  macOS: $MACOS_VER"
 
-# libpcap 检查
-if ls /usr/lib/libpcap* >/dev/null 2>&1 || brew list libpcap >/dev/null 2>&1; then
-    echo "  libpcap: ✓ 已安装"
+# libpcap 检查（2026-09-20 修正）
+#   旧判据自 macOS 11 起恒为假，必然误报「✗ 未安装」：
+#     ① `ls /usr/lib/libpcap*`——系统库已全部移入 dyld 共享缓存，磁盘上不存在
+#        实体文件（本机 /usr/lib 仅剩 32 个条目），故恒失败；
+#     ② `brew list libpcap`——libpcap 是 macOS 自带库，从不经 brew 安装，故恒失败。
+#   改用 dyld 实际解析结果判断（判据 ① 需产物存在，编译前不存在 → 由 ② 兜底）：
+if { [ -f "$BIN_SRC" ] && /usr/bin/dyld_info -linked_dylibs "$BIN_SRC" 2>/dev/null | grep -q libpcap; } \
+   || /usr/bin/dyld_info -exports /usr/lib/libpcap.A.dylib >/dev/null 2>&1 \
+   || ls /usr/lib/libpcap* >/dev/null 2>&1; then
+    echo "  libpcap: ✓ 已安装 (dyld 共享缓存)"
 else
     echo "  libpcap: ✗ 未安装 (NetworkPacketCapture.swift 需要)"
     echo "    安装: brew install libpcap"
@@ -125,8 +132,15 @@ else
     # 优先用 .app bundle (LaunchServices 干净父进程)
     # --auto-login: 启动即自动进入登录守护（每 8s 检测登录界面并点击，
     #   直到进游戏或 80s 超时）。游戏已登录/未开时守护安静退出，无副作用。
-    open "$BUNDLE_DIR" --args --auto-login
-    echo "已启动（--auto-login 自动登录守护已开启）。如果没出现窗口,检查:"
+    # 默认不自动登录（用户手动控制）；要自动登录传 --auto-login 参数
+    if [ "$1" = "--auto-login" ]; then
+        open "$BUNDLE_DIR" --args --auto-login
+        echo "已启动（--auto-login 自动登录守护已开启）。如果没出现窗口,检查:"
+    else
+        open "$BUNDLE_DIR"
+        echo "已启动（未开启自动登录）。要自动登录：./run.sh --auto-login"
+        echo "如果没出现窗口,检查:"
+    fi
     echo "  1. 屏幕录制权限: 系统设置 → 隐私 → 屏幕录制"
     echo "  2. 辅助功能权限: 系统设置 → 隐私 → 辅助功能"
     echo "  3. 手动跑裸文件: ./$BIN_DST"

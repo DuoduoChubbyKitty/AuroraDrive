@@ -45,100 +45,17 @@ enum PrioritySetupManager {
         }
     }
 
-    /// 安装（需要管理员密码）。模式与 BPFSetupManager.install 完全一致。
+    /// 语义化别名（供 PrivilegePill 判定「权限是否真的可用」）。
+    /// 与 isRunning 同义：plist 装过 ≠ 守护在跑，必须实测进程存在。
+    static func isDaemonRunning() -> Bool { isRunning() }
+
+    /// ⚠️ 已停用（2026-09-23）：原生授权路径。
+    /// 同 BPFSetupManager.install —— 密码硬编码 + 走 macOS 原生授权弹窗，
+    /// 两者都是用户明确禁止的。提权统一改走 `PrivilegePill`。
+    @available(*, deprecated, message: "已改用 PrivilegePill.shared.install(password:)")
     static func install(password: String) -> (success: Bool, message: String) {
-        // 1. 写 setup 脚本到 /tmp（以 root 身份执行它来完成安装）
-        let scriptContent = """
-#!/bin/bash
-set -e
-
-# 常驻 renice 守护：每 5 秒把 AuroraDriveUI（含 --engine 引擎）拉到 nice -20
-cat > /usr/local/bin/aurora-priority.sh << 'SCRIPT_EOF'
-#!/bin/bash
-while true; do
-    # 用 ps comm（可执行文件路径）精确匹配，不用 pgrep -f——
-    # 后者会误伤任何命令行含 "AuroraDriveUI" 的无关进程（终端/编辑器/诊断命令）
-    for pid in $(ps -axo pid=,comm= | awk '$2 ~ /\\/AuroraDriveUI$/ {print $1}'); do
-        renice -n -20 -p "$pid" >/dev/null 2>&1
-    done
-    sleep 5
-done
-SCRIPT_EOF
-chmod 755 /usr/local/bin/aurora-priority.sh
-
-# LaunchDaemon：开机自启 + 崩溃自动拉起 + Interactive 进程类型
-cat > /Library/LaunchDaemons/com.aurora.priority.plist << 'PLIST_EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.aurora.priority</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/bin/bash</string>
-        <string>/usr/local/bin/aurora-priority.sh</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>ProcessType</key>
-    <string>Interactive</string>
-    <key>Nice</key>
-    <integer>-20</integer>
-</dict>
-</plist>
-PLIST_EOF
-chown root:wheel /Library/LaunchDaemons/com.aurora.priority.plist
-chmod 644 /Library/LaunchDaemons/com.aurora.priority.plist
-
-# 卸旧加载新
-launchctl unload /Library/LaunchDaemons/com.aurora.priority.plist 2>/dev/null || true
-launchctl load -w /Library/LaunchDaemons/com.aurora.priority.plist
-echo PRIORITY_INSTALLED
-"""
-        let tmpPath = "/tmp/aurora_priority_setup.sh"
-        do {
-            try scriptContent.write(toFile: tmpPath, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tmpPath)
-        } catch {
-            return (false, "写脚本失败: \(error.localizedDescription)")
-        }
-
-        // 2. AppleScript 管理员权限执行（密码经参数传入，不弹系统弹窗）
-        let escapedPwd = password.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let appleScript = "do shell script \"bash \(tmpPath)\" password \"\(escapedPwd)\" with administrator privileges"
-
-        let task = Process()
-        task.launchPath = "/usr/bin/osascript"
-        task.arguments = ["-e", appleScript]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            if task.terminationStatus == 0 {
-                if isRunning() {
-                    return (true, "性能提权已生效：AuroraDrive 全家已锁定 nice -20（重启后自动跟随）")
-                }
-                return (true, "LaunchDaemon 已安装（重启电脑后自动生效）")
-            } else {
-                let errData = pipe.fileHandleForReading.readDataToEndOfFile()
-                let errMsg = String(data: errData, encoding: .utf8) ?? ""
-                if errMsg.contains("Authentication") || errMsg.contains("password") {
-                    return (false, "密码错误")
-                }
-                return (false, "安装失败: \(errMsg)")
-            }
-        } catch {
-            return (false, "执行失败: \(error.localizedDescription)")
-        }
+        _ = password
+        return (false, "此路径已停用：请使用应用内提权（PrivilegePill），不要调用原生授权")
     }
 
     /// 当前 AuroraDriveUI 进程的实际 nice 值（诊断用；-20 = 提权生效）

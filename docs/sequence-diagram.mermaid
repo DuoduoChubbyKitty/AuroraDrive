@@ -1,51 +1,45 @@
+%% 档案（2026-09-19 订正）：原图描述旧感知层（VisionLaneDetector/MiniMapReader/SignDetector/SensorFusion/FusedDriveState、DriveMode 含 fused 档），
+%% 上述类与档位已从代码删除（当前 DriveMode = e2e/yolo/recover/rule，见 AuroraDriveApp.swift:793-798；旧类 grep 全仓 0 命中）。
+%% 本图按 git 7b7d2db 现状重绘；原图历史版本见 git show 7b7d2db:docs/sequence-diagram.mermaid。
 sequenceDiagram
     autonumber
     participant SCK as ScreenCaptureKit
     participant CE as CaptureEngine (captureQueue·后台)
     participant YOLO as YoloEngine (inferenceQueue·后台)
-    participant LANE as VisionLaneDetector (perceptionQueue·后台)
-    participant MM as MiniMapReader (perceptionQueue·后台)
-    participant OCR as SpeedOCRReader (visionQueue·后台, 5Hz)
-    participant SIGN as SignDetector (perceptionQueue·后台, 10Hz)
+    participant M9 as InferenceEngine m9_mono (后台)
+    participant OCR as SpeedOCRReader (后台, 15Hz)
+    participant NET as CoordinateCapture 网络定位 (10Hz, 仅地图显示)
     participant MAIN as DriveState.tick (主线程 30Hz)
-    participant FUSION as SensorFusion (主线程)
     participant STM as DegradeStateMachine (主线程)
-    participant CTRL as Fusion/RuleController (主线程)
-    participant KEY as ControlEngine (主线程)
+    participant CTRL as RuleController / EscapeController (主线程)
+    participant KEY as ControlEngine CGEvent (主线程)
     participant REC as RecordEngine
     participant UI as SwiftUI (主线程)
 
     SCK->>CE: 帧 CMSampleBuffer
-    CE->>CE: 源缓冲 → NSImage / 352 缓冲 / ROI 缓冲
-    CE-->>MAIN: onFrame(NSImage) → currentScreenImage
-    CE->>YOLO: onYoloFrame(352) → inferFast()
+    CE->>CE: 源缓冲 → NSImage / YOLO CVPixelBuffer 缓冲池
+    CE-->>MAIN: onFrame(NSImage, CGImage) → currentScreenImage
+    CE->>YOLO: onYoloFrame(CVPixelBuffer) → inferFast()
     YOLO-->>MAIN: detections（NMS+平滑后）
-    CE->>LANE: onROIFrame(laneROI) → process()
-    CE->>MM: onROIFrame(minimapROI) → read()
-    CE->>OCR: onROIFrame(speedROI) → read()
-    CE->>SIGN: onFrame → detect()
-    LANE-->>MAIN: 车道线快照
-    MM-->>MAIN: 航点快照
-    OCR-->>MAIN: 速度快照
-    SIGN-->>MAIN: 路牌快照
+    M9-->>MAIN: 端到端命令（当前帧推理结果）
+    OCR-->>MAIN: 速度快照（PP-OCRv6 主 / CNN 备, 静止帧缓存）
+    NET-->>UI: 航点坐标（10Hz 旁路，不参与驾驶决策）
 
     loop 每帧 tick (30Hz)
         MAIN->>MAIN: 读各感知最新快照 + yoloEngine.detections
-        MAIN->>FUSION: fuse(lane, obstacles, miniMap, speed, sign)
-        FUSION-->>MAIN: FusedDriveState (含 overallHealth)
-        MAIN->>STM: update(m9Live, fusionLive, health: overallHealth, ...)
-        STM-->>MAIN: DriveMode
+        MAIN->>STM: update(m9Live, yoloLive, ...)
+        STM-->>MAIN: DriveMode (e2e/yolo/recover/rule; UI 合并为 2 档 e2eDrive/ruleFallback)
         alt mode == .e2e
-            MAIN->>CTRL: 沿用 M9 command（现状，不吃新感知）
-        else mode == .fused
-            MAIN->>CTRL: FusionController.decide(fused)（跟线+避障+控速）
-        else mode == .rule
-            MAIN->>CTRL: RuleLaneController.decide(lane, nearestObstacle)（贴边回正+直行）
+            MAIN->>KEY: M9 端到端 command
+        else mode == .yolo
+            MAIN->>KEY: YOLO 框 → 接管控制
         else mode == .recover
-            MAIN->>CTRL: EscapeController（现状）
+            MAIN->>CTRL: EscapeController（脱困）
+        else mode == .rule
+            MAIN->>CTRL: RuleController（YOLO 检测 + 手写规则兜底）
         end
         CTRL-->>MAIN: ControlCommand
-        MAIN->>KEY: applyCommand → hold/release + refreshHeldKeys
-        MAIN->>REC: recordFrameIfNeeded(含 ROI 通道)
-        MAIN->>UI: @Observable 自动刷新（含 PerceptionOverlay）
+        MAIN->>KEY: applyCommand → postKeyEvent/postMouseEvent (CGEvent)
+        MAIN->>REC: recordFrameIfNeeded
+        MAIN->>UI: @Observable 自动刷新（GameHUDWindow/小地图）
     end

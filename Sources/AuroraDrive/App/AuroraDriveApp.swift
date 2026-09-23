@@ -31,8 +31,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var napToken: NSObjectProtocol?
     /// CGEventTap 句柄（持有防止释放，系统级实时保护）
     private var eventTap: CFMachPort?
-    /// 2GB内存锚点（持有防止释放，让系统不敢冻结本进程）
+    /// 防冻结内存锚点（持有防止释放）
     private var memoryAnchor: UnsafeMutableRawPointer?
+
+    /// 防冻结内存锚大小（字节）。0 = 关闭（默认）。
+    ///
+    /// 2026-09-23 改为默认 0：旧的 768MB 硬锁实测让主进程 RSS 达 825MB，
+    /// 且 mlock 后**不可换出、不可压缩**，直接挤占游戏内存导致卡顿
+    /// （本机 16GB，曾把 swap 顶到 11.8GB/12.3GB）。
+    /// 防冻结已由 IOPMAssertion + CGEventTap + beginActivity 三重覆盖，
+    /// 不需要再靠占内存。需要极限防冻结时可把这里改回 768MB 重编译。
+    private static let freezeGuardBytes: Int = 0
     /// IOPMAssertion ID（防止系统 Power Management 判定进程空闲并冻结，Game Mode 最强对抗）
     private var powerAssertionID: IOPMAssertionID = IOPMAssertionID(kIOPMNullAssertionID)
     /// Game Mode 对抗锚定窗口（1×1 浮层，见 installGameModeAnchorWindow）
@@ -60,6 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                          styleMask: [.borderless],
                          backing: .buffered,
                          defer: false)
+        // 同 HUD：标识为有意创建的辅助窗口，主窗口置前逻辑会跳过
+        w.identifier = NSUserInterfaceItemIdentifier("AuroraAuxAnchor")
         w.isOpaque = false
         // 非零 alpha：完全透明的窗口可能被系统直接判定为"无可见内容"
         w.backgroundColor = NSColor.black.withAlphaComponent(0.02)
@@ -84,6 +95,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? diag.write(toFile: "/tmp/aurora_anchor_diag.log", atomically: true, encoding: .utf8)
         fflush(stdout)
         print("[App] 锚定窗口已安装 (1×1 @右下角, fullScreenAuxiliary) → 对抗 Game Mode 后台压制")
+    }
+
+    /// 把窗口完整夹进主屏可见区域。
+    ///
+    /// 为什么必须有：主窗口是**无边框**（`titled=false`）的，AppKit 对无边框窗口
+    /// 不做自动的屏幕约束。一旦窗口 origin 跑到屏幕外（多屏热插拔、分辨率变化、
+    /// 上一次退出时的位置残留），用户看到的就是「窗口只露一半、控件点不到」，
+    /// 而此时 `frame=1200x760` 的日志完全正常 —— 从日志根本看不出问题。
+    /// 2026-09-23 实测踩到：窗口被推到 x=0 且左侧越界，顶栏左侧内容不可见。
+    ///
+    /// 策略：优先保留窗口尺寸，只平移 origin；窗口比屏幕还大时才缩尺寸。
+    private static func constrainToScreen(_ window: NSWindow) {
+        guard let screen = window.screen ?? NSScreen.main ?? NSScreen.screens.first else { return }
+        let vis = screen.visibleFrame
+        var f = window.frame
+
+        // 尺寸：不允许超出可见区域
+        if f.width > vis.width { f.size.width = vis.width }
+        if f.height > vis.height { f.size.height = vis.height }
+
+        // 位置：把整个窗口推回可见区域内部
+        if f.minX < vis.minX { f.origin.x = vis.minX }
+        if f.maxX > vis.maxX { f.origin.x = vis.maxX - f.width }
+        if f.minY < vis.minY { f.origin.y = vis.minY }
+        if f.maxY > vis.maxY { f.origin.y = vis.maxY - f.height }
+
+        if f != window.frame {
+            let before = window.frame
+            window.setFrame(f, display: true)
+            print("[WindowCfg] 窗口越界已修正："
+                  + "(\(Int(before.minX)),\(Int(before.minY))) → (\(Int(f.minX)),\(Int(f.minY))) "
+                  + "\(Int(f.width))x\(Int(f.height)) 可见区=\(Int(vis.width))x\(Int(vis.height))")
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -210,23 +254,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("[App] CGEventTap已启用 → 系统级实时保护")
         self.eventTap = eventTap
 
-        // 强制占用768MB内存：让系统认为本进程是"重资源进程"不敢冻结
-        // 每页4KB，768MB = 196608页，mlock锁定在物理RAM不被换出
-        let allocSize = 768 * 1024 * 1024  // 768MB
-        let pageCount = allocSize / 4096
-        if let buf = UnsafeMutableRawPointer.allocate(byteCount: allocSize, alignment: 4096) as UnsafeMutableRawPointer? {
-            // 写入每个页首字节（强制物理内存映射）
+        // ── 内存占用：自适应，默认关闭「硬锁 768MB」 ──
+        //
+        // 2026-09-23 修复「开了这个之后游戏变卡」：
+        //   旧实现无条件 mlock 768MB，实测主进程 RSS 825MB，其中 768MB 被
+        //   锁死在物理内存 —— **不可换出、不可压缩**。16GB 机器上等于永久
+        //   少 4.8% 可用内存，游戏要内存时只能把别的换出去 → 卡顿。
+        //   实测当时 swap 一度用满 11.8GB/12.3GB。
+        //
+        //   而且这个机制是**冗余的**：防冻结已由三重正规手段覆盖 ——
+        //     ① IOPMAssertion（Power Management 层，最权威）
+        //     ② CGEventTap（系统必须保持有 event tap 的进程响应）
+        //     ③ beginActivity(.latencyCritical)
+        //   「靠占内存骗系统别冻结我」是民间偏方，代价高、收益低。
+        //
+        // 新策略：默认**不锁**，只保留一个很小的常驻锚（防进程被整体换出），
+        // 由设置项 autoFreezeGuard 控制；需要极限防冻结时可手动开回 768MB。
+        if Self.freezeGuardBytes > 0 {
+            let allocSize = Self.freezeGuardBytes
+            let pageCount = allocSize / 4096
+            let buf = UnsafeMutableRawPointer.allocate(byteCount: allocSize, alignment: 4096)
+            // 只写页首字节建立映射，不 memset 整块（省时省电）
             for i in 0..<pageCount {
                 buf.advanced(by: i * 4096).storeBytes(of: UInt8(i & 0xFF), as: UInt8.self)
             }
-            // mlock：锁定页面在物理RAM，系统不能换出
             if mlock(buf, allocSize) == 0 {
-                print("[App] 768MB内存已锁定在物理RAM → 系统不敢冻结")
+                print("[App] 防冻结内存锚 \(allocSize / 1024 / 1024)MB 已锁定")
             } else {
-                print("[App] mlock失败（可能需要root），768MB仍占用但可能被换出")
+                print("[App] 防冻结内存锚 mlock 失败（\(allocSize / 1024 / 1024)MB 仍占用）")
             }
-            // 持有指针防止释放
             self.memoryAnchor = buf
+        } else {
+            print("[App] 防冻结内存锚已关闭（默认）→ 不再挤占游戏内存；防冻结由 IOPMAssertion + CGEventTap 承担")
         }
 
         // --agent-command 模式：后台 accessory 运行、不抢焦点（保持游戏所在 Space 激活，
@@ -303,6 +362,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         print("[App] Darwin Notification Center 已注册（3个系统通知）")
         
+        // ★ 关闭 AppKit 窗口状态恢复。
+        // 这是「绕一圈黑边」的真正根源：曾经某次窗口几何算坏，塌成一堆只剩标题栏高
+        // （30/33pt）的空壳窗口，系统把「有 8 个这种窗口」这件事持久化了，此后每次启动
+        // 都原样恢复出来。它们浮在主窗口之上 → 看起来就是窗口没铺满、四周一圈黑边。
+        // 关掉恢复后，启动永远只有 SwiftUI 新建的那一个主窗口。
+        UserDefaults.standard.register(defaults: ["NSQuitAlwaysKeepsWindows": false])
+        NSWindow.allowsAutomaticWindowTabbing = false
+
         // SwiftUI WindowGroup 的窗口在 applicationDidFinishLaunching 之后、runloop 下一轮
         // 才创建（此时同步遍历 NSApp.windows 常为空，激活无效）。延迟到下一 runloop 再
         // 激活，确保窗口已创建后置前，避免"进程起来却无可见窗口"。
@@ -311,9 +378,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !commandMode {
             DispatchQueue.main.async {
                 NSApp.activate(ignoringOtherApps: true)
+                // ★ 只前置「真正的主窗口」。
+                // 曾经这里无条件 for window in NSApp.windows 把所有窗口都提到最前，
+                // 其中混着若干退化的空壳窗口（高度仅一条标题栏 30~33pt，内容完全没渲染）。
+                // 它们会盖在真正的主窗口之上 —— 用户看到的就是「窗口没铺满、绕了一圈黑边」。
+                // 因此：① 先关掉并丢弃所有退化窗口；② 只对剩余的有内容窗口置前。
+                // 有意创建的辅助窗口（HUD / 锚点）带 identifier，绝不参与清理
+                let auxIDs: Set<String> = ["AuroraAuxHUD", "AuroraAuxAnchor"]
+                var candidates: [NSWindow] = []
                 for window in NSApp.windows {
-                    window.makeKeyAndOrderFront(nil)
-                    window.orderFrontRegardless()
+                    if let id = window.identifier?.rawValue, auxIDs.contains(id) {
+                        continue
+                    }
+                    let h = window.frame.height
+                    let w = window.frame.width
+                    // 退化判据：极扁（只剩标题栏）/ 极小的空壳
+                    if h < 160 || (w < 300 && h < 300) {
+                        window.orderOut(nil)
+                        window.close()
+                        continue
+                    }
+                    candidates.append(window)
+                }
+                // 主窗口 = 面积最大者（SwiftUI WindowGroup 的主窗口）
+                let main = candidates.max { a, b in
+                    a.frame.width * a.frame.height < b.frame.width * b.frame.height
+                }
+                if let main {
+                    main.makeKeyAndOrderFront(nil)
+                    // ★ 屏幕约束：无边框窗口（titled=false）不会自动被系统夹回屏内。
+                    //   一旦窗口 origin 落在屏幕外（多屏切换、屏幕分辨率变化、
+                    //   上次退出时的位置残留），用户就会看到「窗口只露一半 / 点不到控件」，
+                    //   而 frame 日志一切正常 —— 极难自查。
+                    //   这里强制把窗口完整夹进主屏可见区域。
+                    Self.constrainToScreen(main)
+                    print("[Window] 主窗口 \(Int(main.frame.width))x\(Int(main.frame.height))，"
+                          + "已清理退化窗口，候选=\(candidates.count)")
+                } else if let any = candidates.first {
+                    any.makeKeyAndOrderFront(nil)
+                    Self.constrainToScreen(any)
+                }
+
+                // 诊断 + 兜底清理：延迟若干秒后再查一次，打印每个窗口的类名/标识/几何，
+                // 并再次关闭退化的无标识空壳窗口（有些窗口由系统或后续布局才创建出来）。
+                for delay in [2.0, 5.0, 10.0] {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        for w in NSApp.windows {
+                            let id = w.identifier?.rawValue ?? "-"
+                            let sm = w.styleMask
+                            print("[WindowDiag] t=\(Int(delay))s class=\(type(of: w)) "
+                                  + "id=\(id) frame=\(Int(w.frame.width))x\(Int(w.frame.height)) "
+                                  + "layout=\(Int(w.contentLayoutRect.width))x\(Int(w.contentLayoutRect.height)) "
+                                  + "content=\(Int(w.contentRect(forFrameRect: w.frame).width))x\(Int(w.contentRect(forFrameRect: w.frame).height)) "
+                                  + "fullSize=\(sm.contains(.fullSizeContentView)) "
+                                  + "titled=\(sm.contains(.titled)) "
+                                  + "visible=\(w.isVisible)")
+                            if auxIDs.contains(id) { continue }
+                            if w.frame.height < 160 || (w.frame.width < 300 && w.frame.height < 300) {
+                                w.orderOut(nil)
+                                print("[WindowDiag]   → 关闭退化窗口 \(Int(w.frame.width))x\(Int(w.frame.height))")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -383,7 +509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 // 插帧引擎自检（--upscale-selftest）
 // ============================================================================
 
-private func runUpscaleSelfTest() {
+func runUpscaleSelfTest() {
     guard let upscaler = GooseUpscaler.make() else {
         print("[UPSELFTEST] FAIL: GooseUpscaler.make() == nil（Metal 不可用或引擎初始化失败）")
         exit(1)
@@ -561,6 +687,35 @@ struct AuroraDriveLauncher {
         setvbuf(stdout, nil, _IOLBF, 0)
 
         let args = CommandLine.arguments
+        // ── 任务控制台无头截图 ──
+        // 必须在这里同步跑完：截图是纯离屏 ImageRenderer 渲染，若放到
+        // ContentView.onAppear 里，无窗口时 view 不 layout → onAppear 永不触发，
+        // 进程会卡在引擎初始化后（实测 240s 不出图）。
+        if args.contains("--mc-map") {
+            let ok = MissionControlShot.renderMapNow()
+            fflush(stdout)
+            exit(ok ? 0 : 1)
+        }
+        if args.contains("--mc-map-offline") {
+            let ok = MissionControlShot.renderMapOfflineNow()
+            fflush(stdout)
+            exit(ok ? 0 : 1)
+        }
+        if let i = args.firstIndex(of: "--mc-shot") {
+            var rc = RoadCondition.simple
+            if i + 1 < args.count, let c = RoadCondition(rawValue: args[i + 1]) { rc = c }
+            var size = ConsoleMetrics.designSize
+            if i + 3 < args.count, let w = Double(args[i + 2]), let h = Double(args[i + 3]),
+               w > 200, h > 200 {
+                size = CGSize(width: w, height: h)
+            }
+            print("[MC-SHOT] 离屏渲染 路况=<\(rc.rawValue)> 画布=\(Int(size.width))x\(Int(size.height))")
+            fflush(stdout)
+            let ok = MissionControlShot.renderNow(condition: rc, canvas: size)
+            fflush(stdout)
+            exit(ok ? 0 : 1)
+        }
+
         if args.contains("--engine") {
             EngineMain.run()   // 永不返回（dispatchMain 常驻；自身已有 engine.lock）
         }
@@ -660,7 +815,20 @@ struct AuroraDriveLauncher {
         // 若参与锁会与常驻 UI 互斥，导致自检失败或用户无法启动界面。
         let oneShotFlags = ["--speed-selftest", "--tcc-selftest", "--test-xpc",
                             "--yolo-selftest", "--upscale-selftest", "--yolo-bench",
-                            "--daemon"]
+                            "--daemon", "--mc-shot", "--mc-map", "--mc-map-offline", "--fit-selftest",
+                            "--limit-selftest"]
+        // ── 限速刹车 + 自动速度 自测：用生产类型本尊跑，不是逻辑副本 ──
+        if args.contains("--limit-selftest") {
+            runLimitSelfTest()
+            exit(0)
+        }
+
+        // ── 自适应缩放自测：真开一个窗口，逐档改尺寸，验证内容始终铺满（零黑边）──
+        if args.contains("--fit-selftest") {
+            runFitSelfTest()
+            exit(0)
+        }
+
         let isOneShot = args.contains { oneShotFlags.contains($0) }
         if !isOneShot, !acquireUISingleInstanceLock() {
             print("[App] 已有 AuroraDrive 实例在运行 —— 本次启动退出")
@@ -676,9 +844,14 @@ struct AuroraDriveApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
+        // 保持 WindowGroup（换成 Window+id 会导致本 app 的 AppKit 生命周期下不开窗）。
+        // 退化空壳窗口改由启动清窗 + 关闭窗口恢复来根治，见 AppDelegate。
         WindowGroup {
             ContentView()
-                .frame(minWidth: 880, minHeight: 560)
+                .frame(minWidth: 880, minHeight: 500)
+                // ★ 内容延伸到标题栏之下：只加 .windowStyle(.hiddenTitleBar) 仍会
+                // 保留一条标题栏空间（实测顶部 32pt 纯黑 —— 就是那条黑边）。
+                .background(WindowConfigurator())
                 .background(Color.black)
                 .onAppear {
                     // --agent-command 模式：后台运行、不抢焦点、不前置窗口（保持游戏所在 Space 激活，供键注入落到游戏内）
@@ -691,7 +864,10 @@ struct AuroraDriveApp: App {
                             return
                         }
                         NSApp.activate(ignoringOtherApps: true)
-                        for window in NSApp.windows {
+                        // 只处理主窗口：过去这里遍历 NSApp.windows 把每个窗口都置前，
+                        // 会把退化的空壳窗口一并提到最前盖住主窗口（黑边观感来源之一）。
+                        for window in NSApp.windows where !(window.identifier?.rawValue ?? "").hasPrefix("AuroraAux") {
+                            guard window.frame.height >= 160 else { continue }
                             window.makeKeyAndOrderFront(nil)
                             window.orderFrontRegardless()
                             // 全屏游戏时标题栏（含红黄绿按钮/标题条）会浮在游戏画面上遮挡一条，
@@ -715,76 +891,411 @@ struct AuroraDriveApp: App {
 }
 
 
+
+
+
 // ============================================================================
-// MARK: - 文件 2: Theme.swift  (设计系统 / 主题常量)
-// ============================================================================
-
-/// 全局主题：FSD 驾驶舱配色与发光参数
-enum Theme {
-    // 背景
-    static let bgPure      = Color.black                       // #000000
-    static let bgCard      = Color.white.opacity(0.045)        // 卡片底
-    static let bgCardEdge  = Color.white.opacity(0.08)         // 卡片描边
-
-    // 主色 / 强调
-    static let cyan        = Color(red: 0.0, green: 0.898, blue: 1.0)   // #00E5FF
-    static let cyanDim     = Color(red: 0.0, green: 0.898, blue: 1.0).opacity(0.55)
-    static let orangeRed   = Color(red: 1.0, green: 0.36, blue: 0.22)   // 极速模式
-    static let danger      = Color(red: 1.0, green: 0.24, blue: 0.28)   // 障碍红
-
-    // 文字（严禁黑色文字）
-    static let textPrimary   = Color.white
-    static let textSecondary = Color.white.opacity(0.62)
-    static let textTertiary  = Color.white.opacity(0.38)
-
-    // 发光阴影
-    static func glow(_ color: Color, radius: CGFloat) -> some View {
-        EmptyView().shadow(color: color, radius: radius) // 占位,实际用 .shadow 修饰符
+// MARK: - 自适应缩放自测（真窗口 + 逐档改尺寸）
+/// 真开一个无边框窗口，按多档尺寸设置 frame，每档读回
+/// contentView 尺寸并检查是否 == frame（内容铺满，无黑边）。
+/// 这是唯一能真机验证「换屏幕 / 改窗口大小都不留黑边」的方式。
+@MainActor
+func runLimitSelfTest() {
+    var fail = 0
+    func ck(_ name: String, _ cond: Bool, _ detail: String = "") {
+        if !cond { fail += 1 }
+        print("  \(cond ? "✓" : "✗") \(name)\(detail.isEmpty ? "" : "  — \(detail)")")
     }
+    let dt = 1.0 / 30.0
+
+    print("═══ 限速刹车（三级）═══")
+    let g = SpeedLimitGuard()
+
+    var r = g.update(speedKmh: 100, speedValid: true, limitKmh: 120, dt: dt)
+    ck("巡航不刹车", !r && g.stage == .none)
+
+    r = g.update(speedKmh: 130, speedValid: true, limitKmh: 120, dt: dt)
+    ck("超速立即响应", r)
+    ck("首帧是松油门级", g.stage == .liftOnly, "stage=\(g.stage.label)")
+    ck("松油门级不按手刹", !g.handbrakeDown)
+
+    var onFrames = 0, pulseFrames = 0
+    for _ in 0..<60 {
+        _ = g.update(speedKmh: 130, speedValid: true, limitKmh: 120, dt: dt)
+        if g.stage == .pulse { pulseFrames += 1; if g.handbrakeDown { onFrames += 1 } }
+    }
+    let duty = Double(onFrames) / Double(max(1, pulseFrames))
+    ck("进入点刹级", g.stage == .pulse, "stage=\(g.stage.label)")
+    ck("点刹占空比在 30~60%", duty > 0.30 && duty < 0.60, String(format: "%.1f%%", duty * 100))
+    ck("点刹不是一直按死", duty < 0.75)
+
+    for _ in 0..<90 { _ = g.update(speedKmh: 130, speedValid: true, limitKmh: 120, dt: dt) }
+    ck("长时间超速升级到持续刹", g.stage == .firm, "stage=\(g.stage.label)")
+    ck("持续刹按住手刹", g.handbrakeDown)
+
+    _ = g.update(speedKmh: 90, speedValid: true, limitKmh: 120, dt: dt)
+    ck("降到限速下立即退出", g.stage == .none && !g.handbrakeDown)
+    ck("峰值留档：最高级别=firm", g.lastStage == .firm, "lastStage=\(g.lastStage.label)")
+    ck("峰值留档：持续时长>2s", g.lastBrakeSeconds > 2.0, String(format: "%.1fs", g.lastBrakeSeconds))
+    ck("峰值留档：脉冲数>0", g.lastPulseCount > 0, "\(g.lastPulseCount)")
+
+    let g2 = SpeedLimitGuard()
+    var any = false
+    for _ in 0..<120 {
+        if g2.update(speedKmh: 999, speedValid: true, limitKmh: 200, dt: dt) { any = true }
+    }
+    ck("不限速 → 闭环整体停用", !any && g2.stage == .none)
+
+    let g3 = SpeedLimitGuard()
+    ck("读数不可信不刹车", !g3.update(speedKmh: 300, speedValid: false, limitKmh: 120, dt: dt))
+    ck("速度负数不刹车", !g3.update(speedKmh: -1, speedValid: true, limitKmh: 120, dt: dt))
+
+    print("")
+    print("═══ 自动速度（YOLO 框数 → 路况）═══")
+    ck("5 框 → 简单",     AutoRoadCondition.condition(forDetectionCount: 5,  current: .simple) == .simple)
+    ck("10 框 → 简单",    AutoRoadCondition.condition(forDetectionCount: 10, current: .simple) == .simple)
+    ck("11 框 → 滞回保持", AutoRoadCondition.condition(forDetectionCount: 11, current: .easy) == .easy)
+    ck("20 框 → 滞回保持", AutoRoadCondition.condition(forDetectionCount: 20, current: .easy) == .easy)
+    ck("21 框 → 轻松",    AutoRoadCondition.condition(forDetectionCount: 21, current: .simple) == .easy)
+    ck("30 框 → 轻松",    AutoRoadCondition.condition(forDetectionCount: 30, current: .simple) == .easy)
+    ck("31 框 → 中等",    AutoRoadCondition.condition(forDetectionCount: 31, current: .simple) == .medium)
+    ck("50 框 → 中等",    AutoRoadCondition.condition(forDetectionCount: 50, current: .simple) == .medium)
+    ck("51 框 → 繁忙",    AutoRoadCondition.condition(forDetectionCount: 51, current: .simple) == .busy)
+    ck("70 框 → 繁忙",    AutoRoadCondition.condition(forDetectionCount: 70, current: .simple) == .busy)
+    ck("71 框 → 极度复杂", AutoRoadCondition.condition(forDetectionCount: 71, current: .simple) == .extreme)
+    ck("阈值确为 70/50/30/20/10",
+       AutoRoadCondition.extremeThreshold == 70
+       && AutoRoadCondition.busyThreshold == 50
+       && AutoRoadCondition.mediumThreshold == 30
+       && AutoRoadCondition.easyThreshold == 20
+       && AutoRoadCondition.simpleThreshold == 10)
+
+    print("")
+    print("═══ 路况 → 限速 映射（6 档）═══")
+    ck("简单 → 不限速", RoadCondition.simple.autoSpeedLimit == nil)
+    ck("轻松 → 150", RoadCondition.easy.autoSpeedLimit == 150)
+    ck("中等 → 100", RoadCondition.medium.autoSpeedLimit == 100)
+    ck("繁忙 → 60",  RoadCondition.busy.autoSpeedLimit == 60)
+    ck("极度复杂 → 20", RoadCondition.extreme.autoSpeedLimit == 20)
+    ck("关闭 → 不干预", RoadCondition.off.autoSpeedLimit == nil)
+    ck("简单 ≠ 关闭（不限速 vs 不干预）",
+       RoadCondition.simple.meansUnlimited && !RoadCondition.off.meansUnlimited)
+
+    print("")
+    print("═══ 优先级：用户不限速 > 自动速度 > 手动路况 ═══")
+    // 用生产的同一份 autoSpeedTarget 决策，不是重写一份逻辑来"自证"
+    let U = DriveState.unlimitedThreshold
+    func target(_ rc: RoadCondition, limit: Double, src: SpeedLimitSource,
+                on: Bool = true) -> Double? {
+        DriveState.autoSpeedTarget(for: rc, currentLimit: limit,
+                                   unlimitedSource: src, enabled: on)
+    }
+
+    // A. 自动速度自己设的不限速，必须能自己改回来（原死锁点）
+    ck("自动设的不限速 → 不是用户锁死",
+       target(.simple, limit: U, src: .auto) == U)
+    ck("自动设的不限速 → 框数涨回后能改回 100",
+       target(.medium, limit: U, src: .auto) == 100)
+    ck("自动设的不限速 → 能改回 20",
+       target(.extreme, limit: U, src: .auto) == 20)
+
+    // B. 用户手动设的不限速，任何自动判定都不许动
+    ck("用户不限速 + 简单档 → 不干预", target(.simple, limit: U, src: .user) == nil)
+    ck("用户不限速 + 中等档 → 不干预", target(.medium, limit: U, src: .user) == nil)
+    ck("用户不限速 + 极度复杂 → 不干预", target(.extreme, limit: U, src: .user) == nil)
+
+    // C. 关闭自动速度 → 永不干预
+    ck("自动速度关 → 不干预", target(.extreme, limit: 80, src: .user, on: false) == nil)
+    ck("自动速度关 + 简单档 → 不干预", target(.simple, limit: 80, src: .user, on: false) == nil)
+
+    // D. 普通情况下按档位下发
+    ck("普通：繁忙 → 60", target(.busy, limit: 150, src: .none) == 60)
+    ck("普通：轻松 → 150", target(.easy, limit: 60, src: .none) == 150)
+    ck("普通：关闭档 → 不干预", target(.off, limit: 80, src: .none) == nil)
+
+    // E. 用户从自动的不限速接管后，回归普通优先级
+    ck("用户改回有限速后，自动恢复工作",
+       target(.busy, limit: 60, src: .none) == 60)
+
+    print("")
+    print(fail == 0 ? "[LIMIT-SELFTEST] 全部通过" : "[LIMIT-SELFTEST] 失败 \(fail) 项")
 }
 
-/// 圆角卡片容器：半透明底 + 细描边 + 内高光
-struct GlowCard<Content: View>: View {
-    var padding: CGFloat = 16
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        content
-            .padding(padding)
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Theme.bgCard)
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.14), Color.white.opacity(0.04)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing),
-                            lineWidth: 1)
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+func runFitSelfTest() {
+    // 必须先建立 NSApplication 实例：此函数在 AuroraDriveApp.main() 之前调用，
+    // 此时 NSApp 还是 nil（隐式解包会崩）。
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let sizes: [(CGFloat, CGFloat)] = [
+        (880, 500), (1024, 640), (1200, 760), (1440, 900),
+        (1920, 1080), (2560, 1440), (3840, 2160), (1100, 820), (900, 1200),
+    ]
+    var win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 760),
+                       styleMask: [.fullSizeContentView, .resizable, .miniaturizable],
+                       backing: .buffered, defer: false)
+    win.titleVisibility = .hidden
+    win.titlebarAppearsTransparent = true
+    win.hasShadow = false
+    let host = NSHostingView(rootView: ContentView())
+    win.contentView = host
+    win.orderFrontRegardless()
+    print("[FIT-TEST] 窗口已创建，开始逐档验证")
+    var pass = 0
+    for (w, h) in sizes {
+        win.setFrame(NSRect(x: 0, y: 0, width: w, height: h), display: true)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.35))
+        let f = win.frame.size
+        let cv = win.contentView?.frame.size ?? .zero
+        let dw = abs(cv.width - f.width)
+        let dh = abs(cv.height - f.height)
+        let s = f.width / ConsoleMetrics.designWidth
+        let ok = dw < 1.0 && dh < 1.0
+        if ok { pass += 1 }
+        print(String(format: "[FIT-TEST] frame=%.0fx%.0f content=%.0fx%.0f 差=(%.0f,%.0f) scale=%.3f %@",
+                     f.width, f.height, cv.width, cv.height, dw, dh, s, ok ? "✓铺满" : "✗有黑边"))
     }
+    print("[FIT-TEST] 结果: \(pass)/\(sizes.count) 档铺满")
+    win.orderOut(nil)
+    fflush(stdout)
 }
 
-/// 区块标题：小字大写 + 青色竖条
-struct SectionHeader: View {
-    let title: String
-    var body: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(Theme.cyan)
-                .frame(width: 3, height: 12)
-                .shadow(color: Theme.cyan, radius: 4)
-            Text(title)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .tracking(2.5)
-                .foregroundStyle(Theme.textSecondary)
-            Spacer()
+// ============================================================================
+// MARK: - 主窗口配置（强制内容铺满整窗）
+/// 把主窗口设成 fullSizeContentView：内容延伸进标题栏区域。
+/// 仅靠 SwiftUI 的 .windowStyle(.hiddenTitleBar) 不够 —— 实测窗口顶部仍留
+/// 一条 32pt 纯黑带（内容区 728 vs 窗口 760），那就是用户看到的「黑边」。
+struct WindowConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> ConfigProbeView { ConfigProbeView() }
+    func updateNSView(_ nsView: ConfigProbeView, context: Context) {
+        nsView.apply()
+    }
+
+    /// 视图尚未挂到窗口时 window 为 nil；等 viewDidMoveToWindow 再配置，
+    /// 并在窗口尺寸/屏幕变化时复核（系统可能重建标题栏状态）。
+    final class ConfigProbeView: NSView {
+        private var applied = false
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let w = window else { return }
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(reapply),
+                name: NSWindow.didResizeNotification, object: w)
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(reapply),
+                name: NSWindow.didEnterFullScreenNotification, object: w)
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(reapply),
+                name: NSWindow.didExitFullScreenNotification, object: w)
+            apply()
+        }
+
+        @objc private func reapply() { applied = false; apply() }
+
+        func apply() {
+            guard let w = window else { return }
+            if applied, w.styleMask.contains(.fullSizeContentView),
+               w.titlebarAppearsTransparent, w.titleVisibility == .hidden { return }
+            // 彻底去掉标题栏：窗口退化为无边框。
+            // 只插 .fullSizeContentView 时系统依旧保留 32pt 标题栏空间
+            // （layout=728 vs frame=760），那条空间就是顶上的黑边。
+            // 去掉 .titled 后窗口没有任何 chrome，内容铺满整个 frame。
+            var mask = w.styleMask
+            mask.insert(.fullSizeContentView)
+            mask.remove(.titled)
+            mask.insert(.resizable)
+            mask.insert(.miniaturizable)
+            w.styleMask = mask
+            w.titlebarAppearsTransparent = true
+            w.titleVisibility = .hidden
+            w.isMovableByWindowBackground = false
+            // 无边框化后窗口仍可能带系统阴影 / 圆角：深色内容贴边时，阴影会在
+            // 窗口外圈压出一圈暗边、圆角会在四角啃掉内容，观感都像「一圈黑边」。
+            // 这里一并去掉，保证内容边界就是窗口边界。
+            w.hasShadow = false
+            w.isOpaque = true
+            if let cv = w.contentView {
+                cv.wantsLayer = true
+                cv.layer?.cornerRadius = 0
+                cv.layer?.masksToBounds = false
+            }
+            // 去掉 .titled 会连带丢掉「可缩放 / 可移动」能力 —— 而用户明确要
+            // 把窗口拖到另一块屏幕、并随屏幕大小缩放，这两项必须补回来。
+            //   · .resizable  → 可拖边缘缩放
+            //   · minSize/maxSize 保持弹性，不硬性夹死
+            w.minSize = NSSize(width: 880, height: 500)
+            // 去掉 .titled 后窗口没有任何标题栏可抓 —— isMovable 形同虚设，
+            // 这正是「能放大缩小但拖不动」的原因。
+            // 解法：在窗口最顶部铺一条透明拖拽带（高度 = 顶栏留白区），
+            // 它只覆盖顶栏上方那条没有可点控件的区域，不遮挡任何按钮；
+            // 用户按住那条带子即可拖动窗口（也能拖到另一块屏幕）。
+            installDragHandle(on: w)
+            applied = true
+            let cvFrame = w.contentView?.frame ?? .zero
+            print("[WindowCfg] frame=\(Int(w.frame.width))x\(Int(w.frame.height)) "
+                  + "contentView=\(Int(cvFrame.width))x\(Int(cvFrame.height)) "
+                  + "resizable=\(w.styleMask.contains(.resizable)) "
+                  + "movable=\(w.isMovable)")
+            print("[WindowCfg] fullSizeContentView 已启用 frame=\(Int(w.frame.width))x\(Int(w.frame.height)) "
+                  + "layout=\(Int(w.contentLayoutRect.height)) titled=\(w.styleMask.contains(.titled))")
         }
     }
 }
 
+/// 在无边框窗口顶部铺一条透明拖拽带，让窗口可被拖动。
+///
+/// 背景：为了消除顶部黑边，主窗口去掉了 .titled（无边框化）。代价是窗口
+/// 失去了标题栏 —— `isMovable = true` 在没有可抓区域时不起作用，表现就是
+/// 「能放大缩小，但拖不动」。这里补一条只占顶栏上方留白区的拖拽带解决：
+///   · 高度 18pt，正好落在顶栏卡片上方的 padding 区，不压任何可点控件；
+///   · 透明无背景，视觉上完全不可见；
+///   · 只在鼠标按下时把事件交给窗口做拖拽，其余情况不拦截。
+private func installDragHandle(on window: NSWindow) {
+    guard let cv = window.contentView else { return }
+    // ⚠️ 坐标方向：主窗口的 contentView 是 NSHostingView，它 **isFlipped == true**，
+    //    即 y=0 在**顶部**、y=bounds.height 在底部。flipped 坐标系下顶部就是 y=0。
+    //
+    // 拖拽带覆盖整条顶栏（58pt）。顶栏是纯展示区：品牌文字 + 6 个指标 + 2 个状态丸，
+    // **一个按钮/输入框都没有**（已核对 TopBar 全部子视图），所以整条交给我们拖拽
+    // 不会抢走任何交互 —— 这是无边框窗口的标准做法（等同系统标题栏）。
+    let h: CGFloat = 58
+    // ⚠️⚠️ 关键：必须挂在 themeFrame（contentView 的父视图）上，不能挂在 contentView 上。
+    //   contentView 是 NSHostingView，它自己实现 hitTest 并把事件全部收走 ——
+    //   挂在 contentView 上的兄弟视图永远拿不到鼠标事件（已用最小复现验证：
+    //   cv.hitTest(600,29) 返回的是 SwiftUI 内部视图，不是我加的带子）。
+    //   这正是"只有特定位置能拖、非常难拖"的真正原因。
+    //   themeFrame 是 NSNextStepFrame，在 contentView 之上，挂这里才能可靠接管。
+    guard let theme = cv.superview else { return }
+    let f = NSRect(x: 0, y: theme.bounds.height - h, width: theme.bounds.width, height: h)
+
+    if let existing = theme.subviews.first(where: { $0.identifier?.rawValue == "AuroraDragHandle" }) {
+        existing.frame = f
+        return
+    }
+    let handle = DragHandleView()
+    handle.identifier = NSUserInterfaceItemIdentifier("AuroraDragHandle")
+    handle.frame = f
+    // themeFrame 是 **非 flipped**（y=0 在底部），所以顶部贴边要用 .minYMargin
+    handle.autoresizingMask = [.width, .minYMargin]
+    theme.addSubview(handle, positioned: .above, relativeTo: cv)
+    print("[WindowCfg] 顶部拖拽带已安装（themeFrame, 高 \(Int(h))pt, themeFlipped=\(theme.isFlipped)）")
+
+    // ── 自查：确认拖拽区覆盖正确，且右侧交互区确实让给了下层 ──
+    // 左半段（非交互区）必须 100% 归拖拽带；右半段（交互区）必须 0% 归它，
+    // 否则就是「药丸点不动」复发。
+    let dragWidth = theme.bounds.width - DragHandleView.interactiveRightInset
+    let steps = 40
+    var dragHits = 0
+    for i in 0..<steps {
+        // 取每格中点，避开 x=0 与 x=width 两条边界
+        // （NSView 的 bounds 是半开区间，边界点落在视图外，采样到那里会误报）
+        let x = dragWidth * (CGFloat(i) + 0.5) / CGFloat(steps)
+        if let hp = theme.hitTest(NSPoint(x: x, y: theme.bounds.height - h / 2)),
+           hp === handle { dragHits += 1 }
+    }
+    // 交互区采样：这里必须**不是**拖拽带
+    var leaked = 0
+    let probeSteps = 12
+    for i in 0..<probeSteps {
+        let x = dragWidth + (theme.bounds.width - dragWidth) * (CGFloat(i) + 0.5) / CGFloat(probeSteps)
+        if let hp = theme.hitTest(NSPoint(x: x, y: theme.bounds.height - h / 2)),
+           hp === handle { leaked += 1 }
+    }
+    if dragHits == steps && leaked == 0 {
+        print("[WindowCfg] 顶栏拖拽覆盖 \(dragHits)/\(steps) 可拖；右侧交互区 \(DragHandleView.interactiveRightInset)pt 已让给控件（泄漏 \(leaked)）")
+    } else {
+        print("[WindowCfg] ⚠️ 拖拽区异常：可拖 \(dragHits)/\(steps)，交互区被吞 \(leaked)（应为 0）")
+    }
+}
+
+/// 透明拖拽带：按住即拖动窗口（双击等效于缩放，符合 macOS 习惯）。
+///
+/// ⚠️ 2026-09-23 重要修正：顶栏**不再是纯展示区**。
+///   原设计假设「顶栏一个按钮都没有」，所以整条 58pt 全宽交给拖拽带。
+///   但后来顶栏右侧加了**权限小药丸**（可点），药丸的点击就被这条带子吃掉了 ——
+///   表现正是用户报的「小药丸看得见，但点了没反应」。
+///
+///   修法：拖拽带在 mouseDown 时先做一次**穿透判定** ——
+///   用 `super.hitTest` 看该点下方是否落在一个「可交互」的视图上
+///   （NSButton / NSTextField / 任何 acceptsFirstMouse 的控件）。
+///   是 → 把事件交还给下层（return 不处理），让药丸拿到点击；
+///   否 → 正常拖窗。
+final class DragHandleView: NSView {
+
+    /// 顶栏右侧「交互区」宽度（pt）：权限药丸 + 模型名 + markers 三颗胶囊所在区域。
+    /// 这块区域整体让给 SwiftUI，拖拽带不接管 —— 比逐个识别控件更稳，
+    /// 因为 SwiftUI 的按钮在 AppKit 层是 _NSViewBackingLayer 之类的私有类型，
+    /// 按类型判定不可靠。用几何区域划分才是可预期、可测试的做法。
+    ///
+    /// 取值依据：顶栏总高 58pt；右侧三颗胶囊合计约 300pt（药丸 ~92 + 模型名 ~110
+    /// + markers ~98，间距 8×2）。留 340pt 冗余，避免边界抖动导致点击落空。
+    static let interactiveRightInset: CGFloat = 340
+
+    override func mouseDown(with event: NSEvent) {
+        // 双击 → 缩放（macOS 标准行为）
+        if event.clickCount == 2 {
+            window?.zoom(nil)
+            return
+        }
+        // 按住拖动 → 移动窗口。performDrag 会接管后续事件直到松开，
+        // 因此不会和底层控件的点击冲突。
+        window?.performDrag(with: event)
+    }
+
+    /// 命中测试：落在右侧交互区内的点击**不接管**，直接透传给 SwiftUI。
+    ///
+    /// 为什么用 hitTest 而不是在 mouseDown 里判断：AppKit 是先 hitTest 定位
+    /// 目标视图、再派发事件。如果这里返回 self，事件根本到不了下层；
+    /// 必须在这一步就返回 nil，AppKit 才会继续往下找 SwiftUI 的按钮。
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // point 已是本视图自身坐标系（AppKit 在调用前完成转换）
+        if point.x >= bounds.width - Self.interactiveRightInset {
+            return nil   // 右侧交互区：完全让给下层
+        }
+        return super.hitTest(point)
+    }
+
+    // 说明：不要覆写 hitTest 去「纠正坐标」。
+    // AppKit 在调用子视图的 hitTest 前，**已经把 point 转换到该子视图自身坐标系**，
+    // 所以在里面再 convert(point, from: superview) 会造成二次转换、坐标错位。
+    // 上面的 hitTest 只做区域判定，不做坐标转换，是正确的用法。
+
+    // 空白区域不该吞掉鼠标滚轮等事件
+    override func scrollWheel(with event: NSEvent) {
+        nextResponder?.scrollWheel(with: event)
+    }
+    override var acceptsFirstResponder: Bool { false }
+    /// 允许在非 key 窗口（游戏在前台时我们的窗口是背景态）也能拖
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    // ── 鼠标手势提示：让用户一眼看出「这条能拖」 ──
+    // 无边框窗口最容易让人困惑的就是"看不出哪里能拖"。
+    // 悬停显示张手（可抓），按住期间显示握手（抓取中）。
+    private var trackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let t = trackingArea { removeTrackingArea(t) }
+        let t = NSTrackingArea(rect: bounds,
+                               options: [.mouseEnteredAndExited, .activeAlways,
+                                         .cursorUpdate, .inVisibleRect],
+                               owner: self, userInfo: nil)
+        addTrackingArea(t)
+        trackingArea = t
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.openHand.set()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        NSCursor.openHand.set()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        NSCursor.arrow.set()
+    }
+}
 
 // ============================================================================
 // MARK: - 文件 3: DriveState.swift  (全局状态 + 模拟数据流)
@@ -799,6 +1310,15 @@ enum DriveMode: String, CaseIterable, Identifiable {
     case rule    = "纯规则兜底"   // 档4：YOLO 检测 + 手写规则（最后防线）
 
     var id: String { rawValue }
+
+    /// 档位强调色：正常档白色，降级档用状态色警示
+    var accentColor: Color {
+        switch self {
+        case .e2e, .yolo: return .white
+        case .recover:    return Aurora.amber
+        case .rule:       return Aurora.danger
+        }
+    }
 
     /// 所属 UI 展示分组：内部 4 档 → 用户可见 2 档。
     /// 模型驱动侧（e2e+yolo）归「端到端主驾」；规则/脱困侧（recover+rule）归「规则」。
@@ -923,8 +1443,16 @@ final class DriveState {
     var trainingLog     = ""
 
     // ── 网络定位相关字段 ──
-    var enableNetworkLocate = false
+    /// 网络定位常开（需求：永远打开，不提供关闭入口）。
+    /// 保留该字段仅为兼容既有调用点，恒为 true。
+    var enableNetworkLocate = true
     var bpfAuthorized = false  // 启动时检测BPF权限
+    /// 权限小药丸的真实状态：网络权限 + 性能提权是否**都**可用。
+    /// 不用 bpfAuthorized 代替，因为那只反映 BPF 单侧，会出现
+    /// 「药丸显示就绪但抓包仍失败」的假绿状态。
+    var privilegeReady = false
+    /// 权限状态明细（如实说明卡在哪一步，供药丸 tooltip 与弹窗显示）
+    var privilegeStatusDetail = ""
     var showBPFPasswordSheet = false  // 是否显示密码输入弹窗
     var bpfInstallMessage = ""  // 安装结果消息
     var bpfInstalling = false  // 正在安装中
@@ -943,6 +1471,23 @@ final class DriveState {
     var networkLocateY: Double = 0
     var networkLocateScore: Double = 0
     var networkLocateMode: String = ""
+
+    /// 定位状态的中文说明 —— 把 networkLocateMode 如实翻译给用户看。
+    /// 「游戏未运行」和「等待定位」是两件完全不同的事：
+    /// 前者是用户没开游戏（没有数据源），后者是游戏开了但还没抓到包。
+    /// 不区分的话用户只会看到永远停在「等待网络定位」，不知道问题出在哪。
+    var locateStatusText: String {
+        switch networkLocateMode {
+        case "game_not_running": return "游戏未运行 · 无定位数据源"
+        case "not_ready":        return "抓包未就绪"
+        case "no_data":          return "已抓包 · 等待定位数据"
+        case "network":          return "网络定位已锁定"
+        default:                 return "等待网络定位"
+        }
+    }
+
+    /// 是否处于「游戏没开」状态（UI 据此给出更醒目的提示）
+    var locateGameOffline: Bool { networkLocateMode == "game_not_running" }
     var networkLocatePitch: Double = 0
     var networkLocateHeading: Double = 0
 
@@ -952,6 +1497,12 @@ final class DriveState {
     var locatorY: Double = 0
     var locatorScore: Double = 0
     var locatorHeading: Double = 0
+    /// 同包加速度（m/s²，来自 30031 包，与坐标同源）。
+    /// ⚠️ 坐标系（世界系/车体系）尚未实测确认 —— 只做如实展示，
+    ///    在标定完成前不参与任何控制逻辑。nil = 本帧无数据。
+    var locatorAccelX: Double? = nil
+    var locatorAccelY: Double? = nil
+    var locatorAccelZ: Double? = nil
     var locatorTarget: (x: Double, y: Double)? = nil
     @ObservationIgnored private var lastNetworkLocPos: (x: Double, y: Double)? = nil
     @ObservationIgnored private var healerInitLock = os_unfair_lock_s()
@@ -982,7 +1533,31 @@ final class DriveState {
         return h < 0 ? h + 360 : h
     }
 
+    /// 定位数据源是否就绪 —— 判据是**30031 端口有没有数据包**，不查进程。
+    ///
+    /// 为什么不用查进程：定位数据全部来自游戏与服务器的 30031 端口流量，
+    /// 「有包」就是「游戏在通信」的直接证据，比进程名可靠得多
+    /// （辅助进程 crashpad_handler 的路径同样含「异环」，曾把它误判成
+    /// 游戏在跑）；而且读一个自增计数器是零开销，不像 NSWorkspace 那样
+    /// 每个 App 都要同步 IPC 取静态信息，能把 UI 进程烧到 50%+ 以上。
+    ///
+    /// 三态返回，让 UI 能区分「游戏没开」和「抓包没起来」两种不同故障。
+    enum LocateSource: Equatable {
+        case ready        // 端口有数据 → 可以定位
+        case noGame       // 抓包正常但端口无流量 → 游戏没开/没进游戏
+        case packetError  // 抓包本身没起来 → 权限或网卡问题
+    }
+
+    /// 判定定位数据源状态。调用频率 10Hz，全部是计数器读取，无系统调用。
+    func locateSource() -> LocateSource {
+        guard let cc = coordinateCapture, locateCtx.networkReady else {
+            return .packetError
+        }
+        return cc.hasRecentTraffic(window: 3.0) ? .ready : .noGame
+    }
+
     func runNetworkLocateStep() {
+        // 网络定位常开：不做开关判断，直接确保抓包在跑。
         // 懒初始化 CoordinateCapture（纯网络定位，无自愈引擎）
         if coordinateCapture == nil {
             os_unfair_lock_lock(&healerInitLock)
@@ -1001,9 +1576,34 @@ final class DriveState {
             }
         }
         guard let cc = coordinateCapture, locateCtx.networkReady else {
-            DispatchQueue.main.async { [weak self] in
-                self?.networkLocateScore = 0
-                self?.networkLocateMode = "not_ready"
+            if networkLocateMode != "not_ready" {
+                DispatchQueue.main.async { [weak self] in
+                    self?.networkLocateScore = 0
+                    self?.networkLocateMode = "not_ready"
+                }
+            }
+            return
+        }
+
+        // ── 前置门：30031 端口无流量 = 游戏没在通信，直接如实置为未运行 ──
+        // 判据来自抓包计数器（有包才叫游戏在跑），不查进程。
+        if !cc.hasRecentTraffic(window: 3.0) {
+            // ⚠️ 只在状态真的变化时才投递主线程。
+            //    这个函数以 10Hz 运行，若无脑每帧 async 到主线程，就等于
+            //    每秒 10 次强制 SwiftUI 重算布局 + WindowServer 重合成，
+            //    而游戏没开时状态是恒定的「未运行」——纯属白烧 CPU。
+            //    先比后写，状态不变则一次主线程投递都不发生。
+            if networkLocateMode != "game_not_running" || locatorFound {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.networkLocateScore = 0
+                    self.networkLocateMode = "game_not_running"
+                    // 不保留旧坐标：游戏关掉后界面必须停止显示"上次"的位置，
+                    // 否则用户看到的就是一个假的、还在"跳"的定位。
+                    self.locatorFound = false
+                    self.locatorScore = 0
+                    self.networkLocateLastUpdate = .distantPast
+                }
             }
             return
         }
@@ -1011,6 +1611,12 @@ final class DriveState {
         // 从 CoordinateCapture 获取定位
         if let pose = cc.read(maxAge: 1.0) {
             let (px, py, hdg) = worldToMapPixel(pose)
+            // 同包加速度：坐标系未实测确认，只做如实展示，不参与控制。
+            // 单位推测 cm/s²，除以 100 转 m/s²。
+            let acc = cc.readAcceleration(maxAge: 0.5)
+            let ax = acc.map { $0.0 / 100.0 }
+            let ay = acc.map { $0.1 / 100.0 }
+            let az = acc.map { $0.2 / 100.0 }
             if let last = lastNetworkLocPos {
                 let dx = px - last.x, dy = py - last.y
                 if dx * dx + dy * dy > 16 {
@@ -1029,12 +1635,17 @@ final class DriveState {
                 self?.locatorFound = true
                 self?.locatorScore = 1.0
                 self?.locatorHeading = hdg
+                self?.locatorAccelX = ax
+                self?.locatorAccelY = ay
+                self?.locatorAccelZ = az
             }
         } else {
-            // 网络定位无数据
-            DispatchQueue.main.async { [weak self] in
-                self?.networkLocateScore = 0
-                self?.networkLocateMode = "no_data"
+            // 网络定位无数据（同样先比后写，避免 10Hz 无效重绘）
+            if networkLocateMode != "no_data" {
+                DispatchQueue.main.async { [weak self] in
+                    self?.networkLocateScore = 0
+                    self?.networkLocateMode = "no_data"
+                }
             }
         }
     }
@@ -1135,7 +1746,56 @@ final class DriveState {
     /// 当前驾驶模式（由降级状态机计算，每帧 tick 同步）
     /// UI 观察此属性刷新模式芯片高亮
     var mode: DriveMode = .e2e
-    var confidence: Double = 0.92       // 0~1
+    /// 主驾置信度。0 = 引擎尚未上报（UI 显示「—」）。
+    /// 初值刻意不用 0.92 这类"看起来真实"的数字冒充读数。
+    var confidence: Double = 0          // 0~1
+
+    // ══════════════════════════════════════════════════════════════════
+    // MARK: 路况自适应（黑灰白 UI · 状态色驱动全局）
+    // ══════════════════════════════════════════════════════════════════
+    //
+    // 四态：简单/复杂/极度复杂/关闭。决定自动速度是否工作、
+    // 以及界面的强调色（绿/橙/红/灰）。
+    //
+    // 目前由用户手动切换；后续若要接模型输出，把 setter 改成
+    // 从 M9 或规则层推导即可，UI 侧无需改动。
+
+    /// 不限速是谁设的（用户手动 / 自动速度）。
+    /// 用于解决优先级冲突：用户手动设的不限速锁死自动速度；自动设的可以被覆盖。
+    @ObservationIgnored var unlimitedSource: SpeedLimitSource = .none
+
+    /// 当前路况自适应状态
+    var roadCondition: RoadCondition = .simple
+    /// 自动速度：开 → 按路况自动下发限速（6 档见 RoadCondition.autoSpeedLimit）
+    var autoSpeedEnabled = true
+
+    /// 切换路况自适应（带副作用：极度复杂时挂起自动速度并告警）
+    func setRoadCondition(_ rc: RoadCondition) {
+        guard roadCondition != rc else { return }
+        roadCondition = rc
+        switch rc {
+        case .extreme:
+            print("[RC] ⚠️ 路况极度复杂，自动速度已挂起，请接管方向盘")
+        case .off:
+            print("[RC] 自动速度已关闭")
+        default:
+            print("[RC] 路况自适应 → \(rc.shortName)")
+        }
+    }
+
+    /// 端到端延迟（ms），给双圆表左表用。
+    ///
+    /// 数据来源（都是已有字段，不引入新计时）：
+    ///   · 引擎模式：读心跳回传的 fps 反推单帧预算
+    ///   · 本地模式：读主线程 tick 实测间隔（tickGapMs）
+    /// 两者都没有时返回 0，UI 显示「--」。
+    var e2eLatencyMs: Double {
+        if EngineClient.shared.isActive {
+            let f = EngineClient.shared.engineFPS
+            return f > 0 ? (1000.0 / f) : 0
+        }
+        return tickGapMs > 0 ? tickGapMs : (fps > 0 ? 1000.0 / fps : 0)
+    }
 
     /// 上一帧状态机决策档位：用于检测"刚切入 .recover"的边沿，
     /// 让脱困只 enter 一次（避免每帧 phase==.done 就 re-enter 抵消超时）。
@@ -1152,7 +1812,8 @@ final class DriveState {
     /// 兼容属性：旧代码读 speed 的地方统一读到 effectiveSpeed（不再有模拟值/随机抖动）
     var speed: Double { effectiveSpeed }
 
-    var fps: Double        = 60
+    /// 实测帧率。0 = 尚未测量（UI 如实显示「—」，不伪装成 60）。
+    var fps: Double        = 0
 
     /// 车速 OCR 最新快照（主线程读；未读到为 -1 / 0）
     /// 读自 speedOCR（@Observable 嵌套，body 访问会跟踪其更新）
@@ -1165,19 +1826,20 @@ final class DriveState {
     /// - M9未加载：模型文件缺失或加载失败
     var m9Status: (text: String, color: Color) {
         if !inferenceEngine.isLoaded {
-            return ("M9未加载", Theme.textTertiary)
+            return ("M9未加载", Aurora.t3)
         }
         if let t = inferenceEngine.lastResultTime, Date().timeIntervalSince(t) < 1.0 {
-            return ("M9活跃", Theme.cyan)
+            return ("M9活跃", Aurora.ice)
         }
-        return ("M9失联", Theme.danger)
+        return ("M9失联", Aurora.danger)
     }
 
     var speedLimit: Double      = 120   // 速度上限
     var degradeThreshold: Double = 0.65 // 降级阈值（同步给状态机）
 
     var modelVersion = "v2.4.1-e2e-fsd"
-    var frames: Int  = 128_402
+    /// 累计帧数。0 = 尚未开始计数。
+    var frames: Int  = 0
 
     // ── 截屏画面流（UI 显示与模型推理共用同一条流）──
     // currentScreenImage 由 CaptureEngine 的 onFrame 闭包更新，仍是录制/现有引用的数据源；
@@ -1190,6 +1852,63 @@ final class DriveState {
     // 不能从 @ObservationIgnored 的 frameHost.latestSize 读，否则尺寸变化不触发
     // 观察导致检测框错位；仅在尺寸变化时写，避免每帧失效。
     var screenSize: CGSize? = nil
+
+    /// 画面分辨率标签（取自真实源画面尺寸；未取到前显示「—」，不写死分辨率）。
+    var resolutionLabel: String {
+        guard let s = screenSize, s.width > 1, s.height > 1 else { return "—" }
+        return "\(Int(s.width))×\(Int(s.height))"
+    }
+
+    /// 当前所在区域名。由实时定位坐标在真实地图数据库里反查最近标记的区域得出
+    /// —— 不写死地名。未定位时显示「未知区域」。
+    var regionLabel: String {
+        guard locatorFound else { return "未知区域" }
+        return MapDatabase.regionName(atMapX: mapPixelX, mapY: mapPixelY) ?? "未知区域"
+    }
+
+    /// 地图标记总数（可观察）。MapDatabase 是静态存储不触发 SwiftUI 更新，
+    /// 这里在加载完成后同步一份，顶栏数字才能如实刷新。
+    var mapMarkerCount: Int = 0
+
+    /// 当前实际加载的推理模型名（供顶栏如实显示，不写死）。
+    /// 优先取引擎上报的模型名，未连接时显示实际将要加载的模型文件。
+    var activeModelLabel: String {
+        let engine = EngineClient.shared
+        let name = Self.detectedModelName()
+        // 真实判定：模型文件在盘上 + 引擎在跑，才叫「已挂载 · ANE」。
+        // 任一不满足都如实说明缺哪一环，不拿"引擎在跑"冒充"模型已挂载"。
+        guard Self.modelFileExists() else { return "\(name) · 模型缺失" }
+        return engine.isActive ? "\(name) · ANE" : "\(name) · 引擎未连接"
+    }
+
+    /// 探测实际存在的模型文件（models/yolo26s.mlmodelc 等），返回真实模型名。
+    static func detectedModelName() -> String {
+        let fm = FileManager.default
+        // 必须用 AuroraPaths.projectRoot() 而不是 currentDirectoryPath：
+        // 双击 .app 启动时 cwd 是 "/"，用 cwd 找 models 永远找不到，
+        // 于是界面一直显示「未挂载」——正是用户看到的问题。
+        let modelsDir = AuroraPaths.projectRoot().appendingPathComponent("models")
+        // 按优先级探测：编译产物(.mlmodelc) → 包(.mlpackage)
+        for candidate in ["yolo26s.mlmodelc", "yolo26s.mlpackage"] {
+            if fm.fileExists(atPath: modelsDir.appendingPathComponent(candidate).path) {
+                return String(candidate.split(separator: ".").first ?? "yolo26s")
+            }
+        }
+        return "yolo26s"
+    }
+
+    /// 模型是否真实存在于磁盘（用于区分「已挂载」与「未挂载」，
+    /// 不再只看引擎是否在跑 —— 引擎跑着但模型缺失时也必须如实报未挂载）。
+    static func modelFileExists() -> Bool {
+        let fm = FileManager.default
+        let modelsDir = AuroraPaths.projectRoot().appendingPathComponent("models")
+        for candidate in ["yolo26s.mlmodelc", "yolo26s.mlpackage"] {
+            if fm.fileExists(atPath: modelsDir.appendingPathComponent(candidate).path) {
+                return true
+            }
+        }
+        return false
+    }
     // isStreaming 控制 GameViewportView 显示"实时画面 vs 黑底提示"分支，启/停各翻转一次，
     // 必须保持 @Observable（观察成本可忽略），否则停止后分支不触发重绘导致画面冻结。
     var isStreaming = false
@@ -1219,6 +1938,20 @@ final class DriveState {
     /// 防冻结心跳定时器（游戏模式下强制唤醒主线程）
     @ObservationIgnored
     private var antiFreezeTimer: DispatchSourceTimer?
+
+    /// 限速刹车执行器（纯规则，独立于任何驾驶模型）
+    @ObservationIgnored let speedLimitGuard = SpeedLimitGuard()
+
+    /// 自动路况判定：待确认的建议路况（稳定性门用）
+    @ObservationIgnored var pendingCondition: RoadCondition?
+    /// 同一建议连续成立了多少帧
+    @ObservationIgnored var conditionStableFrames = 0
+    /// 最新一次判定用的检测框数量（UI 如实展示判定依据）
+    var detectedBoxCount: Int = 0
+    /// 限速刹车当前是否处于「已按下」状态（用于检测松开边沿，防手刹卡键）
+    @ObservationIgnored var speedLimitBrakeLatched = false
+    /// 上一次记录的刹车级别（仅用于级别变化时记日志）
+    @ObservationIgnored var speedLimitBrakeLastStage: SpeedLimitGuard.Stage = .none
 
     // ── 诊断（验证"越到后面越卡=积压"）：onFrame 帧从入队到主线程执行的延迟(ms) ──
     // 若该值随时间持续增长 → main 队列积压确认（每帧 main.async + 22MB 大图堆积）
@@ -1286,7 +2019,7 @@ final class DriveState {
     /// 辅助功能权限状态（首次启动若未授权，引导用户到系统设置）
     var controlPermissionDenied = false
 
-    // ── 物理键盘监听（实时读取用户真实按键，供 KeyboardBar 显示）──
+    // ── 物理键盘监听（实时读取用户真实按键，供 KeyBar 显示）──
     // 与 controlEngine 区别：
     //   controlEngine = AI 注入的按键（输出）
     //   keyboardMonitor = 用户物理按下的键（输入，仅显示用 + 录制专家演示）
@@ -1894,10 +2627,18 @@ final class DriveState {
         degradeStm.degradeHealth = degradeThreshold
 
         guard isDriving else {
-            // 待机：车速衰减，清空决策
-            speedValid = false
-            effectiveSpeed = max(0, effectiveSpeed - 6)
-            currentCommand = .idle
+            // 待机：车速衰减，清空决策。
+            //
+            // ⚠️ 性能红线：tick 以 30Hz 运行，而这些属性都是 @Observable ——
+            //    只要**赋值**就会让 SwiftUI 标记整棵视图树失效并重绘，
+            //    进而拖 WindowServer 一起重合成。待机时数值早已稳定，
+            //    却仍在每秒 30 次无意义地触发全树重绘（实测 UI 进程
+            //    稳定烧 25-36% CPU、WindowServer 44%+、整机发烫）。
+            //    所以先比较、变了才写 —— 值不变则一次赋值都不发生。
+            if speedValid { speedValid = false }
+            let decayed = max(0, effectiveSpeed - 6)
+            if decayed != effectiveSpeed { effectiveSpeed = decayed }
+            if currentCommand != .idle { currentCommand = .idle }
             recordFrameIfNeeded()   // 待机也写帧：录制不依赖驾驶状态
             return
         }
@@ -1955,8 +2696,9 @@ final class DriveState {
             effectiveSpeed *= 0.9                                          // 向 0 一阶衰减
             if effectiveSpeed < 0.5 { effectiveSpeed = 0 }
         }
-        // FPS 显示真实捕获帧率（删除模拟遥测随机抖动）
-        fps = captureEngine.captureFPS > 0 ? captureEngine.captureFPS : 60
+        // FPS 如实反映捕获帧率：未捕获到帧就是 0（UI 显示「—」），
+        // 绝不回退成 60 伪造一个好看的数。
+        fps = captureEngine.captureFPS
 
         // ── 3. 降级状态机决策（四档梯子：模型存活 + 健康度驱动）──
         // 暖机期（开车头几秒还没出推理结果）保持档位不降级
@@ -1985,6 +2727,101 @@ final class DriveState {
                                  image: currentFrameCG,
                                  isLive: healthLive)
             confidence = confidenceEst.confidence   // 同步给 UI
+        }
+
+        // 记录框数供 UI 展示（先比后写：值不变不触发 SwiftUI 重绘）
+        let boxCount = effectiveDetections.count
+        if detectedBoxCount != boxCount { detectedBoxCount = boxCount }
+
+        // ── 4.4 自动速度：YOLO 框数 → 路况 → 限速（不用模型）──
+        // 用户要求：检测框 >70 极度复杂 / >20 复杂 / <=10 不复杂，据此自动调限速。
+        // 判定源是 YOLO 的**直接观测**（框数），不是驾驶模型的置信度。
+        // ⚠️ 用户明确要求：「不限速」= 直接取消掉速度表。
+        //    所以一旦落在不限速，自动速度必须**整体停摆**，不能把限速又改回去 ——
+        //    否则用户拉到底选了不限速，界面过几秒自己跳回 120，等于没取消。
+        //    重新启用限速的入口只有一个：用户自己把滑块拉离不限速。
+        // 门禁用 unlimitedLockedByUser 而不是 isUnlimited：自动速度自己设的
+        // 不限速必须能被下一次判定改回来，否则框数涨回来时永远出不来（死锁）。
+        if autoSpeedEnabled, isDriving, !unlimitedLockedByUser {
+            // 判定源必须与 UI 显示、规则档决策**同源**：引擎模式下用引擎回传的检测结果，
+            // 本地模式用本地 YoloEngine。若这里读 yoloEngine.detections 而 UI 读
+            // effectiveDetections，两者在引擎模式下会不一致 ——
+            // 表现为「界面显示 80 个框，但路况还停在简单」。
+            let n = effectiveDetections.count
+            let suggested = AutoRoadCondition.condition(forDetectionCount: n, current: roadCondition)
+            // 稳定性门：需连续 stabilityFrames 帧给出同一建议才切换，
+            // 避免单帧抖动导致限速跳变（限速一跳就会触发刹车，体感很差）。
+            if suggested != roadCondition {
+                if suggested == pendingCondition {
+                    conditionStableFrames += 1
+                } else {
+                    pendingCondition = suggested
+                    conditionStableFrames = 1
+                }
+                if conditionStableFrames >= AutoRoadCondition.stabilityFrames {
+                    applyRoadCondition(suggested)   // 内部会按路况下发限速
+                    conditionStableFrames = 0
+                    pendingCondition = nil
+                }
+            } else {
+                conditionStableFrames = 0
+                pendingCondition = nil
+            }
+        } else {
+            // 不限速（或未开车）期间清空稳定性门计数，
+            // 避免恢复限速的瞬间带着旧计数立刻跳一档路况
+            conditionStableFrames = 0
+            pendingCondition = nil
+        }
+
+        // ── 4.5 限速硬闸（纯规则，优先级高于所有驾驶模型）──
+        // 用户要求：速度模型测到超速 → 直接注入 空格(手刹)+Shift，且**不用模型实现**。
+        // 因此这一步放在所有档位决策之前：一旦超速，本帧的 AI 决策键全部不执行，
+        // 只走「松油门 + 手刹 + 松极速」。不限速时限速值为 200 → 闭环整体停用。
+        // ⚠️ 安全边界：限速刹车会**注入真实按键**，因此必须与普通决策走同一套准入条件。
+        //    专家模式（真人物理键独占驾驶）/ 控制禁用 / 未启动驾驶 这三种情况下
+        //    一律不得注入 —— 否则会自动跟真人抢方向盘、或在没开车时乱按键。
+        //    （这个 gate 漏了就是「专家模式下 AI 偷偷踩刹车」的严重 bug。）
+        let mayInjectKeys = isDriving && !expertMode && !controlDisabled
+        let limitBraking = mayInjectKeys
+            && speedLimitGuard.update(speedKmh: effectiveSpeed,
+                                      speedValid: speedValid,
+                                      limitKmh: speedLimit,
+                                      dt: dt)
+        if !mayInjectKeys {
+            speedLimitGuard.reset()
+            // 关键：若上一帧手刹还按着（正在限速刹车），而本帧已经不允许注入
+            // （用户点了停止 / 切进专家模式 / 启用控制禁用），这里必须主动松开。
+            // 否则 return 后的 releaseAll 走不到，空格会永久卡住。
+            if speedLimitBrakeLatched {
+                speedLimitBrakeLatched = false
+                releaseSpeedLimitBrake()
+                dlog("限速刹车 强制退出（准入条件不再满足）")
+            }
+        }
+        if limitBraking {
+            // 刹车优先级最高：只执行限速键，跳过下面的档位决策
+            if !speedLimitBrakeLatched {
+                speedLimitBrakeLatched = true
+                dlog("限速刹车 ON: 速度=\(String(format:"%.1f", effectiveSpeed)) 限速=\(Int(speedLimit)) 超速=\(String(format:"%.1f", speedLimitGuard.overshoot))")
+            }
+            if speedLimitBrakeLastStage != speedLimitGuard.stage {
+                speedLimitBrakeLastStage = speedLimitGuard.stage
+                dlog("限速刹车 级别→\(speedLimitGuard.stage.label) 超速=\(String(format:"%.1f", speedLimitGuard.overshoot)) 已持续=\(String(format:"%.1f", speedLimitGuard.overspeedSeconds))s")
+            }
+            applySpeedLimitBrake()
+            lastDecided = decided
+            recordFrameIfNeeded()
+            return
+        }
+        // 刹车 → 松开的边沿：必须显式释放手刹，否则空格永久卡住（车再也动不了）
+        if speedLimitBrakeLatched {
+            speedLimitBrakeLatched = false
+            releaseSpeedLimitBrake()
+            // 读 last* 而不是当前值：update() 已在本帧 reset() 过，
+            // 直接读 overspeedSeconds/stage 只会得到 0 / 待命。
+            dlog("限速刹车 OFF: 速度=\(String(format:"%.1f", effectiveSpeed)) 限速=\(Int(speedLimit)) 持续=\(String(format:"%.1f", speedLimitGuard.lastBrakeSeconds))s 最高级别=\(speedLimitGuard.lastStage.label) 峰值超速=\(String(format:"%.1f", speedLimitGuard.lastOvershoot)) 脉冲数=\(speedLimitGuard.lastPulseCount)")
+            speedLimitGuard.endSession()
         }
 
         // ── 5. 按态输出控制量 ──
@@ -2028,6 +2865,7 @@ final class DriveState {
         // 禁用控制：同理不注入 AI 键，但 YOLO 检测/E2E 推理照常跑（仅供画面辅助）。
         if expertMode || controlDisabled {
             controlEngine.releaseAll()
+            speedLimitBrakeLatched = false   // 刹车状态一并复位，防下次进来自锁
         } else {
             applyCommand(currentCommand)
         }
@@ -2128,6 +2966,44 @@ final class DriveState {
 
     /// 把 ControlCommand 映射到按键注入
     /// steer>0 右转，<0 左转；throttle 油门；brake 刹车/倒车
+    /// 限速刹车：纯规则按键，不经过任何驾驶模型。
+    ///
+    /// 用户指定：超速 → 空格(手刹) + Shift。同时必须**松开油门 W**，
+    /// 否则一边踩油门一边拉手刹，车只会顿挫而不减速。
+    /// 这里刻意不复用 applyCommand —— 保证它与模型决策完全解耦。
+    private func applySpeedLimitBrake() {
+        // ① 无论哪一级，都要松油门 + 松极速（发动机制动是最温和有效的降速手段）
+        controlEngine.release(.throttle)
+        controlEngine.release(.boost)
+
+        // ② 手刹按级别决定按还是松。
+        //    持续按手刹 = 后轮锁死 = 高速甩尾失控，所以只有到「持续刹」这一级
+        //    才真正按住；「点刹」级别由 SpeedLimitGuard 的脉冲相位控制按下/松开。
+        if speedLimitGuard.handbrakeDown {
+            controlEngine.hold(.handbrake)
+        } else {
+            controlEngine.release(.handbrake)
+        }
+
+        // ③ 转向：不主动打方向，避免刹车时人为制造侧滑
+        controlEngine.release(.steerLeft)
+        controlEngine.release(.steerRight)
+
+        // ④ 持续重发按下事件，否则游戏只收到一次 keyDown（其输入层只认新按下）
+        controlEngine.refreshHeldKeys()
+    }
+
+    /// 限速刹车结束时的收尾：**必须释放手刹**。
+    ///
+    /// ⚠️ 这是本功能最容易出人命的地方：`applyCommand` 只管理 W/S/A/D 四键，
+    ///    从不触碰 handbrake，所以如果刹车退出后不主动松开空格，
+    ///    手刹会被**永久按住**（refreshHeldKeys 还会每帧帮它重发按下事件），
+    ///    车从此再也动不了 —— 用户会看到「速度掉到限速以下了但车不动」。
+    ///    因此每次刹车→松开的边沿、以及不限速/停车时，都要走这里。
+    private func releaseSpeedLimitBrake() {
+        controlEngine.release(.handbrake)
+    }
+
     private func applyCommand(_ cmd: ControlCommand) {
         // 转向：死区 ±0.1，避免微抖动
         if cmd.steer > 0.1 {
@@ -2163,577 +3039,40 @@ final class DriveState {
 
 // ============================================================================
 // MARK: - 文件 4: ContentView.swift  (主布局: 顶部工具栏 + 左画面 + 右侧边栏)
-// ============================================================================
 
-struct ContentView: View {
-    @State private var state = DriveState()
-
-    @State private var tickTimer: Timer? = nil
-    @State private var tickDispatchSource: DispatchSourceTimer? = nil
-    @State private var netLocDispatchSource: DispatchSourceTimer? = nil
-
-    var body: some View {
-        ZStack(alignment: .top) {
-            // 主内容行：AI 面板展开时占左侧 348pt，主 UI（游戏视口+侧边栏）
-            // 整体右移 —— 往外扩展而非覆盖，网络地图/悬浮小地图永不被遮挡
-            HStack(spacing: 0) {
-                if AgentSkillCenter.shared.isPanelOpen {
-                    AIAgentPanelView(center: AgentSkillCenter.shared)
-                        .frame(width: 348)
-                        .transition(.move(edge: .leading))
-                }
-                GameViewportView(state: state)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                SidebarView(state: state)
-                    .frame(width: 360)
-            }
-            .padding(.top, 44)
-            .animation(.spring(response: 0.45, dampingFraction: 0.74),
-                       value: AgentSkillCenter.shared.isPanelOpen)
-
-            TopToolbar(state: state)
-
-            // ── 左侧边缘箭头（始终在最左缘，独立开关 AI 面板）──
-            AIAgentEdgeTab(center: AgentSkillCenter.shared, panelWidth: 348)
-                .frame(maxHeight: .infinity, alignment: .center)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 44)
-                .zIndex(20)
-        }
-        .background(Theme.bgPure)
-        .preferredColorScheme(.dark)
-        .sheet(isPresented: $state.showBPFPasswordSheet) {
-            BPFPasswordSheet(state: state)
-        }
-        .sheet(isPresented: $state.showDaemonInstallSheet) {
-            DaemonInstallSheet(state: state)
-        }
-        .onDisappear {
-            tickTimer?.invalidate()
-            tickTimer = nil
-            tickDispatchSource?.cancel()
-            tickDispatchSource = nil
-            netLocDispatchSource?.cancel()
-            netLocDispatchSource = nil
-        }
-        .onAppear {
-            // tick 驱动：用 DispatchSource 替代 main RunLoop Timer
-            // main RunLoop Timer 会被 App Nap 冻结（游戏全屏时 tick 掉到 8Hz）
-            // DispatchSource 在独立高优先级队列上运行，不受 App Nap 影响
-            let timerQueue = DispatchQueue(label: "com.aurora.tick", qos: .userInteractive)
-            let timer = DispatchSource.makeTimerSource(queue: timerQueue)
-            timer.schedule(deadline: .now(), repeating: 1.0 / 30.0, leeway: .nanoseconds(0))
-            timer.setEventHandler {
-                DispatchQueue.main.async {
-                    state.tick()
-                }
-            }
-            timer.resume()
-            tickTimer = nil  // 不再用 Timer 类型，用 DispatchSource 控制
-            tickDispatchSource = timer
-
-            // Daemon 系统服务检查（优先级高于 BPF，因为影响整个进程调度）
-            state.isDaemonMode = DaemonSetupManager.isRunningAsDaemon()
-            state.daemonInstalled = DaemonSetupManager.isDaemonInstalled()
-            if DaemonSetupManager.needsInstall() {
-                print("[App] 未安装为系统服务，显示安装引导")
-                state.showDaemonInstallSheet = true
-            } else if state.isDaemonMode {
-                print("[App] 当前以系统服务运行（最高优先级）")
-            } else if state.daemonInstalled {
-                print("[App] 已安装系统服务，但当前为普通模式")
-            }
-            
-            // BPF权限检查（在onAppear里，有state访问权限）
-            if BPFSetupManager.needsInstall() || !PrioritySetupManager.isLaunchDaemonInstalled() {
-                // 两者任一缺失都走同一密码弹窗（一次输入装齐 BPF + 性能提权）。
-                // 注意必须并入首条件：若拆成后续 else if，会被 isBPFAvailable 分支截胡
-                // 导致提权器永远装不上。
-                print("[App] 系统权限需安装（BPF=\(!BPFSetupManager.needsInstall()) 提权=\(PrioritySetupManager.isLaunchDaemonInstalled())）")
-                state.showBPFPasswordSheet = true
-            } else if BPFSetupManager.isBPFAvailable() {
-                print("[App] BPF可读写 ✓")
-                state.bpfAuthorized = true
-            } else if BPFSetupManager.isLaunchDaemonInstalled() {
-                BPFSetupManager.tryImmediateChmod()
-                state.bpfAuthorized = BPFSetupManager.isBPFAvailable()
-                print("[App] LaunchDaemon已装，BPF: \(state.bpfAuthorized)")
-            }
-
-            // 网络定位定时器4Hz
-            let nlQueue = DispatchQueue(label: "com.aurora.netlocate", qos: .userInteractive)
-            let nlTimer = DispatchSource.makeTimerSource(queue: nlQueue)
-            nlTimer.schedule(deadline: .now(), repeating: 1.0 / 10.0, leeway: .nanoseconds(0))
-            nlTimer.setEventHandler { DispatchQueue.main.async {
-                state.runNetworkLocateStep()
-            } }
-            nlTimer.resume()
-            netLocDispatchSource = nlTimer
-            // 自主测试入口：AuroraDriveUI --auto-drive [--auto-seconds N]
-            // 启动后自动开始驾驶（模拟人工点击「开始驾驶」），到点自动退出，
-            // 用于无人值守的端到端验证（跑完读 /tmp/aurora_debug.log）。
-            let args = CommandLine.arguments
-            if args.contains("--auto-drive") {
-                print("[AUTO] --auto-drive 收到，1.5s 后自动开始驾驶")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    state.startDriving()
-                }
-            }
-            if let i = args.firstIndex(of: "--auto-seconds"), i + 1 < args.count,
-               let secs = Double(args[i + 1]), secs.isFinite {
-                print("[AUTO] \(Int(secs))s 后自动退出")
-                DispatchQueue.main.asyncAfter(deadline: .now() + secs) {
-                    print("[AUTO] 到点退出")
-                    exit(0)
-                }
-            }
-            if args.contains("--upscale-selftest") {
-                print("[UPSELFTEST] 插帧引擎自检开始")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    runUpscaleSelfTest()
-                }
-            }
-
-            // ── AI Agent 面板初始化 ──
-            // 注入按键/截屏引擎 → 技能中心（人类 + AI 共用执行通道）
-            AgentSkillCenter.shared.configure(control: state.controlEngine,
-                                              capture: state.captureEngine)
-
-            // AI Agent 自测入口：AuroraDriveUI --agent-selftest
-            if args.contains("--agent-selftest") {
-                print("[AGENT] --agent-selftest 收到，1.2s 后开始自测")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    AgentSkillCenter.shared.configure(control: state.controlEngine,
-                                                      capture: state.captureEngine)
-                    AgentSelfTest.run(center: AgentSkillCenter.shared)
-                }
-            }
-
-            // AI 面板 UI 无头渲染自测：AuroraDriveUI --agent-ui-shot
-            if args.contains("--agent-ui-shot") {
-                print("[UI-SHOT] 收到，开始无头渲染 AI 面板")
-                AgentUIShot.run()
-            }
-
-            // AI 面板布局对比自测：AuroraDriveUI --agent-layout-shot
-            if args.contains("--agent-layout-shot") {
-                print("[UI-SHOT] 收到，渲染折叠/展开布局对比")
-                AgentUIShot.runLayoutCompare()
-            }
-
-            // 注：--auto-login 已移到 AppDelegate（applicationDidFinishLaunching）
-            // 处理，与 UI 渲染解耦（见 AppDelegate 中「启动即自动登录」注释）。
-            // 这里仅负责把引擎注入给技能中心（ContentView 持有 DriveState）。
-            AgentSkillCenter.shared.configure(control: state.controlEngine,
-                                              capture: state.captureEngine)
-
-            // --agent-command 派发已移到 AppDelegate（requestCommandOnStartup）：
-            // 命令模式下窗口被 orderOut、本 onAppear 可能不触发，派发不能依赖视图渲染。
-        }
-    }
-}
 
 
 // ============================================================================
 // MARK: - 常驻左上角悬浮小地图（不依赖 GameMapView，应用启动即显示）
-// ============================================================================
-
-/// 朝向指示三角形（用于 FloatingMinimap，与 GameMapView 内的私有 Triangle 同款）
-struct DirectionTriangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
-    }
-}
-
-struct FloatingMinimap: View {
-    @Bindable var state: DriveState
-    /// 瓦片缓存：应用启动即 onAppear 触发后台切图，与驾驶/定位状态无关
-    /// （用户要求：不开自动驾驶也要显示小地图当作地图用）。
-    @StateObject private var tileCache = MinimapTileCache()
-
-    var body: some View {
-        // 固定 224×224（200 小地图 + padding 12×2）：不占满整个 ZStack。
-        // 之前用 .frame(maxWidth:.infinity, maxHeight:.infinity) 占满全窗 + zIndex(15)，
-        // 即使 allowsHitTesting(false)，占满的高 zIndex 层在部分 SwiftUI 版本下仍会
-        // 拦截 hit，导致 sidebar 按钮点不到。固定尺寸只占左上角，彻底不挡按钮。
-        minimapBody
-            .padding(12)
-            .frame(width: 224, height: 224)
-            .allowsHitTesting(false)
-            .onAppear { tileCache.ensureLoaded() }
-    }
-
-    // MARK: 常量与状态判定
-
-    private static let size = MinimapTileCache.minimapPx   // 200
-
-    /// 网络定位是否有效。networkLocateX/Y 是 13056 像素坐标（map-2026-08 参考坐标系，
-    /// 非百分比），故有效区间为 (0, 13056)。
-    private var hasValidLocate: Bool {
-        state.networkLocateScore > 0.3
-            && state.networkLocateX > 0 && state.networkLocateY > 0
-            && state.networkLocateX < Double(MinimapTileCache.mapPixelSize)
-            && state.networkLocateY < Double(MinimapTileCache.mapPixelSize)
-    }
-
-    private var gameRunning: Bool { hasValidLocate || state.isDriving }
-
-    // MARK: 主体
-
-    @ViewBuilder
-    private var minimapBody: some View {
-        ZStack {
-            // ── 底图 ──
-            if hasValidLocate,
-               let tile = tileCache.tileAt(mapPixelX: state.networkLocateX,
-                                           mapPixelY: state.networkLocateY) {
-                // 有定位：显示角色当前所在瓦片（局部放大），与参考 MINI_MAP_ROI 语义一致
-                mapImage(tile)
-            } else if let ov = tileCache.overview {
-                // 无定位：全图缩略，让小地图始终是可用地图（非空白）
-                overviewImage(ov)
-            } else {
-                placeholder
-            }
-
-            gridOverlay
-            statusBadge
-
-            if hasValidLocate {
-                cursor
-            }
-        }
-        .frame(width: Self.size, height: Self.size)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.cyan.opacity(0.5), lineWidth: 1.5))
-        .overlay(alignment: .bottomTrailing) {
-            if tileCache.isReady {
-                if hasValidLocate {
-                    Text("\(MinimapTileCache.tileIndex(mapPixel: state.networkLocateX)),\(MinimapTileCache.tileIndex(mapPixel: state.networkLocateY))/8×8")
-                        .font(.system(size: 8, design: .monospaced))
-                        .foregroundStyle(Theme.textSecondary)
-                        .padding(3)
-                        .background(Color.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 4))
-                        .padding(4)
-                } else {
-                    Text("切图\(Int(tileCache.loadMs))ms")
-                        .font(.system(size: 8, design: .monospaced))
-                        .foregroundStyle(Theme.textTertiary)
-                        .padding(4)
-                }
-            }
-        }
-        .shadow(color: .black.opacity(0.5), radius: 8)
-    }
-
-    // MARK: 底图视图
-
-    @ViewBuilder
-    private func mapImage(_ cg: CGImage) -> some View {
-        let ns = NSImage(cgImage: cg, size: NSSize(width: Self.size, height: Self.size))
-        Image(nsImage: ns)
-            .resizable()
-            .frame(width: Self.size, height: Self.size)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    @ViewBuilder
-    private func overviewImage(_ cg: CGImage) -> some View {
-        let ns = NSImage(cgImage: cg, size: NSSize(width: Self.size, height: Self.size))
-        Image(nsImage: ns)
-            .resizable()
-            .scaledToFill()
-            .frame(width: Self.size, height: Self.size)
-            .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    @ViewBuilder
-    private var placeholder: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(Color.black.opacity(0.85))
-            .frame(width: Self.size, height: Self.size)
-            .overlay {
-                VStack(spacing: 4) {
-                    if let err = tileCache.loadError {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                        Text(err)
-                            .font(.system(size: 9, design: .rounded))
-                            .foregroundStyle(.red.opacity(0.9))
-                            .multilineTextAlignment(.center)
-                    } else {
-                        ProgressView()
-                        Text("加载地图瓦片…")
-                            .font(.system(size: 9, design: .rounded))
-                            .foregroundStyle(Theme.textTertiary)
-                    }
-                }
-            }
-    }
-
-    // MARK: 网格
-
-    @ViewBuilder
-    private var gridOverlay: some View {
-        Path { path in
-            let step = Self.size / CGFloat(MinimapTileCache.tilesPerSide)
-            for i in 1..<MinimapTileCache.tilesPerSide {
-                let v = step * CGFloat(i)
-                path.move(to: CGPoint(x: v, y: 0))
-                path.addLine(to: CGPoint(x: v, y: Self.size))
-                path.move(to: CGPoint(x: 0, y: v))
-                path.addLine(to: CGPoint(x: Self.size, y: v))
-            }
-        }
-        .stroke(Theme.cyan.opacity(0.15), lineWidth: 0.5)
-    }
-
-    // MARK: 状态徽章
-
-    @ViewBuilder
-    private var statusBadge: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(gameRunning ? Color.green : Color.red)
-                    .frame(width: 6, height: 6)
-                    .shadow(color: (gameRunning ? Color.green : Color.red).opacity(0.8), radius: 3)
-                Text(gameRunning ? "一环已打开" : "一环未打开")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(gameRunning ? Color.green : Color.red)
-            }
-            if hasValidLocate {
-                Text("(\(Int(state.networkLocateX)), \(Int(state.networkLocateY)))")
-                    .font(.system(size: 8, design: .monospaced))
-                    .foregroundStyle(Theme.textSecondary)
-                Text("置信 \(Int(state.networkLocateScore * 100))%")
-                    .font(.system(size: 8, design: .monospaced))
-                    .foregroundStyle(state.networkLocateScore > 0.7 ? Theme.cyan : Theme.danger)
-            } else if state.isDriving {
-                Text("等待网络定位…")
-                    .font(.system(size: 8, design: .monospaced))
-                    .foregroundStyle(Theme.textTertiary)
-            } else {
-                Text("未开启驾驶")
-                    .font(.system(size: 8, design: .monospaced))
-                    .foregroundStyle(Theme.textTertiary)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.black.opacity(0.85))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.cyan.opacity(0.3), lineWidth: 0.5))
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(4)
-    }
-
-    // MARK: 光标（瓦片内相对位置）
-
-    @ViewBuilder
-    private var cursor: some View {
-        let cx = MinimapTileCache.inTileOffset(mapPixel: state.networkLocateX)
-        let cy = MinimapTileCache.inTileOffset(mapPixel: state.networkLocateY)
-        ZStack {
-            Circle()
-                .fill(Theme.cyan.opacity(0.3))
-                .frame(width: 22, height: 22)
-                .shadow(color: Theme.cyan, radius: 6)
-            Circle()
-                .fill(Theme.cyan)
-                .frame(width: 10, height: 10)
-                .overlay(Circle().stroke(.white, lineWidth: 1.5))
-                .shadow(color: .black.opacity(0.5), radius: 2)
-            DirectionTriangle()
-                .fill(.white)
-                .frame(width: 10, height: 10)
-                .rotationEffect(.degrees(state.networkLocateHeading))
-                .offset(y: -12)
-        }
-        .position(x: cx, y: cy)
-        .animation(.spring(response: 0.25, dampingFraction: 0.85), value: state.networkLocateX)
-        .animation(.spring(response: 0.25, dampingFraction: 0.85), value: state.networkLocateY)
-    }
-}
 
 
-// ============================================================================
-// MARK: - 文件 5: TopToolbar.swift  (顶部细工具栏)
-// ============================================================================
 
-struct TopToolbar: View {
-    @Bindable var state: DriveState
 
-    var body: some View {
-        HStack {
-            // 左: App 名(青色发光) + 插帧状态徽章
-            HStack(spacing: 8) {
-                Image(systemName: "steeringwheel")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.cyan)
-                    .shadow(color: Theme.cyan, radius: 6)
-                Text("AuroraDrive")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(Theme.cyan)
-                    .shadow(color: Theme.cyan.opacity(0.9), radius: 8)
-                upscaleBadge
-            }
-
-            Spacer()
-
-            // 右: Daemon状态药丸 + BPF状态药丸 + 模式标识 + 运行灯
-            HStack(spacing: 10) {
-                // Daemon系统服务状态药丸（最高优先级标识）
-                if state.isDaemonMode {
-                    HStack(spacing: 4) {
-                        Image(systemName: "shield.lefthalf.filled.badge.checkmark")
-                            .font(.system(size: 9))
-                        Text("系统级")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Theme.cyan.opacity(0.2), in: Capsule())
-                    .foregroundStyle(Theme.cyan)
-                    .shadow(color: Theme.cyan.opacity(0.4), radius: 4)
-                    .help("当前以系统服务运行，最高调度优先级")
-                } else if !state.daemonInstalled {
-                    Button {
-                        state.showDaemonInstallSheet = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "shield")
-                                .font(.system(size: 9))
-                            Text("升级")
-                                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Theme.orangeRed.opacity(0.15), in: Capsule())
-                        .foregroundStyle(Theme.orangeRed)
-                    }
-                    .buttonStyle(.plain)
-                    .help("安装为系统服务，防止游戏全屏时被冻结")
-                }
-                // BPF权限药丸按钮（灵动岛风格折叠）
-                if !state.bpfAuthorized {
-                    Button {
-                        state.showBPFPasswordSheet = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "key.fill")
-                                .font(.system(size: 9))
-                            Text("BPF")
-                                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Theme.orangeRed.opacity(0.2), in: Capsule())
-                        .foregroundStyle(Theme.orangeRed)
-                        .shadow(color: Theme.orangeRed.opacity(0.4), radius: 4)
-                    }
-                    .buttonStyle(.plain)
-                    .help("点击安装BPF权限（只需一次）")
-                }
-                // 网络定位状态指示灯（不需要密码，BPF已chmod 666）
-                Circle()
-                    .fill(state.isDriving ? Theme.cyan : Theme.textTertiary)
-                    .frame(width: 7, height: 7)
-                    .shadow(color: state.isDriving ? Theme.cyan : .clear, radius: 5)
-                // P0-2 修复：脱困（自动倒车/转向，最高风险动作）期间显示独立告警，不并入「规则」分组
-                Text(state.isDriving ? (state.mode == .recover ? "脱困中" : state.mode.uiGroup.rawValue) : "待机")
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(state.isDriving ? (state.mode == .recover ? Theme.orangeRed : Theme.cyan) : Theme.textTertiary)
-                if state.isDriving {
-                    Text(state.m9Status.text)
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(state.m9Status.color)
-                }
-                // 引擎模式状态：后台引擎已连接 / 失联（仅引擎模式显示；本地模式此块不出现）
-                if state.engineModeActive {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(state.engineConnected ? Theme.cyan : Theme.orangeRed)
-                            .frame(width: 6, height: 6)
-                            .shadow(color: (state.engineConnected ? Theme.cyan : Theme.orangeRed).opacity(0.9),
-                                    radius: 4)
-                        Text(state.engineConnected ? "引擎已连接" : "引擎失联")
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(state.engineConnected ? Theme.cyan : Theme.orangeRed)
-                    }
-                    .help("后台引擎运行中：抓屏/推理/按键都在引擎进程里，本窗口只负责显示")
-                }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 5)
-            .background(Capsule().fill(Color.white.opacity(0.05)))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
-        }
-        .padding(.horizontal, 18)
-        .frame(height: 44)
-        .background(.bar.opacity(0.4))
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(LinearGradient(colors: [Theme.cyan.opacity(0.35), .clear],
-                                     startPoint: .leading, endPoint: .trailing))
-                .frame(height: 1)
-        }
-    }
-
-    private var upscaleBadge: some View {
-        let col: Color
-        let txt: String
-        if !state.upscaleSupported {
-            col = Theme.danger; txt = "插帧不可用"
-        } else if let err = state.upscaleEngineError {
-            col = Theme.danger; txt = "插帧异常 · \(err)"
-        } else if !state.upscaleEnabled {
-            col = Theme.textTertiary; txt = "插帧 · 关"
-        } else if !state.isDriving {
-            // 没在驾驶 = 没有新帧可插（停止/暂停后不应继续显示"插帧中"）
-            col = Theme.textTertiary; txt = "插帧 · 待机"
-        } else if let live = state.upscaleLive {
-            col = Theme.cyan; txt = "插帧中 · \(live)"
-        } else {
-            col = Theme.cyan; txt = "插帧中 · 等待"
-        }
-        return Text(txt)
-            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-            .foregroundStyle(col)
-            .lineLimit(1)
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(Capsule().fill(col.opacity(0.12)))
-            .overlay(Capsule().strokeBorder(col.opacity(0.35), lineWidth: 1))
-            .help("插帧实时状态：产出=插入的中间帧 输出=总呈现帧 透传=未插帧直通 帧率")
-    }
-}
 
 // MARK: - BPF权限安装弹窗（灵动岛风格）
 
 struct BPFPasswordSheet: View {
     @Bindable var state: DriveState
-    @State private var password = "123456"
+    /// ⚠️ 绝不预填密码。
+    /// 旧实现是 `@State private var password = "123456"` —— 那是本机开发时的
+    /// 临时便利，一旦发布出去：① 别人的密码当然不是 123456，必然失败；
+    /// ② 等于把「本机管理员密码」写进源码，是明确的安全问题。
+    /// 现在留空，由用户自己输入，输入内容只存在于内存。
+    @State private var password = ""
 
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
                 Image(systemName: "key.fill")
                     .font(.system(size: 32))
-                    .foregroundStyle(Theme.cyan)
-                    .shadow(color: Theme.cyan, radius: 10)
+                    .foregroundStyle(Aurora.ice)
+                    .shadow(color: Aurora.ice, radius: 10)
                 Text("安装系统权限")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.cyan)
+                    .foregroundStyle(Aurora.ice)
                 Text("BPF 网络权限 + 性能提权（nice -20 防游戏挤占）\n输入管理员密码，安装后永久生效，重启自动恢复")
                     .font(.system(size: 11))
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Aurora.t2)
                     .multilineTextAlignment(.center)
             }
 
@@ -2741,14 +3080,14 @@ struct BPFPasswordSheet: View {
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Theme.bgPure, in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(Theme.textPrimary)
+                .background(Aurora.void, in: RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(Aurora.t1)
                 .font(.system(size: 14, design: .monospaced))
 
             if !state.bpfInstallMessage.isEmpty {
                 Text(state.bpfInstallMessage)
                     .font(.system(size: 11))
-                    .foregroundStyle(state.bpfInstallMessage.contains("成功") || state.bpfInstallMessage.contains("已安装") ? Theme.cyan : Theme.orangeRed)
+                    .foregroundStyle(state.bpfInstallMessage.contains("成功") || state.bpfInstallMessage.contains("已安装") ? Aurora.ice : Aurora.amber)
             }
 
             HStack(spacing: 12) {
@@ -2757,31 +3096,26 @@ struct BPFPasswordSheet: View {
                     state.bpfInstallMessage = ""
                 }
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Aurora.t2)
 
                 Button {
                     state.bpfInstalling = true
                     state.bpfInstallMessage = ""
                     let pwd = password
-                    DispatchQueue.global(qos: .userInteractive).async {
-                        let result = BPFSetupManager.install(password: pwd)
-                        // 同一密码顺带装性能提权（renice -20 守护），无需额外按钮
-                        let priResult = PrioritySetupManager.install(password: pwd)
-                        DispatchQueue.main.async {
-                            state.bpfInstalling = false
-                            var msg = result.message
-                            if priResult.success {
-                                msg += "；性能提权已生效（nice -20）"
-                            } else if result.success {
-                                msg += "；性能提权未装：\(priResult.message)"
-                            }
-                            state.bpfInstallMessage = msg
-                            if result.success {
-                                state.bpfAuthorized = true
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    state.showBPFPasswordSheet = false
-                                    state.bpfInstallMessage = ""
-                                }
+                    // 走应用内提权（sudo -S，密码经 stdin）。
+                    // 不走 DaemonSetup 的原生授权路径 —— 那是 `do shell script
+                    // ... with administrator privileges`，会弹 macOS 系统框。
+                    Task { @MainActor in
+                        let result = PrivilegePill.shared.install(password: pwd)
+                        state.bpfInstalling = false
+                        state.bpfInstallMessage = result.message
+                        state.privilegeReady = PrivilegePill.shared.isFullyAuthorized
+                        state.privilegeStatusDetail = PrivilegePill.shared.statusDetail
+                        state.bpfAuthorized = BPFSetupManager.isBPFAvailable()
+                        if result.success {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                state.showBPFPasswordSheet = false
+                                state.bpfInstallMessage = ""
                             }
                         }
                     }
@@ -2795,8 +3129,8 @@ struct BPFPasswordSheet: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .padding(.horizontal, 20)
                     .padding(.vertical, 8)
-                    .background(Theme.cyan.opacity(0.2), in: Capsule())
-                    .foregroundStyle(Theme.cyan)
+                    .background(Aurora.ice.opacity(0.2), in: Capsule())
+                    .foregroundStyle(Aurora.ice)
                 }
                 .buttonStyle(.plain)
                 .disabled(state.bpfInstalling || password.isEmpty)
@@ -2805,10 +3139,10 @@ struct BPFPasswordSheet: View {
         .padding(28)
         .background {
             RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
+                .fill(Aurora.s1)
                 .overlay {
                     RoundedRectangle(cornerRadius: 24)
-                        .stroke(Theme.cyan.opacity(0.3), lineWidth: 1)
+                        .stroke(Aurora.ice.opacity(0.3), lineWidth: 1)
                 }
         }
         .frame(width: 340)
@@ -2820,21 +3154,22 @@ struct BPFPasswordSheet: View {
 /// Daemon 安装引导弹窗：首次启动时引导用户安装为 LaunchDaemon（最高优先级）
 struct DaemonInstallSheet: View {
     @Bindable var state: DriveState
-    @State private var password = "123456"
+    /// 同 BPFPasswordSheet：绝不预填密码（见该处说明）。
+    @State private var password = ""
 
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
                 Image(systemName: "shield.lefthalf.filled.badge.checkmark")
                     .font(.system(size: 32))
-                    .foregroundStyle(Theme.cyan)
-                    .shadow(color: Theme.cyan, radius: 10)
+                    .foregroundStyle(Aurora.ice)
+                    .shadow(color: Aurora.ice, radius: 10)
                 Text("安装系统级服务")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.cyan)
+                    .foregroundStyle(Aurora.ice)
                 Text("游戏全屏时 macOS 会冻结后台 App\n安装为系统服务可获得最高调度优先级\n防止被冻结，只需输入一次密码")
                     .font(.system(size: 11))
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Aurora.t2)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
             }
@@ -2843,14 +3178,14 @@ struct DaemonInstallSheet: View {
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Theme.bgPure, in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(Theme.textPrimary)
+                .background(Aurora.void, in: RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(Aurora.t1)
                 .font(.system(size: 14, design: .monospaced))
 
             if !state.daemonInstallMessage.isEmpty {
                 Text(state.daemonInstallMessage)
                     .font(.system(size: 11))
-                    .foregroundStyle(state.daemonInstallMessage.contains("成功") || state.daemonInstallMessage.contains("已安装") ? Theme.cyan : Theme.orangeRed)
+                    .foregroundStyle(state.daemonInstallMessage.contains("成功") || state.daemonInstallMessage.contains("已安装") ? Aurora.ice : Aurora.amber)
                     .multilineTextAlignment(.center)
             }
 
@@ -2860,7 +3195,7 @@ struct DaemonInstallSheet: View {
                     state.daemonInstallMessage = ""
                 }
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(Aurora.t2)
 
                 Button {
                     state.daemonInstalling = true
@@ -2891,8 +3226,8 @@ struct DaemonInstallSheet: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .padding(.horizontal, 20)
                     .padding(.vertical, 8)
-                    .background(Theme.cyan.opacity(0.2), in: Capsule())
-                    .foregroundStyle(Theme.cyan)
+                    .background(Aurora.ice.opacity(0.2), in: Capsule())
+                    .foregroundStyle(Aurora.ice)
                 }
                 .buttonStyle(.plain)
                 .disabled(state.daemonInstalling || password.isEmpty)
@@ -2901,10 +3236,10 @@ struct DaemonInstallSheet: View {
         .padding(28)
         .background {
             RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
+                .fill(Aurora.s1)
                 .overlay {
                     RoundedRectangle(cornerRadius: 24)
-                        .stroke(Theme.cyan.opacity(0.3), lineWidth: 1)
+                        .stroke(Aurora.ice.opacity(0.3), lineWidth: 1)
                 }
         }
         .frame(width: 360)
@@ -2912,400 +3247,7 @@ struct DaemonInstallSheet: View {
 }
 
 
-// ============================================================================
-// MARK: - 文件 6: GameViewportView.swift  (左侧游戏画面叠加区)
-// ============================================================================
 
-struct GameViewportView: View {
-    @Bindable var state: DriveState
-
-    /// 手动框选：拖拽起点/当前点（视口坐标）
-    @State private var dragStart: CGPoint? = nil
-    @State private var dragCurrent: CGPoint? = nil
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                Color.black
-
-            // ── 真实游戏画面（CGDisplayStream 画面流）──
-            // 当截屏引擎运行时，显示实时游戏画面
-            // 未运行时，显示纯黑占位 + 提示文字
-            if state.isStreaming {
-                // 引擎模式下 UI 不采集、只显示：插帧的帧来自引擎（全分辨率经共享内存送来），
-                // 由 tickEngineMode 喂给 upscaleHost，所以两种档位都能正常显示。
-                if state.upscaleEnabled {
-                    UpscaleFrameHostView(host: state.upscaleHost)
-                        .onChange(of: state.upscaleEnabled) { _, on in
-                            if !on { state.upscaleHost.clear() }
-                        }
-                } else {
-                    FrameHostView(host: state.frameHost)
-                }
-            } else {
-                // 未启动时：纯黑底 + 待机提示
-                VStack(spacing: 12) {
-                    Image(systemName: "steeringwheel")
-                        .font(.system(size: 48, weight: .light))
-                        .foregroundStyle(Theme.cyan.opacity(0.3))
-                        .shadow(color: Theme.cyan.opacity(0.2), radius: 12)
-
-                    // 权限提示优先级：辅助功能 > 屏幕录制
-                    if state.controlPermissionDenied {
-                        Text("需要辅助功能权限")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.danger)
-                        Text("请到 系统设置 > 隐私与安全 > 辅助功能 授权后重试")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.textTertiary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                    } else if state.capturePermissionDenied {
-                        Text("需要屏幕录制权限")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.danger)
-                        Text("请到 系统设置 > 隐私与安全 > 屏幕录制 授权后重试")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.textTertiary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                    } else {
-                        Text("点击右侧启动按钮")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.textTertiary)
-                    }
-                }
-            }
-
-            // ── AI 识别叠加层：检测框（本地模式=YoloEngine / 引擎模式=引擎回传）──
-            ObstacleOverlay(active: state.isDriving,
-                            detections: state.effectiveDetections,
-                            sourceSize: state.screenSize,
-                            lockedTarget: state.yoloEngine.lockedTarget,
-                            isLocked: state.yoloEngine.isLocked)
-
-            // ── 小地图（移植版，显示网络定位位置）放在左上角
-            MinimapLocatorView(state: state)
-                .allowsHitTesting(true)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-            // ── 速度表ROI调试框（红框=速度表区域，蓝框=3个数字槽位）──
-            SpeedROIOverlay(sourceSize: state.screenSize)
-
-            // ── 手动框选预览（拖拽中显示虚线框）──
-            if let s = dragStart, let c = dragCurrent {
-                let rect = CGRect(x: min(s.x, c.x), y: min(s.y, c.y),
-                                  width: abs(c.x - s.x), height: abs(c.y - s.y))
-                if rect.width > 4 && rect.height > 4 {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .strokeBorder(Theme.orangeRed.opacity(0.95),
-                                      style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                        .frame(width: rect.width, height: rect.height)
-                        .position(x: rect.midX, y: rect.midY)
-                        .shadow(color: Theme.orangeRed.opacity(0.5), radius: 6)
-                }
-            }
-
-            // ── 锁定状态悬浮提示 + 取消锁定 ──
-            if state.yoloEngine.isLocked {
-                VStack {
-                    HStack {
-                        HStack(spacing: 6) {
-                            Text("🎯 \(state.yoloEngine.lockMessage ?? "追踪中")")
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Theme.orangeRed)
-                            Button {
-                                state.yoloEngine.clearLock()
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(Theme.orangeRed)
-                            }
-                            .buttonStyle(.plain)
-                            .help("解除锁定")
-                        }
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(.black.opacity(0.55), in: Capsule())
-                        .overlay(Capsule().strokeBorder(Theme.orangeRed.opacity(0.5), lineWidth: 1))
-                        Spacer()
-                    }
-                    Spacer()
-                }
-                .padding(12)
-                .allowsHitTesting(true)
-            }
-
-            // ── 地平线光晕（FSD 风格装饰）──
-            VStack {
-                Spacer().frame(height: 240)
-                Ellipse()
-                    .fill(RadialGradient(
-                        colors: [Theme.cyan.opacity(state.isDriving ? 0.16 : 0.05), .clear],
-                        center: .center, startRadius: 10, endRadius: 260))
-                    .frame(width: 700, height: 120)
-                    .blur(radius: 20)
-                    .allowsHitTesting(false)   // 不挡画面交互
-                Spacer()
-            }
-
-            // ── 左下角 HUD: REC / 帧数 ──
-            VStack {
-                Spacer()
-                HStack {
-                    HStack(spacing: 8) {
-                        if state.isRecording {
-                            Circle().fill(Theme.danger).frame(width: 8, height: 8)
-                                .shadow(color: Theme.danger, radius: 6)
-                            Text("REC")
-                                .font(.system(size: 11, weight: .heavy, design: .monospaced))
-                                .foregroundStyle(Theme.danger)
-                        }
-                        Text("FRAMES \(state.frames.formatted())")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Theme.textTertiary)
-                    }
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(.black.opacity(0.45), in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
-                    Spacer()
-                }
-                .padding(16)
-
-            }
-
-            // ── 底部键盘可视化条（薄薄一条，约1厘米高）──
-            // 显示 WASD + 空格 + Shift，按下时变青绿色发光
-            // 观察控制引擎的按键状态，实时高亮
-            VStack {
-                Spacer()
-                KeyboardBar(state: state, agentMode: state.agentMode)
-                    .padding(.bottom, 8)
-            }
-            }
-            .clipped()
-            // ── 手动框选/点选手势：锁定追踪目标 ──
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { v in
-                        // 驾驶中才允许框选
-                        guard state.isDriving else { return }
-                        if dragStart == nil { dragStart = v.startLocation }
-                        dragCurrent = v.location
-                    }
-                    .onEnded { v in
-                        defer { dragStart = nil; dragCurrent = nil }
-                        guard state.isDriving else { return }
-                        let s = dragStart ?? v.startLocation
-                        let c = dragCurrent ?? v.location
-
-                        // 视口坐标 → 源图归一化
-                        // 基准用 screenSize（本地/引擎、直绘/插帧两条显示路径都有值）；
-                        // 不用 frameHost.latestSize —— 插帧路径画面由 MetalGoose 直渲、
-                        // 不经过 frameHost，读它会拿到空值 → 整个框选被 guard 拦掉（选不了）。
-                        let srcSize = state.screenSize ?? state.frameHost.latestSize
-                        let viewSize = geo.size
-                        guard let n1 = viewToSourceNorm(s, source: srcSize, view: viewSize),
-                              let n2 = viewToSourceNorm(c, source: srcSize, view: viewSize) else { return }
-
-                        let rect = CGRect(x: min(n1.x, n2.x), y: min(n1.y, n2.y),
-                                          width: abs(n2.x - n1.x), height: abs(n2.y - n1.y))
-
-                        // 拖得够大 = 手动框选锁定
-                        if rect.width > 0.05 && rect.height > 0.05 {
-                            state.yoloEngine.setLock(x: rect.midX, y: rect.midY,
-                                                     width: rect.width, height: rect.height)
-                        } else {
-                            // 点选：只有「点在检测框上」才锁定该框；点空白不再生成幽灵框。
-                            // 注意检测结果必须走 effectiveDetections —— 引擎模式下框来自后台引擎，
-                            // 读 yoloEngine.detections 永远是空数组，会退化成「点哪都建一个 0.12 的框」。
-                            let center = CGPoint(x: rect.midX, y: rect.midY)
-                            let dets = state.effectiveDetections
-                            if let hit = dets.first(where: { Self.hitTest($0, center, margin: 0.03) }) {
-                                state.yoloEngine.setLock(to: hit)
-                            } else if let nearest = dets.min(by: {
-                                Self.normDist($0, center) < Self.normDist($1, center)
-                            }), Self.normDist(nearest, center) < 0.12 {
-                                state.yoloEngine.setLock(to: nearest)
-                            }
-                            // 点空白处：不生成任何框（旧行为会留下永不消失的 0.12 幽灵框）
-                        }
-                    }
-            )
-            .overlay(alignment: .trailing) {
-                // 与侧边栏之间的渐变分界光带
-                LinearGradient(colors: [Theme.cyan.opacity(0.22), .clear],
-                               startPoint: .top, endPoint: .bottom)
-                    .frame(width: 1)
-            }
-        }
-    }
-
-    /// 检测框中心到点的归一化距离
-    private static func normDist(_ d: Detection, _ p: CGPoint) -> Double {
-        hypot(d.x - p.x, d.y - p.y)
-    }
-
-    /// 点是否落在检测框内（含少量外扩余量，方便点小目标）
-    private static func hitTest(_ d: Detection, _ p: CGPoint, margin: Double) -> Bool {
-        abs(p.x - d.x) <= d.width / 2 + margin && abs(p.y - d.y) <= d.height / 2 + margin
-    }
-}
-
-// ============================================================================
-// MARK: - 键盘可视化条（底部薄条，显示按键状态）
-// ============================================================================
-
-/// 底部键盘可视化条
-/// AI Agent 模式：显示所有游戏键（WASD + F/E/ESC/Q/R + 1-4）
-/// 驾驶模式：显示 WASD + 空格 + Shift
-/// active=true 时青色发光，来自物理键盘或 AI 注入
-struct KeyboardBar: View {
-    let state: DriveState
-    var agentMode = false
-
-    /// 检查某个键是否被 AI 按住
-    private func isAIHeld(_ key: ControlEngine.GameKey) -> Bool {
-        return state.controlEngine.isHeld(key)
-    }
-
-    /// 检查某个键是否被物理键盘按住
-    private func isPhysicalHeld(_ keyCode: CGKeyCode) -> Bool {
-        return state.keyboardMonitor.isHeld(keyCode)
-    }
-
-    var body: some View {
-        if agentMode {
-            // AI 模式：显示所有游戏键
-            HStack(spacing: 4) {
-                // 移动
-                KeyCap(label: "W", active: isAIHeld(.w) || isPhysicalHeld(87))
-                KeyCap(label: "A", active: isAIHeld(.a) || isPhysicalHeld(65))
-                KeyCap(label: "S", active: isAIHeld(.s) || isPhysicalHeld(83))
-                KeyCap(label: "D", active: isAIHeld(.d) || isPhysicalHeld(68))
-                // 交互
-                KeyCap(label: "F", active: isAIHeld(.f) || isPhysicalHeld(70))
-                KeyCap(label: "E", active: isAIHeld(.e) || isPhysicalHeld(69))
-                KeyCap(label: "␣", active: isAIHeld(.space) || isPhysicalHeld(32), wide: true)
-                // UI
-                KeyCap(label: "ESC", active: isAIHeld(.esc) || isPhysicalHeld(27), narrow: true)
-                KeyCap(label: "Q", active: isAIHeld(.q) || isPhysicalHeld(81))
-                KeyCap(label: "R", active: isAIHeld(.r) || isPhysicalHeld(82))
-                // 数字
-                KeyCap(label: "1", active: isAIHeld(.one) || isPhysicalHeld(49))
-                KeyCap(label: "2", active: isAIHeld(.two) || isPhysicalHeld(50))
-                KeyCap(label: "3", active: isAIHeld(.three) || isPhysicalHeld(51))
-                KeyCap(label: "4", active: isAIHeld(.four) || isPhysicalHeld(52))
-            }
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .background(Color(red: 0.0, green: 0.1, blue: 0.15).opacity(0.85), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.cyan.opacity(0.4), lineWidth: 1))
-        } else {
-            // 驾驶模式：只显示 WASD + 空格 + Shift
-            HStack(spacing: 6) {
-                KeyCap(label: "W", active: isAIHeld(.w) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .throttle)))
-                KeyCap(label: "A", active: isAIHeld(.a) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .steerLeft)))
-                KeyCap(label: "S", active: isAIHeld(.s) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .brake)))
-                KeyCap(label: "D", active: isAIHeld(.d) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .steerRight)))
-                KeyCap(label: "␣", active: isAIHeld(.space) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .handbrake)), wide: true)
-                KeyCap(label: "⇧", active: isAIHeld(.shift) || isPhysicalHeld(state.controlEngine.keyMap.keyCode(for: .boost)))
-            }
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
-        }
-    }
-}
-
-/// 单个键帽
-/// - active: 是否按下（true=青绿色发光，false=暗色边框）
-/// - wide: 是否加宽（空格键）
-/// - narrow: 是否缩小（功能键）
-struct KeyCap: View {
-    let label: String
-    let active: Bool
-    var wide: Bool = false
-    var narrow: Bool = false
-
-    private var keyWidth: CGFloat {
-        if wide { return 60 }
-        if narrow { return 28 }
-        return 22
-    }
-
-    var body: some View {
-        Text(label)
-            .font(.system(size: active ? 11 : 10, weight: .semibold, design: .monospaced))
-            .foregroundStyle(active ? Color.black : Theme.textTertiary)
-            .frame(width: keyWidth, height: 18)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(active ? Color(red: 0.0, green: 1.0, blue: 0.6) : Color.white.opacity(0.04))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(active ? Color(red: 0.0, green: 1.0, blue: 0.6) : Theme.cyan.opacity(0.3),
-                                  lineWidth: 1)
-            )
-            .shadow(color: active ? Color(red: 0.0, green: 1.0, blue: 0.6).opacity(0.8) : .clear, radius: 6)
-            .animation(.easeInOut(duration: 0.08), value: active)
-    }
-}
-
-/// Canvas 绘制: 透视车道线(青色发光 + 滚动虚线)
-struct LaneCanvas: View {
-    var phase: Double
-    var active: Bool
-
-    /// 底部各车道线 x 比例
-    private let laneXs: [CGFloat] = [0.06, 0.30, 0.50, 0.70, 0.94]
-
-    var body: some View {
-        Canvas { ctx, size in
-            let horizonY = size.height * 0.42
-            let vanish   = CGPoint(x: size.width * 0.5, y: horizonY)
-            let baseOpacity = active ? 1.0 : 0.28
-
-            // ---- 车道线(底部 -> 灭点) ----
-            for (i, fx) in laneXs.enumerated() {
-                let start = CGPoint(x: size.width * fx, y: size.height)
-                var p = Path()
-                p.move(to: start)
-                p.addQuadCurve(to: vanish,
-                               control: CGPoint(x: (start.x + vanish.x) / 2,
-                                                y: horizonY + (size.height - horizonY) * 0.55))
-
-                let isCenter = (i == laneXs.count / 2)
-                let color = Theme.cyan.opacity(isCenter ? 0.9 * baseOpacity : 0.65 * baseOpacity)
-
-                // 外层辉光
-                ctx.stroke(p, with: .color(Theme.cyan.opacity(0.18 * baseOpacity)),
-                           style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                // 中层辉光
-                ctx.stroke(p, with: .color(Theme.cyan.opacity(0.35 * baseOpacity)),
-                           style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
-                // 核心亮线(中间线为实线,两侧滚动虚线)
-                let coreStyle: StrokeStyle = isCenter
-                    ? StrokeStyle(lineWidth: 2.2, lineCap: .round)
-                    : StrokeStyle(lineWidth: 2.2, lineCap: .round,
-                                  dash: [26, 20], dashPhase: -phase)
-                ctx.stroke(p, with: .color(color), style: coreStyle)
-            }
-
-            // ---- 灭点光源 ----
-            let glowRect = CGRect(x: vanish.x - 60, y: vanish.y - 14, width: 120, height: 28)
-            ctx.fill(Path(ellipseIn: glowRect),
-                     with: .color(Theme.cyan.opacity(0.5 * baseOpacity)))
-
-            // ---- 地平细线 ----
-            var hline = Path()
-            hline.move(to: CGPoint(x: 0, y: horizonY))
-            hline.addLine(to: CGPoint(x: size.width, y: horizonY))
-            ctx.stroke(hline, with: .color(Theme.cyan.opacity(0.22 * baseOpacity)),
-                       style: StrokeStyle(lineWidth: 1))
-        }
-    }
-}
 
 /// 障碍框：YoloEngine 的真实检测结果，按类别着色 + 标签 + 置信度
 ///
@@ -3341,41 +3283,7 @@ func viewToSourceNorm(_ point: CGPoint,
 }
 
 // BPF权限UI已删除（不需要密码，BPF已chmod 666）
-// MARK: - 速度表ROI调试框（在App预览画面上画框，显示OCR在看哪里）
-struct SpeedROIOverlay: View {
-    var sourceSize: CGSize?
 
-    var body: some View {
-        Canvas { ctx, size in
-            let t = aspectFillLayout(source: sourceSize, view: size)
-            guard t.size.width > 0, t.size.height > 0 else { return }
-
-            let roi = CaptureEngine.speedROINorm
-            let rx = t.origin.x + roi.origin.x * t.size.width
-            let ry = t.origin.y + roi.origin.y * t.size.height
-            let rw = roi.width * t.size.width
-            let rh = roi.height * t.size.height
-            let roiRect = CGRect(x: rx, y: ry, width: rw, height: rh)
-            ctx.stroke(Path(roiRect), with: .color(.red), lineWidth: 2)
-            ctx.fill(Path(roiRect), with: .color(.red.opacity(0.1)))
-
-            let slotCx = SpeedOCRReader.slotCentersNorm
-            let slotW = SpeedOCRReader.slotWidthNorm
-            let yMin = SpeedOCRReader.slotYMinNorm
-            let yMax = SpeedOCRReader.slotYMaxNorm
-            for i in 0..<3 {
-                let cx = slotCx[i]
-                let sx = t.origin.x + (cx - slotW/2) * t.size.width
-                let sy = t.origin.y + yMin * t.size.height
-                let sw = slotW * t.size.width
-                let sh = (yMax - yMin) * t.size.height
-                let slotRect = CGRect(x: sx, y: sy, width: sw, height: sh)
-                ctx.stroke(Path(slotRect), with: .color(.cyan), lineWidth: 1.5)
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}
 
 struct ObstacleOverlay: View {
     var active: Bool
@@ -3390,10 +3298,10 @@ struct ObstacleOverlay: View {
     /// 类别配色
     private static func color(for label: Detection.Label) -> Color {
         switch label {
-        case .pedestrian: return Theme.danger                                  // 行人：红
-        case .car:        return Theme.cyan                                    // 车辆：青
+        case .pedestrian: return Aurora.danger                                  // 行人：红
+        case .car:        return Aurora.ice                                    // 车辆：青
         case .sign:       return Color(red: 1.0, green: 0.82, blue: 0.25)      // 标识：黄
-        case .obstacle:   return Theme.orangeRed                               // 其他：橙
+        case .obstacle:   return Aurora.amber                               // 其他：橙
         }
     }
 
@@ -3434,8 +3342,8 @@ struct ObstacleOverlay: View {
                 let cx = t.origin.x + lt.x * t.size.width
                 let cy = t.origin.y + lt.y * t.size.height
                 let box = CGRect(x: cx - w/2, y: cy - h/2, width: w, height: h)
-                ctx.fill(Path(roundedRect: box, cornerRadius: 6), with: .color(Theme.orangeRed.opacity(0.12)))
-                ctx.stroke(Path(roundedRect: box, cornerRadius: 6), with: .color(Theme.orangeRed), style: StrokeStyle(lineWidth: 3))
+                ctx.fill(Path(roundedRect: box, cornerRadius: 6), with: .color(Aurora.amber.opacity(0.12)))
+                ctx.stroke(Path(roundedRect: box, cornerRadius: 6), with: .color(Aurora.amber), style: StrokeStyle(lineWidth: 3))
                 // 四角准星 14pt
                 let corners: [(CGPoint, CGFloat, CGFloat)] = [(CGPoint(x: box.minX, y: box.minY), 1, 1), (CGPoint(x: box.maxX, y: box.minY), -1, 1), (CGPoint(x: box.minX, y: box.maxY), 1, -1), (CGPoint(x: box.maxX, y: box.maxY), -1, -1)]
                 for (p, sx, sy) in corners {
@@ -3444,7 +3352,7 @@ struct ObstacleOverlay: View {
                     path.addLine(to: CGPoint(x: p.x + 14*sx, y: p.y))
                     path.move(to: p)
                     path.addLine(to: CGPoint(x: p.x, y: p.y + 14*sy))
-                    ctx.stroke(path, with: .color(Theme.orangeRed), style: StrokeStyle(lineWidth: 3))
+                    ctx.stroke(path, with: .color(Aurora.amber), style: StrokeStyle(lineWidth: 3))
                 }
                 let label = "🎯 \(lt.rawName) LOCK"
                 let r = ctx.resolve(Text(label).font(.system(size: 10, weight: .heavy, design: .monospaced)).foregroundStyle(.black))
@@ -3454,7 +3362,7 @@ struct ObstacleOverlay: View {
                 let capX = min(max(box.minX, 4), max(4, size.width - capW - 4))
                 let capY = max(box.minY - 18 - m.height - 4, 4)
                 let cap = CGRect(x: capX, y: capY, width: capW, height: capH)
-                ctx.fill(Path(roundedRect: cap, cornerRadius: 3), with: .color(Theme.orangeRed))
+                ctx.fill(Path(roundedRect: cap, cornerRadius: 3), with: .color(Aurora.amber))
                 ctx.draw(r, at: CGPoint(x: cap.midX, y: cap.midY))
             }
         }
@@ -3515,6 +3423,10 @@ struct FrameHostView: NSViewRepresentable {
 
 final class UpscaleFrameHost {
     private weak var mtkView: MTKView?
+    /// 遮挡观察 token（窗口不可见时暂停绘制）
+    private var occlusionTokens: [NSObjectProtocol] = []
+    /// 当前是否被遮挡（诊断用）
+    private(set) var occluded = false
     private var engine: GooseUpscaler?
 
     private(set) var isAvailable = false
@@ -3550,6 +3462,45 @@ final class UpscaleFrameHost {
         engine.attachToView(view, displayRefreshRate: 60, minRefreshRate: 30)
         engine.configureInterpolation()
         lastAttachInfo = "\(Int(view.bounds.width))x\(Int(view.bounds.height))@\(Int(view.drawableSize.width))x\(Int(view.drawableSize.height))"
+
+        // ⚠️ 遮挡感知：MTKView 默认以 60fps 常开渲染，即使窗口被完全挡住、
+        //    或插帧根本没在跑，GPU/CPU 也在全速空转。这里挂上窗口遮挡通知，
+        //    不可见时暂停绘制、重新可见时恢复 —— 不改变任何功能行为。
+        installOcclusionGuard(on: view)
+    }
+
+    /// 窗口被遮挡 / 最小化时暂停 MTKView 绘制，可见时恢复。
+    /// 纯性能优化：不插帧时省电省发热，插帧时遮挡期本就无需出图。
+    private func installOcclusionGuard(on view: MTKView) {
+        occlusionTokens.forEach { NotificationCenter.default.removeObserver($0) }
+        occlusionTokens.removeAll()
+        guard let win = view.window else {
+            // 视图还没进窗口层级，下一帧再试（attach 常发生在挂载前）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self, weak view] in
+                guard let self, let view else { return }
+                self.installOcclusionGuard(on: view)
+            }
+            return
+        }
+        let sync: () -> Void = { [weak self, weak view] in
+            guard let self, let view else { return }
+            // occlusionState 为空 = 当前被完全遮挡
+            let visible = win.occlusionState.contains(.visible)
+            // 只暂停绘制，不拆引擎（拆了重连代价大）
+            view.isPaused = !visible
+            self.occluded = !visible
+        }
+        let t1 = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification,
+            object: win, queue: .main) { _ in sync() }
+        let t2 = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMiniaturizeNotification,
+            object: win, queue: .main) { _ in sync() }
+        let t3 = NotificationCenter.default.addObserver(
+            forName: NSWindow.didDeminiaturizeNotification,
+            object: win, queue: .main) { _ in sync() }
+        occlusionTokens = [t1, t2, t3]
+        sync()
     }
 
     func statsSnapshot() -> GooseUpscaler.GooseUpscalerStats? {
@@ -3651,729 +3602,24 @@ struct UpscaleFrameHostView: NSViewRepresentable {
 }
 
 
-// ============================================================================
-// MARK: - 文件 7: SidebarView.swift  (右侧毛玻璃侧边栏)
-// ============================================================================
 
-struct SidebarView: View {
-    @Bindable var state: DriveState
-
-    var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 14) {
-                StatusPanel(state: state)
-                ControlPanel(state: state)
-                ConfigPanel(state: state)
-                TrainingPanel(state: state)
-                GameMapCard(state: state)
-                LogViewerPanel()
-            }
-            .padding(14)
-        }
-        .background(.ultraThinMaterial.opacity(0.55))       // 毛玻璃
-        .background(Color.black.opacity(0.55))
-    }
-}
-
-// ============================================================================
-// MARK: - 文件 8: StatusPanel.swift  (状态面板)
-// ============================================================================
-
-struct StatusPanel: View {
-    @Bindable var state: DriveState
-
-    var body: some View {
-        GlowCard {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: "STATUS")
-
-                // 驾驶模式：内部 4 档合并为 2 个用户可见档位（端到端主驾 / 规则）
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(DriveModeGroup.allCases) { g in
-                        ModeGroupChip(group: g, active: state.isDriving && g.contains(state.mode))
-                    }
-                }
-
-                // 置信度
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("置信度")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Theme.textSecondary)
-                        Spacer()
-                        Text(String(format: "%.1f%%", state.confidence * 100))
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Theme.cyan)
-                    }
-                    ConfidenceBar(value: state.confidence)
-                }
-
-                // 车速 + FPS + 禁用控制开关
-                HStack(alignment: .center, spacing: 10) {
-                    HStack(alignment: .lastTextBaseline, spacing: 6) {
-                        Text(state.speedKmh >= 0 ? String(format: "%.0f", state.speedKmh) : "--")
-                            .font(.system(size: 52, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
-                            .shadow(color: Theme.cyan.opacity(0.45), radius: 12)
-                            .contentTransition(.numericText())
-                            // ★ 三位数（>99）时 52pt 宽度暴涨，曾被容器挤压折成两排：
-                            //   lineLimit(1) 禁止折行；minimumScaleFactor 空间不足时缩字；
-                            //   fixedSize 让文本按内容优先取宽，不被压扁换行。
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.55)
-                            .fixedSize(horizontal: true, vertical: false)
-                        Text("km/h")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.textTertiary)
-                        // 车速识别引擎标签：PP-OCRv6（主，青）/ CNN（备用降级，橙）
-                        // @Observable 嵌套：activeEngine 变化时 body 自动刷新
-                        Text(state.speedOCR.activeEngine.rawValue)
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundStyle(state.speedOCR.activeEngine == .ppocr
-                                             ? AnyShapeStyle(Theme.cyan)
-                                             : AnyShapeStyle(Theme.orangeRed))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule().fill((state.speedOCR.activeEngine == .ppocr
-                                                ? AnyShapeStyle(Theme.cyan)
-                                                : AnyShapeStyle(Theme.orangeRed)).opacity(0.12))
-                            )
-                            .overlay(
-                                Capsule().strokeBorder(
-                                    (state.speedOCR.activeEngine == .ppocr
-                                     ? AnyShapeStyle(Theme.cyan)
-                                     : AnyShapeStyle(Theme.orangeRed)).opacity(0.4),
-                                    lineWidth: 1)
-                            )
-                            .help("车速识别引擎：PP-OCRv6 微调模型（主）/ CNN（PP-OCR 故障时自动切换）")
-                    }
-                    Spacer()
-                    // 禁用控制：人开 + 模型检测辅助（不注入 AI 键）
-                    Button {
-                        state.controlDisabled.toggle()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: state.controlDisabled ? "hand.raised.fill" : "hand.raised")
-                                .font(.system(size: 10, weight: .bold))
-                            Text(state.controlDisabled ? "控制已禁" : "禁用控制")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .foregroundStyle(state.controlDisabled ? .black : Theme.textSecondary)
-                        .background(
-                            state.controlDisabled
-                                ? AnyShapeStyle(Theme.orangeRed)
-                                : AnyShapeStyle(Theme.bgCard)
-                        )
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule().strokeBorder(
-                                state.controlDisabled ? Theme.orangeRed : Theme.textTertiary.opacity(0.35),
-                                lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .help(state.controlDisabled
-                          ? "已禁用 AI 控制：模型仅检测画面，人工驾驶"
-                          : "禁用 AI 控制：模型只检测画面，不注入按键（人工驾驶）")
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(String(format: "%.0f", state.fps))
-                            .font(.system(size: 22, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Theme.textPrimary)
-                        Text("FPS")
-                            .font(.system(size: 9, weight: .bold))
-                            .tracking(1.5)
-                            .foregroundStyle(Theme.textTertiary)
-                    }
-                }
-                // 引擎切换 / 加载提示：PP-OCR 故障降级 CNN、备用缺失等（nil 不显示）
-                if let notice = state.speedOCR.engineNotice {
-                    HStack(spacing: 5) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 9))
-                        Text(notice)
-                            .font(.system(size: 10, weight: .medium))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                    }
-                    .foregroundStyle(Theme.orangeRed)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        }
-    }
-}
-
-/// 驾驶模式分组芯片（2 个用户可见档位：端到端主驾 / 规则）。
-/// 组内任一内部档位处于当前 mode 时整组高亮。
-struct ModeGroupChip: View {
-    let group: DriveModeGroup
-    let active: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                Image(systemName: group.icon)
-                    .font(.system(size: 11, weight: .semibold))
-                Text(group.rawValue)
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            Text(group.desc)
-                .font(.system(size: 9, weight: .regular))
-                .lineLimit(2)
-                .opacity(0.85)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10).padding(.vertical, 8)
-        .foregroundStyle(active ? .black : Theme.textSecondary)   // 高亮时深色字压在亮青底上
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(active ? Theme.cyan : Color.white.opacity(0.05))
-                .shadow(color: active ? Theme.cyan.opacity(0.8) : .clear, radius: 10)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(active ? .clear : Color.white.opacity(0.09), lineWidth: 1)
-        )
-        .animation(.spring(response: 0.3), value: active)
-    }
-}
-
-struct ConfidenceBar: View {
-    var value: Double
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.08))
-                Capsule()
-                    .fill(LinearGradient(colors: [Theme.cyanDim, Theme.cyan],
-                                         startPoint: .leading, endPoint: .trailing))
-                    .frame(width: max(6, geo.size.width * value))
-                    .shadow(color: Theme.cyan.opacity(0.9), radius: 8)
-            }
-        }
-        .frame(height: 8)
-        .animation(.easeOut(duration: 0.25), value: value)
-    }
-}
 
 
 // ============================================================================
 // MARK: - 文件 9: ControlPanel.swift  (控制按钮)
-// ============================================================================
-
-struct ControlPanel: View {
-    @Bindable var state: DriveState
-
-    var body: some View {
-        GlowCard {
-            VStack(spacing: 14) {
-                // CONTROL 标题行 + 右侧「紧急切纯规则」胶囊小开关（同排省空间）
-                // 开启：强制停在纯规则兜底档（M9 推理停跑省资源），直到手动关闭
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(Theme.cyan)
-                        .frame(width: 3, height: 12)
-                        .shadow(color: Theme.cyan, radius: 4)
-                    Text("CONTROL")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .tracking(2.5)
-                        .foregroundStyle(Theme.textSecondary)
-                    Spacer()
-                    Button {
-                        withAnimation(.spring(response: 0.3)) {
-                            state.forceRuleMode.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: state.forceRuleMode ? "shield.fill" : "shield")
-                                .font(.system(size: 10, weight: .bold))
-                            Text("纯规则")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                        }
-                        .foregroundStyle(state.forceRuleMode ? .white : Theme.cyan)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .fill(state.forceRuleMode ? Theme.danger : Theme.cyan.opacity(0.15))
-                        )
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(state.forceRuleMode ? Theme.danger : Theme.cyan.opacity(0.6),
-                                              lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .help(state.forceRuleMode
-                          ? "已强制纯规则兜底（M9 停推理），点击恢复自动"
-                          : "紧急切纯规则：一键强制规则兜底，M9 停推理（游戏鼠标点不过去时的应急开关）")
-                }
-
-                // 启动自动驾驶(大按钮)
-                // 启动时同时开启截屏画面流，停止时关闭
-                Button {
-                    withAnimation(.spring(response: 0.35)) {
-                        if state.isDriving {
-                            state.stopDriving()
-                        } else {
-                            state.startDriving()
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: state.isDriving ? "stop.fill" : "play.fill")
-                            .font(.system(size: 15, weight: .bold))
-                        Text(state.isDriving ? "停止自动驾驶" : "启动自动驾驶")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .tracking(0.5)
-                    }
-                    .foregroundStyle(state.isDriving ? .white : .black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(state.isDriving
-                                  ? LinearGradient(colors: [Color.white.opacity(0.14), Color.white.opacity(0.08)],
-                                                   startPoint: .top, endPoint: .bottom)
-                                  : LinearGradient(colors: [Theme.cyan, Theme.cyan.opacity(0.75)],
-                                                   startPoint: .top, endPoint: .bottom))
-                            .shadow(color: state.isDriving ? .clear : Theme.cyan.opacity(0.65), radius: 18)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(state.isDriving ? Theme.danger.opacity(0.7) : .clear, lineWidth: 1.5)
-                    )
-                }
-                .buttonStyle(.plain)
-
-                // 极速模式(橙红开关)
-                HStack {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(state.sportMode ? Theme.orangeRed : Theme.textTertiary)
-                        .shadow(color: state.sportMode ? Theme.orangeRed : .clear, radius: 6)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("极速模式")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.textPrimary)
-                        Text("解除限速,全速冲刺")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Theme.textTertiary)
-                    }
-                    Spacer()
-                    Toggle("", isOn: $state.sportMode)
-                        .toggleStyle(.switch)
-                        .tint(Theme.orangeRed)
-                        .labelsHidden()
-                }
-                .padding(.horizontal, 4)
-            }
-        }
-    }
-}
 
 
-// ============================================================================
-// MARK: - 文件 10: ConfigPanel.swift  (配置面板)
-// ============================================================================
 
-struct ConfigPanel: View {
-    @Bindable var state: DriveState
 
-    var body: some View {
-        GlowCard {
-            VStack(spacing: 16) {
-                SectionHeader(title: "CONFIG")
-
-                SettingSlider(title: "速度上限",
-                              valueText: String(format: "%.0f km/h", state.speedLimit),
-                              value: $state.speedLimit, range: 40...200, step: 5)
-
-                SettingSlider(title: "降级阈值",
-                              valueText: String(format: "%.2f", state.degradeThreshold),
-                              value: $state.degradeThreshold, range: 0.3...0.9, step: 0.01)
-
-                SettingRow(icon: "sparkles", title: "显示插帧",
-                           subtitles: ["MetalGoose MGFG-1 · 仅影响预览观感",
-                                       "游戏很卡时，可短暂看着预览框的插帧画面撑过关卡"],
-                           isActive: { state.upscaleEnabled }, activeColor: Theme.cyan,
-                           shadow: false,
-                           binding: Binding(get: { state.upscaleEnabled },
-                                            set: { state.setUpscaleEnabled($0) }),
-                           disabled: !state.upscaleSupported)
-
-                SettingRow(icon: "bolt.badge.a", title: "游戏模式兼容",
-                           subtitles: ["捕获线程时间约束调度 · 对抗全屏游戏降权",
-                                       "游戏全屏卡成 1 帧时开着它；游戏掉帧就关"],
-                           isActive: { state.gameModeBoost }, activeColor: Theme.cyan,
-                           shadow: false,
-                           binding: Binding(get: { state.gameModeBoost },
-                                            set: { state.setGameModeBoost($0) }),
-                           disabled: false)
-
-                HStack {
-                    Image(systemName: "record.circle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(state.isRecording ? Theme.danger : Theme.textTertiary)
-                    Text("行驶录制")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                    Spacer()
-                    Toggle("", isOn: $state.isRecording)
-                        .toggleStyle(.switch)
-                        .tint(Theme.cyan)
-                        .labelsHidden()
-                }
-                .padding(.horizontal, 4)
-            }
-        }
-    }
-}
-
-struct SettingSlider: View {
-    let title: String
-    let valueText: String
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-
-    var body: some View {
-        VStack(spacing: 6) {
-            HStack {
-                Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.textSecondary)
-                Spacer()
-                Text(valueText)
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.cyan)
-            }
-            Slider(value: $value, in: range, step: step)
-                .tint(Theme.cyan)
-                .shadow(color: Theme.cyan.opacity(0.5), radius: 4)
-        }
-    }
-}
 
 
 // ============================================================================
 // SettingRow：配置行（图标 + 标题 + 副标题 + Toggle）
-// ============================================================================
-
-struct SettingRow: View {
-    let icon: String
-    let title: String
-    let subtitles: [String]
-    let isActive: () -> Bool
-    let activeColor: Color
-    let shadow: Bool
-    let binding: Binding<Bool>
-    let disabled: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(isActive() ? activeColor : Theme.textTertiary)
-                .shadow(color: shadow && isActive() ? activeColor : .clear, radius: 6)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                ForEach(0..<subtitles.count, id: \.self) { i in
-                    Text(subtitles[i])
-                        .font(.system(size: 10))
-                        .foregroundStyle(Theme.textTertiary)
-                }
-            }
-            Spacer()
-            Toggle("", isOn: binding)
-                .toggleStyle(.switch)
-                .tint(activeColor)
-                .labelsHidden()
-                .disabled(disabled)
-        }
-        .padding(.horizontal, 4)
-    }
-}
 
 
-// ============================================================================
-// MARK: - 文件 11: TrainingPanel.swift  (训练控制)
-// ============================================================================
 
-struct TrainingPanel: View {
-    @Bindable var state: DriveState
 
-    var body: some View {
-        GlowCard {
-            VStack(spacing: 12) {
-                SectionHeader(title: "TRAINING")
-
-                // 专家模式：录制来源切到真人物理键（模仿学习的专家演示标签）
-                HStack(spacing: 10) {
-                    Image(systemName: "person.crop.circle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(state.expertMode ? Theme.cyan : Theme.textTertiary)
-                    Text("专家模式（录真人键）")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                    Spacer()
-                    Toggle("", isOn: $state.expertMode)
-                        .toggleStyle(.switch)
-                        .tint(Theme.cyan)
-                        .labelsHidden()
-                }
-                .padding(.horizontal, 4)
-
-                // 字模模式：录制时输出原生速度表帧（供字模训练，不缩成 640×360 训练帧）
-                HStack(spacing: 10) {
-                    Image(systemName: "number.square")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(state.glyphMode ? Theme.cyan : Theme.textTertiary)
-                    Text("字模模式（录原生速度表）")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                    Spacer()
-                    // 录制中此开关不生效（glyphMode 在 start() 时一次性读取），可点但不热切换。
-                    Toggle("", isOn: $state.glyphMode)
-                        .toggleStyle(.switch)
-                        .tint(Theme.cyan)
-                        .labelsHidden()
-                }
-                .padding(.horizontal, 4)
-                if !state.trainingLog.isEmpty {
-                    Text(state.trainingLog)
-                        .font(.system(size: 10))
-                        .foregroundStyle(Theme.textTertiary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 4)
-                }
-
-                HStack(spacing: 10) {
-                    // 录制按钮
-                    TrainButton(
-                        title: state.isRecording ? "录制中" : "录制",
-                        icon: "record.circle",
-                        tint: Theme.danger,
-                        filled: state.isRecording
-                    ) { state.isRecording.toggle() }
-
-                    // 训练按钮
-                    TrainButton(
-                        title: state.isTraining ? "训练中…" : "训练",
-                        icon: "cpu",
-                        tint: Theme.cyan,
-                        filled: state.isTraining
-                    ) { state.startTraining() }
-                }
-
-                // 模型版本
-                HStack {
-                    Image(systemName: "shippingbox.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Theme.textTertiary)
-                    Text("模型版本")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.textTertiary)
-                    Spacer()
-                    Text(state.modelVersion)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Theme.textSecondary)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Color.white.opacity(0.06),
-                                    in: RoundedRectangle(cornerRadius: 6))
-                }
-            }
-        }
-    }
-}
-
-struct TrainButton: View {
-    let title: String
-    let icon: String
-    let tint: Color
-    let filled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .foregroundStyle(filled ? .black : tint)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(filled ? tint : tint.opacity(0.10))
-                    .shadow(color: filled ? tint.opacity(0.6) : .clear, radius: 10)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(tint.opacity(filled ? 0 : 0.5), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
 
 // ============================================================================
 // MARK: - LogViewerPanel (日志查看面板)
-// ============================================================================
 
-/// 日志查看面板：显示 /tmp/aurora_debug.log 的最新内容
-struct LogViewerPanel: View {
-    @State private var logContent: String = "日志未加载"
-    @State private var isExpanded: Bool = false
-    @State private var autoRefresh: Bool = false
-    @State private var refreshTimer: Timer?
-
-    var body: some View {
-        GlowCard {
-            VStack(alignment: .leading, spacing: 10) {
-                // 标题栏
-                HStack {
-                    SectionHeader(title: "DEBUG LOG")
-                    Spacer()
-                    // 自动刷新开关
-                    Toggle("", isOn: $autoRefresh)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .scaleEffect(0.7)
-                        .onChange(of: autoRefresh) { _, enabled in
-                            if enabled {
-                                startAutoRefresh()
-                            } else {
-                                stopAutoRefresh()
-                            }
-                        }
-                    // 手动刷新按钮
-                    Button {
-                        loadLog()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Theme.cyan)
-                    }
-                    .buttonStyle(.plain)
-                    // 展开/收起按钮
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isExpanded.toggle()
-                        }
-                    } label: {
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if isExpanded {
-                    // 日志内容区域
-                    ScrollView(.vertical) {
-                        Text(logContent)
-                            .font(.system(size: 9, design: .monospaced))
-                            .foregroundStyle(Theme.textSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                    .frame(height: 200)
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.black.opacity(0.5))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Theme.cyan.opacity(0.2), lineWidth: 1)
-                    )
-
-                    // 底部操作按钮
-                    HStack(spacing: 8) {
-                        Button("清空日志") {
-                            clearLog()
-                        }
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Theme.danger)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Theme.danger.opacity(0.1))
-                        )
-                        .buttonStyle(.plain)
-
-                        Button("在 Finder 中显示") {
-                            showInFinder()
-                        }
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Theme.cyan)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Theme.cyan.opacity(0.1))
-                        )
-                        .buttonStyle(.plain)
-
-                        Spacer()
-
-                        Text(autoRefresh ? "自动刷新中..." : "")
-                            .font(.system(size: 9))
-                            .foregroundStyle(Theme.cyan.opacity(0.6))
-                    }
-                }
-            }
-        }
-        .onAppear {
-            loadLog()
-        }
-        .onDisappear {
-            stopAutoRefresh()
-        }
-    }
-
-    private func loadLog() {
-        let logPath = "/tmp/aurora_debug.log"
-        if let content = try? String(contentsOfFile: logPath, encoding: .utf8) {
-            // 只显示最后 200 行
-            let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
-            let lastLines = lines.suffix(200)
-            logContent = lastLines.joined(separator: "\n")
-        } else {
-            logContent = "日志文件不存在或无法读取\n路径: \(logPath)"
-        }
-    }
-
-    private func clearLog() {
-        let logPath = "/tmp/aurora_debug.log"
-        try? "".write(toFile: logPath, atomically: true, encoding: .utf8)
-        logContent = "日志已清空"
-    }
-
-    private func showInFinder() {
-        let logPath = "/tmp/aurora_debug.log"
-        let url = URL(fileURLWithPath: logPath)
-        NSWorkspace.shared.activateFileViewerSelecting([url])
-    }
-
-    private func startAutoRefresh() {
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            loadLog()
-        }
-    }
-
-    private func stopAutoRefresh() {
-        refreshTimer?.invalidate()
-        refreshTimer = nil
-    }
-}

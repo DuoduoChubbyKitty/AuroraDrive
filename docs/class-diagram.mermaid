@@ -1,93 +1,46 @@
 classDiagram
+    %% ── 档案标注（2026-09-19 核对，基线 7b7d2db）────────────────────────
+    %% 旧「感知层」设计（ROIFrame / ROIKind / PerceptionConfig / LaneDetecting /
+    %% MiniMapReading / SpeedOCRReading / SignDetecting / SelfCarFiltering 协议，
+    %% LaneLine / LaneDetection / SpeedReading / SignReading / SignKind / TurnHint /
+    %% FilteredObstacles / FusedDriveState / SensorFusion / SpeedPlanner /
+    %% FusionController / RuleLaneController / VisionLaneDetector / MiniMapReader /
+    %% SignDetector / SelfCarFilter）已不在 Sources/ 中，本图按现码替换为
+    %% YOLO+E2E+规则+四档降级架构。
+    %% CaptureEngine.onFrame 签名已改为 (NSImage, CGImage)。
+
+    class DriveState {
+        +tick() void
+        +startDriving() void
+        +stopDriving() void
+        +runNetworkLocateStep() void
+    }
+
     class CaptureEngine {
-        +onFrame: ((NSImage)->Void)?
+        +onFrame: ((NSImage, CGImage)->Void)?
         +onYoloFrame: ((CVPixelBuffer)->Void)?
-        +onROIFrame: ((ROIFrame)->Void)?
+        +onUpscaleFrame: ((CVPixelBuffer)->Void)?
+        +onNativeFrame: ((CVPixelBuffer)->Void)?
         +captureFPS: Double
+        +speedROINorm: CGRect
         +start() void
         +stop() void
     }
-    class ROIFrame {
-        <<struct>>
-        +kind: ROIKind
-        +pixelBuffer: CVPixelBuffer
-        +sourceRect: CGRect
-    }
-    class ROIKind {
-        <<enum>>
-        +minimap
-        +speedometer
-    }
-    CaptureEngine --> ROIFrame : 产出
-    CaptureEngine --> ROIKind
 
-    class PerceptionConfig {
-        +laneROI: CGRect
-        +minimapROI: CGRect
-        +speedROI: CGRect
-        +bevPoints: [CGPoint]
-        +selfCarROI: CGRect
-        +targetCruiseSpeed: Double
-        +cornerLookaheadSeconds: Double
-        +minLaneConfidence: Double
+    class InferenceEngine {
+        +init(modelFileName: String = "m9_mono")
+        +infer(image:speedKmh:speedLimitKmh:) void
+        +loadIfNeeded() void
     }
 
-    class LaneDetecting {
-        <<protocol>>
-        +enabled: Bool
-        +process(frame: CIImage) LaneDetection
-    }
-    class MiniMapReading {
-        <<protocol>>
-        +read(frame: CIImage, roi: CGRect) MiniMapReading
-    }
-    class SpeedOCRReading {
-        <<protocol>>
-        +read(frame: CIImage, roi: CGRect) SpeedReading
-    }
-    class SignDetecting {
-        <<protocol>>
-        +detect(frame: CIImage) [SignReading]
-    }
-    class SelfCarFiltering {
-        <<protocol>>
-        +filter(detections: [Detection]) FilteredObstacles
+    class YoloEngine {
+        +detections: [Detection]
+        +infer(image: CGImage) void
+        +inferFast(pixelBuffer: CVPixelBuffer) void
+        +confidenceThreshold: Double
     }
 
-    class LaneLine {
-        +kind: Kind
-        +points: [CGPoint]
-        +curvature: Double
-        +confidence: Double
-    }
-    class LaneDetection {
-        +left: LaneLine?
-        +right: LaneLine?
-        +centerOffset: Double
-        +headingAngle: Double
-        +confidence: Double
-    }
-    class MiniMapReading {
-        +direction: CGVector
-        +waypoint: CGPoint?
-        +turnHint: TurnHint
-        +confidence: Double
-    }
-    class SpeedReading {
-        +speedKmh: Double
-        +confidence: Double
-    }
-    class SignReading {
-        +kind: SignKind
-        +box: CGRect
-        +confidence: Double
-    }
-    class FilteredObstacles {
-        +kept: [Detection]
-        +filteredSelfCar: [Detection]
-    }
     class Detection {
-        <<existing>>
         +x: Double
         +y: Double
         +width: Double
@@ -96,68 +49,124 @@ classDiagram
         +confidence: Double
     }
 
-    class FusedDriveState {
-        +lane: LaneDetection?
-        +obstacles: [Detection]
-        +waypoint: MiniMapReading?
-        +speed: SpeedReading?
-        +sign: SignReading?
-        +laneConfidence: Double
-        +yoloConfidence: Double
-        +miniMapConfidence: Double
-        +speedConfidence: Double
-        +overallHealth: Double
-        +timestamp: Date
+    class ConfidenceEstimator {
+        +update(command:image:isLive:) void
+        +confidence: Double
     }
 
-    class SensorFusion {
-        +fuse(lane: LaneDetection?, obstacles: FilteredObstacles, miniMap: MiniMapReading?, speed: SpeedReading?, sign: [SignReading]) FusedDriveState
+    class RuleController {
+        +decide(detections: [Detection]) ControlCommand
+        +fuse(detections: [Detection], e2e: ControlCommand) ControlCommand
     }
-    class SpeedPlanner {
-        +plan(fused: FusedDriveState) Double
+
+    class EscapeController {
+        +enter() void
+        +update(dt: Double, speedKmh: Double) (ControlCommand, Bool)
     }
-    class FusionController {
-        +decide(fused: FusedDriveState) ControlCommand
-    }
-    class RuleLaneController {
-        +decide(lane: LaneDetection?, nearestObstacle: Detection?) ControlCommand
-    }
-    class DegradeStateMachine {
-        +update(m9Live: Bool, fusionLive: Bool, health: Double, warmingUp: Bool, speedKmh: Double, dt: Double, sportMode: Bool) DriveMode
-    }
-    class DriveState {
-        +tick() void
-        +startDriving() void
-        +stopDriving() void
-    }
-    class ControlEngine {
-        +hold(action: Action) void
-        +release(action: Action) void
-        +refreshHeldKeys() void
-    }
+
     class ControlCommand {
-        <<existing>>
         +steer: Double
         +throttle: Double
         +brake: Double
+        +confidence: Double
+        +idle: ControlCommand
     }
 
-    SensorFusion ..> FusedDriveState : 产出
-    SensorFusion ..> Detection : 读
-    SpeedPlanner ..> FusedDriveState : 读
-    FusionController ..> SpeedPlanner : 用
-    FusionController ..> FusedDriveState : 读
-    FusionController ..> ControlCommand : 产出
-    RuleLaneController ..> LaneDetection : 读
-    RuleLaneController ..> ControlCommand : 产出
-    DegradeStateMachine ..> FusedDriveState : overallHealth 输入
-    DriveState --> SensorFusion : 组合
-    DriveState --> FusionController : 组合
-    DriveState --> RuleLaneController : 组合
-    DriveState --> DegradeStateMachine : 组合
-    DriveState --> ControlEngine : 组合
-    VisionLaneDetector ..|> LaneDetecting : 实现
-    MiniMapReader ..|> MiniMapReading : 实现
-    SpeedOCRReader ..|> SpeedOCRReading : 实现
-    SignDetector ..|> SignDetecting : 实现
-    SelfCarFilter ..|> SelfCarFiltering : 实现
+    class DegradeStateMachine {
+        +update(m9Live:assistLive:health:warmingUp:speedKmh:dt:speedValid:sportMode:forceRule:) DriveMode
+    }
+
+    class DriveMode {
+        <<enum>>
+        e2e
+        yolo
+        recover
+        rule
+    }
+
+    class ControlEngine {
+        +press(action:duration:) void
+        +hold(action: Action) void
+        +release(action: Action) void
+        +refreshHeldKeys() void
+        +releaseAll() void
+    }
+
+    class KeyboardMonitor {
+        +start() void
+        +stop() void
+        +clearAll() void
+    }
+
+    class RecordEngine {
+        +start(perspective: String) void
+        +stop() void
+        +glyphMode: Bool
+    }
+
+    class SpeedOCRReader {
+        +infer(nativePixelBuffer: CVPixelBuffer) void
+        +speedKmh: Double
+        +confidence: Double
+        +activeEngine: SpeedOCREngine
+    }
+
+    class CoordinateCapture {
+        +start() Bool
+        +read(maxAge: Double) Pose?
+        +processPacket(header:packet:) void
+    }
+
+    class UE5Decoder {
+        +decode(payload:timestamp:flow:) Pose?
+    }
+
+    class VisualLocator {
+        +locate(template:tw:th:scoreThreshold:) LocateResult
+    }
+
+    class MinimapTileCache {
+        +tiles: [CGImage?]
+    }
+
+    class MinimapLocatorView {
+        +blockIndex(state:) Int
+    }
+
+    class NetworkLocator {
+        <<dead code, compiles, never runs>>
+        +DualModeLocator
+        +MaaNTESocketClient
+        +UE5PacketDecoder
+    }
+
+    class EngineClient {
+        +shared: EngineClient
+        +isActive: Bool
+        +sendCommand(_ cmd: String) void
+    }
+
+    DriveState --> CaptureEngine
+    DriveState --> InferenceEngine
+    DriveState --> YoloEngine
+    DriveState --> ConfidenceEstimator
+    DriveState --> RuleController
+    DriveState --> EscapeController
+    DriveState --> DegradeStateMachine
+    DriveState --> ControlEngine
+    DriveState --> KeyboardMonitor
+    DriveState --> RecordEngine
+    DriveState --> SpeedOCRReader
+    DriveState --> CoordinateCapture
+    DriveState --> EngineClient
+    YoloEngine ..> Detection : 产出/读
+    RuleController ..> Detection : 读
+    RuleController ..> ControlCommand : 产出
+    EscapeController ..> ControlCommand : 产出
+    DegradeStateMachine ..> DriveMode : 产出
+    DegradeStateMachine ..> ConfidenceEstimator : health 输入
+    InferenceEngine ..> ControlCommand : steer/throttle/brake
+    ControlEngine ..> ControlCommand : 按键映射执行
+    CoordinateCapture --> UE5Decoder
+    %% 注：MinimapTileCache（FloatingMinimap 用）与 MinimapLocatorView 两套小地图互不引用；
+    %% VisualLocator 的 NCC 引擎休眠（唯一调用者是自身 runSelfTest）

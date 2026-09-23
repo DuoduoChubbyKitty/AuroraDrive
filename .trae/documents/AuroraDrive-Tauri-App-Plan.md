@@ -1,6 +1,6 @@
 # AuroraDrive 原生 App 实施计划（Tauri v2 + Python Sidecar）
 
-> ⚠️ 本文档为阶段7原始计划（Python Sidecar 路线），已被 Route B 纯 C++ 迁移取代。实际架构见 REFACTOR_CHANGELOG.md 阶段7 Route B 说明。
+> ⚠️ 本文档为阶段7原始计划（Python Sidecar 路线），**已被取代**。（2026-09-19 注：原写"Route B 纯 C++ 迁移"——纯 C++ 只是历史中间路线，当前架构为 **Swift 原生**：`Sources/AuroraDrive`（31 个 Swift 文件）+ `Sources/AuroraDriveUserAgent` + `Sources/AuroraDriveShared`，0 个 C++/mm 文件。旧引用的 REFACTOR_CHANGELOG.md 已不存在，实际架构见 `docs/dev/01-architecture.md` 与 `docs/DEVELOPER_GUIDE.md`。下文引用的 `run_web.py` / `App.tsx` / `useSimStore.ts` / `cpp_bridge.py` / `inference.py` / `vite.config.ts` / `CMakeLists.txt` 等 Web+Python 栈文件**均已删除**（根目录 `config.py` 亦不在；现存的 `src/config.py` 是训练配置，与本计划所引非同一物），正文只作存档阅读。）
 
 > 本计划基于 Phase 1 探索（亲自读取 run_web.py / App.tsx / useSimStore.ts / cpp_bridge.py / inference.py / vite.config.ts / package.json / CMakeLists.txt / config.py）与 Plan agent 架构设计综合而成。所有文件路径均来自真实代码核对，已剔除前序 Explore agent 的幻觉信息。
 

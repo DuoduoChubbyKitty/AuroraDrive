@@ -1760,7 +1760,7 @@ struct AIAgentEdgeTab: View {
                 Image(systemName: "chevron.compact.right")
                     .font(.system(size: 13, weight: .bold))
                     .rotationEffect(.degrees(center.isPanelOpen ? 180 : 0))
-                    .foregroundStyle(Theme.cyan)
+                    .foregroundStyle(Aurora.ice)
             }
             .frame(width: 22, height: 76)
             .background(
@@ -1769,17 +1769,17 @@ struct AIAgentEdgeTab: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(hovering ? Theme.cyan.opacity(0.7) : Theme.cyan.opacity(0.35),
+                    .strokeBorder(hovering ? Aurora.ice.opacity(0.7) : Aurora.ice.opacity(0.35),
                                   lineWidth: 1.2)
             )
-            .shadow(color: hovering ? Theme.cyan.opacity(0.6) : Theme.cyan.opacity(0.25),
+            .shadow(color: hovering ? Aurora.ice.opacity(0.6) : Aurora.ice.opacity(0.25),
                     radius: hovering ? 14 : 7)
             .overlay(alignment: .leading) {
                 // 左侧发光边条（呼吸感）
                 Rectangle()
-                    .fill(Theme.cyan.opacity(0.8))
+                    .fill(Aurora.ice.opacity(0.8))
                     .frame(width: 2)
-                    .shadow(color: Theme.cyan, radius: 4)
+                    .shadow(color: Aurora.ice, radius: 4)
             }
         }
         .buttonStyle(.plain)
@@ -1816,7 +1816,7 @@ struct AIAgentPanelView: View {
             HStack(spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(LinearGradient(colors: [Theme.cyan.opacity(0.35), Theme.cyan.opacity(0.08)],
+                        .fill(LinearGradient(colors: [Aurora.ice.opacity(0.35), Aurora.ice.opacity(0.08)],
                                              startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 30, height: 30)
                     Text("🤖")
@@ -1827,18 +1827,18 @@ struct AIAgentPanelView: View {
                         Text("AI AGENT")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
                             .tracking(1.6)
-                            .foregroundStyle(Theme.textPrimary)
+                            .foregroundStyle(Aurora.t1)
                         Circle()
-                            .fill(center.runningSkills.isEmpty ? Theme.cyan : Theme.orangeRed)
+                            .fill(center.runningSkills.isEmpty ? Aurora.ice : Aurora.amber)
                             .frame(width: 6, height: 6)
-                            .shadow(color: center.runningSkills.isEmpty ? Theme.cyan : Theme.orangeRed,
+                            .shadow(color: center.runningSkills.isEmpty ? Aurora.ice : Aurora.amber,
                                     radius: 4)
                     }
                     Text(center.runningSkills.isEmpty
                          ? "空闲 · \(center.aiSettings.model)"
                          : "运行中 · \(runningNames)")
                         .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(Aurora.t3)
                         .lineLimit(1)
                 }
                 Spacer()
@@ -1850,7 +1850,7 @@ struct AIAgentPanelView: View {
                 } label: {
                     Image(systemName: "gear")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.textSecondary)
+                        .foregroundStyle(Aurora.t2)
                         .frame(width: 26, height: 26)
                         .background(Circle().fill(Color.white.opacity(0.06)))
                         .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
@@ -1866,7 +1866,7 @@ struct AIAgentPanelView: View {
                 } label: {
                     Image(systemName: "chevron.compact.left")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.textSecondary)
+                        .foregroundStyle(Aurora.t2)
                         .frame(width: 26, height: 26)
                         .background(Circle().fill(Color.white.opacity(0.06)))
                         .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
@@ -1894,18 +1894,18 @@ struct AIAgentPanelView: View {
                         .font(.system(size: 12, weight: .bold))
                     Text(center.runningSkills.contains("preset_afk") ? "" : "领奖励·收家具·钓鱼")
                         .font(.system(size: 9))
-                        .foregroundStyle(Theme.textSecondary)
+                        .foregroundStyle(Aurora.t2)
                     Spacer()
                 }
-                .foregroundStyle(center.runningSkills.contains("preset_afk") ? Theme.danger : Theme.cyan)
+                .foregroundStyle(center.runningSkills.contains("preset_afk") ? Aurora.danger : Aurora.ice)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(center.runningSkills.contains("preset_afk")
-                         ? Theme.danger.opacity(0.12) : Theme.cyan.opacity(0.12)))
+                         ? Aurora.danger.opacity(0.12) : Aurora.ice.opacity(0.12)))
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(center.runningSkills.contains("preset_afk")
-                                  ? Theme.danger.opacity(0.5) : Theme.cyan.opacity(0.45),
+                                  ? Aurora.danger.opacity(0.5) : Aurora.ice.opacity(0.45),
                                   lineWidth: 1))
             }
             .buttonStyle(.plain)
@@ -1935,7 +1935,7 @@ struct AIAgentPanelView: View {
                 }
                 .font(.system(size: 9, weight: .medium))
                 .buttonStyle(.plain)
-                .foregroundStyle(Theme.textTertiary)
+                .foregroundStyle(Aurora.t3)
                 Spacer()
             }
             .padding(.horizontal, 16)
@@ -1962,17 +1962,17 @@ struct AIAgentPanelView: View {
                         Text("新建对话")
                             .font(.system(size: 10.5, weight: .semibold))
                     }
-                    .foregroundStyle(Theme.cyan)
+                    .foregroundStyle(Aurora.ice)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Capsule().fill(Theme.cyan.opacity(0.1)))
-                    .overlay(Capsule().strokeBorder(Theme.cyan.opacity(0.4), lineWidth: 1))
+                    .background(Capsule().fill(Aurora.ice.opacity(0.1)))
+                    .overlay(Capsule().strokeBorder(Aurora.ice.opacity(0.4), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 Spacer()
                 Text(center.messages.last?.text.prefix(28) ?? "")
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(Theme.textTertiary)
+                    .foregroundStyle(Aurora.t3)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -1985,14 +1985,14 @@ struct AIAgentPanelView: View {
         .background(
             ZStack {
                 Color.black.opacity(0.92)
-                LinearGradient(colors: [Theme.cyan.opacity(0.06), .clear],
+                LinearGradient(colors: [Aurora.ice.opacity(0.06), .clear],
                                startPoint: .topLeading, endPoint: .bottomTrailing)
             }
         )
         .overlay(alignment: .trailing) {
             // 面板右侧发光分隔线
             Rectangle()
-                .fill(LinearGradient(colors: [Theme.cyan.opacity(0.5), Theme.cyan.opacity(0.06)],
+                .fill(LinearGradient(colors: [Aurora.ice.opacity(0.5), Aurora.ice.opacity(0.06)],
                                      startPoint: .top, endPoint: .bottom))
                 .frame(width: 1)
         }
@@ -2031,27 +2031,27 @@ struct AIAgentPanelView: View {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .bold))
                     }
-                    .foregroundStyle(Theme.orangeRed)
+                    .foregroundStyle(Aurora.amber)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(Theme.orangeRed.opacity(0.12)))
+                        .fill(Aurora.amber.opacity(0.12)))
                     .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(Theme.orangeRed.opacity(0.4), lineWidth: 1))
+                        .strokeBorder(Aurora.amber.opacity(0.4), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 .help("填写 API Key / Base URL / Model，启用 AI 端到端指令")
             } else {
                 HStack(spacing: 6) {
-                    Circle().fill(Theme.cyan).frame(width: 5, height: 5)
+                    Circle().fill(Aurora.ice).frame(width: 5, height: 5)
                     Text("AI 已就绪 · \(center.aiSettings.model)")
                         .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(Aurora.t3)
                     Spacer()
                     Button("配置") { showSettings = true }
                         .font(.system(size: 9.5))
                         .buttonStyle(.plain)
-                        .foregroundStyle(Theme.textSecondary)
+                        .foregroundStyle(Aurora.t2)
                 }
                 .padding(.horizontal, 4)
             }
@@ -2062,7 +2062,7 @@ struct AIAgentPanelView: View {
                     if draftText.isEmpty {
                         Text("给 AI 下达指令，或直接输入技能名…")
                             .font(.system(size: 12))
-                            .foregroundStyle(Theme.textTertiary)
+                            .foregroundStyle(Aurora.t3)
                             .padding(.top, 9)
                             .padding(.leading, 10)
                     }
@@ -2082,7 +2082,7 @@ struct AIAgentPanelView: View {
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 24))
-                        .foregroundStyle(draftText.isEmpty ? Theme.textTertiary : Theme.cyan)
+                        .foregroundStyle(draftText.isEmpty ? Aurora.t3 : Aurora.ice)
                 }
                 .buttonStyle(.plain)
                 .disabled(draftText.isEmpty)
@@ -2130,11 +2130,11 @@ struct AIAgentPanelView: View {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 7))
                     }
-                    .foregroundStyle(Theme.cyan)
+                    .foregroundStyle(Aurora.ice)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.cyan.opacity(0.1)))
-                    .overlay(Capsule().strokeBorder(Theme.cyan.opacity(0.35), lineWidth: 1))
+                    .background(Capsule().fill(Aurora.ice.opacity(0.1)))
+                    .overlay(Capsule().strokeBorder(Aurora.ice.opacity(0.35), lineWidth: 1))
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
@@ -2143,7 +2143,7 @@ struct AIAgentPanelView: View {
                 HStack(spacing: 6) {
                     Text("思考")
                         .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary)
+                        .foregroundStyle(Aurora.t2)
                     Slider(value: Binding(
                         get: { Double(center.aiSettings.thinkingDepth) },
                         set: { center.aiSettings.thinkingDepth = Int($0.rounded()) }
@@ -2152,7 +2152,7 @@ struct AIAgentPanelView: View {
                         .frame(width: 84)
                     Text(["低", "中", "高", "Max"][center.aiSettings.thinkingDepth - 1])
                         .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Theme.cyan)
+                        .foregroundStyle(Aurora.ice)
                         .frame(width: 16)
                 }
                 Spacer()
@@ -2183,7 +2183,7 @@ struct AgentSettingsSheet: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("API Key — 粘贴你的 DeepSeek/OpenAI/Claude API Key")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Theme.textSecondary)
+                            .foregroundStyle(Aurora.t2)
                         TextField("sk-...", text: $center.aiSettings.apiKey,
                                   prompt: Text("sk-xxxxxxxx"))
                             .font(.system(.body, design: .monospaced))
@@ -2191,7 +2191,7 @@ struct AgentSettingsSheet: View {
                             .autocorrectionDisabled(true)
                         Text("存储在本地小本本文件（0600），不再访问钥匙串")
                             .font(.system(size: 9))
-                            .foregroundStyle(Theme.textTertiary)
+                            .foregroundStyle(Aurora.t3)
                     }
                 }
 
@@ -2221,7 +2221,7 @@ struct AgentSettingsSheet: View {
                     Text("说明：LLM 规划任务连续失败 3 次会自动降级为本地规则模式（零幻觉），"
                         + "降级日志见面板；点击上方按钮可随时手动恢复。")
                         .font(.system(size: 9))
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(Aurora.t3)
                 }
 
                 Section("快速填充（示例配置，已填的 API Key 会保留）") {
@@ -2294,22 +2294,22 @@ private struct AgentSkillButton: View {
             VStack(spacing: 4) {
                 Text(skill.emoji)
                     .font(.system(size: 17))
-                    .shadow(color: hovered ? Theme.cyan.opacity(0.9) : .clear, radius: hovered ? 9 : 0)
+                    .shadow(color: hovered ? Aurora.ice.opacity(0.9) : .clear, radius: hovered ? 9 : 0)
                 Text(skill.name)
                     .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(Theme.textPrimary)
+                    .foregroundStyle(Aurora.t1)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                 HStack(spacing: 3) {
                     if !skill.ported {
                         Text("待移植")
                             .font(.system(size: 7, weight: .bold))
-                            .foregroundStyle(Theme.textTertiary)
+                            .foregroundStyle(Aurora.t3)
                     }
                     Circle()
-                        .fill(active ? Theme.cyan : (skill.warn ? Theme.danger : Color.white.opacity(0.15)))
+                        .fill(active ? Aurora.ice : (skill.warn ? Aurora.danger : Color.white.opacity(0.15)))
                         .frame(width: 5, height: 5)
-                        .shadow(color: active ? Theme.cyan : .clear, radius: active ? 4 : 0)
+                        .shadow(color: active ? Aurora.ice : .clear, radius: active ? 4 : 0)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -2317,10 +2317,10 @@ private struct AgentSkillButton: View {
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(active ? Theme.cyan.opacity(0.12)
-                                     : (hovered ? Theme.cyan.opacity(0.08) : Color.white.opacity(0.04)))
+                        .fill(active ? Aurora.ice.opacity(0.12)
+                                     : (hovered ? Aurora.ice.opacity(0.08) : Color.white.opacity(0.04)))
                     if hovered || active {
-                        RadialGradient(colors: [Theme.cyan.opacity(0.14), .clear],
+                        RadialGradient(colors: [Aurora.ice.opacity(0.14), .clear],
                                        center: .center, startRadius: 0, endRadius: 80)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
@@ -2328,10 +2328,10 @@ private struct AgentSkillButton: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(hovered || active ? Theme.cyan.opacity(0.55) : Color.white.opacity(0.08),
+                    .strokeBorder(hovered || active ? Aurora.ice.opacity(0.55) : Color.white.opacity(0.08),
                                   lineWidth: 1)
             )
-            .shadow(color: hovered ? Theme.cyan.opacity(0.35) : .clear, radius: hovered ? 10 : 0)
+            .shadow(color: hovered ? Aurora.ice.opacity(0.35) : .clear, radius: hovered ? 10 : 0)
         }
         .buttonStyle(.plain)
         .onHover { h in
@@ -2379,7 +2379,7 @@ private struct AgentBubble: View {
                 HStack(spacing: 4) {
                     Text(timeLabel)
                         .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(Aurora.t3)
                     Text(msg.source.rawValue)
                         .font(.system(size: 8))
                 }
@@ -2410,24 +2410,24 @@ private struct AgentBubble: View {
 
     private var roleColor: Color {
         switch msg.role {
-        case .user: return Theme.textPrimary
-        case .assistant: return Theme.cyan
-        case .system: return Theme.textSecondary
+        case .user: return Aurora.t1
+        case .assistant: return Aurora.ice
+        case .system: return Aurora.t2
         }
     }
 
     private var bubbleFill: Color {
         switch msg.role {
-        case .user: return Theme.cyan.opacity(0.10)
-        case .assistant: return Theme.cyan.opacity(0.06)
+        case .user: return Aurora.ice.opacity(0.10)
+        case .assistant: return Aurora.ice.opacity(0.06)
         case .system: return Color.white.opacity(0.04)
         }
     }
 
     private var bubbleBorder: Color {
         switch msg.role {
-        case .user: return Theme.cyan.opacity(0.30)
-        case .assistant: return Theme.cyan.opacity(0.22)
+        case .user: return Aurora.ice.opacity(0.30)
+        case .assistant: return Aurora.ice.opacity(0.22)
         case .system: return Color.white.opacity(0.10)
         }
     }
@@ -2475,7 +2475,7 @@ enum AgentUIShot {
         // 渲染整个面板（含底部状态条）：348 宽 × 固定高
         let panel = AIAgentPanelView(center: center)
             .frame(width: 348, height: 880)
-            .background(Theme.bgPure)
+            .background(Aurora.void)
             .preferredColorScheme(.dark)
 
         let renderer = ImageRenderer(content: panel)
@@ -2523,7 +2523,7 @@ enum AgentUIShot {
                     .foregroundStyle(.white.opacity(0.75))
                 Text("↖ 网络地图/小地图在这里，永不遮挡")
                     .font(.system(size: 9))
-                    .foregroundStyle(Theme.cyan)
+                    .foregroundStyle(Aurora.ice)
             }
         }
         let sidebarPlaceholder = ZStack {
@@ -2575,7 +2575,7 @@ enum AgentUIShot {
             collapsed
             Text("展开（面板占左 348，主 UI 右移，箭头在面板右缘）")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Theme.cyan)
+                .foregroundStyle(Aurora.ice)
             expanded
         }
         .padding(14)

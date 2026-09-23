@@ -1,6 +1,6 @@
 # AuroraDrive 极光智行 — 技术架构文档
 
-> ⚠️ 本文档为 Python Sidecar 路线技术架构，已被 Route B 纯 C++ 迁移取代。实际架构见 REFACTOR_CHANGELOG.md 阶段7 Route B 说明。
+> ⚠️ 本文档为 Python Sidecar 路线技术架构，**已被取代**。（2026-09-19 注：头注原写"Route B 纯 C++ 迁移"——纯 C++ 只是历史中间路线，当前架构为 **Swift 原生**：`Sources/AuroraDrive`（31 个 Swift 文件）+ `Sources/AuroraDriveUserAgent` + `Sources/AuroraDriveShared`，0 个 C++/mm 文件。旧引用的 REFACTOR_CHANGELOG.md 已不存在，实际架构见 `docs/dev/01-architecture.md` 与 `docs/DEVELOPER_GUIDE.md`。正文引用的 `src/web_server.py` 等 Web/Python 文件均已删除，仅作存档。）
 
 > 配套 PRD：`.trae/documents/AuroraDrive-PRD.md`。本文档定义技术栈、前后端架构、路由、API 契约与数据模型。
 
