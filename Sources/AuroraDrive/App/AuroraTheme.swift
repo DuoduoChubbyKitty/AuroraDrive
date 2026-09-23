@@ -320,7 +320,12 @@ struct AuroraLightField: View {
                      x: w * 0.56, y: h * 0.46,
                      opacity: 0.12)
             }
-            .blur(radius: 92)
+            // blur 半径从 92 降到 60：三个 blob 的总面积约为窗口的 1.9 倍，
+            // 而 92 半径对应 185×185 的高斯核，且 .offset 每帧都在动 → 模糊结果
+            // 无法被 Core Animation 缓存，等于每帧对近两倍窗口面积做一次大核卷积，
+            // 是 UI 侧最贵的一处 GPU 开销。60 半径（核 121）在观感上仍是柔和光斑，
+            // 但卷积量下降约六成。
+            .blur(radius: 60)
             .offset(x: drift ? 22 : -22, y: drift ? 18 : -18)
             .animation(.easeInOut(duration: 26).repeatForever(autoreverses: true), value: drift)
             .onAppear { drift = true }
