@@ -2174,9 +2174,15 @@ final class DriveState {
             }
         }
         // 初始化插帧/超分引擎
-        upscaleHost.prepare()
-        upscaleSupported = upscaleHost.isAvailable
-        dlog("[upscale] 引擎初始化: 可用=\(upscaleSupported)")
+        // 只在 UI 进程做：引擎进程没有窗口/MTKView，upscaleHost 不会被使用
+        //（EngineMain 侧把「喂本进程 upscaleHost」的默认接线覆盖掉了），
+        // 而 prepare() 会走 MTLCreateSystemDefaultDevice + 运行时编译 466 行
+        // shader（~100ms-1s），在引擎进程里纯属白费启动时间。
+        if !CommandLine.arguments.contains("--engine") {
+            upscaleHost.prepare()
+            upscaleSupported = upscaleHost.isAvailable
+            dlog("[upscale] 引擎初始化: 可用=\(upscaleSupported)")
+        }
 
         // 引擎（重新）连上时，把 UI 当前的画面档位同步给引擎：
         // 否则引擎默认发 480 宽缩略帧，UI 开着插帧就会一直等不到全分辨率帧。
