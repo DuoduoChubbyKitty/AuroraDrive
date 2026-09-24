@@ -103,7 +103,11 @@ cp "$BIN_SRC" "$BUNDLE_DIR/Contents/MacOS/AuroraDriveUI.tmp.$$" && mv -f "$BUNDL
 #   引擎以裸可执行启动时 Bundle.main 无意义，改查 exeDir 旁）。
 #   编译失败不阻塞部署（运行时编译兜底，功能零损失）。
 mkdir -p "$BUNDLE_DIR/Contents/Resources"
-if /usr/bin/xcrun -sdk macosx metal -c "$ROOT/Vendor/MetalGoose/Engine/Shaders.metal" -o /tmp/Shaders.air 2>/dev/null \
+# -fmodules-cache-path 指到 workspace 内：metal 编译器的 clang ModuleCache
+# 默认写 /var/folders/（系统临时区），在受限环境（DSH workspace-write）下
+# 会被拒 Operation not permitted → 预编译静默失败。
+if /usr/bin/xcrun -sdk macosx metal -c "$ROOT/Vendor/MetalGoose/Engine/Shaders.metal" \
+        -fmodules-cache-path="$ROOT/.build/metal-cache" -o /tmp/Shaders.air 2>/dev/null \
    && /usr/bin/xcrun -sdk macosx metallib /tmp/Shaders.air -o "$BUNDLE_DIR/Contents/Resources/default.metallib" 2>/dev/null; then
     cp "$BUNDLE_DIR/Contents/Resources/default.metallib" "$ROOT/default.metallib.tmp.$$" \
         && mv -f "$ROOT/default.metallib.tmp.$$" "$ROOT/default.metallib"
