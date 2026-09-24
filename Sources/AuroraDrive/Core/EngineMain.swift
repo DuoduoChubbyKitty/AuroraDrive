@@ -576,6 +576,9 @@ enum EngineMain {
                 EngineGlobals.latestFullFrame = pb
                 EngineGlobals.latestFullFrameLock.unlock()
             }
+            // 门禁：UI 经 socket 的 upscale 命令（wantFullFrame）实时控制——
+            // 关闭时帧回调里连全分辨率拷贝都不做（isUpscaleWanted 在拷贝前求值）。
+            EngineGlobals.state?.captureEngine.isUpscaleWanted = { EngineGlobals.wantFullFrame }
             // 诊断（仅供无按键权限的环境验证帧管道）：
             // 只启动抓屏、不注入按键，用来端到端验证「采集 → 共享内存 → UI」这条链路。
             // 生产路径不受影响（默认不设该变量）。

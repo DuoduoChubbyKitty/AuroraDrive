@@ -2145,6 +2145,8 @@ final class DriveState {
             guard let self else { return }
             self.upscaleHost.push(pixelBuffer: pb)
         }
+        // 门禁：运行时读最新插帧开关（weak 捕获），关闭时不做全分辨率拷贝
+        captureEngine.isUpscaleWanted = { [weak self] in self?.upscaleEnabled ?? false }
         captureEngine.onStatusChange = { [weak self] status in
             DispatchQueue.main.async {
                 switch status {

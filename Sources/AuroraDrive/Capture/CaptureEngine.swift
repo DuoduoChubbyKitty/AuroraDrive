@@ -55,6 +55,14 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     /// MetalGoose 引擎需要完整帧做时域插帧/空间超分，走独立回调不干扰主路径
     var onUpscaleFrame: ((CVPixelBuffer) -> Void)?
 
+    /// 是否需要全分辨率插帧帧（每次帧回调时求值）。
+    /// copyUpscaleFrame 会做一次全分辨率（可达数十 MB）内存拷贝；插帧/清晰画面
+    /// 关闭时这份拷贝纯属白费（下游没人消费）。调用方接线此闭包：
+    /// 引擎进程 → { EngineGlobals.wantFullFrame }（UI 经 socket 下发），
+    /// UI 进程 → { upscaleEnabled }。与 onUpscaleFrame 同为 @unchecked Sendable
+    /// 模式（main 上赋值、captureQueue 上读）。
+    var isUpscaleWanted: () -> Bool = { false }
+
     /// 原生帧直通回调（每帧调用，传入速度表 ROI 原生分辨率 CVPixelBuffer，未缩放）
     /// SpeedOCR 等需要"原生分辨率直裁直读（不插值）"的下游用这条，
     /// 绕开 NSImage 缩放链路；与 onFrame / onYoloFrame 互不影响
@@ -318,7 +326,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
 
         // ── 插帧/超分直通：把全分辨率帧送给 MetalGoose 引擎 ──
         // 必须复制到带 IOSurface 的私有缓冲，否则下游 CGImage 创建会崩（MG-ENG-001）
-        if let onUpscaleFrame, let upscaleCopy = copyUpscaleFrame(from: pixelBuffer) {
+        // 门禁先于拷贝求值：插帧/清晰画面关闭时连全分辨率拷贝都不做
+        //（下游本就没人消费，拷了也是白费带宽与内存带宽）。
+        if let onUpscaleFrame, isUpscaleWanted(),
+           let upscaleCopy = copyUpscaleFrame(from: pixelBuffer) {
             onUpscaleFrame(upscaleCopy)
         }
 
