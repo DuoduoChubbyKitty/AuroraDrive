@@ -1533,10 +1533,18 @@ struct RunLogCard: View {
     }
 
     /// 从真实运行状态生成（只反映 state 实际值，不伪造）
+    // DateFormatter 提为 static let：DateFormatter 创建很重（解析格式串 +
+    // ICU 初始化），原计算属性每次 body 求值都新建一个。iOS 7 起
+    // DateFormatter 线程安全，且这里只被主线程 body 求值，共享安全。
+    private static let clockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+
     private var rows: [(time: String, text: String, kind: String)] {
         var out: [(String, String, String)] = []
-        let f = DateFormatter(); f.dateFormat = "HH:mm:ss"
-        let now = f.string(from: Date())
+        let now = Self.clockFormatter.string(from: Date())
 
         if state.isDriving {
             let c = state.confidence > 0 ? String(format: "%.2f", state.confidence) : "—"
@@ -3410,9 +3418,16 @@ struct AIChatCard: View {
         .padding(.top, 12).padding(.bottom, 13)
     }
 
+    // DateFormatter 提为 static let：创建很重（ICU 初始化），原计算属性
+    // 每次 body 求值都新建。iOS 7 起线程安全，且只被主线程求值，共享安全。
+    private static let hmFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
     private var timeNow: String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"
-        return f.string(from: Date())
+        return Self.hmFormatter.string(from: Date())
     }
 
     /// 走技能中心的真实通道（人类来源）

@@ -197,17 +197,35 @@ extension MapDatabase {
     ]
 
     /// 由实时定位坐标反查当前所在区域（取最近标记的 region —— 真实数据推导）。
+    /// 最近一次区域查询的格缓存。regionName 唯一调用方是 DriveState.regionLabel
+    ///（UI body，主线程），而自车在格内缓慢移动时每次求值都全量遍历 5677 个
+    /// 标记纯属重复：坐标取整到 100px 一格，同格直接命中缓存，只在跨格时
+    /// 遍历一次（120km/h ≈ 每秒十几次跨格，vs 原来每次求值都遍历）。
+    /// 仅主线程访问（唯一调用方在 body），nonisolated(unsafe) 无锁读写在
+    /// 单线程下成立。
+    private static var lastRegionQuery: (gx: Int, gy: Int, name: String?)?
+
     static func regionName(atMapX mx: Double, mapY my: Double) -> String? {
         ensureLoaded()
         guard !markers.isEmpty else { return nil }
+        // 格缓存：同格（100px ≈ 数米）内直接返回上次结果
+        let gx = Int(mx / 100), gy = Int(my / 100)
+        if let last = lastRegionQuery, last.gx == gx, last.gy == gy {
+            return last.name
+        }
         var best: (Double, String)?
         for m in markers {
             guard let px = m.mapX, let py = m.mapY else { continue }
             let d = (px - mx) * (px - mx) + (py - my) * (py - my)
             if best == nil || d < best!.0 { best = (d, m.region) }
         }
-        guard let key = best?.1, !key.isEmpty else { return nil }
-        return regionNamesCN[key] ?? key
+        guard let key = best?.1, !key.isEmpty else {
+            lastRegionQuery = (gx, gy, nil)
+            return nil
+        }
+        let name = regionNamesCN[key] ?? key
+        lastRegionQuery = (gx, gy, name)
+        return name
     }
 
     /// 标记类型 → 颜色（沿用极光配色，不引入新色）
