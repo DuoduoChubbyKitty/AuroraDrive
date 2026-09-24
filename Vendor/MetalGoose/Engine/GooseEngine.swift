@@ -1981,6 +1981,60 @@ final class GooseEngine: NSObject, MTKViewDelegate, @unchecked Sendable {
         processSurface(surf, pixelBuffer: buf, timestamp: timestamp, isSceneCut: false)
     }
 
+    /// 直接以调用方提供的（带 IOSurface 的）CVPixelBuffer 喂帧。
+    ///
+    /// 与 ingest(cgImage:) 语义一致，但跳过 CVPixelBufferCreate + CGContext.draw
+    /// 的往返转换：原路径每帧新建未池化缓冲再画一遍，而 processSurface 只从
+    /// IOSurface 建 GPU 纹理，pixelBuffer 仅随 processCapturedTexture retain 保活
+    /// ——绘制完全多余。调用方必须保证 buffer 带 IOSurface
+    ///（AuroraDrive 的 EngineClient 池已带 kCVPixelBufferIOSurfacePropertiesKey）。
+    /// 新增方法，不改动原有 ingest(cgImage:)（自检与旧路径仍在用）。
+    public func ingest(pixelBuffer: CVPixelBuffer, timestamp: CFTimeInterval = CACurrentMediaTime()) {
+        let w = CVPixelBufferGetWidth(pixelBuffer)
+        let h = CVPixelBufferGetHeight(pixelBuffer)
+        guard w > 0, h > 0 else { return }
+
+        // MTKView 就绪检查（与 ingest(cgImage:) 相同的防主线程死锁语义）
+        let viewReadyBox = OSAllocatedUnfairLock(initialState: true)
+        if Thread.isMainThread {
+            guard let view = mtkView, view.device != nil else {
+                reportError("Error Code: MG-ENG-EXT-003 MTKView not ready")
+                return
+            }
+            if view.drawableSize.width == 0 || view.drawableSize.height == 0 {
+                reportError("Error Code: MG-ENG-EXT-004 drawableSize zero")
+                return
+            }
+        } else {
+            let sem = DispatchSemaphore(value: 0)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { sem.signal(); return }
+                guard let view = self.mtkView, view.device != nil else {
+                    self.reportError("Error Code: MG-ENG-EXT-003 MTKView not ready")
+                    viewReadyBox.withLock { $0 = false }
+                    sem.signal()
+                    return
+                }
+                if view.drawableSize.width == 0 || view.drawableSize.height == 0 {
+                    self.reportError("Error Code: MG-ENG-EXT-004 drawableSize zero")
+                    viewReadyBox.withLock { $0 = false }
+                }
+                sem.signal()
+            }
+            sem.wait()
+            guard viewReadyBox.withLock({ $0 }) else { return }
+        }
+
+        guard let surf = CVPixelBufferGetIOSurface(pixelBuffer)?.takeUnretainedValue() else {
+            reportError("Error Code: MG-ENG-EXT-002 IOSurface missing")
+            return
+        }
+        // 喂帧间隔喂给捕获速率估计器：不更新则估计区间恒为 0 → phase 恒判 1
+        //（纯透传，插帧不产帧），与 ingest(cgImage:) 同理。
+        updateCaptureStats(currentTime: CACurrentMediaTime(), captureTimestamp: timestamp)
+        processSurface(surf, pixelBuffer: pixelBuffer, timestamp: timestamp, isSceneCut: false)
+    }
+
     /// Nothing to do: the upscale target is derived from the live drawable every
     /// frame, and `ensureTexture` / `ensureMetalFXSpatialScaler` rebuild on any
     /// size change on their own.

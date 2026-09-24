@@ -44,6 +44,16 @@ public final class GooseUpscaler {
         engine.ingest(cgImage: cgImage, timestamp: timestamp)
     }
 
+    /// Push one captured frame (IOSurface-backed CVPixelBuffer) into the engine.
+    ///
+    /// Forwards to `GooseEngine.ingest(pixelBuffer:)`, which skips the
+    /// CVPixelBuffer→CGImage→CVPixelBufferCreate+draw round-trip entirely.
+    /// The caller must guarantee the buffer carries an IOSurface
+    /// (AuroraDrive's EngineClient pool already does).
+    public func ingest(pixelBuffer: CVPixelBuffer, timestamp: CFTimeInterval = CACurrentMediaTime()) {
+        engine.ingest(pixelBuffer: pixelBuffer, timestamp: timestamp)
+    }
+
     /// Enable the MGFG-1 frame-interpolation pipeline (2x, display path only).
     ///
     /// Goes through the vendored engine's own settings surface (`updateSettings`)

@@ -3576,15 +3576,17 @@ final class UpscaleFrameHost {
                     self.latestBuffer = nil
                 }
                 frameLock.unlock()
-                guard let buf,
-                      let engine = self.engine,
-                      let cg = Self.cgImage(from: buf) else {
+                // 直接把池化的 IOSurface 缓冲喂给引擎（跳过 CVPixelBuffer→CGImage→
+                // 再 CVPixelBufferCreate+ctx.draw 的往返转换，省 6-18ms/帧）。
+                // 池缓冲会被 processCapturedTexture retain 到渲染完成，期间池新建
+                // 新缓冲而不复用它，无竞争。
+                guard let buf, let engine = self.engine else {
                     frameLock.lock()
                     self.isDraining = false
                     frameLock.unlock()
                     return
                 }
-                engine.ingest(cgImage: cg)
+                engine.ingest(pixelBuffer: buf)
             }
         }
     }
