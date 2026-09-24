@@ -1632,7 +1632,9 @@ final class DriveState {
                 self?.networkLocateHeading = hdg
                 self?.locatorX = px
                 self?.locatorY = py
-                self?.locatorFound = true
+                // 先比后写：定位成功且已标记时跳过写入（省观察者通知，
+                // locatorFound 有 24 处 UI 读取）。
+                if self?.locatorFound == false { self?.locatorFound = true }
                 self?.locatorScore = 1.0
                 self?.locatorHeading = hdg
                 self?.locatorAccelX = ax
@@ -2488,7 +2490,12 @@ final class DriveState {
             isStreaming = true
             frameHost.push(cg)
         }
-        remoteDetections = client.engineDetections
+        // 先比后写：检测列表值不变时跳过 @Observable 写入（省观察者通知）。
+        // Detection 已 Equatable，20 元素 × 7 字段的比较成本远低于每次写入触发的
+        // SwiftUI 刷新链。
+        if remoteDetections != client.engineDetections {
+            remoteDetections = client.engineDetections
+        }
         // 引擎已停止抓屏（点了停止/暂停）→ UI 侧同步收尾：
         // 否则 isStreaming 会一直停在 true（引擎模式下只在有帧时被置 true，从不复位），
         // 导致插帧视图继续挂着、徽章一直显示"插帧中"（用户实测反馈）。
@@ -2703,7 +2710,9 @@ final class DriveState {
         let ocrFresh = speedOCR.speedKmh >= 0
             && speedOCR.confidence > 0.3
             && (speedOCR.lastResultTime.map { Date().timeIntervalSince($0) < 0.5 } ?? false)
-        speedValid = ocrFresh
+        // 先比后写：speedValid / fps 值不变时跳过 @Observable 写入
+        //（逐帧无条件赋值也会触发 SwiftUI 刷新链）。
+        if speedValid != ocrFresh { speedValid = ocrFresh }
         if ocrFresh {
             effectiveSpeed += (speedOCR.speedKmh - effectiveSpeed) * 0.7   // 快跟踪 OCR 读数
         } else {
@@ -2712,7 +2721,8 @@ final class DriveState {
         }
         // FPS 如实反映捕获帧率：未捕获到帧就是 0（UI 显示「—」），
         // 绝不回退成 60 伪造一个好看的数。
-        fps = captureEngine.captureFPS
+        let newFPS = captureEngine.captureFPS
+        if fps != newFPS { fps = newFPS }
 
         // ── 3. 降级状态机决策（四档梯子：模型存活 + 健康度驱动）──
         // 暖机期（开车头几秒还没出推理结果）保持档位不降级
@@ -2727,7 +2737,9 @@ final class DriveState {
                                         dt: dt,
                                         sportMode: sportMode,
                                         forceRule: forceRuleMode)
-        mode = decided   // 同步给 UI
+        // 先比后写：档位不变时跳过 @Observable 写入（省 UI 观察者通知，
+        // mode 有 7 处 UI 读取）。
+        if mode != decided { mode = decided }   // 同步给 UI
 
         // ── 4. 置信度估计（喂当前档位驾驶模型的输出 + 画面）──
         // 暖机期保持 1.0；之后 isLive = 当前档位模型是否存活，
@@ -2740,7 +2752,9 @@ final class DriveState {
             confidenceEst.update(command: healthCommand,
                                  image: currentFrameCG,
                                  isLive: healthLive)
-            confidence = confidenceEst.confidence   // 同步给 UI
+            // 先比后写：置信度不变时跳过 @Observable 写入。
+            let newConf = confidenceEst.confidence
+            if confidence != newConf { confidence = newConf }   // 同步给 UI
         }
 
         // 记录框数供 UI 展示（先比后写：值不变不触发 SwiftUI 重绘）

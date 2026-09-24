@@ -24,7 +24,9 @@ import Observation
 
 /// 单个障碍物检测结果（YOLO 输出解析后的统一格式）
 /// 所有坐标归一化到 [0,1]，原点左上角，与图像分辨率解耦
-struct Detection {
+/// Equatable：字段全部可比较，供 DriveState 先比后写（值不变时跳过
+/// @Observable 写入，省观察者通知）；所有字段自动合成比较。
+struct Detection: Equatable {
 
     /// 障碍物类别
     enum Label: String {
