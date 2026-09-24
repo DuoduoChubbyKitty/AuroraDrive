@@ -440,8 +440,25 @@ final class GooseEngine: NSObject, MTKViewDelegate, @unchecked Sendable {
     private func setupPipelines() {
         // AuroraDrive integration: SwiftPM does not auto-compile .metal into a
         // default.metallib, so compile Shaders.metal from source at runtime.
-        // Falls back to makeDefaultLibrary() when a prebuilt metallib happens to be present.
+        // run.sh now precompiles Shaders.metal into Contents/Resources/default.metallib,
+        // so the prebuilt library is tried FIRST (~100ms-1s faster startup than
+        // runtime source compilation); runtime compilation stays as the fallback.
         let library: MTLLibrary? = {
+            // 编译期源文件路径（#filePath）：GooseEngine.swift 所在的 Engine/ 目录，
+            // 用于 0.5（metallib 旁）与 2（源码旁）两段候选，不依赖启动方式。
+            let srcDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            let exeDir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+            // 0. Prebuilt metallib (deployed by run.sh into the bundle Resources)
+            if let lib = device.makeDefaultLibrary() {
+                return lib
+            }
+            // 0.5 Prebuilt metallib beside a bare executable (non-bundle launch:
+            // Bundle.main is meaningless there, so look next to the binary).
+            let prebuiltURL = exeDir.appendingPathComponent("default.metallib")
+            if FileManager.default.fileExists(atPath: prebuiltURL.path),
+               let lib = try? device.makeLibrary(URL: prebuiltURL) {
+                return lib
+            }
             // 1. Bundle.main (Xcode Run mode)
             if let url = Bundle.main.url(forResource: "Shaders", withExtension: "metal"),
                let src = try? String(contentsOf: url, encoding: .utf8),
@@ -449,11 +466,9 @@ final class GooseEngine: NSObject, MTKViewDelegate, @unchecked Sendable {
                 return compiled
             }
             // 2. Standalone executable: Shaders.metal sits alongside the binary in the project tree.
-            let exeDir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
             let candidates: [URL] = [
                 exeDir.appendingPathComponent("Shaders.metal"),
-                exeDir.appendingPathComponent("Vendor/MetalGoose/Engine/Shaders.metal"),
-                URL(fileURLWithPath: "/Users/dupi/Desktop/自动驾驶系统/Vendor/MetalGoose/Engine/Shaders.metal"),
+                srcDir.appendingPathComponent("Shaders.metal"),
             ]
             for url in candidates {
                 guard FileManager.default.fileExists(atPath: url.path) else { continue }

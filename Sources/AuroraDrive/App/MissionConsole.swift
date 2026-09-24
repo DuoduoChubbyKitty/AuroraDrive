@@ -1579,8 +1579,10 @@ struct RightColumn: View {
                 AIChatCard(center: AgentSkillCenter.shared)
                     .frame(minHeight: 330)
 
-                AutomationBigButton(count: AgentSkillLibrary.all.count,
-                                    running: AgentSkillCenter.shared.runningSkills.count) {
+                // running 在按钮内部读取：AgentSkillCenter 是 @Observable，
+                // 技能启停只重绘本按钮，不再整右栏重算（body 里读会在
+                // 右栏的每一次求值都触发）。
+                AutomationBigButton(count: AgentSkillLibrary.all.count) {
                     withAnimation(.easeOut(duration: 0.24)) { showSkills = true }
                 }
 
@@ -1596,9 +1598,10 @@ struct RightColumn: View {
 ///      background:linear-gradient(135deg,rgba(76,201,255,.14),rgba(169,139,255,.1) 52%,rgba(76,201,255,.06))
 struct AutomationBigButton: View {
     let count: Int
-    let running: Int
     var onOpen: () -> Void
     @State private var hov = false
+
+    private var running: Int { AgentSkillCenter.shared.runningSkills.count }
 
     var body: some View {
         Button(action: onOpen) {
@@ -3184,7 +3187,7 @@ enum MissionControlShot {
                     // ── 右栏 ──
                     VStack(spacing: 13) {
                         AIChatStatic()
-                        AutomationBigButton(count: AgentSkillLibrary.all.count, running: 0) {}
+                        AutomationBigButton(count: AgentSkillLibrary.all.count) {}
                         RunStatusCard(state: state)
                         SystemCard(state: state)
                         Spacer(minLength: 0)
@@ -3243,9 +3246,11 @@ struct AIChatCard: View {
             Rectangle().fill(Aurora.hair1).frame(height: 1)
 
             // .ai-body
+            // LazyVStack：长会话（几十条消息）只渲染可见的 ~10 条，滚动到哪渲染到哪；
+            // 消息带稳定 id（.id(m.id)），scrollTo 定位与 diff 行为不变。
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 10) {
+                    LazyVStack(alignment: .leading, spacing: 10) {
                         ForEach(center.messages) { m in
                             MessageBubble(msg: m).id(m.id)
                         }

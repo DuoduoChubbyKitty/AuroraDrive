@@ -152,7 +152,17 @@ extension MapDatabase {
         let kind: String
         let mapX: Double
         let mapY: Double
-        var stableID: String { "\(kind)#\(name)#\(Int(mapX))#\(Int(mapY))" }
+        // 存储属性（init 里算一次）：四项输入全是 let，创建后不变。
+        // 原计算属性在 ForEach 身份求解时每次重绘都重建字符串。
+        let stableID: String
+
+        init(name: String, kind: String, mapX: Double, mapY: Double) {
+            self.name = name
+            self.kind = kind
+            self.mapX = mapX
+            self.mapY = mapY
+            self.stableID = "\(kind)#\(name)#\(Int(mapX))#\(Int(mapY))"
+        }
     }
 
     /// 取落在「以 (centerX,centerY) 为中心、边长 spanPx 的方形视野」内的标记。

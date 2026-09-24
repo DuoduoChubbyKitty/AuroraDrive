@@ -8,7 +8,7 @@ set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
-BIN_SRC=".build/release/AuroraDrive"
+BIN_SRC=".build/scratch/release/AuroraDrive"
 BIN_DST="AuroraDriveUI"
 
 echo "═══════════════════════════════════════════════"
@@ -66,7 +66,11 @@ rm -rf .build
 # 修复：旧写法 `swift build | tail -5` 管道吞掉构建退出码（set -e 失效）
 # → 构建失败时仍继续部署/启动。现在完整记录构建输出并检查 exit code，
 #   失败时打印错误行并中止（防再犯：2026-09-15 bagel_spam 编译失败曾误部署）
-swift build -c release > .last-build.log 2>&1
+# 2026-09-24 修复：沙盒环境（DSH workspace-write）下 SwiftPM 自身的 sandbox_apply
+#   会 Operation not permitted → manifest 编译失败。加 --disable-sandbox 禁用
+#   SwiftPM 沙盒（非沙盒环境行为不变）；统一 scratch 到 .build/scratch，
+#   与增量开发构建共用缓存。
+swift build -c release --disable-sandbox --scratch-path .build/scratch > .last-build.log 2>&1
 BUILD_RC=$?
 tail -5 .last-build.log
 if [ "$BUILD_RC" -ne 0 ] || [ ! -f "$BIN_SRC" ]; then
@@ -93,6 +97,21 @@ cp "$BIN_SRC" "$BIN_DST.tmp.$$" && mv -f "$BIN_DST.tmp.$$" "$BIN_DST"
 BUNDLE_DIR="$ROOT/AuroraDriveUI.app"
 mkdir -p "$BUNDLE_DIR/Contents/MacOS"
 cp "$BIN_SRC" "$BUNDLE_DIR/Contents/MacOS/AuroraDriveUI.tmp.$$" && mv -f "$BUNDLE_DIR/Contents/MacOS/AuroraDriveUI.tmp.$$" "$BUNDLE_DIR/Contents/MacOS/AuroraDriveUI"
+# 预编译 Metal shader → default.metallib（启动省 100ms-1s 的运行时编译）：
+#   setupPipelines 现在优先加载预编译库（bundle Resources → 裸可执行旁 → 源码编译回退）。
+#   放两处：bundle 的 Contents/Resources/（bundle 形态用）+ 项目根（裸可执行形态用，
+#   引擎以裸可执行启动时 Bundle.main 无意义，改查 exeDir 旁）。
+#   编译失败不阻塞部署（运行时编译兜底，功能零损失）。
+mkdir -p "$BUNDLE_DIR/Contents/Resources"
+if /usr/bin/xcrun -sdk macosx metal -c "$ROOT/Vendor/MetalGoose/Engine/Shaders.metal" -o /tmp/Shaders.air 2>/dev/null \
+   && /usr/bin/xcrun -sdk macosx metallib /tmp/Shaders.air -o "$BUNDLE_DIR/Contents/Resources/default.metallib" 2>/dev/null; then
+    cp "$BUNDLE_DIR/Contents/Resources/default.metallib" "$ROOT/default.metallib.tmp.$$" \
+        && mv -f "$ROOT/default.metallib.tmp.$$" "$ROOT/default.metallib"
+    echo "  Metal shader: ✓ 预编译 (default.metallib)"
+else
+    rm -f /tmp/Shaders.air "$BUNDLE_DIR/Contents/Resources/default.metallib"
+    echo "  Metal shader: ✗ 预编译失败 (回退运行时编译)"
+fi
 printf '%s\n' \
   '<?xml version="1.0" encoding="UTF-8"?>' \
   '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
