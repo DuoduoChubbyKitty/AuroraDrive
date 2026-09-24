@@ -2079,11 +2079,13 @@ final class DriveState {
         // 背景：DriveState 有 5 个创建点（引擎进程 1 + UI 主进程 1 + 三个截图夹具），
         // 每个都会执行这一行；而引擎与 UI 是两个长驻进程、共用同一个日志文件，
         // 若引擎启动时也清空，会把 UI 刚写下的启动诊断整段抹掉（两进程互相删）。
-        // 判定方式与下方 gameHUD.install() 的进程判断保持一致。
+        // 判定：只有「正常 GUI 启动」（无参数）与「--auto-login」（run.sh 的 GUI
+        // 启动变体）两种形态清空；其余任何带参数的形态（--engine / 全部 one-shot
+        // 自检 / mc-shot / agent-ui-shot / agent-layout-shot / yolo-bench / daemon /
+        // agent-command / set-llm-config …）一律不清——夹具不该动生产日志。
         let args = CommandLine.arguments
-        let isEngine = args.contains("--engine")
-        let isSelfTest = args.contains { $0.hasSuffix("-selftest") || $0.hasPrefix("--mc-") }
-        if !isEngine && !isSelfTest {
+        let isUIStartup = args.dropFirst().allSatisfy { $0 == "--auto-login" }
+        if isUIStartup {
             try? FileManager.default.removeItem(atPath: "/tmp/aurora_debug.log")
         }
         // ── 帧率 HUD（左上角绿色两行）：兼作 Game Mode 对抗的可见窗口 ──
