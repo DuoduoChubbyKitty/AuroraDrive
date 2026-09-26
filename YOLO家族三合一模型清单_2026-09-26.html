@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YOLO 家族三合一模型清单（车道线 + 车辆检测 + 可行驶区域）</title>
+<style>
+  :root{
+    --bg:#f6f7f9;--card:#fff;--ink:#1b1f24;--ink2:#4a5260;--ink3:#7b8697;
+    --line:#e3e7ed;--accent:#2f5fd0;--accent-soft:#eaf0fd;
+    --good:#1a7f52;--good-soft:#e6f5ee;--warn:#a8621a;--warn-soft:#fdf3e3;--bad:#b03535;--bad-soft:#fdecec;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.75;font-size:15px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:44px 22px 80px}
+  header.hero{background:linear-gradient(135deg,#1d2b4f 0%,#2f5fd0 100%);color:#fff;
+    border-radius:16px;padding:32px 34px 26px;margin-bottom:24px}
+  header.hero .kicker{font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.75;margin-bottom:10px}
+  header.hero h1{margin:0 0 12px;font-size:25px;line-height:1.42;font-weight:700}
+  header.hero p{margin:0;font-size:14.5px;opacity:.9}
+  header.hero .meta{margin-top:16px;font-size:12.5px;opacity:.7;border-top:1px solid rgba(255,255,255,.2);padding-top:12px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:18px}
+  h2{font-size:18px;margin:0 0 6px;font-weight:700;display:flex;align-items:center;gap:10px}
+  h2 .num{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;
+    background:var(--accent-soft);color:var(--accent);font-size:13.5px;font-weight:700;flex:none}
+  h2+.sub{color:var(--ink3);font-size:13px;margin:0 0 16px;padding-left:36px}
+  h3{font-size:15px;margin:22px 0 8px;font-weight:700}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}li{margin:5px 0}
+  code{background:#f1f3f7;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:13px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  table{width:100%;border-collapse:collapse;font-size:12.6px;margin:14px 0;display:block;overflow-x:auto;white-space:nowrap}
+  thead th{background:#f2f4f8;text-align:left;padding:9px 10px;border-bottom:2px solid var(--line);
+    font-weight:700;color:var(--ink2);font-size:12.2px}
+  tbody td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:hover{background:#fafbfd}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr.hi{background:#fffbe8}
+  .best{color:var(--good);font-weight:700}
+  .badnum{color:var(--bad)}
+  .dim{color:var(--ink3)}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;line-height:1.5}
+  .p-mit{background:var(--good-soft);color:var(--good);border:1px solid #bfe6d3}
+  .p-agpl{background:var(--bad-soft);color:var(--bad);border:1px solid #f3c9c9}
+  .p-none{background:#f1f3f7;color:var(--ink3);border:1px solid var(--line)}
+  .callout{border-left:3px solid var(--accent);background:#fafbfd;padding:13px 16px;border-radius:0 9px 9px 0;margin:14px 0;font-size:13.6px}
+  .callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+  .callout.danger{border-left-color:var(--bad);background:var(--bad-soft)}
+  .callout.ok{border-left-color:var(--good);background:var(--good-soft)}
+  .callout strong{display:block;margin-bottom:4px}
+  .src{font-size:12.2px;color:var(--ink3)}
+  footer{text-align:center;color:var(--ink3);font-size:12px;margin-top:28px}
+  @media(max-width:640px){.wrap{padding:20px 13px 60px}header.hero{padding:22px 18px}header.hero h1{font-size:20px}section{padding:19px 16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">YOLO Family / Panoptic Driving Perception</div>
+  <h1>YOLO 家族的三合一模型清单<br>车道线检测 + 车辆检测 + 可行驶区域分割</h1>
+  <p>只收「YOLO 家族」的三合一。分三类列出：① 名字带 YOLO 的 ② 2025–2026 最新的 ③ YOLO 架构衍生但没叫 YOLO 的。全部标注参数量、指标、年份、许可证、代码地址。</p>
+  <div class="meta">整理日期：2026-09-26 · 指标为各论文自报值，跨论文口径不一，详见末尾说明</div>
+</header>
+
+<div class="callout warn" style="margin-bottom:20px">
+  <strong>先说一个可能不合你预期的结论</strong>
+  <strong>YOLO 本家三合一的精度天花板，仍然是 2024 年的 YOLOPX 和 YOLOPv3。</strong>2025–2026 年新出的 YOLO 系三合一（LM-YOLO、YOLO-MT、OLAD）走的都是<strong>轻量化路线</strong>（3M 上下），精度没有超过那两位。<br>
+  另外：<strong>Ultralytics 官方的 YOLO26 / YOLO11 / YOLOv12 全都不是三合一</strong>——它们只有 detect / segment / pose / OBB / classify，<strong>没有车道线和可行驶区域的头</strong>。这条线上全部是研究界的衍生模型。
+</div>
+
+<section>
+  <h2><span class="num">1</span>名字带 YOLO 的三合一（YOLO 本家）</h2>
+  <p class="sub">按年份排序。「最强」行已加粗。</p>
+  <table>
+    <thead>
+      <tr><th>模型</th><th>年份</th><th>基础架构</th><th class="num">参数量</th>
+      <th class="num">检测Recall%</th><th class="num">mAP50%</th><th class="num">可行驶区mIoU%</th>
+      <th class="num">车道Acc%</th><th class="num">车道IoU%</th><th>速度</th><th>许可</th><th>代码</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>YOLOP</td><td>2021/22</td><td>CSPDarknet</td><td class="num">7.9M</td><td class="num">89.2</td><td class="num">76.5</td><td class="num">91.5</td><td class="num">70.5</td><td class="num">26.2</td><td>41 FPS / 23 FPS Jetson TX2</td><td><span class="pill p-mit">MIT</span></td><td><code>hustvl/YOLOP</code></td></tr>
+      <tr><td>YOLOPv2</td><td>2022</td><td>YOLOv7 系</td><td class="num dim">—</td><td class="num">91.1</td><td class="num">83.4</td><td class="num">93.2</td><td class="num">87.3</td><td class="num">27.2</td><td>—</td><td class="dim">未核实</td><td class="dim">T3CAIC</td></tr>
+      <tr><td>YOLO-ODL</td><td>2023</td><td>YOLOv5s</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td>94 FPS @RTX3090 / 477 FPS TensorRT</td><td class="dim">未核实</td><td class="dim">Sensors 23(13):6238</td></tr>
+      <tr class="hi"><td><strong>YOLOPX</strong></td><td>2024</td><td>ELANNet（anchor-free）</td><td class="num"><strong>32.9M</strong></td><td class="num">93.7</td><td class="num">83.3</td><td class="num">93.2</td><td class="num best">88.6</td><td class="num">27.2</td><td>47 FPS</td><td><span class="pill p-mit">MIT</span></td><td><code>jiaoZ7688/YOLOPX</code></td></tr>
+      <tr class="hi"><td><strong>YOLOPv3</strong></td><td>2024</td><td>SPPCSPC + GhostConv</td><td class="num dim">—</td><td class="num best">96.9</td><td class="num">84.3</td><td class="num best">93.2</td><td class="num">88.3</td><td class="num">28.0</td><td>—</td><td class="dim">未核实</td><td class="dim">Remote Sensing 16(10):1774</td></tr>
+      <tr><td>A-YOLOM(n)</td><td>2023→2025</td><td>YOLOv8</td><td class="num">4.43M</td><td class="num">85.3</td><td class="num">78.0</td><td class="num">90.5</td><td class="num">81.3</td><td class="num">28.2</td><td>39.9 FPS</td><td><span class="pill p-agpl">AGPL-3.0</span></td><td><code>JiayuanWang-JW/YOLOv8-multi-task</code></td></tr>
+      <tr><td>A-YOLOM(s)</td><td>2023→2025</td><td>YOLOv8</td><td class="num">13.61M</td><td class="num">86.9</td><td class="num">81.1</td><td class="num">91.0</td><td class="num">84.9</td><td class="num">28.8</td><td>39.7 FPS</td><td><span class="pill p-agpl">AGPL-3.0</span></td><td><code>JiayuanWang-JW/YOLOv8-multi-task</code></td></tr>
+      <tr><td><strong>LM-YOLO(n)</strong></td><td><strong>2025-07</strong></td><td>YOLO 系</td><td class="num">3.46M</td><td class="num dim">—</td><td class="num">82.3</td><td class="num">91.4</td><td class="num dim">—</td><td class="num">29.1</td><td>—</td><td class="dim">未核实</td><td class="dim">ICIC 2025</td></tr>
+      <tr><td><strong>YOLO-MT</strong></td><td><strong>2025/26</strong></td><td><strong>YOLOv12</strong></td><td class="num">2.9M</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td>实时（384×640 输入）</td><td><span class="pill p-agpl">AGPL-3.0</span></td><td><code>kursatkomurcu/YOLO-MT…</code> + HF</td></tr>
+      <tr class="hi"><td><strong>OLAD</strong></td><td><strong>2026-02</strong></td><td><strong>YOLOv5</strong></td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td class="num dim">—</td><td>声称精度与速度均优于 YOLOP</td><td class="dim">未核实</td><td><span class="pill p-none">无开源</span></td></tr>
+    </tbody>
+  </table>
+  <p class="src">OLAD 全称见论文《自动驾驶场景下的高效多任务视觉感知模型》，复杂系统与复杂性科学 2026, 23(1):130-137。改进点：SPPFCSPC 模块 + 参考 Slim-Neck 重设计特征融合 + 损失引入 MPDIoU；在 BDD100K 验证集 + 自制国内道路数据集评测，并用苏州市公开道路图测试。<strong>注意它的对标基线是 2021 年的 YOLOP，且未开源。</strong></p>
+  <div class="callout ok">
+    <strong>这一档的结论</strong>
+    <strong>最强且能直接拿到的：YOLOPX</strong>——32.9M、<strong>MIT 许可</strong>、车道 Acc 88.6 为全表最高、47 FPS、代码权重齐全（<code>github.com/jiaoZ7688/YOLOPX</code>）。<br>
+    <strong>检测和可行驶区最强：YOLOPv3</strong>——Recall 96.9（全表最高）、可行驶区 mIoU 93.2。它的车道头专门用了 P2 高分辨率特征 + SA 自注意力模块做<strong>非局部长距离依赖</strong>，这正是车道线细长结构最需要的能力。
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">2</span>2025–2026 最新的（按时间）</h2>
+  <p class="sub">你要「新模型」，这一档是新出的，但注意：新的都走轻量化，没有超过上面两位的精度。</p>
+  <table>
+    <thead><tr><th>模型</th><th>时间</th><th>基础</th><th class="num">参数量</th><th>关键指标</th><th>定位</th></tr></thead>
+    <tbody>
+      <tr><td><strong>LM-YOLO(n)</strong></td><td>2025-07（ICIC）</td><td>YOLO 系</td><td class="num">3.46M</td><td>mAP50 82.3 / 可行驶区 mIoU 91.4 / 车道 IoU 29.1</td><td>轻量，nano 版仅 3.46M</td></tr>
+      <tr><td><strong>YOLO-MT</strong></td><td>2025/26</td><td><strong>YOLOv12</strong></td><td class="num">2.9M</td><td>4 个任务（多一个场景属性分类：天气/场景/时段）</td><td>共享 YOLOv12 主干，384×640，有 HuggingFace 权重</td></tr>
+      <tr><td><strong>OLAD</strong></td><td><strong>2026-02</strong></td><td>YOLOv5</td><td class="num dim">—</td><td>声称检测精度与速度均优于 YOLOP</td><td>中文核心期刊，无开源</td></tr>
+    </tbody>
+  </table>
+  <div class="callout danger">
+    <strong>为什么「新」反而不如 2024 的强</strong>
+    因为 2025 年之后这条赛道的重心转向了「压参数保精度」（3M 上下能做三合一），而 2024 年的 YOLOPX / YOLOPv3 是拿 32.9M 参数冲的精度。两者目标不同。<br>
+    <strong>所以如果你要的是「最强」，不该按年份选，要按指标选。</strong>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">3</span>YOLO 架构衍生（主干是 YOLO 系，但没起 YOLO 的名字）</h2>
+  <p class="sub">这些严格说不算「名字带 YOLO」，但主干/模块来自 YOLO 家族，一并列出供你判断。</p>
+  <table>
+    <thead><tr><th>模型</th><th>时间</th><th>YOLO 血统</th><th class="num">参数量</th><th>关键指标</th></tr></thead>
+    <tbody>
+      <tr><td>SCAM-P（C2f / GELAN 两个变体）</td><td>ICRA 2025</td><td>C2f（YOLOv8）+ GELAN（YOLOv9）</td><td class="num dim">—</td><td>mAP50 81.1 / mIoU 91.6 / 车道 IoU 28.8；<strong>230.5 FPS @RTX4090、112.1 FPS @Jetson Orin</strong></td></tr>
+      <tr><td>MTEPN</td><td>2025-06</td><td>CSPDarkNet + C2f-K</td><td class="num">7.9M</td><td>mAP 79.4 / 可行驶区 mIoU 92.4 / 车道 IoU 27.2 / 24.3 ms</td></tr>
+      <tr><td>面向道路场景的自动驾驶多任务感知算法</td><td>2026-08</td><td>未明说</td><td class="num dim">—</td><td>mAP 84.6 / Recall 95.0 / 可行驶区 mIoU 91.6 / 车道 IoU 29.3</td></tr>
+      <tr><td>APDP-Net</td><td>2026-08</td><td><strong>R-ELAN（YOLOv12 系主干）</strong>+ GhostFPN-ELAN</td><td class="num dim">—</td><td>轻量化定位；<strong>极化自注意力专门为车道线长距离依赖设计</strong>；具体数值未获取</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2><span class="num">4</span>给你的一句话选型</h2>
+  <table>
+    <thead><tr><th>你要什么</th><th>选它</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr class="hi"><td><strong>YOLO 本家 + 最强 + 能直接下载用</strong></td><td><strong>YOLOPX</strong></td><td>MIT 许可、32.9M、三项最均衡、车道 Acc 88.6 最高、47 FPS、代码权重全开</td></tr>
+      <tr><td>检测 / 可行驶区极限精度</td><td><strong>YOLOPv3</strong></td><td>Recall 96.9、可行驶区 mIoU 93.2，两者全表最高；车道头有长距离依赖设计</td></tr>
+      <tr><td>最新 + 轻量 + YOLO 本家</td><td><strong>YOLO-MT</strong>（2.9M）或 <strong>LM-YOLO(n)</strong>（3.46M）</td><td>YOLOv12 / YOLO 系，最新的轻量三合一；YOLO-MT 有 HuggingFace 权重</td></tr>
+      <tr><td>吞吐量极限</td><td><strong>SCAM-P</strong></td><td>230.5 FPS @4090、112.1 FPS @Jetson Orin</td></tr>
+      <tr><td>许可零风险（要闭源）</td><td><strong>YOLOPX</strong></td><td>唯一 MIT 又强的；其余强模型不是 AGPL 就是未核实</td></tr>
+    </tbody>
+  </table>
+  <div class="callout danger">
+    <strong>两条必读提醒</strong>
+    ① <strong>这里面没有任何一个是第三方视角（TPV）的</strong>——全部在 BDD100K 这类车载第一视角真实道路数据上训练，换到你的游戏第三人称场景精度不可外推，必须自己重训/微调。<br>
+    ② <strong>车道线 IoU 跨论文不可比</strong>：老论文普遍用 8 像素标签训练、2 像素标签测试，导致「预测越正确反而扣分越多」。所以上表里 26~29 这一档和 RMT-PPAD 那类 52~57 不是同一把尺子，别直接比。
+  </div>
+</section>
+
+<footer>
+  整理于 2026-09-26 · 指标均为原论文自报值，未独立复现 · YOLO 家族三合一均属研究界衍生，非 Ultralytics 官方任务
+</footer>
+
+</div>
+</body>
+</html>

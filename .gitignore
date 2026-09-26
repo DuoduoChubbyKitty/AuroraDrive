@@ -34,6 +34,8 @@ __pycache__/
 # ===== 调试 / 日志 / 临时 =====
 untitled.txt
 *.log
+/build/
+*.rej
 diag_area/
 diag_steps/
 graphflow-out/
@@ -42,6 +44,9 @@ graphflow-out/
 # ===== AI 工具本地数据 =====
 .workbuddy/
 .dsh-vision-router/
+.dsh-computer-use/
+.dsh-edit-review.json
+.dsh-edit-review-archive.json
 
 # ===== 已废弃 =====
 Plugins/
@@ -62,6 +67,14 @@ models/_backup_fp16/
 # ===== 大模型权重（>50MB，不入库）=====
 tools/ppocrv6_finetune/output/**/*.pdopt
 tools/ppocrv6_finetune/pretrained/*.pdparams
+models/yolopx/*.onnx.data
+models/yolopx/*.pth
+
+# ===== 第三方 clone（YOLOPX，版权原因不入库）=====
+tools/yolopx/
+
+# ===== 数据恢复会话文件 =====
+photorec.ses
 
 
 # ===== 含明文凭证的目标提示词（严禁入库）=====

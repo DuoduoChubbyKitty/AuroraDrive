@@ -1,6 +1,12 @@
-# 代码-26 AuroraDriveApp 之 ContentView 与主界面
+# 代码-26 ContentView 与主界面
 
-> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（4379 行）之下部：ContentView + FloatingMinimap + TopToolbar（2164 行起）。基于当前仓库逐单元编写。
+> 覆盖源文件：**旧版 AuroraDriveApp.swift 下部（2164 行起）的 ContentView 已在 UI 大改版中删除**。现 ContentView = `App/MissionConsole.swift`（3934 行）:2772。
+>
+> **⚠️ 2026-09-25 深度复核块（本档旧内容已整体失效）**：
+> ① 旧 ContentView + FloatingMinimap + TopToolbar（本档原描述对象）**全部删除**——被"任务控制中心"取代（网页原型一比一原生翻译，见 代码-27）；
+> ② 新 ContentView 在 **MissionConsole.swift:2772**：`.app` 整体布局 = TopBar + MainGrid（1fr 344px 372px 三栏）+ 浮层（MapOverlay/SkillOverlay）+ AI 对话卡；
+> ③ 本档旧正文保留仅作历史参考（了解大改版前的布局思路）；**阅读新界面结构请看 代码-27 与源码 MissionConsole.swift**；
+> ④ 仍在 AuroraDriveApp.swift 下部且活跃的视图：BPFPasswordSheet/DaemonInstallSheet（权限弹窗）、ObstacleOverlay（检测框叠加层）、FrameHostView/UpscaleFrameHostView（画面直绘宿主）——这些的描述见 代码-24 复核块第 ⑥ 条。
 
 ## 一、ContentView 主布局与 onAppear（第 2168–2334 行）
 

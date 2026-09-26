@@ -36,6 +36,8 @@ let package = Package(
                 "BidKing_PR434",
                 "yolo26s.pt",
                 "train.log",
+                "photorec.log",
+                "photorec.ses",
                 "run.sh",
                 "test-minimal-plugin.js",
                 "README.md",

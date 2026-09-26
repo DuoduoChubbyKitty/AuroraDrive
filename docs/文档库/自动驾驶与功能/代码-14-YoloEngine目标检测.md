@@ -1,6 +1,8 @@
 # 代码-14 YoloEngine 目标检测
 
-> 覆盖源文件：`Sources/AuroraDrive/Inference/YoloEngine.swift`（807 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Inference/YoloEngine.swift`（**818 行**）。基于当前仓库逐单元编写。
+>
+> **2026-09-25 深度复核记录**（807→818 行，+11 行）：9-24 改动 4 落地「fastPathActive 前置修复 + 超时回退」——`fastPathActive` 改为**只在确实开始走直通时才置位**（若放在 guard 之前，模型未加载时也会置 true → tick 的 `if !fastPathActive` 永远不再回退慢路径 → YOLO 彻底停摆），并新增 `lastFastPathTime` 时间戳供调用方做 1s 超时回退判断。其余架构（双路径推理/帧间平滑/锁定追踪/parse/CocoLabels）与上版一致。
 
 ## 一、模型接口、可调参数与状态（第 1–146 行）
 
@@ -31,7 +33,8 @@
 | `iouThreshold` | 0.45 | NMS 的 IoU 阈值（e2e 已内置 NMS，此参数保留） |
 | `maxDetections` | 20 | 单帧最多保留多少个框（防止 UI 被刷屏） |
 | `enabled` | true | 是否启用（关掉可省算力） |
-| `fastPathActive`（private(set)） | false | **直通路径是否已活跃**（CaptureEngine onYoloFrame 已产出过帧）——活跃后 tick() 不再走 NSImage→CGImage 慢路径，**避免双重推理** |
+| `fastPathActive`（private(set)） | false | **直通路径是否已活跃**（CaptureEngine onYoloFrame 已产出过帧）——活跃后 tick() 不再走 NSImage→CGImage 慢路径，**避免双重推理**。**粘性标志（只在 reset() 清）**：若 CaptureEngine 停止直通它不会自动回落 |
+| `lastFastPathTime`（@ObservationIgnored，private(set)） | `.distantPast` | **最近一次直通推理的时刻（9-24 改动 4 新增）**——fastPathActive 是粘性标志，若 CaptureEngine 停止直通，它不会自动回落，tick 会以为直通仍在而永不回退慢路径 → YOLO 停摆。**调用方据本时间戳做超时回退判断**（1s 无直通帧即回退慢路径）；仅供 tick 判活，不参与 UI 观察 |
 
 **状态输出（第 69–114 行）：**
 
@@ -91,7 +94,7 @@
 **`inferFast(pixelBuffer: CVPixelBuffer)`（第 264–324 行）**——直通路径（**快路径**）：
 
 - **CaptureEngine 已在源头把全屏画面缩放到 640×640**（onYoloFrame 回调），这里直接推理，**跳过 NSImage/CGImage 大图转换链路（帧率瓶颈所在）**
-- `fastPathActive = true`（置位后 tick() 不再走慢路径，避免双重推理）
+- **fastPathActive 置位时机（9-24 改动 4 修复，源码 276–281 行）**：只在「确实开始走直通」时才置位——若像原先那样放在 guard 之前，模型未加载时也会置 true，调用方（tick 的 if !fastPathActive）便永远不再回退慢路径，YOLO 会彻底停摆；**同时记录 lastFastPathTime 时间戳，供调用方做超时回退判断**
 - `guard enabled` → `guard isLoaded, let modelRef = model else { loadIfNeeded(); return }` → `guard !isInferencing`
 - **拷贝到私有缓冲（273–282 行）**：主线程 memcpy（640×640×4 ≈ 1.6MB，memcpy 极快）——`yoloInputBuffer` 首帧创建后复用；`Self.copyPixelBuffer(pixelBuffer, to: dst)` 失败 → errorMessage"YOLO: 直通缓冲拷贝失败"——**避免与 captureQueue 对共享缓冲的写竞争**
 - `isInferencing = true` → `inferenceQueue.async`：
@@ -186,4 +189,4 @@
 - **四个语义组**：`vehicleIdx = [1,2,3,4,5,6,7,8]`（两轮/轨道/船机——**游戏里都当"会动的大件"处理**）、`personIdx = [0]`、`signIdx = [9, 11, 12]`（红绿灯/停车标志/计时器）
 - `map(_ idx: Int) -> (Detection.Label, String)`：越界返回 `(.obstacle, "OBJ")`；命中组返回对应 Label，**UI 显示名 `names[idx].uppercased()`**
 
-**YoloEngine 文档至此完整**（807 行全覆盖：模型接口 → 加载预热 → infer 慢/快双路径 → 帧间平滑 → 锁定追踪 → 自检基准 → parse 与类别映射）。
+**YoloEngine 文档至此完整**（818 行全覆盖：模型接口 → 加载预热 → infer 慢/快双路径 → 帧间平滑 → 锁定追踪 → 自检基准 → parse 与类别映射）。

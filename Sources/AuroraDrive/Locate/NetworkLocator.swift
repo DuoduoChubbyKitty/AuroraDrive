@@ -10,8 +10,13 @@ private let kCoordinateSampleMaxAge: Double = 1.0
 private let kCalibrationAxes: (Int, Int) = (0, 1)
 private let kCalibrationA: Double = 0.016394586684750773
 private let kCalibrationB: Double = 5.693519256055879e-08
-private let kCalibrationTX: Double = 6293.474380746091
-private let kCalibrationTY: Double = 3472.664390686138
+// 底图坐标系对齐 map-2026-08（MaaNTE-Map 13056×13056 扩图版，与 CoordinateCapture.kCalibTX/TY 同步）。
+// 旧帧 map-2026-06 (11264): TX=6293.474380746091, TY=3472.664390686138。
+// 扩图相对旧图整体平移 (+233, +1738)——MaaNTE-Map navi-coordinate-calibration.json
+// 三个标定点 delta 完全一致，故 TX/TY 直接加偏移，A/B 不变。
+// 标定点验证: raw(-134394.56, 199913.53) → map(4323, 8488) ✓（与 CoordinateCapture 同源）
+private let kCalibrationTX: Double = 6526.474380746091
+private let kCalibrationTY: Double = 5210.664390686138
 private let kCalibrationError: Double = 0.22031967781665318
 private let kNorth: (Double, Double, Double) = (-0.013752068070295848, -0.9999054358407049, 0.0)
 private let kEast: (Double, Double, Double) = (0.9999054358407049, -0.01375206807029585, 0.0)
@@ -97,7 +102,11 @@ private final class UE5PacketDecoder {
         } else {
             let gap = max(0.0, timestamp - lastCaptureTime!)
             let expected = lastClientTime! + gap
-            let aligned = candidates.filter { $0.time == Double(lastOffset ?? 0) }
+            // 对齐 CoordinateCapture.decode：按位偏移对齐（offset 对 offset）。
+            // 旧写法 $0.time == Double(lastOffset) 把「clientTime 浮点秒值」与
+            // 「位偏移整数」做等值比较——量纲不同恒 false → aligned 恒空，
+            // 跟踪分支永远退化为全量候选（移植时抄错字段）。
+            let aligned = candidates.filter { $0.offset == lastOffset }
             let trackingCandidates = aligned.isEmpty ? candidates : aligned
             let selected = trackingCandidates.min(by: { trackingKey($0, expected: expected) < trackingKey($1, expected: expected) }) ?? trackingCandidates[0]
             let timeError = abs(selected.0 - expected)
@@ -124,7 +133,13 @@ private final class UE5PacketDecoder {
         for offset in 190..<searchEnd {
             do {
                 let clientTime = try readFloat(bits: payload, offset: offset, count: 32)
+                // 对齐 CoordinateCapture.findCandidates 的时间戳防线：NaN/Inf/负值/超界
+                // 一律跳过（NaN 参与 trackingKey 比较恒 false，会污染候选选择）。
+                guard clientTime.isFinite, clientTime >= 0, clientTime < 100_000 else { continue }
                 let (acceleration, _, accelerationBits, accelerationScaled) = try readVector(bits: payload, offset: offset + 32, scale: 10)
+                // 对齐 CoordinateCapture:332 的候选过滤：加速度必须为 scaled 向量
+                // （全精度 unscaled 向量不满足移动同步包的编码约定）。
+                guard accelerationScaled else { continue }
                 let (location, cursor, locationBits, locationScaled) = try readVector(bits: payload, offset: offset + 32 + 32, scale: 100)
 
                 guard !locationScaled else { continue }
@@ -138,8 +153,13 @@ private final class UE5PacketDecoder {
                       location.2 <= kMaxLocationAbs && location.2 >= -kMaxLocationAbs else { continue }
                 guard (20...32).contains(locationBits) else { continue }
 
-                let locationEnd = cursor + 7 + locationBits * 3
-                guard hasValidRotation(bits: payload, offset: locationEnd) else { continue }
+                // ★ 对齐 CoordinateCapture 20260913 关键修复：readVector 返回的 cursor
+                // 已经是「位置向量结束后」的位偏移（= offset + 7位header + 3×width 值位），
+                // 即 rotation 的起始位。旧代码 cursor + 7 + locationBits * 3 再多加一份
+                // header+值位 → rotation 解析错位 → hasValidRotation 永远失败 → 0 候选。
+                // MaaNTE 原版语义: location_end == readVector 返回的 endOffset。
+                let rotationOffset = cursor
+                guard hasValidRotation(bits: payload, offset: rotationOffset) else { continue }
 
                 output.append((clientTime, offset, location))
             } catch {
@@ -181,16 +201,22 @@ private final class UE5PacketDecoder {
         let width = Int(header & 0x3F)
         let scaled = (header >> 6) != 0
         guard width != 0 else { throw DecodeError.fullPrecisionUnsupported }
+        // 对齐 CoordinateCapture.bits() 的 count 上限 63：width=64 时 modulus 溢出
+        // UInt64，符号扩展的 &- 会失去意义（header 只有 6 位，width 天然 ≤63，此为防御）。
+        guard width <= 63 else { throw DecodeError.outOfBounds }
         var values = (Double.zero, Double.zero, Double.zero)
-        let sign = 1 << (width - 1), modulus = 1 << width
+        let sign = UInt64(1) << (width - 1), modulus = UInt64(1) << UInt64(width)
         for i in 0..<3 {
             let v = try readBits(bits: bits, offset: cursor, count: width)
             cursor += width
-            var f = v
-            if f & UInt64(sign) != 0 { f -= UInt64(modulus) }
-            values.0 = (i == 0) ? (scaled ? Double(f) / Double(scale) : Double(f)) : values.0
-            values.1 = (i == 1) ? (scaled ? Double(f) / Double(scale) : Double(f)) : values.1
-            values.2 = (i == 2) ? (scaled ? Double(f) / Double(scale) : Double(f)) : values.2
+            // 对齐 CoordinateCapture.ue5Vector 的符号扩展修复：符号扩展必须走
+            // Int64(bitPattern:)——UInt64 的 &- 会下溢回绕成巨大正数（Python 大整数
+            // 无此问题），导致所有负坐标 > kMaxLocationAbs 被淘汰 → 永远 0 候选。
+            let sv: Int64 = (v & sign) != 0 ? Int64(bitPattern: v &- modulus) : Int64(v)
+            let f = Double(sv)
+            values.0 = (i == 0) ? (scaled ? f / Double(scale) : f) : values.0
+            values.1 = (i == 1) ? (scaled ? f / Double(scale) : f) : values.1
+            values.2 = (i == 2) ? (scaled ? f / Double(scale) : f) : values.2
         }
         return (values, cursor, width, scaled)
     }
@@ -216,9 +242,13 @@ private final class UE5PacketDecoder {
     private func extractPose(payload: Data, candidate: (Double, Int, RawPoint)) -> RawPose? {
         let (_, bitOffset, _) = candidate
         do {
-            let (_, cursor, _, _) = try readVector(bits: payload, offset: bitOffset + 32, scale: 10)
-            let (_, _, _, _) = try readVector(bits: payload, offset: cursor, scale: 100)
-            let (pitch, yaw, _) = try readRotator(bits: payload, offset: cursor)
+            // 对齐 CoordinateCapture.decode 的解码链：加速度 → 位置 → 旋转，
+            // 每一步用上一步返回的结束位。旧代码把位置向量的 endOffset 丢弃（_），
+            // readRotator 却从位置的起始 cursor 读——错位一整个位置向量宽度，
+            // 与本类 hasValidRotation（从位置结束位起算）自相矛盾。
+            let (_, cursor1, _, _) = try readVector(bits: payload, offset: bitOffset + 32, scale: 10)
+            let (_, cursor2, _, _) = try readVector(bits: payload, offset: cursor1, scale: 100)
+            let (pitch, yaw, _) = try readRotator(bits: payload, offset: cursor2)
 
             let location = candidate.2
             let heading = computeHeading(location: location, pitch: pitch, yaw: yaw)

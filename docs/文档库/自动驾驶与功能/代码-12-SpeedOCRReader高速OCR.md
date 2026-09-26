@@ -1,6 +1,6 @@
 # 代码-12 SpeedOCRReader 高速 OCR
 
-> 覆盖源文件：`Sources/AuroraDrive/Inference/SpeedOCRReader.swift`（1244 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Inference/SpeedOCRReader.swift`（**1243 行**）。基于当前仓库逐单元编写。**2026-09-25 深度复核**：架构零变化（双模型/cropSlots(:521)/speedROINorm 换算(:339)/generation 全部核对无误），行数 1244→1243 为末行计数差异。
 
 ## 一、双模型架构与常量（第 1–153 行）
 
@@ -343,7 +343,7 @@ return (String(chars), confs.reduce(0, +) / Double(confs.count))
 
 **`writePNG(_ cg: CGImage, to path: String)`（nonisolated private static，第 1088–1094 行）**：`CGImageDestinationCreateWithURL(url, kUTTypePNG, 1, nil)` → AddImage → Finalize——调试写盘用，失败静默。
 
-## 十、selfTestDirectory 自检（第 1096–1244 行）
+## 十、selfTestDirectory 自检（第 1096–1243 行）
 
 **`selfTestDirectory(_ dirPath: String, roiNorm: CGRect? = nil) -> String`（@MainActor，第 1107–1198 行）**——命令行 `--speed-selftest <目录>`：同步跑一个目录下所有 PNG/JPG 原生分辨率帧：
 
@@ -370,4 +370,4 @@ return (String(chars), confs.reduce(0, +) / Double(confs.count))
 - `CVPixelBufferCreate`（32BGRA + CGImage/CGBitmapContext/**Metal** 兼容）→ 锁 base → `CGContext.draw 1:1 写入`（`bytesPerRow = width*4`——**避免 padding 干扰后续 CIImage 路径**，1212 行注释）
 - bitmapInfo：`premultipliedFirst | byteOrder32Little`（BGRA 通道序，与 CaptureEngine 原生池一致）
 
-**SpeedOCRReader 文档至此完整**（1244 行全覆盖：双模型架构 → 常量 → 加载 → infer 三闸门 → finish 三层校验 → cropSlots → recognizePPOCR → ctcDecode → recognizeCNN → 图像处理 → 自检）。这是 Inference 层最复杂的文件，也是"读不到速度"排障的权威参考。
+**SpeedOCRReader 文档至此完整**（1243 行全覆盖：双模型架构 → 常量 → 加载 → infer 三闸门 → finish 三层校验 → cropSlots → recognizePPOCR → ctcDecode → recognizeCNN → 图像处理 → 自检）。这是 Inference 层最复杂的文件，也是"读不到速度"排障的权威参考。

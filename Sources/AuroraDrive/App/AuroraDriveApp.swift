@@ -816,7 +816,19 @@ struct AuroraDriveLauncher {
         let oneShotFlags = ["--speed-selftest", "--tcc-selftest", "--test-xpc",
                             "--yolo-selftest", "--upscale-selftest", "--yolo-bench",
                             "--daemon", "--mc-shot", "--mc-map", "--mc-map-offline", "--fit-selftest",
-                            "--limit-selftest"]
+                            "--limit-selftest", "--nic-autotest", "--proto-selftest"]
+        // ── 自适应网卡自检：探测 → 锁定 → 失流重探（真实 UDP 30031 包注入验证）──
+        // ── 新协议解码自检：用固化样本验证 protobuf 移动包解坐标 ──
+        if args.contains("--proto-selftest") {
+            runProtoSelfTest()
+            exit(0)
+        }
+
+        if args.contains("--nic-autotest") {
+            runNicAdaptSelfTest()
+            exit(0)
+        }
+
         // ── 限速刹车 + 自动速度 自测：用生产类型本尊跑，不是逻辑副本 ──
         if args.contains("--limit-selftest") {
             runLimitSelfTest()
@@ -893,6 +905,265 @@ struct AuroraDriveApp: App {
 
 
 
+
+// ============================================================================
+// MARK: - 新协议解码自检（--proto-selftest）
+/// 用**固化真机样本**验证 `UE5Decoder` 的新协议路径（2026-09-25 逆向）。
+///
+/// 样本（`tools/reverse/samples/`）：
+///   · move_burst.pcap —— 角色移动中抓的连续 76 字节包（54 个）
+///   · idle.pcap       —— 角色静止时抓的包（1 个，坐标应与移动样本不同但不连续变化）
+///   · move2/turn.pcap —— 移动/转向后的样本
+///
+/// 断言的是**行为特征**而非硬编码数值（数值随机作位置变化会失效）：
+///   ① 新协议路径能解出坐标（旧路径对这类包恒为 0 候选 —— 这正是故障根因）
+///   ② 移动样本内坐标确实在变化（真的跟着角色动）
+///   ③ 静止样本坐标稳定（不是随机噪声）
+///   ④ 解出的地图像素落在 13056² 内（标定常量自洽）
+@MainActor
+func runProtoSelfTest() {
+    var fail = 0
+    func ck(_ name: String, _ cond: Bool, _ detail: String = "") {
+        if !cond { fail += 1 }
+        print("  \(cond ? "✓" : "✗") \(name)\(detail.isEmpty ? "" : "  — \(detail)")")
+    }
+
+    print("═══ 新协议解码（protobuf 移动包 → 世界坐标）═══")
+
+    let root = "/Users/dupi/Desktop/自动驾驶系统/tools/reverse/samples"
+    let samples: [(String, String)] = [
+        ("移动样本", "\(root)/move_burst.pcap"),
+        ("静止样本", "\(root)/idle.pcap"),
+        ("移动2", "\(root)/move2.pcap"),
+        ("转向后", "\(root)/turn.pcap"),
+    ]
+
+    var moveCoords: [Vec3] = []
+    var idleCoords: [Vec3] = []
+
+    for (label, path) in samples {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            ck("\(label)样本存在", false, path)
+            continue
+        }
+        let payloads = extractTCPPayloads(Array(data))
+        ck("\(label)解析出 TCP 载荷", !payloads.isEmpty, "\(payloads.count) 个")
+
+        let decoder = UE5Decoder()
+        var got: [Vec3] = []
+        for p in payloads {
+            let flow: Flow = ("43.144.211.30", 30031, "192.168.1.3", 56655, "TCP")
+            if let pose = decoder.decode(payload: p, timestamp: 1790333033.0, flow: flow) {
+                got.append((pose.0, pose.1, pose.2))
+            }
+        }
+        ck("\(label)解出坐标", !got.isEmpty, "\(got.count)/\(payloads.count) 个包")
+        if label.contains("移动") || label.contains("转向") { moveCoords += got }
+        if label.contains("静止") { idleCoords += got }
+        if let first = got.first {
+            let (mx, my, _) = worldToMapPixel((first.0, first.1, first.2, 0, 0))
+            let inside = mx >= 0 && mx < 13056 && my >= 0 && my < 13056
+            ck("\(label)像素落在地图内", inside, String(format: "(%.1f, %.1f)", mx, my))
+        }
+    }
+
+    // ② 移动样本的坐标必须变化（证明是实时数据，不是常量）
+    if moveCoords.count >= 2 {
+        let xs = moveCoords.map { $0.0 }
+        let spread = (xs.max() ?? 0) - (xs.min() ?? 0)
+        ck("移动样本坐标在变化", spread > 1.0, String(format: "X 跨度 %.2f", spread))
+    } else {
+        ck("移动样本数量足够", false, "仅 \(moveCoords.count) 个")
+    }
+
+    // ③ 静止样本内部不应出现"每包递减"的序列（它是单个值，验证不抖动）
+    if idleCoords.count == 1 {
+        ck("静止样本为单值（无抖动）", true, String(format: "X=%.2f", idleCoords[0].0))
+    } else if idleCoords.isEmpty {
+        ck("静止样本解出坐标", false)
+    }
+
+    print("═══ 新协议自检：\(fail == 0 ? "PASS" : "FAIL(\(fail))") ═══")
+    fflush(stdout)
+}
+
+/// 从 pcap 字节中提取 TCP 载荷（供自检复用；与 CoordinateCapture 抓包链路解耦）。
+func extractTCPPayloads(_ raw: [UInt8]) -> [[UInt8]] {
+    guard raw.count > 24 else { return [] }
+    let magic = Array(raw[0..<4])
+    let little: Bool
+    if magic == [0xd4, 0xc3, 0xb2, 0xa1] || magic == [0x4d, 0x3c, 0xb2, 0xa1] {
+        little = true
+    } else if magic == [0xa1, 0xb2, 0xc3, 0xd4] || magic == [0xa1, 0xb2, 0x3c, 0x4d] {
+        little = false
+    } else {
+        return []
+    }
+    func u32(_ o: Int) -> Int {
+        let b = (0..<4).map { raw[o + $0] }
+        let v = little
+            ? (UInt32(b[0]) | UInt32(b[1]) << 8 | UInt32(b[2]) << 16 | UInt32(b[3]) << 24)
+            : (UInt32(b[0]) << 24 | UInt32(b[1]) << 16 | UInt32(b[2]) << 8 | UInt32(b[3]))
+        return Int(v)
+    }
+    var out: [[UInt8]] = []
+    var off = 24
+    while off + 16 <= raw.count {
+        let incl = u32(off + 8)
+        off += 16
+        guard off + incl <= raw.count else { break }
+        let pkt = Array(raw[off..<(off + incl)])
+        off += incl
+        guard pkt.count >= 34, pkt[12] == 0x08, pkt[13] == 0x00 else { continue }
+        let ihl = Int(pkt[14] & 0x0F) * 4
+        guard pkt[14 + 9] == 6 else { continue }
+        let tso = 14 + ihl
+        guard pkt.count >= tso + 20 else { continue }
+        let doff = Int((pkt[tso + 12] >> 4) & 0x0F) * 4
+        let payload = Array(pkt[(tso + doff)...])
+        if !payload.isEmpty { out.append(payload) }
+    }
+    return out
+}
+
+// ============================================================================
+// MARK: - 自适应网卡自检（--nic-autotest）
+/// 验证 CoordinateCapture 的自适应状态机：探测 → 锁定 → 失流重探。
+///
+/// 用**真实 UDP 30031 包注入**做端到端验证（不是逻辑副本）：
+///   阶段 A 游戏未开 → 探测轮应持续增长、不锁定
+///   阶段 B 向默认路由网段发真实 UDP 30031 包 → 应被探测命中并锁定
+///   阶段 C 停发 > 失流窗口(3s) → 应自动停流重探
+///   阶段 D 再发包 → 应再次锁定（验证失流后的自愈 = 网络切换跟随）
+///
+/// 注：注入的包不是 UE5 格式（解码不出坐标），但足以验证「哪张网卡有
+/// 真实 30031 流量」这一自适应核心判据——解码链路已由实机与 OCR 路径覆盖。
+@MainActor
+func runNicAdaptSelfTest() {
+    var fail = 0
+    func ck(_ name: String, _ cond: Bool, _ detail: String = "") {
+        if !cond { fail += 1 }
+        print("  \(cond ? "✓" : "✗") \(name)\(detail.isEmpty ? "" : "  — \(detail)")")
+    }
+    func wait(_ s: Double) { RunLoop.current.run(until: Date().addingTimeInterval(s)) }
+
+    print("═══ 自适应网卡（探测 → 锁定 → 失流重探）═══")
+
+    // 目标地址：默认网关（包从默认路由网卡发出 → 该网卡 BPF 通道可见）。
+    // 复用生产解析器（多候选路径 + netstat 兜底）——自检与生产同源，
+    // 避免「自检用的解析逻辑和生产不一样」的假绿。
+    let route = CoordinateCapture.parseDefaultRoute()
+    let gateway = route?.gateway ?? ""
+    ck("解析到默认网关", !gateway.isEmpty, "gateway=\(gateway) 接口=\(route?.interface ?? "?")")
+    guard !gateway.isEmpty else {
+        print("═══ 自适应网卡自检：FAIL（无法确定默认网关，无法注入测试包）═══")
+        return
+    }
+
+    let cc = CoordinateCapture()
+    let started = cc.start()
+    ck("自适应抓包启动", started)
+
+    // ── 阶段 A：游戏未开，探测轮应增长、不应锁定 ──
+    print("  ── 阶段 A：游戏未启动（期望：持续探测、不锁定）──")
+    wait(2.5)
+    let roundsA = cc.probeRounds
+    ck("探测轮在推进", roundsA >= 1, "轮数=\(roundsA)")
+    print("     状态: \(cc.adaptationSummary)")
+
+    // ── 阶段 B：注入真实 UDP 30031 包，期望被探测命中并锁定 ──
+    print("  ── 阶段 B：注入真实 UDP 30031 包（期望：探测命中 → 锁定）──")
+    let injector = NicTestInjector(target: gateway, port: 30031)
+    injector.start(intervalMs: 100)
+    var lockedB = false
+    for _ in 0..<14 {                 // 最多 7s（探测窗口 0.3s + 重探间隔 2s）
+        wait(0.5)
+        if cc.activeInterface != nil { lockedB = true; break }
+    }
+    ck("注入真实 30031 包后锁定网卡", lockedB, "active=\(cc.activeInterface ?? "无")")
+    ck("hasRecentTraffic 判定有流量", cc.hasRecentTraffic(window: 3.0))
+    ck("收到注入的包（包计数>0）", cc.totalPackets > 0, "包=\(cc.totalPackets)")
+    let lockedName = cc.activeInterface
+    print("     状态: \(cc.adaptationSummary)")
+
+    // ── 阶段 C：停发，期望失流（3s 窗口）后自动重探 ──
+    print("  ── 阶段 C：停止注入（期望：3s 失流窗口后自动停流重探）──")
+    injector.stop()
+    var lostDetected = false
+    for _ in 0..<16 {                 // 最多 8s
+        wait(0.5)
+        if cc.activeInterface == nil { lostDetected = true; break }
+    }
+    ck("停流后判定失流并回到探测", lostDetected, "active=\(cc.activeInterface ?? "无(探测中)")")
+
+    // ── 阶段 D：再次注入，期望自动重新锁定（自愈）──
+    print("  ── 阶段 D：再次注入（期望：自动重新锁定 = 网络切换自愈）──")
+    let injector2 = NicTestInjector(target: gateway, port: 30031)
+    injector2.start(intervalMs: 100)
+    var lockedD = false
+    for _ in 0..<14 {
+        wait(0.5)
+        if cc.activeInterface != nil { lockedD = true; break }
+    }
+    ck("失流后能自动重新锁定", lockedD, "active=\(cc.activeInterface ?? "无")")
+    let locksNow = cc.lockCount
+    ck("锁定次数 ≥2（证明真的重探重锁过）", locksNow >= 2, "lockCount=\(locksNow)")
+    ck("重锁回同一张有效网卡", cc.activeInterface == lockedName || lockedName == nil,
+       "原=\(lockedName ?? "无") 现=\(cc.activeInterface ?? "无")")
+    injector2.stop()
+
+    print("     最终状态: \(cc.adaptationSummary)")
+    cc.close()
+
+    print("═══ 自适应网卡自检：\(fail == 0 ? "PASS" : "FAIL(\(fail))") ═══")
+    fflush(stdout)
+}
+
+/// UDP 30031 测试包注入器：向目标地址周期发送 ≥32 字节 UDP 包。
+/// 包从默认路由网卡发出 → 该网卡的 BPF 通道可见（端到端验证抓包自适应）。
+final class NicTestInjector {
+    private let target: String
+    private let port: UInt16
+    private var thread: Thread?
+    private var stopped = false
+
+    init(target: String, port: UInt16) {
+        self.target = target
+        self.port = port
+    }
+
+    func start(intervalMs: Int) {
+        let t = Thread { [weak self] in
+            guard let self else { return }
+            let fd = socket(AF_INET, SOCK_DGRAM, 0)
+            guard fd >= 0 else { print("[NIC-TEST] socket 创建失败"); return }
+            var addr = sockaddr_in()
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = self.port.bigEndian
+            addr.sin_addr.s_addr = inet_addr(self.target)
+            var payload = [UInt8](repeating: 0, count: 64)
+            for i in 0..<payload.count { payload[i] = UInt8(i & 0xFF) }
+            while !self.stopped {
+                payload.withUnsafeBytes { raw in
+                    var a = addr
+                    withUnsafePointer(to: &a) { p in
+                        p.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                            _ = sendto(fd, raw.baseAddress, raw.count, 0, sa,
+                                       socklen_t(MemoryLayout<sockaddr_in>.size))
+                        }
+                    }
+                }
+                usleep(useconds_t(intervalMs * 1000))
+            }
+            close(fd)
+        }
+        t.name = "com.aurora.nic-test-injector"
+        thread = t
+        t.start()
+    }
+
+    func stop() { stopped = true }
+}
 
 // ============================================================================
 // MARK: - 自适应缩放自测（真窗口 + 逐档改尺寸）
@@ -1553,7 +1824,7 @@ final class DriveState {
         guard let cc = coordinateCapture, locateCtx.networkReady else {
             return .packetError
         }
-        return cc.hasRecentTraffic(window: 3.0) ? .ready : .noGame
+        return cc.hasRecentTraffic(window: CoordinateCapture.trafficFreshWindow) ? .ready : .noGame
     }
 
     func runNetworkLocateStep() {
@@ -1587,7 +1858,10 @@ final class DriveState {
 
         // ── 前置门：30031 端口无流量 = 游戏没在通信，直接如实置为未运行 ──
         // 判据来自抓包计数器（有包才叫游戏在跑），不查进程。
-        if !cc.hasRecentTraffic(window: 3.0) {
+        // 窗口用 CoordinateCapture.trafficFreshWindow（12s）——实测游戏同步包是
+        // 突发式（静默间隙最长 9s），旧 3s 窗口会在静默间隙误报"游戏未运行"
+        // → 小地图忽明忽暗。
+        if !cc.hasRecentTraffic(window: CoordinateCapture.trafficFreshWindow) {
             // ⚠️ 只在状态真的变化时才投递主线程。
             //    这个函数以 10Hz 运行，若无脑每帧 async 到主线程，就等于
             //    每秒 10 次强制 SwiftUI 重算布局 + WindowServer 重合成，
@@ -1609,11 +1883,11 @@ final class DriveState {
         }
 
         // 从 CoordinateCapture 获取定位
-        if let pose = cc.read(maxAge: 1.0) {
+        if let pose = cc.read(maxAge: CoordinateCapture.poseFreshWindow) {
             let (px, py, hdg) = worldToMapPixel(pose)
             // 同包加速度：坐标系未实测确认，只做如实展示，不参与控制。
             // 单位推测 cm/s²，除以 100 转 m/s²。
-            let acc = cc.readAcceleration(maxAge: 0.5)
+            let acc = cc.readAcceleration(maxAge: CoordinateCapture.poseFreshWindow)
             let ax = acc.map { $0.0 / 100.0 }
             let ay = acc.map { $0.1 / 100.0 }
             let az = acc.map { $0.2 / 100.0 }

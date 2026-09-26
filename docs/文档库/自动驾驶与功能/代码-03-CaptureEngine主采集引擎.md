@@ -1,6 +1,8 @@
 # 代码-03 CaptureEngine 主采集引擎
 
-> 覆盖源文件：`Sources/AuroraDrive/Capture/CaptureEngine.swift`（639 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Capture/CaptureEngine.swift`（**654 行**）。基于当前仓库逐单元编写。
+>
+> **2026-09-25 深度复核记录**：9-24 性能优化落地了「插帧门禁 `isUpscaleWanted`」（源码 58–64 行 + 帧回调 331 行），本档已补上；源码 639→654 行，全文行号引用已按新版本复核，**58 行之后的小节标题行号整体 +8~+15**（门禁声明及其注释所占比行）。核心架构（四路回调/四池/锁保护/480px 渲染）与上版一致，零变化。
 
 ## 一、引擎概览与公开接口
 
@@ -17,6 +19,7 @@
 | `onFrame` | `var: ((NSImage, CGImage) -> Void)?` | 主帧回调：NSImage 供录制/既有引用；CGImage 直传下游（推屏/推理/置信度），省去下游重复转换 |
 | `onYoloFrame` | `var: ((CVPixelBuffer) -> Void)?` | YOLO 直通回调：源头用 vImage(CPU) 把全屏缩放到 `YoloEngine.inputSize`×inputSize BGRA 缓冲 |
 | `onUpscaleFrame` | `var: ((CVPixelBuffer) -> Void)?` | 插帧/超分直通回调：全分辨率 CVPixelBuffer，MetalGoose 专用独立路径 |
+| `isUpscaleWanted` | `var: () -> Bool`（默认 `{ false }`） | **插帧门禁（9-24 改动 10）**：每次帧回调时求值。`copyUpscaleFrame` 做一次全分辨率（可达数十 MB）内存拷贝，插帧/清晰画面关闭时这份拷贝纯属白费。引擎进程接线 `{ EngineGlobals.wantFullFrame }`（UI 经 socket 下发），UI 进程接线 `{ upscaleEnabled }`。与 onUpscaleFrame 同为 main 上赋值、captureQueue 上读的 @unchecked Sendable 模式 |
 | `onNativeFrame` | `var: ((CVPixelBuffer) -> Void)?` | 原生帧直通回调：速度表 ROI 原生分辨率（未缩放），SpeedOCR 用 |
 | `onStatusChange` | `var: ((CaptureStatus) -> Void)?` | 启动/停止/错误/权限被拒回调 |
 | `upscaleEnabled` | `var: Bool` | 插帧/超分开关（锁保护） |
@@ -145,15 +148,16 @@ if let onNativeFrame, let nativeCopy = copyNativeFrame(from: pixelBuffer) {
 
 SCStream 的 CVPixelBuffer 由系统缓冲池管理，主线程稍慢时可能被系统回收/覆写 → use-after-release（轻则裁出垃圾、重则崩溃）。`copyNativeFrame` 用 CVPixelBufferPool 私有缓冲逐行整拷一份，行序照抄 src 的 bytesPerRow（不做方向解释，方向语义由下游 CIImage 路径负责）——主线程永远持有自己的拷贝，与 SCStream 生命周期彻底解耦。
 
-**② 插帧/超分直通 → `onUpscaleFrame`（第 315–319 行）**
+**② 插帧/超分直通 → `onUpscaleFrame`（第 327–334 行）**
 
 ```swift
-if let onUpscaleFrame, let upscaleCopy = copyUpscaleFrame(from: pixelBuffer) {
+if let onUpscaleFrame, isUpscaleWanted(),
+   let upscaleCopy = copyUpscaleFrame(from: pixelBuffer) {
     onUpscaleFrame(upscaleCopy)
 }
 ```
 
-必须复制到私有缓冲——源注释（MG-ENG-001）：否则下游 CGImage 创建会崩。`copyUpscaleFrame` 提供标准线性内存布局的 CGImage 即可，GooseEngine.ingest(cgImage:) 内部会自行创建 IOSurface-backed 缓冲。
+必须复制到私有缓冲——源注释（MG-ENG-001）：否则下游 CGImage 创建会崩。**门禁先于拷贝求值**（9-24 改动 10）：插帧/清晰画面关闭时连全分辨率拷贝都不做（下游本就没人消费，拷了也是白费带宽与内存带宽）。`copyUpscaleFrame` 提供标准线性内存布局的 CGImage 即可，GooseEngine.ingest(cgImage:) 内部会自行创建 IOSurface-backed 缓冲。
 
 **③ YOLO 直通 → `onYoloFrame`（第 321–359 行）**
 

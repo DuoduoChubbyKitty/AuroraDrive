@@ -1,6 +1,6 @@
 # 代码-02 AuroraPaths 项目根定位
 
-> 覆盖源文件：`Sources/AuroraDrive/Core/AuroraPaths.swift`（58 行，commit d64873b 后位于 Core/ 子目录）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Core/AuroraPaths.swift`（59 行，commit d64873b 后位于 Core/ 子目录）。基于当前仓库逐单元编写。**2026-09-25 深度复核**：代码本体零变化，调用方清单已重新 grep 更新（UI 大改版后新增 MapWiring/MissionConsole 调用点）。
 
 ## 一、projectRoot() 多候选根目录解析（第 8–47 行）
 
@@ -37,17 +37,23 @@ static func dataDir() -> URL    { projectRoot().appendingPathComponent("data") }
 - `modelsDir()` → `models/`（CoreML 模型 .mlmodelc/.mlpackage、字模库、地图资源）
 - `dataDir()` → `data/`（raw_clips / glyph_clips 训练数据）
 
-**实测调用方清单（grep `AuroraPaths\.` 全 Sources，6 文件 8 处）——全部直接调 `projectRoot()` 后自行 append 子路径，两个便捷方法目前无人调用（预留 API）：**
+**实测调用方清单（2026-09-25 重新 grep `AuroraPaths\.` 全 Sources，9 文件 11 处）——全部直接调 `projectRoot()` 后自行 append 子路径，两个便捷方法目前无人调用（预留 API）：**
 
 | 调用方 | 位置 | 拼接的子路径 |
 |---|---|---|
-| `Inference/YoloEngine.swift` | :139 | `models`（YOLO 模型） |
-| `Inference/InferenceEngine.swift` | :128 | `models`（m9_mono / game_assist_control） |
-| `Inference/SpeedOCRReader.swift` | :248 | `root`（字模/速度模板资源） |
 | `Capture/RecordEngine.swift` | :53 | recordings 根（录制输出） |
 | `Capture/RecordEngine.swift` | :122 | `data/raw_clips`（训练数据输出） |
-| `App/AuroraDriveApp.swift` | :1655 | `models`（模型检查/加载） |
-| `App/AuroraDriveApp.swift` | :1701 | `rawClips`（录制数据入口） |
+| `App/AuroraDriveApp.swift` | :1892 | `models`（模型检查/加载） |
+| `App/AuroraDriveApp.swift` | :1906 | `models`（第二处模型路径解析） |
+| `App/AuroraDriveApp.swift` | :2410 | `models`（模型检查） |
+| `App/AuroraDriveApp.swift` | :2456 | `rawClips`（录制数据入口） |
+| `App/MapWiring.swift` | :108 | 地图底图/瓦片资源（大地图接线，**UI 大改版新增**） |
+| `App/MissionConsole.swift` | :1244 | 资源根（任务控制中心，**UI 大改版新增**） |
+| `Inference/SpeedOCRReader.swift` | :248 | `root`（字模/速度模板资源） |
+| `Inference/InferenceEngine.swift` | :128 | `models`（m9_mono / game_assist_control） |
+| `Inference/YoloEngine.swift` | :145 | `models`（YOLO 模型） |
+
+**双击 .app 启动的坑（MapWiring:106–107 注释实录）**：cwd 是 `/` 而非可执行文件目录——所以地图资源**一律用 projectRoot()**，不依赖 cwd；AuroraDriveApp:1889 同样注释"必须用 AuroraPaths.projectRoot() 而不是 currentDirectoryPath"。
 
 **调用契约**：`projectRoot()` 全败时回退候选 1 不抛错，所以每个调用方拿到的 URL 可能指向不存在的目录——调用方必须自己 `FileManager.default.fileExists` 验证（InferenceEngine.modelURL 就是范例：先查 `.mlmodelc` 存在性，回退 `.mlpackage`）。
 

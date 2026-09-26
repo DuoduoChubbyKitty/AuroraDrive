@@ -205,14 +205,20 @@ BPF_PLIST=/Library/LaunchDaemons/com.aurora.bpf-setup.plist
 # ── 1. BPF 权限守护：常驻轮询，保证新创建的 bpf 设备也能被放开 ──
 cat > "$BPF_SCRIPT" << 'SCRIPT_EOF'
 #!/bin/bash
-# 常驻：每 3 秒把新出现的 /dev/bpf* 放开权限。
+# 常驻：每 3 秒把权限不足的 /dev/bpf* 放开。
 # 用轮询而不是 RunAtLoad，是因为 bpf 设备由内核按需创建，
 # 开机那一刻往往还不存在，一次性 chmod 覆盖不到后来出现的设备。
 while true; do
     for dev in /dev/bpf*; do
         [ -e "$dev" ] || continue
-        # 只在权限不足时才 chmod，避免每秒无谓的系统调用
-        if [ ! -r "$dev" ] || [ ! -w "$dev" ]; then
+        # ⚠️ 必须检查「权限位」而不是 test -r/-w！
+        # 本脚本以 root 运行，而 root 对 crw------- 文件**永远可读可写**，
+        # 所以 [ ! -r "$dev" ] 恒为假 → 一次 chmod 都不会执行 → 设备永远
+        # 停在 crw-------，普通用户进程 access(/dev/bpfN) 失败 → 抓包起不来
+        # （2026-09-25「小地图又没法用了」的第二层根因，实测复现）。
+        # 正确做法：直接读 stat 的八进制权限位，非 666 就放开。
+        perms=$(stat -f '%Lp' "$dev" 2>/dev/null || echo "")
+        if [ "$perms" != "666" ]; then
             chmod 666 "$dev" 2>/dev/null || true
         fi
     done

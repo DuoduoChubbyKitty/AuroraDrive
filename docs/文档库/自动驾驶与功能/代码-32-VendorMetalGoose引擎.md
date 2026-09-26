@@ -1,6 +1,8 @@
 # 代码-32 Vendor/MetalGoose Metal 引擎
 
-> 覆盖源文件：`Vendor/MetalGoose/Engine/`（6 文件 3161 行）：GooseEngine.swift（1988 行）+ CaptureSettings.swift（236）+ GooseUpscaler.swift（91，代码-26 单元十已详）+ WindowCaptureManager.swift（364）+ Shaders.metal（466）+ Stubs.swift（16）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Vendor/MetalGoose/Engine/`（6 文件 **3246 行**）：GooseEngine.swift（**2057 行**）+ CaptureSettings.swift（236）+ GooseUpscaler.swift（**107**，代码-26 单元十已详）+ WindowCaptureManager.swift（364）+ Shaders.metal（466）+ Stubs.swift（16）。基于当前仓库逐单元编写。
+>
+> **2026-09-25 深度复核记录**：GooseEngine 1988→**2057 行**（+69）、GooseUpscaler 91→**107 行**（+16）——增量为 9-24 优化改动 11（**新增 `GooseEngine.ingest(pixelBuffer:)` façade 转发**，与 ingest(cgImage:) 的 MTKView 检查逐行一致）与改动 9（引擎进程跳过 Metal 初始化）配套；其余 4 文件行数零变化（byte-for-byte 保留原则不变）。
 
 ## 一、GooseEngine 类头与管线建立（第 1–537 行）
 

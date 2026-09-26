@@ -1,6 +1,6 @@
 # 代码-21 RuleController 规则控制器
 
-> 覆盖源文件：`Sources/AuroraDrive/Agent/RuleController.swift`（185 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Agent/RuleController.swift`（**187 行**）。基于当前仓库逐单元编写。**2026-09-25 深度复核**：9-24 性能优化改动 8 给 `struct Detection` 加了 `Equatable` 协议（源码 :29）+ 6 处「先比后写」消费点（DriveState tick 等处以 `detections != oldDetections` 判断避免无变化重绘），185→187 行即此；决策逻辑（危险区/urgency 三档/fuse）零变化。
 
 ## 一、Detection 类型：危险区与紧迫度（第 1–68 行）
 
@@ -41,7 +41,7 @@ return max(0, min(1, sizeScore * 8.0 * centerScore))
 
 **框越大（越近）+ 越居中 → 紧迫度越高**；`× 8.0` 放大面积贡献（面积通常 0.0x~0.1 量级，×8 后进 0.2~0.8 可判档）；max/min 夹到 [0,1]。
 
-## 二、decide() 三档决策与 fuse() 融合（第 70–185 行）
+## 二、decide() 三档决策与 fuse() 融合（第 70–187 行）
 
 **类声明（第 76–77 行）**：`@Observable final class RuleController`——UI 可观察危险等级与最近障碍；**纯函数式：decide(detections, e2e?) → ControlCommand；无内部状态，线程安全**。
 
@@ -89,4 +89,4 @@ case .danger, .critical: return ruleCmd             // 危险/急刹：规则覆
 
 **调用链**：DriveState 每 tick → YoloEngine.detections → `decide`（.yolo 态）或 `fuse(detections, e2eCommand)`（.rule 态）→ ControlCommand → ControlEngine 按键映射。
 
-**RuleController 文档至此完整**（185 行全覆盖：Detection 类型 → decide/fuse 决策）。
+**RuleController 文档至此完整**（187 行全覆盖：Detection 类型 → decide/fuse 决策）。

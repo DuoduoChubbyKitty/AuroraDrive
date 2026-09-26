@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AuroraDrive · Mission Control</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   AURORADRIVE · MISSION CONTROL
+   Design language: deep-space radar station / holographic projection
+   ─────────────────────────────────────────────────────────────────────
+   · Navigation collapsed into blue micro-type under the minimap
+   · Minimap opens the full map via a pill affordance
+   · Decision circuits relocated into the full-map overlay
+   · Frame-interpolation + recording promoted to first-class controls
+   ═══════════════════════════════════════════════════════════════════════ */
+
+*{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  /* ── surfaces, back to front ── */
+  --void:#03060b;
+  --s0:rgba(8,15,26,.55);
+  --s1:rgba(11,20,34,.72);
+  --s2:rgba(15,26,44,.84);
+  --s3:rgba(20,34,56,.92);
+
+  /* ── hairlines ── */
+  --hair:rgba(140,190,255,.10);
+  --hair-2:rgba(140,190,255,.17);
+  --hair-3:rgba(140,190,255,.28);
+
+  /* ── accent ── */
+  --ice:#4cc9ff;
+  --ice-lo:rgba(76,201,255,.34);
+  --ice-hi:#8ee0ff;
+  --ice-glow:rgba(76,201,255,.14);
+  --ice-wash:rgba(76,201,255,.07);
+
+  /* ── semantic ── */
+  --ok:#34e5aa;
+  --ok-lo:rgba(52,229,170,.16);
+  --amber:#ffb648;
+  --danger:#ff5468;
+  --violet:#a98bff;
+
+  /* ── type ── */
+  --txt:#e9f3ff;
+  --txt-2:rgba(233,243,255,.62);
+  --txt-3:rgba(233,243,255,.36);
+  --txt-4:rgba(233,243,255,.20);
+  --mono:'SF Mono',ui-monospace,'Menlo',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;
+
+  /* ── elevation ── */
+  --lift-1:inset 0 1px 0 rgba(255,255,255,.05), 0 1px 0 rgba(0,0,0,.32);
+  --lift-2:inset 0 1px 0 rgba(255,255,255,.05), 0 1px 0 rgba(0,0,0,.32),
+           0 14px 34px -16px rgba(0,0,0,.78);
+  --lift-3:inset 0 1px 0 rgba(255,255,255,.07), 0 1px 0 rgba(0,0,0,.4),
+           0 40px 90px -28px rgba(0,0,0,.88), 0 0 0 1px rgba(76,201,255,.05);
+}
+
+html,body{height:100%}
+body{
+  background:var(--void);color:var(--txt);font-family:var(--sans);font-size:13px;
+  overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+/* ── ambient field ── */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -12%,rgba(76,201,255,.10),transparent 62%),
+    radial-gradient(ellipse 55% 45% at 96% 102%,rgba(169,139,255,.07),transparent 62%),
+    radial-gradient(ellipse 40% 30% at 2% 88%,rgba(52,229,170,.045),transparent 62%),
+    radial-gradient(1.2px 1.2px at 18% 26%,rgba(255,255,255,.55),transparent),
+    radial-gradient(1px 1px at 72% 58%,rgba(255,255,255,.38),transparent),
+    radial-gradient(1px 1px at 41% 79%,rgba(255,255,255,.42),transparent),
+    radial-gradient(1.2px 1.2px at 86% 18%,rgba(255,255,255,.34),transparent),
+    radial-gradient(1px 1px at 11% 63%,rgba(255,255,255,.3),transparent),
+    radial-gradient(1px 1px at 55% 12%,rgba(255,255,255,.26),transparent),
+    radial-gradient(1px 1px at 93% 74%,rgba(255,255,255,.24),transparent)}
+/* ── film grain, keeps gradients from banding ── */
+body::after{content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.026;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* numeric discipline everywhere numbers appear */
+.num{font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1,'ss01' 1}
+
+.app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column}
+
+/* ═══════════════════════ TOP BAR ═══════════════════════ */
+.topbar{
+  height:58px;flex-shrink:0;display:flex;align-items:center;padding:0 20px 0 22px;
+  border-bottom:1px solid var(--hair);
+  background:linear-gradient(180deg,rgba(11,19,33,.94),rgba(6,11,20,.66));
+  backdrop-filter:blur(24px) saturate(1.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.045), 0 1px 0 rgba(0,0,0,.5)}
+.brand{display:flex;align-items:center;gap:12px;padding-right:22px;
+  border-right:1px solid var(--hair);margin-right:22px;height:100%}
+.brand-mark{width:31px;height:31px;border-radius:50%;position:relative;display:grid;
+  place-items:center;border:1px solid var(--ice-lo);
+  background:radial-gradient(circle at 50% 42%,rgba(76,201,255,.14),transparent 68%);
+  box-shadow:0 0 18px var(--ice-glow),inset 0 0 12px var(--ice-glow)}
+.brand-mark::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--ice);
+  box-shadow:0 0 11px var(--ice),0 0 3px #fff;animation:breathe 2.6s cubic-bezier(.4,0,.4,1) infinite}
+.brand-mark::after{content:'';position:absolute;inset:-1px;border-radius:50%;
+  border:1px solid transparent;border-top-color:rgba(76,201,255,.5);
+  animation:orbit 3.6s linear infinite}
+@keyframes breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.42;transform:scale(.7)}}
+@keyframes orbit{to{transform:rotate(360deg)}}
+.brand-name{font-size:13.5px;font-weight:600;letter-spacing:.145em;line-height:1.1}
+.brand-sub{font-size:8.5px;color:var(--txt-4);letter-spacing:.26em;font-family:var(--mono);
+  margin-top:3px;text-transform:uppercase}
+
+.tb-stats{display:flex;align-items:center;gap:0;flex:1;height:100%}
+.tb-stat{display:flex;flex-direction:column;justify-content:center;gap:4px;height:100%;
+  padding:0 20px;border-right:1px solid var(--hair);position:relative}
+.tb-stat:first-child{padding-left:0}
+.tb-stat .k{font-size:8.5px;color:var(--txt-4);letter-spacing:.175em;font-family:var(--mono)}
+.tb-stat .v{font-size:14.5px;font-weight:600;font-family:var(--mono);line-height:1;
+  display:flex;align-items:baseline;gap:4px}
+.tb-stat .v u{font-size:8.5px;font-weight:400;color:var(--txt-4);text-decoration:none;
+  letter-spacing:.06em}
+.v.ice{color:var(--ice)} .v.ok{color:var(--ok)} .v.amber{color:var(--amber)}
+/* hairline tick under live stats */
+.tb-stat.live::after{content:'';position:absolute;left:20px;right:20px;bottom:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--ice-lo),transparent);opacity:.7}
+
+.tb-right{display:flex;align-items:center;gap:9px}
+.pill-stat{display:flex;align-items:center;gap:8px;padding:6px 13px 6px 11px;border-radius:20px;
+  border:1px solid var(--hair-2);background:linear-gradient(180deg,rgba(76,201,255,.075),rgba(76,201,255,.02));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+  font-size:10.5px;font-family:var(--mono);letter-spacing:.05em;color:var(--txt-2)}
+.pill-stat .led{width:6px;height:6px;border-radius:50%;background:var(--ok);
+  box-shadow:0 0 8px var(--ok),0 0 2px #fff}
+.pill-stat .led.ice{background:var(--ice);box-shadow:0 0 8px var(--ice),0 0 2px #fff}
+
+/* ═══════════════════════ LAYOUT ═══════════════════════ */
+.main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 344px 372px;
+  gap:13px;padding:13px;min-height:0}
+.col-l{display:flex;flex-direction:column;gap:13px;min-height:0}
+.col-m{display:flex;flex-direction:column;gap:13px;min-height:0;overflow-y:auto;
+  padding-right:1px}
+.col-m::-webkit-scrollbar{width:3px}
+.col-m::-webkit-scrollbar-thumb{background:var(--hair-3);border-radius:2px}
+.col-m::-webkit-scrollbar-track{background:transparent}
+.col-r{display:flex;flex-direction:column;gap:13px;min-height:0;
+  overflow-y:auto;padding-right:1px}
+.col-r::-webkit-scrollbar{width:3px}
+.col-r::-webkit-scrollbar-thumb{background:var(--hair-3);border-radius:2px}
+.col-r::-webkit-scrollbar-track{background:transparent}
+
+/* ═══════════════════════ VIEWPORT ═══════════════════════ */
+.viewport{flex:1;min-height:0;position:relative;overflow:hidden;border-radius:16px;
+  border:1px solid var(--hair);background:linear-gradient(158deg,#0c1421 0%,#05080f 62%,#04070c 100%);
+  box-shadow:var(--lift-2),inset 0 0 90px -30px rgba(76,201,255,.07)}
+.vp-grid{position:absolute;inset:0;opacity:.36;
+  background-image:linear-gradient(rgba(76,201,255,.055) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(76,201,255,.055) 1px,transparent 1px);
+  background-size:46px 46px;
+  mask-image:radial-gradient(ellipse 78% 70% at 50% 52%,#000 32%,transparent 88%)}
+.vp-scan{position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(76,201,255,.018) 3px 4px)}
+.vp-sweep{position:absolute;left:0;right:0;height:34%;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(76,201,255,.055) 62%,transparent);
+  animation:sweep 7.5s cubic-bezier(.5,0,.5,1) infinite}
+@keyframes sweep{0%{top:-34%;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:100%;opacity:0}}
+.vp-horizon{position:absolute;left:0;right:0;top:43%;height:1px;
+  background:linear-gradient(90deg,transparent 6%,var(--ice-lo) 50%,transparent 94%);opacity:.55}
+.vp-vignette{position:absolute;inset:0;pointer-events:none;
+  box-shadow:inset 0 0 120px -30px rgba(0,0,0,.85)}
+
+/* corner brackets — skewed hairlines, not chunky boxes */
+.cnr{position:absolute;width:32px;height:32px;pointer-events:none;opacity:.62}
+.cnr::before,.cnr::after{content:'';position:absolute;background:linear-gradient(90deg,var(--ice),transparent)}
+.cnr::before{height:1.5px;width:100%}
+.cnr::after{width:1.5px;height:100%;background:linear-gradient(180deg,var(--ice),transparent)}
+.cnr.tl{top:15px;left:15px}
+.cnr.tr{top:15px;right:15px;transform:scaleX(-1)}
+.cnr.bl{bottom:15px;left:15px;transform:scaleY(-1)}
+.cnr.br{bottom:15px;right:15px;transform:scale(-1)}
+
+.vp-tag{position:absolute;top:19px;left:52px;display:flex;gap:7px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.09em}
+.tag{padding:4px 10px;border-radius:6px;background:rgba(6,12,22,.82);
+  border:1px solid var(--hair-2);color:var(--txt-2);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.045);backdrop-filter:blur(10px)}
+.tag.live{border-color:rgba(52,229,170,.42);color:var(--ok);
+  background:linear-gradient(180deg,rgba(52,229,170,.14),rgba(52,229,170,.03))}
+.tag.live::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:var(--ok);box-shadow:0 0 7px var(--ok);margin-right:6px;vertical-align:1px;
+  animation:breathe 1.7s infinite}
+.vp-right-tags{position:absolute;top:19px;right:52px;display:flex;gap:7px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.09em}
+
+/* lane prediction rails */
+.rail{position:absolute;bottom:0;width:1.5px;border-radius:1px;
+  background:linear-gradient(0deg,var(--ice),rgba(76,201,255,0));
+  box-shadow:0 0 9px var(--ice-glow);opacity:.5}
+.rail.r1{left:33.5%;height:30%}
+.rail.r2{left:50%;height:39%;opacity:.8;box-shadow:0 0 12px var(--ice-glow)}
+.rail.r3{left:66.5%;height:30%}
+
+/* trajectory spine */
+.spine{position:absolute;bottom:11%;left:50%;width:1.5px;height:35%;
+  background:linear-gradient(0deg,var(--ok),rgba(52,229,170,.06));
+  transform-origin:bottom center;transform:translateX(-50%) rotate(-7.5deg);
+  opacity:.8;border-radius:1px}
+.spine::after{content:'';position:absolute;top:-4.5px;left:-4px;width:9px;height:9px;
+  border-radius:50%;background:var(--ok);box-shadow:0 0 14px var(--ok),0 0 3px #fff}
+
+/* detection frames — thin, labelled, tag notched */
+.det{position:absolute;border:1.5px solid;border-radius:7px;
+  box-shadow:inset 0 0 22px -6px currentColor}
+.det::before{content:'';position:absolute;inset:-1.5px;border-radius:7px;
+  background:currentColor;opacity:.055}
+.det.car{color:var(--ice);left:22%;top:51.5%;width:15%;height:19%}
+.det.ped{color:var(--danger);left:63%;top:43.5%;width:8%;height:22%}
+.det.obs{color:var(--amber);left:44%;top:37.5%;width:12%;height:13%}
+.det-lab{position:absolute;top:-18px;left:-1.5px;font-size:9px;font-family:var(--mono);
+  padding:2px 7px;border-radius:4px;background:rgba(4,8,14,.94);color:inherit;
+  border:1px solid currentColor;white-space:nowrap;letter-spacing:.04em;
+  box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.det-lab b{font-weight:600}
+.det-lab i{font-style:normal;opacity:.62;margin-left:3px}
+
+/* speed ring */
+.speed-hud{position:absolute;right:25px;bottom:23px;width:134px;height:134px}
+.speed-hud svg{transform:rotate(-90deg);display:block}
+.speed-hud .ticks line{stroke:rgba(233,243,255,.16);stroke-width:1}
+.speed-hud .ticks line.maj{stroke:rgba(233,243,255,.4);stroke-width:1.4}
+.speed-txt{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.speed-num{font-size:41px;font-weight:200;font-family:var(--mono);line-height:.94;
+  letter-spacing:-.035em;text-shadow:0 0 26px rgba(76,201,255,.3)}
+.speed-unit{font-size:8.5px;color:var(--txt-4);letter-spacing:.26em;font-family:var(--mono);
+  margin-top:5px}
+.speed-cap{position:absolute;bottom:-17px;left:0;right:0;text-align:center;
+  font-size:8.5px;font-family:var(--mono);color:var(--ok);letter-spacing:.05em}
+.speed-cap::before{content:'';display:inline-block;width:4px;height:4px;border-radius:50%;
+  background:var(--ok);box-shadow:0 0 6px var(--ok);margin-right:5px;vertical-align:1px}
+
+/* gear / degrade ladder */
+.gear-ring{display:flex;gap:9px;padding:11px 13px;border-radius:15px;
+  border:1px solid var(--hair);background:var(--s1);backdrop-filter:blur(22px) saturate(1.25);
+  box-shadow:var(--lift-2)}
+.gr-item{flex:1;text-align:center;padding:9px 5px 8px;border-radius:11px;
+  border:1px solid transparent;transition:all .26s cubic-bezier(.4,0,.2,1);
+  cursor:pointer;position:relative;overflow:hidden}
+.gr-item .g{font-size:8.5px;font-family:var(--mono);color:var(--txt-4);letter-spacing:.15em;
+  transition:color .26s}
+.gr-item .n{font-size:11px;margin-top:5px;color:var(--txt-2);transition:color .26s}
+.gr-item:hover{background:rgba(255,255,255,.028)}
+.gr-item.on{border-color:var(--hair-3);background:
+  linear-gradient(180deg,rgba(76,201,255,.13),rgba(76,201,255,.035));
+  box-shadow:0 0 20px var(--ice-glow),inset 0 1px 0 rgba(255,255,255,.075)}
+.gr-item.on .g{color:var(--ice-lo)}
+.gr-item.on .n{color:var(--ice);font-weight:500}
+.gr-item.on::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:26px;height:1.5px;background:var(--ice);box-shadow:0 0 10px var(--ice)}
+
+/* ═══════════════════════ CARD PRIMITIVE ═══════════════════════ */
+.card{position:relative;border-radius:15px;padding:15px;
+  background:linear-gradient(180deg,rgba(255,255,255,.026),rgba(255,255,255,0) 34%),var(--s1);
+  border:1px solid var(--hair);backdrop-filter:blur(22px) saturate(1.25);
+  box-shadow:var(--lift-2)}
+.card.sm{padding:13px 15px}
+.col-r > .card:not(.ai-card){flex:0 0 auto}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}
+.card-t{font-size:9.5px;font-family:var(--mono);letter-spacing:.19em;color:var(--txt-2);
+  display:flex;align-items:center;gap:8px;text-transform:uppercase}
+.card-t::before{content:'';width:2.5px;height:11px;border-radius:2px;background:var(--ice);
+  box-shadow:0 0 9px var(--ice)}
+.card-act{font-size:9.5px;color:var(--txt-4);cursor:pointer;font-family:var(--mono);
+  letter-spacing:.1em;transition:color .18s;padding:2px 0}
+.card-act:hover{color:var(--ice)}
+
+/* ── minimap pill affordance ── */
+.map-pill{display:flex;align-items:center;gap:6px;padding:5px 11px 5px 9px;border-radius:20px;
+  cursor:pointer;border:1px solid var(--hair-2);
+  background:linear-gradient(180deg,rgba(76,201,255,.1),rgba(76,201,255,.025));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);transition:all .2s cubic-bezier(.4,0,.2,1);
+  font-size:9.5px;font-family:var(--mono);letter-spacing:.1em;color:var(--ice)}
+.map-pill:hover{border-color:var(--ice-lo);box-shadow:0 0 18px var(--ice-glow),
+  inset 0 1px 0 rgba(255,255,255,.09)}
+.map-pill:active{transform:translateY(.5px)}
+.map-pill svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.6}
+
+/* ═══════════════════════ MINIMAP ═══════════════════════ */
+.minimap{width:100%;aspect-ratio:1/1;max-height:186px;position:relative;margin:0 auto;
+  border-radius:13px;overflow:hidden;border:1px solid var(--hair-2);background:#060b13;
+  cursor:crosshair;box-shadow:inset 0 0 40px -12px rgba(76,201,255,.1),
+  inset 0 1px 0 rgba(255,255,255,.04)}
+.minimap:hover{border-color:var(--hair-3)}
+.mm-grid{position:absolute;inset:0;opacity:.45;
+  background-image:linear-gradient(rgba(76,201,255,.075) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(76,201,255,.075) 1px,transparent 1px);background-size:21px 21px}
+/* road ribbons: two-tone casing for depth */
+.mm-rd{position:absolute;background:rgba(76,201,255,.055);
+  box-shadow:0 0 0 1px rgba(76,201,255,.18), inset 0 0 12px -4px rgba(76,201,255,.2)}
+.mm-rd.h{left:0;right:0;height:16px}
+.mm-rd.v{top:0;bottom:0;width:14px}
+.mm-rd.d{width:196%;height:12px;transform:rotate(38deg);transform-origin:left center;
+  background:rgba(76,201,255,.04)}
+/* route with light casing */
+.mm-route{position:absolute;height:3.5px;border-radius:2px;
+  background:linear-gradient(90deg,rgba(76,201,255,.75),var(--ice));
+  box-shadow:0 0 12px var(--ice),0 0 2px #fff,0 0 0 1px rgba(76,201,255,.3)}
+.mm-route.r1{left:43%;top:37%;width:28%;transform:rotate(-53deg);transform-origin:left center}
+.mm-route.r2{left:24.5%;top:16%;width:24%;transform:rotate(-5deg);transform-origin:left center}
+.mm-ego{position:absolute;left:43%;top:37%;width:0;height:0;z-index:4;
+  border-left:6.5px solid transparent;border-right:6.5px solid transparent;
+  border-bottom:15px solid #fff;transform:translate(-50%,-50%) rotate(25deg);
+  filter:drop-shadow(0 0 8px var(--ice))}
+.mm-ego::before{content:'';position:absolute;left:-8px;top:-19px;width:16px;height:16px;
+  border-radius:50%;background:rgba(76,201,255,.24);animation:ripple 2.1s ease-out infinite}
+@keyframes ripple{0%{transform:scale(.5);opacity:.85}100%{transform:scale(2.3);opacity:0}}
+.mm-pin{position:absolute;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);
+  z-index:3;box-shadow:0 0 9px currentColor,0 0 0 1.5px rgba(4,8,14,.85)}
+.mm-pin.wp{background:var(--amber);color:var(--amber)}
+.mm-pin.tgt{background:var(--danger);color:var(--danger);animation:breathe 1.6s infinite}
+.mm-pin.booth{background:var(--violet);color:var(--violet)}
+.mm-lab{position:absolute;font-family:var(--mono);font-size:8px;padding:1.5px 5px;
+  background:rgba(4,8,14,.9);border:1px solid var(--hair-2);border-radius:3px;
+  transform:translate(-50%,13px);white-space:nowrap;color:var(--txt-2);z-index:5;
+  letter-spacing:.03em}
+.mm-br{position:absolute;width:16px;height:16px;z-index:6;pointer-events:none;opacity:.6}
+.mm-br::before,.mm-br::after{content:'';position:absolute;background:var(--ice)}
+.mm-br::before{width:100%;height:1.5px}
+.mm-br::after{width:1.5px;height:100%}
+.mm-br.tl{top:7px;left:7px}
+.mm-br.tr{top:7px;right:7px;transform:scaleX(-1)}
+.mm-br.bl{bottom:7px;left:7px;transform:scaleY(-1)}
+.mm-br.br{bottom:7px;right:7px;transform:scale(-1)}
+.mm-scale{position:absolute;bottom:10px;right:32px;font-family:var(--mono);font-size:8px;
+  color:var(--txt-3);z-index:6;text-align:center}
+.mm-scale::before{content:'';display:block;width:32px;height:5px;margin-bottom:3px;
+  border-left:1px solid var(--txt-3);border-right:1px solid var(--txt-3);
+  border-bottom:1px solid var(--txt-3)}
+.mm-compass{position:absolute;top:10px;right:12px;font-family:var(--mono);font-size:8px;
+  color:var(--txt-4);z-index:6;letter-spacing:.12em}
+
+/* ═══ navigation, demoted to micro-type ═══ */
+.navline{display:flex;align-items:center;gap:11px;margin-top:11px;padding-top:11px;
+  border-top:1px solid var(--hair)}
+.navline .turn{display:flex;align-items:center;gap:7px;color:var(--ice);
+  font-size:11.5px;font-weight:500;letter-spacing:.01em;text-shadow:0 0 16px var(--ice-glow);
+  white-space:nowrap}
+.navline .turn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;
+  filter:drop-shadow(0 0 5px var(--ice-glow))}
+.navline .turn b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;
+  font-size:13.5px}
+.navline .via{font-size:10.5px;color:var(--txt-2);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;flex:1}
+.navline .rem{font-family:var(--mono);font-size:10px;color:var(--txt-3);
+  white-space:nowrap;display:flex;gap:8px;align-items:center}
+.navline .rem s{text-decoration:none;color:var(--txt-4)}
+.navline .rem em{font-style:normal;color:var(--txt-2);font-variant-numeric:tabular-nums}
+
+/* ═══ hardware control bank ═══ */
+.bank{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sw{padding:11px 13px;border-radius:12px;cursor:pointer;position:relative;
+  border:1px solid var(--hair);background:linear-gradient(180deg,rgba(255,255,255,.038),rgba(255,255,255,.008));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:all .2s cubic-bezier(.4,0,.2,1)}
+.sw:hover{border-color:var(--hair-3);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.015))}
+.sw:active{transform:translateY(.5px)}
+.sw .sw-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sw .sw-k{font-size:9px;font-family:var(--mono);letter-spacing:.14em;color:var(--txt-4);
+  text-transform:uppercase}
+.sw .sw-v{font-size:11.5px;font-family:var(--mono);color:var(--txt-2);margin-top:6px;
+  display:flex;align-items:center;gap:6px}
+.sw .led{width:6px;height:6px;border-radius:50%;background:rgba(233,243,255,.2);flex-shrink:0;
+  transition:all .25s}
+.sw.on{border-color:var(--hair-3);
+  background:linear-gradient(180deg,rgba(76,201,255,.14),rgba(76,201,255,.03));
+  box-shadow:0 0 20px var(--ice-glow),inset 0 1px 0 rgba(255,255,255,.08)}
+.sw.on .sw-k{color:var(--ice-lo)}
+.sw.on .sw-v{color:var(--ice);font-weight:600}
+.sw.on .led{background:var(--ice);box-shadow:0 0 9px var(--ice),0 0 2px #fff}
+.sw.on.ok{border-color:rgba(52,229,170,.34);
+  background:linear-gradient(180deg,rgba(52,229,170,.14),rgba(52,229,170,.03));
+  box-shadow:0 0 20px var(--ok-lo),inset 0 1px 0 rgba(255,255,255,.08)}
+.sw.on.ok .sw-k{color:rgba(52,229,170,.7)}
+.sw.on.ok .sw-v{color:var(--ok)}
+.sw.on.ok .led{background:var(--ok);box-shadow:0 0 9px var(--ok),0 0 2px #fff}
+.sw .sw-badge{font-size:8px;font-family:var(--mono);padding:1.5px 5px;border-radius:3px;
+  background:rgba(233,243,255,.07);color:var(--txt-4);letter-spacing:.08em}
+.sw.on.ok .sw-badge{background:rgba(52,229,170,.16);color:var(--ok)}
+
+/* ═══ log ═══ */
+.log{font-family:var(--mono);font-size:10px;line-height:1.85;max-height:118px;overflow-y:auto;
+  padding-right:4px}
+.log::-webkit-scrollbar{width:3px}
+.log::-webkit-scrollbar-thumb{background:var(--hair-3);border-radius:2px}
+.log-row{display:flex;gap:9px}
+.log-row .t{color:var(--txt-4);flex-shrink:0;font-variant-numeric:tabular-nums}
+.log-row .m{color:var(--txt-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-row.ok .m{color:rgba(52,229,170,.86)}
+.log-row.ice .m{color:rgba(76,201,255,.86)}
+.log-row.warn .m{color:rgba(255,182,72,.86)}
+
+/* ═══════════════════════ RIGHT COLUMN ═══════════════════════ */
+.ai-card{flex:1 1 auto;min-height:330px;display:flex;flex-direction:column;
+  padding:0;overflow:hidden}
+.ai-head{padding:14px 15px 13px;border-bottom:1px solid var(--hair);display:flex;
+  align-items:center;gap:10px;flex-shrink:0;
+  background:linear-gradient(180deg,rgba(76,201,255,.045),transparent)}
+.ai-ava{width:27px;height:27px;border-radius:9px;display:grid;place-items:center;font-size:12px;
+  background:linear-gradient(150deg,rgba(76,201,255,.3),rgba(169,139,255,.2));
+  border:1px solid var(--hair-3);box-shadow:0 0 16px var(--ice-glow),
+  inset 0 1px 0 rgba(255,255,255,.14);color:#fff;flex-shrink:0}
+.ai-tt{flex:1;min-width:0}
+.ai-tt .n{font-size:12px;font-weight:600;letter-spacing:.02em}
+.ai-tt .s{font-size:8.5px;color:var(--ok);font-family:var(--mono);margin-top:2.5px;
+  letter-spacing:.06em}
+.ai-tt .s::before{content:'';display:inline-block;width:4.5px;height:4.5px;border-radius:50%;
+  background:var(--ok);box-shadow:0 0 7px var(--ok);margin-right:5px;vertical-align:1px;
+  animation:breathe 2.2s infinite}
+.ai-body{flex:1;overflow-y:auto;padding:14px 15px;display:flex;flex-direction:column;
+  gap:10px;min-height:0}
+.ai-body::-webkit-scrollbar{width:3px}
+.ai-body::-webkit-scrollbar-thumb{background:var(--hair-3);border-radius:2px}
+.msg{max-width:89%;padding:9px 12px;font-size:11.5px;line-height:1.62;border-radius:12px}
+.msg.u{align-self:flex-end;background:linear-gradient(180deg,rgba(76,201,255,.17),rgba(76,201,255,.08));
+  border:1px solid var(--hair-3);border-bottom-right-radius:4px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.msg.a{align-self:flex-start;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+  border:1px solid var(--hair);border-bottom-left-radius:4px;color:var(--txt-2);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.msg.sys{align-self:center;font-family:var(--mono);font-size:9px;color:var(--txt-4);
+  background:none;border:0;padding:3px 0;letter-spacing:.1em}
+.msg code{font-family:var(--mono);font-size:10.5px;background:rgba(76,201,255,.16);
+  padding:1.5px 5px;border-radius:4px;color:var(--ice-hi);font-variant-numeric:tabular-nums}
+.ai-foot{padding:12px 15px 13px;border-top:1px solid var(--hair);flex-shrink:0}
+.ai-in{display:flex;gap:8px}
+.ai-in input{flex:1;min-width:0;background:rgba(3,7,14,.8);border:1px solid var(--hair);
+  border-radius:10px;padding:10px 12px;color:var(--txt);font-size:11.5px;
+  font-family:var(--sans);outline:none;transition:all .2s;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.45)}
+.ai-in input:focus{border-color:var(--ice-lo);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.45),0 0 0 3px var(--ice-glow)}
+.ai-in input::placeholder{color:var(--txt-4)}
+.ai-send{width:38px;height:38px;flex-shrink:0;border-radius:10px;cursor:pointer;
+  border:1px solid var(--hair-3);color:var(--ice);display:grid;place-items:center;font-size:14px;
+  background:linear-gradient(180deg,rgba(76,201,255,.18),rgba(76,201,255,.05));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09);transition:all .2s cubic-bezier(.4,0,.2,1)}
+.ai-send:hover{background:linear-gradient(180deg,rgba(76,201,255,.3),rgba(76,201,255,.1));
+  box-shadow:0 0 20px var(--ice-glow),inset 0 1px 0 rgba(255,255,255,.12)}
+.ai-send:active{transform:translateY(.5px)}
+.ai-chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.ai-chip{font-size:9.5px;padding:4.5px 10px;border-radius:13px;font-family:var(--mono);
+  border:1px solid var(--hair);color:var(--txt-3);cursor:pointer;letter-spacing:.04em;
+  transition:all .18s cubic-bezier(.4,0,.2,1);background:rgba(255,255,255,.015)}
+.ai-chip:hover{border-color:var(--ice-lo);color:var(--ice);background:rgba(76,201,255,.1)}
+
+/* ═══ automation launcher ═══ */
+.auto-btn{width:100%;flex:0 0 auto;min-height:70px;display:flex;
+  align-items:center;gap:13px;padding:15px 17px;
+  border-radius:15px;cursor:pointer;position:relative;overflow:hidden;text-align:left;
+  border:1px solid var(--hair-3);
+  background:linear-gradient(135deg,rgba(76,201,255,.14),rgba(169,139,255,.1) 52%,rgba(76,201,255,.06));
+  box-shadow:var(--lift-2),0 0 34px -12px var(--ice-glow);
+  transition:all .24s cubic-bezier(.4,0,.2,1)}
+.auto-btn:hover{border-color:var(--ice-lo);box-shadow:0 0 34px -6px var(--ice-glow),
+  var(--lift-2);transform:translateY(-1px)}
+.auto-btn:active{transform:translateY(0)}
+.auto-btn::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.11) 50%,transparent 68%);
+  transform:translateX(-100%);animation:sheen 4.2s cubic-bezier(.5,0,.5,1) infinite}
+@keyframes sheen{0%,68%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.ab-ico{width:39px;height:39px;flex-shrink:0;border-radius:12px;display:grid;place-items:center;
+  font-size:17px;border:1px solid var(--hair-3);
+  background:linear-gradient(180deg,rgba(76,201,255,.24),rgba(76,201,255,.07));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 0 18px var(--ice-glow)}
+.ab-txt{flex:1;min-width:0}
+.ab-txt .t{font-size:13px;font-weight:600;letter-spacing:.05em}
+.ab-txt .s{font-size:9.5px;color:var(--txt-3);font-family:var(--mono);margin-top:3px;
+  letter-spacing:.03em}
+.ab-cnt{font-family:var(--mono);font-size:21px;font-weight:600;color:var(--ice);line-height:1;
+  text-align:right;font-variant-numeric:tabular-nums;text-shadow:0 0 18px var(--ice-glow)}
+.ab-cnt small{display:block;font-size:7.5px;color:var(--txt-4);letter-spacing:.2em;
+  margin-top:4px;text-shadow:none;font-weight:400}
+
+/* ═══ live status card ═══ */
+.run-live{display:inline-flex;align-items:center;gap:5px;font-size:8.5px;font-family:var(--mono);
+  letter-spacing:.13em;color:var(--ok);padding:2.5px 8px;border-radius:11px;
+  background:rgba(52,229,170,.1);border:1px solid rgba(52,229,170,.26)}
+.run-live::before{content:'';width:4.5px;height:4.5px;border-radius:50%;background:var(--ok);
+  box-shadow:0 0 7px var(--ok);animation:breathe 1.7s infinite}
+
+/* ── four live read-out bars ── */
+.ctl-rows{display:flex;flex-direction:column;gap:11px}
+.ctl-row{display:flex;align-items:center;gap:10px}
+.ctl-k{width:30px;flex-shrink:0;font-size:10px;color:var(--txt-2);letter-spacing:.04em}
+.ctl-track{flex:1;height:7px;border-radius:4px;position:relative;overflow:hidden;
+  background:rgba(233,243,255,.055);box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
+.ctl-track i.fl{position:absolute;top:0;bottom:0;border-radius:4px;
+  background:linear-gradient(90deg,var(--ice-lo),var(--ice));
+  box-shadow:0 0 11px var(--ice-glow);transition:width .3s cubic-bezier(.4,0,.2,1)}
+.ctl-track i.fl.ok{background:linear-gradient(90deg,rgba(52,229,170,.35),var(--ok));
+  box-shadow:0 0 11px var(--ok-lo)}
+.ctl-track i.fl.dg{background:linear-gradient(90deg,rgba(255,84,104,.4),var(--danger));
+  box-shadow:0 0 11px rgba(255,84,104,.3)}
+.ctl-track.bip i.ctr{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;
+  background:rgba(233,243,255,.22);z-index:2}
+.ctl-track i.cap{position:absolute;top:-1px;bottom:-1px;width:1.5px;border-radius:1px;
+  background:rgba(255,182,72,.75);box-shadow:0 0 7px rgba(255,182,72,.5);z-index:2}
+.ctl-v{width:50px;flex-shrink:0;text-align:right;font-family:var(--mono);font-size:10.5px;
+  font-variant-numeric:tabular-nums;color:var(--txt-2)}
+.ctl-v.ice{color:var(--ice)} .ctl-v.ok{color:var(--ok)} .ctl-v.n{color:var(--txt-4)}
+
+/* ── horizontal speed-limit slider ── */
+.limit-wrap{margin-top:14px;padding-top:13px;border-top:1px solid var(--hair)}
+.li-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  margin-bottom:13px}
+.li-k{font-size:8.5px;font-family:var(--mono);color:var(--txt-4);letter-spacing:.19em;
+  text-transform:uppercase}
+.li-v{font-size:25px;font-family:var(--mono);font-weight:300;line-height:1;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ice);
+  text-shadow:0 0 22px var(--ice-glow);transition:color .22s}
+.li-v small{font-size:9.5px;font-weight:400;color:var(--txt-3);margin-left:5px;
+  letter-spacing:.08em;text-shadow:none}
+.li-v.unl{color:var(--ok);text-shadow:0 0 22px var(--ok-lo)}
+
+/* the rail itself */
+.hfader{position:relative;height:30px;display:flex;align-items:center;
+  cursor:pointer;user-select:none;touch-action:none;outline:none}
+.hfader:focus-visible .hf-knob{box-shadow:0 0 0 3px var(--ice-glow),0 0 18px rgba(76,201,255,.7)}
+.hf-track{position:absolute;left:0;right:0;height:9px;border-radius:5px;overflow:hidden;
+  background:linear-gradient(180deg,rgba(3,8,16,.9),rgba(10,18,30,.72));
+  box-shadow:inset 0 1.5px 3px rgba(0,0,0,.72),0 0 0 1px var(--hair)}
+.hf-fill{position:absolute;left:0;top:0;bottom:0;width:100%;border-radius:5px;
+  background:linear-gradient(90deg,rgba(255,84,104,.42),rgba(255,182,72,.5) 32%,
+    rgba(76,201,255,.72) 66%,rgba(52,229,170,.8));
+  box-shadow:0 0 14px var(--ice-glow);transition:width .2s cubic-bezier(.4,0,.2,1)}
+.hf-sheen{position:absolute;inset:0;border-radius:5px;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.14),transparent 52%)}
+/* notch ticks under the rail */
+.hf-ticks{position:absolute;left:0;right:0;bottom:1px;height:7px;pointer-events:none}
+.hf-ticks i{position:absolute;bottom:0;width:1px;height:4px;transform:translateX(-50%);
+  background:rgba(233,243,255,.16)}
+.hf-ticks i.maj{height:7px;background:rgba(233,243,255,.34)}
+/* knob */
+.hf-knob{position:absolute;top:50%;width:19px;height:19px;border-radius:50%;z-index:3;
+  transform:translate(-50%,-50%);cursor:grab;
+  background:radial-gradient(circle at 38% 32%,#ffffff,#cfe9ff 46%,#79bde8);
+  box-shadow:0 0 0 1.5px rgba(4,12,22,.72),0 2px 7px rgba(0,0,0,.7),
+    0 0 18px rgba(76,201,255,.55),inset 0 1px 0 rgba(255,255,255,.95);
+  transition:left .2s cubic-bezier(.4,0,.2,1),box-shadow .2s}
+.hf-knob::after{content:'';position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);width:7px;height:1.5px;border-radius:1px;
+  background:rgba(4,18,32,.45)}
+.hf-knob:active{cursor:grabbing;
+  box-shadow:0 0 0 1.5px rgba(4,12,22,.72),0 2px 7px rgba(0,0,0,.7),
+    0 0 26px rgba(76,201,255,.85),inset 0 1px 0 rgba(255,255,255,.95)}
+/* end captions */
+.hf-ends{display:flex;justify-content:space-between;margin-top:5px;
+  font-family:var(--mono);font-size:8.5px;color:var(--txt-4);letter-spacing:.08em}
+.hf-ends span:last-child{color:rgba(52,229,170,.6)}
+
+.li-s{display:block;margin-top:11px;font-size:9px;font-family:var(--mono);
+  color:var(--txt-4);letter-spacing:.03em}
+.li-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+.li-chip{font-size:9px;font-family:var(--mono);padding:3.5px 8px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--hair);color:var(--txt-3);letter-spacing:.04em;
+  background:rgba(255,255,255,.015);transition:all .16s cubic-bezier(.4,0,.2,1)}
+.li-chip:hover{border-color:var(--ice-lo);color:var(--ice);background:rgba(76,201,255,.09)}
+.li-chip.on{border-color:var(--hair-3);color:var(--ice);background:rgba(76,201,255,.15);
+  box-shadow:0 0 12px var(--ice-glow)}
+.li-chip.on.unl{color:var(--ok);border-color:rgba(52,229,170,.42);
+  background:rgba(52,229,170,.14);box-shadow:0 0 12px var(--ok-lo)}
+/* ═══ inline data rows ═══ */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:9.5px;padding:3.5px 9px;border-radius:6px;font-family:var(--mono);
+  border:1px solid var(--hair);color:var(--txt-2);letter-spacing:.03em;
+  background:rgba(255,255,255,.015)}
+.chip b{color:var(--txt);font-weight:600;font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(140,190,255,.055)}
+.row:last-child{border-bottom:0}
+.row .k{flex:1;font-size:11px;color:var(--txt-2)}
+.row .v{font-family:var(--mono);font-size:10.5px;color:var(--ok);
+  font-variant-numeric:tabular-nums}
+.row .v.w{color:var(--amber)} .row .v.n{color:var(--txt-3)} .row .v.i{color:var(--ice)}
+.note{margin-top:10px;font-size:9.5px;font-family:var(--mono);line-height:1.65;
+  color:var(--txt-3);padding-left:9px;border-left:2px solid var(--hair-3)}
+
+/* ═══════════════════════ KEYBOARD BAR ═══════════════════════ */
+.kb-bar{height:46px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 20px;
+  border-top:1px solid var(--hair);background:linear-gradient(0deg,rgba(8,15,26,.92),rgba(6,11,20,.6));
+  backdrop-filter:blur(24px) saturate(1.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+.kb-lab{font-size:8.5px;color:var(--txt-4);font-family:var(--mono);letter-spacing:.2em;
+  margin-right:11px;text-transform:uppercase}
+.key{min-width:27px;height:27px;padding:0 8px;border-radius:7px;display:grid;place-items:center;
+  font-size:10px;font-family:var(--mono);color:var(--txt-3);border:1px solid var(--hair);
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.008));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 1px 0 rgba(0,0,0,.4)}
+.key.on{border-color:var(--hair-3);color:var(--ice);
+  background:linear-gradient(180deg,rgba(76,201,255,.22),rgba(76,201,255,.06));
+  box-shadow:0 0 14px var(--ice-glow),inset 0 1px 0 rgba(255,255,255,.12),0 1px 0 rgba(0,0,0,.4)}
+.kb-right{margin-left:auto;display:flex;gap:18px;font-family:var(--mono);font-size:9.5px;
+  color:var(--txt-4);letter-spacing:.04em}
+.kb-right b{color:var(--ice);font-weight:500}
+.kb-right b.dim{color:var(--txt-4)}
+
+/* ═══════════════════════ OVERLAYS ═══════════════════════ */
+.ov{position:fixed;inset:0;z-index:100;display:none;
+  background:rgba(2,4,9,.76);backdrop-filter:blur(11px) saturate(1.1)}
+.ov.show{display:flex;align-items:center;justify-content:center;animation:fadein .22s ease-out}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.sheet{width:572px;max-height:82vh;border-radius:19px;display:flex;flex-direction:column;
+  overflow:hidden;border:1px solid var(--hair-3);
+  background:linear-gradient(168deg,#0d1726,#070d16 68%);
+  box-shadow:var(--lift-3);animation:rise .28s cubic-bezier(.24,1.1,.44,1)}
+@keyframes rise{from{opacity:0;transform:translateY(20px) scale(.972)}to{opacity:1;transform:none}}
+.sh-head{padding:17px 20px 15px;border-bottom:1px solid var(--hair);display:flex;
+  align-items:center;gap:12px;flex-shrink:0;
+  background:linear-gradient(180deg,rgba(76,201,255,.05),transparent)}
+.sh-head .t{font-size:13.5px;font-weight:600;flex:1;letter-spacing:.03em}
+.sh-head .t small{display:block;font-size:9px;color:var(--txt-4);font-family:var(--mono);
+  font-weight:400;margin-top:4px;letter-spacing:.17em;text-transform:uppercase}
+.sh-x{width:30px;height:30px;border-radius:9px;cursor:pointer;display:grid;place-items:center;
+  font-size:14px;border:1px solid var(--hair);color:var(--txt-3);
+  background:rgba(255,255,255,.03);transition:all .18s}
+.sh-x:hover{border-color:rgba(255,84,104,.5);color:var(--danger);background:rgba(255,84,104,.1)}
+.sh-search{padding:13px 20px 12px;border-bottom:1px solid var(--hair);flex-shrink:0}
+.sh-search input{width:100%;background:rgba(3,7,14,.8);border:1px solid var(--hair);
+  border-radius:10px;padding:9.5px 12px;color:var(--txt);font-size:11.5px;outline:none;
+  font-family:var(--sans);transition:all .2s;box-shadow:inset 0 1px 2px rgba(0,0,0,.45)}
+.sh-search input:focus{border-color:var(--ice-lo);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.45),0 0 0 3px var(--ice-glow)}
+.sh-search input::placeholder{color:var(--txt-4)}
+.sh-list{flex:1;overflow-y:auto;padding:8px 12px 14px;min-height:0}
+.sh-list::-webkit-scrollbar{width:5px}
+.sh-list::-webkit-scrollbar-thumb{background:var(--hair-3);border-radius:3px}
+.sh-list::-webkit-scrollbar-thumb:hover{background:var(--ice-lo)}
+.sh-list::-webkit-scrollbar-track{background:transparent}
+.sh-group{font-size:8.5px;font-family:var(--mono);color:var(--txt-4);letter-spacing:.22em;
+  padding:12px 10px 7px;position:sticky;top:0;z-index:2;text-transform:uppercase;
+  background:linear-gradient(180deg,#0c1524 58%,transparent)}
+.itm{display:flex;align-items:center;gap:12px;padding:10px 11px;border-radius:11px;
+  cursor:pointer;border:1px solid transparent;position:relative;
+  transition:all .16s cubic-bezier(.4,0,.2,1)}
+.itm:hover{background:rgba(76,201,255,.085);border-color:var(--hair-2)}
+.itm.on{background:linear-gradient(180deg,rgba(76,201,255,.14),rgba(76,201,255,.04));
+  border-color:var(--hair-3)}
+.itm.dg:hover{background:rgba(255,84,104,.1);border-color:rgba(255,84,104,.42)}
+.itm .e{font-size:18px;width:26px;text-align:center;flex-shrink:0;line-height:1}
+.itm .m{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.itm .nm{display:block;font-size:12.5px;font-weight:500;line-height:1.3;letter-spacing:.01em}
+.itm .ds{display:block;font-size:9.5px;color:var(--txt-4);font-family:var(--mono);
+  line-height:1.35;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.itm .st{font-family:var(--mono);font-size:8.5px;padding:3px 8px;border-radius:6px;
+  letter-spacing:.11em;flex-shrink:0}
+.st.ok{background:rgba(52,229,170,.15);color:var(--ok);border:1px solid rgba(52,229,170,.3)}
+.st.no{background:rgba(233,243,255,.05);color:var(--txt-4);border:1px solid var(--hair)}
+.st.run{background:rgba(76,201,255,.22);color:var(--ice);border:1px solid var(--hair-3);
+  animation:breathe 1.9s infinite}
+.itm .go{font-size:12px;color:var(--txt-4);flex-shrink:0;transition:all .16s}
+.itm:hover .go{color:var(--ice);transform:translateX(3px)}
+.sh-foot{padding:13px 20px;border-top:1px solid var(--hair);display:flex;align-items:center;
+  gap:11px;flex-shrink:0;background:rgba(3,7,14,.4)}
+.sh-foot .hint{flex:1;font-size:9.5px;color:var(--txt-4);font-family:var(--mono);
+  letter-spacing:.05em}
+.btn{padding:9px 17px;border-radius:10px;font-size:11px;cursor:pointer;font-family:var(--sans);
+  border:1px solid var(--hair-3);color:var(--ice);letter-spacing:.03em;
+  background:linear-gradient(180deg,rgba(76,201,255,.18),rgba(76,201,255,.05));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09);transition:all .18s cubic-bezier(.4,0,.2,1)}
+.btn:hover{background:linear-gradient(180deg,rgba(76,201,255,.3),rgba(76,201,255,.1));
+  box-shadow:0 0 20px var(--ice-glow),inset 0 1px 0 rgba(255,255,255,.12)}
+.btn:active{transform:translateY(.5px)}
+.btn.ghost{background:rgba(255,255,255,.025);border-color:var(--hair);color:var(--txt-2);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.btn.ghost:hover{background:rgba(255,255,255,.06);box-shadow:none;color:var(--txt)}
+
+/* ═══════════════════════ FULL MAP OVERLAY ═══════════════════════ */
+.map-sheet{width:min(1320px,94vw);height:min(880px,92vh);border-radius:20px;overflow:hidden;
+  display:flex;flex-direction:column;border:1px solid var(--hair-3);
+  background:linear-gradient(168deg,#0b1421,#060b13);
+  box-shadow:var(--lift-3);animation:rise .3s cubic-bezier(.24,1.1,.44,1)}
+.ms-head{height:62px;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:0 20px;
+  border-bottom:1px solid var(--hair);
+  background:linear-gradient(180deg,rgba(76,201,255,.055),transparent)}
+.ms-title{display:flex;align-items:center;gap:11px;padding-right:18px;
+  border-right:1px solid var(--hair);height:100%}
+.ms-title .n{font-size:13px;font-weight:600;letter-spacing:.09em}
+.ms-title .s{font-size:8.5px;color:var(--txt-4);font-family:var(--mono);letter-spacing:.19em;
+  margin-top:3px}
+.ms-search{flex:1;max-width:340px;position:relative}
+.ms-search input{width:100%;background:rgba(3,7,14,.8);border:1px solid var(--hair);
+  border-radius:9px;padding:8.5px 12px 8.5px 32px;color:var(--txt);font-size:11.5px;
+  outline:none;font-family:var(--sans);transition:all .2s;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.45)}
+.ms-search input:focus{border-color:var(--ice-lo);box-shadow:0 0 0 3px var(--ice-glow)}
+.ms-search input::placeholder{color:var(--txt-4)}
+.ms-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:12px;
+  height:12px;stroke:var(--txt-4);fill:none;stroke-width:1.8;pointer-events:none}
+.ms-regions{display:flex;gap:6px}
+.ms-reg{font-size:9.5px;padding:4.5px 10px;border-radius:13px;font-family:var(--mono);
+  border:1px solid var(--hair);color:var(--txt-3);cursor:pointer;letter-spacing:.05em;
+  transition:all .18s;background:rgba(255,255,255,.015)}
+.ms-reg:hover{border-color:var(--ice-lo);color:var(--ice)}
+.ms-reg.on{border-color:var(--hair-3);color:var(--ice);background:rgba(76,201,255,.12)}
+.ms-close{width:31px;height:31px;border-radius:9px;cursor:pointer;display:grid;
+  place-items:center;font-size:14px;border:1px solid var(--hair);color:var(--txt-3);
+  background:rgba(255,255,255,.03);transition:all .18s;flex-shrink:0}
+.ms-close:hover{border-color:rgba(255,84,104,.5);color:var(--danger);
+  background:rgba(255,84,104,.1)}
+
+.ms-body{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 336px;min-height:0}
+.ms-map{position:relative;overflow:hidden;border-right:1px solid var(--hair);
+  background:radial-gradient(ellipse 70% 60% at 50% 48%,#0a1220,#050910)}
+.ms-grid{position:absolute;inset:0;opacity:.4;
+  background-image:linear-gradient(rgba(76,201,255,.06) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(76,201,255,.06) 1px,transparent 1px);
+  background-size:54px 54px;mask-image:radial-gradient(ellipse 82% 78% at 50% 50%,#000 40%,transparent 92%)}
+/* district blocks */
+.ms-blk{position:absolute;border-radius:9px;border:1px solid rgba(76,201,255,.13);
+  background:linear-gradient(160deg,rgba(76,201,255,.045),rgba(76,201,255,.012));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+.ms-blk span{position:absolute;top:7px;left:9px;font-family:var(--mono);font-size:8px;
+  color:var(--txt-4);letter-spacing:.16em;text-transform:uppercase}
+/* arterial roads */
+.ms-rd{position:absolute;background:rgba(76,201,255,.07);
+  box-shadow:0 0 0 1px rgba(76,201,255,.2),inset 0 0 26px -8px rgba(76,201,255,.24)}
+.ms-rd.h{left:0;right:0;height:20px}
+.ms-rd.v{top:0;bottom:0;width:18px}
+.ms-rd.d1{width:150%;height:16px;transform:rotate(33deg);transform-origin:left center;
+  background:rgba(76,201,255,.05)}
+.ms-rd.d2{width:140%;height:14px;transform:rotate(-47deg);transform-origin:left center;
+  background:rgba(76,201,255,.045)}
+/* the planned route */
+.ms-route{position:absolute;height:5px;border-radius:3px;
+  background:linear-gradient(90deg,rgba(76,201,255,.6),var(--ice) 55%,var(--ice-hi));
+  box-shadow:0 0 18px var(--ice),0 0 0 1px rgba(76,201,255,.35);
+  transform-origin:left center;z-index:2}
+.ms-route.r1{left:41%;top:63%;width:24%;transform:rotate(-58deg)}
+.ms-route.r2{left:29.5%;top:53%;width:18%;transform:rotate(-16deg)}
+.ms-route.r3{left:25.5%;top:44.5%;width:29%;transform:rotate(-72deg)}
+.ms-route.done{opacity:.24}
+/* marker darts */
+.ms-pin{position:absolute;width:10px;height:10px;border-radius:50%;
+  transform:translate(-50%,-50%);z-index:4;
+  box-shadow:0 0 11px currentColor,0 0 0 1.5px rgba(4,8,14,.9)}
+.ms-pin.wp{background:var(--amber);color:var(--amber)}
+.ms-pin.tgt{background:var(--danger);color:var(--danger);animation:breathe 1.6s infinite}
+.ms-pin.booth{background:var(--violet);color:var(--violet)}
+.ms-pin.shop{background:var(--ok);color:var(--ok)}
+.ms-lab{position:absolute;font-family:var(--mono);font-size:8.5px;padding:2px 6px;
+  border-radius:4px;background:rgba(4,8,14,.92);border:1px solid var(--hair-2);
+  transform:translate(-50%,15px);white-space:nowrap;color:var(--txt-2);z-index:6;
+  letter-spacing:.02em}
+.ms-ego{position:absolute;left:41%;top:63%;width:0;height:0;z-index:7;
+  border-left:8px solid transparent;border-right:8px solid transparent;
+  border-bottom:18px solid #fff;transform:translate(-50%,-50%) rotate(26deg);
+  filter:drop-shadow(0 0 10px var(--ice))}
+.ms-ego::before{content:'';position:absolute;left:-10px;top:-23px;width:20px;height:20px;
+  border-radius:50%;background:rgba(76,201,255,.22);animation:ripple 2.4s ease-out infinite}
+.ms-legend{position:absolute;left:18px;bottom:18px;z-index:8;display:flex;gap:14px;
+  padding:9px 14px;border-radius:11px;border:1px solid var(--hair-2);
+  background:rgba(4,8,14,.82);backdrop-filter:blur(14px);
+  box-shadow:var(--lift-1);font-family:var(--mono);font-size:9px;color:var(--txt-2)}
+.ms-legend i{display:inline-flex;align-items:center;gap:6px;font-style:normal}
+.ms-legend i::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;
+  box-shadow:0 0 7px currentColor}
+.ms-legend i.wp{color:var(--amber)} .ms-legend i.tgt{color:var(--danger)}
+.ms-legend i.booth{color:var(--violet)} .ms-legend i.shop{color:var(--ok)}
+.ms-scale{position:absolute;right:20px;bottom:20px;z-index:8;font-family:var(--mono);
+  font-size:8.5px;color:var(--txt-3);text-align:center}
+.ms-scale::before{content:'';display:block;width:54px;height:6px;margin-bottom:3px;
+  border-left:1px solid var(--txt-3);border-right:1px solid var(--txt-3);
+  border-bottom:1px solid var(--txt-3)}
+.ms-coords{position:absolute;right:20px;top:18px;z-index:8;font-family:var(--mono);
+  font-size:9px;color:var(--txt-3);text-align:right;line-height:1.75;
+  font-variant-numeric:tabular-nums}
+.ms-coords b{color:var(--ice);font-weight:500}
+
+/* right rail inside full map */
+.ms-rail{display:flex;flex-direction:column;overflow-y:auto;padding:16px;gap:13px}
+.ms-rail::-webkit-scrollbar{width:3px}
+.ms-rail::-webkit-scrollbar-thumb{background:var(--hair-3);border-radius:2px}
+.rail-sec{border:1px solid var(--hair);border-radius:13px;padding:13px 14px;
+  background:linear-gradient(180deg,rgba(255,255,255,.022),transparent 40%),var(--s0);
+  box-shadow:var(--lift-1)}
+.rail-t{font-size:9px;font-family:var(--mono);letter-spacing:.2em;color:var(--txt-3);
+  display:flex;align-items:center;gap:7px;margin-bottom:12px;text-transform:uppercase}
+.rail-t::before{content:'';width:2px;height:10px;border-radius:2px;background:var(--ice);
+  box-shadow:0 0 8px var(--ice)}
+.rail-t .badge{margin-left:auto;font-size:8px;padding:1.5px 6px;border-radius:4px;
+  background:rgba(76,201,255,.14);color:var(--ice);letter-spacing:.1em}
+/* big readout */
+.ro{display:flex;align-items:baseline;gap:8px}
+.ro .v{font-size:33px;font-weight:200;font-family:var(--mono);line-height:1;
+  letter-spacing:-.03em;font-variant-numeric:tabular-nums;text-shadow:0 0 22px var(--ice-glow)}
+.ro .u{font-size:9px;color:var(--txt-4);font-family:var(--mono);letter-spacing:.19em}
+.ro-sub{font-size:9px;color:var(--txt-4);font-family:var(--mono);margin-top:6px;
+  letter-spacing:.04em}
+/* metric rows with bar */
+.mrow{display:flex;align-items:center;gap:9px;padding:6px 0}
+.mrow .mk{width:82px;font-size:9.5px;font-family:var(--mono);color:var(--txt-3);
+  flex-shrink:0;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow .mb{flex:1;height:4px;border-radius:2px;background:rgba(233,243,255,.055);
+  position:relative;overflow:hidden;box-shadow:inset 0 1px 1px rgba(0,0,0,.4)}
+.mrow .mb i{position:absolute;inset:0 auto 0 0;border-radius:2px;
+  background:linear-gradient(90deg,var(--ice-lo),var(--ice));box-shadow:0 0 9px var(--ice-glow)}
+.mrow .mb i.ok{background:linear-gradient(90deg,rgba(52,229,170,.35),var(--ok));
+  box-shadow:0 0 9px var(--ok-lo)}
+.mrow .mb i.dg{background:var(--danger);box-shadow:0 0 9px rgba(255,84,104,.3)}
+.mrow .mb i.warn{background:linear-gradient(90deg,rgba(255,182,72,.35),var(--amber))}
+.mrow .mv{width:60px;text-align:right;font-family:var(--mono);font-size:10px;
+  font-variant-numeric:tabular-nums;color:var(--txt-2);flex-shrink:0}
+.mrow .mv.i{color:var(--ice)} .mrow .mv.ok{color:var(--ok)}
+.mrow .mv.warn{color:var(--amber)} .mrow .mv.n{color:var(--txt-4)}
+/* state vector grid */
+.svec{display:grid;grid-template-columns:auto 1fr auto;gap:6px 9px;align-items:center;
+  font-family:var(--mono);font-size:9.5px}
+.svec .sk{color:var(--txt-3);white-space:nowrap}
+.svec .sb{height:3.5px;border-radius:2px;background:rgba(233,243,255,.055);
+  position:relative;overflow:hidden}
+.svec .sb i{position:absolute;inset:0 auto 0 0;border-radius:2px;background:var(--ice);
+  box-shadow:0 0 8px var(--ice-glow)}
+.svec .sb i.zero{background:rgba(255,182,72,.5);box-shadow:none}
+.svec .sv{color:var(--txt-2);text-align:right;font-variant-numeric:tabular-nums}
+.svec .sv.zero{color:var(--amber)}
+.warnbox{margin-top:11px;font-family:var(--mono);font-size:9px;line-height:1.65;
+  padding:8px 10px;border-radius:8px;color:var(--amber);
+  background:linear-gradient(180deg,rgba(255,182,72,.09),rgba(255,182,72,.03));
+  border:1px solid rgba(255,182,72,.24);letter-spacing:.02em}
+.warnbox::before{content:'▲';margin-right:7px;font-size:8px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══════ TOP BAR ═══════ -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-name">AURORADRIVE</div>
+        <div class="brand-sub">极光智行 · NTE</div>
+      </div>
+    </div>
+    <div class="tb-stats">
+      <div class="tb-stat live"><span class="k">ASSIST FPS</span>
+        <span class="v ice num">29.7</span></div>
+      <div class="tb-stat"><span class="k">GAME FPS</span><span class="v ok num">60.0</span></div>
+      <div class="tb-stat"><span class="k">SPEED</span>
+        <span class="v ice num">87<u>km/h</u></span></div>
+      <div class="tb-stat"><span class="k">SPEED OCR</span><span class="v ok num">99.8<u>%</u></span></div>
+      <div class="tb-stat"><span class="k">E2E LATENCY</span>
+        <span class="v amber num">18.4<u>ms</u></span></div>
+      <div class="tb-stat live"><span class="k">NET LOCATE</span>
+        <span class="v ok num">LOCK</span></div>
+    </div>
+    <div class="tb-right">
+      <div class="pill-stat"><span class="led ice"></span>M9_MONO · ANE</div>
+      <div class="pill-stat"><span class="led"></span>5677 MARKERS</div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- ═══════ LEFT · VIEWPORT ═══════ -->
+    <div class="col-l">
+      <div class="viewport">
+        <div class="vp-grid"></div><div class="vp-scan"></div><div class="vp-sweep"></div>
+        <div class="vp-horizon"></div><div class="vp-vignette"></div>
+        <div class="cnr tl"></div><div class="cnr tr"></div>
+        <div class="cnr bl"></div><div class="cnr br"></div>
+
+        <div class="vp-tag">
+          <span class="tag live">LIVE</span>
+          <span class="tag">THIRD-PERSON</span>
+          <span class="tag">2560×1664</span>
+        </div>
+        <div class="vp-right-tags">
+          <span class="tag">YUYAN / 海特洛市</span>
+        </div>
+
+        <div class="rail r1"></div><div class="rail r2"></div><div class="rail r3"></div>
+        <div class="spine"></div>
+
+        <div class="det car">
+          <span class="det-lab"><b>car</b><i>0.94 · 18.2m</i></span></div>
+        <div class="det ped">
+          <span class="det-lab"><b>pedestrian</b><i>0.87 · 12.4m</i></span></div>
+        <div class="det obs">
+          <span class="det-lab"><b>obstacle</b><i>0.72 · 24.6m</i></span></div>
+
+        <div class="speed-hud">
+          <svg width="134" height="134" viewBox="0 0 134 134">
+            <g class="ticks" id="spdTicks"></g>
+            <circle cx="67" cy="67" r="58" fill="none"
+              stroke="rgba(233,243,255,.07)" stroke-width="6"/>
+            <circle cx="67" cy="67" r="58" fill="none" stroke="url(#sg)" stroke-width="6"
+              stroke-linecap="round" stroke-dasharray="364.4" stroke-dashoffset="116"
+              style="filter:drop-shadow(0 0 8px rgba(76,201,255,.65))"/>
+            <circle cx="67" cy="67" r="47" fill="none"
+              stroke="rgba(76,201,255,.11)" stroke-width="1"/>
+            <defs>
+              <linearGradient id="sg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="rgba(76,201,255,.35)"/>
+                <stop offset="55%" stop-color="#4cc9ff"/>
+                <stop offset="100%" stop-color="#8ee0ff"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="speed-txt">
+            <div>
+              <div class="speed-num num">87</div>
+              <div class="speed-unit">KM / H</div>
+            </div>
+          </div>
+          <div class="speed-cap">PP-OCRv6 · conf 0.99</div>
+        </div>
+      </div>
+
+      <!-- degrade ladder -->
+      <div class="gear-ring">
+        <div class="gr-item on"><div class="g">GEAR 1</div><div class="n">端到端主驾</div></div>
+        <div class="gr-item"><div class="g">GEAR 2</div><div class="n">YOLO 接管</div></div>
+        <div class="gr-item"><div class="g">GEAR 3</div><div class="n">脱困中</div></div>
+        <div class="gr-item"><div class="g">GEAR 4</div><div class="n">规则兜底</div></div>
+      </div>
+    </div>
+
+    <!-- ═══════ MIDDLE · MINIMAP + NAV + CONTROLS ═══════ -->
+    <div class="col-m">
+
+      <!-- minimap, compact, with full-map pill -->
+      <div class="card">
+        <div class="card-h">
+          <div class="card-t">小地图 · 网络定位</div>
+          <div class="map-pill" onclick="document.getElementById('mapov').classList.add('show')">
+            <svg viewBox="0 0 16 16"><path d="M1 3.5 5.5 1.5v11L1 14.5zM5.5 1.5 10.5 3.5v11L5.5 12.5zM10.5 3.5 15 1.5v11l-4.5 2z"/></svg>
+            打开大地图
+          </div>
+        </div>
+
+        <div class="minimap">
+          <div class="mm-grid"></div>
+          <div class="mm-rd h" style="top:35%"></div>
+          <div class="mm-rd h" style="top:69%"></div>
+          <div class="mm-rd v" style="left:40%"></div>
+          <div class="mm-rd v" style="left:75%"></div>
+          <div class="mm-rd d" style="left:40%;top:69%"></div>
+
+          <div class="mm-route r1"></div>
+          <div class="mm-route r2"></div>
+
+          <div class="mm-pin tgt" style="left:23%;top:14%"></div>
+          <div class="mm-lab" style="left:23%;top:14%">目标</div>
+          <div class="mm-pin wp" style="left:59%;top:23%"></div>
+          <div class="mm-lab" style="left:59%;top:23%">传送点</div>
+          <div class="mm-pin booth" style="left:80%;top:51%"></div>
+
+          <div class="mm-ego"></div>
+          <div class="mm-compass">N</div>
+
+          <div class="mm-br tl"></div><div class="mm-br tr"></div>
+          <div class="mm-br bl"></div><div class="mm-br br"></div>
+          <div class="mm-scale">80 m</div>
+        </div>
+
+        <!-- navigation demoted to micro-type -->
+        <div class="navline">
+          <span class="turn">
+            <svg viewBox="0 0 16 16"><path d="M8 14V3M8 3 3.5 7.5M8 3l4.5 4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <b>120</b>米后左转
+          </span>
+          <span class="via">进入 海特洛大道</span>
+          <span class="rem"><s>余</s><em>342m</em><s>·</s><em>28s</em></span>
+        </div>
+      </div>
+
+      <!-- hardware bank: what used to be the decision panel -->
+      <div class="card sm">
+        <div class="card-h">
+          <div class="card-t">硬件控制</div>
+          <div class="card-act">全部</div>
+        </div>
+        <div class="bank">
+          <div class="sw on ok" onclick="this.classList.toggle('on')">
+            <div class="sw-h">
+              <span class="sw-k">插帧</span>
+              <span class="sw-badge">MGFG-1</span>
+            </div>
+            <div class="sw-v"><span class="led"></span>已启用 · 60fps</div>
+          </div>
+          <div class="sw" onclick="this.classList.toggle('on')">
+            <div class="sw-h">
+              <span class="sw-k">录制</span>
+              <span class="sw-badge">READY</span>
+            </div>
+            <div class="sw-v"><span class="led"></span>待机 · 640×360</div>
+          </div>
+          <div class="sw" onclick="this.classList.toggle('on')">
+            <div class="sw-h">
+              <span class="sw-k">专家模式</span>
+              <span class="sw-badge">BC</span>
+            </div>
+            <div class="sw-v"><span class="led"></span>关闭 · 录真实按键</div>
+          </div>
+          <div class="sw" onclick="this.classList.toggle('on')">
+            <div class="sw-h">
+              <span class="sw-k">字形模式</span>
+              <span class="sw-badge">GLYPH</span>
+            </div>
+            <div class="sw-v"><span class="led"></span>关闭 · 扫描字形</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- log -->
+      <div class="card sm">
+        <div class="card-h">
+          <div class="card-t">运行日志</div>
+          <div class="card-act">导出</div>
+        </div>
+        <div class="log">
+          <div class="log-row ok"><span class="t">21:22:04</span>
+            <span class="m">CoordinateCapture 已启动 · 抓包定位锁定</span></div>
+          <div class="log-row ice"><span class="t">21:22:05</span>
+            <span class="m">SpeedOCR 加载 PP-OCRv6 int8 (1.2 MB)</span></div>
+          <div class="log-row ice"><span class="t">21:22:06</span>
+            <span class="m">M9 端到端模型热载完成 · ANE</span></div>
+          <div class="log-row warn"><span class="t">21:22:09</span>
+            <span class="m">检测到行人 · 12.4m · 减速</span></div>
+          <div class="log-row ok"><span class="t">21:22:11</span>
+            <span class="m">恢复巡航 · steer +0.240</span></div>
+          <div class="log-row ice"><span class="t">21:22:12</span>
+            <span class="m">渲染 29.7fps · 推理队列 depth 3</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ RIGHT · AI + AUTOMATION ═══════ -->
+    <div class="col-r">
+
+      <div class="card ai-card">
+        <div class="ai-head">
+          <div class="ai-ava">✦</div>
+          <div class="ai-tt">
+            <div class="n">AI 助手</div>
+            <div class="s">在线 · 18 技能已挂载</div>
+          </div>
+          <div class="card-act">设置</div>
+        </div>
+        <div class="ai-body">
+          <div class="msg sys">— 会话开始 21:22 —</div>
+          <div class="msg u">帮我看下现在车况</div>
+          <div class="msg a">当前 <code>87 km/h</code>，端到端主驾运行中，置信度
+            <code>0.94</code>，ANE 占用 28%。<br>前方 12.4m 检测到行人，已减速。</div>
+          <div class="msg u">顺便挂个钓鱼</div>
+          <div class="msg a">好的，已启动 <code>自动钓鱼</code> 技能。需要我同时开启挂机预设吗？</div>
+          <div class="msg sys">— 技能队列 1 项运行中 —</div>
+        </div>
+        <div class="ai-foot">
+          <div class="ai-in">
+            <input placeholder="说点什么… 例：去钓鱼 / 开始录数据">
+            <button class="ai-send">↑</button>
+          </div>
+          <div class="ai-chips">
+            <span class="ai-chip">车况报告</span>
+            <span class="ai-chip">开始录制</span>
+            <span class="ai-chip">规划路线</span>
+            <span class="ai-chip">停车</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="auto-btn" onclick="document.getElementById('skov').classList.add('show')">
+        <div class="ab-ico">⚡</div>
+        <div class="ab-txt">
+          <div class="t">自动化</div>
+          <div class="s">18 项技能 · 2 项运行中</div>
+        </div>
+        <div class="ab-cnt">18<small>SKILLS</small></div>
+      </div>
+
+      <div class="card sm">
+        <div class="card-h">
+          <div class="card-t">当前运行状态</div>
+          <span class="run-live">运行中</span>
+        </div>
+
+        <div class="ctl-rows">
+          <div class="ctl-row">
+            <span class="ctl-k">转向</span>
+            <span class="ctl-track bip"><i class="ctr"></i>
+              <i class="fl" style="left:50%;width:12%"></i></span>
+            <span class="ctl-v ice">+0.240</span>
+          </div>
+          <div class="ctl-row">
+            <span class="ctl-k">油门</span>
+            <span class="ctl-track"><i class="fl ok" style="width:71%"></i></span>
+            <span class="ctl-v ok">0.710</span>
+          </div>
+          <div class="ctl-row">
+            <span class="ctl-k">刹车</span>
+            <span class="ctl-track"><i class="fl dg" style="width:1.5%"></i></span>
+            <span class="ctl-v n">0.000</span>
+          </div>
+          <div class="ctl-row">
+            <span class="ctl-k">速度</span>
+            <span class="ctl-track"><i class="fl" style="width:72.5%"></i>
+              <i class="cap" style="left:66.7%"></i></span>
+            <span class="ctl-v ice">87</span>
+          </div>
+        </div>
+
+        <div class="limit-wrap">
+          <div class="li-head">
+            <span class="li-k">限速</span>
+            <span class="li-v unl" id="limitVal">不限速<small>UNLIMITED</small></span>
+          </div>
+          <div class="hfader" id="fader" tabindex="0">
+            <div class="hf-track">
+              <div class="hf-fill" id="faderFill"></div>
+              <div class="hf-sheen"></div>
+            </div>
+            <div class="hf-ticks" id="faderTicks"></div>
+            <div class="hf-knob" id="faderKnob"></div>
+          </div>
+          <div class="hf-ends"><span>20 km/h · 最严</span><span>不限速</span></div>
+          <span class="li-s" id="limitSub">向右放宽 · 向左收紧</span>
+          <div class="li-chips" id="limitChips"></div>
+        </div>
+      </div>
+
+      <div class="card sm">
+        <div class="card-h"><div class="card-t">系统</div><div class="card-act">检查</div></div>
+        <div class="row"><span class="k">BPF 权限</span><span class="v">已授权</span></div>
+        <div class="row"><span class="k">守护进程</span><span class="v">已安装</span></div>
+        <div class="row"><span class="k">引擎进程</span><span class="v">已连接</span></div>
+        <div class="row"><span class="k">Game Mode</span><span class="v">防御中</span></div>
+        <div class="row"><span class="k">HUD 浮层</span><span class="v i">MGFG-1</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ KEYBOARD BAR ═══════ -->
+  <div class="kb-bar">
+    <span class="kb-lab">Keyboard</span>
+    <span class="key on">W</span><span class="key">A</span><span class="key on">S</span>
+    <span class="key on">D</span><span class="key">SPACE</span><span class="key">SHIFT</span>
+    <span class="key">Z</span><span class="key">H</span><span class="key">R</span><span class="key">F</span>
+    <div class="kb-right">
+      <span>专家模式 <b class="dim">OFF</b></span>
+      <span>字形模式 <b class="dim">OFF</b></span>
+      <span>录制 <b>READY</b></span>
+      <span>插帧 <b>MGFG-1</b></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ FULL MAP + DECISION CIRCUITS ═══════ -->
+<div class="ov" id="mapov" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="map-sheet">
+    <div class="ms-head">
+      <div class="ms-title">
+        <div>
+          <div class="n">大地图</div>
+          <div class="s">13056 × 13056 · 64 TILES</div>
+        </div>
+      </div>
+      <div class="ms-search">
+        <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5" stroke-linecap="round"/></svg>
+        <input placeholder="搜索标记… 例：传送点 / 电话亭 / BOSS">
+      </div>
+      <div class="ms-regions">
+        <span class="ms-reg on">全部</span>
+        <span class="ms-reg">海特洛</span>
+        <span class="ms-reg">新赫兰</span>
+        <span class="ms-reg">维特海默</span>
+      </div>
+      <div class="ms-close" onclick="document.getElementById('mapov').classList.remove('show')">✕</div>
+    </div>
+
+    <div class="ms-body">
+      <!-- map canvas -->
+      <div class="ms-map">
+        <div class="ms-grid"></div>
+
+        <div class="ms-blk" style="left:6%;top:8%;width:27%;height:30%"><span>海特洛市</span></div>
+        <div class="ms-blk" style="left:38%;top:6%;width:24%;height:26%"><span>新赫兰</span></div>
+        <div class="ms-blk" style="left:68%;top:12%;width:26%;height:32%"><span>维特海默</span></div>
+        <div class="ms-blk" style="left:12%;top:54%;width:30%;height:34%"><span>静水区</span></div>
+        <div class="ms-blk" style="left:52%;top:58%;width:34%;height:30%"><span>工业带</span></div>
+
+        <div class="ms-rd h" style="top:44%"></div>
+        <div class="ms-rd h" style="top:78%"></div>
+        <div class="ms-rd v" style="left:36%"></div>
+        <div class="ms-rd v" style="left:66%"></div>
+        <div class="ms-rd d1" style="left:36%;top:78%"></div>
+        <div class="ms-rd d2" style="left:66%;top:44%"></div>
+
+        <div class="ms-route r1"></div>
+        <div class="ms-route r2"></div>
+        <div class="ms-route r3"></div>
+
+        <div class="ms-pin tgt" style="left:25%;top:15%"></div>
+        <div class="ms-lab" style="left:25%;top:15%">目标 · 异象委托点</div>
+        <div class="ms-pin wp" style="left:52%;top:32%"></div>
+        <div class="ms-lab" style="left:52%;top:32%">传送点</div>
+        <div class="ms-pin booth" style="left:79%;top:49%"></div>
+        <div class="ms-lab" style="left:79%;top:49%">电话亭</div>
+        <div class="ms-pin shop" style="left:63%;top:71%"></div>
+
+        <div class="ms-ego"></div>
+
+        <div class="ms-coords">
+          <div>X <b>6782.4</b> &nbsp; Y <b>5140.8</b></div>
+          <div>HDG <b>127.4°</b> · conf 1.00</div>
+        </div>
+
+        <div class="ms-legend">
+          <i class="wp">传送点</i><i class="tgt">目标</i>
+          <i class="booth">电话亭</i><i class="shop">商店</i>
+        </div>
+        <div class="ms-scale">200 m</div>
+      </div>
+
+      <!-- right rail: current status + decision circuits -->
+      <div class="ms-rail">
+
+        <div class="rail-sec">
+          <div class="rail-t">当前状态<span class="badge">LIVE</span></div>
+          <div class="ro"><span class="v num">87</span><span class="u">KM / H</span></div>
+          <div class="ro-sub">端到端主驾 · GEAR 1 · 置信 0.94</div>
+          <div style="margin-top:12px">
+            <div class="row"><span class="k">定位来源</span><span class="v i">抓包 libpcap</span></div>
+            <div class="row"><span class="k">视觉定位</span><span class="v n">SIFT 待机</span></div>
+            <div class="row"><span class="k">剩余路程</span><span class="v">342 m</span></div>
+            <div class="row"><span class="k">预计到达</span><span class="v">21:31 · 28s</span></div>
+          </div>
+        </div>
+
+        <div class="rail-sec">
+          <div class="rail-t">决策电路<span class="badge">逐帧</span></div>
+          <div class="mrow">
+            <span class="mk">STEER</span>
+            <span class="mb"><i style="width:62%"></i></span>
+            <span class="mv i">+0.240</span>
+          </div>
+          <div class="mrow">
+            <span class="mk">THROTTLE</span>
+            <span class="mb"><i class="ok" style="width:71%"></i></span>
+            <span class="mv ok">0.710</span>
+          </div>
+          <div class="mrow">
+            <span class="mk">BRAKE</span>
+            <span class="mb"><i class="dg" style="width:2%"></i></span>
+            <span class="mv n">0.000</span>
+          </div>
+          <div class="mrow">
+            <span class="mk">CONFIDENCE</span>
+            <span class="mb"><i class="ok" style="width:94%"></i></span>
+            <span class="mv ok">0.940</span>
+          </div>
+        </div>
+
+        <div class="rail-sec">
+          <div class="rail-t">状态向量 · [6]<span class="badge">契约</span></div>
+          <div class="svec">
+            <span class="sk">[0] speed_norm</span>
+            <span class="sb"><i style="width:73%"></i></span>
+            <span class="sv">0.725</span>
+
+            <span class="sk">[1] curvature</span>
+            <span class="sb"><i class="zero" style="width:0%"></i></span>
+            <span class="sv zero">0.0</span>
+
+            <span class="sk">[2] sin(hdg)</span>
+            <span class="sb"><i class="zero" style="width:0%"></i></span>
+            <span class="sv zero">0.0</span>
+
+            <span class="sk">[3] cos(hdg)</span>
+            <span class="sb"><i class="zero" style="width:100%"></i></span>
+            <span class="sv zero">1.0</span>
+
+            <span class="sk">[4] limit_norm</span>
+            <span class="sb"><i style="width:50%"></i></span>
+            <span class="sv">0.500</span>
+
+            <span class="sk">[5] reserved</span>
+            <span class="sb"><i class="zero" style="width:0%"></i></span>
+            <span class="sv zero">0.0</span>
+          </div>
+          <div class="warnbox">6 维中仅 [0] 为真实信号，其余为占位符</div>
+        </div>
+
+        <div class="rail-sec">
+          <div class="rail-t">推理链路</div>
+          <div class="mrow">
+            <span class="mk">M9_MONO</span>
+            <span class="mb"><i style="width:92%"></i></span>
+            <span class="mv i">18.4ms</span>
+          </div>
+          <div class="mrow">
+            <span class="mk">YOLO26s</span>
+            <span class="mb"><i class="ok" style="width:32%"></i></span>
+            <span class="mv ok">4.5ms</span>
+          </div>
+          <div class="mrow">
+            <span class="mk">SPEED OCR</span>
+            <span class="mb"><i class="ok" style="width:8%"></i></span>
+            <span class="mv ok">1.1ms</span>
+          </div>
+          <div class="mrow">
+            <span class="mk">ANE 占用</span>
+            <span class="mb"><i class="warn" style="width:28%"></i></span>
+            <span class="mv warn">28%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ AUTOMATION SKILL SHEET ═══════ -->
+<div class="ov" id="skov" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="sheet">
+    <div class="sh-head">
+      <div class="ab-ico" style="width:32px;height:32px;font-size:15px">⚡</div>
+      <div class="t">自动化技能
+        <small>18 Skills · 点击执行 · 支持搜索</small></div>
+      <button class="sh-x" onclick="document.getElementById('skov').classList.remove('show')">✕</button>
+    </div>
+
+    <div class="sh-search">
+      <input placeholder="搜索技能… 例：钓鱼 / 咖啡 / 录制">
+    </div>
+
+    <div class="sh-list">
+      <div class="sh-group">驾驶 · Driving</div>
+      <div class="itm on"><span class="e">🎬</span>
+        <span class="m"><span class="nm">驾驶数据采集</span>
+          <span class="ds">专家模式录制 · controls.csv · 自动标签</span></span>
+        <span class="st run">RUN</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">⚡</span>
+        <span class="m"><span class="nm">实时辅助预设</span>
+          <span class="ds">端到端 + YOLO + OCR 全链路</span></span>
+        <span class="st no">N/A</span><span class="go">›</span></div>
+
+      <div class="sh-group">日常 · Daily</div>
+      <div class="itm"><span class="e">🔑</span>
+        <span class="m"><span class="nm">自动登录</span>
+          <span class="ds">启动游戏 · 过登录 · 进主界面</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm on"><span class="e">🎣</span>
+        <span class="m"><span class="nm">自动钓鱼</span>
+          <span class="ds">识别咬钩 · 自动收杆 · 循环</span></span>
+        <span class="st run">RUN</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">🥤</span>
+        <span class="m"><span class="nm">自动做咖啡</span>
+          <span class="ds">完整流程 · 多杯循环</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">🥛</span>
+        <span class="m"><span class="nm">轻量做咖啡</span>
+          <span class="ds">简化路径 · 更快</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">🍅</span>
+        <span class="m"><span class="nm">自动做番茄汁</span>
+          <span class="ds">采集 + 制作</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">🥯</span>
+        <span class="m"><span class="nm">贝果刷屏</span>
+          <span class="ds">批量购买 · 刷屏交互</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">🪑</span>
+        <span class="m"><span class="nm">自动收家具</span>
+          <span class="ds">扫描 · 一键收取</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">💎</span>
+        <span class="m"><span class="nm">自动领奖励</span>
+          <span class="ds">邮件 / 任务 / 活动奖励</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+
+      <div class="sh-group">玩法 · Gameplay</div>
+      <div class="itm"><span class="e">🏐</span>
+        <span class="m"><span class="nm">自动排球</span>
+          <span class="ds">视觉追踪 · 自动击球</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">🎹</span>
+        <span class="m"><span class="nm">自动弹钢琴</span>
+          <span class="ds">MIDI 解析 · 精确按键时序</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">🎵</span>
+        <span class="m"><span class="nm">自动超强音</span>
+          <span class="ds">音游模式 · 节拍识别</span></span>
+        <span class="st no">N/A</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">⚔️</span>
+        <span class="m"><span class="nm">自动闪避</span>
+          <span class="ds">实时威胁检测 · 翻滚躲避</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">✋</span>
+        <span class="m"><span class="nm">自动抚摸</span>
+          <span class="ds">宠物交互循环</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+      <div class="itm"><span class="e">📜</span>
+        <span class="m"><span class="nm">自动滚动</span>
+          <span class="ds">拾取 / 翻页 / 列表遍历</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+
+      <div class="sh-group">高风险 · Caution</div>
+      <div class="itm dg"><span class="e">🐾</span>
+        <span class="m"><span class="nm" style="color:var(--danger)">粉爪大劫案</span>
+          <span class="ds">高频操作 · 建议先阅读说明</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+
+      <div class="sh-group">预设 · Presets</div>
+      <div class="itm"><span class="e">🛋️</span>
+        <span class="m"><span class="nm">挂机预设</span>
+          <span class="ds">一键全做 · 日常串联</span></span>
+        <span class="st ok">READY</span><span class="go">›</span></div>
+    </div>
+
+    <div class="sh-foot">
+      <span class="hint">2 项运行中 · 队列自动串行</span>
+      <button class="btn ghost">全部停止</button>
+      <button class="btn">执行选中</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* speed-ring tick marks: 36 minor + 6 major, drawn on the arc */
+(function(){
+  var g = document.getElementById('spdTicks');
+  if(!g) return;
+  var cx = 67, cy = 67, r1 = 64, r2 = 58, N = 36;
+  for (var i = 0; i < N; i++){
+    var a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    var maj = (i % 6 === 0);
+    var ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('x1', (cx + Math.cos(a) * r1).toFixed(2));
+    ln.setAttribute('y1', (cy + Math.sin(a) * r1).toFixed(2));
+    ln.setAttribute('x2', (cx + Math.cos(a) * (maj ? r2 - 2 : r2)).toFixed(2));
+    ln.setAttribute('y2', (cy + Math.sin(a) * (maj ? r2 - 2 : r2)).toFixed(2));
+    if (maj) ln.setAttribute('class', 'maj');
+    g.appendChild(ln);
+  }
+})();
+
+/* ═══════ speed-limit slider (horizontal) ═══════
+   far left  -> 20 km/h  (strictest)
+   far right -> unlimited
+   levels are discrete and snap on drag                          */
+(function(){
+  var el   = document.getElementById('fader');
+  var fill = document.getElementById('faderFill');
+  var knob = document.getElementById('faderKnob');
+  var val  = document.getElementById('limitVal');
+  var sub  = document.getElementById('limitSub');
+  var chipsEl = document.getElementById('limitChips');
+  if(!el) return;
+
+  /* ordered left -> right: strictest first, unlimited last */
+  var LV = [
+    {p:0.00, kmh:20,  sub:'最严限制 · 挪车速度'},
+    {p:0.167,kmh:40,  sub:'居民区慢行'},
+    {p:0.333,kmh:60,  sub:'城区主路'},
+    {p:0.50, kmh:80,  sub:'城市快速路'},
+    {p:0.667,kmh:100, sub:'准高速上限'},
+    {p:0.833,kmh:120, sub:'高速巡航上限'},
+    {p:1.00, kmh:0,   sub:'跟随路况自由行驶'}
+  ];
+  var IDX = LV.length - 1;          /* default: unlimited */
+  var dragging = false;
+
+  /* ticks: 21 notches, every 5th major */
+  var tk = document.getElementById('faderTicks');
+  for(var i=0;i<=20;i++){
+    var t = document.createElement('i');
+    if(i%5===0) t.className='maj';
+    t.style.left = (i/20*100)+'%';
+    tk.appendChild(t);
+  }
+  /* chips, left -> right */
+  LV.forEach(function(l,i){
+    var c = document.createElement('span');
+    c.className = 'li-chip' + (l.kmh===0 ? ' on unl' : '');
+    c.textContent = l.kmh === 0 ? '不限速' : (l.kmh+' km/h');
+    c.onclick = function(){ setLevel(i); };
+    chipsEl.appendChild(c);
+  });
+
+  function setLevel(i){
+    IDX = Math.max(0, Math.min(LV.length-1, i));
+    var l = LV[IDX];
+    var pct = l.p * 100;
+    /* fill grows left -> right */
+    fill.style.width = Math.max(pct, 1.2) + '%';
+    knob.style.left  = pct + '%';
+    if(l.kmh === 0){
+      val.className = 'li-v unl';
+      val.innerHTML = '不限速<small>UNLIMITED</small>';
+    }else{
+      val.className = 'li-v';
+      val.innerHTML = l.kmh + '<small>km/h</small>';
+    }
+    sub.textContent = l.sub;
+    Array.prototype.forEach.call(chipsEl.children, function(c,k){
+      c.className = 'li-chip' + (k===IDX ? (' on' + (LV[k].kmh===0?' unl':'')) : '');
+    });
+  }
+
+  /* pointer x within the rail -> nearest level */
+  function fromX(clientX){
+    var r = el.getBoundingClientRect();
+    var f = (clientX - r.left) / r.width;
+    f = Math.max(0, Math.min(1, f));
+    var best = 0, bd = 9;
+    LV.forEach(function(l,i){ var d = Math.abs(l.p - f); if(d < bd){ bd = d; best = i; } });
+    return best;
+  }
+
+  function down(e){
+    dragging = true;
+    setLevel(fromX(e.clientX));
+    e.preventDefault();
+  }
+  function move(e){
+    if(!dragging) return;
+    setLevel(fromX(e.clientX));
+    e.preventDefault();
+  }
+  function up(){ dragging = false; }
+
+  el.addEventListener('mousedown', down);
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+
+  el.addEventListener('touchstart', function(e){
+    dragging = true; setLevel(fromX(e.touches[0].clientX)); e.preventDefault();
+  }, {passive:false});
+  window.addEventListener('touchmove', function(e){
+    if(!dragging) return; setLevel(fromX(e.touches[0].clientX)); e.preventDefault();
+  }, {passive:false});
+  window.addEventListener('touchend', up);
+
+  /* wheel nudges one level */
+  el.addEventListener('wheel', function(e){
+    setLevel(IDX + (e.deltaX > 0 || e.deltaY > 0 ? -1 : 1));
+    e.preventDefault();
+  }, {passive:false});
+
+  /* keyboard: left tightens, right relaxes */
+  el.addEventListener('keydown', function(e){
+    if(e.key==='ArrowLeft'){  setLevel(IDX-1); e.preventDefault(); }
+    if(e.key==='ArrowRight'){ setLevel(IDX+1); e.preventDefault(); }
+    if(e.key==='Home'){ setLevel(0); e.preventDefault(); }
+    if(e.key==='End'){  setLevel(LV.length-1); e.preventDefault(); }
+  });
+
+  setLevel(LV.length - 1);
+})();
+
+/* close overlays on Escape */
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape'){
+    ['mapov','skov'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('show');
+    });
+  }
+});
+</script>
+
+</body>
+</html>

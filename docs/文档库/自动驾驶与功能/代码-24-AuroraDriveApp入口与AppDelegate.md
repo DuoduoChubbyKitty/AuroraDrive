@@ -1,6 +1,15 @@
 # 代码-24 AuroraDriveApp 入口与 AppDelegate
 
-> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（4379 行）之上部：文件头 + AppDelegate（1–379 行）。基于当前仓库逐单元编写。（中部 AgentSkillCenter/调度见 代码-25，下部 ContentView 见 代码-26）
+> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（**3665 行**）之上部：AppDelegate + Launcher + App Scene + WindowConfigurator + DragHandleView。基于当前仓库逐单元编写。（中部 DriveState 见 代码-25；下部 BPF 弹窗/FrameHost 见本档复核块）
+>
+> **2026-09-25 深度复核块（文件已从 4379 行重组为 3665 行——UI 大改版 + 后续优化）**：
+> ① **本文档写作时的行号基准已失效**（当时 AppDelegate 在 1–379 行，现在 **27–656 行**；正文行号引用需按下表映射后阅读）；
+> ② **新增 `@main AuroraDriveLauncher`（657–842 行）**：UI 单例锁 `ui.lock`（flock——两个 UI 互抢引擎 socket 会 0.5s 断开重连死循环，9-12 实测）；**无头截图命令 --mc-shot/--mc-map/--mc-map-offline 必须在 main() 同步跑完**（放 onAppear 里无窗口永不触发，实测 240s 不出图）；--set-llm-config / --agent-llm-test（同步 URLSession + 30s 硬超时）；--limit-selftest / --fit-selftest；**oneShot 白名单不参与 UI 锁**（短命进程与常驻 UI 互斥会让自检失败）；
+> ③ **AuroraDriveApp Scene（843–891 行）**：WindowGroup（不能换 Window+id——AppKit 生命周期下不开窗）+ `WindowConfigurator` 背景 + `--agent-command` 模式 orderOut 全部窗口（后台运行不抢焦点）+ 主窗口**标题栏 chrome 全部隐藏**（titlebarAppearsTransparent/titleVisibility/三个按钮 isHidden——黑边根治）；**绝不开 isMovableByWindowBackground**（会把框选手势整个吃掉）；
+> ④ **WindowConfigurator（1067–1223 行）**：主窗口配置（强制内容铺满整窗，自适应分辨率攻坚的 AppKit 侧）；
+> ⑤ **DragHandleView（1223–1301 行）**：58pt 全顶栏拖拽带——真因是 NSHostingView 自己实现 hitTest 截走鼠标事件，修复=拖拽带挂到 themeFrame（NSNextStepFrame）；
+> ⑥ 下部（3079 行起）：BPFPasswordSheet（小药丸密码弹窗）/ DaemonInstallSheet / ObstacleOverlay / **FrameHost/FrameHostView**（画面流直绘，绕开 SwiftUI body diff）/ **UpscaleFrameHost**（MetalGoose 插帧宿主）/ LogViewerPanel。
+> 旧正文对 AppDelegate 机制（Game Mode 锚定窗口/AgentSkillCenter 装配/引擎 spawn）的描述**大体仍有效**，但行号与细节以源码为准。
 
 ## 一、AppDelegate 与 Game Mode 锚定窗口（第 26–87 行）
 

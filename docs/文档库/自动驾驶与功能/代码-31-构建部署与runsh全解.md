@@ -1,6 +1,14 @@
 # 代码-31 构建部署与 run.sh 全解
 
-> 覆盖源文件：`run.sh`（133 行）+ `scripts/setup_toolchain.sh`（77 行）+ Package.swift 构建面 + 部署产物实况。基于当前仓库逐单元编写。
+> 覆盖源文件：`run.sh`（**170 行**）+ `scripts/setup_toolchain.sh`（77 行）+ Package.swift 构建面 + 部署产物实况。基于当前仓库逐单元编写。
+>
+> **2026-09-25 深度复核记录**（133→170 行，+37 行全是 9-24 构建面修复）：
+> ① **libpcap 检查重写（26–31 行）**：旧判据自 macOS 11 起恒为假必然误报（`ls /usr/lib/libpcap*`——系统库已全部移入 dyld 共享缓存磁盘上不存在实体文件；`brew list libpcap`——libpcap 是 macOS 自带库从不经 brew 装）→ 改用 **dyld 实际解析结果**判断（产物存在用 ①，编译前用 ② 兜底）；
+> ② **构建输出不再被管道吞（64–68 行）**：旧写法 `swift build | tail -5` 管道吞掉退出码（set -e 失效）→ 构建失败仍部署/启动（2026-09-15 bagel_spam 编译失败曾误部署）→ 现完整记录 .last-build.log 并检查 exit code；
+> ③ **`--disable-sandbox`（69–73 行）**：DSH workspace-write 沙盒下 SwiftPM 自身 sandbox_apply 会 Operation not permitted → manifest 编译失败；统一 scratch 到 `.build/scratch` 与增量构建共用缓存；
+> ④ **metallib 预编译（9-24 改动 12）**：`xcrun metal -c Shaders.metal -fmodules-cache-path=.build/metal-cache` → metallib 双路径部署（bundle Contents/Resources + 项目根）——省启动 100ms-1s 运行时编译；**编译失败不阻塞部署**（运行时编译兜底，功能零损失）；-fmodules-cache-path 指 workspace 内防 /var/folders 被沙盒拒写静默失败；
+> ⑤ **原子替换部署保留**（9-12 修复）：cp 到临时名 + mv 换 inode——防运行中实例按需分页读到新旧混合页 → CDHash 校验失败 → SIGKILL；
+> ⑥ --auto-login 参数化：默认不自动登录（用户手动控制），传参才开 8s 检测登录守护。
 
 ## 一、run.sh 一键编译+签名+启动（全文 133 行）
 
@@ -61,6 +69,12 @@ fi
 **部署完成输出（108–114 行）**：裸可执行路径 + .app bundle 路径。
 
 **启动（116–133 行）**：
+
+> **⚠️ TCC 条目实测（2026-09-25，用户指出）**：本脚本默认 `open "$BUNDLE_DIR"`（启动 `.app` bundle），但**用户从未给 `.app` 授权**——TCC 权限一直只挂在**裸可执行文件** `/Users/dupi/Desktop/自动驾驶系统/AuroraDriveUI` 这个条目上。二者是**两个独立的 TCC 条目**，bundle 启动 → `ax=false screen=false` → 引擎 fail-fast 退出（`~/Library/Logs/AuroraEngine.log` 可见）。**正确启动方式是直接跑裸可执行**：
+> ```bash
+> nohup ./AuroraDriveUI > /tmp/aurora_ui_stdout.log 2>&1 &
+> ```
+> 实测此方式引擎继承 `ax=true screen=true` ✓。用户明确 2026-09-25："没必要"改 run.sh（不改脚本默认行为），但**必须知道 `./run.sh` 启动后 App 拿不到权限**——部署完请手动跑裸文件，或额外给 `.app` 单独授权。
 
 - `--yolo-selftest <图片>` / `--yolo-bench <图片>`：**直接跑裸可执行**（`./$BIN_DST --yolo-selftest "$2"`）
 - **GUI 启动（123–133 行）**：**优先用 .app bundle（LaunchServices 干净父进程）**——`open "$BUNDLE_DIR" --args --auto-login`；**--auto-login：启动即自动进入登录守护（每 8s 检测登录界面并点击，直到进游戏或 80s 超时）。游戏已登录/未开时守护安静退出，无副作用**

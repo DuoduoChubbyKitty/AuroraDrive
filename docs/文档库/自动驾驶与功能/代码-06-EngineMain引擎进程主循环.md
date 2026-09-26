@@ -1,6 +1,8 @@
 # 代码-06 EngineMain 引擎进程主循环
 
-> 覆盖源文件：`Sources/AuroraDrive/Core/EngineMain.swift`（849 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Core/EngineMain.swift`（**876 行**）。基于当前仓库逐单元编写。
+>
+> **2026-09-25 深度复核记录**（849→876 行）：① **`publish` 的 CGImage 像素路径已改 memcpy 快路径**（9-24 改动 7：原 CGContext 恒等格式转换占引擎 tick 主线程 ~78.6%，实测 2–6ms→0.2ms；dataProvider 可读时直接 memcpy——srcBPR==copyBytes 一次性整拷、否则逐行；不可读才兜底 CGContext 绘制，功能零损失）；② **引擎侧新增 `isUpscaleWanted` 门禁接线**（run() 第 7 步：`captureEngine.isUpscaleWanted = { EngineGlobals.wantFullFrame }`——UI 经 socket 的 upscale 命令实时控制，关闭时 CaptureEngine 帧回调里连全分辨率拷贝都不做）；其余架构（shm 布局/socket/八步/九命令/看门狗/退出）与上版一致。
 
 ## 一、引擎组成概览与 shm/socket 桥接（第 1–63 行）
 
@@ -72,9 +74,10 @@ func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
 **`publish(image:detections:fps:isDriving:isStreaming:fullFrame: CVPixelBuffer? = nil)`（第 160–259 行）**——发布一帧（成品画面 + 检测结果 + 状态）：
 
 1. **检测结果区（164–187 行）**：`n = min(detections.count, detCapacity)` 逐条写——labelId 映射（`.car→1 / .pedestrian→2 / .sign→3 / .obstacle→4`）、conf/x/y/w/h 写 Float、rawName **固定 16 字节 UTF8 截断**（`prefix(15)` + 16 字节先清零）
-2. **像素区双缓冲（189–247 行）**：**优先用全分辨率帧（fullFrame，插帧/清晰显示需要），否则用 480 宽缩略帧**
-   - CVPixelBuffer 路径：锁 readOnly → **逐行 memcpy 到紧凑布局**（源可能有行填充 `bytesPerRow > w*4`，逐行拷贝 `copyBytes = w*4`，211–214 行）→ `storeU32(36, writePage)` 发布
-   - CGImage 路径：`CGContext(data: dest, ...)` + `ctx.draw(img, ...)`（premultipliedFirst | byteOrder32Little）
+2. **像素区双缓冲（189–271 行）**：**优先用全分辨率帧（fullFrame，插帧/清晰显示需要），否则用 480 宽缩略帧**
+   - CVPixelBuffer 路径：锁 readOnly → **逐行 memcpy 到紧凑布局**（源可能有行填充 `bytesPerRow > w*4`，逐行拷贝 `copyBytes = w*4`）→ `storeU32(36, writePage)` 发布
+   - CGImage 路径——**memcpy 快路径（9-24 改动 7，源码 235–251 行）**：源 CGImage 由 CaptureEngine 经 CGDataProvider 零拷贝包装 uiBuf，格式与目标页完全一致（同为 32BGRA premultipliedFirst + byteOrder32Little、色彩空间同 DeviceRGB、目标矩形=源尺寸无缩放）——原路径只做恒等格式转换，却要走完整 CG 绘制管线（**实测占引擎 tick 主线程 ~78.6%**）。现直接 memcpy：`srcBPR == copyBytes`（无行填充）时一次性整拷 `copyBytes * h`，否则逐行拷贝
+   - **兜底路径（256–269 行）**：dataProvider 不可读（理论不发生，CaptureEngine 恒有 provider）时回退原 CGContext 绘制路径，功能零损失
    - 分辨率变化处理：`pageSize != currentPageSize` 时 `generation += 1`、写 generation（偏移 32）和 pageSize（偏移 72）——UI 端凭 generation 变化感知分辨率切换
    - **双缓冲写法**：`active = base.load(36)`，`writePage = active == 0 ? 1 : 0`——写非活动页，写完翻转 activePage（写读不冲突）
 3. **头部状态（249–258 行）**：`frameSeq += 1` → 写 frameSeq(40)/timestampNs(48)/detectionCount(56)/flags(60)/fpsMilli(64)——`flags |= 1` isDriving、`flags |= 2` isStreaming；fps 用 `max(0, fps) * 1000`
@@ -134,7 +137,7 @@ func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
 4. **防冻结 + 优先级（471–478 行）**：`beginActivity(options: [.latencyCritical, .userInteractive, .idleSystemSleepDisabled], reason: ...)`（**必须持有 napToken，否则 activity 立即释放**）+ `setpriority(PRIO_PROCESS, 0, -20)`（nice=-20）
 5. **信号处理（480–497 行）**：先 `signal(SIGTERM/SIGINT, SIG_IGN)` 交给 DispatchSource；SignalSource 事件 → `EngineGlobals.shutdownRequested = true` + `performShutdown(reason:)`（MainActor.assumeIsolated）
 6. **socket（499–534 行）**：`EngineSocketServer(path: appSupport/engine.sock)`；`onLine → handleCommand`；**onClientDisconnected 看门狗（505–520 行）**：`clientSaidBye` 时继续运行等待重连，否则 `startReconnectWindow()`（3 秒重连窗口）；**无论哪种断开都启动 `startIdleExitCountdown()`**（30 秒内没有 UI 重连 → 引擎自动安全退出，不再常驻占资源）；`onClientConnected` → cancel 两个倒计时 + `clientSaidBye = false` + 立即心跳。`server.start()` 失败 `exit(4)`
-7. **共享内存 + DriveState 闭环（536–576 行）**：`EngineFrameShm()` 失败 `exit(5)`；MainActor 里建 `DriveState()` + 挂 shm/socket；**全分辨率帧接线（550–554 行）**：覆盖 DriveState 默认的"喂本进程 upscaleHost"接线——引擎没有窗口/MTKView，插帧渲染在 UI 进程做，引擎只负责把全分辨率帧送过去（锁保护写入 latestFullFrame）；**`AURORA_ENGINE_DIAG_CAPTURE_ONLY=1` 诊断（558–561 行）**：只启动抓屏不注入按键，端到端验证"采集 → 共享内存 → UI"链路；**30Hz tick（565–576 行）**：`DispatchSource.makeTimerSource` + `schedule(deadline: .now(), repeating: 1.0/30.0, leeway: .nanoseconds(0))` → 每 tick 派发主线程 `tickOnce()`
+7. **共享内存 + DriveState 闭环（560–589 行）**：`EngineFrameShm()` 失败 `exit(5)`；MainActor 里建 `DriveState()` + 挂 shm/socket；**全分辨率帧接线（574–578 行）**：覆盖 DriveState 默认的"喂本进程 upscaleHost"接线——引擎没有窗口/MTKView，插帧渲染在 UI 进程做，引擎只负责把全分辨率帧送过去（锁保护写入 latestFullFrame）；**isUpscaleWanted 门禁接线（581 行，9-24 改动 10）**：`captureEngine.isUpscaleWanted = { EngineGlobals.wantFullFrame }`——UI 经 socket 的 upscale 命令实时控制，关闭时帧回调里连全分辨率拷贝都不做（isUpscaleWanted 在拷贝前求值）；**`AURORA_ENGINE_DIAG_CAPTURE_ONLY=1` 诊断（585–588 行）**：只启动抓屏不注入按键，端到端验证"采集 → 共享内存 → UI"链路；**30Hz tick（592–603 行）**：`DispatchSource.makeTimerSource` + `schedule(deadline: .now(), repeating: 1.0/30.0, leeway: .nanoseconds(0))` → 每 tick 派发主线程 `tickOnce()`
 8. **心跳 1Hz（578–601 行）**：hbTimer（leeway 50ms）→ 检查 shutdownRequested → `sendHeartbeat(reason: "periodic")`；**每 5 秒输出一条管道统计**（seq/有帧/det/driving）便于无人值守验证。最后 `dispatchMain()` 永不返回
 
 ## 五、tick / 命令处理 / 心跳 / 看门狗 / 安全退出（第 617–849 行）
@@ -188,4 +191,4 @@ fps 取 `captureFPS > 0 ? captureFPS : st.fps`（采集没起来时回退标称 
 2. 状态尚未建立：兜底 `ControlEngine().releaseAll()`
 3. `EngineGlobals.socket?.stop()` → `engineLog("[ENGINE] 退出完成")` → `exit(0)`
 
-**EngineMain 文档至此完整**（849 行全覆盖：概览与桥接 → shm → socket → run() 八步 → 命令/心跳/看门狗/退出）。
+**EngineMain 文档至此完整**（876 行全覆盖：概览与桥接 → shm → socket → run() 八步 → 命令/心跳/看门狗/退出）。

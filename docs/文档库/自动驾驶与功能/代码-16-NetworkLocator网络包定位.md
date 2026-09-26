@@ -1,6 +1,15 @@
 # 代码-16 NetworkLocator 网络包定位
 
-> 覆盖源文件：`Sources/AuroraDrive/Locate/NetworkLocator.swift`（626 行）。基于当前仓库逐单元编写。与 `代码-04-CoordinateCapture` 是姊妹实现（同一 MaaNTE 移植源，解码器私有副本 + 定位封装不同）。
+> 覆盖源文件：`Sources/AuroraDrive/Locate/NetworkLocator.swift`（**651 行**）。基于当前仓库逐单元编写。与 `代码-04-CoordinateCapture` 是姊妹实现（同一 MaaNTE 移植源，解码器私有副本 + 定位封装不同）。
+>
+> **✅ 2026-09-25 16:15 修复记录（用户授权，对齐 CoordinateCapture 已验证修复）**——本档旧版记录的坐标系不同步与解码 bug **已全部修复**：
+> ① 校准常量 TX/TY 对齐扩图版 map-2026-08（6293→6526 / 3472→5210，A/B 不变，平移 +233/+1738，与 CoordinateCapture.kCalibTX/TY 同源同值）；
+> ② 疑似 bug A（time/offset 量纲混用）→ `$0.offset == lastOffset`；
+> ③ 疑似 bug B（rotation +7 多加）→ `rotationOffset = cursor`（对齐 20260913 修复）；
+> ④ **本轮新发现并修复**：extractPose 的 readRotator 从位置向量**起始位**读起（位置 endOffset 被丢弃）——与自身 hasValidRotation 的起点自相矛盾，错位一整个位置向量宽度；现对齐 CoordinateCapture.decode 的「加速度→位置→旋转」链式结束位传递；
+> ⑤ readVector 符号扩展改 `Int64(bitPattern:)`（对齐 CoordinateCapture 实测崩溃事故修复，防负坐标 UInt64 下溢→0 候选）+ width≤63 防御；
+> ⑥ findCandidates 补 clientTime 有效性防线（isFinite/≥0/<100_000，对齐 CoordinateCapture:328）。
+> 下方正文中关于"不同步/疑似 bug"的历史描述**仅存档用**，现状以本块为准。
 
 ## 一、常量、数据类型与 CoordinateTransform（第 1–67 行）
 
@@ -13,13 +22,13 @@
 | `kCoordinateSampleMaxAge` | 1.0 秒 | read(maxAge: 1.0) | 同语义 |
 | `kCalibrationA` | 0.016394586684750773 | 同 | 相同 |
 | `kCalibrationB` | 5.693519256055879e-08 | 同 | 相同 |
-| **`kCalibrationTX`** | **6293.474380746091** | **6526.474380746091** | **本文件是旧帧 map-2026-06（11264）的 TX/TY，CoordinateCapture 是扩图版（+233, +1738）——两文件不同步！** |
-| **`kCalibrationTY`** | **3472.664390686138** | **5210.664390686138** | 同上 |
+| **`kCalibrationTX`** | **6526.474380746091** | 6526.474380746091 | ~~旧值 6293 已于 2026-09-25 对齐扩图版~~ **现已同值** |
+| **`kCalibrationTY`** | **5210.664390686138** | 5210.664390686138 | 同上（~~旧值 3472~~ 已对齐） |
 | `kCalibrationError` | 0.22031967781665318 | — | 本文件多了标定误差记录 |
 | `kNorth / kEast` | 同 | 同 | 相同 |
 | `kMaxLocationAbs / kMaxRotationAbs` | 同 | 同 | 相同 |
 
-**⚠️ 给别的 AI 的重要提示：本文件用旧图（map-2026-06）标定值，CoordinateCapture 用扩图（map-2026-08）——两份坐标系相差整体平移 (+233, +1738)。混用两个文件的 worldToMapPixel/apply 会得到错位 2000 像素的地图点。**当前权威源是 CoordinateCapture（扩图版，2026-09-13 升级，标定点验证通过）；本文件的 kCalibrationTX/TY 是旧值。
+**✅ 给别的 AI 的重要提示（2026-09-25 修复后）**：本文件与 CoordinateCapture 的校准常量**已同步**（同值同源，扩图版 map-2026-08）。两文件的 worldToMapPixel/apply 输出在同一坐标系，混用不再错位。（历史版本曾相差整体平移 +233/+1738——旧帧 map-2026-06 时代，已修正。）
 
 **数据类型（第 23–34 行）：**
 
@@ -68,7 +77,7 @@
 
 **`confirmFlow`（第 297–318 行）**：与 CoordinateCapture 同构（timeOk/offsetOk/stepOk，pendingSeen >= 2 才确认）。
 
-**给别的 AI 的结论**：**这个 UE5PacketDecoder 是"未被修复同步"的副本——疑似 bug B 会让它大概率解析不出候选**。生产路径应优先用 `代码-04 CoordinateCapture`（修复版 + 扩图标定 + 实测统计日志）；本文件保留的定位封装（NetworkLocationResult/CoordinateTransform/主入口封装，见单元三）若要启用，先把 +7 与 time/offset 两处对齐 CoordinateCapture 的修复。
+**给别的 AI 的结论（2026-09-25 修复后）**：**UE5PacketDecoder 的三处解码 bug 与坐标系偏移已全部对齐 CoordinateCapture 修复版**（见本档头部修复记录），两文件的 worldToMapPixel/apply 现在同源同值。DualModeLocator 启用前的前置条件已消除；仍建议生产定位优先走 `代码-04 CoordinateCapture`（libpcap 自包含 + 无外部服务依赖 + 实测统计日志），本文件的 WebSocket 路线依旧依赖本机 9004 端口 MaaNTE 服务在跑。
 
 ## 三、MaaNTESocketClient 与 NetworkLocator / DualModeLocator（第 321–626 行）
 

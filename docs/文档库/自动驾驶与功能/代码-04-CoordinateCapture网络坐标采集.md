@@ -1,6 +1,36 @@
 # 代码-04 CoordinateCapture 网络坐标采集
 
-> 覆盖源文件：`Sources/AuroraDrive/Capture/CoordinateCapture.swift`（635 行）。从 MaaNTE `nte_coordinate_api.py` 移植（AGPL-3.0），自包含网络定位：libpcap 抓包 → UE5 移动包解析 → 世界坐标 + 朝向。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Capture/CoordinateCapture.swift`（**~870 行**）。从 MaaNTE `nte_coordinate_api.py` 移植（AGPL-3.0），自包含网络定位：libpcap 抓包 → UE5 移动包解析 → 世界坐标 + 朝向。基于当前仓库逐单元编写。
+>
+> **✅ 2026-09-25 自适应网卡落地（用户方案：探测 → 锁定 → 失流重探）**：
+> - **探测式自适应**（不做多通道并行）：平时不探测；需要时逐张网卡实读 30031 包，谁有真实流量谁被锁定，其余关闭——零探测开销
+> - **分级探测窗口**（实测修正）：高嫌疑卡（默认路由 / 上次命中）**2.5s**、其余 **0.5s**——见下方「实测数据」
+> - **重探间隔 2s / 失流窗口 12s**（用户指定 2s；12s 由实测突发间隔推出）
+> - `route` 路径修复：实测 `route` 在 **`/sbin/route`**（`/usr/sbin/route` 不存在 → 旧实现静默失效），改三候选路径 + netstat 兜底 + 5s 缓存
+>
+> **⚠️ 实测数据（游戏运行中，tcpdump 30 秒采样，全部为真机数据）**：30031 是**突发式**流量——1 秒内 5-6 包，然后**静默 6-9 秒**，30 秒共 25 包（≈0.8 包/秒）。
+> 这个实测推翻了旧代码注释里「游戏同步包几十 Hz 持续」的错误假设，并直接解释了三个既有故障：
+> ① 探测窗口 0.3s → 100 轮探测全失败（窗口落在静默期）；
+> ② 失流窗口 3s → 锁定后在静默期被误判停流、反复横跳；
+> ③ `read(maxAge: 1.0)` / `hasRecentTraffic(window: 3.0)` → 坐标与"游戏在跑"判定在静默期频繁失效（小地图忽明忽暗）。现已统一为 `trafficFreshWindow` / `poseFreshWindow` = 12s。
+>
+> **真机验证（2026-09-25 18:21-18:22，游戏开着）**：
+> ```
+> [10:20:35] 自适应网卡主循环启动（探测 高嫌疑2500ms/其余500ms / 重探 2s / 失流 12s）
+> [10:21:58] ✓ 探测命中：en8 有真实 30031 流量 → 锁定监听      ← 自动找到正确网卡
+> [10:22:20] [STATS] 21s: 包=68                              ← 锁定后持续抓包
+> [10:22:38] ⟳ en8 停流（连续 12s 无 30031 包）→ 重新探测      ← 失流自动重探
+> ```
+> **自检入口**：`./AuroraDriveUI --nic-autotest`（11 项断言：探测轮推进 / 注入真实 UDP 30031 命中锁定 / 失流重探 / 自愈重锁，实测 PASS）。
+>
+> **2026-09-25 深度复核记录**（635→712 行，+77 行全是 9-22~9-23 修复与新增）：
+> ① **BPF 过滤器锁死 30031 端口**（原 `"tcp port 30031 or udp"` 裸 udp 会把全机 UDP 流量抓进来 → 游戏没启动也乱定位，现 `"(tcp port 30031) or (udp port 30031)"`，非 30031 包在内核层就丢弃）；
+> ② **新增 `hasRecentTraffic(window:)`**——"游戏到底在不在跑"的最直接信号（30031 有包=游戏在通信，比查进程名可靠：辅助进程 crashpad_handler 也叫「异环」曾被它骗）；
+> ③ **新增 `totalPackets`**——区分「端口没流量」与「抓包本身没跑起来」两种故障；
+> ④ **新增加速度留档**（`lastAcceleration`/`acceleration(maxAge:)`/`readAcceleration`）——与坐标同包解析，但**坐标系（世界系 vs 车体系）未实测确认，只存不用**，等游戏跑起来标定后再决定怎么喂模型；
+> ⑤ **captureLoop 忙等修复**——`pcap_next_ex` 超时（result==0）时 `usleep(5_000)` 让出时间片（无流量时不再白烧一个 CPU 核心）；
+> ⑥ `pcap_open_live` 的 `to_ms` 实参为 **100**（旧档写 20）；
+> ⑦ `lastPacketWall`/`statPacketsTotal` 改为**锁内更新**（与 hasRecentTraffic/totalPackets 的读同步）。
 
 ## 一、libpcap C 声明与同步常量（第 9–82 行）
 
@@ -123,17 +153,23 @@ private let kCalibTY: Double = 5210.664390686138
 
 **`CoordinateCapture`（final class，第 411–624 行）**——自包含网络坐标抓取：libpcap 抓 TCP 30031 端口 → UE5 包解析 → 世界坐标。
 
-**状态（412–431 行）**：`decoder = UE5Decoder()`、`sample: Pose?` + `sampleAt` + `lastSampleWall`、`interval = 1.0/30.0`（30Hz 采样限频）、`pcapHandle` + `captureThread` + `running` + `lock`（NSLock，sample 读写跨线程）；15 秒窗口统计 7 个字段（statPackets/statS2C/statC2S/statDecodeCalls/statCandHits/statCandPeak/statSamples——**仅 captureLoop 线程读写，无需加锁**）。
+**状态（432–455 行）**：`decoder = UE5Decoder()`、`sample: Pose?` + `sampleAt` + `lastSampleWall`、`interval = 1.0/30.0`（30Hz 采样限频）、`pcapHandle` + `captureThread` + `running` + `lock`（NSLock，sample 读写跨线程）；15 秒窗口统计 7 个字段（statPackets/statS2C/statC2S/statDecodeCalls/statCandHits/statCandPeak/statSamples——仅 captureLoop 线程读写，无需加锁）；**跨线程的例外**：`lastPacketWall`（hasRecentTraffic 的唯一依据）与 `statPacketsTotal`（totalPackets 的数据源）在 processPacket 的**锁内更新**（570–575 行），与二者的锁内读保持同步。
 
 **`start() -> Bool`（第 434–512 行）**——遍历所有网卡，找到有 30031 端口流量的那个：
 
 1. `guard !running else { return true }`（幂等）
 2. `pcap_findalldevs` 枚举网卡（失败记日志返回 false）
-3. 逐网卡尝试：**跳过非物理网卡**（`lo`/`pdp`/`utun`/`awdl`/`bridge`/`xhc` 前缀，454–459 行）→ `pcap_open_live(name, 65535, 0, 20, &errbuf)` → 编译过滤器 **`"tcp port 30031 or udp"`**（对齐 MaaNTE 原版，UE5 移动同步可能走 UDP）→ `pcap_setfilter`；任一步失败关句柄继续下一个
+3. **网卡选择（2026-09-25 重构，治「小地图永远无定位」）**：
+   - **① 枚举全部网卡名 → 立即 freealldevs**（旧实现边遍历边尝试打开，枚举器与尝试耦合）；
+   - **② 尝试顺序 = 默认路由接口置顶 + 其余物理网卡按枚举顺序**（`route -n get default` 解析 interface，只在 start() 调一次）；跳过前缀从 6 个扩到 10 个：`lo/pdp/utun/awdl/bridge/xhc` + **`ap/anpi/gif/stf`**；
+   - **⚠️ 事故根因（实测）**：`ap1` 是 macOS Wi-Fi 热点接口（status inactive、**Ipkts 恒 0**），能被 pcap 打开且枚举排最前——旧逻辑「第一个能打开的就用」选中它抓空气 → 小地图永远无定位；而游戏流量实际走默认路由接口 `en8`（137GB 流量）。**热点前缀 `ap` 是旧跳过表的漏网之鱼**；
+   - **③ `openWithFilter` 抽成独立方法**（打开 + 30031 过滤器，任一步失败关句柄返回 nil）；
+   - **④ 选中非默认路由接口时打明确告警**（"若定位无数据优先怀疑网卡选错"）；
+   - **旧过滤器历史坑保留**：原 `"tcp port 30031 or udp"` 裸 udp 会把全机 UDP 流量抓进来（DNS/mDNS/广播）→ 任意 ≥32 字节杂包被硬解成坐标 →「游戏没启动定位疯狂乱跳」；现锁死 `"(tcp port 30031) or (udp port 30031)"`，非 30031 包在内核 BPF 层丢弃
 4. 选中即 break（`devName` + `pcapHandle`），`pcap_freealldevs` 释放枚举
 5. `running = true`，起 `Thread { self?.captureLoop() }`（名字 `com.aurora.coordinate-capture`），返回 true
 
-**`captureLoop()`（第 514–527 行）**——**用 pcap_next_ex 不用回调，避免 PAC 崩溃**：`while running` 循环 `pcap_next_ex(handle, &headerPtr, &packetPtr)`；`result == 0`（超时）continue、`< 0` break、其余 `processPacket`。
+**`captureLoop()`（第 546–565 行）**——**用 pcap_next_ex 不用回调，避免 PAC 崩溃**：`while running` 循环 `pcap_next_ex(handle, &headerPtr, &packetPtr)`；**`result == 0`（超时无包）时 `usleep(5_000)` 再重试**（源码 553–559 行注释：pcap_open_live 的 to_ms=100，若立刻 continue，无流量时（游戏没开）就变成每秒上千次的忙等——白烧一个 CPU 核心；5ms 让出时间片，有包时实时性不受影响）；`< 0` break、其余 `processPacket`。
 
 **`processPacket(header:packet:)`（第 530–588 行）**——逐包解析（captureLoop 串行调用，统计字段无需加锁）：
 
@@ -145,13 +181,19 @@ private let kCalibTY: Double = 5210.664390686138
 6. `decoder.decode(...)` 成功 → `statSamples += 1` → **限频写入（575–582 行）**：`now - lastSampleWall >= interval` 才更新 `sample/sampleAt/lastSampleWall`（锁内）
 7. `decoder.lastCandCount > 0` → statCandHits/peak 累计
 
-**`logStats()`（第 591–599 行）**：15 秒一行统计汇总（代替原先每包 2 行的刷屏日志）——`[STATS] Ns: 包=X s2c=N c2s送解=N 解码调用=N 候选包=N/峰=N 样本=N`，然后归零。
+**`logStats()`（第 634–643 行）**：15 秒一行统计汇总（代替原先每包 2 行的刷屏日志）——`[STATS] Ns: 包=X s2c=N c2s送解=N 解码调用=N 候选包=N/峰=N 样本=N`，然后归零。
 
-**`read(maxAge: Double = 1.0) -> Pose?`（第 602–609 行）**：锁内取 sample；**过期判定**：`now - lastSampleWall > maxAge`（默认 1 秒）返回 nil——调用方拿到的坐标最多滞后 1 秒，超龄即视为无效（防旧坐标误导导航）。
+**`hasRecentTraffic(window: Double = 3.0) -> Bool`（第 645–660 行）——9-23 新增**：30031 端口最近 `window` 秒内是否真有数据包。**这是判断「游戏到底在不在跑」最直接、最便宜的信号**（源码注释原文）：定位数据全部来自这个端口，有包=游戏在通信；比查进程名可靠得多（辅助进程 crashpad_handler 也叫「异环」，曾被它骗成"游戏在跑"）；只读一个计数器，零 IPC、零 sysctl、零遍历。游戏运行时同步包是持续的（几十 Hz），3 秒窗口足够灵敏，也不会因短暂卡顿误判掉线。**锁内读**（与 processPacket 的锁内写同步）。
 
-**`close()`（第 612–623 行）**：`running = false` → `pcap_breakloop` → `captureThread?.cancel()` → `pcap_close` → handle 置 nil；`deinit { close() }` 保证析构时停止。
+**`totalPackets: Int`（第 662–668 行）——9-23 新增**：自抓包启动以来收到的包总数（锁保护）。用于区分「端口没流量」与「抓包本身没跑起来」两种不同故障——totalPackets=0 说明抓包没跑起来（权限/网卡问题），>0 但 hasRecentTraffic=false 说明抓包正常但 30031 没流量（游戏没开）。
 
-**`worldToMapPixel(_ pose: Pose) -> (mapX: Double, mapY: Double, heading: Double)`（第 629–635 行）**——世界坐标 → 地图像素（与 NetworkLocator.swift 的校准常量同步）：
+**`read(maxAge: Double = 1.0) -> Pose?`（第 671–678 行）**：锁内取 sample；**过期判定**：`now - lastSampleWall > maxAge`（默认 1 秒）返回 nil——调用方拿到的坐标最多滞后 1 秒，超龄即视为无效（防旧坐标误导导航）。
+
+**`readAcceleration(maxAge: Double = 0.5) -> Vec3?`（第 684–686 行）——2026-09-22 新增**：读取最新加速度（来自同一个 30031 包，与坐标同源，经 `decoder.acceleration(maxAge:)` 带新鲜度门——过期返回 nil，避免拿旧值当实时值）。**⚠️ 坐标系尚未实测确认**（世界系 vs 车体系），单位推测为 cm/s²（与位置 cm 同源）。目前仅供 UI 展示与后续标定，**不要直接当物理加速度喂给控制逻辑**。对应 UE5Decoder 侧：`lastAcceleration` 在 decode 主入口与坐标同包解析留档（296–301 行注释："这个向量本来就挨在位置前面，findCandidates 已经解析过了，之前 decode 里用 `_` 丢掉"）。
+
+**`close()`（第 689–698 行）**：`running = false` → `pcap_breakloop` → `captureThread?.cancel()` → `pcap_close` → handle 置 nil；`deinit { close() }` 保证析构时停止。
+
+**`worldToMapPixel(_ pose: Pose) -> (mapX: Double, mapY: Double, heading: Double)`（第 706–712 行）**——世界坐标 → 地图像素（与 NetworkLocator.swift 的校准常量同步）：
 
 ```swift
 let mapX = kCalibA * wx + kCalibB * wy + kCalibTX
@@ -160,4 +202,52 @@ let mapY = kCalibA * wy - kCalibB * wx + kCalibTY
 
 线性变换（A 是缩放、B 是微量旋转耦合、TX/TY 是平移），heading 直接透传（已在 toPose 算好）。
 
-**CoordinateCapture 文档至此完整**（635 行全覆盖：C 声明与常量 → 位操作与 UE5 解码 → UE5Decoder → 抓包器与坐标变换）。
+**CoordinateCapture 文档至此完整**（712 行全覆盖：C 声明与常量 → 位操作与 UE5 解码 → UE5Decoder → 抓包器与坐标变换）。
+
+---
+
+## 🔑 2026-09-25 新协议逆向（重大突破）
+
+### 背景
+游戏 1.4.x 更新后，30031 端口的移动包**不再是 MaaNTE 时代的裸 UE5 位流块**，改为
+**protobuf 封装 + 位流坐标字段**。MaaNTE 原版 `_Decoder` 对新包恒返回 `None`
+（已用原版代码实测 3/3 个大包全 None），生产表现即 `候选包=0 / 样本=0` —— 小地图永远无定位。
+
+### 逆向出的包结构（s2c，服务器→客户端）
+- payload 长度：**72 或 76 字节**
+- 前 56 字节固定前缀：
+  ```
+  48000000140000000000000000000a000c000400000008000a0000006204
+  0000280000001000000000000a0018000400080010000a000000
+  ```
+- 第 56 字节起是**双记录**（每记录 64 位步长），坐标为**位偏移**字段：
+
+| 位偏移 | 含义 | 实测特征 |
+|---|---|---|
+| bit 498 | 坐标分量 X1 | 移动时每包变化 |
+| bit 509 | 高度 Z1 | 近似恒定（31851.9） |
+| bit 562 | 坐标分量 X2 | 与 X1 同步变化 |
+| bit 573 | 高度 Z2 | 近似恒定（31852.9） |
+
+### 判定依据（真机实测，样本存 `tools/reverse/samples/`）
+- **移动时**：X1/X2 每包同步变化（服务器批量下发轨迹点，Δ ≈ -1.12/包）
+- **静止时**：字段完全不变（idle 样本仅 1 个值）
+- **像素落图**：转 13056² 地图后落在密集城区（与游戏内小地图十字路口吻合）
+
+### 关键代码修正（真正的断点）
+`processPacket` 原先在 **s2c 包上直接 `return`**（沿用 MaaNTE「移动包只走 c2s」的旧假设）——
+而新协议移动包**全部是 s2c**，导致新解码器永远收不到包。现已放开 s2c 通道
+（由 56 字节前缀 + 长度 {72,76} 精确识别，无关流量会被快速拒绝）。
+
+### 新增产物
+- `tools/reverse/extract_coord.py` —— 独立坐标提取器（`--live` 实时 / pcap 离线，`--map` 输出地图像素）
+- `tools/reverse/samples/*.pcap` —— 固化真机样本（移动 / 静止 / 转向）
+- `--proto-selftest` —— 用固化样本验证 Swift 解码器（14 项断言，PASS）
+
+### 验证记录
+```
+[生产日志] [STATS] 15s: 包=8 s2c=1 解码调用=2 候选包=1/峰=1 样本=1 新协议=10
+                                                    ↑ 新协议解码器持续输出坐标
+[自检] ✓ 移动样本解出坐标 74/274  ✓ 移动样本坐标在变化 X 跨度 81.74
+       ✓ 静止样本为单值（无抖动）  ✓ 像素落在地图内 (6127.0, 4776.0)
+```

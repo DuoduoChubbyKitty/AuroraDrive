@@ -1,6 +1,15 @@
 # 代码-25 AuroraDriveApp 之 DriveState 状态主体
 
-> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（4379 行）之中部一：RecordLabelMapper + DriveState 状态与开关（851–1300 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（**3665 行**）之中部：DriveMode/DriveModeGroup/RecordLabelMapper + DriveState（**1304–3079 行**）。基于当前仓库逐单元编写。
+>
+> **2026-09-25 深度复核块（行号基准已从旧版 851–1300 迁移到 1304–3079）**：
+> ① **DriveMode（1304–1331）新增 `uiGroup`**：内部 4 档（e2e/yolo/recover/rule）合并为用户可见 2 档（.e2eDrive 端到端主驾 / .ruleFallback 规则）+ accentColor（recover 橙/rule 红）；
+> ② **DriveModeGroup（1336–1367）为 UI 大改版新增**：members/contains/desc/icon——GEAR 齿轮带高亮跟随；
+> ③ RecordLabelMapper（1375–1400）**内容未变**（fullScaleDuration 0.6s 语义同旧档）；
+> ④ DriveState（1404–3079）核心新增字段/机制：**引擎模式五件套**（remoteDetections/engineModeActive/engineConnected/remoteSpeedKmh + lastDriveCommandTime 1s 宽限期）+ `effectiveDetections` 统一读取点（引擎模式用引擎回传，本地用本地 YoloEngine）+ expertMode/glyphMode/controlDisabled/forceRuleMode（紧急切纯规则）+ **权限状态组**（privilegeReady/privilegeStatusDetail——双条件真绿，防假绿）+ **路况自适应 MARK（1756 起）**：roadCondition/autoSpeedEnabled/unlimitedSource/@ObservationIgnored + e2eLatencyMs（引擎心跳 fps 反推 or tickGapMs）+ effectiveSpeed（OCR EMA 平滑/一阶滤波回退）+ speedValid 新鲜度 + m9Status 三态（未加载/活跃/失联——1s 内有结果才算活跃）+ frameHost 直绘改造（currentScreenImage/currentFrameCG 均 @ObservationIgnored，UI 显示走 FrameHost 绕开 SwiftUI diff）+ screenSize 普通 @Observable（只在变化时写，驱动 ObstacleOverlay 对齐）+ regionLabel（MapDatabase 反查，不写死地名）+ mapMarkerCount/activeModelLabel（模型文件在盘+引擎在跑才算已挂载·ANE，如实报缺失环）；
+> ⑤ **一键训练 MARK（2355 起）**：拉起 Python 训练进程；
+> ⑥ tick 主体含 9-24 优化：Detection 先比后写（`detections != old` 才写）、refreshHeldKeys 重发、fastPathActive 超时回退（lastFastPathTime + 1s）。
+> 旧正文对 RecordLabelMapper 语义与 DriveState 开关字段的描述仍有效；tick 决策链（E2E/Rule/Escape 三段融合）以源码为准。
 
 ## 一、RecordLabelMapper 与 DriveState 开关字段（第 851–930 行）
 
