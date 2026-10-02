@@ -175,6 +175,7 @@ let package = Package(
                 // 标成障碍框，这个框进决策层会造成实际危害（见 AuroraDriveApp §5.5）。
                 // 按面积判、只作用于决策层；UI 画框走 displayDetections 不受影响。
                 "Sources/AuroraDrive/Agent/EgoBoxFilter.swift",
+                "Sources/AuroraDrive/Core/WireSelfTest.swift",
                 "Sources/AuroraDrive/Agent/DriveSegmentController.swift",
                 "Sources/AuroraDrive/Capture/CaptureEngine.swift",
                 "Sources/AuroraDrive/Capture/CoordinateCapture.swift",

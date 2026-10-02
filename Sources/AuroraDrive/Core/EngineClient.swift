@@ -100,7 +100,9 @@ final class EngineClient {
     private(set) var sawHeartbeat = false
 
     // ── 内部 ──
-    private var socketFD: Int32 = -1
+    /// 当前 socket 文件描述符（-1 = 未连接）。
+    /// 自检需要断言「未连接时 socketFD 为 -1」这条不变量。
+    var socketFD: Int32 = -1
     private var readSource: DispatchSourceRead?
     private var lineBuffer = Data()
     private var shmBase: UnsafeMutableRawPointer?
@@ -154,9 +156,12 @@ final class EngineClient {
     /// 由 AppDelegate 在 applicationDidFinishLaunching 调用（非阻塞）
     func startup() {
         if ProcessInfo.processInfo.environment["AURORA_UI_LOCAL"] == "1" {
+            // 强制本地模式：连"想连引擎"都不成立 → 断线重连轮询也不该启动
+            wantsEngineMode = false
             engineClientLog("AURORA_UI_LOCAL=1 → 本地模式")
             return
         }
+        wantsEngineMode = true
         // 1) 已有引擎 → 直接连
         if tryConnect() {
             activate()
@@ -356,14 +361,19 @@ final class EngineClient {
                 }
             }
         } else {
-            // 断开
+            // 断开（对端关闭 / read 出错）
+            // ★ 2026-10-02：统一走 handleConnectionLoss，并**立刻就地取消读源**。
+            //
+            // 【为什么必须就地取消】实测（23:02:26 / 23:03:26 两次）：
+            //   一次 kill 引擎，日志里刷出 12+ 条「连接断开」。
+            //   原因是 `read()` 返回 0 后本函数直接返回，**但 readSource 仍活着**，
+            //   于是同一轮事件反复投递 EOF，每次都往主队列塞一个断开回调。
+            //   改前的旧代码把 `readSource?.cancel()` 放在 async 块里，同样来不及。
+            //   现在：在**读队列上同步取消**，主队列那条只是状态收尾。
             readSource?.cancel()
             readSource = nil
-            if socketFD >= 0 { close(socketFD); socketFD = -1 }
             DispatchQueue.main.async { [weak self] in
-                self?.isConnected = false
-                engineClientLog("与引擎的连接断开")
-                self?.tryReconnectSoon()
+                self?.handleConnectionLoss(reason: "read-eof")
             }
         }
     }
@@ -501,13 +511,89 @@ final class EngineClient {
         lastFrameSeq = 0
     }
 
+    // MARK: - 连接丢失（2026-10-02 新增）
+
+    /// 统一的「连接已死」处理。**三处调用**：心跳超时、写命令失败、读循环结束。
+    ///
+    /// ★ 修的是什么（用户 2026-10-02 实测报障「点了切档 UI 不变」）：
+    ///
+    /// 改前心跳超时只做了一件事 —— `isConnected = false`（一个**纯显示**标志）。
+    /// `isActive` 仍是 true、`socketFD` 仍是旧值。后果是 UI 卡在一个**僵尸态**：
+    ///   · `isActive` 有 16 个消费者（检测框/速度/掩码/限幅…）→ UI 继续把
+    ///     **已经死掉的引擎**的陈旧数据当数据源，而不是回落本地推理；
+    ///   · `sendCommand` 的 `guard socketFD >= 0` 照样放行 → 所有命令写进死 socket、
+    ///     **静默失败**（用户看到 `[WIRE] config 下发` 日志，以为成功了）；
+    ///   · 没有任何路径触发重连 → 这个状态**永久持续**，除非用户重启 App。
+    ///
+    /// 现在：关 socket、置 `isActive = false`（UI 立刻回落本地模式，功能不中断）、
+    ///   并**启动重连轮询**，引擎回来了自动切回引擎模式 + 补发配置。
+    ///
+    /// - Parameter reason: 诊断用原因（进日志）
+    func handleConnectionLoss(reason: String) {
+        // ★ 幂等守卫：同一轮断开可能被多条路径同时报上来
+        //   （读队列 EOF、poll 心跳超时、sendCommand 写失败）。
+        //   第一条处理完就把 socketFD 置 -1，后续的自然返回。
+        guard socketFD >= 0 else { return }
+        let wasActive = isActive
+        readSource?.cancel()
+        readSource = nil
+        if socketFD >= 0 { close(socketFD); socketFD = -1 }
+        isActive = false
+        isConnected = false
+        lastHeartbeat = .distantPast
+        if wasActive {
+            engineClientLog("⚠️ 连接已死 → 回落本地模式（原因：\(reason)），并开始重连")
+        }
+        // 重连不依赖 isActive（那正是被我们置 false 的东西）——
+        // 单独靠 wantsEngineMode 表达「用户仍然想要引擎模式」。
+        startReconnectPolling()
+    }
+
+    /// 是否仍希望使用引擎模式。UI 正常启动即为 true；`AURORA_UI_LOCAL=1` 时为 false。
+    /// 与 `isActive` 的区别：`isActive` = **当前是否已连上**，
+    /// `wantsEngineMode` = **是否还想连**（连接断了但还想连 → true）。
+    ///
+    /// ★ 初值直接取自环境变量，而不是只在 `startup()` 里赋值。
+    /// 理由：`startup()` 只在正常 App 路径被调用（`AuroraDriveApp.swift:209`）。
+    /// 各种 `--xxx-selftest` 一次性路径不会调用它 —— 若初值恒为 true，
+    /// 那么「AURORA_UI_LOCAL=1 却仍可能启动重连轮询」就是个隐患。
+    /// 让初值与 `startup()` 的判定同源，两边永远一致。
+    private(set) var wantsEngineMode: Bool =
+        ProcessInfo.processInfo.environment["AURORA_UI_LOCAL"] != "1"
+
+    /// 连接断开后的重连轮询（独立于 isActive，与启动期的轮询同节奏）
+    private func startReconnectPolling() {
+        guard wantsEngineMode, connectTimer == nil else { return }
+        connectAttempts = 0
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + 0.5, repeating: 0.5, leeway: .milliseconds(100))
+        timer.setEventHandler { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.connectAttempts += 1
+                if self.tryConnect() {
+                    self.activate()          // activate() 里会调 onActivated → 补发配置
+                    self.connectTimer?.cancel()
+                    self.connectTimer = nil
+                } else if self.connectAttempts >= 40 {   // 20 秒仍连不上 → 停轮询，保持本地模式
+                    engineClientLog("重连 20 秒未成功 → 保持本地模式")
+                    self.connectTimer?.cancel()
+                    self.connectTimer = nil
+                }
+            }
+        }
+        timer.resume()
+        connectTimer = timer
+    }
+
     /// 每 tick 调用：拉取最新帧与检测结果（无新帧则复用缓存）
     func poll() -> CGImage? {
         guard isActive else { return nil }
-        // 心跳超时 → 标记失联（UI 显示层用）
+        // 心跳超时 → ★ 判定连接已死并回落（改前只置 isConnected，见 handleConnectionLoss 注释）
         if isConnected, Date().timeIntervalSince(lastHeartbeat) > 3.0 {
-            isConnected = false
-            engineClientLog("⚠️ 引擎心跳超时（失联）")
+            engineClientLog("⚠️ 引擎心跳超时（3s 无心跳）")
+            handleConnectionLoss(reason: "heartbeat-timeout")
+            return nil
         }
         guard let base = shmBase else { return frameCache }
 
@@ -707,20 +793,63 @@ final class EngineClient {
 
     // MARK: - 命令
 
-    func sendCommand(_ type: String, extra: [String: Any] = [:]) {
-        guard socketFD >= 0 else { return }
+    /// 向引擎发一条命令。
+    ///
+    /// ★ 2026-10-02 改：**返回值从 Void 改为 Bool**，并在写入后**同步检查 write() 的结果**。
+    ///
+    /// 【为什么必须改】改前它是「静默失败」的：
+    ///   · `guard socketFD >= 0 else { return }` —— 引擎没连上就一声不吭地走人；
+    ///   · `queue.async { _ = write(...) }` —— **写入结果被丢弃**，失败也无人知晓。
+    ///   后果被实测抓到（用户 2026-10-02 报「点了切档但 UI 不变」）：
+    ///     `ControlWiring.pushConfig` 打完 `[WIRE] config 下发` 日志就以为成功了，
+    ///     而配置其实丢在死 socket 里 —— 日志与事实完全相反，排查时极具误导性。
+    ///
+    /// 【现在返回什么】true = 数据确实写进了内核发送缓冲；false = 没发（未连接/序列化失败/写入出错）。
+    ///   调用方据此决定要不要重试（见 `pushEngineConfigIfChanged`）。
+    ///
+    /// 【为什么改同步写】原来 `queue.async` 异步写，返回值根本拿不到。
+    ///   命令都是几十字节的小包（config/heartbeat 应答级别），同步 write 的耗时
+    ///   在微秒量级，**不会**对 30Hz 主循环造成可测量的影响；而换来的是
+    ///   「发送成功与否」这个**唯一能让重试逻辑成立**的事实。
+    ///
+    /// - Returns: 是否真的发出去（false 时调用方应当保留待发状态、稍后重试）
+    @discardableResult
+    func sendCommand(_ type: String, extra: [String: Any] = [:]) -> Bool {
+        guard socketFD >= 0 else { return false }
         var obj: [String: Any] = ["type": type]
         for (k, v) in extra { obj[k] = v }
         guard let jsonData = try? JSONSerialization.data(withJSONObject: obj),
-              let json = String(data: jsonData, encoding: .utf8) else { return }
+              let json = String(data: jsonData, encoding: .utf8) else { return false }
         let line = json + "\n"
-        guard let data = line.data(using: .utf8) else { return }
+        guard let data = line.data(using: .utf8) else { return false }
         let fd = socketFD
-        queue.async {
-            _ = data.withUnsafeBytes { ptr in
-                write(fd, ptr.baseAddress!, ptr.count)
+        // 同步写 + 检查返回值。写入中途被信号打断（EINTR）时重试剩余部分。
+        var sent = 0
+        let total = data.count
+        var ok = true
+        data.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+            guard let base = ptr.baseAddress else { ok = false; return }
+            while sent < total {
+                let n = write(fd, base + sent, total - sent)
+                if n > 0 {
+                    sent += n
+                } else if n < 0 && errno == EINTR {
+                    continue                       // 被信号打断 → 重试
+                } else {
+                    // 写失败（EPIPE / ECONNRESET / EAGAIN …）
+                    // → 判定连接已死：关 socket 并置失联，让上层自动重连。
+                    //   这一条同时修掉了「引擎死了 UI 不知道」的旧问题。
+                    ok = false
+                    break
+                }
             }
         }
+        if !ok {
+            engineClientLog("⚠️ 命令发送失败（\(type)）—— 判定连接已死，转入重连")
+            // 复用既有的断开语义：关 fd、置 isActive=false、触发重连
+            self.handleConnectionLoss(reason: "send-\(type)-failed")
+        }
+        return ok
     }
 
     /// 告知引擎切换画面档位：开插帧/要清晰画面 → 发全分辨率帧；否则发 480 宽缩略帧省带宽。

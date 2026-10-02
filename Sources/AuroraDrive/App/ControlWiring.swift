@@ -234,8 +234,19 @@ extension DriveState {
             "degradeThreshold":  degradeThreshold,
             "speedLimit":        speedLimit,
         ]
-        EngineClient.shared.sendCommand("config", extra: detail)
-        print("[WIRE] config 下发（\(reason)）：forceRule=\(forceRuleMode) "
+        // ★★★ 2026-10-02：日志必须反映**真实发送结果**。
+        //
+        // 改前这里无视 `sendCommand` 的成败，无条件打印「[WIRE] config 下发」——
+        // 而 `sendCommand` 在引擎未连接时会**静默早退**（一个字节都不发）。
+        // 于是日志与事实完全相反，用户据此判断「明明发了却没生效」，排查被带偏。
+        // （用户 2026-10-02 报障原话：「为什么日志里写手动下发强制兜底但是实际上
+        //   那个引擎的 UI 还是没有兜底？」—— 根因就在这里。）
+        //
+        // 现在：发出去 = 「✅ 已下发」；没发出去 = 「❌ 未下发（引擎未连接）」，
+        //   并明确告知「已保留待补发」，不再让人误以为成功。
+        let sent = EngineClient.shared.sendCommand("config", extra: detail)
+        let head = sent ? "✅ 已下发" : "❌ 未下发（引擎未连接，已保留待补发）"
+        print("[WIRE] config \(head)（\(reason)）：forceRule=\(forceRuleMode) "
               + "limit=\(Int(speedLimit)) thresh=\(String(format: "%.2f", degradeThreshold))")
     }
 

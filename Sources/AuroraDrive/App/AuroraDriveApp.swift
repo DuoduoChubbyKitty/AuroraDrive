@@ -872,11 +872,18 @@ struct AuroraDriveLauncher {
                             "--corner-selftest", "--perf-selftest", "--tick-profile",
                             "--realshot-selftest",
                             "--egobox-selftest", "--ayolom-selftest",
-                            "--lanekeep-selftest", "--perception-selftest"]
+                            "--lanekeep-selftest", "--perception-selftest",
+                              "--wire-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
         // 实测全被否决 —— 教训就是性能必须先有基线）。
+        // ── 引擎配置通道自检（--wire-selftest）──
+        // 验证 2026-10-02 修复的四处「手切档位静默失效」缺陷。
+        if args.contains("--wire-selftest") {
+            let failed = runWireSelfTest()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
         if args.contains("--perf-selftest") {
             // 时长：默认 10 秒；--seconds N 可覆盖
             var secs = 10.0
@@ -4975,6 +4982,18 @@ final class DriveState {
             guard let self else { return }
             EngineClient.shared.setUpscale(self.upscaleEnabled && self.upscaleSupported)
             EngineClient.shared.sendCommand("status")
+            // ★★★ 2026-10-02 修复：**把 config 快照清空，强制下一帧全量补发**。
+            //
+            // 改前这里只补了 upscale 和 status —— **唯独没补 config**。
+            // 而 config 承载的正是「手切档位 / 禁用控制 / 紧急切纯规则」这些
+            // **用户手动干预**。于是一旦配置丢过一次，重连也不会纠正它。
+            //
+            // 清空快照后，本帧之后的第一次 `pushEngineConfigIfChanged()` 必然
+            // 发现 `snap != ""` → 无条件把当前全部参数重推一遍。
+            // 这就是「断线期间用户点的档位，重连后自动生效」的实现方式。
+            self.lastPushedEngineConfig = ""
+            self.configPushRetryPending = false
+            self.pushEngineConfigIfChanged()
         }
 
         // 旧网络定位已移除
@@ -5510,8 +5529,20 @@ final class DriveState {
     private func pushEngineConfigIfChanged() {
         let snap = "\(sportMode)|\(controlDisabled)|\(forceRuleMode)|\(expertMode)|\(glyphMode)|\(String(format: "%.3f", degradeThreshold))|\(String(format: "%.1f", speedLimit))"
         guard snap != lastPushedEngineConfig else { return }
-        lastPushedEngineConfig = snap
-        EngineClient.shared.sendCommand("config", extra: [
+        // ★★★ 2026-10-02 核心修复：**只有真的发出去才记账**。
+        //
+        // 改前是「先记账、后发送」，而且不看发送成功没有 ——
+        // 配合 `sendCommand` 在未连接时的静默早退，构成了一个**永久丢配置**的缺陷：
+        //   ① 用户在引擎还没连上时点了档位（或引擎已死）→ 配置丢在虚空里
+        //   ② 但 `lastPushedEngineConfig` 已被记成新值
+        //   ③ 之后每帧 `snap == lastPushedEngineConfig` → `guard` 直接 return
+        //      → **永远不再重试**
+        //   实测症状（用户报障原话）：「日志里写手动下发强制兜底，但引擎那边
+        //   UI 还是没有兜底」—— 日志说发了，其实没发，而且再也不会发。
+        //
+        // 现在：发送失败就不记账 → 下一帧 snap 仍 != 已记账值 → **自动重试**，
+        //   引擎一连上就会被补发。
+        let ok = EngineClient.shared.sendCommand("config", extra: [
             "sport": sportMode,
             "controlDisabled": controlDisabled,
             "forceRule": forceRuleMode,
@@ -5521,10 +5552,31 @@ final class DriveState {
             // 速度上限直接进 vehicle_state[4]，不是显示项
             "speedLimit": speedLimit,
         ])
+        if ok {
+            lastPushedEngineConfig = snap
+        } else {
+            // 不更新快照 = 下一帧还会再试。不刷屏，只在这条转变时打一次。
+            if !configPushRetryPending {
+                configPushRetryPending = true
+                dlog("[WIRE] config 未发出（引擎未连接）—— 保留待发状态，连上后自动补发")
+            }
+        }
     }
+
+    /// 是否有 config 因「引擎未连接」而待补发（仅用于日志去噪）
+    @ObservationIgnored private var configPushRetryPending = false
 
     /// 上次推给引擎的驾驶参数快照（变化检测用）
     @ObservationIgnored private var lastPushedEngineConfig = ""
+
+    // ── 自检钩子（--wire-selftest）────────────────────────────────────
+    // 只暴露「配置有没有被记账」这一个事实，不改任何生产语义。
+    // 存在的理由：修复③的核心就是「失败时不记账」，而这个状态是 private，
+    // 没有钩子就只能靠源码字符串匹配 —— 那种断言会自噬（断言串出现在
+    // 自己文件里就假通过），本项目已有前车之鉴，不能用。
+    var lastPushedEngineConfigForTest: String { lastPushedEngineConfig }
+    func resetPushedEngineConfigForTest() { lastPushedEngineConfig = "" }
+    func pushEngineConfigIfChangedForTest() { pushEngineConfigIfChanged() }
 
     /// 每帧推进（30Hz，由 ContentView 的 Timer 驱动）
     /// 完整决策管线：CoreML推理 → 置信度估计 → 状态机决策 → 按态输出控制量 → 录制
