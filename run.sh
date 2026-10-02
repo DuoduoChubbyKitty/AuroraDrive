@@ -34,11 +34,14 @@ if { [ -f "$BIN_SRC" ] && /usr/bin/dyld_info -linked_dylibs "$BIN_SRC" 2>/dev/nu
    || ls /usr/lib/libpcap* >/dev/null 2>&1; then
     echo "  libpcap: ✓ 已安装 (dyld 共享缓存)"
 else
-    echo "  libpcap: ✗ 未安装 (NetworkPacketCapture.swift 需要)"
+    echo "  libpcap: ✗ 未安装 (CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现)"
     echo "    安装: brew install libpcap"
 fi
 
 # 模型检查
+#   2026-09-29 修：原只查 m9_mono/game_assist_control/yolo26s 三个，
+#   漏了 yolopx —— 项目当前的核心感知资产（可行驶区/车道线/检测三合一），
+#   且它是「一个字节都不能换」的红线模型，缺了必须显式报出来。
 echo ""
 echo "[2/4] 模型检查"
 for m in m9_mono game_assist_control yolo26s; do
@@ -50,6 +53,15 @@ for m in m9_mono game_assist_control yolo26s; do
         echo "  ${m}: ✗ 缺失!"
     fi
 done
+# YOLOPX 三合一：候选表首位优先，逐个回退（与 YolopxEngine.modelCandidates 对应）
+if [ -d "models/yolopx/yolopx3_pal8_detfp.mlmodelc" ]; then
+    echo "  yolopx3_pal8_detfp.mlmodelc: ✓ (★核心资产)"
+elif [ -d "models/yolopx" ] && [ -n "$(ls -A models/yolopx 2>/dev/null)" ]; then
+    echo "  yolopx3_pal8_detfp.mlmodelc: ⚠ 非首选，回退候选:"
+    ls -1 models/yolopx 2>/dev/null | sed 's/^/      /'
+else
+    echo "  yolopx: ✗ 缺失! (可行驶区/车道线/检测三合一头，★核心资产)"
+fi
 
 # --status 模式:只检查不启动
 if [ "$1" = "--status" ]; then

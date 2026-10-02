@@ -81,3 +81,28 @@ photorec.ses
 docs/AI目标提示词*.md
 .llm-key-notebook.md
 .last-build.log
+
+# ===== A-YOLOM（2026-10-02）=====
+# 只入库生产用的 int8 mlmodelc（3.8MB）+ fp16 对拍基准（7.2MB）。
+# 包形态（.mlpackage）与源权重（.pt）本地保留 —— 前者可由后者重新导出，后者
+# 来自作者 SharePoint 分享（重下需浏览器会话，见 models/ayolom/README.md）。
+models/ayolom/*.mlpackage
+models/ayolom/*.pt
+tools/ayolom/.venv/
+
+# ===== YOLOPX 大产物（沿既有口径）=====
+# tools/yolopx/ 与 models/yolopx/*.pth、*.onnx.data 早已忽略；
+# 这里把 models/yolopx/ 整体忽略 —— 实测 576MB（含 126MB 训练权重
+# yolopx_epoch195.pth），且全是可由 .pth 重新导出的量化变体。
+# ⚠️ 旧模型仍在本地，UI 的「感知模型」选择器第二档（26S+光流+YOLOPX）要用它。
+models/yolopx/
+
+# ===== 素材视频（本地保留，不入库）=====
+# 2026-10-02 为「第三视角行车画面」下载的源视频与切片，共 ~84MB。
+# 入库无意义（可重下），且 GitHub 单文件 100MB 上限。
+docs/**/*.mp4
+docs/**/*.mov
+
+# ===== 二进制备份（*.bak-* 已忽略，但备份用的是下划线）=====
+*.bak_*
+_bak_binaries/

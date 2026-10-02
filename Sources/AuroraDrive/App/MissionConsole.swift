@@ -579,11 +579,30 @@ struct ViewportPanel: View {
                 .allowsHitTesting(false)
 
             // 检测框
+            //
+            // ★ 2026-10-02：数据源从 effectiveDetections 换为 displayDetections。
+            //   原因：effectiveDetections 现在会在**决策层**剔除自车框（第三视角下
+            //   模型会把玩家自己的车标出来），那是给决策用的。UI 要照常显示，
+            //   否则用户会看到「自己的车没框」而以为检测坏了。
+            //   ObstacleOverlay 的绘制逻辑一个字没改，只换了数据源。
             ObstacleOverlay(active: state.isDriving,
-                            detections: state.effectiveDetections,
+                            detections: state.displayDetections,
                             sourceSize: state.screenSize,
                             lockedTarget: state.yoloEngine.lockedTarget,
                             isLocked: state.yoloEngine.isLocked)
+
+            // YOLOPX 掩码（可行驶区 + 车道线）—— 画在检测框之下，避免遮挡框线
+            // 数据源走 displayXxx 访问器：本地模式取 UI 自己的 YOLOPX，
+            // 引擎模式取共享内存回传的掩码。直接写 yolopxEngine.xxx 的话，
+            // 引擎模式下永远是空掩码（UI 进程根本不跑 YOLOPX）。
+            MaskOverlay(active: state.isDriving && state.showYolopxMasks,
+                        drivableMask: state.displayDrivableMask,
+                        laneMask: state.displayLaneMask,
+                        metrics: state.displayMaskMetrics,
+                        sourceSize: state.screenSize,
+                        isDegraded: state.displayMaskDegraded,
+                        laneDegraded: state.displayLaneDegraded,
+                        drivableDegraded: state.displayDrivableDegraded)
 
             // 左上标签（网页 .vp-tag）
             VStack {
@@ -611,6 +630,27 @@ struct ViewportPanel: View {
 
             // 极度复杂：顶部接管告警（网页 .rc-warn）
             if state.roadCondition.needsTakeover {
+                VStack {
+                    RCWarn()
+                        .padding(.top, 52)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            // 卡死（连续 30s 零速）→ 请求人工介入横幅（2026-10-02 新增）
+            //
+            // 优先级高于路况告警：车都停死 30 秒了，比"路况复杂"紧急。
+            // 因此放在上面、且两者同时出现时**取代**路况横幅（见下条 if 的 else）。
+            // 只显示、不发声、不驱动任何控制量。
+            if state.needsManualIntervention {
+                VStack {
+                    StuckWarn(heldSeconds: state.stuckZeroHeldSeconds)
+                        .padding(.top, 52)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+            } else if state.roadCondition.needsTakeover {
                 VStack {
                     RCWarn()
                         .padding(.top, 52)
@@ -724,10 +764,54 @@ struct RCWarn: View {
     }
 }
 
+/// 卡死告警横幅（2026-10-02 新增，用户明确要求）。
+///
+/// 触发条件：**正在自动驾驶 + 速度有效 + 连续 30 秒速度≈0**（见
+/// `DriveState.stuckZeroThreshold` / `needsManualIntervention`）。
+///
+/// 用户原话：「如果发现连续 30 秒钟速度都为零，那么就直接拉横幅，
+///            但是不要语音」。
+///
+/// 🚨 设计纪律（必须遵守）：
+///   · **只提示，不动车**。本横幅纯粹是显示层，不写任何控制量。
+///     脱困的唯一途径是用户自己接管 —— AI 绝不自行挣扎。
+///     （历史教训：自动脱困/自动倒车会与用户抢控制权。见
+///      `AuroraDriveApp.swift` §5.5 关于 FallbackGuard 的取证注释。）
+///   · **不要语音**：只出画面横幅，不播报、不发声。
+struct StuckWarn: View {
+    /// 已卡住的秒数（用于显示"已卡住 Ns"）
+    let heldSeconds: Double
+
+    @State private var pulse = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "hand.raised.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(Aurora.danger)
+            Text("车辆已卡住 \(Int(heldSeconds))s · 请人工介入接管")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(Aurora.danger)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .background {
+            Capsule().fill(Color.black.opacity(0.90))
+        }
+        .overlay {
+            Capsule().strokeBorder(Aurora.danger.opacity(pulse ? 0.85 : 0.42), lineWidth: 1.5)
+        }
+        .clipShape(Capsule())
+        .shadow(color: Aurora.danger.opacity(pulse ? 0.70 : 0.35), radius: 22)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
+        }
+    }
+}
+
 // ============================================================================
 // MARK: - 挡位带（网页 .gear-ring: 4 × .gr-item）
-// ============================================================================
-// CSS: display:flex; gap:9px; padding:11px 13px; border-radius:15px
+// ============================================================================// CSS: display:flex; gap:9px; padding:11px 13px; border-radius:15px
 
 struct GearRing: View {
     let mode: DriveMode
@@ -735,7 +819,10 @@ struct GearRing: View {
     var onSelect: ((DriveMode?) -> Void)?
     @State private var hovered: DriveMode?
 
-    private let gears: [DriveMode] = [.e2e, .yolo, .recover, .rule]
+    // ⚠️ 2026-09-30：按钮 4→2（用户要求）——只显示 端到端主驾 / 纯规则兜底。
+    // 内部 .yolo 档仍由降级链自动使用（模型存活情况决定），不作为用户手选档；
+    // .recover（脱困）档已整体删除。
+    private let gears: [DriveMode] = [.e2e, .rule]
 
     var body: some View {
         HStack(spacing: 9) {
@@ -973,6 +1060,7 @@ struct MidColumn: View {
                 })
                 HardwareBank(state: state)
                 RunLogCard(state: state)
+                PerceptionPickerCard(state: state)
             }
         }
     }
@@ -1062,8 +1150,25 @@ struct MiniMapCanvas: View {
                 // 原实现无条件把蓝点钉在正中心，游戏没开也照样显示，
                 // 等于拿假数据冒充定位（2026-09-22 修复）。
                 if state.locatorFound {
+                    // ⚠️ 2026-09-30 修复（用户报告「UI 里没有方向标」）：
+                    //   原实现这里只有两个同心圆 = **一个没有朝向的圆点**，
+                    //   用户在主界面（小地图）看不到任何朝向信息 —— 朝向指示
+                    //   此前只存在于大地图 LargeMapCanvas 里（打开大地图才可见），
+                    //   而大地图不是常驻视图。现把同一套朝向画法搬到小地图自车，
+                    //   参数照抄大地图版本、按小地图尺寸等比缩小（24/34 ≈ 0.7）。
+                    //
+                    //   朝向语义：`locatorHeading` 是罗盘方位角（0=正北，顺时针
+                    //   增加，由 UE5 移动包的 control rotation 经 kNorth/kEast
+                    //   点积算出）。箭头用 Capsule 竖条 + `offset(y:-13)` 使其
+                    //   初始指向正上方（屏幕 -Y = 北），再 `rotationEffect` 顺时针
+                    //   旋转 heading 度 —— 与罗盘定义一致（SwiftUI 正角度=顺时针）。
                     ZStack {
                         Circle().fill(Aurora.ice.opacity(0.20)).frame(width: 24, height: 24)
+                        Capsule()
+                            .fill(Aurora.ice)
+                            .frame(width: 2.5, height: 11)
+                            .offset(y: -10)
+                            .rotationEffect(.degrees(state.locatorHeading))
                         Circle().fill(Aurora.ice).frame(width: 8, height: 8)
                             .shadow(color: Aurora.ice, radius: 8)
                     }
@@ -1121,6 +1226,24 @@ final class MapTileCache {
     /// 缓存上限：只留最近一张，避免多尺寸并存把内存吃爆
     private init() {}
 
+    // ── ★ E2（性能优化第 4 批）：源图转换结果缓存 ──
+    //
+    // 【问题】`tile(...)` 内部对入参 `NSImage` 调
+    //   `image.cgImage(forProposedRect: nil, context: nil, hints: nil)`。
+    //   这一步是 **NSImage → CGImage 的格式转换**，可能触发重新解码/重绘。
+    //   而它**每次调用 tile 都会发生**（视图重绘 → 每帧/每状态变化都调）。
+    //
+    // 【为什么不能只靠视野缓存】视野缓存（key）只在"裁切+缩放"这一段生效；
+    //   而 cgImage 转换发生在取缓存**之前**（要拿到 src 才能裁），
+    //   所以即使视野没变、走了缓存命中的分支，**转换也已经在前面做掉了**。
+    //
+    // 【改法】把转换结果按"源图身份"缓存：同一张源图只转一次。
+    //   身份用 `ObjectIdentifier`（NSImage 是引用类型，可稳定标识同一实例）
+    //   + 尺寸（防御"同实例换内容"的极端情况）。
+    private var srcImageID: ObjectIdentifier?
+    private var srcImageSize: CGSize = .zero
+    private var srcCGImage: CGImage?
+
     /// 裁出以 (centerX, centerY) 为中心、边长 spanPx 的正方形区域，
     /// 缩放到 outSize×outSize 返回。同参数二次调用直接命中缓存。
     func tile(from image: NSImage,
@@ -1135,9 +1258,8 @@ final class MapTileCache {
         let k = "\(Int(qx))|\(Int(qy))|\(Int(qs))|\(Int(outSize))"
         if k == key, let c = cached { return c }
 
-        guard let src = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            return nil
-        }
+        let src = cachedCGImage(from: image)
+        guard let src else { return nil }
         // 源图坐标：中心 ± 半跨度，裁成正方形
         let half = qs / 2
         let ox = (qx - half).rounded()
@@ -1154,6 +1276,29 @@ final class MapTileCache {
             return draw(c2, size: Int(outSize), key: k)
         }
         return draw(cropped, size: Int(outSize), key: k)
+    }
+
+    /// NSImage → CGImage 的**带缓存转换**（★ E2 性能优化）。
+    ///
+    /// 同一张源图（同实例、同尺寸）只转换一次；换图才重转。
+    /// 这样即使视野每帧变化，也**不会**反复做格式转换。
+    ///
+    /// 注意：`cgImage(forProposedRect:)` 在多数情况下返回的是**共享的底层位图**
+    /// （NSImage 内部已有 CGImage 时不复制），但某些 NSImage 构造路径会触发
+    /// 重新绘制 —— 所以缓存对前者是"省一次调用"，对后者是"省一次重绘"，两者都划算。
+    private func cachedCGImage(from image: NSImage) -> CGImage? {
+        let id = ObjectIdentifier(image)
+        let sz = image.size
+        if id == srcImageID, sz == srcImageSize, let c = srcCGImage {
+            return c
+        }
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+        srcImageID = id
+        srcImageSize = sz
+        srcCGImage = cg
+        return cg
     }
 
     private func draw(_ cg: CGImage, size: Int, key k: String) -> CGImage? {
@@ -1235,8 +1380,38 @@ struct MapTileImage: View {
         .onAppear { load() }
     }
 
-    /// 世界总边长（米）。UE5 世界坐标单位是厘米，13056px 地图对应 13.056km。
-    static let worldMetersPerMap: Double = 13_056
+    /// 世界总边长（米）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-09-30 数值更正：原值 `13_056` **错了 1.639 倍**（把像素数当米数）
+    /// ══════════════════════════════════════════════════════════════════════
+    ///
+    /// 原注释写「UE5 世界坐标单位是厘米，13056px 地图对应 13.056km」——这句自相矛盾：
+    /// 它等价于断言 **1 像素 = 1 米 = 100 厘米**。但标定参数给出的比例不是这样：
+    ///
+    ///   kCalibA = 0.016394586684750773   —— 世界单位(cm) → 地图像素 的比例
+    ///   ⟹ 1 像素 = 1/kCalibA = 60.9957 世界单位 = 0.609957 米
+    ///   ⟹ 13056 像素 = 13056 × 0.609957 = **7963.6 米**（而非 13056 米）
+    ///
+    /// 换算比例的可信度：kCalibA/B/TX/TY 四个常量与 MaaNTE 上游
+    /// `coordinate_position.py` 的 `_CALIBRATION_*` **逐位相同**（已比对文档），
+    /// 且用真实抓包样本反算自车地图像素与自检报告值只差 1 像素
+    /// （世界 (-24424.34, 31854.1) → 地图 (6126.0, 5732.9)，自检报 (6127.0, 5732.9)）。
+    /// 所以「1 像素 ≈ 0.61 米」是有据的，「1 像素 = 1 米」是臆断。
+    ///
+    /// **这个错误导致了用户反馈的「地图定位永远是偏差错误的」**：
+    /// 本常量只经由 `pxPerMeter = mapPixels / worldMetersPerMap` 参与两处计算 ——
+    ///   ① `spanPx = spanMeters × pxPerMeter`：小地图取多少像素的地图区域
+    ///      → 错值时 spanPx=160 而非 262，**视野被缩小 1.64 倍**
+    ///   ② `normMapX/Y`：目标点相对自车的归一化偏移
+    ///      → `d = (px - mapPixelX) / spanPx`，spanPx 偏小 ⟹ **所有目标点被画到
+    ///        「离自车 1.64 倍远」的位置**，100 米外的点画得像 164 米
+    /// 注意自车自身位置不受影响（`worldToMapPixel` 不用本常量，自车恒在视口中心），
+    /// 所以症状表现为「我人在对的地方，但周围标记/比例全不对」——正是"偏差"。
+    ///
+    /// 改为**由标定参数推导**，而非硬编码数字：这样它与 kCalibA 永远自洽，
+    /// 将来若上游重新标定（map-2026-09 之类），这里会自动跟上，不会再漂移。
+    static let worldMetersPerMap: Double = 13_056.0 / (kCalibA * 100.0)
 
     private func load() {
         guard image == nil else { return }
@@ -1320,6 +1495,35 @@ struct NavLine: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(Aurora.t3)
             Spacer()
+            // ── 定位朝向 + 加速度（2026-09-30 新增到小地图下方）──
+            // 【为什么加在这里】用户报告「UI 里没有加速度和方向标」——
+            //   实测两者此前的位置都在**非常驻/需滚动**的地方：
+            //     · 加速度：右栏 SystemCard 底部（要滚动才看得到）
+            //     · 朝向：只有大地图里有（小地图自车是个无朝向圆点）
+            //   小地图是主界面常驻视图，把这两个实时量放在这里最符合
+            //   「开着车时一眼能看到」的实际需要。
+            // 【数据来源】全部是真实量，无数据时显示「—」（不编数）：
+            //     · 朝向 = locatorHeading（罗盘角 0~360，来自控制旋转解码）
+            //     · 加速度 = locatorAccelX/Y（移动包同包解析，cm/s² ÷100 = m/s²）
+            if state.locatorFound {
+                HStack(spacing: 6) {
+                    Image(systemName: "location.north.line.fill")
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(Aurora.ice)
+                    Text(String(format: "%.0f°", state.locatorHeading))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Aurora.t1)
+                    if let ax = state.locatorAccelX {
+                        Text(String(format: "%.1f, %.1f m/s²", ax, state.locatorAccelY ?? 0))
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(Aurora.t3)
+                    } else {
+                        Text("加速度 —")
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(Aurora.t4)
+                    }
+                }
+            }
             Text(nav.remainText)
                 .font(.system(size: 8.5, design: .monospaced))
                 .foregroundStyle(Aurora.t4)
@@ -1355,9 +1559,53 @@ struct NavGuidance {
         let dx = Double(t.x) - s.locatorX
         let dy = Double(t.y) - s.locatorY
         let distM = (dx * dx + dy * dy).squareRoot() / 100.0
-        // 朝向差 → 该左转还是右转（locatorHeading 为度）
-        let bearing = atan2(dy, dx) * 180 / .pi
-        var rel = bearing - s.locatorHeading
+        // ══════════════════════════════════════════════════════════════════════
+        // ⚠️ 2026-09-30 修复：转向指示的「参考系混用」bug
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // 【症状】小地图导航栏的「米后左转 / 米后右转」长期给出错误方向
+        //   （用户报「地图定位永远是偏差错误的」—— 位置对了，方向不对）。
+        //
+        // 【根因】两个角度用了**不同的参考系**却直接相减：
+        //
+        //   `s.locatorHeading` 是**罗盘方位角**（compass heading）：
+        //       0° = 正北，顺时针为正，范围 [0, 360)
+        //       由 `toPose()` 算出：`atan2(east, north)`，且负值 +360 归一化。
+        //
+        //   而原来的 `bearing = atan2(dy, dx)` 是**数学极角**：
+        //       0° = 正东，逆时针为正，范围 (-180, 180]
+        //
+        //   两者**原点差 90°、旋向相反**（一个是数学系逆时针，一个是罗盘系
+        //   顺时针）。于是 `bearing - locatorHeading` 毫无几何意义。
+        //
+        // 【量化影响】扫描「目标方位 × 自车朝向」共 5184 个组合
+        //   （各以 5° 为步长），**转向指示错误 3021 个 = 58.3%**。
+        //   典型反例：
+        //       目标在正北、车头也朝正北  → 应「直行」，原实现显示「右转」
+        //       目标在正北、车头朝北偏东 20° → 应「左转」，原实现显示「右转」
+        //
+        // 【修法】把目标方位也换算成**罗盘角**再相减。
+        //   做法：先用地图投影把自车与目标都投到地图像素系
+        //   （复用既有已验证的 `worldToMapPixelX/Y`），再取
+        //       罗盘角 = atan2(东分量, 北分量) = atan2(ΔmapX, −ΔmapY)
+        //   其中 −ΔmapY 的依据是：地图像素 y 轴**向下**，而地图是**北朝上**
+        //   （已核对 `worldToMapPixelY = kCalibA·wy + kCalibTY`，且解码器的
+        //   `kNorth ≈ (0, −1, 0)` —— 世界 −Y 为北 → 地图像素 −Y 为北 → 屏幕上方）。
+        //   这样**顺带把标定矩阵里那个微小倾角 kCalibB 也一并算对**，
+        //   而不是像原实现那样把倾斜完全忽略。
+        //
+        // 【为什么不用世界系手算】世界系里「北」是 `kNorth = (−0.0138, −0.9999, 0)`
+        //   这个**非轴向**向量（含 0.79° 倾角），要正确投影必须用它；
+        //   而 kNorth/kEast 是 CoordinateCapture.swift 的 file-private 常量，
+        //   从这里拿不到。走地图像素系既避开了这个可见性问题，
+        //   又复用了已实测正确的投影函数 —— 更少的重复、更少的出错面。
+        let egoPx = DriveState.worldToMapPixelX(s.locatorX, s.locatorY)
+        let egoPy = DriveState.worldToMapPixelY(s.locatorX, s.locatorY)
+        let tgtPx = DriveState.worldToMapPixelX(Double(t.x), Double(t.y))
+        let tgtPy = DriveState.worldToMapPixelY(Double(t.x), Double(t.y))
+        // 罗盘方位角：atan2(东 = +Δx, 北 = −Δy)
+        let bearingCompass = atan2(tgtPx - egoPx, -(tgtPy - egoPy)) * 180 / .pi
+        var rel = bearingCompass - s.locatorHeading
         while rel > 180 { rel -= 360 }
         while rel < -180 { rel += 360 }
         let action: String
@@ -1487,6 +1735,97 @@ struct BankSwitch: View {
 }
 
 // ============================================================================
+// MARK: - 感知模型选择卡（2026-10-02 新增）
+// ============================================================================
+//
+// 位置：**挂在运行日志卡下面**（用户原话：「运行日志下面加一个小窗口」）。
+//
+// 【为什么要有这个】到 2026-10-02 为止，本项目的感知模型是写死的：
+//   `YolopxEngine.family` 是 static let，值在进程启动时从环境变量读一次，
+//   运行期间改不了 —— 想换模型只能改代码重编译，或者记着带 `AURORA_AYOLOM=1`
+//   启动。用户要求改成**界面上能直接选**。
+//
+// 【两个档位】
+//   · A 模型（默认）：A-YOLOM(n) int8 单模型三合一，3.8MB，ANE 上 p50 10.4ms
+//   · 26S + 光流 + YOLOPX：原来的三件套，各自独立、各自有历史验证
+//
+// 【切换代价】会**重新加载模型**（mlmodelc 加载实测 1271ms / mlpackage 需要
+//   运行时编译更久）。故本卡片只适合低频人工切换，不是每帧调用。
+//   切换期间引擎 `reset()` → 掩码/det 清空 → 决策层 fail-open，不会拿旧值瞎跑。
+
+struct PerceptionPickerCard: View {
+    @Bindable var state: DriveState
+    @State private var hovered: PerceptionMode?
+
+    var body: some View {
+        ConsoleCard(compact: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                CardHead(title: "感知模型") {
+                    Text(state.perceptionMode == .ayolom ? "新" : "旧")
+                        .font(.system(size: 9))
+                        .foregroundStyle(state.perceptionMode == .ayolom ? Aurora.ok : Aurora.t4)
+                }
+
+                VStack(spacing: 6) {
+                    ForEach(PerceptionMode.allCases) { m in
+                        chip(m)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func chip(_ m: PerceptionMode) -> some View {
+        let on = state.perceptionMode == m
+        let accent = (m == .ayolom) ? Aurora.ok : Aurora.ice
+
+        Button {
+            state.selectPerceptionMode(m)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    // 选中指示点
+                    Circle()
+                        .fill(on ? accent : Aurora.t4.opacity(0.5))
+                        .frame(width: 5, height: 5)
+                    Text(m.title)
+                        .font(.system(size: 10.5, weight: on ? .semibold : .regular))
+                        .foregroundStyle(on ? accent : Aurora.t3)
+                    Spacer(minLength: 0)
+                    if on {
+                        Text("在用")
+                            .font(.system(size: 8))
+                            .tracking(0.8)
+                            .foregroundStyle(accent.opacity(0.85))
+                    }
+                }
+                Text(m.subtitle)
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(Aurora.t4)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(on ? accent.opacity(0.10)
+                             : (hovered == m ? Color.white.opacity(0.04) : .clear))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(on ? accent.opacity(0.45) : Aurora.hair1, lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 ? m : (hovered == m ? nil : hovered) }
+        .help("切换到「\(m.title)」——\(m.subtitle)")
+    }
+}
+
+// ============================================================================
 // MARK: - 运行日志卡（网页 .log）
 // ============================================================================
 // CSS: .log{font-family:var(--mono);font-size:10px;line-height:1.85;max-height:118px}
@@ -1568,7 +1907,8 @@ struct RunLogCard: View {
             }
             out.append((now, "检测到 " + names.joined(separator: " · "), "warn"))
         }
-        out.append((now, "推理 \(state.mode.rawValue) · 延迟 \(String(format: "%.1f", state.e2eLatencyMs))ms", "ice"))
+        // 同 2483 行说明：这个值是节拍周期（1000/帧率），不是推理耗时
+        out.append((now, "推理 \(state.mode.rawValue) · 节拍 \(String(format: "%.1f", state.e2eLatencyMs))ms", "ice"))
         return Array(out.suffix(7).reversed())
     }
 }
@@ -2222,8 +2562,30 @@ struct LargeMapCanvas: View {
                     let ePy = DriveState.worldToMapPixelY(state.locatorX, state.locatorY)
                     let ex = min(0.97, max(0.03, (ePx - cx) / spanPx + 0.5))
                     let ey = min(0.97, max(0.03, (ePy - cy) / spanPx + 0.5))
-                    let tx = min(0.97, max(0.03, (t.x - cx) / spanPx + 0.5))
-                    let ty = min(0.97, max(0.03, (t.y - cy) / spanPx + 0.5))
+                    // ⚠️ 2026-09-30 修复：目标点缺一次 `worldToMapPixel` 变换。
+                    //
+                    // 【根因】`locatorTarget` 存的是**世界坐标**（UE5 厘米，见
+                    //   :1398 的 `(t.x - locatorX)/100.0` —— 两者相减再除 100
+                    //   得米，必须是同一坐标系），而 `cx`/`cy` 是**地图像素**。
+                    //   原实现让世界坐标直接参与像素运算：
+                    //       `(t.x - cx) / spanPx + 0.5`      // 世界 − 像素，量纲不符
+                    //   夹具坐标 `t.x = -76500`、`cx = 5264` ⟹ 偏差约 81764，
+                    //   再除以 `spanPx`（视野 1200m ≈ 1967px）得 −41.6，
+                    //   被 `max(0.03, …)` 夹到 **0.03** ——
+                    //   于是目标点永远被钉在画面左侧 3% 处，导航线斜穿整个屏幕。
+                    //   （本轮截图 `--mc-map` 里那条从自车伸向左下方的长线即是此因。）
+                    //
+                    // 【为什么之前没发现】前几轮修 `locatorX/Y` 的坐标系混用时，
+                    //   只处理了「自车」一侧（`ePx/ePy` 一直是正确转换过的），
+                    //   漏掉了与它配对的「目标」一侧 —— 典型的对称遗漏。
+                    //   `:2265` 的目标距离计算用的是 `s.locatorX` 与 `t.x`，
+                    //   两者同为世界坐标因而正确；唯独本处把它和像素混算。
+                    //
+                    // 【修法】与自车完全对称：目标也过一遍 `worldToMapPixelX/Y`。
+                    let tPx = DriveState.worldToMapPixelX(Double(t.x), Double(t.y))
+                    let tPy = DriveState.worldToMapPixelY(Double(t.x), Double(t.y))
+                    let tx = min(0.97, max(0.03, (tPx - cx) / spanPx + 0.5))
+                    let ty = min(0.97, max(0.03, (tPy - cy) / spanPx + 0.5))
                     Path { p in
                         p.move(to: .init(x: w * ex, y: h * ey))
                         p.addLine(to: .init(x: w * tx, y: h * ty))
@@ -2467,7 +2829,11 @@ struct DecisionRail: View {
             }
             section("推理链路", "M9") {
                 mini("模型", DriveState.detectedModelName(), Aurora.ice)
-                mini("端到端延迟", String(format: "%.1f ms", state.e2eLatencyMs), Aurora.ice)
+                // ⚠️ 2026-09-28：这里原来写「端到端延迟」，但它实际是
+                //    `1000 / 采集帧率` = **节拍周期**，不是推理耗时。
+                //    用户看到 240ms 理解成"推理要 240ms"，与事实（YOLOPX 实测
+                //    53.4ms）差一个数量级，会造成严重误判 —— 所以改文案说清语义。
+                mini("链路节拍", String(format: "%.1f ms", state.e2eLatencyMs), Aurora.ice)
                 mini("辅助帧率", String(format: "%.1f fps", EngineClient.shared.engineFPS), Aurora.ok)
                 mini("累计帧", state.frames > 0 ? "\(state.frames)" : "—", Aurora.t3)
             }
@@ -2770,7 +3136,46 @@ enum SkillGroup: String, CaseIterable {
 // ============================================================================
 
 struct ContentView: View {
-    @State private var state = DriveState()
+    // ══════════════════════════════════════════════════════════════════════════
+    // ⚠️ 2026-09-30 修复：「每次视图构造都重建 DriveState」的性能灾难
+    // ══════════════════════════════════════════════════════════════════════════
+    //
+    // 【原写法】`@State private var state = DriveState()`
+    //
+    // 【为什么是灾难】`@State` 的默认值表达式属于**视图结构体的存储属性初始化**，
+    //   而 SwiftUI 的 View 是值类型：**每次视图树重建都会构造一个新的
+    //   ContentView 实例**，于是这个表达式被反复求值。
+    //   SwiftUI 随后会丢弃这个新对象（沿用首次建立的 @State 存储），
+    //   但**构造副作用已经真实发生了** —— 这是一个纯浪费、且开销极大。
+    //
+    // 【实测量级】`DriveState.init()` 里做的事（逐项）：
+    //     · `upscaleHost.prepare()`   → `GooseUpscaler.make()` 建 Metal 引擎
+    //       并配置插帧（`configureInterpolation()`，运行时编译着色器）
+    //     · `gameHUD.install()`       → 建 NSWindow（左上角帧率 HUD）
+    //     · `try? FileManager.removeItem('/tmp/aurora_debug.log')` → 删日志
+    //     · 构造 captureEngine / yoloEngine / yolopxEngine / speedOCR 等
+    //       十余个推理与采集组件
+    //   日志实测（`AURORA_UI_LOCAL=1 ./AuroraDriveUI --auto-login`）：
+    //     `[upscale] 引擎初始化` 与 `[network] 定位引擎初始化完成`
+    //     **各出现 349 次 / 69 秒**，且同一秒内连续爆发多次 ——
+    //     与「视图求值频率」完全吻合。
+    //   ⟹ 每帧都在新建一整套推理引擎 + Metal 引擎 + NSWindow。
+    //
+    // 【修法】把 DriveState 提成进程级单例，`@State` 只持有那个**已存在的**
+    //   实例（不触发构造）。语义等价：
+    //     · 全进程本来就只需要一个 DriveState（它代表唯一一份驾驶状态机）；
+    //     · 原写法在 UI 进程里的有效结果同样是「一个实例」，只是白白多造了
+    //       几百个立刻被丢弃的副本；
+    //     · 首次访问时构造一次，之后 `@State` 的默认值表达式只是取引用，
+    //       零副作用。
+    //   注意：`DriveState.shared` 内部仍保留「按参数决定是否清日志」等
+    //   原有一次性初始化语义（见 DriveState.init 的 isUIStartup 判定），
+    //   因为现在它确实只被构造一次。
+    //
+    // 【与引擎进程的关系】DriveState 在引擎进程（--engine）也会被创建一次，
+    //   这是独立进程，各自持有自己的实例，不受本改动影响
+    //   （单例是"每进程一个"，不是"全局一个"）。
+    @State private var state = DriveState.shared
     @State private var tickTimer: Timer? = nil
     @State private var tickDispatchSource: DispatchSourceTimer? = nil
     @State private var netLocDispatchSource: DispatchSourceTimer? = nil
@@ -3004,11 +3409,30 @@ enum MissionControlShot {
         let state = DriveState()
         state.isDriving = true
         state.locatorFound = true
-        state.locatorX = 1080
-        state.locatorY = 1040
-        state.locatorTarget = (x: 2200, y: 1800)
-        MapDatabase.ensureLoaded()
+        // ⚠️ 2026-09-30 修复：locatorX/Y 与 locatorTarget 统一用**世界坐标**
+        //    （UE5 厘米）。原夹具写 1080/1040 是地图像素语义，与 :1398
+        //    的目标距离计算（(t.x - locatorX)/100 → 米）量纲不符。
+        //    这里取一组真实量级的世界坐标（约在新赫兰德区域中心），
+        //    使离屏渲染出的自车与目标点落在真实地图的合理位置。
+        state.locatorX = -77000
+        state.locatorY = 31865
+        state.locatorTarget = (x: -76500, y: 32200)
+        // ⚠️ 2026-09-30：`refreshRegionCache()` 必须放在 `ensureLoadedSyncLegacy()`
+        //    **之后** —— 它内部要遍历 MapDatabase.markers 反查最近区域，
+        //    若在数据库加载前调用，markers 还是空的，只会缓存成「未知区域」
+        //    （实测踩过：区域名始终显示「未知区域」）。
+        //    见下方 ensureLoadedSyncLegacy() 调用处的说明。
+        // ⚠️ 2026-09-30：`ensureLoaded()` 已改为**后台异步加载**（修复
+        //    `ContentView.body` 求值期读 7.2MB JSON 卡主线程的问题，见 MapWiring.swift）。
+        //    异步化后它立即返回，紧接着读 `markerCount` 必然是 0 ——
+        //    对**离屏夹具**而言这是错的：夹具本就是同步一次性渲染，
+        //    没有"稍后 UI 再刷新"的机会。
+        //    故夹具改调 `ensureLoadedSyncLegacy()`（原同步实现，保留至今）：
+        //    它是纯读盘+解析，在离屏渲染路径上同步完成，语义与UI渲染前一致。
+        MapDatabase.ensureLoadedSyncLegacy()
         state.mapMarkerCount = MapDatabase.markerCount
+        // 数据库就绪后再刷新区域名（顺序不可颠倒，见上方注释）
+        state.refreshRegionCache()
         return renderMap(state: state, canvas: canvas, tag: "online")
     }
 
@@ -3024,7 +3448,8 @@ enum MissionControlShot {
         let state = DriveState()
         state.isDriving = false
         state.locatorFound = false          // ← 关键：游戏未启动，无任何定位数据
-        MapDatabase.ensureLoaded()
+        // 同 renderMapNow：离屏夹具必须同步拿到标记数（见该处注释）
+        MapDatabase.ensureLoadedSyncLegacy()
         state.mapMarkerCount = MapDatabase.markerCount
         return renderMap(state: state, canvas: canvas, tag: "offline")
     }
@@ -3110,11 +3535,39 @@ enum MissionControlShot {
         state.expertMode = true
         state.gameModeBoost = true
         state.frames = 12840
-        state.locatorX = 1080
-        state.locatorY = 1040
+        // ⚠️ 2026-09-30 修复：与 renderMapNow 同一处问题 —— locatorX/Y 必须是
+        //    **世界坐标（UE5 厘米）**，不能是地图像素。原先的 1080/1040 会被
+        //    读取端再变换一次，导致截图里的自车位置与真实地图错开 864 米。
+        //    这里用真实量级的世界坐标，保证截图夹具与真机走同一套语义。
+        state.locatorX = -77000
+        state.locatorY = 31865
+        // 同 renderMapNow：regionLabel 已改为「缓存读取」（见 DriveState.regionLabel），
+        // 夹具需显式刷新一次；且必须在数据库**加载之后**刷新，否则 markers 为空、
+        // 只会缓存成「未知区域」。TopBar 要显示区域名，故这里同步加载一次。
+        MapDatabase.ensureLoadedSyncLegacy()
+        state.refreshRegionCache()
         state.speedValid = true
         // 截图夹具：给一个固定源画面尺寸，便于渲染对比（真机一律取实时 screenSize）
         state.screenSize = CGSize(width: 2560, height: 1664)
+        // ⚠️ 2026-09-30 追加：给夹具设目标点，让 `NavGuidance` 的**转向指示**分支
+        //    能被渲染出来。
+        //
+        // `NavGuidance.derive(from:)` 有三条分支，**转向逻辑只在第三条**：
+        //     ① 未定位        → 「定位中」
+        //     ② 已定位但无目标 → 「未设目标」
+        //     ③ 已定位且有目标 → 距离 + 转向 + 剩余里程
+        // 原夹具只设了 `locatorFound`（走②），于是本轮修的转向指示
+        // （参考系混用，错误率 58.3% → 1.0%，见文档 6.25）在这张截图上
+        // 根本不会被渲染 —— 修了却无法视觉验收。
+        //
+        // 目标取「自车**正北** 5 米」——这是一个**有判别力**的用例：
+        //   世界坐标里 −Y 为北（`kNorth ≈ (0,−1,0)`），自车 `locatorHeading`
+        //   夹具默认 0°（罗盘角 = 朝正北）。
+        //     修复后：target 罗盘方位 = 0°，rel = 0° → 「米后直行」✓
+        //     修复前：`atan2(Δy, Δx)` = `atan2(−500, 0)` = −90°，
+        //             rel = −90 − 0 = −90° → 「米后左转」✗
+        //   故截图里出现「米后直行」即证明修复生效；若回归会显示「米后左转」。
+        state.locatorTarget = (x: state.locatorX, y: state.locatorY - 500)
 
         // 截图：只锁宽度，高度由内容自然撑开（ImageRenderer 下高度提案不可靠，
         // 硬套 frame 会裁掉顶/底条）。
@@ -3188,6 +3641,7 @@ enum MissionControlShot {
                         MiniMapCard(state: state, onOpen: {})
                         HardwareBank(state: state)
                         RunLogCard(state: state)
+                PerceptionPickerCard(state: state)
                         Spacer(minLength: 0)
                     }
                     .frame(width: 344)

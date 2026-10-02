@@ -87,6 +87,9 @@ final class ControlEngine: @unchecked Sendable {
 
     /// 检查辅助功能权限（macOS 10.9+）
     /// 无权限时注入事件会被系统静默丢弃
+    ///
+    /// ⚠️ 本方法**只查询、不弹窗**（`AXIsProcessTrustedWithOptions(nil)`）。
+    ///    需要「请求授权」请用 `requestAccessibilityPermission()`。
     func checkPermission() -> Bool {
         // AXIsProcessTrustedWithOptions 会触发系统授权弹窗（首次）
         // kAXTrustedCheckOptionPrompt: true 表示弹窗提示
@@ -98,8 +101,48 @@ final class ControlEngine: @unchecked Sendable {
         // 正确做法：直接传 nil（不弹窗）或用 kAXTrustedCheckOptionPrompt as String
         // 作为 key。这里改为传 nil：首次调用会自动弹系统授权提示，后续调用仅返回
         // 当前权限状态，与原本期望行为一致。
+        //
+        // ⚠️ 2026-09-30 更正：上面这句「首次调用会自动弹系统授权提示」是**错的**。
+        //    传 `nil` 时 AXIsProcessTrustedWithOptions **只查询、绝不弹窗** ——
+        //    这正是本轮实测到的现象：程序从未出现在
+        //    「系统设置 → 隐私与安全性 → 辅助功能」列表里，
+        //    因为**从来没有发出过授权请求**，用户想授权都找不到条目。
+        //    故拆分为两个方法：本方法保持"纯查询"（`press`/`hold` 的高频重试路径
+        //    绝不能弹窗，否则每帧弹一次），新增 `requestAccessibilityPermission()`
+        //    专用于启动/注入引擎的时机请求一次。
         let trusted = AXIsProcessTrustedWithOptions(nil)
         hasAccessibilityPermission = trusted
+        return trusted
+    }
+
+    /// 显式**请求**辅助功能权限（会触发系统授权弹窗，并把本程序登记进
+    /// 「系统设置 → 隐私与安全性 → 辅助功能」列表）。
+    ///
+    /// 与 `checkPermission()` 的分工（都很重要，不可合并）：
+    ///   · `checkPermission()` —— 纯查询，**不弹窗**。用于每帧都可能走的路径
+    ///     （`press`/`hold` 的 `guard hasAccessibilityPermission else` 重试分支），
+    ///     在那里弹窗会导致每帧一次弹窗风暴。
+    ///   · `requestAccessibilityPermission()` —— **弹窗 + 登记**。只在
+    ///     「初始化注入引擎」「启动时权限检查失败」这类一次性时机调用。
+    ///
+    /// 背景（2026-09-30 实测）：修复前全项目只有 `AXIsProcessTrustedWithOptions(nil)`
+    /// 一种调用，即**只查询不请求** → 程序永远不进辅助功能列表 → 用户手动也无法
+    /// 授权 → `ControlEngine` 所有注入被系统静默丢弃（表现为
+    /// `[Agent] ❌ 辅助功能权限未授权，无法注入鼠标`，自动登录/技能全部失效）。
+    ///
+    /// - Returns: 当前是否已获授权（首次调用通常为 false，需用户在系统设置里勾选）。
+    @discardableResult
+    func requestAccessibilityPermission() -> Bool {
+        // `kAXTrustedCheckOptionPrompt` 必须作为 CFString key 传入（用 `as String` 桥接）。
+        // 2026-09-07 的崩溃正是字符串字面量直接用导致字典无效，这里沿用已验证的桥接写法。
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        hasAccessibilityPermission = trusted
+        if !trusted {
+            // 弹窗后系统设置会被打开到对应面板，用户可在列表里看到本程序并勾选。
+            // 这里再主动打开一次设置面板，减少一步操作（幂等，重复打开无副作用）。
+            openAccessibilitySettings()
+        }
         return trusted
     }
 
@@ -108,6 +151,90 @@ final class ControlEngine: @unchecked Sendable {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 屏幕录制权限（2026-09-30 新增）
+    // ══════════════════════════════════════════════════════════════════════════
+    //
+    // 【为什么必须补这一段】此前全项目只有 **查询**、没有 **申请**：
+    //     `CGPreflightScreenCaptureAccess()`  —— EngineMain.swift:632
+    //                                          —— AuroraDriveApp.swift:158
+    //     两处都是纯查询（该 API 按设计不弹窗、不注册）。
+    //     而 `CGRequestScreenCaptureAccess()`  **全项目零调用**，
+    //     打开「屏幕录制」设置面板的代码也**从未存在**。
+    //
+    // 【后果（实测）】系统设置的「屏幕录制」列表里**根本不会出现本 App**——
+    //   用户想手动勾选都找不到地方。这解释了为什么历次运行
+    //   `--tcc-selftest` 恒为 `screen=false`，且从未有授权弹窗出现。
+    //   `CaptureEngine.start()` 依赖 `SCShareableContent.current` 抛错时
+    //   「顺带弹窗」（见 CaptureEngine.swift:161 的注释），但那只是网络/显示器
+    //   枚举失败时的**被动**行为，**不负责把 App 注册进 TCC 列表**。
+    //
+    // 【与辅助功能的对称性】辅助功能那一路上一轮已修好
+    //   （`checkPermission()` → `requestAccessibilityPermission()`，
+    //   屏幕上出现的 `universalAccessAuthWarn` 弹窗即其证据）。
+    //   屏幕录制是**同一类遗漏的对称位置**——当时只补了一半。
+    //
+    // 【为什么放在 ControlEngine 这个类型里】它与辅助功能权限是同一职责的两项
+    //   （都是「注入/观测所需的一次性系统授权」），放一起便于对照维护；
+    //   本类型已 import AppKit（`NSWorkspace` 可用）。若另起新类型，
+    //   反而会在项目里多出一个职责重叠的权限入口。
+
+    /// 申请屏幕录制权限（会弹系统授权框，并把本 App 注册进 TCC 列表）
+    ///
+    /// - Returns: 申请后是否已获授权。
+    ///   ⚠️ 首次调用几乎必然返回 `false` —— 用户需在弹出的系统设置里手动勾选，
+    ///   **且勾选后通常要重启本 App** 才生效（TCC 对屏幕录制的判定是进程级的）。
+    @discardableResult
+    func requestScreenRecordingPermission() -> Bool {
+        // `CGRequestScreenCaptureAccess()` 的作用：首次调用时弹出系统授权提示，
+        // 并把本 App 登记到「隐私与安全性 → 屏幕录制」列表中（未登记的 App
+        // 在该列表里不可见）。它自身也返回当前是否已授权。
+        let granted = CGRequestScreenCaptureAccess()
+        if !granted {
+            // 与辅助功能那一路保持一致：弹窗之后系统设置会被打开到对应面板，
+            // 再主动打开一次（幂等，重复打开无副作用），减少用户一步操作。
+            openScreenRecordingSettings()
+        }
+        return granted
+    }
+
+    /// 打开系统设置的「屏幕录制」面板（引导用户授权）
+    func openScreenRecordingSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// 启动期申请屏幕录制权限（无需实例，供 AppDelegate 直接调用）
+    ///
+    /// 【为什么需要这个「启动期」版本】`captureEngine.start()` 只在
+    ///   `startDriving()` 里被调用，而 `startDriving()` 开头有一道
+    ///   **辅助功能**权限守卫（`guard … requestAccessibilityPermission()
+    ///   || controlDisabled else { return }`）。于是默认路径形成死锁：
+    ///
+    ///       没有辅助功能权限 → startDriving 提前 return
+    ///                        → captureEngine.start() 永不执行
+    ///                        → onStatusChange 永不收到 .permissionDenied
+    ///                        → 屏幕录制权限的申请代码永不触发
+    ///                        → 屏幕录制永远拿不到
+    ///
+    ///   而**屏幕录制与辅助功能本应是两个互相独立的权限**，不该有先后依赖：
+    ///   「看画面」不需要「能按键」。此方法把屏幕录制的申请从 startDriving
+    ///   里解耦出来，挂到 `applicationDidFinishLaunching`。
+    ///
+    /// 【为什么不直接复用 `requestScreenRecordingPermission()`】
+    ///   那个版本在被拒时会主动打开系统设置面板，适合用户主动点「开始驾驶」
+    ///   时的引导；而**每次启动都弹设置面板会很打扰**。这里只走系统授权框
+    ///   （该弹窗自带「打开系统设置」按钮），把选择权留给用户。
+    ///
+    /// 【幂等且安静】已授权时 `CGPreflightScreenCaptureAccess()` 直接返回 true，
+    ///   不做任何弹窗 —— 即正常用户完全感觉不到这段代码存在。
+    @discardableResult
+    static func requestScreenRecordingPermissionOnStartup() -> Bool {
+        guard !CGPreflightScreenCaptureAccess() else { return true }
+        return CGRequestScreenCaptureAccess()
     }
 
     // MARK: - 按键注入
@@ -189,6 +316,56 @@ final class ControlEngine: @unchecked Sendable {
             postKeyEvent(keyCode: keyCode, keyDown: false)
         }
         heldKeys.removeAll()
+        // ★ 阶段4（2026-10-01）：记录"刚做过全量清扫"，
+        //   供 tick 侧的节流版本 `releaseAllIfNeeded()` 判断可否跳过。
+        lastFullReleaseAt = CACurrentMediaTime()
+    }
+
+    // MARK: - 阶段4（2026-10-01）：按键注入折叠
+
+    /// 上次执行全量清扫（6 键 keyUp）的时刻。0 = 本会话从未清扫过。
+    private var lastFullReleaseAt: CFAbsoluteTime = 0
+
+    /// ★ 阶段4（2026-10-01 性能折叠）：节流版全量释放。
+    ///
+    /// 【为什么加】生产 tick 分段剖析（`--tick-profile` / `AURORA_PERF=1` 日志）
+    ///   实测 `tick.inject` p50=**0.15ms**，占整帧 `tick.total`(0.21ms) 的 **71%**
+    ///   —— 是当前 tick 内**最大的单项主线程成本**，比其它所有阶段加起来还多。
+    ///
+    /// 【根因】`expertMode || controlDisabled` 分支每帧调 `releaseAll()`，
+    ///   而无条件对 6 个键各发一次 `CGEvent.post(tap: .cghidEventTap)`
+    ///   （实测 `ev=` 计数每 30s 涨约 2000，与 6×30Hz 吻合）。
+    ///   但该分支的语义只是"别注入 AI 键" —— 键**本来就没被按下**时，
+    ///   这 6 次 keyUp 是纯粹的白工（release 本来幂等，且无键可释放）。
+    ///
+    /// 【改动语义】`releaseAll()` 本身**一字未改**（仍是"无条件清 6 键 + 清表"），
+    ///   因为它还承担「清上次进程异常退出残留的系统级卡键」这一安全职责，
+    ///   那个场景下**必须**无条件发。本方法只是在 tick 的每帧路径上加一层
+    ///   **节流**：同一秒内已经清扫过、且当前无按住键 → 跳过重复清扫。
+    ///
+    /// 【安全边界（为什么节流是安全的）】
+    ///   · `heldKeys` 为空  → 本进程没按住任何键，没有东西需要释放；
+    ///   · 距上次全量清扫 < 1s → 残留（若有）已被那一次清掉，
+    ///     1 秒内不可能凭空出现新的系统级残留（残留只来自**上一次进程退出**）；
+    ///   · 任何**真实释放需求**都不走这里 —— `applyCommand` 走 `release(_:)`，
+    ///     停止驾驶走 `releaseAll()`，两者都不受影响。
+    ///   · 最坏情况：某次残留未被及时清理 —— 但下一帧仍在同一秒内跳过，
+    ///     而 1 秒后必然执行一次全量清扫，收敛行为与改前**一致**（改前是
+    ///     每秒 30 次清扫，改后每秒 1 次，覆盖同一场景）。
+    ///
+    /// 【等价性证明方法】见 `--perf-selftest` 与文档 §6.44：
+    ///   ABBA 对比 `tick.inject` p50（改前 0.15ms → 改后应为 ~0.01ms），
+    ///   同时验证 `heldKeys` 状态与 `applyCommand` 路径行为逐帧一致。
+    func releaseAllIfNeeded() {
+        // 有按住键 → 必须走完整清扫（这是真实的释放需求，不可省）
+        if !heldKeys.isEmpty {
+            releaseAll()
+            return
+        }
+        // 无按住键：同一秒内已清扫过就跳过，否则清扫一次
+        let now = CACurrentMediaTime()
+        if lastFullReleaseAt > 0, now - lastFullReleaseAt < 1.0 { return }
+        releaseAll()
     }
 
     // MARK: - 底层 CGEvent 注入

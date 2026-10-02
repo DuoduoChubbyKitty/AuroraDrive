@@ -18,6 +18,20 @@
 //   5) 共享内存帧管道     —— 帧头 + 检测结果 + BGRA 双缓冲（引擎写 / UI 读）
 //   6) DriveState 闭环    —— 照搬主程序组装（同一份类代码）+ 30Hz DispatchSource tick
 //   7) 信号处理           —— SIGTERM/SIGINT 退出前必先 releaseAll（防游戏内键卡死）
+//
+//  ⚠️ YOLOPX 在引擎模式下的行为（2026-09-26 核实，勿误判为"白烧算力"）：
+//     **引擎模式下 YOLOPX 根本不跑。** 依据（代码事实，非推测）：
+//       · `DriveState.tick()` 在 `EngineClient.shared.isActive` 时执行
+//         `tickEngineMode(); return` —— **提前返回**（AuroraDriveApp.swift:3172 附近）；
+//       · `yolopxEngine.infer(image:)` 全仓库仅 **1 处**调用，位于该 return **之后**
+//         的本地推理分支（同文件 :3260）→ 引擎模式永远走不到。
+//     结论：引擎模式既不会白烧 YOLOPX 算力，也因此**拿不到 da/ll 掩码** ——
+//     掩码仅在 UI 侧本地推理时产生，共享内存协议里没有 da/ll 字段。
+//     副作用提醒：引擎模式下 `MaskOverlay` 读到的是空掩码（不绘制），
+//     而 `yolopxEngine.isDegraded` 保持初值 true → `LaneFallback` 不介入。
+//     这属于**既定设计**（引擎模式的决策全部来自引擎回传），不是缺陷；
+//     但若将来要在引擎模式下也显示掩码，必须先把 160×160 网格（约 50KB）
+//     加进共享内存协议并在 tickEngineMode 回填 —— 目前**未做**。
 // ============================================================================
 
 import Foundation
@@ -82,10 +96,58 @@ private func SelfTimestamp() -> String {
 ///   64   fpsMilli u32         (fps×1000)
 ///   68   enginePid u32
 ///   72   pageSize u64
+///   80   maskSeq u64          (掩码世代号：变化才重发，UI 据此判断新鲜度)
+///   88   maskW u32           (可行驶区网格宽)
+///   92   maskH u32           (可行驶区网格高)
+///   96   laneW u32           (车道线网格宽)
+///   100  laneH u32           (车道线网格高)
+///   104  maskFlags u32       (bit0 isDegraded / bit1 掩码有效)
+///   108  maskRatio f32       (letterbox ratio，还原几何用)
+///   112  maskPadX u32
+///   116  maskPadY u32
+///   120  maskSrcW u32
+///   124  maskSrcH u32
+///   128  maskNewW u32        (letterbox 后内容区宽，2026-09-28 补)
+///   132  maskNewH u32        (letterbox 后内容区高，2026-09-28 补)
+///
+///        ⚠️ 2026-09-28：128/132 是**补传**的字段，不是新增功能。
+///        起因：`MaskOverlay` 的绘制守卫原来写的是
+///              `guard active, metrics.newW > 0, metrics.srcW > 0`
+///        但协议头**从来没传过 newW/newH**，`EngineClient` 重建 `LetterboxMetrics`
+///        时只能硬填 `newW: 0` → 守卫恒假 → 引擎模式下掩码一格都不画。
+///        用户现象：「只能看到检测框，看不到可行驶区域和车道线」。
+///        本机验证：本地模式正常（走 yolopxEngine.metrics，newW 是真实值），
+///        所以本地自检永远发现不了 —— 这个 bug 只在引擎模式暴露。
+///
+///        修法有两步，两步都做了：
+///          ① 把 newW/newH 真正写进协议（本处），让客户端能拿到真实值；
+///          ② 同时去掉 `MaskOverlay` 里对 newW 的守卫依赖 —— 因为绘制数学
+///             从头到尾没用过它（只用 ratio/padX/padY/srcW/srcH），
+///             它本就不该是"能不能画"的判据。
+///        ② 是必须的：只做①的话，旧引擎客户端仍会被卡住；
+///        ① 也做是因为 newW/newH 是 letterbox 的完整描述，将来别处要用。
+///
+///        128/132 位于原本空闲的头部区（headerSize=4096，仅用到 125 字节），
+///        不移动任何既有字段 → **对旧客户端向后兼容**（旧客户端不读这两格）。
 /// 4096   检测结果区：detCapacity×detStride（每条：labelId u32 / conf f32 /
 ///        cx f32 / cy f32 / w f32 / h f32 / rawName 16 bytes / 预留）
 /// 20480  像素页 A
 /// 20480+pageSize  像素页 B
+///
+/// ⚠️ 掩码（可行驶区 da / 车道线 ll）的传输（2026-09-27 新增）
+///
+///   背景：此前引擎模式**根本不跑 YOLOPX**（见文件头注释），共享内存协议里
+///   也没有 da/ll 字段 → UI 侧 `MaskOverlay` 永远读到空掩码，预览框里
+///   看不到可行驶区和车道线。用户明确要求「引擎把掩码回传，UI 直接画」。
+///
+///   实现：把两个 160×160 的 0/1 网格 bit-pack 成位图（每行 20 字节），
+///   放在检测区之后的 **maskOffset**。为什么 bit-pack 而不是直接发 UInt8：
+///   160×160 = 25600 字节/掩码，两份 50KB，30Hz 下就是 1.5MB/s 的无谓拷贝；
+///   bit-pack 后每份 3200 字节，两份 6.4KB，可忽略。
+///
+///   为什么用**世代号**而不是每帧无条件重发：掩码只在 YOLOPX 出结果的帧更新，
+///   而 YOLOPX 是 15Hz、tick 是 30Hz。无条件重发会让一半的帧在传重复数据。
+///   `maskSeq` 变化即重发，UI 侧读到新 seq 才解析。
 final class EngineFrameShm {
 
     static let name = "/aurora_frame_v1"
@@ -93,7 +155,23 @@ final class EngineFrameShm {
     static let detOffset = 4096
     static let detCapacity = 256
     static let detStride = 64
-    static let pixelsOffset = 20480
+    /// 检测区结束位置（= 4096 + 256×64 = 20480）
+    static let detEnd = detOffset + detCapacity * detStride
+    /// 掩码区：紧随检测区之后。
+    ///
+    /// ⚠️ 布局变更记录：旧版 `pixelsOffset` 直接等于 20480（检测区末尾），
+    ///    没有给掩码留位置。新增掩码后必须把像素区往后挪，并把协议 version
+    ///    升到 2 —— 否则新旧二进制混跑时 UI 会把掩码区当像素读（花屏）。
+    ///    引擎与 UI 同源编译，不会出现长期混跑，但 version 仍要升：
+    ///    引擎是**常驻后台进程**，UI 更新后引擎可能还是旧的（需重启引擎）。
+    static let maskOffset = detEnd                                  // 20480
+    static let maskGridMax = 160
+    /// 单个掩码的位压缩字节数（160 行 × 每行 20 字节）
+    static let maskBytes = maskGridMax * ((maskGridMax + 7) / 8)     // 3200
+    /// 掩码区总容量：可行驶区 + 车道线
+    static let maskRegionBytes = maskBytes * 2                       // 6400
+    /// 像素区起始（掩码区之后，4KB 对齐）
+    static let pixelsOffset = ((maskOffset + maskRegionBytes) + 4095) / 4096 * 4096  // 28672
     static let maxWidth = 4096
     static let maxHeight = 2304
 
@@ -153,6 +231,73 @@ final class EngineFrameShm {
     }
     private func storeU64(_ off: Int, _ v: UInt64) {
         base.storeBytes(of: v, toByteOffset: off, as: UInt64.self)
+    }
+    private func storeF32(_ off: Int, _ v: Float) {
+        base.storeBytes(of: v, toByteOffset: off, as: Float.self)
+    }
+
+    /// 把 `MaskGrid` 位压缩写进共享内存。
+    ///
+    /// 为什么位压缩：160×160 用 UInt8 存是 25600 字节/份，两份 50KB；
+    /// 位压缩后每步 20 字节/行 × 160 行 = 3200 字节，两份 6.4KB。
+    /// 30Hz 下的差别是 1.5MB/s vs 192KB/s，而掩码本来只有 0/1 信息，
+    /// 一个 bit 就够。
+    ///
+    /// - Parameters:
+    ///   - grid: 要写的网格
+    ///   - offset: 共享内存内的写入起始位置
+    private func writeMask(_ grid: MaskGrid, offset: Int) {
+        guard grid.width > 0, grid.height > 0 else { return }
+        let rows = min(grid.height, EngineFrameShm.maskGridMax)
+        let bytesPerRow = (min(grid.width, EngineFrameShm.maskGridMax) + 7) / 8
+        let ptr = base.advanced(by: offset).assumingMemoryBound(to: UInt8.self)
+        // 先清零（本次写的区域），避免上一帧的残留位被读成前景
+        for i in 0..<(rows * bytesPerRow) { ptr[i] = 0 }
+        for y in 0..<rows {
+            let rowBase = y * bytesPerRow
+            for x in 0..<min(grid.width, EngineFrameShm.maskGridMax) where grid.at(x, y) {
+                ptr[rowBase + x / 8] |= UInt8(1 << (x % 8))
+            }
+        }
+    }
+
+    /// 发布掩码（可行驶区 + 车道线 + letterbox 几何）。
+    ///
+    /// 由 `EngineMain.publishTick` 在每 tick 调用；只有在掩码世代号变化时才
+    /// 真正重写数据（见 publish 的 seq 判据），避免 30Hz 重发 15Hz 的数据。
+    ///
+    /// - Parameter seq: 掩码世代号。YOLOPX 出结果时 +1，UI 侧据此判断新鲜度。
+    func publishMasks(drivable: MaskGrid, lane: MaskGrid,
+                      metrics: LetterboxMetrics, isDegraded: Bool,
+                      laneDegraded: Bool, drivableDegraded: Bool, seq: UInt64) {
+        storeU64(80, seq)
+        storeU32(88, UInt32(drivable.width))
+        storeU32(92, UInt32(drivable.height))
+        storeU32(96, UInt32(lane.width))
+        storeU32(100, UInt32(lane.height))
+        // bit0 = 总降级；bit1 = 掩码是否有效（有数据）
+        // bit2 = 车道线单独塌陷；bit3 = 可行驶区单独塌陷
+        //
+        // bit2/bit3 是 2026-09-27 加的：原先 UI 只有一个总降级位，
+        // 无法区分"是车道线塌了还是可行驶区塌了"，于是显示层只能一刀切压暗，
+        // 造成车道线塌陷把可行驶区一起带暗（用户报"什么都看不到"的直接原因）。
+        var flags: UInt32 = 0
+        if isDegraded { flags |= 1 }
+        if drivable.width > 0 || lane.width > 0 { flags |= 2 }
+        if laneDegraded { flags |= 4 }
+        if drivableDegraded { flags |= 8 }
+        storeU32(104, flags)
+        storeF32(108, Float(metrics.ratio))
+        storeU32(112, UInt32(metrics.padX))
+        storeU32(116, UInt32(metrics.padY))
+        storeU32(120, UInt32(metrics.srcW))
+        storeU32(124, UInt32(metrics.srcH))
+        // 128/132：letterbox 内容区尺寸（2026-09-28 补传，原为客户端硬填 0）
+        storeU32(128, UInt32(metrics.newW))
+        storeU32(132, UInt32(metrics.newH))
+
+        writeMask(drivable, offset: EngineFrameShm.maskOffset)
+        writeMask(lane, offset: EngineFrameShm.maskOffset + EngineFrameShm.maskBytes)
     }
 
     /// 发布一帧（成品画面 + 检测结果 + 状态）
@@ -446,6 +591,14 @@ enum EngineGlobals {
     /// 最新全分辨率帧（采集线程写 / 主线程读，用锁保护；覆盖式=天然跳帧）
     nonisolated(unsafe) static var latestFullFrame: CVPixelBuffer?
     nonisolated(unsafe) static let latestFullFrameLock = NSLock()
+
+    /// 掩码世代号。YOLOPX 每次产出新掩码时 +1，UI 侧据此判断是否要重新解析。
+    ///
+    /// 为什么需要：YOLOPX 是 15Hz 而 tick 是 30Hz，掩码在两次更新之间不变。
+    /// 无条件重发会让一半的帧在传重复数据；UI 侧每帧展开位图也纯属浪费。
+    @MainActor static var maskSeq: UInt64 = 0
+    /// 上一次发布时的掩码指纹（用于判断"掩码是否真的变了"）
+    @MainActor static var lastMaskFingerprint: Int = 0
 }
 
 // MARK: - 引擎主入口
@@ -479,13 +632,48 @@ enum EngineMain {
         let screenOK = CGPreflightScreenCaptureAccess()
         let diagSkip = ProcessInfo.processInfo.environment["AURORA_ENGINE_DIAG_SKIP_TCC"] == "1"
         engineLog("[ENGINE] TCC 自检 ax=\(axOK) screen=\(screenOK)")
-        if !(axOK && screenOK) {
+        // ══════════════════════════════════════════════════════════════════════
+        // ⚠️ 2026-09-30：观测模式（AURORA_OBSERVE_ONLY=1）下放宽辅助功能要求
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // 【为什么】原来的判据是 `!(axOK && screenOK)` —— **两项都必须在**。
+        //   这个判据对「引擎要注入按键」的用途是对的，但对**观测用途过严**：
+        //
+        //     · 辅助功能权限（ax）的用途是 **CGEvent 按键注入**
+        //     · 屏幕录制权限（screen）的用途是 **抓帧给推理用**
+        //
+        //   而观测模式跑的正是「只看不碰」这条路：
+        //   它由 `AURORA_OBSERVE_ONLY=1` 强制 `controlDisabled = true`
+        //   （见 AuroraDriveApp.swift `startDriving()` 的说明），
+        //   **一行按键都不会注入** —— 于是 ax 权限对它毫无用处。
+        //   真正必需的只有 screen：没有帧，推理就没有输入，观测也就无从谈起。
+        //
+        // 【修法】观测模式下把判据收窄为「必须有 screen」。
+        //   注意**没有**放宽 screen 要求 —— 观测模式恰恰最需要它。
+        //
+        // 【安全边界】这不是「跳过权限检查」：
+        //   · 非观测模式（默认）判据**逐字不变**，仍是 `axOK && screenOK`。
+        //   · 观测模式下 ax 被允许为 false，但该模式下注入路径已被
+        //     `controlDisabled=true` 关闭（两条 gate + `ControlEngine.hold()`
+        //     自身的第三层权限 gate，详见文档 6.23.3 的逐行审计）。
+        //   · 即便真的尝试注入，`hold()` 的 `guard hasAccessibilityPermission`
+        //     也会提前 return —— 权限不足时物理上注入不出去。
+        let observeOnly = ProcessInfo.processInfo.environment["AURORA_OBSERVE_ONLY"] == "1"
+        let tccSatisfied = observeOnly ? screenOK : (axOK && screenOK)
+        if !tccSatisfied {
             if diagSkip {
                 engineLog("[ENGINE] ⚠️ 诊断旁路生效（AURORA_ENGINE_DIAG_SKIP_TCC=1），继续运行以便验证非权限逻辑")
+            } else if observeOnly {
+                // 观测模式下只差 screen 时，给出精确的缺失项（便于用户定位该勾哪个）
+                engineLog("[ENGINE] 观测模式：屏幕录制权限缺失（ax=\(axOK) 观测模式不需要）→ fail-fast")
+                exit(2)
             } else {
                 engineLog("[ENGINE] TCC 权限不足，fail-fast 退出（权限须由父进程链继承）")
                 exit(2)
             }
+        } else if observeOnly && !axOK {
+            engineLog("[ENGINE] 观测模式（AURORA_OBSERVE_ONLY=1）：screen=\(screenOK) 通过，"
+                      + "ax=\(axOK) 按设计放宽（本模式不注入按键）")
         }
 
         // ── Game Mode 对抗（持久战）：静音音频 + 每 3s 重新主张 ──
@@ -619,7 +807,58 @@ enum EngineMain {
                     if heartbeatCount % 5 == 0 {
                         let seq = EngineGlobals.shm?.publishedSeq ?? 0
                         let hasFrame = EngineGlobals.state?.currentFrameCG != nil
-                        engineLog("[ENGINE] 统计: seq=\(seq) 有帧=\(hasFrame) det=\(EngineGlobals.state?.yoloEngine.detections.count ?? 0) driving=\(EngineGlobals.state?.isDriving ?? false)")
+                        // 掩码诊断：把「引擎到底有没有在跑 YOLOPX、有没有把掩码发出去」
+                        // 变成日志里可见的事实。
+                        //
+                        // 为什么必须加这段：此前 `引擎模式下 YOLOPX 到底跑不跑`
+                        // 只存在于代码注释的推断里（EngineMain.swift 顶部那段
+                        // 「根本不跑」），而它是**基于旧代码**写的 —— 那时
+                        // yolopxEngine.infer 只在 UI 本地分支调用。后来引擎也跑
+                        // 同一个 tick，结论可能已经反转，但没有任何运行时证据。
+                        // 用户报「看不到车道线」时，无法区分是
+                        // ①模型没输出 ②引擎没跑 ③掩码没传 ④UI 没画。
+                        // 这行把 ① ② ③ 一次性暴露出来（④ 由 UI 侧自理）。
+                        let px = EngineGlobals.state?.yolopxEngine
+                        engineLog("[ENGINE] 统计: seq=\(seq) 有帧=\(hasFrame) det=\(EngineGlobals.state?.yoloEngine.detections.count ?? 0) driving=\(EngineGlobals.state?.isDriving ?? false)"
+                            + " yolopx:加载=\(px?.isLoaded ?? false) 帧数=\(px?.inferenceCount ?? 0)"
+                            + " da=\(px?.drivableMask.positiveCount ?? 0)格 ll=\(px?.laneMask.positiveCount ?? 0)格"
+                            + " 降级=\(px?.isDegraded ?? true) maskSeq=\(EngineGlobals.maskSeq)"
+                            // ── 2026-09-29 新增：YOLOPX 单帧耗时（此前只在 selftest 打印，
+                            //    真机路径完全没有记录，导致「真机 385ms vs 空载 50ms」
+                            //    这个 7.7 倍差距无从追溯）。lastLatencyMs 覆盖
+                            //    「模型推理 + NMS + 掩码提取」，不含主线程 letterbox。
+                            + " 耗时=\(String(format: "%.1f", px?.lastLatencyMs ?? 0))ms")
+
+                        // ── 阶段1（2026-10-01）：生产 tick 分段统计导出 ──
+                        // 【为什么在这里导出】`PerfBus` 是**进程内**单例，而生产 tick
+                        //   跑在引擎进程里 —— 从外部另起一个 `--tick-profile` 进程读不到
+                        //   任何样本（实测确实读到全 0，这本身就印证了"盲区"的存在）。
+                        //   故复用本已存在的 5 秒统计通道把分段数据写进日志，
+                        //   这样**不需要任何新机制**就能在真实负载下取到分段占比。
+                        //
+                        // 【零成本】仅在 `AURORA_PERF=1` 时输出；未设时下面整段跳过，
+                        //   连字符串拼接都不会发生。
+                        if PerfBus.enabled {
+                            let seg = ["tick.consumeFrame", "tick.yoloFast", "tick.opticalflow",
+                                       "tick.nativeROI", "tick.motion", "tick.speed",
+                                       "tick.degrade", "tick.confidence", "tick.ruleDecision",
+                                       "tick.laneFallback", "tick.inject", "tick.record",
+                                       "tick.debugSummary", "tick.total"]
+                            var parts: [String] = []
+                            for ch in seg {
+                                let st = PerfBus.shared.stats(ch)
+                                guard !st.isEmpty else { continue }
+                                // 只报 p50/p95：n 与 mean 在日志里冗余（卡顿看长尾）
+                                let name = ch.replacingOccurrences(of: "tick.", with: "")
+                                parts.append(String(format: "%@=%.2f/%.2f", name, st.median, st.p95))
+                            }
+                            if !parts.isEmpty {
+                                // 采样窗口后 reset，让下一条统计反映**新窗口**而非累计值 ——
+                                // 累计值会被进程启动初期的懒加载/预热污染（上一轮 n=1 踩过）。
+                                engineLog("[PERF] tick分段(p50/p95 ms): " + parts.joined(separator: " "))
+                                PerfBus.shared.reset()
+                            }
+                        }
                     }
                 }
             }
@@ -659,6 +898,44 @@ enum EngineMain {
             isDriving: st.isDriving,
             isStreaming: st.isStreaming,
             fullFrame: full)
+
+        // ── 掩码回传（协议 v3）──
+        //
+        // 为什么在这里而不是在 publish 内部：publish 是"帧发布"，掩码是另一条
+        // 数据流（不同更新频率）。分开调用语义更清楚，也便于单独短路。
+        //
+        // 为什么用指纹短路：YOLOPX 15Hz / tick 30Hz，连续两帧的掩码通常一模一样。
+        // 指纹 = 前景格数 + 尺寸（前景格数变化即认为掩码变了；这个判据足够灵敏，
+        // 因为掩码是 0/1 网格，格数不变而形状变的概率极低，且即使漏一次
+        // 也只影响一帧的显示，下一帧必然补上）。
+        //
+        // ⚠️ 只在驾驶中发：没开始驾驶时引擎本来就没有掩码（模型未加载），
+        //    发空网格等于让 UI 侧白跑一遍解析。
+        if st.isDriving {
+            let da = st.yolopxEngine.drivableMask
+            let ll = st.yolopxEngine.laneMask
+            let fp = da.positiveCount &* 1000003 &+ ll.positiveCount &* 31
+                &+ da.width &* 7 &+ ll.width
+            if fp != EngineGlobals.lastMaskFingerprint {
+                EngineGlobals.lastMaskFingerprint = fp
+                EngineGlobals.maskSeq &+= 1
+            }
+            EngineGlobals.shm?.publishMasks(
+                drivable: da, lane: ll,
+                metrics: st.yolopxEngine.metrics,
+                isDegraded: st.yolopxEngine.isDegraded,
+                laneDegraded: st.yolopxEngine.laneDegraded,
+                drivableDegraded: st.yolopxEngine.drivableDegraded,
+                seq: EngineGlobals.maskSeq)
+        } else if EngineGlobals.maskSeq != 0 {
+            // 停车：清掉掩码，避免 UI 侧留着上一次驾驶的残影
+            EngineGlobals.maskSeq = 0
+            EngineGlobals.lastMaskFingerprint = 0
+            EngineGlobals.shm?.publishMasks(drivable: .empty, lane: .empty,
+                                            metrics: .zero, isDegraded: true,
+                                            laneDegraded: true, drivableDegraded: true,
+                                            seq: 0)
+        }
     }
 
     // MARK: - 命令处理

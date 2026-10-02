@@ -218,11 +218,204 @@ final class SpeedOCRReader {
 
     // MARK: - 初始化
 
+    /// 模型加载专用串行队列（2026-09-30 异步化改造）。
+    /// 用串行队列保证：`ensureModelsLoaded()` 的 `sync {}` 屏障能等到本轮加载结束。
+    private static let modelLoadSerial = DispatchQueue(label: "com.aurora.speedocr.modelload")
+    @ObservationIgnored private let modelLoadQueue = SpeedOCRReader.modelLoadSerial
+
     init() {
-        // 加载 CNN 备用模型（先备后主，便于在主模型加载失败时给出准确提示）
-        loadCNNModel()
-        // 加载 PP-OCRv6 微调整行模型（主路径）
-        loadPPOCRModel()
+        // ══════════════════════════════════════════════════════════════════════
+        // ⚠️ 2026-09-30 修复：模型加载移出 init（改为后台异步 + 惰性补加载）
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // 【症状】`open AuroraDriveUI.app` / Finder 双击启动时进程**永久空转**：
+        //   2~4 线程 / 0.0% CPU / 2~70MB RSS，CPU 时间 30 秒零增长，
+        //   不建窗口、不写日志。同一个二进制从 shell 跑完全正常
+        //   （13~15 线程 / 17% CPU / 窗口 1200×760 / 日志齐全）。
+        //
+        // 【根因 —— 已用「跳过实验」证实】
+        //   `sample` 三次采样栈恒为：
+        //     _handleAEOpenEvent                    ← 只有 open/双击才走
+        //       → _reopenWindowsAsNecessaryIncludingRestorableState
+        //         → NSPersistentUIRestorer.restoreStateFromRecords
+        //           → AppKitWindow.init(contentViewController:)
+        //             → NSHostingView.viewDidMoveToWindow
+        //               → SwiftUI AttributeGraph 更新
+        //                 → ContentView.init → DriveState.init
+        //                   → SpeedOCRReader.init → loadCNNModel()
+        //                     → MLModel(contentsOf:)      ← 主线程同步 I/O
+        //   同时后台线程停在：
+        //     DispatchQueue: com.apple.coreml.MLModelAssetResourceFactory.modelLoadQueue
+        //       → std::basic_filebuf::open → fopen → open$NOCANCEL
+        //   即：**主线程在 Apple Event 处理期间同步做 CoreML 模型 I/O**，
+        //   CoreML 内部加载队列又要与主线程同步 → 死锁。
+        //   shell 启动不经过 Apple Event（窗口由 SwiftUI 正常生命周期创建），
+        //   所以同一条代码路径不卡。
+        //
+        // 【归因证据 —— 决定性实验】
+        //   加 `AURORA_SKIP_MODEL_LOAD=1` 让 init 直接 return，其余一字未改：
+        //     open 启动 → 从「2 线程 / 2M / 0 行日志」
+        //                变为「11 线程 / 101MB / 日志正常写出」
+        //     且主线程栈落回正常的事件等待
+        //       （_DPSBlockUntilNextEventMatchingListInMode）。
+        //   ⟹ 模型加载就是卡点，且**只在 Apple Event 路径上致命**。
+        //
+        // 【为什么改成异步是安全的】
+        //   旧写法把「加载模型」当作 init 的前置条件，于是：
+        //     · 启动被磁盘 I/O + CoreML 内部加载绑死；
+        //     · 一旦加载路径被外部事件重入（Apple Event），就是死锁。
+        //   新写法把加载挪到后台队列，init 只启动加载、立即返回：
+        //     · 首次推理前由 `ensureModelsLoaded()` 兜底（见 infer 入口），
+        //       若后台还没加载完就阻塞等一次 —— 行为与旧版等价，不丢功能；
+        //     · `modelsReady` 供 UI 如实显示「模型加载中」，绝不假装可用；
+        //     · 加载失败时仍走原有的双模型审计分支（提示语义逐字保留）。
+        //   **对 shell 启动等价或更快**：原来 371+97ms 在启动关键路径上，
+        //   现在并行于窗口构建，首次推理时通常已就绪。
+        startModelLoading()
+    }
+
+    // MARK: - 模型加载状态（异步）
+
+    /// 后台加载是否已结束（无论成败）。仅供诊断/测试观察。
+    @ObservationIgnored private(set) var modelsLoadFinished = false
+
+    /// 是否正在后台加载模型（UI 可显示"模型加载中"）
+    private(set) var modelsLoading = false
+
+    /// 启动后台加载：在专用串行队列上做 CoreML I/O，完成后回主线程做状态审计。
+    /// 幂等 —— 重复调用不会重复加载。
+    private func startModelLoading() {
+        if modelsLoading || modelsLoadFinished { return }
+        modelsLoading = true
+
+        // 诊断开关：AURORA_SKIP_MODEL_LOAD=1 时完全不加载（用于隔离验证归因）。
+        // 此时 modelsLoadFinished 保持 false，首次推理会走 ensureModelsLoaded() 再加载，
+        // 因此该开关不影响功能，只影响加载时机。
+        if ProcessInfo.processInfo.environment["AURORA_SKIP_MODEL_LOAD"] == "1" {
+            modelsLoading = false
+            errorMessage = "AURORA_SKIP_MODEL_LOAD=1（诊断）：速度模型延迟到首次推理前加载"
+            return
+        }
+
+        // 注意：CoreML 的 MLModel 在线程间只读使用是安全的；本类所有可变状态
+        // （cnnModel / ppocrModel / ppocrKeys / activeEngine …）都在主线程写入，
+        // 加载完成后统一切回主线程赋值 —— 与旧版「init 里同步加载」的可变性
+        // 语义完全一致，不引入新的数据竞争。
+        modelLoadQueue.async { [weak self] in
+            guard let self else { return }
+            // 在后台队列上做纯 I/O：加载到局部变量，不碰任何 @Observable 状态
+            let loaded = Self.loadModelsOnBackground()
+            DispatchQueue.main.async {
+                self.applyLoadedModels(loaded)
+                self.modelsLoading = false
+                self.modelsLoadFinished = true
+            }
+        }
+    }
+
+    /// 首次推理前兜底：若后台加载尚未完成，同步等待一次（保证不丢功能）。
+    /// 只在极端情况（启动后立刻就有帧）才会真正阻塞，且此时加载通常已完成。
+    private func ensureModelsLoaded() {
+        guard !modelsLoadFinished else { return }
+        // 等一次性加载结束（后台队列串行，最多等一轮 I/O）
+        modelLoadQueue.sync { }
+        if !modelsLoadFinished {
+            // 后台任务异常未回主线程（不应发生）：直接在主线程补一次，保证可用
+            applyLoadedModels(Self.loadModelsOnBackground())
+            modelsLoadFinished = true
+            modelsLoading = false
+        }
+    }
+
+    /// 纯函数式加载：不接触任何实例状态，可在任意队列调用。
+    /// 返回三个产物，由调用方在主线程落到实例属性上。
+    private static func loadModelsOnBackground()
+        -> (cnn: MLModel?, ppocr: MLModel?, keys: [String], ppocrFailure: String) {
+
+        // ── CNN 备用模型 ──
+        let cnn = loadOneModel(candidates: modelCandidates(
+            name: "speed_digit_cnn_v4",
+            relative: "models/speed_digit_cnn_v4"))
+
+        // ── PP-OCRv6 主模型 + 字符表 ──
+        var ppocrFailure = ""
+        var keys: [String] = []
+        let root = AuroraPaths.projectRoot()
+        let keysCandidates = [
+            root.appendingPathComponent("models/ppocrv6_tiny_ft_keys.txt").path,
+            "models/ppocrv6_tiny_ft_keys.txt",
+        ]
+        if let keysPath = keysCandidates.first(where: { FileManager.default.fileExists(atPath: $0) }),
+           let raw = try? String(contentsOfFile: keysPath, encoding: .utf8) {
+            // 与训练端 PaddleOCR 加载语义一致：只去换行（\n / \r\n），绝不能 trim——
+            // 第 617 行是全角空格 U+3000（合法 token），trim 会把它滤掉导致行数错位
+            var lines = raw.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { $0.trimmingCharacters(in: CharacterSet(arrayLiteral: "\r")) }
+            if let last = lines.last, last.isEmpty { lines.removeLast() }
+            if lines.count == ppocrKeysLines {
+                keys = lines
+            } else {
+                ppocrFailure = "keys.txt 行数 \(lines.count) ≠ \(ppocrKeysLines)（防字典/模型错位）"
+            }
+        } else {
+            ppocrFailure = "keys.txt 缺失"
+        }
+
+        var ppocr: MLModel?
+        if ppocrFailure.isEmpty {
+            if let m = loadOneModel(candidates: modelCandidates(
+                name: "ppocrv6_tiny_ft_int8",
+                relative: "models/ppocrv6_tiny_ft_int8")) {
+                ppocr = m
+            } else {
+                keys = []   // 模型加载失败则表也不留，保持"整组可用"语义
+                ppocrFailure = "编译/加载失败"
+            }
+        } else {
+            keys = []
+        }
+        return (cnn, ppocr, keys, ppocrFailure)
+    }
+
+    /// 生成候选路径：已编译优先，绝对路径优先；`.mlpackage` 保底（行为可回退）。
+    private static func modelCandidates(name: String, relative: String) -> [String] {
+        let root = AuroraPaths.projectRoot()
+        return [
+            root.appendingPathComponent("\(relative).mlmodelc").path,
+            "/Users/dupi/Desktop/自动驾驶系统/\(relative).mlmodelc",
+            "\(relative).mlmodelc",
+            root.appendingPathComponent("\(relative).mlpackage").path,
+            "/Users/dupi/Desktop/自动驾驶系统/\(relative).mlpackage",
+            "\(relative).mlpackage",
+        ]
+    }
+
+    /// 按候选顺序加载单个模型：`.mlmodelc` 直接加载，`.mlpackage` 先编译。
+    private static func loadOneModel(candidates: [String]) -> MLModel? {
+        for path in candidates {
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            let url = URL(fileURLWithPath: path)
+            do {
+                let loadURL = path.hasSuffix(".mlmodelc")
+                    ? url
+                    : try MLModel.compileModel(at: url)
+                return try MLModel(contentsOf: loadURL)
+            } catch {
+                continue   // 换下一个候选；全失败则由调用方给提示
+            }
+        }
+        return nil
+    }
+
+    /// 主线程：把后台加载结果落到实例属性，并做双模型审计（提示语义与旧版逐字一致）。
+    private func applyLoadedModels(
+        _ loaded: (cnn: MLModel?, ppocr: MLModel?, keys: [String], ppocrFailure: String)
+    ) {
+        if let c = loaded.cnn { cnnModel = c }
+        if let p = loaded.ppocr { ppocrModel = p }
+        ppocrKeys = loaded.keys
+        ppocrLoadFailure = loaded.ppocrFailure
+
         // 双模型加载状态审计：任一缺失都显式提示，绝不静默
         switch (ppocrModel, cnnModel) {
         case (.some, .some):
@@ -244,13 +437,10 @@ final class SpeedOCRReader {
     /// - 加载失败时 ppocrModel 保持 nil，loadPPOCRModel 把原因写入 ppocrLoadFailure
     private var ppocrLoadFailure: String = ""
 
+    /// 兼容壳（2026-09-30）：与 `loadCNNModel()` 同理，委托到统一实现。
     private func loadPPOCRModel() {
+        guard ppocrModel == nil else { return }
         let root = AuroraPaths.projectRoot()
-        let candidates = [
-            root.appendingPathComponent("models/ppocrv6_tiny_ft_int8.mlpackage").path,
-            "models/ppocrv6_tiny_ft_int8.mlpackage",
-        ]
-        // 字符表先于模型加载：缺表则模型无法解码
         let keysCandidates = [
             root.appendingPathComponent("models/ppocrv6_tiny_ft_keys.txt").path,
             "models/ppocrv6_tiny_ft_keys.txt",
@@ -260,51 +450,65 @@ final class SpeedOCRReader {
             ppocrLoadFailure = "keys.txt 缺失"
             return
         }
-        // 与训练端 PaddleOCR 加载语义一致：只去换行（\n / \r\n），绝不能 trim——
-        // 第 617 行是全角空格 U+3000（合法 token），trim 会把它滤掉导致行数 6903、索引错位
-        var lines = raw.split(separator: "\n", omittingEmptySubsequences: false)
+        var ks = raw.split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: CharacterSet(arrayLiteral: "\r")) }
-        // 文件末尾换行会产生一个尾随空串，去掉（不计入 6904 行）
-        if let last = lines.last, last.isEmpty { lines.removeLast() }
-        guard lines.count == Self.ppocrKeysLines else {
-            ppocrLoadFailure = "keys.txt 行数 \(lines.count) ≠ \(Self.ppocrKeysLines)（防字典/模型错位）"
+        if let last = ks.last, last.isEmpty { ks.removeLast() }
+        guard ks.count == Self.ppocrKeysLines else {
+            ppocrLoadFailure = "keys.txt 行数 \(ks.count) ≠ \(Self.ppocrKeysLines)（防字典/模型错位）"
             return
         }
-        ppocrKeys = lines
-
-        guard let modelPath = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+        ppocrKeys = ks
+        guard let m = Self.loadOneModel(candidates: Self.modelCandidates(
+            name: "ppocrv6_tiny_ft_int8",
+            relative: "models/ppocrv6_tiny_ft_int8")) else {
             ppocrKeys = []
-            ppocrLoadFailure = "mlpackage 缺失"
+            ppocrLoadFailure = "编译/加载失败"
             return
         }
-        do {
-            // 新版 macOS 对 .mlpackage 需先编译再加载
-            let compiledURL = try MLModel.compileModel(at: URL(fileURLWithPath: modelPath))
-            ppocrModel = try MLModel(contentsOf: compiledURL)
-        } catch {
-            ppocrKeys = []   // 模型加载失败则表也不留，保持"整组可用"语义
-            ppocrLoadFailure = "编译/加载失败: \(error.localizedDescription)"
-        }
+        ppocrModel = m
     }
 
     /// 从 models/speed_digit_cnn_v4.mlpackage 加载CNN模型
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-09-30 修复：优先加载**已编译**的 `.mlmodelc`，避免主线程编译
+    /// ══════════════════════════════════════════════════════════════════════
+    ///
+    /// 【症状】用 `open AuroraDriveUI.app`（LaunchServices）启动时进程**永久空转**：
+    ///   4 线程 / 0.0% CPU / 70MB RSS，不写日志、不建窗口，60 秒后依然如此。
+    ///   而从 shell 直接跑同一个二进制完全正常（15 线程 / 17% CPU / 25 行日志）。
+    ///   **对照实验证明这不是本仓库改动引入的**：用改动前的备份二进制
+    ///   （`AuroraDriveUI.bak-20260929-2317`）走 `open` 同样空转（6 线程 / 0% CPU）。
+    ///
+    /// 【根因】`sample` 抓到主线程栈恒停在：
+    ///     ContentView.init → DriveState.init → SpeedOCRReader.init
+    ///       → loadCNNModel → MLModel.compileModel(at:)
+    ///         → ModelPackage 构造 → fopen → open()   ← 阻塞在这里
+    ///   同时系统日志（CoreML 子系统）打出 Apple 官方的 Fault：
+    ///     「This method should not be called on the main thread
+    ///       as it may lead to UI unresponsiveness.」
+    ///   即：**在主线程同步编译 CoreML 模型**，这是 Apple 明确反对的用法。
+    ///
+    /// 【为什么 `.mlpackage` 要编译】`MLModel(contentsOf:)` 只接受已编译的
+    ///   `.mlmodelc`；喂 `.mlpackage` 必须先过 `MLModel.compileModel(at:)`。
+    ///   而编译是重活（本机实测 176ms 起，受模型大小与磁盘影响），
+    ///   把它放在 `DriveState.init()` 里就等于放在启动关键路径上。
+    ///
+    /// 【修法】把编译**前移出运行期**：用 Xcode 工具链的 `coremlcompiler` 预编译，
+    ///   产物 `models/speed_digit_cnn_v4.mlmodelc` 与 `.mlpackage` 并列存放；
+    ///   运行期优先命中 `.mlmodelc`（直接 `MLModel(contentsOf:)`，零编译），
+    ///   找不到才回退到原来的 `.mlpackage` + 编译路径。
+    ///   **行为零变更**：模型、精度、推理结果完全相同 ——
+    ///   `.mlmodelc` 就是 `compileModel` 本来会产出的东西，只是提前算好了。
+    ///   对已经能跑的环境（shell 启动）唯一变化是**启动更快**。
+    /// 兼容壳（2026-09-30）：加载逻辑已统一到 `loadModelsOnBackground()` /
+    /// `applyLoadedModels()`，这里保留旧入口供既有调用方使用，语义等价。
+    /// 新代码请用 `ensureModelsLoaded()`（幂等，异步）。
     private func loadCNNModel() {
-        let candidates = [
-            "models/speed_digit_cnn_v4.mlpackage",
-            "/Users/dupi/Desktop/自动驾驶系统/models/speed_digit_cnn_v4.mlpackage",
-        ]
-        for path in candidates {
-            guard FileManager.default.fileExists(atPath: path) else { continue }
-            let url = URL(fileURLWithPath: path)
-            do {
-                // 新版 macOS 对 .mlpackage 需先编译再加载
-                let compiledURL = try MLModel.compileModel(at: url)
-                let model = try MLModel(contentsOf: compiledURL)
-                cnnModel = model
-                return
-            } catch {
-                // 加载失败静默（infer 闸门会显示“CNN模型未加载”）
-            }
+        if cnnModel == nil {
+            cnnModel = Self.loadOneModel(candidates: Self.modelCandidates(
+                name: "speed_digit_cnn_v4",
+                relative: "models/speed_digit_cnn_v4"))
         }
     }
 
@@ -313,6 +517,10 @@ final class SpeedOCRReader {
     /// 喂入一帧原生速度表 ROI 缓冲：CIImage 路径裁 3 槽（不插值）→ 后台 OCR → 主线程写快照
     /// - Parameter nativePixelBuffer: CaptureEngine onNativeFrame 的原生 ROI 帧（环1 后为速度表切片）
     func infer(nativePixelBuffer: CVPixelBuffer) {
+        // 闸 0（2026-09-30）：模型可能还在后台加载 —— 首次推理前兜底等一次。
+        // 正常情况（启动后 1s 内首帧才到）此时已加载完毕，等于零开销。
+        ensureModelsLoaded()
+
         // 调试用：记录原生帧尺寸（环1 后为 ROI 尺寸，无论后续是否被节流都更新）
         let sw = CVPixelBufferGetWidth(nativePixelBuffer)
         let sh = CVPixelBufferGetHeight(nativePixelBuffer)

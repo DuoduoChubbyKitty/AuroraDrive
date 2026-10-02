@@ -57,7 +57,11 @@ final class EngineClient {
     ///
     /// 1 = 原始（start/stop/bye/status/upscale/ping）
     /// 2 = 新增 record / reloadmodel / config + 心跳 recording/frames/proto
-    nonisolated static let protocolVersion = 2
+    /// 3 = 共享内存新增**掩码区**（da/ll 位压缩网格 + letterbox 几何），
+    ///     `pixelsOffset` 从 20480 后移到 28672。**这是布局变更**：
+    ///     新旧混跑时旧 UI 会把掩码区当像素读 → 花屏，所以必须升版本，
+    ///     让版本守卫强制重启引擎（`EngineClient:227` 的 stale 判据）。
+    nonisolated static let protocolVersion = 3
 
     // ── UI 读取的状态 ──
     private(set) var isActive = false          // 引擎模式已激活（连接成功）
@@ -66,6 +70,27 @@ final class EngineClient {
     private(set) var engineIsStreaming = false
     private(set) var engineFPS: Double = 0
     private(set) var engineDetections: [Detection] = []
+
+    // ── 引擎回传的掩码（协议 v3 新增）──
+    /// 可行驶区（da）网格。UI 侧的 `MaskOverlay` 直接读它。
+    /// 引擎模式下 UI 不跑 YOLOPX，掩码只能由引擎送过来（见 EngineMain 文件头）。
+    private(set) var engineDrivableMask: MaskGrid = .empty
+    /// 车道线（ll）网格
+    private(set) var engineLaneMask: MaskGrid = .empty
+    /// 掩码对应的 letterbox 几何（把网格还原到画面坐标要用）
+    private(set) var engineMaskMetrics: LetterboxMetrics = .zero
+    /// 引擎侧是否已降级（掩码不可信）
+    private(set) var engineMaskDegraded: Bool = true
+    /// 引擎侧车道线**单独**塌陷（显示层用：只压暗车道线，不连坐可行驶区）
+    ///
+    /// ⚠️ 2026-09-27：与 `engineMaskDegraded` 分开的原因见 YolopxEngine
+    ///    里 `laneDegraded` 的说明 —— 车道线是细目标、天然贴近下限，
+    ///    单一总开关会让它一塌陷就把可行驶区一起压暗到不可见。
+    private(set) var engineLaneDegraded: Bool = true
+    /// 引擎侧可行驶区**单独**塌陷（显示层用：只压暗可行驶区，不连坐车道线）
+    private(set) var engineDrivableDegraded: Bool = true
+    /// 最近一次解析到的掩码世代号（用于判断掩码是否新鲜）
+    private(set) var engineMaskSeq: UInt64 = 0
     private(set) var lastHeartbeat = Date.distantPast
     private(set) var enginePID: Int32 = 0
     /// 引擎自报的协议版本（0 = 旧引擎，不发 proto 字段）
@@ -561,6 +586,85 @@ final class EngineClient {
             engineDetections = dets
         }
 
+        // ── 掩码区（协议 v3）──
+        //
+        // 为什么用「世代号变化才解析」而不是每帧无条件解析：
+        //   引擎侧 YOLOPX 是 15Hz，而 tick 是 30Hz。掩码只在 YOLOPX 出结果时更新，
+        //   无条件解析会让一半的帧在解重复数据（每帧要展开 2×3200 字节位图
+        //   = 51200 次位运算）。seq 没变就直接跳过。
+        //
+        // 为什么 seq 变化时**必须**整体重建而不是原地改：
+        //   MaskGrid 是 let 属性的 struct，且 at() 有长度守卫；
+        //   重建一份新的能保证 cells.count == width*height 这个不变式。
+        // ⚠️ 安全门（必须）：掩码区的偏移(constant)是按 **协议 v3 的布局** 算的，
+        //    但共享内存是**引擎**创建的，UI 只是映射了它。如果引擎还是旧版（v2，
+        //    pixelsOffset=20480，总长更小），按 v3 偏移去读掩码会读到 mmap 之外
+        //    → **SIGSEGV 直接崩掉 UI 进程**。
+        //
+        //    版本守卫（EngineMain 心跳里的 proto）确实存在，但它在 tickEngineMode
+        //    里的位置**晚于**本次 poll() —— 先读后查，来不及拦。
+        //    所以在读取点做**物理边界校验**：映射长度不够就整个跳过。
+        //    这是最后一道防线，比版本号可靠（版本号是"约定"，长度是"事实"）。
+        let maskRegionEnd = EngineFrameShm.maskOffset + EngineFrameShm.maskRegionBytes
+        let maskReadable = shmSize >= maskRegionEnd
+        let maskSeq = maskReadable ? base.load(fromByteOffset: 80, as: UInt64.self) : engineMaskSeq
+        if maskReadable, maskSeq != engineMaskSeq {
+            engineMaskSeq = maskSeq
+            let flags = base.load(fromByteOffset: 104, as: UInt32.self)
+            engineMaskDegraded = (flags & 1) != 0
+            // bit2/bit3：分层塌陷标志。旧引擎（协议 v3 早期版本）不发这两个位，
+            // 那时它们恒为 0 → 两层都不会被压暗。这是**安全的降级方向**：
+            // 显示层偏亮（能看见），而不是偏暗（看不见）。
+            engineLaneDegraded = (flags & 4) != 0
+            engineDrivableDegraded = (flags & 8) != 0
+            let maskValid = (flags & 2) != 0
+            if maskValid {
+                let dw = Int(base.load(fromByteOffset: 88, as: UInt32.self))
+                let dh = Int(base.load(fromByteOffset: 92, as: UInt32.self))
+                let lw = Int(base.load(fromByteOffset: 96, as: UInt32.self))
+                let lh = Int(base.load(fromByteOffset: 100, as: UInt32.self))
+                let ratio = Double(base.load(fromByteOffset: 108, as: Float.self))
+                let padX = Int(base.load(fromByteOffset: 112, as: UInt32.self))
+                let padY = Int(base.load(fromByteOffset: 116, as: UInt32.self))
+                let srcW = Int(base.load(fromByteOffset: 120, as: UInt32.self))
+                let srcH = Int(base.load(fromByteOffset: 124, as: UInt32.self))
+                // 128/132：letterbox 内容区尺寸。
+                //
+                // ⚠️ 2026-09-28：这两格是**这次才补进协议**的。此前这里硬填
+                //    `newW: 0, newH: 0`，而 `MaskOverlay` 当时用
+                //    `guard metrics.newW > 0` 当绘制守卫 → 引擎模式下掩码全不画
+                //    （用户："只能看到检测框，看不到可行驶区域和车道线"）。
+                //    现在协议真的传了，这两个值就是真实几何。
+                //
+                // 兼容说明：旧引擎不写这两格（内容为 0），此时 newW/newH 为 0。
+                // 但这**不再影响可见性** —— MaskOverlay 已改为不依赖 newW 判断
+                // 能否绘制（绘制数学本来也不需要它）。这是刻意的双保险。
+                let newW = Int(base.load(fromByteOffset: 128, as: UInt32.self))
+                let newH = Int(base.load(fromByteOffset: 132, as: UInt32.self))
+
+                // 尺寸合法性：网格不得超过协议上限（越界会读到像素区）
+                if dw > 0, dh > 0, dw <= EngineFrameShm.maskGridMax,
+                   dh <= EngineFrameShm.maskGridMax, lw >= 0, lh >= 0,
+                   lw <= EngineFrameShm.maskGridMax, lh <= EngineFrameShm.maskGridMax {
+                    engineDrivableMask = Self.readMask(base: base,
+                                                       offset: EngineFrameShm.maskOffset,
+                                                       w: dw, h: dh)
+                    engineLaneMask = lw > 0 && lh > 0
+                        ? Self.readMask(base: base,
+                                        offset: EngineFrameShm.maskOffset + EngineFrameShm.maskBytes,
+                                        w: lw, h: lh)
+                        : .empty
+                    engineMaskMetrics = LetterboxMetrics(ratio: ratio, padX: padX, padY: padY,
+                                                         padBottom: 0, newW: newW, newH: newH,
+                                                         srcW: srcW, srcH: srcH)
+                }
+            } else {
+                // 引擎明确表示"本帧没有掩码"（例如未开始驾驶 / 模型未加载）
+                engineDrivableMask = .empty
+                engineLaneMask = .empty
+            }
+        }
+
         // ── 状态标志 ──
         let flags = base.load(fromByteOffset: 60, as: UInt32.self)
         engineIsDriving = (flags & 1) != 0
@@ -569,6 +673,36 @@ final class EngineClient {
         if fpsMilli > 0 { engineFPS = Double(fpsMilli) / 1000.0 }
 
         return frameCache
+    }
+
+    // MARK: - 掩码解码
+
+    /// 从共享内存读一个位压缩掩码并展开成 `MaskGrid`。
+    ///
+    /// 与引擎侧 `EngineFrameShm.writeMask` 严格对称：
+    ///   · 每行 `(w+7)/8` 字节
+    ///   · 第 y 行第 x 列对应 `ptr[y*bytesPerRow + x/8]` 的第 `x%8` 位
+    ///
+    /// 展开成 UInt8 数组（0/1）而不是保留位图，是为了让 `MaskGrid.at()`
+    /// 及其长度守卫原样可用 —— 下游 `LaneFallback` / `MaskOverlay` 都按
+    /// `cells.count == width*height` 的前提写。这点内存（25.6KB×2）换来
+    /// 零下游改动，值得。
+    private nonisolated static func readMask(base: UnsafeRawPointer,
+                                            offset: Int,
+                                            w: Int, h: Int) -> MaskGrid {
+        guard w > 0, h > 0 else { return .empty }
+        let bytesPerRow = (w + 7) / 8
+        var cells = [UInt8](repeating: 0, count: w * h)
+        let ptr = base.advanced(by: offset).assumingMemoryBound(to: UInt8.self)
+        for y in 0..<h {
+            let rowBase = y * bytesPerRow
+            for x in 0..<w {
+                if ptr[rowBase + x / 8] & UInt8(1 << (x % 8)) != 0 {
+                    cells[y * w + x] = 1
+                }
+            }
+        }
+        return MaskGrid(width: w, height: h, cells: cells)
     }
 
     // MARK: - 命令

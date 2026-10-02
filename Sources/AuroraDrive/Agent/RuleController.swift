@@ -137,26 +137,39 @@ final class RuleController {
         // 语义保持"越高越可靠"不变。
 
         // 危险等级分档
+        //
+        // 🚨 2026-10-02 修改（用户明确要求）：**取消规则侧的一切自动刹车**。
+        //
+        // 原因：本游戏里 `brake` 唯一的物理含义是**按 S 键，而 S 键兼作倒车**。
+        //   即"自动刹车"实际等于"自动倒车"。用户实测：托管中车辆不停自动倒车、
+        //   与用户抢控制权，用户想自主倒车脱困时被反复打断（倒车速度永远达不到
+        //   托管标准）。叠加第三视角下自车被模型当成障碍框，误触发极其频繁。
+        //
+        // 现在的策略：**只转向、只压油门，绝不自动刹车**。
+        //   · 危险时靠"压低油门 + 转向避让"处理，让车自然减速/绕开；
+        //   · 真要停车/倒车，由**用户自己踩** —— AI 不再抢这个控制权。
+        //
+        // ⚠️ throttle 仍保留分级（危险时不给油），这不是刹车，只是不加速。
         if urgency > hardBrakeUrgency {
             dangerLevel = .critical
-            // 急刹：刹死 + 向障碍反方向打满
+            // 紧急避让：不给油 + 向障碍反方向打满（b 恒 0，绝不自动倒车）
             return ControlCommand(steer: offset > 0 ? -1.0 : 1.0,
                                   throttle: 0,
-                                  brake: 1.0,
+                                  brake: 0,
                                   confidence: obs.confidence)
         } else if urgency > brakeUrgency {
             dangerLevel = .danger
-            // 减速避让：半刹车 + 向障碍反方向转向
+            // 减速避让：低油门 + 向障碍反方向转向（b 恒 0）
             return ControlCommand(steer: (offset > 0 ? -1.0 : 1.0) * steerStrength,
                                   throttle: 0.2,
-                                  brake: 0.6,
+                                  brake: 0,
                                   confidence: obs.confidence)
         } else {
             dangerLevel = .caution
-            // 轻微避让：保持油门 + 轻微转向绕开
+            // 轻微避让：保持油门 + 轻微转向绕开（b 恒 0）
             return ControlCommand(steer: (offset > 0 ? -0.5 : 0.5) * steerStrength,
                                   throttle: 0.6,
-                                  brake: 0.1,
+                                  brake: 0,
                                   confidence: obs.confidence)
         }
     }

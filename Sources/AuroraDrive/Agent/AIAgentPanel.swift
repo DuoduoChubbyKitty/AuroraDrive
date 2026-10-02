@@ -498,7 +498,14 @@ final class AgentSkillCenter: @unchecked Sendable {
     func configure(control: ControlEngine?, capture: CaptureEngine?) {
         self.control = control
         self.capture = capture
-        if let c = control { _ = c.checkPermission() }
+        // ⚠️ 2026-09-30 修复：这里原先是 `checkPermission()`（纯查询、不弹窗），
+        //    于是技能中心这条路径**永远不会请求权限** → 程序不进辅助功能列表
+        //    → 技能里的鼠标/键盘注入全部被系统静默丢弃（实测表现为
+        //    `[Agent] ❌ 辅助功能权限未授权，无法注入鼠标`，自动登录因此失效）。
+        //    configure 是「一次性初始化」时机，正是该请求权限的地方；
+        //    而高频重试路径（ControlEngine.press/hold 内部的 checkPermission）
+        //    保持纯查询，避免每帧弹窗。
+        if let c = control { _ = c.requestAccessibilityPermission() }
 
         // 引擎就绪后，补上启动期间排队的自动登录
         if pendingAutoLogin {
@@ -1577,22 +1584,43 @@ final class AgentSkillCenter: @unchecked Sendable {
         return MouseController()
     }
 
-    /// 调试日志：stdout + /tmp/aurora_debug.log（与 DriveState.dlog 同款策略）
+    /// 调试日志：stdout + `/tmp/aurora_debug.log`
+    ///
+    /// ⚠️ 2026-09-30 修复：原实现与 `DriveState.dlog` 是同一段有缺陷的代码 ——
+    ///    两条写入路径都用 `try?` 静默吞掉错误。而 `/tmp/aurora_debug.log` 在
+    ///    用户机器上属主是 **root**（历史遗留），UI 以普通用户运行 → 写不进去，
+    ///    且**没有任何提示**，看起来像"代码没执行"而不是"日志没写成"。
+    ///    详见 `AuroraDriveApp.swift` 里 `DriveState.dlog` 的完整现场说明。
+    ///
+    /// 修法同款：加可写回退链，全失败落 stderr，绝不静默。
+    /// 面板与 DriveState 分属不同类，故各自持有一份候选表——这是**有意的重复**：
+    /// 比跨类耦合一个 static 更不易出错，且两处可独立演进（面板将来若迁
+    /// 独立日志文件，改这一处即可）。
     private func dlog(_ msg: String) {
         let line = "\(Date().formatted(date: .omitted, time: .standard)) \(msg)"
         print(line)
-        let url = URL(fileURLWithPath: "/tmp/aurora_debug.log")
         guard let data = (line + "\n").data(using: .utf8) else { return }
-        if FileManager.default.fileExists(atPath: url.path) {
-            if let h = try? FileHandle(forWritingTo: url) {
-                h.seekToEndOfFile()
-                h.write(data)
-                try? h.close()
+
+        for path in AgentSkillCenter.dlogCandidates {
+            let url = URL(fileURLWithPath: path)
+            if !FileManager.default.fileExists(atPath: path) {
+                FileManager.default.createFile(atPath: path, contents: nil)
             }
-        } else {
-            try? data.write(to: url)
+            guard let h = try? FileHandle(forWritingTo: url) else { continue }
+            h.seekToEndOfFile()
+            h.write(data)
+            try? h.close()
+            return
         }
+        FileHandle.standardError.write(data)
     }
+
+    /// 面板日志的可写候选路径（首个可写者胜出）。
+    private static let dlogCandidates: [String] = [
+        "/tmp/aurora_debug.log",
+        NSHomeDirectory() + "/Library/Logs/aurora_debug.log",
+        "/tmp/aurora_debug_agent.log",
+    ]
 
     /// 新建对话（清空会话，保留欢迎语）
     func newConversation() {

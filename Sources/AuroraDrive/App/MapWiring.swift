@@ -100,7 +100,110 @@ enum MapDatabase {
     private(set) static var loaded = false
 
     /// 幂等加载。找不到文件时计数为 0（UI 如实显示 0，不编造）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-09-30 修复：改为「首次调用只登记、后台线程加载」
+    /// ══════════════════════════════════════════════════════════════════════
+    ///
+    /// 【症状】`open AuroraDriveUI.app` / Finder 双击启动时进程卡死在启动阶段，
+    ///   CPU 时间近乎不增长，界面不出现、日志不再写出。
+    ///
+    /// 【根因】`sample` 抓到主线程栈恒停在：
+    ///     ContentView.body.getter
+    ///       → MapDatabase.ensureLoaded()
+    ///         → NSData(contentsOfFile:)  → readBytesFromFile → open()
+    ///   即：**在 SwiftUI 的 body 求值过程中同步读取 7.2 MB 的 JSON**
+    ///   （`models/FINAL_complete_map_database.json`，5677 个标记点）。
+    ///   body 求值发生在主线程的 layout 提交阶段（NSHostingView.layout →
+    ///   ViewGraphRootValueUpdater.render），这里做磁盘 I/O 会直接把
+    ///   窗口构建与事件循环一起拖住。
+    ///
+    /// 【为什么这是真问题，而不只是启动慢】
+    ///   `ensureLoaded()` 原本在**三处**被调用（顶栏计数、大地图、标记查询），
+    ///   其中 `:2853` 就在 `ContentView.body.getter` 的求值路径上。
+    ///   只要界面第一次渲染，主线程就必须先读完 7.2 MB 并解析 JSON ——
+    ///   这与「卡顿」的用户感受直接对应：**UI 线程在做磁盘 I/O**。
+    ///
+    /// 【修法】把「读文件 + 解析」整体移到后台队列，主线程立即返回。
+    ///   · 用 `isLoading` 做并发保护（原 `didLoad` 仍是"已完成"标志）；
+    ///   · 解析结果在主线程一次性落到 `markers` / `markerCount` / `loaded`，
+    ///     与旧版语义一致（UI 靠 `loaded` 重新求值）；
+    ///   · 调用方无需改动 —— `ensureLoaded()` 仍是幂等的，只是变成"发起加载"。
+    ///   **行为等价**：数据内容、坐标系、计数全部不变，只是不再阻塞主线程。
     static func ensureLoaded() {
+        // 已加载完成，或正在后台加载 —— 都立即返回（幂等，绝不重复加载）
+        if didLoad || isLoading { return }
+        isLoading = true
+
+        DispatchQueue.global(qos: .utility).async {
+            let result = loadFromDisk()
+            DispatchQueue.main.async {
+                // 主线程一次性落状态（静态存储不触发 SwiftUI 更新，靠 `loaded` 标志）
+                if let r = result {
+                    markers = r.markers
+                    markerCount = r.markers.count
+                    loaded = true
+                    print("[MAPDB] 已加载 \(r.path) markers=\(r.markers.count)")
+                } else {
+                    print("[MAPDB] ✗ 未找到地图数据库（计数显示 0）")
+                }
+                didLoad = true
+                isLoading = false
+            }
+        }
+    }
+
+    /// 是否正在后台加载（并发保护；`didLoad` 仍表示"已完成"）
+    private static var isLoading = false
+
+    /// 后台线程：纯 I/O + 解析，不触碰任何 UI 状态。
+    /// 返回 nil 表示所有候选路径都不存在或解析失败。
+    private static func loadFromDisk() -> (path: String, markers: [Marker])? {
+        // 用 AuroraPaths.projectRoot() 定位：双击 .app 启动时 cwd 是 "/"，
+        // 依赖 cwd 会找不到数据库（界面标记数显示 0）。
+        let root = AuroraPaths.projectRoot()
+        let cands = [
+            root.appendingPathComponent("models/FINAL_complete_map_database.json").path,
+            Bundle.main.resourceURL?.appendingPathComponent("FINAL_complete_map_database.json").path
+        ].compactMap { $0 }
+
+        for path in cands where FileManager.default.fileExists(atPath: path) {
+            guard let data = FileManager.default.contents(atPath: path),
+                  let rootObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { continue }
+            guard let all = rootObj["markers_all"] as? [[String: Any]] else {
+                return (path, [])
+            }
+            let parsed = all.compactMap { m -> Marker? in
+                guard let x = (m["x"] as? NSNumber)?.doubleValue,
+                      let y = (m["y"] as? NSNumber)?.doubleValue else { return nil }
+                // 数据库的 x/y 是**归一化百分比（0~100）**，对应整张 13056×13056 地图。
+                // 直接换算成地图像素，与自车（worldToMapPixel 输出）处于同一坐标系。
+                let mx = x / 100.0 * MapTileImage.mapPixels
+                let my = y / 100.0 * MapTileImage.mapPixels
+                return Marker(name: (m["name"] as? String) ?? "",
+                              mapX: mx, mapY: my,
+                              kind: (m["type"] as? String) ?? (m["kind"] as? String) ?? "landmark",
+                              region: (m["_region_key"] as? String)
+                                      ?? (m["region"] as? String) ?? "",
+                              worldX: x, worldY: y)
+            }
+            return (path, parsed)
+        }
+        return nil
+    }
+
+    /// 旧实现（同步读盘）—— **仅离屏渲染夹具使用**（`--mc-map` 等）。
+    ///
+    /// 为什么保留：夹具是「一次性同步渲染」，没有"稍后 UI 再刷新"的机会，
+    /// 故必须同步拿到 `markers` / `markerCount`。真机 UI 一律走异步版
+    /// `ensureLoaded()`，避免在 `ContentView.body` 求值期阻塞主线程。
+    ///
+    /// 修复背景（供排障一眼看到被替换掉的原逻辑）：
+    /// 原 `ensureLoaded()` 在主线程同步读 7.2 MB JSON，栈为
+    /// `ContentView.body.getter → MapDatabase.ensureLoaded() → NSData(contentsOfFile:)`，
+    /// 把窗口构建与事件循环一起拖住。
+    static func ensureLoadedSyncLegacy() {
         guard !didLoad else { return }
         didLoad = true
         // 用 AuroraPaths.projectRoot() 定位：双击 .app 启动时 cwd 是 "/"，
