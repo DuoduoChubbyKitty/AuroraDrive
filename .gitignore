@@ -106,3 +106,30 @@ docs/**/*.mov
 # ===== 二进制备份（*.bak-* 已忽略，但备份用的是下划线）=====
 *.bak_*
 _bak_binaries/
+
+# ===== 路网/地图工具链的中间产物（2026-10-03）=====
+# tools/roadnet/ 里体积最大的是**可由脚本重新生成**的实验产物，共约 19MB：
+#   checkpoints.json (4.5M) / web/map.jpg (2.0M) / road_graph_v5.json (1.6M)
+#   road_graph.json (1.1M) / web/gray_3264.png (1.0M) / user_patch.png (0.9M×2)
+#   road_mask_v3.png (0.6M) / routing.json (0.6M) / user_guided.json (0.5M)
+#   web/palette/ (12M，89 张 3264² 调色板切片) / web/versions/
+# 与本仓库既有的「仓库瘦身」口径一致（见 commit a5a8a5a）：脚本入库，
+# 产物本地保留。需要它们时用 build_taxonomy.py / extract_v5_*.py 重跑。
+#
+# ✅ 入库的只有：脚本（*.py / *.sh）、web/index.html、web/route_graph.json、
+#    以及 models/route_graph.json（App 运行时要读的那一份）。
+tools/roadnet/checkpoints.json
+tools/roadnet/road_graph*.json
+tools/roadnet/routing.json
+tools/roadnet/user_guided.json
+tools/roadnet/user_patch.json
+tools/roadnet/user_patch.png
+tools/roadnet/road_mask_v3.png
+tools/roadnet/web/map.jpg
+tools/roadnet/web/map_2048.jpg
+tools/roadnet/web/map_512.jpg
+tools/roadnet/web/gray_3264.png
+tools/roadnet/web/gaps.png
+tools/roadnet/web/user_patch.png
+tools/roadnet/web/palette/
+tools/roadnet/web/versions/

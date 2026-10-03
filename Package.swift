@@ -157,6 +157,15 @@ let package = Package(
                 "Sources/AuroraDrive/App/ControlWiring.swift",
                 "Sources/AuroraDrive/App/LocateRuntime.swift",
                 "Sources/AuroraDrive/App/MapWiring.swift",
+                // 路网寻路（2026-10-03 新增）：V5 路网图 + A*(拐弯惩罚)。
+                // 本 target 是显式 sources 白名单，新文件不登记就
+                // `cannot find 'RouteGraph' in scope`（本文件 :164 已记过这条教训）。
+                "Sources/AuroraDrive/App/RouteGraph.swift",
+                // 标记分类词表 + 网格聚类（2026-10-03 新增）：
+                // 7 组语义分类（词表由 tools/roadnet/build_taxonomy.py 生成）
+                // 与 52px 屏幕格聚类，解决「一片同色点 + 计程车站刷屏 + 卡」。
+                "Sources/AuroraDrive/App/MarkerTaxonomy.swift",
+                "Sources/AuroraDrive/App/MarkerCluster.swift",
                 "Sources/AuroraDrive/App/MissionConsole.swift",
                 "Sources/AuroraDrive/App/AuroraDriveApp.swift",
                 "Sources/AuroraDrive/App/PerfSelfTest.swift",
@@ -176,6 +185,7 @@ let package = Package(
                 // 按面积判、只作用于决策层；UI 画框走 displayDetections 不受影响。
                 "Sources/AuroraDrive/Agent/EgoBoxFilter.swift",
                 "Sources/AuroraDrive/Core/WireSelfTest.swift",
+                "Sources/AuroraDrive/Inference/LaneKeepRealityTest.swift",
                 "Sources/AuroraDrive/Agent/DriveSegmentController.swift",
                 "Sources/AuroraDrive/Capture/CaptureEngine.swift",
                 "Sources/AuroraDrive/Capture/CoordinateCapture.swift",

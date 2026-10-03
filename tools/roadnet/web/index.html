@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>路网补描工具 — AuroraDrive</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0b0b0d;
+            font-family:-apple-system,"PingFang SC",sans-serif;-webkit-user-select:none;user-select:none}
+  #cv{position:absolute;inset:0;display:block;touch-action:none;cursor:crosshair}
+  #bar{position:absolute;top:10px;left:10px;right:10px;z-index:10;display:flex;flex-wrap:wrap;
+       gap:6px;align-items:center;background:rgba(18,20,26,.94);border:1px solid #333;
+       border-radius:10px;padding:7px 10px;color:#ddd;font-size:13px;box-shadow:0 4px 20px rgba(0,0,0,.6)}
+  #bar .grp{display:flex;gap:5px;align-items:center;padding-right:9px;border-right:1px solid #333}
+  #bar .grp:last-child{border-right:none}
+  button{background:#2a2f3a;color:#ddd;border:1px solid #3d4451;border-radius:6px;
+         padding:5px 9px;font-size:13px;cursor:pointer;white-space:nowrap}
+  button:hover{background:#37404f} button.on{background:#0b6bcb;border-color:#1e88e5;color:#fff}
+  button.danger:hover{background:#7a2020;border-color:#a03030}
+  input[type=range]{width:80px;vertical-align:middle}
+  .sw{width:22px;height:22px;border-radius:5px;border:2px solid #555;cursor:pointer}
+  .sw.on{border-color:#fff;box-shadow:0 0 0 2px #0b6bcb}
+  #hud{position:absolute;bottom:10px;left:10px;z-index:10;background:rgba(18,20,26,.9);
+       border:1px solid #333;border-radius:8px;padding:6px 10px;color:#8fa;font-size:12px;
+       font-family:ui-monospace,monospace}
+  #help{position:absolute;bottom:10px;right:10px;z-index:10;background:rgba(18,20,26,.9);
+        border:1px solid #333;border-radius:8px;padding:8px 12px;color:#aaa;font-size:12px;        line-height:1.65;max-width:300px}
+  #help b{color:#ddd}
+  /* ── 调色板 / 取色器面板 ── */
+  #palWrap{position:absolute;top:64px;right:10px;z-index:20;width:264px;max-height:calc(100vh - 150px);
+           overflow-y:auto;background:rgba(18,20,26,.96);border:1px solid #3d4451;border-radius:10px;
+           padding:8px;color:#ddd;font-size:12px;box-shadow:0 6px 24px rgba(0,0,0,.7);display:none}
+  #palWrap.show{display:block}
+  #palWrap h4{margin:2px 0 7px;font-size:12px;color:#8fa;font-weight:600}
+  #palGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(30px,1fr));gap:3px}
+  .pcell{position:relative;height:26px;border-radius:4px;border:2px solid #444;cursor:pointer;
+         display:flex;align-items:center;justify-content:center;font-size:9px;
+         font-family:ui-monospace,monospace;color:#fff;text-shadow:0 1px 3px #000}
+  .pcell:hover{border-color:#fff}
+  .pcell.on{border-color:#00ffcc;box-shadow:0 0 0 2px #00ffcc}
+  .pcell.small{opacity:.5}
+  #palInfo{margin-top:8px;padding-top:7px;border-top:1px solid #333;line-height:1.6;color:#9ab}
+  #palInfo b{color:#00ffcc;font-family:ui-monospace,monospace}
+  #pickDot{position:absolute;width:0;height:0;z-index:15;pointer-events:none}
+  /* ★ 路径规划中遮罩：旋转三点 + 滑动光带 + 文案升级 */
+  #routing{position:absolute;inset:0;z-index:120;display:none;align-items:center;justify-content:center;
+           background:rgba(6,8,12,.55);backdrop-filter:blur(2px)}
+  #routing.show{display:flex}
+  .rbox{background:rgba(16,19,26,.97);border:1px solid #2f6ea8;border-radius:16px;
+        padding:26px 40px;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,.8);
+        min-width:320px}
+  .rspin{display:flex;gap:9px;justify-content:center;margin-bottom:16px}
+  .rspin span{width:13px;height:13px;border-radius:50%;background:#2ea8ff;
+              animation:rb 1.05s infinite ease-in-out both}
+  .rspin span:nth-child(2){animation-delay:.16s;background:#57c8ff}
+  .rspin span:nth-child(3){animation-delay:.32s;background:#8fdcff}
+  @keyframes rb{0%,80%,100%{transform:scale(.45);opacity:.35}40%{transform:scale(1);opacity:1}}
+  .rtxt{color:#e8f4ff;font-size:17px;font-weight:600;letter-spacing:.5px}
+  .rsub{color:#7f9ab3;font-size:12px;margin-top:6px;min-height:16px}
+  .rbar{height:5px;border-radius:3px;background:#1d2733;margin-top:16px;overflow:hidden;position:relative}
+  .rbar i{position:absolute;top:0;left:-45%;width:45%;height:100%;border-radius:3px;
+          background:linear-gradient(90deg,transparent,#2ea8ff,#8fdcff,transparent);
+          animation:rslide 1.15s infinite linear}
+  @keyframes rslide{to{left:100%}}
+  .rmeta{color:#5f7386;font-size:11px;margin-top:12px;font-family:ui-monospace,monospace}
+  .rtxt.ai{color:#ffd27f}
+  .rbox.ai{border-color:#a8742f}
+  /* 导航侧栏 */
+  #navWrap{position:absolute;top:64px;left:10px;z-index:20;width:236px;
+           background:rgba(18,20,26,.96);border:1px solid #3d4451;border-radius:10px;
+           padding:9px;color:#ddd;font-size:12px;box-shadow:0 6px 24px rgba(0,0,0,.7);display:none}
+  #navWrap.show{display:block}
+  #navWrap h4{margin:2px 0 8px;font-size:12px;color:#8fa;font-weight:600}
+  .nrow{display:flex;gap:6px;padding:3px 0;line-height:1.5}
+  .nrow b{color:#8fa;flex:0 0 34px;font-weight:600}
+  .nrow span{color:#cfe;font-family:ui-monospace,monospace;font-size:11px}
+  #nvResult{margin-top:7px;padding-top:7px;border-top:1px solid #333;color:#9fd;
+            font-family:ui-monospace,monospace;font-size:11px;line-height:1.7}
+  #nvList{margin-top:6px;max-height:190px;overflow-y:auto}
+  .nvi{padding:3px 4px;border-radius:4px;color:#bcd;font-size:11px;cursor:pointer;line-height:1.5}
+  .nvi:hover{background:#22303d}
+  #toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+         background:rgba(11,107,203,.96);color:#fff;padding:12px 22px;border-radius:10px;
+         font-size:15px;z-index:99;opacity:0;transition:opacity .25s;pointer-events:none}
+  #toast.show{opacity:1}
+  #load{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+        color:#8fa;font-size:14px;z-index:50}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="load">加载底图中…</div>
+
+<div id="bar">
+  <div class="grp">
+    <button id="bPen" class="on">✏️ 画笔</button>
+    <button id="bErase">🧽 擦除</button>
+    <button id="bPan">✋ 平移</button>
+  </div>
+  <div class="grp"><span>粗细</span><input id="rSize" type="range" min="1" max="40" value="4">
+    <span id="lSize" style="width:18px">4</span></div>
+  <div class="grp" id="colors"></div>
+  <div class="grp">
+    <button id="bPick" title="按 I 进入取色模式：点地图任意一点 → 读出它的灰阶并全图铺出来">💧 取色</button>
+    <button id="bPal" title="展开 88 个灰阶的调色板">🎨 调色板</button>
+  </div>
+  <div class="grp" id="navGrp">
+    <button id="bNav" title="进入导航模式：在地图上点起点和终点，自动算路">🧭 寻路</button>
+    <button id="bPoi" title="显示/隐藏 1622 个 POI 采集点">📍 POI</button>
+    <select id="selTurn" title="拐弯惩罚：越大越不爱拐弯">
+      <option value="0">拐弯惩罚 0（纯最短）</option>
+      <option value="30">30（轻）</option>
+      <option value="80">80（中）</option>
+      <option value="200" selected>200（少拐弯·推荐）</option>
+      <option value="400">400（极强）</option>
+      <option value="-1">拐弯最少优先（字典序）</option>
+    </select>
+    <button id="bNavClear" title="清掉当前路径">✖ 清路</button>
+  </div>
+  <div class="grp">
+    <button id="bUndo">↶ 撤销</button><button id="bRedo">↷ 重做</button>
+    <button id="bClear" class="danger">清空</button>
+  </div>
+  <div class="grp">
+    <button id="bMap" class="on">底图</button>
+    <button id="bRoads" class="on">已抽路网</button>
+    <button id="bGaps" class="on" title="本小姐漏掉的亮路，红色高亮">缺口</button>
+    <button id="bFit">复位</button>
+  </div>
+  <div class="grp" id="versGrp" style="border-right:none">
+    <span style="color:#8fa">V5 粗白线已铺底</span>
+    <span id="versBtns"></span>
+  </div>
+  <div class="grp">
+    <button id="bSave">💾 导出笔画</button>
+    <button id="bPng">🖼 导出PNG</button>
+  </div>
+  <div class="grp"><span id="stat" style="color:#8fa"></span></div>
+</div>
+
+<div id="hud">—</div>
+
+<!-- ★ 路径规划中：滑动光带 + 文案升级 + 超时切 AI 思考中 -->
+<div id="routing">
+  <div class="rbox">
+    <div class="rspin"><span></span><span></span><span></span></div>
+    <div class="rtxt" id="rTxt">路径规划中…</div>
+    <div class="rsub" id="rSub">A* 正在搜索路网</div>
+    <div class="rbar"><i id="rBar"></i></div>
+    <div class="rmeta" id="rMeta"></div>
+  </div>
+</div>
+
+<div id="navWrap">
+  <h4>🧭 寻路</h4>
+  <div class="nrow"><b>起点</b><span id="nvA">—未选—</span></div>
+  <div class="nrow"><b>终点</b><span id="nvB">—未选—</span></div>
+  <div class="nrow" id="nvResult">点地图选起点 → 再点一次选终点</div>
+  <div id="nvList"></div>
+  <button id="nvSwap" style="width:100%;margin-top:6px">⇅ 交换起终点</button>
+</div>
+
+<div id="palWrap">
+  <h4>🎨 全图灰阶调色板（按占比排序）</h4>
+  <div id="palGrid"></div>
+  <div id="palInfo">点任意一格 → 该灰阶全图铺在原图上。<br>
+    或者按 <b>I</b> / 点 <b>💧取色</b>，直接在地图上点一下取样。</div>
+</div>
+
+<div id="help">
+  <b>滚轮</b> 缩放 · <b>空格/中键拖</b> 平移<br>
+  <b>左键</b> 画线 · <b>Alt+左键</b> 临时擦除<br>
+  <b>Ctrl+Z</b> 撤销 · <b>Ctrl+Shift+Z</b> 重做 · <b>B/E/H</b> 切工具<br>
+  <span style="color:#ff8a1e">橙</span>=已抽到 ·
+  <span style="color:#f33">红</span>=漏掉的(照它描) ·
+  <span style="color:#00ffcc">青</span>=你画的
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d',{alpha:false});
+const ST={
+  scale:1,camX:0,camY:0,mode:'pen',size:4,color:'#00ffcc',
+  strokes:[],redo:[],cur:null,
+  showMap:true,showRoads:false,showGaps:false,
+  map:null,gapsImg:null,roads:[],
+  // ★ 版本图层：每个版本一张 3264² 白色透明 PNG，可逐版切换/叠加对比
+  vers:[],           // [{id,label,img,on,km}]
+  showVers:true,
+  W:6528,H:6528,NATIVE:13056,
+  mouse:null,isDraw:false,isPan:false,
+  panSX:0,panSY:0,panCX:0,panCY:0,space:false,alt:false,
+  dirty:true,vw:0,vh:0,
+  // ★ 寻路
+  nav:false, navA:null, navB:null, navPath:null, navStats:null,
+  pois:null, showPoi:false, poiImg:null,
+};
+const COLORS=['#00ffcc','#ff3b3b','#ffd400','#4da3ff','#ff6ae0','#ffffff'];
+const toast=m=>{const t=document.getElementById('toast');t.textContent=m;
+  t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1100);};
+
+function resize(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;
+  cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ST.vw=innerWidth;ST.vh=innerHeight;ST.dirty=true;
+}
+addEventListener('resize',resize);
+const s2wX=sx=>ST.camX+sx/ST.scale, s2wY=sy=>ST.camY+sy/ST.scale;
+
+// ── 加载 ──
+function loadImg(src,key,cb){
+  const i=new Image();
+  i.onload=()=>{ST[key]=i;ST.dirty=true;cb&&cb();};
+  i.onerror=()=>toast(src+' 加载失败');
+  i.src=src;
+}
+async function boot(){
+  resize();
+  loadImg('map_2048.jpg','map');
+  loadImg('gaps.png','gapsImg');
+  // ★ 取色用：原生灰阶采样图（1MB，NEAREST 降采样，灰阶值保真）
+  (()=>{ const i=new Image();
+    i.onload=()=>{PALETTE.gray=i;};
+    i.onerror=()=>{console.warn('gray_3264.png 缺失，取色将用缩略图（不准）');};
+    i.src='gray_3264.png'; })();
+  buildVersionBar();
+  buildVersionLayers();
+  loadPalette();
+  // ★ 寻路图（76KB）：加载后建网格索引
+  loadNav().then(()=>{buildGrid();
+    document.getElementById('stat').textContent=
+      `路网 ${NAV.nodes.length} 节点 · ${NAV.g.edges.length} 边`;
+  }).catch(err=>{console.warn('route_graph.json 加载失败',err);});
+  try{
+    const j=await (await fetch('roads.json')).json();
+    ST.roads=j.edges||[];ST.W=j.size||6528;ST.H=ST.W;ST.NATIVE=j.native||13056;
+    fit();
+    document.getElementById('stat').textContent=
+      `${ST.roads.length} 边 · ${(j.px_per_m||1.22).toFixed(2)} m/px`;
+  }catch(e){toast('roads.json 失败');}
+  document.getElementById('load').style.display='none';
+  ST.dirty=true;
+}
+function fit(){
+  const s=Math.min(ST.vw/ST.W,ST.vh/ST.H)*0.98;
+  ST.scale=s;ST.camX=(ST.W-ST.vw/s)/2;ST.camY=(ST.H-ST.vh/s)/2;ST.dirty=true;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ★ 调色板 / 取色器：把地图里某一种灰阶"全部提取出来"叠在原图上
+//   底图 13056² 实测只有 96 种灰阶（88 种占比 >0.005%）。
+//   每格对应 palette/g{值}.png（3264² 白色 + alpha 遮罩）。
+// ══════════════════════════════════════════════════════════════
+const PALETTE={items:[],sel:null,img:null,imgV:null,picking:false};
+const PALCOLORS=['#ff2d55','#00ffcc','#ffd400','#4da3ff','#ff6ae0','#7cff00','#ff8a1e','#ffffff'];
+
+async function loadPalette(){
+  try{
+    const j=await (await fetch('palette/index.json')).json();
+    PALETTE.items=j;
+  }catch(e){ console.warn('palette index 失败',e); PALETTE.items=[]; }
+  const grid=document.getElementById('palGrid');
+  grid.innerHTML='';
+  for(const it of PALETTE.items){
+    const d=document.createElement('div');
+    d.className='pcell'+(it.share<0.05?' small':'');
+    d.style.background=`rgb(${it.v},${it.v},${it.v})`;
+    d.title=`灰阶 ${it.v} · 占比 ${it.share}% · ${it.px} 像素`;
+    d.textContent=it.v;
+    if(it.v>150) d.style.color='#000';
+    d.dataset.v=it.v;
+    d.onclick=()=>selectGray(it.v,true);
+    grid.appendChild(d);
+  }
+  if(!PALETTE.items.length)
+    grid.innerHTML='<span style="color:#a66">palette/index.json 未找到</span>';
+}
+
+// 选中某个灰阶 → 加载对应 PNG，全图铺在原图上
+async function selectGray(v,fromClick){
+  PALETTE.sel=v;
+  document.querySelectorAll('.pcell').forEach(c=>
+    c.classList.toggle('on', +c.dataset.v===v));
+  const it=PALETTE.items.find(i=>i.v===v);
+  const info=document.getElementById('palInfo');
+  if(!it){ info.innerHTML=`灰阶 <b>${v}</b> 占比太低，没做图层。`; return; }
+  // 换色：不同灰阶用不同颜色，方便区分
+  PALETTE.color=PALETTE.color||'#ff2d55';
+  await new Promise(res=>{
+    const i=new Image();
+    i.onload=()=>{ PALETTE.img=i; res(); };
+    i.onerror=()=>{ PALETTE.img=null; res(); };
+    i.src=`palette/g${v}.png`;
+  });
+  if(!PALETTE.img){ info.innerHTML=`灰阶 <b>${v}</b> 图层加载失败`; return; }
+  // 着色缓存
+  const c=document.createElement('canvas');
+  c.width=PALETTE.img.width; c.height=PALETTE.img.height;
+  const g2=c.getContext('2d');
+  g2.drawImage(PALETTE.img,0,0);
+  g2.globalCompositeOperation='source-in';
+  g2.fillStyle=PALETTE.color;
+  g2.fillRect(0,0,c.width,c.height);
+  PALETTE.tint=c;
+  PALETTE.color=PALCOLORS[(PALCOLORS.indexOf(PALETTE.color)+1)%PALCOLORS.length];
+  PALETTE.imgV=v;
+  const km=(it.px*0.61*0.5)/1000;   // 粗略：骨架约半个像素面积
+  info.innerHTML=`灰阶 <b>${v}</b> · 占比 <b>${it.share}%</b> · ${it.px.toLocaleString()} 像素<br>`+
+    `<span style="color:#8fa">已全图铺到原图上（${PALETTE.color==='#ffffff'?'白':'彩色'}）</span>`;
+  ST.dirty=true;
+  if(fromClick) toast(`灰阶 ${v} · 全图已铺出`);
+}
+
+function clearGray(){
+  PALETTE.sel=null; PALETTE.img=null; PALETTE.tint=null;
+  document.querySelectorAll('.pcell').forEach(c=>c.classList.remove('on'));
+  const info=document.getElementById('palInfo');
+  info.innerHTML='点任意一格 → 该灰阶全图铺在原图上。<br>或者按 <b>I</b> / 点 <b>💧取色</b>，直接在地图上点一下取样。';
+  ST.dirty=true;
+}
+
+// 取色器：从原生采样图 gray_3264.png 读世界坐标处的"真灰阶"
+// ★ 不能用 map_2048.jpg 取样：它是缩略重采样图，灰阶会被打散成中间值。
+//   gray_3264.png 是 INTER_NEAREST 降采样，每个像素就是原生 13056 某点的真实灰阶。
+function pickAt(wx,wy){
+  const img=PALETTE.gray||ST.map; if(!img) return;
+  const k=img.width/ST.W;
+  const x=Math.floor(wx*k), y=Math.floor(wy*k);
+  if(x<0||y<0||x>=img.width||y>=img.height) return;
+  const c=document.createElement('canvas'); c.width=1; c.height=1;
+  const g2=c.getContext('2d');
+  g2.drawImage(img,x,y,1,1,0,0,1,1);
+  const d=g2.getImageData(0,0,1,1).data;
+  const src = PALETTE.gray ? '原生' : '缩略';
+  const gray=PALETTE.gray ? d[0] : Math.round(0.299*d[0]+0.587*d[1]+0.114*d[2]);
+  // 找最近的调色板格（±2 以内）
+  let best=gray, bd=99;
+  for(const it of PALETTE.items){
+    const dd=Math.abs(it.v-gray);
+    if(dd<bd){bd=dd;best=it.v;}
+  }
+  document.getElementById('palWrap').classList.add('show');
+  document.getElementById('bPal').classList.add('on');
+  selectGray(bd<=2?best:gray,true);
+  toast(`${src}取样 灰阶 ${gray}${bd<=2?'':'（近 '+best+'，占比低没图层）'}`);
+}
+
+// ── V3 路网底图层 ──
+// ★ 用户 2026-10-03：改用 V3（104.9km / 260 段 / 最大一段 98.2km / 孤立仅 4.2%），
+//   其余版本全部卸掉，用户在 V3 上自己慢慢补画。
+// ★ 用户 2026-10-03 16:1x：要【白线 + 粗】，能盖住车的那种。
+//   V5 最终 = 1px 中心线（灰阶38车道线 ∪ >=60 亮路主干，已桥接/闭缝/单连通）
+//   W17 = 17px≈10.4m 双车道，正好盖住车；W25 = 25px≈15.3m 更夸张显眼。
+const VERS=[
+  {id:'v5_w17', label:'V5 粗白线 17px', km:100.3, on:true},
+  {id:'v5_w25', label:'V5 粗白线 25px', km:100.3, on:false},
+  {id:'v5',     label:'V5 细线 1px',    km:100.3, on:false},
+];
+function buildVersionBar(){
+  ST.vers=VERS.map(v=>({...v,img:null}));
+  // ★ 版本开关按钮：用户可自行切换 V5 / V3 对照
+  const host=document.getElementById('versBtns');
+  if(!host) return;
+  host.innerHTML='';
+  const PAL={'v5_w17':'#ffffff','v5_w25':'#ffffff','v5':'#ffffff'};
+  ST.vers.forEach(v=>{
+    const b=document.createElement('button');
+    b.textContent=v.label;
+    b.style.borderColor=PAL[v.id]||'#888';
+    const paint=()=>{ b.style.background=v.on?(PAL[v.id]||'#888'):'transparent';
+                      b.style.color=v.on?'#111':'#ddd'; };
+    paint();
+    b.onclick=()=>{ v.on=!v.on; paint(); ST.dirty=true; };
+    host.appendChild(b);
+  });
+}
+function buildVersionLayers(){
+  ST.vers.forEach(v=>{
+    const i=new Image();
+    i.onload=()=>{v.img=i;ST.dirty=true;};
+    i.onerror=()=>{toast(v.label+' 图层加载失败');};
+    i.src='versions/'+v.id+'.png';
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  🧭 寻路模块：前端 A* + 拐弯惩罚（状态图 = 有向半边）
+//
+//  为什么不能只用节点建图：A* 走到路口时不知道"我是从哪条路进来的"，
+//  就算不出转向角，也就没法惩罚拐弯。所以状态 = (边号, 方向)，共 2×825=1650 个。
+// ══════════════════════════════════════════════════════════
+const NAV={g:null,nodes:null,inc:null,dirs:null,M:null,d2r:null,ready:false};
+const POICOL={'lost-wallet':'#ffd400','oracle-stone':'#6cc8ff','sundries':'#9fe870',
+  'magician-gift':'#ff8ae0','gift-21':'#ff8ae0','street-justice':'#ff7043',
+  'anomaly':'#c07bff','checkin':'#00ffcc','sidequest':'#ffd400',
+  'category-010':'#8fa','magician':'#ff8ae0'};
+
+function vsub(a,b){return [a[0]-b[0],a[1]-b[1]];}
+function vnorm(v){const n=Math.hypot(v[0],v[1])||1;return [v[0]/n,v[1]/n];}
+function dirAt(poly,atStart){
+  // 从端点沿折线走 ≥6px 取方向
+  const pts=atStart?poly:poly.slice().reverse();
+  const p0=pts[0];let acc=0;
+  for(let i=1;i<pts.length;i++){
+    const seg=Math.hypot(pts[i][0]-p0[0],pts[i][1]-p0[1]);
+    acc=seg;
+    if(seg>=6||i===pts.length-1) return vnorm(vsub(pts[i],p0));
+  }
+  return [0,0];
+}
+async function loadNav(){
+  const g=await (await fetch('route_graph.json')).json();
+  NAV.g=g;
+  NAV.nodes=g.nodes.map(n=>({x:n[1],y:n[2]}));
+  NAV.M=g.meta.m_per_px;
+  NAV.inc=NAV.nodes.map(()=>[]);
+  NAV.dirs=[];
+  g.edges.forEach((e,i)=>{
+    const poly=e[3];
+    NAV.dirs.push([dirAt(poly,true),dirAt(poly,false)]);
+    NAV.inc[e[0]].push([i,0]);
+    NAV.inc[e[1]].push([i,1]);
+  });
+  NAV.ready=true;
+}
+const NAV_LM=6;   // 取方向向量时沿边走多少像素
+
+// 半边状态编号：边 i 正向 = 2i，反向 = 2i+1
+const stateId=(i,df)=>2*i+df;
+const stEdge=s=>(s>>1), stFwd=s=>(s&1)===0;
+
+function navRoute(s,t,turnW,turnsFirst){
+  const {nodes,inc,dirs}=NAV;
+  // ★ df=0 表示沿边的 a→b 方向，df=1 表示 b→a。
+  //   edges[i] = [a, b, len, poly]，dirs[i] = [离开a的方向, 离开b的方向]
+  //   第一版把 endNode / arriveDir 的索引写反了 → 起点终点永远对不上，全部不可达。
+  const endNode=(i,df)=>df?NAV.g.edges[i][0]:NAV.g.edges[i][1];
+  const leaveDir=(i,df)=>dirs[i][df?1:0];
+  const arriveDir=(i,df)=>{const d=dirs[i][df?0:1];return [-d[0],-d[1]];};
+  const hDist=(u,v)=>Math.hypot(nodes[u].x-nodes[v].x,nodes[u].y-nodes[v].y)*NAV.M;
+
+  // 简易二叉堆
+  const heap=[];let cnt=0;
+  const push=(f,s)=>{heap.push([f,cnt++,s]);let i=heap.length-1;
+    while(i>0){const p=(i-1)>>1;if(heap[p][0]<=heap[i][0])break;[heap[p],heap[i]]=[heap[i],heap[p]];i=p;}};
+  const pop=()=>{const top=heap[0],last=heap.pop();
+    if(heap.length){heap[0]=last;let i=0;
+      for(;;){const l=2*i+1,r=l+1;let m=i;
+        if(l<heap.length&&heap[l][0]<heap[m][0])m=l;
+        if(r<heap.length&&heap[r][0]<heap[m][0])m=r;
+        if(m===i)break;[heap[m],heap[i]]=[heap[i],heap[m]];i=m;}}
+    return top;};
+
+  const bg=new Float64Array(NAV.g.edges.length*2).fill(Infinity);
+  const prev=new Int32Array(NAV.g.edges.length*2).fill(-1);
+  for(const [i,ep] of inc[s]){
+    const df=ep?1:0, st=stateId(i,df), g=NAV.g.edges[i][2];
+    if(g<bg[st]){bg[st]=g;prev[st]=-1;push(g+hDist(endNode(i,df),t),st);}
+  }
+  const closed=new Uint8Array(NAV.g.edges.length*2);
+  let goal=-1;
+  while(heap.length){
+    const [f,_,st]=pop();
+    if(closed[st])continue;closed[st]=1;
+    const i=stEdge(st),df=stFwd(st)?0:1;
+    const u=endNode(i,df);
+    if(u===t){goal=st;break;}
+    const aD=arriveDir(i,df), g0=bg[st];
+    for(const [j,ep] of inc[u]){
+      if(j===i)continue;
+      const df2=ep?1:0, st2=stateId(j,df2);
+      if(closed[st2])continue;
+      const d1=aD,d2=leaveDir(j,ep);
+      const ang=Math.acos(Math.max(-1,Math.min(1,d1[0]*d2[0]+d1[1]*d2[1])))*180/Math.PI;
+      const pen=turnsFirst?(ang>25?1e7:0):turnW*(ang/90);
+      const ng=g0+NAV.g.edges[j][2]+pen;
+      if(ng<bg[st2]){bg[st2]=ng;prev[st2]=st;push(ng+hDist(endNode(j,df2),t),st2);}
+    }
+  }
+  if(goal<0)return null;
+  const chain=[];let cur=goal;
+  while(cur>=0){chain.push(cur);cur=prev[cur];}
+  chain.reverse();
+  let dist=0,turns=0;const pts=[];
+  chain.forEach((st,k)=>{
+    const i=stEdge(st),df=stFwd(st)?0:1;
+    const e=NAV.g.edges[i];
+    dist+=e[2];
+    if(k){
+      const pst=chain[k-1],pi=stEdge(pst),pdf=stFwd(pst)?0:1;
+      const d1=arriveDir(pi,pdf),d2=leaveDir(i,df);
+      const ang=Math.acos(Math.max(-1,Math.min(1,d1[0]*d2[0]+d1[1]*d2[1])))*180/Math.PI;
+      if(ang>25)turns++;
+    }
+    const poly=df?e[3].slice().reverse():e[3];
+    for(const p of poly){const q=[p[0],p[1]];
+      if(!pts.length||pts[pts.length-1][0]!==q[0]||pts[pts.length-1][1]!==q[1])pts.push(q);}
+  });
+  return {dist,turns,pts,segs:chain.length};
+}
+
+// ── 最近节点（网格加速）──
+function buildGrid(){
+  const C=200;NAV.C=C;NAV.grid=new Map();
+  NAV.nodes.forEach((n,i)=>{
+    const k=(n.x/C|0)+','+(n.y/C|0);
+    if(!NAV.grid.has(k))NAV.grid.set(k,[]);
+    NAV.grid.get(k).push(i);
+  });
+}
+function nearestNode(x,y){
+  const C=NAV.C;
+  for(let r=0;r<40;r++){
+    let best=-1,bd=Infinity;
+    for(let gx=(x/C|0)-r;gx<=(x/C|0)+r;gx++)
+      for(let gy=(y/C|0)-r;gy<=(y/C|0)+r;gy++){
+        const arr=NAV.grid.get(gx+','+gy);if(!arr)continue;
+        for(const i of arr){const n=NAV.nodes[i];
+          const d=(n.x-x)**2+(n.y-y)**2;if(d<bd){bd=d;best=i;}}
+      }
+    if(best>=0&&r>0&&bd<=(r*C)**2)return best;
+    if(best>=0&&r>=3)return best;
+  }
+  return -1;
+}
+// ── 吸附到最近边（比吸节点更准，路中点也能起终点）──
+function snapToEdge(x,y){
+  const g=NAV.g;let bd=Infinity,res=null;
+  g.edges.forEach((e,i)=>{
+    const poly=e[3];
+    for(let k=0;k<poly.length-1;k++){
+      const ax=poly[k][0],ay=poly[k][1],bx=poly[k+1][0],by=poly[k+1][1];
+      const dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy||1e-9;
+      let t=((x-ax)*dx+(y-ay)*dy)/L2;t=Math.max(0,Math.min(1,t));
+      const px=ax+t*dx,py=ay+t*dy,d=(px-x)**2+(py-y)**2;
+      if(d<bd){bd=d;res={edge:i,t,px,py,x:px,y:py,dist:Math.sqrt(d)};}
+    }
+  });
+  return res;
+}
+
+// ── 「路径规划中」遮罩：滑动动画 + 文案升级 ──
+const RMESS=[
+  ['路径规划中…','A* 正在搜索路网'],
+  ['正在规划路线…','已展开更多节点，即将收敛'],
+  ['AI 路径规划思考中…','正在权衡「少拐弯」与「少绕路」'],
+  ['仍在计算…','路网较大，请稍候'],
+];
+const RAI=[
+  ['AI 路径规划思考中…','正在比较候选路线的拐弯数'],
+  ['AI 深度思考中…','正在尝试避开低效路口'],
+  ['AI 仍在推理…','快好了，正在做最后校验'],
+];
+let rT0=0,rTimer=null;
+function showRouting(){
+  const el=document.getElementById('routing');
+  el.classList.add('show');rT0=performance.now();
+  const txt=document.getElementById('rTxt'),sub=document.getElementById('rSub'),
+        meta=document.getElementById('rMeta'),box=document.querySelector('.rbox');
+  txt.classList.remove('ai');box.classList.remove('ai');
+  txt.textContent=RMESS[0][0];sub.textContent=RMESS[0][1];meta.textContent='';
+  clearInterval(rTimer);
+  rTimer=setInterval(()=>{
+    const ms=performance.now()-rT0;
+    meta.textContent=`已用时 ${(ms/1000).toFixed(1)}s`;
+    if(ms>700){
+      // 超过 0.7s → 升级文案；超过 2s → 切「AI 思考中」
+      const lv=ms>2500?2:(ms>1500?1:0);
+      if(ms>3000){
+        const a=RAI[Math.min(RAI.length-1,Math.floor((ms-3000)/1800))];
+        txt.textContent=a[0];sub.textContent=a[1];
+        txt.classList.add('ai');box.classList.add('ai');
+      }else{
+        const m=RMESS[Math.min(RMESS.length-1,lv+1)];
+        txt.textContent=m[0];sub.textContent=m[1];
+      }
+    }
+  },110);
+}
+function hideRouting(keepText){
+  const el=document.getElementById('routing');
+  clearInterval(rTimer);rTimer=null;
+  if(!keepText){el.classList.remove('show');}
+  else{setTimeout(()=>el.classList.remove('show'),650);}
+}
+
+// ── 触发一次寻路（带动画）──
+async function planRoute(){
+  if(!NAV.ready){toast('路网还没加载完');return;}
+  if(ST.navA==null||ST.navB==null){toast('先点起点和终点');return;}
+  const sel=document.getElementById('selTurn');
+  const v=parseFloat(sel.value);
+  const turnsFirst=(v<0), w=turnsFirst?0:v;
+  showRouting();
+  await new Promise(r=>setTimeout(r,90));   // 让遮罩先画出来
+  const t0=performance.now();
+  let r=null;
+  try{
+    const ns=nearestNode(ST.navA[0],ST.navA[1]);
+    const nt=nearestNode(ST.navB[0],ST.navB[1]);
+    if(ns>=0&&nt>=0&&ns!==nt) r=navRoute(ns,nt,w,turnsFirst);
+  }catch(err){ console.error(err); toast('寻路出错：'+err.message); }
+  const ms=performance.now()-t0;
+  hideRouting();
+  if(!r){toast('没找到可达路径');document.getElementById('nvResult').textContent='✖ 不可达';return;}
+  ST.navPath=r.pts;
+  ST.navStats={...r,ms};
+  renderNavPanel(r,ms);
+  ST.dirty=true;
+}
+function renderNavPanel(r,ms){
+  document.getElementById('nvResult').innerHTML=
+    `<b style="color:#7fe">${(r.dist/1000).toFixed(2)} km</b> · ` +
+    `<span style="color:#ffd400">拐弯 ${r.turns}</span> · ${r.segs} 段<br>` +
+    `<span style="color:#6b8">规划耗时 ${ms.toFixed(2)} ms</span>`;
+  toast(`路径 ${(r.dist/1000).toFixed(2)}km · 拐弯 ${r.turns} · ${ms.toFixed(1)}ms`);
+}
+
+// ── 渲染 ──
+// ★ 按需渲染：连续 rAF 会让页面永远"不静止"（截图/无头浏览器会超时），
+//   改成 dirty 置位时调度一帧；dirty 用属性拦截，所有原有赋值处无需改动。
+let _dirty=false, _raf=null;
+Object.defineProperty(ST,'dirty',{
+  get(){return _dirty;},
+  set(v){ _dirty=v; if(v) requestRender(); }
+});
+function requestRender(){
+  if(_raf) return;
+  _raf=requestAnimationFrame(()=>{ _raf=null; if(_dirty){ render(); _dirty=false; } });
+}
+
+function render(){
+  const {vw,vh,scale,camX,camY}=ST;
+  ctx.save();
+  ctx.fillStyle='#0b0b0d';ctx.fillRect(0,0,vw,vh);
+
+  // imgScale = 图层像素 / 世界坐标(6528)。
+  // ★ 曾经的 bug：gaps.png 是 3264²（世界的一半），却按 6528 取源区域
+  //   → 越界，红色缺口层完全画不出来（实测 redPct=0）。
+  const blit=(img,imgScale,alpha)=>{
+    if(!img) return;
+    const k = imgScale || 1;
+    const sx=Math.max(0,Math.floor(camX*k)), sy=Math.max(0,Math.floor(camY*k));
+    const sw=Math.min(img.width-sx, Math.ceil(vw/scale*k)+2);
+    const sh=Math.min(img.height-sy, Math.ceil(vh/scale*k)+2);
+    if(sw<=0||sh<=0) return;
+    if(alpha!==undefined) ctx.globalAlpha=alpha;
+    ctx.imageSmoothingEnabled=scale<1;
+    ctx.drawImage(img, sx,sy,sw,sh,
+                  (sx/k-camX)*scale,(sy/k-camY)*scale, (sw/k)*scale,(sh/k)*scale);
+    if(alpha!==undefined) ctx.globalAlpha=1;
+  };
+
+  if(ST.showMap) blit(ST.map, ST.map.width/ST.W);
+  else { ctx.fillStyle='#111'; ctx.fillRect(0,0,vw,vh); }
+
+  // ★ 被选中的灰阶：全图铺在原图之上（这就是"把这种颜色全部提取出来叠上去"）
+  if(PALETTE.tint) blit(PALETTE.tint, PALETTE.tint.width/ST.W, 0.85);
+
+  // 漏掉的亮路（红）
+  if(ST.showGaps) blit(ST.gapsImg, ST.gapsImg.width/ST.W);
+
+  // ★ 路网底网：亮青色，铺在底图之上，供用户在上面补画
+  if(ST.showVers && ST.vers.length){
+    const PAL={'v5_w17':'#ffffff', 'v5_w25':'#ffffff', 'v5':'#ffffff'};   // ★ 用户要白线
+    ST.vers.forEach(v=>{
+      if(!v.on||!v.img) return;
+      // 单张白色 PNG 染成该版颜色：用 offscreen 一次性着色缓存
+      if(!v.tint||v._tintId!==PAL[v.id]){
+        v._tintId=PAL[v.id];
+        const c=document.createElement('canvas');
+        c.width=v.img.width;c.height=v.img.height;
+        const g=c.getContext('2d');
+        g.drawImage(v.img,0,0);
+        g.globalCompositeOperation='source-in';
+        g.fillStyle=PAL[v.id]||'#ffffff';
+        g.fillRect(0,0,c.width,c.height);
+        v.tint=c;
+      }
+      blit(v.tint, v.tint.width/ST.W, 1.0);
+    });
+  }
+
+  // ★ POI 采集点（小圆点，只画视野内的，避免卡）
+  if(ST.showPoi && ST.pois){
+    const x0=camX,y0=camY,x1=camX+vw/scale,y1=camY+vh/scale;
+    ctx.save();
+    for(const p of ST.pois){
+      if(p.x<x0||p.x>x1||p.y<y0||p.y>y1) continue;
+      const sx=(p.x-camX)*scale, sy=(p.y-camY)*scale;
+      ctx.fillStyle=POICOL[p.t]||'#ffd400';
+      ctx.beginPath();ctx.arc(sx,sy,2.6,0,6.2832);ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ★ 导航路径（白线 + 外发光），起点绿 / 终点红
+  if(ST.navPath && ST.navPath.length>1){
+    const q=ST.navPath;
+    ctx.save();
+    ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();
+    ctx.moveTo((q[0][0]-camX)*scale,(q[0][1]-camY)*scale);
+    for(let i=1;i<q.length;i++) ctx.lineTo((q[i][0]-camX)*scale,(q[i][1]-camY)*scale);
+    ctx.strokeStyle='rgba(0,180,255,.35)';ctx.lineWidth=13;ctx.stroke();
+    ctx.strokeStyle='#ffffff';ctx.lineWidth=5;ctx.stroke();
+    const dot=(p,c)=>{
+      const sx=(p[0]-camX)*scale, sy=(p[1]-camY)*scale;
+      ctx.beginPath();ctx.arc(sx,sy,9,0,6.2832);
+      ctx.fillStyle=c;ctx.fill();
+      ctx.lineWidth=2.5;ctx.strokeStyle='#000';ctx.stroke();
+    };
+    dot(q[0],'#22ff88');
+    dot(q[q.length-1],'#ff3b3b');
+    ctx.restore();
+  }
+  if(ST.nav&&ST.navA&&!ST.navB){
+    const sx=(ST.navA[0]-camX)*scale, sy=(ST.navA[1]-camY)*scale;
+    ctx.save();ctx.beginPath();ctx.arc(sx,sy,9,0,6.2832);
+    ctx.fillStyle='#22ff88';ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle='#000';ctx.stroke();
+    ctx.restore();
+  }
+
+  // 已抽路网（橙）
+  if(ST.showRoads&&ST.roads.length){
+    ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.strokeStyle='#ff8a1e';ctx.lineWidth=1.7;
+    const x0=camX,y0=camY,x1=camX+vw/scale,y1=camY+vh/scale;
+    ctx.beginPath();
+    for(const poly of ST.roads){
+      if(!poly||poly.length<2)continue;
+      let vis=false;
+      for(const p of poly){ if(p[0]>=x0&&p[0]<=x1&&p[1]>=y0&&p[1]<=y1){vis=true;break;} }
+      if(!vis)continue;
+      ctx.moveTo((poly[0][0]-camX)*scale,(poly[0][1]-camY)*scale);
+      for(let i=1;i<poly.length;i++)
+        ctx.lineTo((poly[i][0]-camX)*scale,(poly[i][1]-camY)*scale);
+    }
+    ctx.stroke();
+  }
+
+  // 用户笔画
+  ctx.lineCap='round';ctx.lineJoin='round';
+  const one=s=>{
+    if(!s.pts.length)return;
+    ctx.globalCompositeOperation=s.erase?'destination-out':'source-over';
+    ctx.strokeStyle=s.erase?'#000':s.color;
+    ctx.fillStyle=s.erase?'#000':s.color;
+    ctx.lineWidth=s.size;
+    if(s.pts.length===1){
+      const p=s.pts[0];
+      ctx.beginPath();ctx.arc((p[0]-camX)*scale,(p[1]-camY)*scale,s.size/2,0,6.2832);ctx.fill();
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo((s.pts[0][0]-camX)*scale,(s.pts[0][1]-camY)*scale);
+    for(let i=1;i<s.pts.length;i++)
+      ctx.lineTo((s.pts[i][0]-camX)*scale,(s.pts[i][1]-camY)*scale);
+    ctx.stroke();
+  };
+  for(const s of ST.strokes) one(s);
+  if(ST.cur) one(ST.cur);
+  ctx.globalCompositeOperation='source-over';
+
+  // 光标
+  if(ST.mouse&&ST.mode!=='pan'){
+    ctx.beginPath();
+    ctx.arc(ST.mouse[0],ST.mouse[1],ST.size/2,0,6.2832);
+    ctx.strokeStyle=ST.mode==='erase'?'#ff5555':ST.color;
+    ctx.lineWidth=1.5;ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── 交互 ──
+const inWorld=(sx,sy)=>{const x=s2wX(sx),y=s2wY(sy);
+  return (x>=0&&y>=0&&x<ST.W&&y<ST.H)?[x,y]:null;};
+
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId);
+  const erase=ST.alt||ST.mode==='erase';
+  if(ST.mode==='pan'||ST.space||e.button===1||e.button===2){
+    ST.isPan=true;ST.panSX=e.clientX;ST.panSY=e.clientY;
+    ST.panCX=ST.camX;ST.panCY=ST.camY;return;
+  }
+  if(e.button!==0)return;
+  const w=inWorld(e.clientX,e.clientY);
+  // ★ 取色模式：点一下取样，不画线
+  if(PALETTE.picking){
+    if(w) pickAt(w[0],w[1]);
+    return;
+  }
+  // ★ 导航模式：点一下选起点/终点，不画线
+  if(ST.nav){
+    if(!w){return;}
+    if(ST.navA==null||ST.navB!=null){
+      ST.navA=[Math.round(w[0]),Math.round(w[1])];ST.navB=null;ST.navPath=null;
+      document.getElementById('nvA').textContent=`${ST.navA[0]}, ${ST.navA[1]}`;
+      document.getElementById('nvB').textContent='—未选—';
+      document.getElementById('nvResult').textContent='已选起点，再点一次选终点 →';
+      ST.dirty=true;
+    }else{
+      ST.navB=[Math.round(w[0]),Math.round(w[1])];
+      document.getElementById('nvB').textContent=`${ST.navB[0]}, ${ST.navB[1]}`;
+      ST.dirty=true;
+      planRoute();
+    }
+    return;
+  }
+  ST.isDraw=true;
+  ST.cur={color:ST.color,size:ST.size,pts:w?[w]:[],erase};
+  ST.dirty=true;
+});
+cv.addEventListener('pointermove',e=>{
+  ST.mouse=[e.clientX,e.clientY];
+  document.getElementById('hud').textContent=
+    `世界 ${s2wX(e.clientX).toFixed(0)},${s2wY(e.clientY).toFixed(0)}  `+
+    `缩放 ${(ST.scale*100).toFixed(0)}%  笔画 ${ST.strokes.length}`;
+  if(ST.isPan){
+    ST.camX=ST.panCX-(e.clientX-ST.panSX)/ST.scale;
+    ST.camY=ST.panCY-(e.clientY-ST.panSY)/ST.scale;
+    ST.dirty=true;return;
+  }
+  if(ST.isDraw&&ST.cur){
+    const w=inWorld(e.clientX,e.clientY);
+    if(w){
+      const last=ST.cur.pts[ST.cur.pts.length-1];
+      if(!last||Math.hypot(w[0]-last[0],w[1]-last[1])>0.7/ST.scale){
+        ST.cur.pts.push(w);ST.dirty=true;
+      }
+    }
+  } else ST.dirty=true;
+});
+const endDraw=()=>{
+  if(ST.isDraw&&ST.cur&&ST.cur.pts.length){ST.strokes.push(ST.cur);ST.redo.length=0;}
+  ST.cur=null;ST.isDraw=false;ST.isPan=false;ST.dirty=true;
+};
+cv.addEventListener('pointerup',endDraw);
+cv.addEventListener('pointercancel',endDraw);
+cv.addEventListener('pointerleave',()=>{ST.mouse=null;ST.dirty=true;});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const k=e.deltaY<0?1.15:1/1.15;
+  const ns=Math.max(0.03,Math.min(24,ST.scale*k));
+  const rx=s2wX(e.clientX),ry=s2wY(e.clientY);
+  ST.scale=ns;ST.camX=rx-e.clientX/ns;ST.camY=ry-e.clientY/ns;ST.dirty=true;
+},{passive:false});
+
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){ST.space=true;cv.style.cursor='grab';e.preventDefault();}
+  if(e.altKey)ST.alt=true;
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'){
+    e.preventDefault(); e.shiftKey?doRedo():doUndo();
+  }
+  const k=e.key.toLowerCase();
+  if(k==='b')setMode('pen'); if(k==='e')setMode('erase'); if(k==='h')setMode('pan');
+  if(k==='i'){ setPick(!PALETTE.picking);
+    document.getElementById('palWrap').classList.add('show');
+    document.getElementById('bPal').classList.add('on');
+    toast(PALETTE.picking?'取色模式':null); }
+  if(k==='escape'){ clearGray(); if(ST.nav)document.getElementById('bNavClear').click(); }
+  if(k==='n'){ document.getElementById('bNav').click(); }
+  if(k==='p'){ document.getElementById('bPoi').click(); }
+});
+addEventListener('keyup',e=>{
+  if(e.code==='Space'){ST.space=false;cv.style.cursor=ST.mode==='pan'?'grab':'crosshair';}
+  if(!e.altKey)ST.alt=false;
+});
+
+// 双指缩放
+let pinch=null;
+cv.addEventListener('touchstart',e=>{
+  if(e.touches.length===2){
+    const[a,b]=e.touches;
+    pinch={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)};
+    ST.isDraw=false;ST.cur=null;
+  }
+},{passive:true});
+cv.addEventListener('touchmove',e=>{
+  if(pinch&&e.touches.length===2){
+    e.preventDefault();
+    const[a,b]=e.touches;
+    const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+    const cx=(a.clientX+b.clientX)/2,cy=(a.clientY+b.clientY)/2;
+    const rx=s2wX(cx),ry=s2wY(cy);
+    ST.scale=Math.max(0.03,Math.min(24,ST.scale*(d/pinch.d)));
+    ST.camX=rx-cx/ST.scale;ST.camY=ry-cy/ST.scale;
+    pinch.d=d;ST.dirty=true;
+  }
+},{passive:false});
+cv.addEventListener('touchend',()=>{pinch=null;});
+
+// ── 按钮 ──
+function setMode(m){
+  ST.mode=m;
+  document.getElementById('bPen').classList.toggle('on',m==='pen');
+  document.getElementById('bErase').classList.toggle('on',m==='erase');
+  document.getElementById('bPan').classList.toggle('on',m==='pan');
+  cv.style.cursor=m==='pan'?'grab':'crosshair';
+}
+const doUndo=()=>{const s=ST.strokes.pop();if(s){ST.redo.push(s);ST.dirty=true;}};
+const doRedo=()=>{const s=ST.redo.pop();if(s){ST.strokes.push(s);ST.dirty=true;}};
+document.getElementById('bPen').onclick=()=>setMode('pen');
+document.getElementById('bErase').onclick=()=>setMode('erase');
+document.getElementById('bPan').onclick=()=>setMode('pan');
+document.getElementById('bUndo').onclick=doUndo;
+document.getElementById('bRedo').onclick=doRedo;
+document.getElementById('bClear').onclick=()=>{
+  if(ST.strokes.length&&confirm(`清空 ${ST.strokes.length} 笔？`)){
+    ST.strokes=[];ST.redo=[];ST.dirty=true;}
+};
+document.getElementById('bFit').onclick=fit;
+const tog=(id,key)=>{const b=document.getElementById(id);
+  b.onclick=()=>{ST[key]=!ST[key];b.classList.toggle('on',ST[key]);ST.dirty=true;};};
+tog('bMap','showMap'); tog('bRoads','showRoads'); tog('bGaps','showGaps');
+
+// ★ 寻路按钮
+document.getElementById('bNav').onclick=()=>{
+  ST.nav=!ST.nav;
+  document.getElementById('bNav').classList.toggle('on',ST.nav);
+  document.getElementById('navWrap').classList.toggle('show',ST.nav);
+  if(ST.nav){setPick(false);toast('寻路模式：点起点 → 点终点');}
+  else{ST.navA=ST.navB=null;ST.navPath=null;ST.dirty=true;toast(null);}
+};
+document.getElementById('bNavClear').onclick=()=>{
+  ST.navA=ST.navB=null;ST.navPath=null;ST.navStats=null;
+  document.getElementById('nvA').textContent='—未选—';
+  document.getElementById('nvB').textContent='—未选—';
+  document.getElementById('nvResult').textContent='点地图选起点 → 再点一次选终点';
+  document.getElementById('nvList').innerHTML='';
+  ST.dirty=true;
+};
+document.getElementById('nvSwap').onclick=()=>{
+  if(ST.navA==null||ST.navB==null){toast('两个点都选了吗');return;}
+  [ST.navA,ST.navB]=[ST.navB,ST.navA];
+  document.getElementById('nvA').textContent=`${ST.navA[0]}, ${ST.navA[1]}`;
+  document.getElementById('nvB').textContent=`${ST.navB[0]}, ${ST.navB[1]}`;
+  planRoute();
+};
+document.getElementById('selTurn').onchange=e=>{
+  const v=parseFloat(e.target.value);
+  toast(v<0?'拐弯最少优先':`拐弯惩罚 ${v}`);
+  if(ST.navA!=null&&ST.navB!=null)planRoute();
+};
+document.getElementById('bPoi').onclick=async()=>{
+  if(!ST.pois){
+    toast('加载 POI…');
+    try{ST.pois=await (await fetch('poi.json')).json();}
+    catch(err){toast('POI 加载失败');return;}
+  }
+  ST.showPoi=!ST.showPoi;
+  document.getElementById('bPoi').classList.toggle('on',ST.showPoi);
+  ST.dirty=true;
+  toast(ST.showPoi?`显示 ${ST.pois.length} 个 POI`:'隐藏 POI');
+};
+
+// ★ 调色板 / 取色器按钮
+const bPal=document.getElementById('bPal'), bPick=document.getElementById('bPick');
+bPal.onclick=()=>{
+  const w=document.getElementById('palWrap');
+  w.classList.toggle('show');
+  bPal.classList.toggle('on', w.classList.contains('show'));
+};
+const setPick=on=>{
+  PALETTE.picking=on;
+  bPick.classList.toggle('on',on);
+  cv.style.cursor=on?'copy':(ST.mode==='pan'?'grab':'crosshair');
+};
+bPick.onclick=()=>{
+  document.getElementById('palWrap').classList.add('show');
+  bPal.classList.add('on');
+  setPick(!PALETTE.picking);
+  toast(PALETTE.picking?'取色模式：点地图任意一点':'已退出取色');
+};
+const rSize=document.getElementById('rSize');
+rSize.oninput=()=>{ST.size=+rSize.value;
+  document.getElementById('lSize').textContent=rSize.value;ST.dirty=true;};
+
+const cbox=document.getElementById('colors');
+COLORS.forEach((c,i)=>{
+  const d=document.createElement('div');
+  d.className='sw'+(i===0?' on':'');d.style.background=c;
+  d.onclick=()=>{ST.color=c;
+    [...cbox.children].forEach(x=>x.classList.remove('on'));
+    d.classList.add('on');setMode('pen');ST.dirty=true;};
+  cbox.appendChild(d);
+});
+
+// ── 导出 ──
+document.getElementById('bSave').onclick=()=>{
+  if(!ST.strokes.length)return toast('还没画东西');
+  const out={meta:{tool:'AuroraDrive 路网补描',coord:'处理系(1/2)',size:ST.W,
+    native:ST.NATIVE,px_per_m:1.22,strokes:ST.strokes.length,
+    created:new Date().toISOString()},
+    strokes:ST.strokes.map(s=>({color:s.color,size:s.size,erase:!!s.erase,
+      pts:s.pts.map(p=>[+p[0].toFixed(2),+p[1].toFixed(2)])}))};
+  dl(JSON.stringify(out),`road_patch_${ts()}.json`,'application/json');
+  toast(`已导出 ${ST.strokes.length} 笔`);
+};
+document.getElementById('bPng').onclick=()=>{
+  const c=document.createElement('canvas');c.width=ST.W;c.height=ST.H;
+  const g=c.getContext('2d');g.lineCap=g.lineJoin='round';
+  for(const s of ST.strokes){
+    if(s.erase)continue;
+    g.strokeStyle=s.color;g.lineWidth=s.size;g.beginPath();
+    if(s.pts.length===1)g.arc(s.pts[0][0],s.pts[0][1],s.size/2,0,6.2832);
+    else{g.moveTo(s.pts[0][0],s.pts[0][1]);
+         for(let i=1;i<s.pts.length;i++)g.lineTo(s.pts[i][0],s.pts[i][1]);}
+    g.stroke();
+  }
+  c.toBlob(b=>dl(b,`road_patch_${ts()}.png`,'image/png'));toast('已导出 PNG');
+};
+function ts(){const d=new Date(),p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;}
+function dl(data,name,type){
+  const blob=data instanceof Blob?data:new Blob([data],{type});
+  const u=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=u;a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(u),4000);
+}
+addEventListener('beforeunload',()=>{
+  try{localStorage.setItem('aurora_roadpatch',
+    JSON.stringify(ST.strokes.map(s=>({color:s.color,size:s.size,erase:s.erase,pts:s.pts}))));}catch(e){}
+});
+try{
+  const raw=localStorage.getItem('aurora_roadpatch');
+  if(raw){const a=JSON.parse(raw);
+    if(Array.isArray(a)&&a.length){ST.strokes=a;
+      setTimeout(()=>toast(`恢复上次 ${a.length} 笔`),900);}}
+}catch(e){}
+boot();
+</script>
+</body>
+</html>

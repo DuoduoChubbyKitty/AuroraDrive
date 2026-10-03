@@ -1,0 +1,23 @@
+{
+ "nodes": 612,
+ "edges": 825,
+ "total_km": 106.8,
+ "skeleton_km": 100.3,
+ "skeleton_cov_pct": 106.5,
+ "endpoints": 120,
+ "junctions_px": 562,
+ "isolated_px": 0,
+ "node_clusters": 613,
+ "comps": 1,
+ "largest_comp": 612,
+ "largest_pct": 100.0,
+ "dijkstra_ok": 299,
+ "dijkstra_fail": 0,
+ "deg_dist": {
+  "2": 26,
+  "3": 404,
+  "4": 58,
+  "1": 118,
+  "6": 6
+ }
+}

@@ -2508,6 +2508,115 @@ final class MapViewport {
 
 struct LargeMapCanvas: View {
     @Bindable var state: DriveState
+    /// 标记图层渲染模式。
+    ///
+    /// 为什么要有这个 enum，而不是直接读环境变量：
+    /// 离屏基准要**在同一个进程里**对比三种模式（Canvas / ForEach / 不画），
+    /// 环境变量在进程启动后就固定了，翻不了。而跨进程对比不公平 ——
+    /// 底图裁切的缓存状态、JIT 预热都不一样。
+    /// 故模式由参数传入，环境变量只在 `.auto` 时决定默认值。
+    enum MarkerRenderMode {
+        case auto       // 按环境变量决定（真机走这条）
+        case canvas     // 强制新路径
+        case legacy     // 强制旧 ForEach
+        case none       // 不画标记层（量底图基线）
+    }
+
+    var markerMode: MarkerRenderMode = .auto
+
+    /// 视野缩放档位（基准用；nil = 不干预，走 MapViewport 默认 1200 m）
+    var benchSpanMeters: Double? = nil
+
+    /// 视野覆写（`AURORA_MAP_SPAN_M`）—— 仅用于出图核对，
+    /// 因为标签门槛（400 m）决定了"近景才标名字"，不换个视野就验不到标签。
+    static var spanOverride: Double? {
+        if let s = ProcessInfo.processInfo.environment["AURORA_MAP_SPAN_M"],
+           let v = Double(s), v >= 120, v <= 12000 { return v }
+        return nil
+    }
+
+    /// 是否用旧的 ForEach 路径
+    private var useLegacyMarkers: Bool {
+        switch markerMode {
+        case .auto:   return Self.legacyMarkers
+        case .legacy: return true
+        case .canvas, .none: return false
+        }
+    }
+    /// 是否完全不画标记层。
+    ///
+    /// ⚠️ 只在 `.auto` 时读环境变量。基准夹具显式传 `.none`/`.legacy`/`.canvas`
+    ///    时必须**忽略** env —— 否则 `AURORA_MAP_NO_MARKERS=1` 会把
+    ///    `.legacy`/`.canvas` 也一并跳过，三路对比全变成"仅底图"，
+    ///    基准数据直接失效（实测踩过：三路耗时全都掉到 10 ms 上下）。
+    private var skipMarkers: Bool {
+        switch markerMode {
+        case .none:  return true
+        case .canvas, .legacy: return false
+        case .auto:  return Self.noMarkers
+        }
+    }
+
+    /// 是否走「自车→目标」直线导航（旧行为）。
+    /// 默认关：改用沿路网折线的真实路线。设 `AURORA_ROUTE_STRAIGHT=1` 可切回，
+    /// 用于 A/B 对照「沿路走」与「直线穿」。
+    static var routeStraightLegacy: Bool {
+        ProcessInfo.processInfo.environment["AURORA_ROUTE_STRAIGHT"] == "1"
+    }
+
+    /// 是否回退旧的 ForEach 标记渲染（A/B 对照 / 性能回归排查）。
+    /// 默认关 = 走新的 Canvas + 聚类路径。
+    static var legacyMarkers: Bool {
+        ProcessInfo.processInfo.environment["AURORA_MAP_LEGACY_MARKERS"] == "1"
+    }
+
+    /// 是否在图上显示分类筛选条 + 图例
+    static var showFilterBar: Bool {
+        ProcessInfo.processInfo.environment["AURORA_MAP_FILTER_BAR"] != "0"
+    }
+
+    /// 是否**完全跳过标记图层**（`AURORA_MAP_NO_MARKERS=1`）。
+    ///
+    /// 这是排障用的二分开关：性能异常时用它把「底图成本」与「标记成本」
+    /// 分开量。地图渲染慢的原因可能是底图裁切，也可能是标记绘制，
+    /// 不看这个数就只能猜。
+    static var noMarkers: Bool {
+        ProcessInfo.processInfo.environment["AURORA_MAP_NO_MARKERS"] == "1"
+    }
+
+    /// 标签数量硬上限。
+    ///
+    /// ⚠️ 这不是随便定的数：实测标签成本约 **32.7 µs/个**（线性），
+    ///    400 个 = 13.77 ms/帧，已逼近 60fps 的 16.67 ms 预算。
+    ///    取 200 个 ≈ 6.5 ms，留出余量给底图/折线/自车图标。
+    ///    `AURORA_MAP_MAX_LABELS` 可覆写（排查用）。
+    static var labelBudget: Int {
+        if let s = ProcessInfo.processInfo.environment["AURORA_MAP_MAX_LABELS"],
+           let v = Int(s), v >= 0 { return v }
+        return 200
+    }
+
+    /// 标签视野门槛（米）：超过这个视野就不标名字（太远，名字会糊成一片）
+    static var labelSpanM: Double {
+        if let s = ProcessInfo.processInfo.environment["AURORA_MAP_LABEL_SPAN_M"],
+           let v = Double(s) { return v }
+        return 400
+    }
+
+    /// 允许显示名字的类别（组 id）。
+    ///
+    /// ⚠️ 2026-10-03 修正的一个**设计缺陷**：
+    /// 初版白名单是 `travel/shop/service`，但其中 shop(677) 与 service(269)
+    /// **默认关闭**，只有 travel(106) 默认开，而 travel 仅占 1.9%。
+    /// 实测默认视图 300 m 视野下，靠白名单能显示的标签只有 **约 1 个** ——
+    /// 200 个标签预算几乎全浪费，用户依旧"看不出这些点是什么"，
+    /// 正是要修的那个抱怨。
+    ///
+    /// 现改为：`travel`（传送点）**必标**（它是用户的决策目标）；
+    /// 其余点不再受白名单限制，改为在预算内**按离视野中心由近及远**补足。
+    /// 这样近处密集区的名字一定先出来，远处的自然被挤掉。
+    static let mustLabelGroups: Set<String> = ["travel"]
+
     /// 是否挂载滚轮缩放层。
     /// 离屏渲染（ImageRenderer）不支持 NSViewRepresentable，会把整块渲染成
     /// 系统占位图（黄底红禁止符），所以自检夹具必须传 false —— 否则夹具
@@ -2519,13 +2628,41 @@ struct LargeMapCanvas: View {
     /// 双指缩放起始时的视野米数（锚点，防止复利误差）
     @State private var magnifyBase: Double?
 
+    // ── 标记分类 / 聚类（2026-10-03 新增）──
+    /// 当前开启的组（按**中文名**存，因为 UI 上显示的是中文名；
+    /// 词表缺失时会自动回落成「全开」语义，见下方 enabledGroups 计算）
+    @State private var enabledGroups: Set<String>? = nil
+    /// 聚类缓存：避免同一视野下每帧重算（拖动时中心连续变化，
+    /// 用 4px/1档 量化做命中判断）
+    @State private var clusterCache: (key: String, clusters: [MarkerCluster])? = nil
+    /// 悬停的聚团 id（悬停团始终显示名字，无视标签白名单）
+    @State private var hoveredClusterID: String? = nil
+    /// 选中的聚团（点击弹出成员列表；选中项始终显示名字）
+    @State private var selectedCluster: MarkerCluster? = nil
+
+    /// 词表是否可用。不可用时所有组相关 UI 都不显示，回到"一个色"的旧观感
+    /// —— 不崩、不空白，这是硬性要求。
+    private var taxonomyReady: Bool { !MarkerTaxonomy.groups.isEmpty }
+
+    /// 实际生效的开启组（中文名）。首次进入用词表默认值。
+    private var effectiveGroups: Set<String> {
+        if let e = enabledGroups { return e }
+        return MarkerTaxonomy.defaultOnGroups
+    }
+
     var body: some View {
         GeometryReader { g in
             let w = g.size.width, h = g.size.height
             let cx = vp.centerX, cy = vp.centerY
-            let spanMeters = vp.spanMeters
+            let spanMeters = benchSpanMeters ?? Self.spanOverride ?? vp.spanMeters
             let pxPerMeter = MapTileImage.mapPixels / MapTileImage.worldMetersPerMap
             let spanPx = spanMeters * pxPerMeter
+
+            // ── 聚类（每帧求值，但内部有量化缓存）──
+            // 顺序**必须**是「先按组过滤 → 再聚类」：若先聚类再过滤，
+            // 团的 count 会把被隐藏组的成员算进去，用户看到 +12 点开只有 3 个。
+            let clusters = clusterList(centerX: cx, centerY: cy,
+                                       spanPx: spanPx, viewWidth: w)
 
             ZStack {
                 Color(hex: 0x05080E)
@@ -2534,30 +2671,114 @@ struct LargeMapCanvas: View {
                 MapTileImage(centerMapX: cx, centerMapY: cy,
                              spanMeters: spanMeters)
 
-                // ── 真实标记点：来自 FINAL_complete_map_database.json（5677 条）──
-                // 只画落在当前视野内的点，避免无谓绘制。
-                ForEach(MapDatabase.markersInView(centerX: cx, centerY: cy,
-                                                  spanPx: spanPx, limit: 400),
-                        id: \.stableID) { m in
-                    let nx = (m.mapX - cx) / spanPx + 0.5
-                    let ny = (m.mapY - cy) / spanPx + 0.5
-                    ZStack {
-                        Circle()
-                            .fill(MapDatabase.color(for: m.kind))
-                            .frame(width: 4, height: 4)
-                        if m.kind == "waypoint" {
-                            Text(m.name)
-                                .font(.system(size: 7.5))
-                                .foregroundStyle(Aurora.t3)
-                                .fixedSize()
-                                .offset(y: 10)
+                // ── 真实标记点：5677 条，聚类后绘制 ──
+                //
+                // ══════════════════════════════════════════════════════════════
+                // ⚠️ 2026-10-03：**从 ForEach 换成单个 Canvas**，这是"卡"的正解
+                // ══════════════════════════════════════════════════════════════
+                // 旧实现 `ForEach(..., limit: 400)` 每次重绘都要重建最多 400 个
+                // SwiftUI 子视图。实测（1360×860 离屏，内容每帧变化）：
+                //     400 点 ForEach  → 18.92 ms/帧   ✗ 超过 60fps 预算 16.67
+                //     400 点 Canvas   →  2.12 ms/帧   ✓
+                //     5677 点 Canvas  →  0.81 ms/帧   ✓ ← 全部点，一个不落
+                // 即：换成 Canvas 后不但快了 9 倍，还能**一次画完全部 5677 个**
+                // 而不是被 limit 砍到 400。卡顿的根因是子视图数量，不是标记数量。
+                //
+                // 另一个实测发现：**文字标签才是大头**（约 32.7 µs/个，
+                // 400 个 = 13.77 ms）。所以标签数量必须硬性限量，
+                // 见 `labelBudget` 与 `shouldLabel` —— 不是"顺便优化"，
+                // 是不限量就一定会重新超预算。
+                if skipMarkers {
+                    // 排障开关：完全不画标记层，用于把底图成本单独量出来
+                } else if useLegacyMarkers {
+                    ForEach(MapDatabase.markersInView(centerX: cx, centerY: cy,
+                                                      spanPx: spanPx, limit: 400),
+                            id: \.stableID) { m in
+                        let nx = (m.mapX - cx) / spanPx + 0.5
+                        let ny = (m.mapY - cy) / spanPx + 0.5
+                        ZStack {
+                            Circle()
+                                .fill(m.color)
+                                .frame(width: 4, height: 4)
+                            if m.kind == "waypoint" {
+                                Text(m.name)
+                                    .font(.system(size: 7.5))
+                                    .foregroundStyle(Aurora.t3)
+                                    .fixedSize()
+                                    .offset(y: 10)
+                            }
                         }
+                        .position(x: w * nx, y: h * ny)
                     }
-                    .position(x: w * nx, y: h * ny)
+                } else {
+                    Canvas { ctx, size in
+                        Self.drawClusters(ctx: ctx, size: size,
+                                          clusters: clusters,
+                                          centerX: cx, centerY: cy, spanPx: spanPx,
+                                          hoveredID: hoveredClusterID)
+                    }
+                    .allowsHitTesting(false)   // 点击交给外层手势，画布不吃事件
                 }
 
-                // ── 真实导航路径：仅在锁定且设了目标点时绘制 ──
-                if state.locatorFound, let t = state.locatorTarget {
+                // ── 路网寻路路线（2026-10-03 新增）──
+                // 沿真实路网折线画，而不是自车到目标的直线。
+                // 旧直线保留在 AURORA_ROUTE_STRAIGHT=1 后面，便于 A/B 对照
+                // 「沿路走」和「直线穿」的视觉差异。
+                if !Self.routeStraightLegacy,
+                   let plan = state.routePlan, plan.points.count >= 2 {
+                    // 路网折线：所有顶点都落在真实道路上
+                    Path { p in
+                        var first = true
+                        for pt in plan.points {
+                            let nx = (pt.0 - cx) / spanPx + 0.5
+                            let ny = (pt.1 - cy) / spanPx + 0.5
+                            let x = w * nx, y = h * ny
+                            if first { p.move(to: .init(x: x, y: y)); first = false }
+                            else { p.addLine(to: .init(x: x, y: y)) }
+                        }
+                    }
+                    // 外发光 + 实线：与既有导航线同一套配色，不引入新色
+                    .stroke(Aurora.ice.opacity(0.55),
+                            style: StrokeStyle(lineWidth: 6.0, lineCap: .round, lineJoin: .round))
+                    .shadow(color: Aurora.ice.opacity(0.95), radius: 11)
+                    Path { p in
+                        var first = true
+                        for pt in plan.points {
+                            let nx = (pt.0 - cx) / spanPx + 0.5
+                            let ny = (pt.1 - cy) / spanPx + 0.5
+                            let x = w * nx, y = h * ny
+                            if first { p.move(to: .init(x: x, y: y)); first = false }
+                            else { p.addLine(to: .init(x: x, y: y)) }
+                        }
+                    }
+                    .stroke(Color.white,
+                            style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round))
+
+                    // 起点（绿）与终点（红）标记
+                    if let sp = state.routeStartPx {
+                        let nx = (sp.x - cx) / spanPx + 0.5
+                        let ny = (sp.y - cy) / spanPx + 0.5
+                        ZStack {
+                            Circle().fill(Aurora.ok.opacity(0.22)).frame(width: 22, height: 22)
+                            Circle().fill(Aurora.ok).frame(width: 9, height: 9)
+                                .shadow(color: Aurora.ok, radius: 6)
+                        }
+                        .position(x: w * nx, y: h * ny)
+                    }
+                    if let ep = state.routeEndPx {
+                        let nx = (ep.x - cx) / spanPx + 0.5
+                        let ny = (ep.y - cy) / spanPx + 0.5
+                        ZStack {
+                            Circle().fill(Aurora.danger.opacity(0.22)).frame(width: 22, height: 22)
+                            Circle().fill(Aurora.danger).frame(width: 9, height: 9)
+                                .shadow(color: Aurora.danger, radius: 6)
+                        }
+                        .position(x: w * nx, y: h * ny)
+                    }
+                }
+
+                // ── 真实导航路径（直连版，AURORA_ROUTE_STRAIGHT=1 时启用）──
+                if Self.routeStraightLegacy, state.locatorFound, let t = state.locatorTarget {
                     let ePx = DriveState.worldToMapPixelX(state.locatorX, state.locatorY)
                     let ePy = DriveState.worldToMapPixelY(state.locatorX, state.locatorY)
                     let ex = min(0.97, max(0.03, (ePx - cx) / spanPx + 0.5))
@@ -2670,6 +2891,49 @@ struct LargeMapCanvas: View {
                 if interactive {
                     MapScrollZoom { f in vp.zoom(by: f) }
                 }
+
+                // ── 「路径规划中」遮罩（2026-10-03 新增）──
+                if state.routeStatus == .planning {
+                    RoutePlanningOverlay()
+                }
+
+                // ── 分类筛选条（左上，2026-10-03 新增）──
+                // 只在地图可用（词表就绪）时显示。
+                // 词表缺失 ⇒ 不显示任何组相关 UI，回到旧观感（不崩、不空白）。
+                //
+                // 注意这里**不判 `interactive`**：筛选条是纯 SwiftUI 绘制，
+                // 离屏 ImageRenderer 能正常渲染（与 MapScrollZoom 那种
+                // NSViewRepresentable 不同）。不判它，截图夹具才验得到筛选条。
+                if Self.showFilterBar, taxonomyReady {
+                    VStack {
+                        HStack {
+                            MarkerFilterBar(
+                                enabled: Binding(
+                                    get: { effectiveGroups },
+                                    set: { enabledGroups = $0 }
+                                ),
+                                groups: MarkerTaxonomy.groups,
+                                counts: MarkerTaxonomy.countByGroup,
+                                visibleCount: clusters.reduce(0) { $0 + $1.count },
+                                onReset: { enabledGroups = MarkerTaxonomy.defaultOnGroups },
+                                onAll: { enabledGroups = Set(MarkerTaxonomy.groups.map { $0.label }) },
+                                onNone: { enabledGroups = [] }
+                            )
+                            Spacer()
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                }
+
+                // ── 聚类悬停提示（跟随鼠标的团信息）──
+                if interactive, let hc = clusters.first(where: { $0.id == hoveredClusterID }) {
+                    let nx = (hc.centerX - cx) / spanPx + 0.5
+                    let ny = (hc.centerY - cy) / spanPx + 0.5
+                    ClusterTooltip(cluster: hc)
+                        .position(x: w * nx, y: h * ny - 30)
+                        .allowsHitTesting(false)
+                }
             }
 
             // ── 手势：拖拽平移（地图跟手）+ 双指缩放 ──
@@ -2712,7 +2976,606 @@ struct LargeMapCanvas: View {
                                 egoY: DriveState.worldToMapPixelY(state.locatorX, state.locatorY))
                 }
             }
+            // ── 点击设终点 + 规划（2026-10-03 新增）──
+            //
+            // ⚠️ 与既有 DragGesture(minimumDistance: 2) 的冲突处理：
+            //   SwiftUI 的 DragGesture 只要移动 ≥2px 就进入 onChanged，
+            //   而一次「点击」在触控板上也可能抖动 1–3 px。若直接用
+            //   `.onTapGesture`，抖动会先触发拖拽、点击事件被吞 —— 表现为
+            //   "点了没反应"或"地图轻微一抖"。
+            //   故这里**复用同一条 DragGesture**，在 onEnded 里按累计位移判定：
+            //   位移 ≤4px 视为点击（设终点），否则视为拖拽（什么都不做）。
+            //   这样只有一个手势源，不存在两个手势互相抢的问题。
+            //
+            //   离屏夹具（interactive == false）不挂：夹具要的是确定性出图，
+            //   挂上会引入额外的 hitTest 层。
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onEnded { d in
+                        guard interactive else { return }   // 离屏夹具不参与点击
+                        let moved = hypot(d.translation.width, d.translation.height)
+                        guard moved <= Self.tapSlopPx else { return }   // 是拖拽，不是点击
+                        // 屏幕点 → 视口归一化 → 地图像素 → 世界坐标
+                        let nx = min(1, max(0, d.startLocation.x / max(1, w)))
+                        let ny = min(1, max(0, d.startLocation.y / max(1, h)))
+                        let mapX = cx + (nx - 0.5) * spanPx
+                        let mapY = cy + (ny - 0.5) * spanPx
+                        // 未定位时第一次点击 = 设起点；已有起点后第二次点击 = 设终点。
+                        // 这样"没有定位也能用"（点两下即可规划）。
+                        if !state.locatorFound, state.routeStartPx == nil {
+                            state.routeStartPx = (mapX, mapY)
+                            state.routeStatus = .idle
+                            print(String(format: "[MAP-ROUTE] 起点已设 (%.0f,%.0f)", mapX, mapY))
+                            return
+                        }
+                        if !state.locatorFound, let sp = state.routeStartPx {
+                            state.planRouteFromMapPixel(from: sp, to: (mapX, mapY))
+                            print(String(format: "[MAP-ROUTE] 未定位：起点(%.0f,%.0f) → 终点(%.0f,%.0f)",
+                                         sp.0, sp.1, mapX, mapY))
+                            return
+                        }
+                        // 已定位：直接以自车为起点规划
+                        state.planRouteToMapPixel(x: mapX, y: mapY)
+                        if let r = state.routePlan {
+                            print(String(format: "[MAP-ROUTE] %.2f km · 拐弯 %d · %d 段 · %.2f ms",
+                                         r.distanceMeters / 1000, r.turns, r.segments, r.elapsedMs))
+                        } else if case .failed(let why) = state.routeStatus {
+                            print("[MAP-ROUTE] ✗ \(why)")
+                        }
+                    }
+            )
+            // ── 悬停：找最近的团并记下 id（用于 tooltip + 强制显示名字）──
+            //
+            // 用 `onContinuousHover` 而不是 `.onHover`：后者只给「进入/离开」，
+            // 定位不到鼠标具体在哪；前者每帧给位置，才能知道悬停的是哪个团。
+            //
+            // 判据是「屏幕距离 < 命中半径」而不是「在团的圆内」：
+            // 未成团的点只有 4px，按圆判几乎点不中；给 12px 的宽容半径更好用。
+            .onContinuousHover { phase in
+                guard interactive else { return }
+                switch phase {
+                case .ended:
+                    if hoveredClusterID != nil { hoveredClusterID = nil }
+                case .active(let loc):
+                    // 屏幕点 → 地图像素
+                    let nx = min(1, max(0, loc.x / max(1, w)))
+                    let ny = min(1, max(0, loc.y / max(1, h)))
+                    let mapX = cx + (nx - 0.5) * spanPx
+                    let mapY = cy + (ny - 0.5) * spanPx
+                    var best: (Double, String)?
+                    for c in clusters {
+                        let d = (c.centerX - mapX) * (c.centerX - mapX)
+                                + (c.centerY - mapY) * (c.centerY - mapY)
+                        if best == nil || d < best!.0 { best = (d, c.id) }
+                    }
+                    // 命中半径：12 屏幕 px 换算成地图 px
+                    let hitMap = 12.0 / max(1, w) * spanPx
+                    let newID = (best != nil && best!.0 <= hitMap * hitMap) ? best!.1 : nil
+                    if newID != hoveredClusterID { hoveredClusterID = newID }
+                }
+            }
         }
+    }
+
+    /// 点击判定阈值（屏幕像素）：位移超过它就算拖拽，不设终点。
+    static let tapSlopPx: Double = 4
+
+    // ══════════════════════════════════════════════════════════════════════
+    // MARK: 聚类（含量化缓存）
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// 取当前视野的聚团列表。
+    ///
+    /// ── 为什么要缓存 ──────────────────────────────────────────────────────
+    /// 拖动地图时中心每帧都在变，若每帧都跑一遍「遍历 5677 点 + 分桶 + 排序」，
+    /// 就是纯浪费 —— 4 像素的位移在屏幕上根本看不出团的变化。
+    /// 故把 (中心x, 中心y, 视野, 组掩码, 屏幕宽) **量化**成缓存键：
+    /// 中心按 4px、视野按 ×1.02 分档，命中就直接返回上次结果。
+    /// 实测拖动一帧的位移通常 < 4px，绝大多数帧都能命中。
+    private func clusterList(centerX cx: Double, centerY cy: Double,
+                             spanPx: Double, viewWidth w: Double) -> [MarkerCluster] {
+        guard !Self.legacyMarkers, w > 1, spanPx > 0 else { return [] }
+
+        // 量化
+        let qx = (cx / 4).rounded() * 4
+        let qy = (cy / 4).rounded() * 4
+        let qs = (log(spanPx) / log(1.02)).rounded()
+        let mask = effectiveGroups.sorted().joined(separator: ",")
+        let key = "\(qx)|\(qy)|\(qs)|\(mask)|\(Int(w))"
+
+        if let c = clusterCache, c.key == key { return c.clusters }
+
+        // 分段计时（仅 AURORA_MAP_CLUSTER_TRACE=1 时打印）——
+        // 排障用：光知道"总共慢"没用，要知道慢在哪一段。
+        let trace = ProcessInfo.processInfo.environment["AURORA_MAP_CLUSTER_TRACE"] == "1"
+        let t0 = DispatchTime.now()
+
+        // 1) 取视野内全部标记（**不截断** —— 截断会让团计数算错）
+        let all = MapDatabase.markersInViewAll(centerX: cx, centerY: cy, spanPx: spanPx)
+        let t1 = DispatchTime.now()
+
+        // 2) 按组过滤（**用 MarkerClusterer 里唯一那份实现** ——
+        //    两处各写一遍过滤逻辑迟早会分叉）
+        let filtered: [MapDatabase.PlacedMarker]
+        if taxonomyReady {
+            filtered = MarkerClusterer.filter(all, enabledLabels: effectiveGroups)
+        } else {
+            filtered = all   // 词表缺失：不过滤，保持旧观感
+        }
+        let t1b = DispatchTime.now()
+
+        // 3) 聚类
+        let out = MarkerClusterer.cluster(filtered, spanPx: spanPx, viewWidth: w,
+                                          centerX: cx, centerY: cy)
+        let t2 = DispatchTime.now()
+
+        if trace {
+            let ms = { (a: DispatchTime, b: DispatchTime) in
+                Double(b.uptimeNanoseconds - a.uptimeNanoseconds) / 1_000_000
+            }
+            print(String(format: "[CLUSTER-TRACE] 取点 %.2f · 过滤 %.2f · 聚类 %.2f ms"
+                         + "   (视野内 %d → 过滤后 %d → %d 团)",
+                         ms(t0, t1), ms(t1, t1b), ms(t1b, t2),
+                         all.count, filtered.count, out.count))
+        }
+
+        // 缓存（只留最近一条 —— 地图只有一个视野）
+        clusterCache = (key, out)
+        return out
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // MARK: 绘制（单个 Canvas 画完全部团）
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// 把一个聚团画成图。
+    ///
+    /// 视觉语言（对齐 maante，但用极光配色）：
+    ///   · 未成团（count==1）：4px 圆点，组色
+    ///   · 成团（count>1）：外圈柔光 + 实心圆 + 白字 `+N`
+    ///     圆半径随数量的对数增长（4 → 13 px），既表达"这里很多"
+    ///     又不会因为某个团有 300 个点就把地图糊死
+    @MainActor
+    static func drawClusters(ctx: GraphicsContext, size: CGSize,
+                             clusters: [MarkerCluster],
+                             centerX cx: Double, centerY cy: Double,
+                             spanPx: Double,
+                             hoveredID: String?) {
+        guard spanPx > 0 else { return }
+        let w = size.width, h = size.height
+
+        // ① 先画未成团的点（小而多，画在底层）
+        for c in clusters where !c.isCluster {
+            let nx = (c.centerX - cx) / spanPx + 0.5
+            let ny = (c.centerY - cy) / spanPx + 0.5
+            // 视野外跳过（聚类边界可能带进来一点）
+            guard nx > -0.02, nx < 1.02, ny > -0.02, ny < 1.02 else { continue }
+            let p = CGPoint(x: w * nx, y: h * ny)
+            let col = c.representative.color
+            let r = CGRect(x: p.x - 2, y: p.y - 2, width: 4, height: 4)
+            ctx.fill(Path(ellipseIn: r), with: .color(col))
+        }
+
+        // ② 再画成团的（大而少，画在上层压住小点）
+        for c in clusters where c.isCluster {
+            let nx = (c.centerX - cx) / spanPx + 0.5
+            let ny = (c.centerY - cy) / spanPx + 0.5
+            guard nx > -0.05, nx < 1.05, ny > -0.05, ny < 1.05 else { continue }
+            let p = CGPoint(x: w * nx, y: h * ny)
+            let col = c.representative.color
+
+            // 半径：4 + 2.2 × ln(count)，封顶 13
+            let rad = min(13.0, 4.0 + 2.2 * log(Double(c.count)))
+            let isHover = (hoveredID == c.id)
+
+            // 外柔光（悬停时更大更亮）
+            let glowR = rad + (isHover ? 8 : 5)
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - glowR, y: p.y - glowR,
+                                            width: glowR * 2, height: glowR * 2)),
+                     with: .color(col.opacity(isHover ? 0.34 : 0.18)))
+
+            // 主体圆
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - rad, y: p.y - rad,
+                                            width: rad * 2, height: rad * 2)),
+                     with: .color(col.opacity(0.92)))
+
+            // 描边（悬停时白色）
+            ctx.stroke(Path(ellipseIn: CGRect(x: p.x - rad, y: p.y - rad,
+                                              width: rad * 2, height: rad * 2)),
+                       with: .color(isHover ? .white : Color(hex: 0xFFFFFF, alpha: 0.35)),
+                       lineWidth: isHover ? 1.6 : 1.0)
+
+            // 数量文字：`+N`（与 maante 的 `<b>+N</b>` 同构）
+            // 半径太小时不画字（会糊成一坨黑点），改为靠大小表达
+            if rad >= 7 {
+                let t = Text("+\(c.count)")
+                    .font(.system(size: rad >= 11 ? 9 : 7.5, weight: .semibold))
+                    .foregroundStyle(.white)
+                ctx.draw(t, at: p)
+            }
+        }
+
+        // ③ 标签（**最贵的一步**，严格限量）
+        //
+        // 实测约 32.7 µs/个，是全流程最贵操作（底图绘制级别）。
+        // 硬上限 `labelBudget`（默认 200）—— 超出就按「离视野中心由近及远」
+        // 截断，保证最重要的（近处、用户正在看的）先显示。
+        drawLabels(ctx: ctx, size: size, clusters: clusters,
+                   centerX: cx, centerY: cy, spanPx: spanPx, hoveredID: hoveredID)
+    }
+
+    /// 绘制标签。
+    ///
+    /// 显示条件：
+    ///   1. 未被聚团（count == 1）—— 团已经用 `+N` 表达，再标名字会叠字
+    ///   2. 视野 ≤ `labelSpanM`（默认 400 m）—— 拉远了名字会糊成一片
+    ///   3. `mustLabelGroups`（传送点）**无条件进候选**；其余点也进候选
+    ///   4. 总预算 `labelBudget`（默认 200），按离视野中心距离由近及远取
+    ///
+    /// **优先级**：悬停 > 传送点 > 其余（近处优先）。
+    /// 之所以给传送点优先：它是用户的决策目标（"我要去哪"），
+    /// 数量只有 106 个（1.9%），不会挤掉别的标签。
+    /// 其余点全部平等竞争预算 —— 近处先出，远处被挤掉，符合"看得到的地方重要"。
+    ///
+    /// **例外**：悬停的标记无视 1–4 始终显示 —— 用户主动看的东西必须有反馈。
+    @MainActor
+    static func drawLabels(ctx: GraphicsContext, size: CGSize,
+                           clusters: [MarkerCluster],
+                           centerX cx: Double, centerY cy: Double,
+                           spanPx: Double, hoveredID: String?) {
+        let budget = labelBudget
+        guard budget > 0, spanPx > 0 else { return }
+        let w = size.width, h = size.height
+
+        // 视野换算成米，判断是否够近
+        let pxPerMeter = MapTileImage.mapPixels / MapTileImage.worldMetersPerMap
+        let spanMeters = spanPx / pxPerMeter
+
+        var must: [(Double, MarkerCluster)] = []     // 传送点：必标
+        var rest: [(Double, MarkerCluster)] = []     // 其余：竞争预算
+        var forced: [MarkerCluster] = []             // 悬停：不占预算
+
+        for c in clusters {
+            let nx = (c.centerX - cx) / spanPx + 0.5
+            let ny = (c.centerY - cy) / spanPx + 0.5
+            guard nx > 0.01, nx < 0.99, ny > 0.01, ny < 0.99 else { continue }
+
+            // 悬停：无条件显示（且不占预算 —— 用户主动看的只有一个）
+            if c.id == hoveredID {
+                forced.append(c)
+                continue
+            }
+            guard !c.isCluster else { continue }              // 条件 1
+            guard spanMeters <= labelSpanM else { continue }   // 条件 2
+
+            let d = (nx - 0.5) * (nx - 0.5) + (ny - 0.5) * (ny - 0.5)
+            if let g = c.representative.group, mustLabelGroups.contains(g) {
+                must.append((d, c))
+            } else {
+                rest.append((d, c))
+            }
+        }
+
+        // 距离优先（传送点和其余各自排序）
+        must.sort { $0.0 < $1.0 }
+        rest.sort { $0.0 < $1.0 }
+
+        // 预算分配：先满足传送点，余额给其余
+        let mustShown = must.prefix(budget)
+        let remain = max(0, budget - mustShown.count)
+        let shown = forced + mustShown.map { $0.1 } + rest.prefix(remain).map { $0.1 }
+
+        for c in shown {
+            let m = c.representative
+            let nx = (m.mapX - cx) / spanPx + 0.5
+            let ny = (m.mapY - cy) / spanPx + 0.5
+            let p = CGPoint(x: w * nx, y: h * ny)
+            let isHover = (c.id == hoveredID)
+            // 悬停时额外画一个底衬，让文字在杂乱底图上仍可读
+            if isHover {
+                let tag = Text(m.name.isEmpty ? "未命名" : m.name)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Aurora.t1)
+                ctx.draw(tag, at: CGPoint(x: p.x, y: p.y + 15))
+            } else {
+                let tag = Text(m.name.isEmpty ? "未命名" : m.name)
+                    .font(.system(size: 7.5))
+                    .foregroundStyle(Aurora.t3)
+                ctx.draw(tag, at: CGPoint(x: p.x, y: p.y + 10))
+            }
+        }
+    }
+}
+
+/// 「路径规划中」全屏遮罩（2026-10-03 新增）。
+///
+/// ══════════════════════════════════════════════════════════════════════════
+/// 为什么规划只要 0.06 ms，还要做这个动画？
+/// ══════════════════════════════════════════════════════════════════════════
+/// 用户明确要求保留 —— 理由是对的：当前 A* 快是因为图小（612 节点），
+/// 一旦将来换成真实 AI 规划（LLM 推理 / 多目标 TSP / 路况重规划），
+/// 耗时会从毫秒级跳到秒级。**到那时才做加载态，用户已经先看到卡死了**。
+/// 所以现在就把「规划中 → 升级 → AI 思考中」这条通道建好，并保证：
+///   · 文案按耗时递进（<0.7s 基础 / >1.5s 升级 / >3.0s 转金色 AI 态）
+///   · 进度条持续滑动，让用户知道"还在动"，不是死了
+///   · 最短显示 380ms —— 否则 0.06ms 的规划会让遮罩一闪而过，
+///     反而像画面抖动（"闪一下"比"不显示"更糟）
+///
+/// 文案与节奏逐条对齐网页版 `RMESS` / `RAI`（tools/roadnet/web/index.html）。
+struct RoutePlanningOverlay: View {
+    /// 基础阶段文案（耗时 <3s）
+    private static let stages: [(String, String)] = [
+        ("路径规划中…",        "A* 正在搜索路网"),
+        ("正在规划路线…",      "已展开更多节点，即将收敛"),
+        ("AI 路径规划思考中…", "正在权衡「少拐弯」与「少绕路」"),
+        ("仍在计算…",          "路网较大，请稍候"),
+    ]
+    /// AI 阶段文案（耗时 ≥3s，金色）
+    private static let aiStages: [(String, String)] = [
+        ("AI 路径规划思考中…", "正在比较候选路线的拐弯数"),
+        ("AI 深度思考中…",     "正在尝试避开低效路口"),
+        ("AI 仍在推理…",       "快好了，正在做最后校验"),
+    ]
+
+    /// 最短显示时长：规划太快时把遮罩拖到这么久，避免"闪一下"
+    static let minimumVisibleSeconds: Double = 0.38
+
+    @State private var elapsed: Double = 0
+    @State private var spin: Double = 0
+    @State private var barPhase: Double = 0
+
+    /// 每 110ms 更新一次（与网页版同节奏）
+    private let ticker = Timer.publish(every: 0.11, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        let stage = Self.stage(for: elapsed)
+        let isAI = elapsed >= 3.0
+
+        ZStack {
+            // 半透明压暗底：让下面的地图仍可见（用户能看到起点在哪）
+            Color(hex: 0x05080E, alpha: 0.62)
+
+            VStack(spacing: 16) {
+                // 旋转指示器（金色 = AI 态）
+                ZStack {
+                    Circle()
+                        .stroke((isAI ? Aurora.amber : Aurora.ice).opacity(0.18), lineWidth: 3)
+                        .frame(width: 46, height: 46)
+                    Circle()
+                        .trim(from: 0, to: 0.28)
+                        .stroke(isAI ? Aurora.amber : Aurora.ice,
+                                style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .frame(width: 46, height: 46)
+                        .rotationEffect(.degrees(spin))
+                }
+
+                VStack(spacing: 5) {
+                    Text(stage.0)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isAI ? Aurora.amber : Aurora.t1)
+                    Text(stage.1)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(Aurora.t3)
+                }
+
+                // 滑动进度条（不确定进度 = 来回扫，表示"在动"）
+                GeometryReader { g in
+                    let w = g.size.width
+                    Capsule()
+                        .fill((isAI ? Aurora.amber : Aurora.ice).opacity(0.14))
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(isAI ? Aurora.amber : Aurora.ice)
+                                .frame(width: w * 0.34)
+                                .offset(x: (w * 0.66) * barPhase)
+                        }
+                        .clipShape(Capsule())
+                }
+                .frame(width: 210, height: 3)
+
+                Text(String(format: "已用时 %.1fs", elapsed))
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(Aurora.t4)
+            }
+            .padding(.horizontal, 34).padding(.vertical, 26)
+            .background {
+                RoundedRectangle(cornerRadius: Aurora.r3, style: .continuous)
+                    .fill(Aurora.s2)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Aurora.r3, style: .continuous)
+                            .strokeBorder(isAI ? Aurora.amber.opacity(0.45) : Aurora.hair3,
+                                          lineWidth: 1)
+                    }
+            }
+            .shadow(color: .black.opacity(0.6), radius: 30, y: 12)
+        }
+        // 遮罩自身吃掉点击，避免规划期间用户又点地图叠一堆请求
+        .contentShape(Rectangle())
+        .onTapGesture { }
+        .onAppear {
+            elapsed = 0
+            spin = 0
+            barPhase = 0
+            withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+                spin = 360
+            }
+            withAnimation(.easeInOut(duration: 0.75).repeatForever(autoreverses: true)) {
+                barPhase = 1
+            }
+        }
+        .onReceive(ticker) { _ in elapsed += 0.11 }
+    }
+
+    /// 按耗时取当前文案（对齐网页版节奏：0.7s 升一档，1.5s 再升，3.0s 转 AI）
+    static func stage(for elapsed: Double) -> (String, String) {
+        if elapsed >= 3.0 {
+            let idx = min(aiStages.count - 1, Int((elapsed - 3.0) / 1.8))
+            return aiStages[idx]
+        }
+        if elapsed > 1.5 { return stages[2] }
+        if elapsed > 0.7 { return stages[1] }
+        return stages[0]
+    }
+}
+
+/// 分类筛选条（2026-10-03 新增）。
+///
+/// 设计要点：
+///   · 每个 chip 用**组色**，与地图上的点颜色一一对应 —— 用户看地图看到
+///     一片琥珀色，回来一眼就能找到「传送点」这个 chip
+///   · 右侧显示当前可见标记数 / 总数，让"筛掉多少"变成可核对的数字，
+///     而不是"感觉少了"
+///   · 「全部 / 默认 / 清空」三个快捷按钮：7 个 chip 逐个点太慢
+struct MarkerFilterBar: View {
+    @Binding var enabled: Set<String>
+    let groups: [MarkerTaxonomy.Group]
+    let counts: [String: Int]
+    let visibleCount: Int
+    let onReset: () -> Void
+    let onAll: () -> Void
+    let onNone: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Text("标记分类")
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(Aurora.t3)
+                Text("\(visibleCount)")
+                    .font(.system(size: 8.5, design: .monospaced))
+                    .foregroundStyle(Aurora.iceHi)
+                Spacer(minLength: 10)
+                smallButton("全部", onAll)
+                smallButton("默认", onReset)
+                smallButton("清空", onNone)
+            }
+            HStack(spacing: 5) {
+                ForEach(groups) { g in
+                    chip(g)
+                }
+            }
+        }
+        .padding(.horizontal, 11).padding(.vertical, 9)
+        .background {
+            RoundedRectangle(cornerRadius: Aurora.r2, style: .continuous)
+                .fill(Color(hex: 0x05080E, alpha: 0.82))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: Aurora.r2, style: .continuous)
+                .strokeBorder(Aurora.hair2, lineWidth: 1)
+        }
+    }
+
+    private func chip(_ g: MarkerTaxonomy.Group) -> some View {
+        let on = enabled.contains(g.label)
+        let n = counts[g.id] ?? 0
+        return Button {
+            if on { enabled.remove(g.label) } else { enabled.insert(g.label) }
+        } label: {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(on ? g.color : Aurora.t4)
+                    .frame(width: 6, height: 6)
+                    .shadow(color: on ? g.color.opacity(0.8) : .clear, radius: 3)
+                Text(g.label)
+                    .font(.system(size: 9, weight: on ? .semibold : .regular))
+                    .foregroundStyle(on ? Aurora.t1 : Aurora.t4)
+                Text("\(n)")
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(on ? g.color : Aurora.t4)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(on ? g.color.opacity(0.13) : Color.white.opacity(0.03))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(on ? g.color.opacity(0.45) : Aurora.hair1, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .help("\(g.label)：\(n) 个标记")
+    }
+
+    private func smallButton(_ t: String, _ act: @escaping () -> Void) -> some View {
+        Button(action: act) {
+            Text(t)
+                .font(.system(size: 8.5))
+                .foregroundStyle(Aurora.t3)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Capsule().fill(Color.white.opacity(0.05)))
+                .overlay(Capsule().strokeBorder(Aurora.hair1, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 聚团悬停提示（2026-10-03 新增）。
+///
+/// 成团后用户看不出"这团里是什么"，悬停给一个明细，
+/// 避免"必须点进去才能知道" —— 而且点进去会设成导航终点，代价太大。
+struct ClusterTooltip: View {
+    let cluster: MarkerCluster
+
+    /// 团内按组统计（最多列 4 组）
+    private var breakdown: [(String, Int, Color)] {
+        var c: [String: Int] = [:]
+        for m in cluster.members { c[m.groupLabel ?? "未分类", default: 0] += 1 }
+        return c.sorted { $0.value > $1.value }.prefix(4).map { (label, n) in
+            let col = cluster.members.first { ($0.groupLabel ?? "未分类") == label }?.color ?? Aurora.ice
+            return (label, n, col)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if cluster.isCluster {
+                Text("\(cluster.count) 个标记")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Aurora.t1)
+                ForEach(breakdown, id: \.0) { (label, n, col) in
+                    HStack(spacing: 5) {
+                        Circle().fill(col).frame(width: 5, height: 5)
+                        Text(label).font(.system(size: 8.5)).foregroundStyle(Aurora.t3)
+                        Spacer(minLength: 8)
+                        Text("\(n)").font(.system(size: 8.5, design: .monospaced))
+                            .foregroundStyle(col)
+                    }
+                }
+                if breakdown.count == 1 {
+                    // 全同类的团：直接报代表点名字，比"8 个传送点"更有用
+                    Text(cluster.representative.name)
+                        .font(.system(size: 8))
+                        .foregroundStyle(Aurora.t4)
+                        .lineLimit(1)
+                }
+            } else {
+                Text(cluster.representative.name.isEmpty ? "未命名"
+                                                         : cluster.representative.name)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Aurora.t1)
+                    .lineLimit(1)
+                if let gl = cluster.representative.groupLabel {
+                    HStack(spacing: 5) {
+                        Circle().fill(cluster.representative.color).frame(width: 5, height: 5)
+                        Text(gl).font(.system(size: 8.5)).foregroundStyle(Aurora.t3)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 9).padding(.vertical, 7)
+        .frame(minWidth: 96, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color(hex: 0x05080E, alpha: 0.92))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(Aurora.hair3, lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.6), radius: 10, y: 4)
     }
 }
 
@@ -2837,9 +3700,117 @@ struct DecisionRail: View {
                 mini("辅助帧率", String(format: "%.1f fps", EngineClient.shared.engineFPS), Aurora.ok)
                 mini("累计帧", state.frames > 0 ? "\(state.frames)" : "—", Aurora.t3)
             }
+
+            // ── 路线（2026-10-03 新增）──
+            // 只在地图弹窗里出现（DecisionRail 的唯一挂载点就是大地图右侧栏）。
+            routeSection(state: state)
+
             Spacer()
         }
         .padding(16)
+    }
+
+    /// 拐弯权重三档（值, 按钮文字）。
+    /// 三档都经过实测对比才放上来，不是随手拍的数：
+    ///   0   → 纯最短距离（7.45 km / 47 拐弯，起点终点样例）
+    ///   200 → 实测最优默认（8.57 km / 20 拐弯，比字典序更快更短）
+    ///   400 → 更激进避弯（会明显绕路）
+    static let turnWeightPresets: [(Double, String)] = [
+        (0, "距离优先"), (200, "均衡"), (400, "避弯优先"),
+    ]
+
+    /// 权重档位的语义说明
+    static func turnWeightHint(_ w: Double) -> String {
+        if w < 1 { return "只求路最短，拐弯多、跟手差" }
+        if w < 300 { return "实测最优：拐弯与里程平衡" }
+        return "尽量少拐弯，代价是绕路更远"
+    }
+
+    /// 路线卡片：显示规划结果，并提供「清除」。
+    @ViewBuilder
+    private func routeSection(state: DriveState) -> some View {
+        section("路线", "A*") {
+            switch state.routeStatus {
+            case .planning:
+                mini("状态", "规划中…", Aurora.amber)
+            case .failed(let why):
+                mini("状态", "失败", Aurora.danger)
+                Text(why)
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(Aurora.t4)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .ok:
+                if let r = state.routePlan {
+                    mini("距离", String(format: "%.2f km", r.distanceMeters / 1000), Aurora.iceHi)
+                    mini("拐弯", "\(r.turns) 次", r.turns <= 8 ? Aurora.ok : Aurora.amber)
+                    mini("段数", "\(r.segments)", Aurora.t3)
+                    mini("耗时", String(format: "%.2f ms", r.elapsedMs), Aurora.t4)
+                }
+            case .idle:
+                Text(state.routeStartPx == nil
+                     ? "点地图设终点（未定位时先点起点）"
+                     : "再点一下设终点")
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(Aurora.t4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // 拐弯权重选择器：让用户自己权衡「少拐弯」与「少绕路」
+            //
+            // ⚠️ 不用 `Picker(.menu)`：菜单样式在离屏 ImageRenderer 下会渲染成
+            //    系统占位块（实测 --mc-route 出图里是一个琥珀色禁行图标），
+            //    无法视觉验收；且弹出菜单与全 App 的自绘风格不一致。
+            //    改为三个自绘小按钮，三档互斥高亮。
+            VStack(alignment: .leading, spacing: 5) {
+                Text("拐弯权重").font(.system(size: 9.5)).foregroundStyle(Aurora.t3)
+                HStack(spacing: 4) {
+                    ForEach(Self.turnWeightPresets, id: \.0) { preset in
+                        let on = abs(state.routeTurnWeight - preset.0) < 0.5
+                        Button {
+                            state.routeTurnWeight = preset.0
+                            // 已有点击路线时，换权重立即重规划（所见即所得）
+                            if let sp = state.routeStartPx, let ep = state.routeEndPx {
+                                state.planRouteFromMapPixel(from: sp, to: ep)
+                            }
+                        } label: {
+                            Text(preset.1)
+                                .font(.system(size: 8.5, weight: on ? .semibold : .regular))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 3.5)
+                                .background(RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(on ? Aurora.ice.opacity(0.18) : Color.white.opacity(0.04)))
+                                .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .strokeBorder(on ? Aurora.ice.opacity(0.5) : Aurora.hair1,
+                                                  lineWidth: 1))
+                                .foregroundStyle(on ? Aurora.iceHi : Aurora.t3)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            // 当前模式的语义说明 —— 光有数字用户看不出区别
+            Text(Self.turnWeightHint(state.routeTurnWeight))
+                .font(.system(size: 8))
+                .foregroundStyle(Aurora.t4)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if state.routeStartPx != nil || state.routePlan != nil {
+                Button {
+                    state.clearRoute()
+                } label: {
+                    Text("清除路线")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .background(RoundedRectangle(cornerRadius: Aurora.r1, style: .continuous)
+                            .fill(Color.white.opacity(0.06)))
+                        .overlay(RoundedRectangle(cornerRadius: Aurora.r1, style: .continuous)
+                            .strokeBorder(Aurora.hair2, lineWidth: 1))
+                        .foregroundStyle(Aurora.t2)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private func section<C: View>(_ t: String, _ badge: String,
@@ -3208,6 +4179,9 @@ struct ContentView: View {
         }
         .onAppear {
             MapDatabase.ensureLoaded()
+            // 路网图（寻路用）与标记库并发后台加载：两者都是本地 JSON，
+            // 互不依赖，串行只会让地图可用时间白白推后。
+            RouteGraph.ensureLoaded()
             state.mapMarkerCount = MapDatabase.markerCount
             bootstrap()
         }
@@ -3504,8 +4478,225 @@ enum MissionControlShot {
         }
     }
 
+    /// 路网路线渲染夹具（`--mc-route`）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════════
+    /// 为什么不能只靠 `--route-selftest` 的数字
+    /// ══════════════════════════════════════════════════════════════════════════
+    /// 自检能证明「算法算出 8.571 km / 20 拐弯」，但证明不了：
+    ///   · 折线**真的画出来了**（图层条件、视口换算、canvas 尺寸任一错就白屏）
+    ///   · 折线**贴着道路**（坐标换算错 → 线飘在地图外）
+    ///   · 起点绿点 / 终点红点位置正确
+    /// 这些只有出图能验。故本夹具与 `--mc-map` 同构，额外把规划结果塞进 state。
+    ///
+    /// 终点选择是**确定的**：取「离自车 400~900 像素」的一个节点，
+    /// 保证路线落在默认 1200 m 视野内（否则截图里什么都看不到）。
     @MainActor
+    static func renderMapRouteNow(canvas: CGSize = CGSize(width: 1320, height: 860)) -> Bool {
+        let state = DriveState()
+        state.isDriving = true
+        state.locatorFound = true
+        state.locatorX = -77000
+        state.locatorY = 31865
+        MapDatabase.ensureLoadedSyncLegacy()
+        state.mapMarkerCount = MapDatabase.markerCount
+        state.refreshRegionCache()
+
+        // 与真机同一条链路：定位 → 地图像素 → 路网吸附 → 规划
+        guard RouteGraph.ensureLoadedSync(), let g = RouteGraph.shared else {
+            print("[MC-ROUTE] ✗ 路网加载失败：\(RouteGraph.loadError ?? "未知")")
+            return false
+        }
+        let egoX = DriveState.worldToMapPixelX(state.locatorX, state.locatorY)
+        let egoY = DriveState.worldToMapPixelY(state.locatorX, state.locatorY)
+        guard let s = g.nearestNode(x: egoX, y: egoY) else {
+            print("[MC-ROUTE] ✗ 自车位置吸附不到路网节点")
+            return false
+        }
+        // 挑一个落在视野内的终点（400~900 px ≈ 244~549 m）
+        var target: Int? = nil
+        var bestScore = Double.infinity
+        for (i, n) in g.nodes.enumerated() where i != s {
+            let d = hypot(n.x - g.nodes[s].x, n.y - g.nodes[s].y)
+            guard d > 400, d < 900 else { continue }
+            let score = abs(d - 650)   // 取最接近 650 px 的
+            if score < bestScore { bestScore = score; target = i }
+        }
+        guard let t = target else {
+            print("[MC-ROUTE] ✗ 视野内找不到合适终点")
+            return false
+        }
+        do {
+            let plan = try RoutePlanner.route(graph: g, from: s, to: t,
+                                              turnWeight: RoutePlanner.defaultTurnWeight)
+            state.routePlan = plan
+            state.routeStartPx = (g.nodes[s].x, g.nodes[s].y)
+            state.routeEndPx = (g.nodes[t].x, g.nodes[t].y)
+            state.routeStatus = .ok
+            // locatorTarget 指向**终点** —— 这样 AURORA_ROUTE_STRAIGHT=1 时
+            // 旧直线通路会画「自车→终点」的直线，与折线形成肉眼可辨的对照：
+            // 折线贴着街道走，直线直接穿街区。这就是 A/B 的判别力所在。
+            state.locatorTarget = (
+                x: DriveState.mapPixelToWorldX(g.nodes[t].x, g.nodes[t].y),
+                y: DriveState.mapPixelToWorldY(g.nodes[t].x, g.nodes[t].y)
+            )
+            print(String(format: "[MC-ROUTE] 起点节点 %d (%.0f,%.0f) → 终点节点 %d (%.0f,%.0f)",
+                         s, g.nodes[s].x, g.nodes[s].y, t, g.nodes[t].x, g.nodes[t].y))
+            print(String(format: "[MC-ROUTE] %.2f km · 拐弯 %d · %d 段 · %.2f ms · 折线 %d 顶点",
+                         plan.distanceMeters / 1000, plan.turns, plan.segments,
+                         plan.elapsedMs, plan.pointCount))
+        } catch {
+            print("[MC-ROUTE] ✗ 规划失败：\(error)")
+            return false
+        }
+        return renderMap(state: state, canvas: canvas, tag: "route")
+    }
+
+    /// 「路径规划中」遮罩渲染夹具（`--mc-route-loading`）。
+    ///
+    /// 遮罩只在 `routeStatus == .planning` 时出现，而真机上这一状态只存在
+    /// 380 ms（规划太快）—— 正常截图**几乎不可能**抓到它。
+    /// 故这里直接置状态渲染，用来验文案、配色、进度条布局。
+    /// 同时打印三档文案（含 AI 金色态）供逐项核对。
+    @MainActor
+    static func renderMapRouteLoadingNow(canvas: CGSize = CGSize(width: 1320, height: 860)) -> Bool {
+        let state = DriveState()
+        state.isDriving = true
+        state.locatorFound = true
+        state.locatorX = -77000
+        state.locatorY = 31865
+        MapDatabase.ensureLoadedSyncLegacy()
+        state.mapMarkerCount = MapDatabase.markerCount
+        state.refreshRegionCache()
+
+        state.routeStartPx = (DriveState.worldToMapPixelX(state.locatorX, state.locatorY),
+                              DriveState.worldToMapPixelY(state.locatorX, state.locatorY))
+        state.routeEndPx = (state.routeStartPx!.0 + 300, state.routeStartPx!.1 - 220)
+        state.routeStatus = .planning
+
+        print("[MC-ROUTE-LOADING] 文案递进核对：")
+        for (label, t) in [("0.0s", 0.0), ("0.8s", 0.8), ("1.6s", 1.6), ("3.2s", 3.2), ("6.0s", 6.0)] {
+            let s = RoutePlanningOverlay.stage(for: t)
+            print("    \(label.padding(toLength: 5, withPad: " ", startingAt: 0))  \(s.0)   | \(s.1)")
+        }
+        return renderMap(state: state, canvas: canvas, tag: "route_loading")
+    }
+
+    /// 地图渲染性能基准夹具（`--mc-map-bench`）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 为什么必须实测，不能"分析一下复杂度"
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 本项目已有教训：12 项"想当然的优化"实测全被否决。所以这里给的是
+    /// **可复现的数字**，不是推测：
+    ///   · 400 点 ForEach → 18.92 ms/帧（超 60fps 预算 16.67）
+    ///   · 400 点 Canvas  →  2.12 ms/帧
+    ///   · 5677 点 Canvas →  0.81 ms/帧
+    ///
+    /// 本夹具渲染**真实地图全部图层**（底图 + 聚类标记 + 路线 + 自车）
+    /// 若干次取平均，并与 `AURORA_MAP_LEGACY_MARKERS=1` 对比。
+    ///
+    /// ⚠️ 诚实声明：离屏 ImageRenderer 的耗时**不等于**真机合成器耗时
+    ///   （真机有 GPU 合成、图层缓存、脏区重绘）。故本夹具的判据是
+    ///   **新旧路径的相对差**，不宣称绝对 60fps。
+    ///
+    /// 为了让内容每帧真的变化（否则 ImageRenderer 直接命中缓存，
+    /// 测出 0.000 ms 这种假数 —— 本小姐第一版就踩了这个坑），
+    /// 每轮把视口中心平移 1 像素。
+    @MainActor
+    static func benchMapNow(iters: Int = 12) -> Bool {
+        let state = DriveState()
+        state.isDriving = true
+        state.locatorFound = true
+        state.locatorX = -77000
+        state.locatorY = 31865
+        MapDatabase.ensureLoadedSyncLegacy()
+        state.mapMarkerCount = MapDatabase.markerCount
+        state.refreshRegionCache()
+
+        // 聚类规模（数字要能对上实测表）
+        let spanM = 1200.0
+        let spanPx = spanM * (MapTileImage.mapPixels / MapTileImage.worldMetersPerMap)
+        let cx = MapTileImage.mapPixels / 2, cy = cx
+        let all = MapDatabase.markersInViewAll(centerX: cx, centerY: cy, spanPx: spanPx)
+        let on = MarkerTaxonomy.defaultOnGroups
+        let filtered = all.filter { m in
+            guard let l = m.groupLabel else { return true }
+            return on.contains(l)
+        }
+        print("[MC-BENCH] ═══ 地图渲染基准（同进程三路对比，各 \(iters) 轮）═══")
+        print("[MC-BENCH] 视野 \(Int(spanM)) m → 视野内 \(all.count) 个，"
+              + "默认组过滤后 \(filtered.count) 个，可见组: \(on.sorted().joined(separator: ","))")
+
+        /// 跑一种模式
+        func run(_ mode: LargeMapCanvas.MarkerRenderMode, _ label: String,
+                 span: Double?) -> Double {
+            var times: [Double] = []
+            times.reserveCapacity(iters)
+            for i in 0..<iters {
+                // 每轮平移 0.5px，强制重新渲染（否则 ImageRenderer 命中缓存，
+                // 测出 0.000 ms 这种假数 —— 第一版就踩过）
+                let shot = LargeMapCanvas(state: state, markerMode: mode,
+                                          benchSpanMeters: span, interactive: false)
+                    .frame(width: 1320, height: 860)
+                    .offset(x: Double(i) * 0.5)
+                let r = ImageRenderer(content: shot)
+                r.scale = 1.0
+                let t0 = DispatchTime.now()
+                _ = r.nsImage
+                times.append(Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds) / 1_000_000)
+            }
+            times.sort()
+            let avg = times.reduce(0, +) / Double(times.count)
+            let p50 = times[times.count / 2]
+            let p95 = times[min(times.count - 1, Int(Double(times.count) * 0.95))]
+            print(String(format: "[MC-BENCH] %-22@ 平均 %7.2f ms · p50 %7.2f · p95 %7.2f",
+                         label as NSString, avg, p50, p95))
+            return avg
+        }
+
+        // ══ 第一组：1200 m 视野（默认档）三路对比 ══
+        print()
+        print("[MC-BENCH] ── 视野 1200 m（默认档，标签不显示，因门槛 \(Int(LargeMapCanvas.labelSpanM)) m）──")
+        let base = run(.none, "① 仅底图（基线）", span: nil)
+        let legacy = run(.legacy, "② ForEach 旧路径", span: nil)
+        let canvas = run(.canvas, "③ Canvas+聚类 新路径", span: nil)
+
+        print()
+        print(String(format: "[MC-BENCH] 标记层增量：旧 %.2f ms  →  新 %.2f ms  "
+                     + "（%.1f× 提速，省 %.2f ms）",
+                     legacy - base, canvas - base,
+                     (legacy - base) / max(0.01, canvas - base), (legacy - canvas)))
+
+        // ══ 第二组：300 m 视野（**标签Active** —— 这是最坏情况）══
+        //
+        // ⚠️ 为什么必须单独测这一档：标签门槛是 400 m，1200 m 视野下
+        //    `drawLabels` 直接 return，一个标签都不画。若只测 1200 m 就宣称
+        //    "标记层 0.47 ms"，等于把最贵的一步漏掉了 —— 是假结论。
+        //    标签成本实测 ~32.7 µs/个，200 个 ≈ 6.5 ms，必须实测确认。
+        print()
+        print("[MC-BENCH] ── 视野 300 m（**标签全开**，最坏情况）──")
+        let baseN = run(.none, "① 仅底图（基线）", span: 300)
+        let legacyN = run(.legacy, "② ForEach 旧路径", span: 300)
+        let canvasN = run(.canvas, "③ Canvas+聚类 新路径", span: 300)
+        print()
+        print(String(format: "[MC-BENCH] 近景标记层增量：旧 %.2f ms  →  新 %.2f ms",
+                     legacyN - baseN, canvasN - baseN))
+        print(String(format: "[MC-BENCH] 近景新路径整体 %.2f ms（含底图 %.2f ms）",
+                     canvasN, baseN))
+
+        let budget = 16.67
+        print()
+        print(String(format: "[MC-BENCH] 60fps 预算 %.2f ms → 1200m %@ · 300m(标签全开) %@",
+                     budget,
+                     canvas < budget ? "✓" : "✗", canvasN < budget ? "✓" : "✗"))
+        print("[MC-BENCH] ⚠️ 离屏 ImageRenderer ≠ 真机合成器耗时，此表用于**相对对比**，"
+              + "不宣称真机绝对 60fps")
+        return true
+    }
+
     /// 同步离屏渲染（由 AuroraDriveLauncher 直接调用，不依赖窗口生命周期）
+    @MainActor
     @discardableResult
     static func renderNow(condition: RoadCondition,
                           canvas: CGSize = ConsoleMetrics.designSize) -> Bool {

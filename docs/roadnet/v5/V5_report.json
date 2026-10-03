@@ -1,0 +1,11 @@
+{
+ "bright_lo": 60,
+ "dark_v": 38,
+ "gap_b": 110.0,
+ "gap_ab": 110.0,
+ "bridge_w": 2,
+ "V5_km": 108.3,
+ "V5_comps": 1,
+ "bridge_px": 1332,
+ "stroke_cov": 0.9184
+}

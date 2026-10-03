@@ -1,0 +1,12 @@
+{
+ "bright_lo": 60,
+ "dark_v": 38,
+ "close_b": 9,
+ "join_max": 120.0,
+ "spur_min": 12,
+ "line_px": 164455,
+ "km": 100.3,
+ "comps": 1,
+ "dead_ends": 119,
+ "upstream_comps": 1
+}

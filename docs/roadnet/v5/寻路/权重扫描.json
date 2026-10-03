@@ -1,0 +1,76 @@
+{
+ "rows": [
+  {
+   "name": "纯最短距离 W=0",
+   "ms": 0.94,
+   "turns_med": 32,
+   "dist_km": 5.39,
+   "detour_pct": 0.0,
+   "turns_avg": 30.7
+  },
+  {
+   "name": "W=15 微厌拐弯",
+   "ms": 1.069,
+   "turns_med": 28,
+   "dist_km": 5.4,
+   "detour_pct": 0.3,
+   "turns_avg": 28.4
+  },
+  {
+   "name": "W=30 轻厌拐弯",
+   "ms": 1.067,
+   "turns_med": 27,
+   "dist_km": 5.41,
+   "detour_pct": 0.5,
+   "turns_avg": 27.6
+  },
+  {
+   "name": "W=50 中厌拐弯",
+   "ms": 1.167,
+   "turns_med": 25,
+   "dist_km": 5.41,
+   "detour_pct": 0.5,
+   "turns_avg": 26.2
+  },
+  {
+   "name": "W=80 明显偏好直行",
+   "ms": 1.235,
+   "turns_med": 25,
+   "dist_km": 5.41,
+   "detour_pct": 0.5,
+   "turns_avg": 25.3
+  },
+  {
+   "name": "W=120",
+   "ms": 1.283,
+   "turns_med": 22,
+   "dist_km": 5.48,
+   "detour_pct": 1.8,
+   "turns_avg": 22.2
+  },
+  {
+   "name": "W=200 几乎不拐弯",
+   "ms": 1.715,
+   "turns_med": 21,
+   "dist_km": 5.52,
+   "detour_pct": 2.4,
+   "turns_avg": 21.8
+  },
+  {
+   "name": "W=400 极强",
+   "ms": 1.591,
+   "turns_med": 21,
+   "dist_km": 5.6,
+   "detour_pct": 3.9,
+   "turns_avg": 21.0
+  },
+  {
+   "name": "拐弯最少优先(字典序)",
+   "ms": 1.667,
+   "turns_med": 18,
+   "dist_km": 5.78,
+   "detour_pct": 7.3,
+   "turns_avg": 18.3
+  }
+ ]
+}

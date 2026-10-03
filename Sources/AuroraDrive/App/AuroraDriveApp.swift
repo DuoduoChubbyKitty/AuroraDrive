@@ -752,6 +752,30 @@ struct AuroraDriveLauncher {
             fflush(stdout)
             exit(ok ? 0 : 1)
         }
+        // ── 路网路线出图（2026-10-03 新增）──
+        // 数字自检证明算法对，这两个夹具证明**画对**（图层/坐标/配色）。
+        if args.contains("--mc-route") {
+            let ok = MissionControlShot.renderMapRouteNow()
+            fflush(stdout)
+            exit(ok ? 0 : 1)
+        }
+        if args.contains("--mc-route-loading") {
+            let ok = MissionControlShot.renderMapRouteLoadingNow()
+            fflush(stdout)
+            exit(ok ? 0 : 1)
+        }
+        // ── 地图渲染性能基准（2026-10-03 新增）──
+        // 配合 AURORA_MAP_LEGACY_MARKERS=1 做新旧路径 A/B 对比。
+        if args.contains("--mc-map-bench") {
+            let iters: Int = {
+                if let i = args.firstIndex(of: "--iters"), i + 1 < args.count,
+                   let v = Int(args[i + 1]), v > 0, v <= 200 { return v }
+                return 12
+            }()
+            let ok = MissionControlShot.benchMapNow(iters: iters)
+            fflush(stdout)
+            exit(ok ? 0 : 1)
+        }
         if let i = args.firstIndex(of: "--mc-shot") {
             var rc = RoadCondition.simple
             if i + 1 < args.count, let c = RoadCondition(rawValue: args[i + 1]) { rc = c }
@@ -873,13 +897,28 @@ struct AuroraDriveLauncher {
                             "--realshot-selftest",
                             "--egobox-selftest", "--ayolom-selftest",
                             "--lanekeep-selftest", "--perception-selftest",
-                              "--wire-selftest"]
+                              "--wire-selftest", "--lanekeep-reality", "--route-selftest",
+                              "--taxonomy-selftest",
+                              "--mc-route", "--mc-route-loading", "--mc-map-bench"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
         // 实测全被否决 —— 教训就是性能必须先有基线）。
         // ── 引擎配置通道自检（--wire-selftest）──
         // 验证 2026-10-02 修复的四处「手切档位静默失效」缺陷。
+        // ── 车道保持真实素材实测（--lanekeep-reality）──
+        // 回答「车道保持到底能不能用」—— 既有自检只验契约，从没量过真实表现。
+        if args.contains("--lanekeep-reality") {
+            var dir = "data/nte_test_frames"
+            if let i = args.firstIndex(of: "--dir"), i + 1 < args.count { dir = args[i + 1] }
+            var n = 400, st = 1
+            if let i = args.firstIndex(of: "--frames"), i + 1 < args.count,
+               let v = Int(args[i + 1]) { n = v }
+            if let i = args.firstIndex(of: "--stride"), i + 1 < args.count,
+               let v = Int(args[i + 1]) { st = v }
+            let failed = runLaneKeepRealityTest(framesDir: dir, maxFrames: n, stride: st)
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
         if args.contains("--wire-selftest") {
             let failed = runWireSelfTest()
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
@@ -1004,6 +1043,19 @@ struct AuroraDriveLauncher {
         if args.contains("--fit-selftest") {
             runFitSelfTest()
             exit(0)
+        }
+
+        // ── 路网寻路自检（--route-selftest）──
+        // 验收标准是「与网页版冻结基线一致」：同一份 route_graph.json 驱动
+        // tools/roadnet/web/index.html 与本实现，两者必须给出相同结果。
+        if args.contains("--route-selftest") {
+            exit(runRouteSelfTest())
+        }
+
+        // ── 词表 / 聚类自检（--taxonomy-selftest，2026-10-03 新增）──
+        // 钉住三类「不崩但结果错」的坑：匹配优先级、默认组解析、聚类性能。
+        if args.contains("--taxonomy-selftest") {
+            exit(runTaxonomySelfTest())
         }
 
         let isOneShot = args.contains { oneShotFlags.contains($0) }
@@ -1555,6 +1607,305 @@ final class NicTestInjector {
     }
 
     func stop() { stopped = true }
+}
+
+// ============================================================================
+// MARK: - 路网寻路自检（--route-selftest）
+// ============================================================================
+//  验收哲学：**与网页版冻结基线逐项对齐**，而不是"看起来能跑"。
+//  同一份 models/route_graph.json 同时驱动
+//     · 本实现（Sources/AuroraDrive/App/RouteGraph.swift）
+//     · 网页工具（tools/roadnet/web/index.html 的 navRoute）
+//  两者对同一对起终点必须给出相同距离/拐弯数 —— 这条由本夹具守住。
+//
+//  基线值来自 2026-10-03 的网页版实测（300 对随机样本的权重扫描），
+//  改动算法后若基线不符，要么算法有回归、要么基线该显式更新（不允许静默放过）。
+// ═══════════════════════════════════════════════════════════════════════════
+//  词表 / 聚类自检（--taxonomy-selftest，2026-10-03 新增）
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//  为什么要有这个：词表与聚类踩过三个**不崩、不报错、只是结果错**的坑 ——
+//    ① 匹配优先级 icon 先于 type → 129 个 currency 点被归成「服务」
+//    ② AURORA_MAP_DEFAULT_GROUPS 只认中文名 → 传 id 时地图直接空白
+//    ③ 聚类里逐点读 ProcessInfo.environment → 541 点耗时 120 ms
+//  这三类错误都不会让程序崩溃，只会让用户看到错的东西，
+//  所以必须有**自动断言**把它们钉住，而不是靠人工记得去敲命令。
+func runTaxonomySelfTest() -> Int32 {
+    var fail = 0
+    func ck(_ name: String, _ cond: Bool, _ detail: String = "") {
+        if !cond { fail += 1 }
+        print("  \(cond ? "✓" : "✗") \(name)\(detail.isEmpty ? "" : "  — \(detail)")")
+    }
+
+    MarkerTaxonomy.ensureLoadedSync()
+    MapDatabase.ensureLoadedSyncLegacy()
+
+    print("── 词表加载 ──")
+    let groups = MarkerTaxonomy.groups
+    ck("词表已加载", MarkerTaxonomy.loaded,
+       MarkerTaxonomy.loaded ? "" : (MarkerTaxonomy.loadError ?? "无原因"))
+    ck("组数 = 7", groups.count == 7, "实测 \(groups.count)")
+    ck("组顺序非空", groups.allSatisfy { !$0.label.isEmpty })
+
+    // ── 冻结基线：组数量（改动分类规则必须显式更新，不允许静默漂移）──
+    let expect: [String: Int] = ["explore": 2434, "resource": 964, "travel": 106,
+                                 "monster": 725, "shop": 677, "service": 269,
+                                 "landmark": 502]
+    print("── 组数量冻结基线 ──")
+    for (gid, want) in expect.sorted(by: { $0.key < $1.key }) {
+        let got = MarkerTaxonomy.countByGroup[gid] ?? 0
+        ck("\(gid) = \(want)", got == want, "实测 \(got)")
+    }
+    let total = MarkerTaxonomy.countByGroup.values.reduce(0, +)
+    ck("合计 = 5677", total == 5677, "实测 \(total)")
+
+    // ── 覆盖率：每个标记都必须有组（零兜底）──
+    print("── 覆盖率 ──")
+    let mapped = MarkerTaxonomy.groupByMarker.count
+    ck("5677 个标记全部有组", mapped == 5677, "实测 \(mapped)")
+    ck("无 fallback 条目",
+       !MarkerTaxonomy.groupByMarker.values.contains { $0.contains("fallback") })
+
+    // ── 语义回归探针（每一个都对应一个真实踩过的坑）──
+    print("── 语义回归探针 ──")
+    func groupOfAll(_ pred: (MapDatabase.Marker) -> Bool) -> Set<String> {
+        let ids = MapDatabase.markers.filter(pred).map { $0.id }
+        return Set(ids.compactMap { MarkerTaxonomy.groupID(forMarker: $0) })
+    }
+    // ① currency 必须归「资源」（曾因 icon 优先被误判成「服务」）
+    let cur = groupOfAll { $0.kind == "currency" }
+    ck("currency → resource", cur == ["resource"], "实测 \(cur.sorted())")
+    // ② 计程车站必须归「传送点」（曾刷屏且无分类）
+    let taxi = groupOfAll { $0.name.contains("计程车站") }
+    ck("计程车站 → travel", taxi == ["travel"], "实测 \(taxi.sorted())")
+    // ③ phone-booth（**连字符**）必须归「服务」（旧代码只匹配下划线，全掉 default）
+    let pb = groupOfAll { $0.kind == "phone-booth" }
+    ck("phone-booth → service", pb == ["service"], "实测 \(pb.sorted())")
+    ck("phone-booth 数量 = 17",
+       MapDatabase.markers.filter { $0.kind == "phone-booth" }.count == 17,
+       "实测 \(MapDatabase.markers.filter { $0.kind == "phone-booth" }.count)")
+
+    // ── AURORA_MAP_DEFAULT_GROUPS 解析（曾只认中文名，传 id 就空白）──
+    print("── 默认组解析（中文名 / 组 id 双通道）──")
+    let byID = MarkerTaxonomy.parseDefaultGroups("travel")
+    ck("传 id \"travel\" → {传送点}", byID == ["传送点"], "实测 \(byID.sorted())")
+    let byLabel = MarkerTaxonomy.parseDefaultGroups("传送点")
+    ck("传中文名 \"传送点\" → {传送点}", byLabel == ["传送点"], "实测 \(byLabel.sorted())")
+    let mixed = MarkerTaxonomy.parseDefaultGroups("travel,怪物")
+    ck("混写 \"travel,怪物\" → 两组", mixed == ["传送点", "怪物"], "实测 \(mixed.sorted())")
+    let bad = MarkerTaxonomy.parseDefaultGroups("根本不存在的组")
+    ck("未知 token 被忽略（不产生空地图）", bad.isEmpty, "实测 \(bad.sorted())")
+    let dflt = MarkerTaxonomy.defaultOnGroups
+    ck("默认开启 = 传送点,探索度,资源",
+       dflt == ["传送点", "探索度", "资源"], "实测 \(dflt.sorted())")
+
+    // ── 过滤顺序 + 计数一致性 ──
+    print("── 过滤 / 聚类 ──")
+    let cx = MapTileImage.mapPixels / 2, cy = cx
+    let spanPx = 1200.0 * (MapTileImage.mapPixels / MapTileImage.worldMetersPerMap)
+    let all = MapDatabase.markersInViewAll(centerX: cx, centerY: cy, spanPx: spanPx)
+    ck("1200 m 视野取点 = 888", all.count == 888, "实测 \(all.count)")
+
+    let f = MarkerClusterer.filter(all, enabledLabels: dflt)
+    ck("默认组过滤后 = 541", f.count == 541, "实测 \(f.count)")
+    // 关键：**先过滤再聚类**，团的 count 之和必须等于过滤后总数
+    //（若先聚类再过滤，count 会包含被隐藏组的成员 —— 数字骗人）
+    let cl = MarkerClusterer.cluster(f, spanPx: spanPx, viewWidth: 1000,
+                                     centerX: cx, centerY: cy)
+    let sum = cl.reduce(0) { $0 + $1.count }
+    ck("聚类后 count 之和 == 过滤后总数", sum == f.count, "\(sum) vs \(f.count)")
+    // 冻结基线：**过滤后** 541 点在 viewWidth=1000 下聚成 195 团。
+    // ⚠️ 别把「未过滤 888 点的 224 团」当成这个数 —— 两个数极易混
+    //    （本自检第一版就写错成 224，被自检自己抓出来了）。
+    ck("聚类团数 = 195（过滤后 541 点 / viewWidth 1000）",
+       cl.count == 195, "实测 \(cl.count)")
+
+    // 稳定性：同样输入必须同样输出（否则截图无法 A/B 比对）
+    let cl2 = MarkerClusterer.cluster(f, spanPx: spanPx, viewWidth: 1000,
+                                      centerX: cx, centerY: cy)
+    ck("同输入同输出（顺序稳定）", cl.map { $0.id } == cl2.map { $0.id })
+
+    // 代表点优先级：团内有传送点时，代表点必须是传送点
+    let withTravel = cl.filter { c in
+        c.count > 1 && c.members.contains { $0.group == "travel" }
+    }
+    let wrong = withTravel.filter { $0.representative.group != "travel" }.count
+    ck("含传送点的团，代表点 = 传送点", wrong == 0,
+       "检查 \(withTravel.count) 个团，\(wrong) 个不符")
+
+    // ── 聚类耗时（曾因逐点读环境变量慢到 120 ms）──
+    print("── 聚类性能 ──")
+    let t0 = DispatchTime.now()
+    for _ in 0..<20 {
+        _ = MarkerClusterer.cluster(f, spanPx: spanPx, viewWidth: 1000,
+                                    centerX: cx, centerY: cy)
+    }
+    let per = Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds)
+              / 1_000_000 / 20
+    ck("单次聚类 < 5 ms（曾 120 ms）", per < 5, String(format: "实测 %.3f ms", per))
+
+    print()
+    if fail == 0 {
+        print("词表 / 聚类自检 PASS —— 全部通过")
+        return 0
+    }
+    print("词表 / 聚类自检 FAIL —— \(fail) 项不通过")
+    return 1
+}
+
+func runRouteSelfTest() -> Int32 {
+    var fail = 0
+    func ck(_ name: String, _ cond: Bool, _ detail: String = "") {
+        if !cond { fail += 1 }
+        print("  \(cond ? "✓" : "✗") \(name)\(detail.isEmpty ? "" : "  — \(detail)")")
+    }
+    /// 近似断言：用于有浮点累计误差的量（容差必须在调用处写明理由）
+    func ckNear(_ name: String, _ got: Double, _ want: Double, tol: Double, unit: String = "") {
+        let ok = abs(got - want) <= tol
+        if !ok { fail += 1 }
+        print("  \(ok ? "✓" : "✗") \(name)  实测 \(String(format: "%.3f", got))\(unit)"
+              + " / 基线 \(String(format: "%.3f", want))\(unit) / 容差 ±\(tol)\(unit)")
+    }
+
+    print("═══ 路网寻路自检 ═══")
+    print("  图文件: \(RouteGraph.graphURL.path)")
+
+    // ── 1. 加载 ──
+    guard RouteGraph.ensureLoadedSync(), let g = RouteGraph.shared else {
+        print("  ✗ 路网加载失败: \(RouteGraph.loadError ?? "未知原因")")
+        print("路网寻路自检 FAIL —— 1 项未通过")
+        return 1
+    }
+    ck("图规模 节点=612", g.nodes.count == 612, "实测 \(g.nodes.count)")
+    ck("图规模 边=825", g.edges.count == 825, "实测 \(g.edges.count)")
+    ck("米/像素 = 0.61", abs(g.metersPerPixel - 0.61) < 1e-9,
+       "实测 \(g.metersPerPixel)")
+
+    // ── 2. 坐标系往返（点击设目的地全靠它）──
+    // 用几个真实世界坐标量级的点验证，避免在原点附近"恰好都对"。
+    print("  ── 坐标往返 地图像素 ↔ 世界坐标 ──")
+    let probes: [(Double, Double)] = [
+        (-77000, 31865), (-76500, 32200), (0, 0), (50000, -40000),
+    ]
+    var maxErr = 0.0
+    for (wx, wy) in probes {
+        let e = DriveState.roundTripPixelError(wx: wx, wy: wy)
+        maxErr = max(maxErr, e)
+    }
+    ck("往返误差 < 0.5 px（4 个探针最大值）", maxErr < 0.5,
+       String(format: "最大 %.3e px", maxErr))
+
+    // 反变换必须与 worldToMapPixel 互为逆，且**不能**等于
+    // CoordinateTransform.invert 的结果（两者 B 项符号相反）。
+    // 这里验证 MapWiring 的自洽性：正向 → 反向 → 正向 应回到原像素。
+    var maxPixErr = 0.0
+    for (px, py) in [(6400.0, 5000.0), (2258.0, 4517.0), (6446.0, 4957.0)] {
+        let wx = DriveState.mapPixelToWorldX(px, py)
+        let wy = DriveState.mapPixelToWorldY(px, py)
+        let bx = DriveState.worldToMapPixelX(wx, wy)
+        let by = DriveState.worldToMapPixelY(wx, wy)
+        maxPixErr = max(maxPixErr, hypot(bx - px, by - py))
+    }
+    ck("像素往返误差 < 0.5 px（3 个探针最大值）", maxPixErr < 0.5,
+       String(format: "最大 %.3e px", maxPixErr))
+
+    // ── 3. 吸附 ──
+    print("  ── 最近节点吸附 ──")
+    // 取一个已知节点坐标，吸附应精确回到自己
+    let n24 = g.nodes[24]
+    if let hit = g.nearestNode(x: n24.x, y: n24.y) {
+        ck("对节点自身坐标吸附 = 自身", hit == 24, "实测节点 \(hit)")
+    } else {
+        ck("对节点自身坐标吸附 = 自身", false, "返回 nil")
+    }
+    // 偏移 10 px 内应仍吸附到同一节点（相邻节点边长中位 75.6 m ≈ 124 px）
+    if let hit = g.nearestNode(x: n24.x + 10, y: n24.y + 10) {
+        ck("偏移 10px 仍吸附到节点 24", hit == 24, "实测节点 \(hit)")
+    } else {
+        ck("偏移 10px 仍吸附到节点 24", false, "返回 nil")
+    }
+
+    // ── 4. 冻结基线：node 24 → node 36 ──
+    // 这是网页版实测出的「最有对比价值的一对」：
+    //   W=0   纯距离最短 → 7.45 km / 47 拐弯
+    //   W=200 最少拐弯   → 8.57 km / 20 拐弯  （多 1.12 km，少 27 个拐弯）
+    print("  ── 冻结基线：节点 24 → 节点 36 ──")
+    ck("节点 24 坐标 = (2258,4517)",
+       abs(g.nodes[24].x - 2258) < 1 && abs(g.nodes[24].y - 4517) < 1,
+       "实测 (\(Int(g.nodes[24].x)),\(Int(g.nodes[24].y)))")
+    ck("节点 36 坐标 = (6446,4957)",
+       abs(g.nodes[36].x - 6446) < 1 && abs(g.nodes[36].y - 4957) < 1,
+       "实测 (\(Int(g.nodes[36].x)),\(Int(g.nodes[36].y)))")
+
+    do {
+        let r0 = try RoutePlanner.route(graph: g, from: 24, to: 36, turnWeight: 0)
+        ckNear("W=0   距离", r0.distanceMeters / 1000, 7.45, tol: 0.08, unit: " km")
+        ck("W=0   拐弯数 47", r0.turns == 47, "实测 \(r0.turns)")
+        ck("W=0   折线非空", r0.pointCount > 10, "顶点 \(r0.pointCount)")
+
+        let r200 = try RoutePlanner.route(graph: g, from: 24, to: 36, turnWeight: 200)
+        ckNear("W=200 距离", r200.distanceMeters / 1000, 8.57, tol: 0.08, unit: " km")
+        ck("W=200 拐弯数 20", r200.turns == 20, "实测 \(r200.turns)")
+        ck("W=200 比 W=0 拐弯更少", r200.turns < r0.turns,
+           "\(r0.turns) → \(r200.turns)")
+        ck("W=200 比 W=0 路更长（用距离换拐弯）",
+           r200.distanceMeters > r0.distanceMeters,
+           String(format: "%.0f m → %.0f m", r0.distanceMeters, r200.distanceMeters))
+
+        // 字典序模式应与 W=200 同解（这是选 W=200 作默认值的理由）
+        let rLex = try RoutePlanner.route(graph: g, from: 24, to: 36, turnsFirst: true)
+        ck("字典序与 W=200 拐弯数一致", rLex.turns == r200.turns,
+           "字典序 \(rLex.turns) / W=200 \(r200.turns)")
+    } catch {
+        ck("基线路线规划", false, "\(error)")
+    }
+
+    // ── 5. 性能与规模 ──
+    print("  ── 性能 / 可达性 ──")
+    if let r = try? RoutePlanner.route(graph: g, from: 24, to: 36, turnWeight: 200) {
+        ck("单次规划 < 5 ms", r.elapsedMs < 5.0,
+           String(format: "实测 %.3f ms", r.elapsedMs))
+    }
+
+    // 300 对随机样本全可达（图是 1 连通分量）+ 统计
+    var srand: UInt64 = 0x5DEECE66D
+    func rnd(_ n: Int) -> Int {
+        srand = srand &* 6364136223846793005 &+ 1442695040888963407
+        return Int((srand >> 33) % UInt64(n))
+    }
+    var reach = 0, total = 0
+    var sumTurnsW0 = 0, sumTurnsW200 = 0
+    var sumMs = 0.0
+    for _ in 0..<300 {
+        let a = rnd(g.nodes.count), b = rnd(g.nodes.count)
+        if a == b { continue }
+        total += 1
+        if let r0 = try? RoutePlanner.route(graph: g, from: a, to: b, turnWeight: 0),
+           let r2 = try? RoutePlanner.route(graph: g, from: a, to: b, turnWeight: 200) {
+            reach += 1
+            sumTurnsW0 += r0.turns
+            sumTurnsW200 += r2.turns
+            sumMs += r2.elapsedMs
+        }
+    }
+    ck("300 对随机路线全部可达", reach == total && total >= 250,
+       "\(reach)/\(total)")
+    if total > 0 {
+        let avg0 = Double(sumTurnsW0) / Double(total)
+        let avg2 = Double(sumTurnsW200) / Double(total)
+        let avgMs = sumMs / Double(total)
+        print(String(format: "    平均拐弯 W=0: %.1f → W=200: %.1f（降 %.0f%%）",
+                     avg0, avg2, (1 - avg2 / max(avg0, 0.001)) * 100))
+        print(String(format: "    平均单次规划 %.3f ms（%d 次）", avgMs, total))
+        ck("平均拐弯数确实下降", avg2 < avg0,
+           String(format: "%.1f → %.1f", avg0, avg2))
+        ck("平均单次规划 < 2 ms", avgMs < 2.0,
+           String(format: "%.3f ms", avgMs))
+    }
+
+    print(fail == 0 ? "路网寻路自检 PASS —— 全部通过"
+                    : "路网寻路自检 FAIL —— \(fail) 项未通过")
+    return Int32(min(fail, 127))
 }
 
 // ============================================================================
@@ -3561,6 +3912,112 @@ final class DriveState {
     var locatorAccelY: Double? = nil
     var locatorAccelZ: Double? = nil
     var locatorTarget: (x: Double, y: Double)? = nil
+
+    // ══════════════════════════════════════════════════════════════════════
+    // MARK: 路网寻路（2026-10-03 新增）
+    // ══════════════════════════════════════════════════════════════════════
+    //  起终点都存**地图像素**（与 RouteGraph.nodes 同系），而不是世界坐标：
+    //  路径规划全程在像素空间做，只有与既有定位/目标互操作时才换算，
+    //  避免把两套坐标在同一个流程里来回倒手（历史上正是这种混用出过 bug）。
+
+    /// 规划出的路线。nil = 当前无路线。
+    var routePlan: RoutePlan? = nil
+    /// 路线起点的地图像素坐标（画起点标记用）
+    var routeStartPx: (x: Double, y: Double)? = nil
+    /// 路线终点的地图像素坐标（画终点标记用）
+    var routeEndPx: (x: Double, y: Double)? = nil
+
+    /// 规划状态机 —— UI 据此决定显示遮罩/结果/错误。
+    enum RouteStatus: Equatable {
+        case idle
+        case planning
+        case ok
+        case failed(String)
+    }
+    var routeStatus: RouteStatus = .idle
+
+    /// 拐弯权重（用户可选；默认 200 = 实测最优）
+    var routeTurnWeight: Double = RoutePlanner.defaultTurnWeight
+
+    /// 是否统计「拐弯数优先」模式
+    var routeTurnsFirst: Bool = false
+
+    /// 清除路线与终点
+    func clearRoute() {
+        routePlan = nil
+        routeStartPx = nil
+        routeEndPx = nil
+        routeStatus = .idle
+        locatorTarget = nil
+    }
+
+    /// 点击地图设终点并规划。
+    ///
+    /// - Parameter mapX/mapY: 点击处的地图像素坐标（由视图层的视口反算得到；
+    ///   该反算必须是 `worldToMapPixel` 的严格逆，见 `MapWiring.mapPixelToWorldX`）
+    ///
+    /// 起终点都在**像素空间**进规划；起点的像素坐标取「自车定位」，
+    /// 未定位时退回地图中心（UI 侧会提示先定位或先点起点）。
+    func planRouteToMapPixel(x mapX: Double, y mapY: Double) {
+        guard let g = RouteGraph.shared else {
+            routeStatus = .failed(RouteGraph.loadError ?? "路网未加载")
+            return
+        }
+        let startPx: (Double, Double)
+        if locatorFound {
+            startPx = (Self.worldToMapPixelX(locatorX, locatorY),
+                       Self.worldToMapPixelY(locatorX, locatorY))
+        } else if let sp = routeStartPx {
+            startPx = sp
+        } else {
+            routeStatus = .failed("未定位 · 请先锁定定位或在地图上点起点")
+            return
+        }
+        runPlan(graph: g, from: startPx, to: (mapX, mapY))
+    }
+
+    /// 按地图像素指定起点后规划（未定位时用「先点起点」流程）
+    func planRouteFromMapPixel(from: (Double, Double), to: (Double, Double)) {
+        guard let g = RouteGraph.shared else {
+            routeStatus = .failed(RouteGraph.loadError ?? "路网未加载")
+            return
+        }
+        runPlan(graph: g, from: from, to: to)
+    }
+
+    /// 置 `.planning` → 让遮罩画出来 → 计算 → 出结果。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 为什么规划要"延迟"出结果
+    /// ══════════════════════════════════════════════════════════════════════
+    /// A* 实测 0.06 ms，若同步算完，`.planning` 会在**同一帧内**被 `.ok`
+    /// 覆盖 —— 遮罩根本不出现（或只闪一帧，看起来像画面抖动）。
+    /// 而遮罩是用户明确要求保留的（理由见 RoutePlanningOverlay 注释：
+    /// 将来接真实 AI 规划时耗时会到秒级）。
+    /// 故让 `.planning` 至少停留 `minimumVisibleSeconds`：
+    /// 先置状态、让出一帧把遮罩画出来，再计算。
+    private func runPlan(graph g: RouteGraph,
+                         from: (Double, Double),
+                         to: (Double, Double)) {
+        routeStatus = .planning
+        routeStartPx = from
+        routeEndPx = to
+        let w = routeTurnWeight
+        let lex = routeTurnsFirst
+        let delay = RoutePlanningOverlay.minimumVisibleSeconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            do {
+                let plan = try RoutePlanner.route(graph: g, fromPixel: from, toPixel: to,
+                                                  turnWeight: w, turnsFirst: lex)
+                self.routePlan = plan
+                self.routeStatus = .ok
+            } catch {
+                self.routePlan = nil
+                self.routeStatus = .failed("\(error)")
+            }
+        }
+    }
     @ObservationIgnored private var lastNetworkLocPos: (x: Double, y: Double)? = nil
     /// 上一次是否处于「坐标陈旧」态。仅用于**边沿触发**日志（进入陈旧时报一次），
     /// 避免 10Hz 的 tick 把日志刷爆。见 `runNetworkLocateStep`。
