@@ -186,7 +186,45 @@ final class AgentSkillCenter: @unchecked Sendable {
     @ObservationIgnored var recordEngine: RecordEngine?
 
     // ── 会话状态（UI 直接观察）──
+    //
+    // ══════════════════════════════════════════════════════════════════════
+    // 【2026-10-07 修复：会话无限增长】
+    // ══════════════════════════════════════════════════════════════════════
+    // 用户反馈「AI 那个窗口会无限变大」。
+    // 根因：`messages` 只 append、从不清理（唯一 removeAll 是"新建对话"手动触发），
+    //   长对话/长时间挂机时数组无限膨胀 —— 内存持续涨，且 LazyVStack 每次
+    //   数据变更都要重新 diff 整个数组，越聊越卡。
+    // 修法：**滑动窗口**。超过 `maxMessages` 时丢弃最旧的，并把丢弃条数记进
+    //   `droppedMessageCount` 供 UI 提示。写入路径统一走 `appendMessage(_:)`。
+    //   · 窗口 200 条（≈100 轮对话），远超任何正常使用场景
+    //     （LLM 侧另有 12 轮历史裁剪，见 AgentChatService.maxHistoryTurns）
     var messages: [AgentMessage] = []
+    /// 滑动窗口上限（超过即丢弃最旧的）
+    static let maxMessages = 200
+    /// 因窗口而被丢弃的消息条数（UI 可提示"更早的消息已折叠"）
+    private(set) var droppedMessageCount = 0
+
+    /// 追加一条消息并维持滑动窗口（**所有写入路径都应走这里**）
+    func appendMessage(_ msg: AgentMessage) {
+        messages.append(msg)
+        if messages.count > Self.maxMessages {
+            let overflow = messages.count - Self.maxMessages
+            messages.removeFirst(overflow)
+            droppedMessageCount += overflow
+        }
+    }
+
+    /// 复位丢弃计数（仅自检用：测试后还原真实状态，不污染用户界面）
+    func resetDroppedMessageCount(_ value: Int) {
+        droppedMessageCount = max(0, value)
+    }
+
+    /// 就地更新某条消息（流式增量用），不改变窗口
+    func replaceMessage(id: UUID, text: String) {
+        guard let idx = messages.lastIndex(where: { $0.id == id }) else { return }
+        messages[idx].text = text
+    }
+
     /// 正在运行的技能集合
     var runningSkills: Set<String> = []
     /// 当前模型选择（UI 模型按钮显示；API 接入层为后续扩展）
@@ -443,10 +481,10 @@ final class AgentSkillCenter: @unchecked Sendable {
     @ObservationIgnored var isDryRun = false
 
     private init() {
-        // 欢迎消息
-        messages.append(AgentMessage(role: .system,
-                                     text: "AI 助手就绪。可以点左侧技能按钮，或直接输入「登录」「排球」「钓鱼」等指令让我干活。",
-                                     time: Date(), source: .ai))
+        // 欢迎消息（走滑动窗口写入，保持唯一写入路径）
+        appendMessage(AgentMessage(role: .system,
+                                   text: "AI 助手就绪。可以点左侧技能按钮，或直接输入「登录」「排球」「钓鱼」等指令让我干活。",
+                                   time: Date(), source: .ai))
     }
 
     // MARK: 依赖注入
@@ -1449,7 +1487,7 @@ final class AgentSkillCenter: @unchecked Sendable {
     func sendUserMessage(_ text: String, source: AgentInvokeSource) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        messages.append(AgentMessage(role: .user, text: trimmed, time: Date(), source: source))
+        appendMessage(AgentMessage(role: .user, text: trimmed, time: Date(), source: source))
         dlog("[Agent] \(source.rawValue) 用户: \(trimmed)")
 
         // 停止指令优先
@@ -1534,7 +1572,7 @@ final class AgentSkillCenter: @unchecked Sendable {
 
         // 占位：先给一条"正在思考"，流式期间逐段更新
         let placeholder = AgentMessage(role: .assistant, text: "…", time: Date(), source: .ai)
-        messages.append(placeholder)
+        appendMessage(placeholder)
         appendSystem("🧠 正在调用模型\(wantVision ? "（含截图）" : "")…")
 
         let service = AgentChatService.shared
@@ -1555,9 +1593,7 @@ final class AgentSkillCenter: @unchecked Sendable {
                 DispatchQueue.main.async {
                     guard let self else { return }
                     // 更新占位消息为累计文本
-                    if let idx = self.messages.lastIndex(where: { $0.id == placeholder.id }) {
-                        self.messages[idx].text = delta
-                    }
+                    self.replaceMessage(id: placeholder.id, text: delta)
                 }
             }
 
@@ -1655,11 +1691,11 @@ final class AgentSkillCenter: @unchecked Sendable {
     }
 
     private func replyAssistant(_ text: String) {
-        messages.append(AgentMessage(role: .assistant, text: text, time: Date(), source: .ai))
+        appendMessage(AgentMessage(role: .assistant, text: text, time: Date(), source: .ai))
     }
 
     func appendSystem(_ text: String) {
-        messages.append(AgentMessage(role: .system, text: text, time: Date(), source: .ai))
+        appendMessage(AgentMessage(role: .system, text: text, time: Date(), source: .ai))
         // 可观测：系统消息同步落盘（此前仅入 UI 会话，无 UI 环境无法核查技能执行/护栏/降级）
         dlog("[Agent] \(text)")
     }
@@ -1712,9 +1748,10 @@ final class AgentSkillCenter: @unchecked Sendable {
     /// 新建对话（清空会话，保留欢迎语）
     func newConversation() {
         messages.removeAll()
-        messages.append(AgentMessage(role: .system,
-                                     text: "新对话开始。输入「登录」「排球」等指令即可调用技能。",
-                                     time: Date(), source: .ai))
+        droppedMessageCount = 0
+        appendMessage(AgentMessage(role: .system,
+                                   text: "新对话开始。输入「登录」「排球」等指令即可调用技能。",
+                                   time: Date(), source: .ai))
     }
 }
 
@@ -2900,7 +2937,13 @@ private struct AgentSkillButton: View {
     }
 }
 
-/// 对话视图（单对话流，滚动）
+/// 对话视图（单对话流，滚动 + 滑动窗口）
+///
+/// 【2026-10-07 修复"窗口无限变大"】
+///   会话数据由 `AgentSkillCenter.appendMessage` 维护滑动窗口（上限 200 条），
+///   这里额外：
+///     · 显示"更早 N 条已折叠"提示（让用户知道消息不是丢了，是被窗口截断）
+///     · 滚动逻辑保持"新消息自动到底"（`messages.count` 变化时触发）
 private struct AgentConversationView: View {
     @Bindable var center: AgentSkillCenter
 
@@ -2908,6 +2951,18 @@ private struct AgentConversationView: View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: Aurora.sp2) {
+                    // 窗口折叠提示（仅当确实丢弃过消息时显示）
+                    if center.droppedMessageCount > 0 {
+                        HStack(spacing: Aurora.sp1) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: Aurora.fsMicro))
+                            Text("更早的 \(center.droppedMessageCount) 条消息已折叠")
+                                .font(.system(size: Aurora.fsMicro))
+                        }
+                        .foregroundStyle(Aurora.t3)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Aurora.sp1)
+                    }
                     ForEach(center.messages) { msg in
                         AgentBubble(msg: msg)
                             .id(msg.id)

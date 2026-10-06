@@ -1578,6 +1578,32 @@ enum LLMSelfTest {
         let missingArg = await registry.invoke(name: "hold_key", args: [:], dryRun: true)
         ledger.check("hold_key 缺参数 → ok=false", !missingArg.ok, missingArg.text)
 
+        // ── ⑤ 会话滑动窗口（2026-10-07 修复"窗口无限变大"）──
+        //
+        // 【为什么在这里测】用户反馈 AI 面板「会无限变大」：`messages` 只 append
+        //   从不清理。修复引入 `AgentSkillCenter.appendMessage` 的滑动窗口
+        //   （上限 200 条）+ `droppedMessageCount` 计数。本条断言把窗口**钉死**，
+        //   防止将来有人改回直接 `messages.append`。
+        ledger.section("⑤ 会话滑动窗口（防无限增长）")
+        let center = AgentSkillCenter.shared
+        let backup = center.messages          // 备份真实会话，测完还原（不污染用户面板）
+        let backupDropped = center.droppedMessageCount
+        center.messages.removeAll()
+        for i in 0..<(AgentSkillCenter.maxMessages + 50) {
+            center.appendMessage(AgentMessage(role: .system, text: "窗口测试 #\(i)",
+                                              time: Date(), source: .ai))
+        }
+        ledger.equals("消息数被窗口限制在上限", center.messages.count, AgentSkillCenter.maxMessages)
+        ledger.equals("丢弃计数 = 超出的条数", center.droppedMessageCount, 50)
+        ledger.check("保留的是**最新**的消息（末尾文本正确）",
+                     center.messages.last?.text == "窗口测试 #\(AgentSkillCenter.maxMessages + 49)",
+                     "末尾=\(center.messages.last?.text ?? "nil")")
+        ledger.check("最旧的消息已被丢弃",
+                     !center.messages.contains { $0.text == "窗口测试 #0" },
+                     "含 #0=\(center.messages.contains { $0.text == "窗口测试 #0" })")
+        center.messages = backup              // 还原
+        center.resetDroppedMessageCount(backupDropped)
+
         _ = ledger.summary("A3 工具自检")
     }
 
