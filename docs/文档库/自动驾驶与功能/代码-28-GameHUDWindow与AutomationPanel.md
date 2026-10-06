@@ -12,11 +12,11 @@
 
 ## 一、GameHUDWindow 帧率 HUD（123 行全文）
 
-**双重用途（头注释 4–14 行）**：
-1. **实用**：游戏全屏时实时显示两行数据——「辅助帧率（AuroraDrive 处理帧率）」+「游戏帧率（ScreenCaptureKit 实际捕获合成帧率）」，**用来判断 Game Mode 是否在压制本进程（掉到个位数 = 被压制）**
-2. **对抗 Game Mode**：一个持续可见的真实窗口比 1×1 隐形锚点更难被 gamepolicyd 归入"无可见窗口的纯后台"桶
+**双重用途（头注释 GameHUDWindow.swift:7-12）**：
+1. **实用**：游戏全屏时实时显示两行数据——「辅助帧率（AuroraDrive 处理帧率）」+「游戏帧率（ScreenCaptureKit 实际捕获合成帧率）」，**用来判断 Game Mode 是否在压制本进程（掉到个位数 = 被压制）**（:7-10）
+2. **对抗 Game Mode**：一个持续可见的真实窗口比 1×1 隐形锚点更难被 gamepolicyd 归入「无可见窗口的纯后台」桶（:11-12）
 
-**关键实现（15–19 行）**：
+**关键实现（GameHUDWindow.swift:14-18 注释；`.screenSaver` 实际赋值在 :69）**：
 - `window.level = .screenSaver`——压过游戏全屏窗口
 - `collectionBehavior 含 .fullScreenAuxiliary`——游戏进全屏 Space 后依然可见
 - `ignoresMouseEvents = true`——**绝不拦截游戏操作**
