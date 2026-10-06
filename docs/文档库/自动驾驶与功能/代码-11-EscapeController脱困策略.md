@@ -1,6 +1,53 @@
 # 代码-11 EscapeController 脱困策略
 
-> 覆盖源文件：`Sources/AuroraDrive/Control/EscapeController.swift`（217 行）。基于当前仓库逐单元编写。
+> 🚨 **本文档已整体失效（2026-10-02 复核）** —— 请先读这段，再看下面正文。
+>
+> ## 事实：脱困功能已不存在
+>
+> | 项 | 原文档说 | 当前事实 |
+> |---|---|---|
+> | 源文件行数 | 217 行 | **44 行** |
+> | 文件内容 | 脱困三阶段策略 | **只剩公共类型 `ControlCommand`** |
+> | `EscapeController` 类 | 有 | **❌ 已删除** |
+> | 档位 `.recover` | 有 | **❌ 已整体删除**（现存三档：`.e2e` / `.yolo` / `.rule`） |
+> | 三阶段循环「倒车 1.5s → 反打 0.8s → 前进 2.0s」 | 有 | **❌ 已删除** |
+> | `enter()` / 随机选脱困方向 | 有 | **❌ 已删除** |
+>
+> ## 删除原因（源码 `EscapeController.swift:12–15` 原文）
+>
+> > 注（2026-09-30）：EscapeController 脱困策略已按用户要求整体删除 ——
+> > **脱困档（`.recover`）实测压低速且无法退出，自动驾驶最多维持 ~12 秒。**
+> > ControlCommand 类型保留：E2E/Rule 两段决策的统一输出格式。
+> > 超时保护说明随脱困删除一并移除。
+>
+> ⟹ **脱困不是"没配好"，是"实测压低速且无法退出"**，所以整体砍掉。
+>
+> ## 这个文件现在还有什么用
+>
+> **只剩 `ControlCommand`**（`Sources/AuroraDrive/Control/EscapeController.swift:28`）：
+>
+> ```swift
+> struct ControlCommand: Equatable {
+>     var steer: Double = 0        // [-1, 1] 左负右正
+>     var throttle: Double = 0     // [0, 1]
+>     var brake: Double = 0        // [0, 1]
+>     var confidence: Double = 1.0 // [0, 1]
+>     static let idle = ControlCommand()
+> }
+> ```
+>
+> **它仍是活跃类型** —— `AuroraDriveApp.swift` 的 `currentCommand` 就是它。
+> 只是**文件名已名不副实**（叫 EscapeController，里面没有 EscapeController）。
+>
+> ⚠️ **改文件名不在本次范围内**（改名=破坏，且要动 Package 与引用点）。
+>
+> ---
+>
+> **以下为 2026-09-29 原文，全部已失效，仅作留痕。切勿据此写代码。**
+>
+> ---
+
+> 覆盖源文件：`Sources/AuroraDrive/Control/EscapeController.swift`（**44 行**，**2026-10-02 `wc -l` 实测**；原文写 217 行）
 
 ## 一、ControlCommand 公共类型与脱困参数（第 1–102 行）
 

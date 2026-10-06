@@ -2,7 +2,7 @@
 
 > 本文档基于 MaaNTE 源码深度分析，覆盖核心框架、识别-决策-执行管线、坐标系统、自定义Action开发等。
 
-> 【2026-09-19 现状标注】描述 MaaNTE 框架本身（本地 `MaaNTE/` 仍保留）。项目侧定位：Maa 只做工具，不整体接管 AuroraDrive；Maa 的 MaaHub Socket IPC 未接入本项目（AuroraDrive 自有 Unix socket 引擎），ROI/模板结论以 `build/maa_pipeline_override.json`（250 节点 override）为准；坐标 1470×923 固定，运行期长边 1280。MaaNTE 基准分辨率 1280×720 与实机 1280×803 高度差 83px 的规则（顶部锚定不变、底部锚定下移 83px）见 `docs/界面采集作业指令.md` 第 8 节与 `docs/ROI反推规则.md`。
+> 【2026-09-19 现状标注】描述 MaaNTE 框架本身（本地 `MaaNTE/` 仍保留）。项目侧定位：Maa 只做工具，不整体接管 AuroraDrive；Maa 的 MaaHub Socket IPC 未接入本项目（AuroraDrive 自有 Unix socket 引擎），ROI/模板结论以 `build/maa_pipeline_override.json`（250 节点 override）为准；坐标 1470×923 固定，运行期长边 1280。MaaNTE 基准分辨率 1280×720 与实机 1280×803 高度差 83px 的规则（顶部锚定不变、底部锚定下移 83px）见 `docs/文档库/探索文档/界面采集作业指令.md` 第 8 节与 `docs/文档库/Maa深度/ROI反推规则.md`。
 
 ---
 

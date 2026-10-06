@@ -1,6 +1,10 @@
 # 代码-02 AuroraPaths 项目根定位
 
-> 覆盖源文件：`Sources/AuroraDrive/Core/AuroraPaths.swift`（59 行，commit d64873b 后位于 Core/ 子目录）。基于当前仓库逐单元编写。**2026-09-25 深度复核**：代码本体零变化，调用方清单已重新 grep 更新（UI 大改版后新增 MapWiring/MissionConsole 调用点）。
+> 覆盖源文件：`Sources/AuroraDrive/Core/AuroraPaths.swift`（**59 行**，2026-10-02 `wc -l` 实测；原文写 58 行。commit d64873b 后位于 Core/ 子目录）。基于当前仓库逐单元编写。**2026-09-25 深度复核**：代码本体零变化，调用方清单已重新 grep 更新（UI 大改版后新增 MapWiring/MissionConsole 调用点）。
+>
+> **⚠️ 2026-09-29 复核订正**：行数 **59 → 58**（原文写 59）。
+> 依据：`wc -l Sources/AuroraDrive/Core/AuroraPaths.swift` = **58**。
+> （差 1 行，推测为末行无换行符或早期统计口径差异；正文引用的行号区间 8–47 / 50–57 **均在 58 行范围内，不受影响**。）
 
 ## 一、projectRoot() 多候选根目录解析（第 8–47 行）
 

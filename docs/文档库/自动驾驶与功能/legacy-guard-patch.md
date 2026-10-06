@@ -9,7 +9,7 @@
 > 游戏中途消失也自动停。41 行纯新增、0 改老逻辑；build 0 error；selftest PASS=21。已双目标部署。
 
 
-> 背景：剩余风险 #9（`docs/最终报告.md` §五）——5 个 legacy 技能缺 `GameWindowDetector.isGameVisible()`
+> 背景：剩余风险 #9（`docs/文档库/探索文档/最终报告.md` §五）——5 个 legacy 技能缺 `GameWindowDetector.isGameVisible()`
 > 游戏窗口护栏。架构冻结清单规定"技能实现只加不改老方法"，故补丁**预备在此、不动代码**，
 > 用户批准后一次应用：编译 → 自测（PASS 只增不减）→ `./run.sh` → 提交。
 >

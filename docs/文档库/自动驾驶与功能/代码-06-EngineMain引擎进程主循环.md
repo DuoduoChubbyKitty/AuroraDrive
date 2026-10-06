@@ -1,6 +1,93 @@
 # 代码-06 EngineMain 引擎进程主循环
 
-> 覆盖源文件：`Sources/AuroraDrive/Core/EngineMain.swift`（**876 行**）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Core/EngineMain.swift`（****1153 行**，**2026-10-02 `wc -l` 实测**（原文写 1082 行）**，2026-09-29 `wc -l` 实测；原文写 876 行）。基于当前仓库逐单元编写。
+>
+> ---
+>
+> ## ⚠️ 2026-09-29 复核追加：v3 掩码发布（本文原无记载，+206 行）
+>
+> **本文按 876 行编写，现将 9-27/9-28 新增的掩码发布链路补上。**
+>
+> ### 一、新增 shm 区域：掩码区（`EngineFrameShm` 常量）
+>
+> ```swift
+> static let detEnd = detOffset + detCapacity * detStride          // 4096 + 256×64 = 20480
+> static let maskOffset = detEnd                                   // 20480
+> static let maskGridMax = 160
+> static let maskBytes = maskGridMax * ((maskGridMax + 7) / 8)     // 3200
+> static let maskRegionBytes = maskBytes * 2                       // 6400（可行驶区 + 车道线）
+> static let pixelsOffset = ((maskOffset + maskRegionBytes) + 4095) / 4096 * 4096  // 28672
+> ```
+>
+> ⚠️ **`pixelsOffset` 由 20480 后移到 28672 —— 这是 shm 布局变更**，也是 `protocolVersion`
+> 升到 3 的直接原因（旧 UI 会把掩码区当像素读 → 花屏）。详见 `代码-07`。
+>
+> ### 二、`writeMask(_:offset:)`（约 244–264 行）—— 位压缩写入
+>
+> ```swift
+> private func writeMask(_ grid: MaskGrid, offset: Int) {
+>     guard grid.width > 0, grid.height > 0 else { return }
+>     let rows = min(grid.height, EngineFrameShm.maskGridMax)
+>     let bytesPerRow = (min(grid.width, EngineFrameShm.maskGridMax) + 7) / 8
+>     let ptr = base.advanced(by: offset).assumingMemoryBound(to: UInt8.self)
+>     for i in 0..<(rows * bytesPerRow) { ptr[i] = 0 }          // ★先清零
+>     for y in 0..<rows {
+>         let rowBase = y * bytesPerRow
+>         for x in 0..<min(grid.width, EngineFrameShm.maskGridMax) where grid.at(x, y) {
+>             ptr[rowBase + x / 8] |= UInt8(1 << (x % 8))
+>         }
+>     }
+> }
+> ```
+>
+> **两个易忽略的设计点**：
+> 1. **写前先清零**——源码注释：「避免上一帧的残留位被读成前景」。若省略，缩小的掩码会留下上一帧的旧位
+> 2. **`bytesPerRow = (width + 7) / 8`**——按**每行**独立位对齐，不是整块连续。UI 侧 `readMask` 必须严格对称（`代码-07`）
+>
+> **为何位压缩**（源码 241–243 行注释）：
+> > 160×160 用 UInt8 存是 25600 字节/份，两份 50KB；位压缩后每步 20 字节/行 × 160 行 = 3200 字节，
+> > 两份 6.4KB。30Hz 下的差别是 1.5MB/s vs 192KB/s，而掩码本来只有 0/1 信息，一个 bit 就够。
+>
+> ### 三、`publishMasks(drivable:lane:metrics:isDegraded:laneDegraded:drivableDegraded:seq:)`（约 266–300 行）
+>
+> 由 `publishTick` 每 tick 调用。**写入的字段**（全部为 v3 新增）：
+>
+> | 偏移 | 写入 | 说明 |
+> |---|---|---|
+> | 80 | `seq` | 掩码世代号 |
+> | 88/92 | drivable.width/height | 可行驶区网格尺寸 |
+> | 96/100 | lane.width/height | 车道线网格尺寸 |
+> | 104 | flags | 见下 |
+> | 108 | `Float(metrics.ratio)` | letterbox 缩放比 |
+> | 112/116 | padX/padY | letterbox 边距 |
+> | 120/124 | srcW/srcH | 源图尺寸 |
+> | **128/132** | **newW/newH** | letterbox 内容区（2026-09-28 补传，**原为客户端硬填 0**） |
+>
+> 随后两次 `writeMask`：可行驶区 → `maskOffset`(20480)，车道线 → `maskOffset + maskBytes`(23680)。
+>
+> ### 四、★掩码 flags 位定义（含 bit2/bit3 的由来）
+>
+> ```swift
+> var flags: UInt32 = 0
+> if isDegraded       { flags |= 1 }    // bit0 总降级
+> if drivable.width > 0 || lane.width > 0 { flags |= 2 }   // bit1 掩码有效（有数据）
+> if laneDegraded     { flags |= 4 }    // bit2 车道线单独塌陷
+> if drivableDegraded { flags |= 8 }    // bit3 可行驶区单独塌陷
+> ```
+>
+> **bit2/bit3 是本轮新增的关键修复**（源码注释原文）：
+> > bit2/bit3 是 2026-09-27 加的：原先 UI 只有一个总降级位，无法区分"是车道线塌了还是可行驶区塌了"，
+> > 于是显示层只能一刀切压暗，造成**车道线塌陷把可行驶区一起带暗**（用户报"什么都看不到"的直接原因）。
+>
+> 这条与 `pitfalls.md` 第 18 条「单开关管两件事 = 小的把大的拖死」是同一个根因的代码侧修复。
+>
+> ### 五、位运算的一个细节：`1 << (x % 8)`
+>
+> `UInt8(1 << (x % 8))` —— 每字节内 **低位在前**（x=0 → bit0）。UI 侧 `readMask` 必须用同样的位序，
+> 否则掩码会镜像/错位。**这是跨进程位图协议最容易错的地方，两侧必须严格对称**
+> （源码明确写了「与引擎侧 `EngineFrameShm.writeMask` 严格对称」）。
+>
+> ---
 >
 > **2026-09-25 深度复核记录**（849→876 行）：① **`publish` 的 CGImage 像素路径已改 memcpy 快路径**（9-24 改动 7：原 CGContext 恒等格式转换占引擎 tick 主线程 ~78.6%，实测 2–6ms→0.2ms；dataProvider 可读时直接 memcpy——srcBPR==copyBytes 一次性整拷、否则逐行；不可读才兜底 CGContext 绘制，功能零损失）；② **引擎侧新增 `isUpscaleWanted` 门禁接线**（run() 第 7 步：`captureEngine.isUpscaleWanted = { EngineGlobals.wantFullFrame }`——UI 经 socket 的 upscale 命令实时控制，关闭时 CaptureEngine 帧回调里连全分辨率拷贝都不做）；其余架构（shm 布局/socket/八步/九命令/看门狗/退出）与上版一致。
 
@@ -191,4 +278,5 @@ fps 取 `captureFPS > 0 ? captureFPS : st.fps`（采集没起来时回退标称 
 2. 状态尚未建立：兜底 `ControlEngine().releaseAll()`
 3. `EngineGlobals.socket?.stop()` → `engineLog("[ENGINE] 退出完成")` → `exit(0)`
 
-**EngineMain 文档至此完整**（876 行全覆盖：概览与桥接 → shm → socket → run() 八步 → 命令/心跳/看门狗/退出）。
+**EngineMain 文档至此完整**（**1082 行**，2026-09-29 实测；原文写"876 行全覆盖"对应 9-25 时点）。
+覆盖：概览与桥接 → shm → socket → run() 八步 → 命令/心跳/看门狗/退出 → **v3 掩码发布（见文首复核块）**。

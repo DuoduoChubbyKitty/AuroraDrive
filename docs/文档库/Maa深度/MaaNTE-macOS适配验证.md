@@ -1,6 +1,6 @@
 # MaaNTE macOS 适配验证记录
 
-> 【2026-09-19 档案标注】本文为纯验证记录，正文保留，结论仍有效。文中引用路径（`data/mac_shots/`、`MaaNTE/assets/...`、`tools/maa_roi_offset.py`、`build/maa_pipeline_override.json`）均在本地保留，未受 2026-09-19 磁盘清理影响；同期已迁移外置硬盘（`/Volumes/代码项目/删除_20260919/自动驾驶系统清理/`）的素材为 `data/web_frames`、`build/vid_*.mp4` 等批量视频/网络素材，本文正文未直接引用。
+> 【2026-09-19 档案标注】本文为纯验证记录，正文保留，结论仍有效。文中引用路径（`data/mac_shots/`、`MaaNTE/assets/...`、`tools/maa_roi_offset.py`、`build/maa_pipeline_override.json`）均在本地保留，未受 2026-09-19 磁盘清理影响；同期已迁移外置硬盘（`/Volumes/代码项目/自动驾驶项目半成品版本1.0到10.0/删除_20260919/自动驾驶系统清理/（⚠️ 2026-09-29 路径订正：实际在「自动驾驶项目半成品版本1.0到10.0」目录内，原文少两级）`）的素材为 `data/web_frames`、`build/vid_*.mp4` 等批量视频/网络素材，本文正文未直接引用。
 >
 > 验证对象：`MaaNTE/assets/resource/base/pipeline/`
 > 环境：macOS，游戏窗口 1470×923（逻辑），retina 2x

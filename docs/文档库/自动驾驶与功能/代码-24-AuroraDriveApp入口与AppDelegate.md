@@ -1,6 +1,54 @@
 # 代码-24 AuroraDriveApp 入口与 AppDelegate
 
-> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（**3665 行**）之上部：AppDelegate + Launcher + App Scene + WindowConfigurator + DragHandleView。基于当前仓库逐单元编写。（中部 DriveState 见 代码-25；下部 BPF 弹窗/FrameHost 见本档复核块）
+> ### ⚠️ 2026-10-06 复核追加（本文件现为 **8335 行**，下述旧正文行号已再次漂移）
+>
+> 本次复核逐条实测（`wc -l` + 逐行打开源码核对），**下文第一~五章的旧行号已失效**，
+> 新基准如下（以本复核块为准，旧正文保留作机制描述参考）：
+>
+> | 单元 | 2026-10-06 实测区间 |
+> |---|---|
+> | `AppDelegate` | **27–546 行**（applicationDidFinishLaunching **133–537**，applicationWillTerminate **542–544**） |
+> | `@main AuroraDriveLauncher` | **708–1195 行**（`acquireUISingleInstanceLock` **717–733**，`main()` **735–1193**） |
+> | `struct AuroraDriveApp: App` | **1197 行起** |
+> | `runTaxonomySelfTest()` | **1729–1933** |
+> | `runRouteSelfTest()` | **1935–2110 附近**（冻结基线断言在 1974–2100） |
+>
+> 头部注释引用的源码锚点（全部实测）：`--daemon`/`AURORA_DAEMON_MODE` 判定 **:137-138**、
+> `--test-xpc` **:147**、`--tcc-selftest` **:156-171**（追加写 `~/Library/Logs/AuroraTCCSelfTest.log`，
+> `exit((axOK && screenOK) ? 0 : 2)`，:169）、`--yolo-selftest` **:175**、`--yolo-bench` **:182**、
+> `--speed-selftest` **:191**、`EngineClient.shared.startup()` **:208-210**（daemon 跳过，:137-146）、
+> `--auto-login` 派发 **:505-510**、`--agent-command` 派发 **:512-519**、命令模式引擎注入 **:521-536**。
+> Launcher 侧：`setvbuf` **:738**、`--engine` **:809-811**、`--set-llm-config` **:815-828**、
+> `--agent-llm-test` **:833-903**（`request.timeoutInterval = 30` **:857**，semaphore 等待 35s **:880-884**）。
+> 窗口状态恢复禁用（defaults register）**已移至 :1186-1191**（在 `AuroraDriveApp.main()` 之前的 Launcher 末尾，:1136-1191）。
+>
+> 各 CLI 分支行号（ Launcher `main()` 内，全部实测）：`--mc-map` **:745**、`--mc-map-offline` **:750**、
+> `--mc-route` **:757**、`--mc-route-loading` **:762**、`--mc-map-bench` **:769**、`--mc-shot` **:779**、
+> `--mc-quest` **:797-807**、`--lanekeep-reality` **:934-944**、`--wire-selftest` **:945-948**、
+> `--flags-help` **:953-956**、`--cache-selftest` **:960-963**、`--quest-selftest` **:969-972**、
+> `--perf-selftest` **:973-984**、`--tick-profile` **:987-998**、`--tick-bench` **:1000-1010**、
+> `--realshot-selftest` **:1012-1026**、`--corner-selftest` **:1028-1033**、`--egobox-selftest` **:1035-1040**、
+> `--perception-selftest` **:1042-1048**、`--lanekeep-selftest` **:1050-1056**、`--ayolom-selftest` **:1058-1062**、
+> `--yolopx-selftest` **:1064-1073**、`--proto-selftest` **:1075-1078**、`--nic-autotest` **:1080-1084**、
+> `--limit-selftest` **:1086-1090**、`--opticalflow-selftest` **:1092-1095**、`--motion-selftest` **:1097-1101**、
+> `--fit-selftest` **:1103-1108**、`--route-selftest` **:1111-1113**、`--taxonomy-selftest` **:1117-1119**、
+> `--map-selftest` **:1124-1127**、`--map-window-test` **:1132-1134**、oneShotFlags 数组 **:906-925**（**37 项**）、
+> UI 锁判定 `isOneShot` **:1136-1142**。
+>
+> **oneShotFlags 现为 37 项**（:906-925 实测展开计数）：2026-09-29 记录的 17 项之外又新增 20 项——
+> `--corner-selftest`、`--perf-selftest`、`--tick-profile`、`--tick-bench`、`--realshot-selftest`、
+> `--egobox-selftest`、`--ayolom-selftest`、`--lanekeep-selftest`、`--perception-selftest`、
+> `--wire-selftest`、`--lanekeep-reality`、`--route-selftest`、`--taxonomy-selftest`、`--mc-route`、
+> `--mc-route-loading`、`--mc-map-bench`、`--flags-help`、`--cache-selftest`、`--quest-selftest`、`--mc-quest`。
+> 注释两处用 ⚠️ 强调数组是**手写维护**，漏登记会被 UI 单实例锁挡掉（:919-921、:923-925）。
+
+> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（**6698 行**，**2026-10-02 `wc -l` 实测**（原文写 5175 行，09-29 之后又增 1523 行））之上部：AppDelegate + Launcher + App Scene + WindowConfigurator + DragHandleView。基于当前仓库逐单元编写。（中部 DriveState 见 代码-25；下部 BPF 弹窗/FrameHost 见本档复核块）
+>
+> ⚠️ **2026-09-29 行号基准再提示**：文件已从 3665 → **5175 行（+1510）**。实测边界：
+> `AppDelegate` **27–656**、`@main AuroraDriveLauncher` **657–875**、`struct AuroraDriveApp` **877–931**。
+> 新增 1510 行集中在：`--proto-selftest`(932)、`--nic-autotest`(1052)、`NicTestInjector`(1146)、
+> `--fit-selftest`(1191)、`MaskOverlay`(4691)、`ObstacleOverlay`(4836)、
+> `FrameHost`(4930)、`UpscaleFrameHost`(4972)、`LogViewerPanel`(5174)。
 >
 > **2026-09-25 深度复核块（文件已从 4379 行重组为 3665 行——UI 大改版 + 后续优化）**：
 > ① **本文档写作时的行号基准已失效**（当时 AppDelegate 在 1–379 行，现在 **27–656 行**；正文行号引用需按下表映射后阅读）；
@@ -146,6 +194,42 @@
 
 **`Theme`（enum，第 723–744 行）——全局主题：FSD 驾驶舱配色与发光参数：**
 
+> ### ⚠️ 2026-09-29 复核：这是 **UI 大改版前的旧主题**，已被 `AuroraTheme` 取代
+>
+> **旧令牌**（下表 `bgPure`/`bgCard`/`bgCardEdge`/`cyan`/`cyanDim`/`orangeRed`/`textPrimary`…）
+> 属于自造的 `Theme` enum。UI 大改版后，主题已改为
+> **`App/AuroraTheme.swift`（373 行）的 `Aurora`**，令牌**整套换名换值**（对齐网页原型 CSS 变量）。
+>
+> ⚠️ **`Theme` 与 `SectionHeader` 在 `Sources/` 中已 grep 不到**
+> （本笔记的符号核对脚本报告其为"代码中找不到"）。
+> 现役令牌请查 `代码-28`（该文档记录的是**新版** `Aurora` 令牌，准确）。
+>
+> **新旧令牌对照**（便于读旧文档时转换）：
+>
+> | 用途 | 旧（`Theme`） | **新（`Aurora`）** |
+> |---|---|---|
+> | 底色 | `bgPure` = 黑 | **`void`** = `0x03060B` |
+> | 卡片底 | `bgCard` = 白 0.045 | **`glassFill`** = `0x0B1422` @0.72 |
+> | 卡片描边 | `bgCardEdge` = 白 0.08 | **`hair2`** = `0x8CBEFF` @0.17 |
+> | 主强调 | `cyan` = `#00E5FF` | **`ice`** = `0x4CC9FF` |
+> | 强调暗 | `cyanDim` = cyan×0.55 | **`iceLo`** = `0x4CC9FF` @0.34 |
+> | 极速/警示 | `orangeRed` = (1,0.36,0.22) | **`amber`** = `0xFFB648` |
+> | 危险 | `danger` = (1,0.24,0.28) | **`danger`** = `0xFF5468`（值也变了） |
+> | 正文 | `textPrimary` = 白 | **`t1`** = `0xE9F3FF` |
+> | 次级文字 | `textSecondary` = 白 0.62 | **`t2`** = `0xE9F3FF` @0.62（同比例，**色相改为米白**） |
+>
+> **新版完整令牌仓**（`AuroraTheme.swift`，供快速查阅）：
+> - **底色**：`void` / `s0`~`s4`（纯黑阶梯，`0x03060B` → `0x1A2A44`）
+> - **玻璃**：`glass` / `glassFill` / `glassFill2` / `glassSolid`
+> - **发丝线**：`hair1`~`hair4`（`0x8CBEFF` @ 0.10/0.17/0.28/0.42）
+> - **主强调**：`ice` / `iceLo` / `iceHi` / `iceGlow` / `iceWash`
+> - **语义**：`ok` / `okLo` / `amber` / `danger` / `violet`
+> - **文字**：`t1`~`t4` / `muted`（`0xE9F3FF` 阶梯）
+> - **圆角**：`r1`=8 / `r2`=12 / `r3`=15 / `r4`=20
+> - 另含「路况自适应四态」「玻璃面板修饰符」「视觉特效（视口光斑/描边）」三个 MARK 段
+>
+> **下文 `Theme` 表格保留作历史参考**（理解大改版前的配色思路）。
+
 | 组 | 常量 | 值 |
 |---|---|---|
 | 背景 | `bgPure` / `bgCard` / `bgCardEdge` | `Color.black` / 白 0.045 / 白 0.08 |
@@ -185,3 +269,98 @@
 **专家模式录制标签换算器（第 849 行起，纯函数便于单测）**——把物理按键的"按住时长"换算成连续控制标签，语义≈"按住该键的力度比例"——与 KeyboardMonitor.holdDuration 配合（专家模式录制，见 代码-10 单元二）。
 
 **代码-24 文档至此完整**（AuroraDriveApp.swift 1–850 行全覆盖：AppDelegate 与锚定窗口 → 启动分流九步 → 自检/线程提升/@main Launcher → Scene 与 Theme → DriveMode 双层分组）。剩余 851–4379 行（DriveState 状态主体、AgentSkillCenter 调度、ContentView 主界面）见 代码-25/代码-26。
+
+---
+
+> ### ⚠️ 2026-10-06 追加章（正文 1–5 章行号失效后的实测基准，机制描述继续有效）
+
+## 六、selftest 家族与 CLI 夹具（2026-10-06 实测）
+
+> 通用退出码约定：**返回失败项数**，`exit(failed == 0 ? 0 : min(failed, 127))`
+> （`AuroraDriveApp.swift:946, 962, 971` 等）。例外（实测源码，无条件 `exit(0)`）：
+> `--proto-selftest`（:1075-1078）、`--nic-autotest`（:1080-1084）、`--limit-selftest`（:1086-1090）、
+> `--fit-selftest`（:1103-1108）——这四个的实际断言强度未验证。
+
+### 6.1 任务重点夹具
+
+**`--quest-selftest`**（分流 :969-972 → `QuestPanelReader.runSelfTest()`，`Inference/QuestPanelReader.swift:929`，`@MainActor`、返回失败项数 :925-929）
+- 数据源：`models/quest_index.json`（1372 个精确文本 → 2938 条带坐标的目标，`QuestPanelReader.swift:11`）；
+  8 条真实面板文字回归（:909、:954），另加反向用例（假阳性）、投票缓冲、链消歧、坐标语义、
+  ROI 提示行过滤（:72-74）。文件头注明「纯索引查询 + 纯函数，不截屏、不 OCR、不需要权限 → 可无窗口跑」（:69）。
+- 分流处注释补一句模糊匹配与节流（`AuroraDriveApp.swift:964-968`）。
+
+**`--taxonomy-selftest`**（分流 :1117-1119 → `runTaxonomySelfTest()` :1729-1933）
+- 钉三类「不崩但结果错」坑：匹配优先级、默认组解析、聚类性能（:1723-1728）。
+- 冻结基线（实测断言行号）：组数 = 7（:1743）；explore 450 / resource 1045 / travel 28 /
+  monster 254 / shop 0 / service 0 / landmark 0（:1764-1772，期望表 :1766-1768）；合计 = 1777（:1793-1794）；
+  1777 个标记全部有组（:1810-1811）。**前置防假绿断言**：`!MapDatabase.markers.isEmpty`（:1774-1775）——
+  `countByGroup` 是从 markers 现算的纯派生量，点位为空时统计恒为空 → 不先查就「全 0 通过」。
+
+**`--route-selftest`**（分流 :1111-1113 → `runRouteSelfTest()` :1935 起）——见第七节。
+
+**`--wire-selftest`**（分流 :945-948 → `runWireSelfTest()`，`Core/WireSelfTest.swift:47`）
+- 验证 2026-10-02 修复的四处「手切档位静默失效」缺陷（`WireSelfTest.swift:12-30`）：
+  ① `EngineClient.sendCommand` 静默失败（:14-17）② `ControlWiring.pushConfig` 日志说谎（:19-21）
+  ③ `pushEngineConfigIfChanged` 先记账后发送 → 永不重试（:23-26）④ 心跳超时只置 `isConnected`
+  → 僵尸引擎模式（:28-30）。
+- 全部断言基于**可观测行为**，不做源码字符串匹配（:32-33）。
+- **必须 `AURORA_UI_LOCAL=1` 下跑**（`WireSelfTest.swift:36`；A1 用例就依赖本地模式必然未连引擎，:65-68）。
+
+### 6.2 `--mc-*` 离屏出图夹具（均在 Launcher 无 GUI 阶段同步跑完）
+
+- 为什么必须在 `main()` 同步跑：注释 `AuroraDriveApp.swift:742-744`——「截图是纯离屏 ImageRenderer
+  渲染，若放到 ContentView.onAppear 里，无窗口时 view 不 layout → onAppear 永不触发，进程卡 240s」。
+- `--mc-map` :745-748 / `--mc-map-offline` :750-755 / `--mc-route` :757-760 / `--mc-route-loading` :762-766 /
+  `--mc-map-bench` :769-777（`--iters N` 可调，默认 12，配 `AURORA_MAP_LEGACY_MARKERS=1` 做 A/B）
+  / `--mc-shot [condition w h]` :779-795 / `--mc-quest [w h]` :797-807。
+- `--mc-quest`（2026-10-06 新增，task-2 验收）：必须走真实 ViewportPanel——
+  `MissionControlShot.renderQuestCardNow(canvas:)`（`MissionConsole.swift:6271`，默认画布 1470×560），
+  把 questName 与真实世界坐标塞进 state，不依赖 OCR 真跑通（`AuroraDriveApp.swift:794-796` 注释）。
+- `--mc-route`/`--mc-route-loading` 注释：数字自检证明算法对，这两个夹具证明**画对**（:755-757 注释）。
+
+### 6.3 其余夹具一句话职责（出处均为分流处实测注释）
+
+- `--perf-selftest` :973-984（各子系统单次耗时 p50/p95/p99）；`--tick-profile` :987-998（**只读**
+  真实 tick 打点，需 GUI 样本）；`--tick-bench` :1000-1010（**主动驱动**真实 tick，离屏可 A/B）。
+- `--realshot-selftest` :1012-1026：合成图自检 R2 必然 0 框、R3 必然 0.00%，本命令用真实截图补可信数值。
+- `--corner-selftest` :1028-1033：离线地图先验（road_corners_v2.json）漏拷/格式错时运行时静默
+  fail-open → 变显式可验证。
+- `--egobox-selftest` :1035-1040：自车框屏蔽阈值边界 + fail-open + 双访问器语义。
+- `--perception-selftest` :1042-1048 / `--lanekeep-selftest` :1050-1056 / `--ayolom-selftest` :1058-1062 /
+  `--yolopx-selftest` :1064-1073：感知档位、车道保持门、A-YOLOM 模型族（需 `AURORA_AYOLOM=1`）、
+  YOLOPX 三合一。
+- `--map-selftest` :1124-1127（T1~T6 门槛全部写进断言）；`--map-window-test` :1132-1134
+  （真建 NSWindow 断言可见/尺寸/toggle；放锁**之前**以便用户开着 AuroraDrive 时验证新构建，
+  配 `AURORA_UI_LOCAL=1` 避免抢引擎 socket，:1128-1131 注释）。
+- `--tcc-selftest` :156-171（AppDelegate）：权限预检 = 未来 `--engine` 模式的真实权限状态
+  （同执行文件路径 + 签名）。
+
+## 七、route-selftest 冻结基线明细（`AuroraDriveApp.swift:1935-2110`）
+
+2026-10-06 基线更新原因：**路网数据被修好**（`tools/roadnet/fix_roadnet.py`，删自环/极短边、
+删重复边、断头吸附、分叉合并——`fix_roadnet.py:1-26`）——删自环 7 条、重复边 5 条、分叉合并 14 处、
+断头吸附 80 个（迭代到收敛）、保留 36 个 >30m 远端断头；断头 118(19.3%)→36(5.4%)，
+节点 612→664，边 825→932（`AuroraDriveApp.swift:1958-1974` 注释）。
+
+- 图规模：`节点=664`（:1974）、`边=932`（:1975）、`米/像素=0.61`（:1976-1977）
+- 坐标往返：4 个世界坐标探针往返误差 < 0.5 px（:1980-1991）；3 个像素探针正向→反向→正向
+  < 0.5 px（:1993-2005）
+- 吸附：节点 24 自身坐标吸附 = 24；偏移 10px 仍吸附到 24（:2008-2021）
+- 冻结基线（节点 24 → 36，坐标 (2258,4517)→(6446,4957)，:2036-2041）：
+  - W=0：距离 5.78 km（容差 ±0.08）、拐弯数 30（:2045-2046）
+  - W=200：距离 6.51 km（±0.08）、拐弯数 12，且 W=200 拐弯更少、路更长（:2050-2056）
+  - 字典序模式：**拐弯数 ≤ W=200**（不再断言相等——旧等式是巧合，120 对随机样本中 51/120
+    不成立；两者惩罚模型不同：字典序常数 1e7 vs 线性 W×角度/90°，:2058-2073）
+- 性能：单次规划 < 5 ms（:2081-2082）；300 对随机样本全可达（固定种子 `0x5DEECE66D`，
+  且种子不再对节点数取模——2026-10-06 修复基线可复现性，:2085-2100）
+- 验收哲学：与网页版冻结基线逐项对齐——同一份 `models/route_graph.json` 同时驱动本实现与
+  `tools/roadnet/web/index.html` 的 `navRoute`（:1711-1716）
+
+## 八、UI 进程 ⇄ 引擎进程的数据交接（详见 代码-33 复核块）
+
+- 生命周期/通道/共享内存布局**逐行实测已迁入 代码-33「2026-10-06 复核块」**，本篇不再重复。
+- UI 侧镜像点（`EngineClient.shared.isActive` 时全部取引擎数据，本地取本地引擎）：
+  `AuroraDriveApp.swift:4040`（检测框）、`4768-4775`（录制命令回声抑制）、`4876-4877`（e2e 延迟）、
+  `4903`（速度）、`5465-5487`（掩码/metrics/塌陷标志三对 display× 访问器）。
+- 退出时 `applicationWillTerminate` → `EngineClient.shared.sendByeSync()`（:542-544）；
+  引擎侧 `pauseDriving` 释放按键但保持抓屏推理（`Core/EngineMain.swift:1122-1134`）。

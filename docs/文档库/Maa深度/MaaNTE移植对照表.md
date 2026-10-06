@@ -4,7 +4,7 @@
 > 项目路径：`/Users/dupi/Desktop/自动驾驶系统`
 > 参考源：`MaaNTE/`（Windows 专用，禁止照抄 Win32 API）
 >
-> 【2026-09-19 现状标注】本表为 09-14 快照，表体后续有更新但"统计"与"下一步"两节未同步（本 09-19 修订已按表体重写统计、标注已完成的下一步）。项目定位已收敛为：**Maa 只做工具（ROI/模板/任务定义参考），不整体接管**，主力执行通道仍是 Swift `AgentSkillCenter.runSkill`（见 `docs/AI-Agent最终实施方案.md` 09-19 定位澄清）。MaaNTE 侧截至 2026-09-19：250 节点 ROI override 已生成（`build/maa_pipeline_override.json`），剩 24 个缺模板节点待实机采集（见 `docs/界面采集作业指令.md`）；BidKing（拍卖王）PR#434 代码已提取至独立文件夹 `BidKing_PR434/`（git 7b7d2db，未合并主线），#5 的决策逻辑参考该文件夹。
+> 【2026-09-19 现状标注】本表为 09-14 快照，表体后续有更新但"统计"与"下一步"两节未同步（本 09-19 修订已按表体重写统计、标注已完成的下一步）。项目定位已收敛为：**Maa 只做工具（ROI/模板/任务定义参考），不整体接管**，主力执行通道仍是 Swift `AgentSkillCenter.runSkill`（见 `docs/文档库/自动驾驶与功能/AI-Agent最终实施方案.md`（⚠️ 2026-09-29 路径订正） 09-19 定位澄清）。MaaNTE 侧截至 2026-09-19：250 节点 ROI override 已生成（`build/maa_pipeline_override.json`），剩 24 个缺模板节点待实机采集（见 `docs/文档库/探索文档/界面采集作业指令.md`（⚠️ 2026-09-29 路径订正：原记路径不存在，实际多两级））；BidKing（拍卖王）PR#434 代码已提取至独立文件夹 `BidKing_PR434/`（git 7b7d2db，未合并主线），#5 的决策逻辑参考该文件夹。
 
 ## 状态图例
 - ✅ 已移植（macOS 实现可用）

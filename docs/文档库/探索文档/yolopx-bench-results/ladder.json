@@ -1,0 +1,348 @@
+{
+  "schema": "yolopx-bench/v1",
+  "mode": "ladder",
+  "generated_at": "2026-09-26 23:13:53",
+  "elapsed_s": 106.6,
+  "levels": [
+    0,
+    2,
+    4,
+    6,
+    8
+  ],
+  "starvation_reference_ms": 56.237,
+  "host": {
+    "macos": "26.6.2",
+    "machine": "Apple M3",
+    "logical_cpu": 8,
+    "p_cores": "4",
+    "e_cores": "4",
+    "python": "3.11.9",
+    "coremltools": "8.3.0",
+    "model_load_units_default": "ComputeUnit.ALL（与 App 的 .all 一致）",
+    "load_avg_at_start": [
+      13.54,
+      9.74,
+      9.74
+    ]
+  },
+  "steps": [
+    {
+      "level": 0,
+      "label": "无额外负载",
+      "calib_ref_ms": 56.237
+    },
+    {
+      "level": 2,
+      "label": "2 busy loops"
+    },
+    {
+      "level": 4,
+      "label": "4 busy loops"
+    },
+    {
+      "level": 6,
+      "label": "6 busy loops"
+    },
+    {
+      "level": 8,
+      "label": "8 busy loops"
+    }
+  ],
+  "models": {
+    "yolo26s_int8": {
+      "role": "现役基线",
+      "path": "models/yolo26s_int8.mlpackage",
+      "fingerprint": {
+        "package": "yolo26s_int8.mlpackage",
+        "manifest_sha256": "4d1844e30b556469",
+        "model_mlmodel_sha256": "56709c5d18722897",
+        "model_mlmodel_bytes": 207313,
+        "weights_bytes": 9610176,
+        "package_bytes": 9818106
+      },
+      "by_level": {
+        "0": {
+          "stats": {
+            "n": 24,
+            "min": 9.151,
+            "median": 11.688,
+            "p95": 19.401,
+            "max": 19.657,
+            "mean": 12.445,
+            "stdev": 3.073
+          },
+          "wall_median_ms": 11.665,
+          "cpu_median_ms": 5.021,
+          "calib_ms_median": 56.237,
+          "starvation_factor": 1.0,
+          "verdict_33ms_median": "PASS"
+        },
+        "2": {
+          "stats": {
+            "n": 24,
+            "min": 9.729,
+            "median": 13.755,
+            "p95": 22.743,
+            "max": 25.907,
+            "mean": 15.096,
+            "stdev": 4.445
+          },
+          "wall_median_ms": 13.739,
+          "cpu_median_ms": 4.866,
+          "calib_ms_median": 61.513,
+          "starvation_factor": 1.094,
+          "verdict_33ms_median": "PASS",
+          "ratio_vs_L0": 1.177
+        },
+        "4": {
+          "stats": {
+            "n": 24,
+            "min": 9.926,
+            "median": 13.7,
+            "p95": 28.778,
+            "max": 31.47,
+            "mean": 15.722,
+            "stdev": 6.366
+          },
+          "wall_median_ms": 13.674,
+          "cpu_median_ms": 5.751,
+          "calib_ms_median": 93.441,
+          "starvation_factor": 1.662,
+          "verdict_33ms_median": "PASS",
+          "ratio_vs_L0": 1.172
+        },
+        "6": {
+          "stats": {
+            "n": 24,
+            "min": 9.868,
+            "median": 13.721,
+            "p95": 24.077,
+            "max": 24.488,
+            "mean": 15.607,
+            "stdev": 4.954
+          },
+          "wall_median_ms": 13.694,
+          "cpu_median_ms": 4.492,
+          "calib_ms_median": 66.266,
+          "starvation_factor": 1.178,
+          "verdict_33ms_median": "PASS",
+          "ratio_vs_L0": 1.174
+        },
+        "8": {
+          "stats": {
+            "n": 24,
+            "min": 8.376,
+            "median": 10.742,
+            "p95": 15.29,
+            "max": 20.776,
+            "mean": 11.228,
+            "stdev": 2.617
+          },
+          "wall_median_ms": 10.722,
+          "cpu_median_ms": 5.478,
+          "calib_ms_median": 52.502,
+          "starvation_factor": 0.934,
+          "verdict_33ms_median": "PASS",
+          "ratio_vs_L0": 0.919
+        }
+      }
+    },
+    "yolopx3_pal8_detfp": {
+      "role": "当前精度最佳",
+      "path": "models/yolopx/yolopx3_pal8_detfp.mlpackage",
+      "fingerprint": {
+        "package": "yolopx3_pal8_detfp.mlpackage",
+        "manifest_sha256": "87c3d4ea89080324",
+        "model_mlmodel_sha256": "515de25af36ab200",
+        "model_mlmodel_bytes": 293815,
+        "weights_bytes": 33138400,
+        "package_bytes": 33432832
+      },
+      "by_level": {
+        "0": {
+          "stats": {
+            "n": 24,
+            "min": 120.11,
+            "median": 135.74,
+            "p95": 172.381,
+            "max": 186.958,
+            "mean": 140.916,
+            "stdev": 16.406
+          },
+          "wall_median_ms": 135.559,
+          "cpu_median_ms": 87.411,
+          "calib_ms_median": 57.819,
+          "starvation_factor": 1.028,
+          "verdict_33ms_median": "FAIL"
+        },
+        "2": {
+          "stats": {
+            "n": 24,
+            "min": 128.91,
+            "median": 140.488,
+            "p95": 231.426,
+            "max": 251.767,
+            "mean": 154.871,
+            "stdev": 35.047
+          },
+          "wall_median_ms": 140.293,
+          "cpu_median_ms": 85.615,
+          "calib_ms_median": 58.78,
+          "starvation_factor": 1.045,
+          "verdict_33ms_median": "FAIL",
+          "ratio_vs_L0": 1.035
+        },
+        "4": {
+          "stats": {
+            "n": 24,
+            "min": 139.355,
+            "median": 179.641,
+            "p95": 241.502,
+            "max": 263.042,
+            "mean": 184.309,
+            "stdev": 33.281
+          },
+          "wall_median_ms": 178.423,
+          "cpu_median_ms": 85.692,
+          "calib_ms_median": 72.202,
+          "starvation_factor": 1.284,
+          "verdict_33ms_median": "FAIL",
+          "ratio_vs_L0": 1.323
+        },
+        "6": {
+          "stats": {
+            "n": 24,
+            "min": 138.4,
+            "median": 195.721,
+            "p95": 299.669,
+            "max": 336.508,
+            "mean": 207.727,
+            "stdev": 49.975
+          },
+          "wall_median_ms": 195.566,
+          "cpu_median_ms": 84.776,
+          "calib_ms_median": 67.906,
+          "starvation_factor": 1.207,
+          "verdict_33ms_median": "FAIL",
+          "ratio_vs_L0": 1.442
+        },
+        "8": {
+          "stats": {
+            "n": 24,
+            "min": 153.072,
+            "median": 220.664,
+            "p95": 343.354,
+            "max": 379.127,
+            "mean": 230.189,
+            "stdev": 56.89
+          },
+          "wall_median_ms": 220.464,
+          "cpu_median_ms": 87.243,
+          "calib_ms_median": 55.292,
+          "starvation_factor": 0.983,
+          "verdict_33ms_median": "FAIL",
+          "ratio_vs_L0": 1.626
+        }
+      }
+    },
+    "yolopx3_int8": {
+      "role": "int8 对照",
+      "path": "models/yolopx/yolopx3_int8.mlpackage",
+      "fingerprint": {
+        "package": "yolopx3_int8.mlpackage",
+        "manifest_sha256": "e5abf9963536d578",
+        "model_mlmodel_sha256": "ef65773e872747fc",
+        "model_mlmodel_bytes": 528381,
+        "weights_bytes": 33104800,
+        "package_bytes": 33633798
+      },
+      "by_level": {
+        "0": {
+          "stats": {
+            "n": 24,
+            "min": 92.752,
+            "median": 112.85,
+            "p95": 124.029,
+            "max": 143.556,
+            "mean": 109.427,
+            "stdev": 13.637
+          },
+          "wall_median_ms": 112.659,
+          "cpu_median_ms": 27.992,
+          "calib_ms_median": 50.394,
+          "starvation_factor": 0.896,
+          "verdict_33ms_median": "FAIL"
+        },
+        "2": {
+          "stats": {
+            "n": 24,
+            "min": 102.098,
+            "median": 133.417,
+            "p95": 170.739,
+            "max": 172.781,
+            "mean": 134.168,
+            "stdev": 18.7
+          },
+          "wall_median_ms": 133.144,
+          "cpu_median_ms": 28.313,
+          "calib_ms_median": 61.387,
+          "starvation_factor": 1.092,
+          "verdict_33ms_median": "FAIL",
+          "ratio_vs_L0": 1.182
+        },
+        "4": {
+          "stats": {
+            "n": 24,
+            "min": 99.793,
+            "median": 154.969,
+            "p95": 221.263,
+            "max": 315.145,
+            "mean": 159.706,
+            "stdev": 46.363
+          },
+          "wall_median_ms": 154.756,
+          "cpu_median_ms": 32.301,
+          "calib_ms_median": 83.607,
+          "starvation_factor": 1.487,
+          "verdict_33ms_median": "FAIL",
+          "ratio_vs_L0": 1.373
+        },
+        "6": {
+          "stats": {
+            "n": 24,
+            "min": 93.821,
+            "median": 131.241,
+            "p95": 183.844,
+            "max": 232.187,
+            "mean": 138.155,
+            "stdev": 34.854
+          },
+          "wall_median_ms": 131.221,
+          "cpu_median_ms": 31.556,
+          "calib_ms_median": 51.389,
+          "starvation_factor": 0.914,
+          "verdict_33ms_median": "FAIL",
+          "ratio_vs_L0": 1.163
+        },
+        "8": {
+          "stats": {
+            "n": 24,
+            "min": 90.39,
+            "median": 111.377,
+            "p95": 135.009,
+            "max": 137.668,
+            "mean": 113.155,
+            "stdev": 13.939
+          },
+          "wall_median_ms": 108.886,
+          "cpu_median_ms": 33.672,
+          "calib_ms_median": 48.844,
+          "starvation_factor": 0.869,
+          "verdict_33ms_median": "FAIL",
+          "ratio_vs_L0": 0.987
+        }
+      }
+    }
+  }
+}

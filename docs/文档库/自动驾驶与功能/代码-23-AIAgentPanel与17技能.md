@@ -1,6 +1,8 @@
 # 代码-23 AIAgentPanel 与 AgentSkillLibrary 17+ 技能
 
-> 覆盖源文件：`Sources/AuroraDrive/Agent/AIAgentPanel.swift`（2639 行）。基于当前仓库逐单元编写。
+> ⚠️ **本篇的数量口径有误，见文末「修正记录 2026-10-02」。真值：技能 18 项、源文件 2667 行。**（标题与正文中的 17/19/2639 均为旧值，未删以留痕。）
+
+> 覆盖源文件：`Sources/AuroraDrive/Agent/AIAgentPanel.swift`（**2667 行**，2026-10-02 `wc -l` 实测；原文写 2639 行）。基于当前仓库逐单元编写。
 
 ## 一、数据模型与 AgentSettings「小本本」（第 1–134 行）
 
@@ -471,3 +473,55 @@ static func isGameVisible() -> Bool {
 - **调用方**：AIAgentPanel 的全部真实动作技能（performAutoLogin/volleyball/touch/drive_dataset/preset_afk/UIClickLoop/fishing/dodge/auto_scroll——**每个技能启动前 + 循环事件里逐轮复检**）
 
 **AIAgentPanel 文档至此完整**（2639 行全覆盖：数据模型 → 技能清单 → SkillCenter/LLM → 依赖注入 → 统一入口 → 16 个技能实现 → teardown → 自测 → UI 视图 → 无头渲染 → GameWindowDetector）。
+
+---
+
+## 修正记录 2026-10-02
+
+> 依据：对仓库的逐条实测复核。**原文一字未删**，本小节只做事实更正。
+
+### 修正①②③ · 技能数量：本文档出现三个互相矛盾的数字，且全部不是真值
+
+| 位置 | 原说法 | 实际 |
+|---|---|---|
+| 本文档**标题**（第 1 行） | 「AgentSkillLibrary **17+** 技能」 | — |
+| 本文档**第 45 行** | 「**19 个技能**（比文件头注释的"17 项"多 2 个——清单是权威，头注释口径滞后）」 | ❌ **也不对** |
+| **实际源码** | — | ✅ **18 个** |
+
+**证据（严格数法）**：
+- 声明位置：`Sources/AuroraDrive/Agent/AIAgentPanel.swift:138` `enum AgentSkillLibrary {`，`:139` `static let all: [AgentSkill] = [`
+- 数组范围：**`139–176` 行**（`:176` 为 `]`）
+- 该范围内 `AgentSkill(` 出现次数：**18**
+- 18 个 id 逐个列出（无重复、无遗漏）：
+  `auto_login` / `volleyball` / `fishing` / `coffee` / `coffee_lite` / `bagel_spam` / `pinkpaw` / `furniture` / `rewards` / `piano` / `rhythm` / `dodge` / `auto_scroll` / `touch` / `drive_dataset` / `preset_afk` / `preset_realtime` / `tomato_juice`
+- 全仓 `grep "static let all: \[AgentSkill\]"` → **仅 1 处**（不存在第二处声明或运行时追加）
+
+**⚠️ 特别注意**：本文档第 45 行原本是在**"更正"文件头注释的 17**，但它给出的 19 **同样是错的**。
+⟹ **这是一次失败的自我更正**：以为"文件头口径滞后"，实际是自己数错了。**真值 18，两个数字都不采信。**
+
+**副作用（已核实，功能未受影响）**：`AgentSkillLibrary.all.count` 被 UI 实时读取用于显示，因此**界面上显示的数量一直是正确的 18**，只有文档写错。
+调用点：`Sources/AuroraDrive/App/MissionConsole.swift:1770`、`:2745`、`:2769`、`:3488`、`:3626`、`:3843`。
+
+### 修正④ · 源文件行数
+
+| 原说法 | 实际 |
+|---|---|
+| 「覆盖源文件：`Sources/AuroraDrive/Agent/AIAgentPanel.swift`（**2639** 行）」 | **2667 行**（`wc -l` 实测） |
+| 文末「**2639 行**全覆盖」 | 同上 |
+
+### 修正⑤ · 文末"16 个技能实现"与 18 个技能清单不符
+
+文末自述「16 个技能实现」，而技能清单是 18 项。两者口径不同（清单含 `preset_realtime` 等 `ported: false` 的占位项），**原表述未说明口径**，易误读。
+
+---
+
+### 本文档未受影响的部分（已核实为真）
+
+- `AgentSkillCenter 是「人类」与「AI」共用的唯一执行通道` —— ✅ 真（`run(skillID, source:)` 单入口）
+- 「技能真实度说明：不做假按钮，`ported: false` 的在 UI 上如实显示『待移植』」 —— ✅ 真（数据模型含 `ported` 字段）
+- 按键状态采样走 `CGEventSource.keyState(.combinedSessionState, key: 13/0/1/2)` 读 W/A/S/D —— ✅ 真
+- `GameWindowDetector` 用 `CGWindowListCopyWindowInfo([.optionOnScreenOnly], ...)` 且权限被拒时保守返回 false —— ✅ 真
+
+---
+
+**修正记录完 · 2026-10-02**

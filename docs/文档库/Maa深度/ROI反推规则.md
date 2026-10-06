@@ -2,7 +2,7 @@
 
 > 结论来源：623 节点全量匹配 + 实测位移反推。**不需要再录任何素材。**
 >
-> 【2026-09-19 现状标注】"不需要再录素材"指 ROI 反推规则本身无需新素材；截至 2026-09-19，全量 250 节点 override 已合入 `build/maa_pipeline_override.json`，但仍有 **24 个缺模板节点需实机采集**（清单见 `docs/界面采集作业指令.md`：胜负加载屏、商店页、光标；SceneLoadingType2 的 '%' 与 Sync×6 疑似占位坏定义，可不采）。
+> 【2026-09-19 现状标注】"不需要再录素材"指 ROI 反推规则本身无需新素材；截至 2026-09-19，全量 250 节点 override 已合入 `build/maa_pipeline_override.json`，但仍有 **24 个缺模板节点需实机采集**（清单见 `docs/文档库/探索文档/界面采集作业指令.md`：胜负加载屏、商店页、光标；SceneLoadingType2 的 '%' 与 Sync×6 疑似占位坏定义，可不采）。
 
 ## 一、根因（纯几何）
 
@@ -58,7 +58,7 @@ Maa 只有等比缩放（`postproc_screenshot()` → `cv::resize`，`ScreenshotT
 | `build/maa_override_final.json` | 32 个节点的精确反推 override（实测位置档） |
 | `build/maa_override_derived.json` | derived 26 + expand 35 的中间推导档 |
 | `build/audit_result.json` | 原始数据：78 模板 × 159 样本的全部匹配分数与坐标 |
-| `data/_gray_cache/` | 263 张 1280×803 灰度缓存。**2026-09-19 已随磁盘清理移到 `/Volumes/代码项目/删除_20260919/自动驾驶系统清理/`**；重跑审计需先重建缓存（原"有缓存 4 分钟"结论仍有效） |
+| `data/_gray_cache/` | 263 张 1280×803 灰度缓存。**2026-09-19 已随磁盘清理移到 `/Volumes/代码项目/自动驾驶项目半成品版本1.0到10.0/删除_20260919/自动驾驶系统清理/（⚠️ 2026-09-29 路径订正：实际在「自动驾驶项目半成品版本1.0到10.0」目录内，原文少两级）`**；重跑审计需先重建缓存（原"有缓存 4 分钟"结论仍有效） |
 | `tools/audit2.py` | 审计脚本 |
 | `tools/full_audit.py` | 早期版本（含 fork 死锁，勿用） |
 | `tools/maa_roi_offset.py` | 生成 `build/maa_pipeline_override.json` 的脚本 |

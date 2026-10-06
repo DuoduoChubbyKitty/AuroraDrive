@@ -1,6 +1,115 @@
 # 代码-07 EngineClient 进程间通信
 
-> 覆盖源文件：`Sources/AuroraDrive/Core/EngineClient.swift`（613 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Core/EngineClient.swift`（**747 行**，2026-09-29 实测；本文原按 613 行编写）。基于当前仓库逐单元编写。
+>
+> ---
+>
+> ## ⚠️ 2026-09-29 复核追加：协议已升至 **v3**，新增掩码传递
+>
+> **本文以下正文按协议 v2 编写，v2 部分仍然准确；v3 增量见本复核块与文末「附录」节。**
+>
+> ### 一、协议版本 v2 → v3
+>
+> `EngineClient.swift:64` 现为 `nonisolated static let protocolVersion = 3`（原 60 行 = v2）。
+>
+> **为什么必须升 v3**（源码 61–63 行注释原文）：
+> > `pixelsOffset` 从 20480 后移到 28672。**这是布局变更**：
+> > 新旧混跑时旧 UI 会把掩码区当像素读 → 花屏，所以必须升版本，
+> > 让版本守卫强制重启引擎（`EngineClient:227` 的 stale 判据）。
+>
+> **版本沿革**：
+> - v1 = 原始（start/stop/bye/status/upscale/ping）
+> - v2 = 新增 record / reloadmodel / config + 心跳 recording/frames/proto 字段
+> - **v3 = 新增 YOLOPX 掩码传递（可行驶区 + 车道线），shm 布局变更**
+>
+> ### 二、⚠️ 务必区分「两个版本号」（极易混淆）
+>
+> | 版本号 | 位置 | 当前值 | 含义 |
+> |---|---|---|---|
+> | shm header `version` | `EngineMain.swift:216` `storeU32(4, 1)` | **1** | 共享内存**结构版本**，极稳定 |
+> | `EngineClient.protocolVersion` | `EngineClient.swift:64` | **3** | socket **命令/心跳协议版本** |
+>
+> 注意 `EngineMain.swift:162-164` 的注释写「把协议 version **升到 2**」——
+> 那是掩码第一批落地时写的，**第二批（补 letterbox 尺寸字段）又升到了 3**。
+> **以 `EngineClient.swift:64` 的 `= 3` 为准**，注释里的「2」是历史残留。
+>
+> ### 三、v3 新增：shm 掩码区布局
+>
+> ```
+> 0        header 4096 字节
+> 4096     检测数组：256 × 64 = 16384 字节
+> 20480    = detEnd = maskOffset
+>           ├─ 可行驶区掩码 3200 字节（160×160 bit-pack）
+>           └─ 车道线掩码   3200 字节
+> 26680    （掩码区共 6400 字节）
+> 28672    = pixelsOffset（4KB 对齐）← 原为 20480
+>          像素双缓冲：4096×2304×4 × 2 页
+> ```
+>
+> **掩码相关 shm 头部字段（全为 v3 新增）**：
+>
+> | 偏移 | 类型 | 内容 |
+> |---|---|---|
+> | 80 | U64 | `maskSeq` 掩码世代号 |
+> | 88/92 | U32 | 可行驶区网格 宽/高 |
+> | 96/100 | U32 | 车道线网格 宽/高 |
+> | 104 | U32 | 掩码 flags |
+> | 108 | F32 | letterbox ratio |
+> | 112/116 | U32 | padX / padY |
+> | 120/124 | U32 | srcW / srcH |
+> | **128/132** | U32 | **newW / newH**（letterbox 内容区，2026-09-28 才补进协议） |
+>
+> **掩码 flags 位定义**（读侧 613–620 行）：
+>
+> | 位 | 成员 | 含义 |
+> |---|---|---|
+> | `& 1` | `engineMaskDegraded` | 整体降级 |
+> | `& 2` | `maskValid` | **本帧有掩码**（0 则两层清空） |
+> | `& 4` | `engineLaneDegraded` | 车道线层塌陷 |
+> | `& 8` | `engineDrivableDegraded` | 可行驶区层塌陷 |
+>
+> **bit2/bit3 是 fail-visible 设计**（615–617 行注释）：「旧引擎不发这两个位，那时它们恒为 0
+> → 两层都不会被压暗。这是**安全的降级方向**：显示层偏亮（能看见），而不是偏暗（看不见）。」
+>
+> ### 四、★新增「最后一道防线」：物理边界校验（本文原无记载）
+>
+> `EngineClient.swift:596-609` 有一段**关键防御逻辑**：
+>
+> > 共享内存是**引擎**创建的，UI 只是映射了它。如果引擎还是旧版（v2，pixelsOffset=20480，
+> > 总长更小），按 v3 偏移去读掩码会读到 mmap 之外 → **SIGSEGV 直接崩掉 UI 进程**。
+> >
+> > 版本守卫（心跳里的 proto）确实存在，但它在 `tickEngineMode` 里的位置**晚于**本次 `poll()`
+> > —— 先读后查，来不及拦。所以在读取点做**物理边界校验**：映射长度不够就整个跳过。
+> > 这是最后一道防线，比版本号可靠（**版本号是"约定"，长度是"事实"**）。
+>
+> ```swift
+> let maskRegionEnd = EngineFrameShm.maskOffset + EngineFrameShm.maskRegionBytes
+> let maskReadable = shmSize >= maskRegionEnd           // ← 物理边界
+> let maskSeq = maskReadable ? base.load(fromByteOffset: 80, as: UInt64.self) : engineMaskSeq
+> ```
+>
+> **这是全项目最值得记住的一条工程设计**：版本号可能因"先读后查"的时序问题拦不住，
+> 但**映射长度是事实**，永远拦得住。
+>
+> ### 五、v3 新增方法
+>
+> | 成员 | 位置 | 说明 |
+> |---|---|---|
+> | `readMask(base:offset:w:h:)` | `// MARK: - 掩码解码` | 逐行解 bit-pack 位图为 `MaskGrid`，与引擎侧 `EngineFrameShm.writeMask` **严格对称** |
+> | `engineDrivableMask` / `engineLaneMask` | UI 侧状态 | 两层掩码，独立压暗 |
+> | `engineMaskMetrics` | UI 侧状态 | `LetterboxMetrics`（ratio/padX/padY/newW/newH/srcW/srcH） |
+> | `engineMaskSeq` | UI 侧状态 | 已解析的掩码世代号，`!=` 才解析 |
+>
+> ### 六、9-28 血泪史：letterbox 两格字段（631–641 行注释）
+>
+> > ⚠️ 2026-09-28：这两格（newW/newH）是**这次才补进协议**的。此前这里硬填 `newW: 0, newH: 0`，
+> > 而 `MaskOverlay` 当时用 `guard metrics.newW > 0` 当绘制守卫 → 引擎模式下掩码全不画
+> > （**用户："只能看到检测框，看不到可行驶区域和车道线"**）。
+>
+> **双保险修复**：①协议补传真实几何；②`MaskOverlay` 改为**不依赖 newW 判断**能否绘制
+> （绘制数学本来也不需要它）。即使旧引擎不写这两格，也不再影响可见性。
+>
+> ---
 
 ## 一、职责概览与协议版本（第 1–125 行）
 
@@ -17,10 +126,12 @@
 
 **类声明与协议版本（第 46–60 行）**：`@MainActor final class EngineClient`，单例 `static let shared`。
 
-**`protocolVersion = 2`（nonisolated static，第 60 行）——⚠️ 任何命令/心跳字段变更都必须 +1**。为什么需要（51–59 行注释）：UI 与引擎是**两个独立长驻进程**。重编译后旧引擎可能还活着，而 UI 启动时只要 socket 有人应答就直接连上（单例设计）——于是「新 UI 对着旧引擎说话」：新命令被旧引擎丢进 `未知命令类型`，**静默失败**（按钮照常翻转，引擎毫无反应）。
+**`protocolVersion = 3`（nonisolated static，**第 64 行**）——⚠️ 任何命令/心跳字段变更都必须 +1**。为什么需要（51–59 行注释）：UI 与引擎是**两个独立长驻进程**。重编译后旧引擎可能还活着，而 UI 启动时只要 socket 有人应答就直接连上（单例设计）——于是「新 UI 对着旧引擎说话」：新命令被旧引擎丢进 `未知命令类型`，**静默失败**（按钮照常翻转，引擎毫无反应）。
 
 - 版本 1 = 原始（start/stop/bye/status/upscale/ping）
 - 版本 2 = 新增 record / reloadmodel / config + 心跳 recording/frames/proto 字段
+- **版本 3 = 新增 YOLOPX 掩码传递（可行驶区 + 车道线），shm 布局变更（`pixelsOffset` 20480 → 28672）**
+  > ⚠️ 本文正文其余部分按 v2 编写，**v2 内容仍然准确**；v3 增量见文首复核块。
 
 **UI 读取的状态（第 62–99 行）**——引擎模式下 UI 不跑推理，面板显示靠这些（**引擎是权威源**）：
 
@@ -127,6 +238,18 @@ var isEngineStale: Bool { sawHeartbeat && engineProtocol != Self.protocolVersion
    - 边界校验：`off + pageSize <= shmSize` 防越界
 6. **检测结果（528–562 行）**：`n = base.load(56, u32)`；`n > 0 || !engineDetections.isEmpty` 才重建数组（检测清零也要清 UI 显示）——逐条读 labelId/conf/cx/cy/bw/bh + rawName（**16 字节遇 0 截断**）→ `Detection(...)`；labelId 反查映射 `1→.car / 2→.pedestrian / 3→.sign / default→.obstacle`
 7. **状态标志（564–569 行）**：flags bit0/bit1 → engineIsDriving/engineIsStreaming；fpsMilli > 0 → engineFPS = /1000
+8. **★掩码读取（v3 新增，596–666 行）**——本项为 v3 新增，本文原按 v2 编写时不存在：
+   - **物理边界校验**：`maskReadable = shmSize >= maskOffset + maskRegionBytes`——映射长度不够就整个跳过（防 SIGSEGV，详见文首复核块第四节）
+   - `maskSeq`（偏移 80）`!= engineMaskSeq` 才解析（世代号去重，避免每帧重复解析）
+   - 读 flags（104）→ 4 个位：degraded / valid / laneDegraded / drivableDegraded
+   - `maskValid` 为真才逐层解：可行驶区（offset 88/92 尺寸）、车道线（96/100）
+   - **尺寸合法性守卫**：`dw/dh/lw/lh <= maskGridMax(160)`——越界会读到像素区
+   - 读 letterbox 几何 → `LetterboxMetrics(ratio,padX,padY,padBottom:0,newW,newH,srcW,srcH)`
+   - `maskValid` 为假 → 两层掩码都置 `.empty`（"本帧没有掩码"，如未开始驾驶/模型未加载）
+9. **默认发送（576–590 行）**……
+
+**EngineClient 文档至此完整**（**747 行**，2026-09-29 实测；原文写"613 行全覆盖"对应 v2 时代）。
+覆盖：概览与协议版本 → startup/spawn/重启 → 心跳/shm/poll/命令 → **v3 掩码传递（见文首复核块）**。
 
 **`sendCommand(_ type:extra:)`（第 576–590 行）**：JSON 序列化 `["type": type] + extra` → 行协议（+`\n`）→ `queue.async` 内 `write(fd, ...)`——写盘异步（fd 按值捕获）。
 
@@ -138,4 +261,5 @@ var isEngineStale: Bool { sawHeartbeat && engineProtocol != Self.protocolVersion
 | `sendBye()` | `bye` | UI 正常关闭前调用（引擎继续运行） |
 | `sendByeSync()` | `bye`（**同步 write**） | **UI 正常退出前同步发送**——不走异步队列（进程即将退出，异步写可能来不及）；引擎收到 bye 后不触发看门狗停车，保持抓屏推理等待下次重连 |
 
-**EngineClient 文档至此完整**（613 行全覆盖：概览与协议版本 → startup/spawn/重启 → 心跳/shm/poll/命令）。
+**EngineClient 文档至此完整**（**747 行**，2026-09-29 实测；原文写"613 行全覆盖"对应 v2 时代）。
+覆盖：概览与协议版本 → startup/spawn/重启 → 心跳/shm/poll/命令 → **v3 掩码传递（见文首复核块）**。

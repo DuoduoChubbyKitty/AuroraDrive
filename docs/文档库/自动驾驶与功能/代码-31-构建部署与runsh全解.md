@@ -1,7 +1,46 @@
 # 代码-31 构建部署与 run.sh 全解
 
-> 覆盖源文件：`run.sh`（**170 行**）+ `scripts/setup_toolchain.sh`（77 行）+ Package.swift 构建面 + 部署产物实况。基于当前仓库逐单元编写。
+> 覆盖源文件：`run.sh`（**182 行**，2026-09-29 `wc -l` 实测；本文写 170 行）+ `scripts/setup_toolchain.sh`（77 行）+ Package.swift 构建面 + 部署产物实况。基于当前仓库逐单元编写。
 >
+> ### 📌 2026-09-29 复核追加：模型检查补了 YOLOPX（+12 行）
+>
+> **改动**：`run.sh` 的 `[2/4] 模型检查` 段原先只查三个模型
+> （`m9_mono` / `game_assist_control` / `yolo26s`），**漏了项目当前的核心感知资产 `yolopx`**。
+> 现补上优先候选检查 + 回退候选列出：
+>
+> ```sh
+> # YOLOPX 三合一：候选表首位优先，逐个回退（与 YolopxEngine.modelCandidates 对应）
+> if [ -d "models/yolopx/yolopx3_pal8_detfp.mlmodelc" ]; then
+>     echo "  yolopx3_pal8_detfp.mlmodelc: ✓ (★核心资产)"
+> elif [ -d "models/yolopx" ] && [ -n "$(ls -A models/yolopx 2>/dev/null)" ]; then
+>     echo "  yolopx3_pal8_detfp.mlmodelc: ⚠ 非首选，回退候选:"
+>     ls -1 models/yolopx 2>/dev/null | sed 's/^/      /'
+> else
+>     echo "  yolopx: ✗ 缺失! (可行驶区/车道线/检测三合一头，★核心资产)"
+> fi
+> ```
+>
+> **为什么要补**：`yolopx` 是「**一个字节都不能换**」的红线模型（甲方围绕它投资）。
+> 它缺失时程序**会静默降级**（`isDegraded` 初始为 true），
+> 而原检查表**不会报任何异常**——用户只会看到"没有车道线和可行驶区"，
+> 却查不到根因。**这类"漏检"比误报更危险。**
+>
+> **同时修正一处失效引用**：原 libpcap 缺失提示写「`NetworkPacketCapture.swift` 需要」，
+> 但该文件**已废弃**（现仅存在于 `legacy/NetworkPacketCapture.swift`），
+> 现役抓包实现在 `CoordinateCapture.swift`。已改。
+>
+> **实测验证**（`sh run.sh --status`）：
+> ```
+> [2/4] 模型检查
+>   m9_mono.mlmodelc: ✓
+>   game_assist_control.mlmodelc: ✓
+>   yolo26s.mlmodelc: ✓
+>   yolopx3_pal8_detfp.mlmodelc: ✓ (★核心资产)
+> ```
+> 另经 `sh -n run.sh` 语法检查通过。
+>
+> **本文其余内容（构建面修复史 / 签名顺序 / metallib 预编译等）仍然准确**，无需改动。
+
 > **2026-09-25 深度复核记录**（133→170 行，+37 行全是 9-24 构建面修复）：
 > ① **libpcap 检查重写（26–31 行）**：旧判据自 macOS 11 起恒为假必然误报（`ls /usr/lib/libpcap*`——系统库已全部移入 dyld 共享缓存磁盘上不存在实体文件；`brew list libpcap`——libpcap 是 macOS 自带库从不经 brew 装）→ 改用 **dyld 实际解析结果**判断（产物存在用 ①，编译前用 ② 兜底）；
 > ② **构建输出不再被管道吞（64–68 行）**：旧写法 `swift build | tail -5` 管道吞掉退出码（set -e 失效）→ 构建失败仍部署/启动（2026-09-15 bagel_spam 编译失败曾误部署）→ 现完整记录 .last-build.log 并检查 exit code；
@@ -10,7 +49,12 @@
 > ⑤ **原子替换部署保留**（9-12 修复）：cp 到临时名 + mv 换 inode——防运行中实例按需分页读到新旧混合页 → CDHash 校验失败 → SIGKILL；
 > ⑥ --auto-login 参数化：默认不自动登录（用户手动控制），传参才开 8s 检测登录守护。
 
-## 一、run.sh 一键编译+签名+启动（全文 133 行）
+## 一、run.sh 一键编译+签名+启动（全文 **182 行**；本文正文按 133 行编写，见文首复核块）
+
+> ⚠️ **行号基准提示**：本节以下正文的行号引用（如「116–133 行」「123–133 行」）
+> 基于 **133 行版本**。此后经历了 133→170（9-24 构建面修复）→ **182**（9-29 补 YOLOPX 检查）
+> 两轮增长，**文末段落的实际行号已后移约 49 行**。
+> 阅读时请以「段落标题」定位，不要直接按行号跳转。
 
 **用法（2–5 行）**：`./run.sh` → 编译+签名+启动 GUI；`./run.sh --status` → **只检查环境，不启动**；`./run.sh --yolo-selftest <图片>` → YOLO 自检。`set -e`（出错即停）。
 
@@ -115,4 +159,41 @@ fi
 
 **历史备份（`docs/git/` 下 12 个 AuroraDriveUI.bak-*，本机验证）**：2026-08-07 至 2026-09-13 的部署快照（2.5MB→5.4MB）——**回滚点**（SIGKILL/误部署时可退回上一个可用版本）。
 
-**构建部署文档至此完整**（run.sh 四步全解 → 工具链遗留说明 → 训练包/脚本群 → 模型文件 → 备份）。
+## 三、scripts/build-lock.sh 原子构建锁（2026-10-06 追加，全部行号本次逐行核实）
+
+> **scripts/ 是 git 未跟踪的新目录**（2026-10-06 `git status` 实测：目录下 7 个文件中仅
+> `setup_toolchain.sh` 已跟踪，其余 6 个——`build-lock.sh` / `check-package-sources.sh` /
+> `paired-ab.sh` / `perf-snapshot.sh` / `regression-gate.sh` / `README.md`——均为 `??` 未跟踪状态）。
+
+### 3.1 为什么需要构建锁（`scripts/build-lock.sh:6-17` 文件头注释，本次核实）
+
+1. **SwiftPM 是全模块编译**：多人并发改文件 + 并发 `swift build` 会互相打断，典型报错
+   `error: input file '.../AuroraTheme.swift' was modified during the build`（`:7-11`）；
+   且一人写坏，全组的 `swift build` 一起失败。
+2. **更隐蔽的危害是并发基准测量**：实测 3 个 agent 同时跑 `--mc-map-bench --iters 200`
+   各占 ~85% CPU，loadavg 冲到 5.15/8 核——此时**任何耗时类数字都不可比**（`:14-17`）。
+   所以「长任务」（自检/基准/门禁采集）也必须持锁，不只是 `swift build`。
+
+### 3.2 用法（`:19-27`，本次逐行核实）
+
+```sh
+bash scripts/build-lock.sh acquire "阶段A验收"   # 拿不到 → 退出码 3（:95）
+bash scripts/build-lock.sh release
+bash scripts/build-lock.sh status
+bash scripts/build-lock.sh run "原因" -- <命令...>   # 自动加锁/解锁（:129-138）
+
+# 脚本内推荐写法（:25-27）：
+bash scripts/build-lock.sh acquire "regression-gate" || exit 3
+trap 'bash scripts/build-lock.sh release' EXIT
+```
+
+### 3.3 设计约束（本次核实）
+
+- **`mkdir` 做原子锁**——bash 3.2 没有 `flock` 命令，但 `mkdir` 是原子的（`:30`）。
+  锁路径 `${AURORA_BUILD_LOCK:-${TMPDIR:-/tmp}/aurora-build.lock}`（`:37`）。
+- 锁目录里写 `owner` 文件（pid/时间/主机/用户/原因/cwd，`:64-71`），便于判断谁持有。
+- **残留锁超过 `AURORA_BUILD_LOCK_STALE_MIN`（默认 15 分钟，`:38`）→ 只提示，不自动删**
+  （`:91-94`，"万一真的还在跑"）；持锁进程已死也只提示可安全清理（`:87-90`）——保守策略。
+- `release` 校验持有者 pid 与调用方一致才删（`:102-107`），防误删别人的锁。
+
+**构建部署文档至此完整**（run.sh 四步全解 → 工具链遗留说明 → 训练包/脚本群 → 模型文件 → 备份 → **构建锁**）。

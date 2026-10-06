@@ -1,6 +1,11 @@
 # 代码-17 VisualLocator 视觉定位
 
-> 覆盖源文件：`Sources/AuroraDrive/Locate/VisualLocator.swift`（491 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Locate/VisualLocator.swift`（491 行，2026-10-06 实测 `wc -l`）。基于当前仓库逐单元编写。
+>
+> **🔄 2026-10-06 现状说明**：
+> ① 行号复核：本文引用的 `workSizes`（`:43`）、`smoothAlpha=0.7`（`:44`）、`globalScanSize=192`（`:108`）、hint ±120px 窗口（`:232-238`）、EMA 平滑（`:198-205`）、`nccAt`（`:308`）、`buildIntegral`（`:344`）、`runSelfTest`（`:455-486`）均逐行核实无误；
+> ② **当前产品代码未接入**：全仓 grep 无任何 `VisualLocator(` 构造调用与 `.locate(template` 调用（2026-10-06 实测）。旧文档所称的接入方 `DualModeLocator` 已从 NetworkLocator.swift 中删除（见 代码-16）；现存持有它的类型是 `LocateContext.visualLocator`（`App/LocateRuntime.swift:29-35`），但其当前无产品级装配/调用路径——**本类当前是备用/降级能力，主定位走 CoordinateCapture**（未验证是否存在测试夹具外的隐藏调用）；
+> ③ 文中 `minimapBytes`「与 MinimapTileCache 配合」的说法已过时：`Sources/AuroraDrive/Locate/MinimapTileCache.swift` 已删除（见 代码-18 废弃说明），该函数仍在本文件内（**已废弃用途**）。
 
 ## 一、数据类型与 prepare() 多尺度建档（第 1–111 行）
 
@@ -110,7 +115,7 @@
 | `buildIntegral(_ gray:w:h:) -> (sum: [Float], sq: [Float])` | **积分图构建**：`(w+1)×(h+1)` 布局（首行/列全 0），递推 `sum[i] = v + sum[i-1] + sum[prev+x+1] - sum[prev+x]`（和图）与 `sq[i] = v² + ...`（平方和图）——供 boxSum O(1) 区块求和 |
 | `boxSum(_ integral:w:x:y:tw:th:) -> Float` | **O(1) 区块和**：四角差值 `integral[a+th*stride+tw] - integral[a+th*stride] - integral[a+tw] + integral[a]` |
 | `grayFloatPixels(_ img:targetW:targetH:) -> [Float]?` | CGImage → 灰度 Float（0~1）：DeviceGray 上下文 + `ctx.draw`（**targetW 非 nil 时 `interpolationQuality = .high`** + `byTiling: targetH == nil`）→ `Float($0) * inv255f` |
-| `minimapBytes(from:side:) -> [UInt8]?`（**static，第 387–398 行**） | **P4优化：直接在灰度图中写入 UInt8，跳过 Float32 中转分配（~22.5KB）**——小地图瓦片提取用（与 MinimapTileCache 配合）；DeviceGray 上下文 + .high 插值 + draw → 返回 `[UInt8]` |
+| `minimapBytes(from:side:) -> [UInt8]?`（**static，第 387–398 行**） | **P4优化：直接在灰度图中写入 UInt8，跳过 Float32 中转分配（~22.5KB）**——小地图瓦片提取用（原设计与 MinimapTileCache 配合，**该类已删除，此用途已废弃**，函数本身仍在）；DeviceGray 上下文 + .high 插值 + draw → 返回 `[UInt8]` |
 | `templateFloat(_ t:tw:th:) -> ([Float], Float)?` | 模板字节 → Float（0~1）+ 均值——`t.prefix(tw*th)`（**模板字节数可能大于 tw×th，只取前段**） |
 | `resizeTemplate(_ t:fromW:fromH:toW:toH:) -> [Float]?` | 模板缩放（**双线性手写版**）：`sx = (fromW-1)/(toW-1)`（**端点对齐**——与 SpeedOCRReader 的中心对齐不同，这里 x0=Int(fx) 直接取左邻）→ 四邻域加权 |
 | `centeredTemplate(_ t:side:) -> ([Float], Float)?` | 模板均值（**不做中心化减均值，只算均值**——NCC 公式里减） |

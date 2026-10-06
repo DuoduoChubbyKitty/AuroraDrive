@@ -2,7 +2,7 @@
 
 > 本文档指导如何为 MaaNTE 添加新功能，包括 CustomAction、Pipeline 节点、任务配置等。
 
-> 【2026-09-19 现状标注】扩展操作针对本地 `MaaNTE/` 框架本体（仍保留）。项目侧现状：Maa 只做工具、不整体接管；新增模板/ROI 需求走实机采集（`data/mac_shots/` 现有 208 张 9/18 批次）+ `tools/maa_node_audit.py` 判定闭环，剩余 24 个缺模板节点清单见 `docs/界面采集作业指令.md`；上游 PR（如 BidKing PR#434）按"独立文件夹"方式管理（现 `BidKing_PR434/`，git 7b7d2db，未合并）。
+> 【2026-09-19 现状标注】扩展操作针对本地 `MaaNTE/` 框架本体（仍保留）。项目侧现状：Maa 只做工具、不整体接管；新增模板/ROI 需求走实机采集（`data/mac_shots/` 现有 208 张 9/18 批次）+ `tools/maa_node_audit.py` 判定闭环，剩余 24 个缺模板节点清单见 `docs/文档库/探索文档/界面采集作业指令.md`（⚠️ 2026-09-29 路径订正：原记路径不存在，实际多两级）；上游 PR（如 BidKing PR#434）按"独立文件夹"方式管理（现 `BidKing_PR434/`，git 7b7d2db，未合并）。
 
 ---
 

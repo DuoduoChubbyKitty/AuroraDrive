@@ -1,6 +1,112 @@
 # 代码-04 CoordinateCapture 网络坐标采集
 
-> 覆盖源文件：`Sources/AuroraDrive/Capture/CoordinateCapture.swift`（**~870 行**）。从 MaaNTE `nte_coordinate_api.py` 移植（AGPL-3.0），自包含网络定位：libpcap 抓包 → UE5 移动包解析 → 世界坐标 + 朝向。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Capture/CoordinateCapture.swift`（**1752 行，2026-10-06 `wc -l` 实测**）。
+> 从 MaaNTE `nte_coordinate_api.py` 移植（AGPL-3.0），自包含网络定位：libpcap 抓包 → UE5 移动包解析 → 世界坐标 + 朝向。基于当前仓库逐单元编写。
+>
+> ---
+>
+> ## ✅ 2026-10-06 复核（本档按现役 1752 行版本全面校对）
+>
+> **本档 2026-09-25~09-29 各节行号再次失效**（09-29 基准是 1083 行，现役 1752 行）。下面是 **2026-10-06 逐符号 `grep -n` 实测**的行号对照表（本文此后所有行号引用均按此基准）：
+>
+> | 行号 | 内容 |
+> |---|---|
+> | 11–95 | libpcap C 声明（`pcap_datalink`/`pcap_lookupdev`/`pcap_findalldevs` 为 09-30 新增，:76/:79/:82）+ `pcap_if_t` |
+> | 98–121 | 常量（kNorth/kEast :100–103、kCalib* :112–115） |
+> | 123–256 | 位操作 `bits`（:125–136）、`ue5Vector`、`ue5Rotator`、`hasValidRotation`、`packetDirection`（:248） |
+> | 260–551 | `UE5Decoder`：`decode`（:296）、`acceleration`（:414）、新协议区（:419）、`decodeProtoMove`（:454）、`findCandidates`（:472）、`trackingKey`（:505）、`reacquireCandidates`（:513）、`newFlowCandidate`（:520）、`confirmFlow`（:525）、`clearPending`（:545） |
+> | 553–666 | 全局回调（:556–563）+ `pcapLog` 日志系统（:581 候选路径、:609 轮转上限、:615 轮转函数、:627 主函数；09-30 动态候选路径 + 10-04 轮转，见下） |
+> | 668–1741 | `CoordinateCapture` 类：状态与窗口常量（:668–926）、网卡选择（:928，`skipPrefixes` :944–945、`loopbackNames` :947 起）、`defaultRouteInterface`（:1028）、`openWithFilter`（:1045，过滤器 :1102）、候选网卡（:1132）、`probe`（:1184）、`listenLocked`（:1229）、`sleepInterruptible`（:1250）、`setActiveInterface`（:1255）、`supervisorLoop`（:1266）、`start`（:1352）、`processPacket`（:1365）、`logStats`（:1497）、`markGameTraffic`（:1545）、`learnGamePort`（:1552）、`isGamePort`（:1559）、`hasRecentTraffic`（:1566）、`totalPackets`（:1581）、`read`（:1591）、`diagnostics`（:1613）、`readAcceleration`（:1627）、`PoseRead`/`readWithFreshness`（:1638/:1716）、`readWithTier`（:1694）、`close`（:1725）、`worldToMapPixel`（:1747） |
+>
+> ### ⚠️ 2026-09-30 实测推翻本档 2026-09-25 的「s2c 放开」结论
+>
+> 本档末尾「2026-09-25 新协议逆向」一节记载的「移动包全部是 s2c、放开 s2c 通道」**已被实测推翻**（源码 :1444–1457 注释）：
+> - S2C 30031 上只有 ①76 字节心跳（每 15.00s 一个，内含微秒时钟——旧 `decodeProtoMove` 把 bit498/509 的时钟位模式当成了坐标，这正是「传送 4~5 次定位纹丝不动」的直接原因）②物品/生成记录明文推送。**全都不含玩家实时位置**。
+> - 现役行为：**s2c 仅保留流量计数（`statS2C` :1437），不进解码器**（:1460 `if direction == "s2c" { return }`）；真实移动包在 **C2S UDP**（动态端口，实测 30212/30160，~8Hz，站立也发）。
+> - `decodeProtoMove` 函数体保留但**默认停用**，仅 `AURORA_LEGACY_PROTO=1` 启用作对照诊断（:283–288）。
+>
+> ### 2026-09-30 / 10-04 关键窗口与常量现状（全部实测校准）
+>
+> | 常量 | 现值 | 行号 | 依据 |
+> |---|---|---|---|
+> | `probeWindowPrimaryForKnownCadence` | 16.0s | :752 | 实测坐标包严格每 15.01s 一个，2.5s 窗口命中率仅 ~17% |
+> | `probeWindowOther` | 0.5s | :702 | 低嫌疑网卡快速筛掉（`probeWindowPrimary`=2.5s :701 已被 16s 版取代，仅剩注释价值） |
+> | `probeRetryInterval` | 2.0s | :759 | 空闲指数退避基准（2^n 放大，封顶 `probeIdleBackoffCap`=30s :762） |
+> | `streamLostWindow` | 22.0s | :788 | 实测周期 15s + 7s 余量 |
+> | `trafficFreshWindow` | 20.0s | :803 | = poseFreshWindow(18)+2s，保持 traffic > pose 层级 |
+> | `poseFreshWindow` | 18.0s | :839 | 实测周期 15s + 3s 余量（15s 窗口与周期临界相撞必然闪断） |
+> | `poseRecentWindow` / `poseStaleWindow` | 40s / 90s | :1688–1689 | 分级新鲜度（live/recent/stale/lost 四档） |
+> | BPF 过滤器 | `"(tcp port 30031) or udp"` | :1102 | 09-30 第二次根因修复：UDP 移动包端口随服务器变（30212→30160），**永不写死**；甄别交给解码器 + 游戏流量标记 |
+>
+> ### 2026-09-30 / 10-04 其它落地项（本档此前完全未覆盖）
+> - **pcapLog 动态候选路径**（:581–604 候选路径与探测实现）：`/tmp/aurora_pcap.log` 曾被 root 写成 `root:wheel`，普通用户静默写不进 → 定位日志 09-29 起全部丢失。现主路径不可写时依次落 `~/Library/Logs/aurora_pcap.log`、`/tmp/aurora_pcap_ui.log`，全部失败落 stderr。
+> - **pcapLog 轮转**（:609 上限 / :615–624 轮转函数 / :633–637 节流检查）：8MB 上限 + 单备份 `<path>.1` 覆盖式轮转，每 64 次写入才 stat 一次。
+> - **游戏流量标记**（:1545 `markGameTraffic`，processPacket 内调用点 :1453–1459）：裸 UDP 下 `lastPacketWall` 只由「端口 30031 或已解出真样本的端口」（`learnGamePort` :1552 / `isGamePort` :1559，上限 8 个）刷新；`probe`（:1184–1214）的命中判据也改为「窗口内 `lastPacketWall` 被刷新」——系统 UDP（QUIC/DNS/mDNS）不再误判成游戏流量。`lastPacketWall` 初值为 0（:868，「从未收到过包」哨兵；:1566 `hasRecentTraffic` 有显式 `guard lastPacketWall > 0`），收到首个包前 `hasRecentTraffic` 恒 false。
+> - **链路层头长自适应**（:889 字段 / :892–903 常量与映射 / :1417 processPacket 使用处）：按 `pcap_datalink` 决定链路层头长（以太网 14 / 回环 DLT_NULL·DLT_LOOP 4），修系统代理场景（游戏流量经 127.0.0.1 回环转发时按 14 跳会切错 IP 头，静默零坐标）。候选网卡中回环排在全部物理网卡之后（:1173–1178）。
+> - **空闲指数退避**（supervisorLoop 内 :1321–1331）：连续无流量轮按 2s→4s→…→30s 放大重探间隔（:1331 `probeFailStreak = 0` 复位），命中即复位 2s（修空闲态单核 ~17.9% CPU）。
+> - **新读取 API**：`readWithFreshness`（:1716，fresh/stale 两级，stale 不再返回 nil）、`readWithTier`（:1694，live≤18s/recent≤40s/stale≤90s/lost 四档，`PoseTier` :1679，消费者按档位决定态度）、`diagnostics()`（:1613，把 `read()` nil 的两种原因——从未有样本 vs 过期——分开）、`PoseRead` 枚举（:1654）。消费方：AuroraDriveApp.swift :4321/:4358/:4412/:4592。
+>
+> ---
+>
+> ## ⚠️ 2026-09-29 复核追加（历史存档：本文行号映射曾大面积失效，遗漏 448 行）
+>
+> **（以下行号基准是 2026-09-25 的 1083 行版本，已被上方 2026-10-06 复核块取代，保留作历史参考）**
+>
+> **实测对比**（`wc -l` 与 `grep -n`）：
+>
+> | 章节 | 本文声称行号 | 实际行号 | 偏差 |
+> |---|---|---|---|
+> | 二、位操作与 UE5 序化解码 | 92–167 | 92–168 | ✅ 基本吻合 |
+> | 三、UE5Decoder 状态跟踪 | 223–380 | 226–491 | ❌ 尾部差 **111 行** |
+> | 四、CoordinateCapture 抓包器 | **382–635** | **521–1083** | ❌ 起点差 **139 行**，终点差 **448 行** |
+>
+> **本文自身三处数字互相矛盾**（说明经历了多轮未同步的增量修改）：
+> 本文头部写「~870 行」，而同日期的《代码-00》记为 712 行，实测为 **1083 行**。
+>
+> ### 被遗漏的 448 行内容（382–635 之外的实况，本文完全未覆盖）
+>
+> | 实际行号 | 内容 |
+> |---|---|
+> | 411–490 | `findCandidates` / `trackingKey` / `reacquireCandidates` / `newFlowCandidate` / `confirmFlow` / `clearPending` 完整实现 |
+> | 492–520 | `// MARK: - 坐标抓取器` 注释区 + `pcapLog` 文件日志 |
+> | 521–530 | `final class CoordinateCapture` **类声明**（本文称在 382 行，实际 521 行） |
+> | **531–595** | `// MARK: - 自适应网卡（探测 → 锁定 → 失流重探）` ★核心，见下 |
+> | **596–674** | `// MARK: - 网卡选择（游戏流量在哪个接口上）` |
+> | 675–691 | `defaultRouteInterface()` —— `route` 三候选路径 + netstat 兜底 + 5s 缓存 |
+> | 692–726 | `openWithFilter(_:errbuf:)` —— BPF 过滤器构造 |
+> | **727–837** | 自适应网卡第二轮实现（候选网卡枚举 / `probe` / `listenLocked` / `sleepInterruptible` / `setActiveInterface`） |
+> | **838–889** | `supervisorLoop()` —— 网卡主管循环 |
+> | 890–902 | `start()` |
+> | **903–997** | `processPacket(header:packet:)` ★核心解码入口（含 s2c 通道放开） |
+> | 998–1020 | `logStats()` —— `[STATS]` 行输出（包数/s2c/解码调用/候选/样本/新协议计数） |
+> | **1021–1037** | `hasRecentTraffic(window:)` —— "游戏到底在不在跑"的最直接信号 |
+> | **1038–1083** | `read(maxAge:)` —— 对外坐标读取接口 |
+>
+> ### ★ 本文遗漏的两大核心模块
+>
+> **（一）自适应网卡全链（531–889 行）**——这是 9-25 落地的重要功能，本文只在头部复核块提了一句，
+> **正文（第四节自称覆盖"382–635 行"）完全没写**：
+> - **探测式自适应**（不做多通道并行）：平时不探测；需要时逐张网卡实读 30031 包，谁有真实流量谁被锁定，其余关闭——零探测开销
+> - **分级探测窗口**：高嫌疑卡（默认路由 / 上次命中）**2.5s**、其余 **0.5s**
+> - **重探间隔 2s / 失流窗口 12s**（12s 由实测突发间隔推出）
+> - `route` 路径修复：实测 `route` 在 **`/sbin/route`**（`/usr/sbin/route` 不存在 → 旧实现静默失效）
+>
+> **（二）`processPacket` 完整实现（903–997 行）**——**s2c 通道放开**是打通新协议的关键修复：
+> > 原先在 **s2c 包上直接 `return`**（沿用 MaaNTE「移动包只走 c2s」的旧假设）——
+> > 而新协议移动包**全部是 s2c**，导致新解码器永远收不到包。现已放开 s2c 通道
+> > （由 56 字节前缀 + 长度 {72,76} 精确识别，无关流量会被快速拒绝）。
+>
+> ### 建议的阅读顺序（按实况行号）
+>
+> 1. 第 9–81 行：libpcap C 声明
+> 2. 第 92–168 行：位操作与 UE5 序化解码
+> 3. 第 226–491 行：`UE5Decoder`（含**新协议解码器** `decodeProtoMove` / `findCandidates`）
+> 4. 第 521–674 行：`CoordinateCapture` 类声明与网卡选择
+> 5. **第 727–889 行：自适应网卡主管循环（本文最大缺口）**
+> 6. **第 903–997 行：`processPacket`（本文最大缺口）**
+> 7. 第 998–1083 行：统计与对外接口
+>
+> ---
 >
 > **✅ 2026-09-25 自适应网卡落地（用户方案：探测 → 锁定 → 失流重探）**：
 > - **探测式自适应**（不做多通道并行）：平时不探测；需要时逐张网卡实读 30031 包，谁有真实流量谁被锁定，其余关闭——零探测开销
@@ -147,6 +253,56 @@ private let kCalibTY: Double = 5210.664390686138
 
 ## 四、CoordinateCapture 抓包器与 worldToMapPixel（第 382–635 行）
 
+> ## 🔴 2026-09-29 重要复核：**本节描述的是旧版单线程抓包器，现役结构已整体重写**
+>
+> **本节（及其他各节）的行号基准是 2026-09-25 之前的版本**。现役 `CoordinateCapture`
+> 已从「**一个 `captureThread` 跑 `captureLoop`**」重构为
+> 「**`supervisorLoop` 主管 + 探测式自适应网卡状态机**」。
+>
+> ### 证据：本节提到的三个成员在代码中已不存在
+>
+> | 本文提到的符号 | 实测 | 现役对应物 |
+> |---|---|---|
+> | `captureThread` | ❌ grep 不到 | `supervisorLoop()`（838–889 行） |
+> | `captureLoop()` | ❌ grep 不到 | `listenLocked(handle:name:)`（801–821）+ `probe(...)`（779–800） |
+> | `pcapHandle`（作为成员） | ❌ grep 不到 | 本地句柄，经 `openWithFilter` 返回后即传参，不长期持有 |
+> | `devName` | ❌ grep 不到 | 改为 `setActiveInterface(_:)`（827–837）+ `candidateInterfaces()`（739–778） |
+>
+> ### 结构对比
+>
+> | 维度 | 本文描述的**旧结构** | **现役结构**（实测） |
+> |---|---|---|
+> | 网卡选择 | `start()` 里**一次性**枚举 + 尝试打开，选中即 `break` | **探测式状态机**：逐卡实读 30031 包，谁有真实流量谁被锁定 |
+> | 网卡变更 | 不支持（选错就完了） | **失流自动重探**（重探 2s / 失流窗口 12s） |
+> | 主循环 | `Thread { captureLoop() }` | `supervisorLoop()` 主管 + `DispatchSourceTimer` |
+> | 探测窗口 | 无 | **分级**：高嫌疑卡 2.5s / 其余 0.5s |
+> | 路由查询 | `route -n get default`（一次） | `defaultRouteInterface()`（675–691，三候选路径 + netstat 兜底 + 5s 缓存） |
+>
+> ### 现役关键行号（供重写参考）
+>
+> | 行号 | 内容 |
+> |---|---|
+> | 521 | `final class CoordinateCapture` 类声明（本文称在 411 行） |
+> | 531–595 | `// MARK: - 自适应网卡（探测 → 锁定 → 失流重探）` |
+> | 596–674 | `// MARK: - 网卡选择（游戏流量在哪个接口上）` |
+> | 675–691 | `defaultRouteInterface()` |
+> | 692–726 | `openWithFilter(_:errbuf:)` |
+> | 727–837 | 探测/锁定/重探实现（`probe` / `listenLocked` / `sleepInterruptible` / `setActiveInterface`） |
+> | 838–889 | `supervisorLoop()` |
+> | 890–902 | `start()` |
+> | **903–997** | `processPacket(header:packet:)` |
+> | 998–1020 | `logStats()` |
+> | 1021–1037 | `hasRecentTraffic(window:)` |
+> | 1038–1083 | `read(maxAge:)` |
+>
+> **⚠️ 处理建议**：本节**不是"补几行行号"能修好的**——它描述的是另一套线程模型。
+> 真正需要的是一次**按现役结构重写**（见文首复核块的完整行号对照表）。
+> **本轮已标出差异但未重写正文**（重写属大改，需用户确认）。
+>
+> **下文原正文保留作历史参考**——其中**关于 BPF 过滤器、PAC 规避、忙等修复、
+> hasRecentTraffic/totalPackets 设计意图**的论述**仍然准确且有价值**
+> （这些设计在新结构里被继承了），**只有线程模型与行号部分失效**。
+
 **PAC 崩溃规避设计（第 384–394 行）**：pcap 回调**用 C 函数指针不用闭包**——"避免 Apple Silicon PAC 签名问题"。全局单例 `nonisolated(unsafe) var coordinateCaptureActive: CoordinateCapture?` 承载回调目标；`coordinateCaptureCallback: pcap_callback` 解引用 header/packet 后转调 `capture.processPacket(header:packet:)`。
 
 **`pcapLog(_ msg: String)`（第 397–409 行）**：日志写到 `/tmp/aurora_pcap.log`（ISO8601 时间戳 + 消息），文件存在则 seekToEnd 追加，否则创建。
@@ -251,3 +407,34 @@ let mapY = kCalibA * wy - kCalibB * wx + kCalibTY
 [自检] ✓ 移动样本解出坐标 74/274  ✓ 移动样本坐标在变化 X 跨度 81.74
        ✓ 静止样本为单值（无抖动）  ✓ 像素落在地图内 (6127.0, 4776.0)
 ```
+
+---
+
+## 🆕 2026-10-06 补充：运行时归属与启动调用链（含「⚠️ 本节行号已被 09-30 结论部分推翻」的勘误）
+
+> ⚠️ 上一节「2026-09-25 新协议逆向」中的「bit498/509 是坐标、移动包全部是 s2c」结论已被 09-30 实测推翻（见本档头部 2026-10-06 复核块），保留仅作逆向过程存档。
+
+### 启动调用链（谁调 `start()`）
+
+- **生产路径（懒初始化）**：MissionConsole 的**网络定位定时器 10Hz**（MissionConsole.swift:5603–5612，`DispatchSourceTimer repeating 1/10` on `com.aurora.netlocate` 队列，事件 main.async 调 `state.runNetworkLocateStep()`）→ `runNetworkLocateStep()`（AuroraDriveApp.swift:4324）首次执行时创建 `CoordinateCapture()` 并 `cc.start()`（:4331–4334，双检锁 `healerInitLock` :4273），`start()` 返回 true 才置 `locateCtx.networkReady = true`（:4334–4336）。
+- `start()`（CoordinateCapture.swift:1352–1363）只是置 `running = true` 并起专属线程 `supervisorThread`（名字 `com.aurora.coordinate-capture`，:1355–1358）跑 `supervisorLoop()`——**抓包线程自成一个 Thread，不在 captureQueue 也不在主线程**，与 CaptureEngine（SCStream/aurora.capture 队列）完全独立。
+- **自检路径**：`--nic-autotest` 自建实例 `cc.start()`（AuroraDriveApp.swift:1439–1440）。
+
+### 数据状态与消费方
+
+| 成员 | 行号 | 说明 |
+|---|---|---|
+| `sample` / `sampleAt` / `lastSampleWall` | :671–673 | 最新坐标（锁保护，processPacket 解出真样本时限频 1/30s 写入，:1473–1481） |
+| `read(maxAge:)` | :1591 | 锁内读坐标，超 `poseFreshWindow`(18s) 返回 nil |
+| `readWithTier` / `readWithFreshness` / `diagnostics` | :1694 / :1716 / :1613 | 分级读取与诊断（把 read()==nil 的两种原因分开） |
+| `hasRecentTraffic(window:)` | :1566 | `lastPacketWall` 在窗口内即 true；初值 0 哨兵（:868）保证首包前恒 false |
+| `totalPackets` | :1581 | 累计包总数（区分「没流量」vs「抓包没跑起来」） |
+| `locateSource()` | AuroraDriveApp.swift:4317–4321 | `coordinateCapture==nil` 或 `!networkReady` → `.packetError`；有流量 → `.ready`；否则 `.noGame`（10Hz 调用） |
+| 定位消费 | AuroraDriveApp.swift:4412 | `readWithTier()` 三档分级（live/recent/stale/lost）→ UI 显示/决策降权分档 |
+
+### 与 CaptureEngine（代码-03）的关系
+
+- **互不依赖、线程完全独立**：CoordinateCapture 跑自己的 `com.aurora.coordinate-capture` 线程 + libpcap（内核 BPF 过滤），CaptureEngine 跑 SCStream + `aurora.capture` 队列。引擎模式（--engine）与本地模式的差异只影响 SCStream 帧路径（见代码-03 第八节），**网络定位两条模式下都在各自进程跑**（UI 进程常开，MissionConsole 定时器不区分模式）。
+- **进程归属**：CoordinateCapture 的创建点在 DriveState（UI 进程与引擎进程各有 DriveState 实例时各自实例化——引擎进程 `runNetworkLocateStep` 同样会被调用，其 pcapLog 写同一路径链）。`/tmp/aurora_pcap.log` 历史上被 root 引擎写过导致普通用户写不进的事故即源于此（见 :569–580 注释）。
+- **游戏流量窗口的一致性**：抓包侧 `streamLostWindow`(22s) > `trafficFreshWindow`(20s) > `poseFreshWindow`(18s)，三层窗口层级是 09-30 定案的（各常量注释，:788/:803/:839）——先判「游戏在通信」（traffic），再判「坐标可消费」（pose），最后网卡自己判「停流重探」（streamLost）。
+

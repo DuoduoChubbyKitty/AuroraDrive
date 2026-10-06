@@ -1,6 +1,8 @@
 # 代码-18 MinimapTileCache 小地图瓦片缓存
 
-> 覆盖源文件：`Sources/AuroraDrive/Locate/MinimapTileCache.swift`（179 行）。基于当前仓库逐单元编写。
+> ⛔ **已废弃（2026-10-06 记录）**：`Sources/AuroraDrive/Locate/MinimapTileCache.swift` **已从代码库删除**（git 状态为已删除：`D Sources/AuroraDrive/Locate/MinimapTileCache.swift`，工作树 `Sources/AuroraDrive/Locate/` 下现仅存 `NetworkLocator.swift` 与 `VisualLocator.swift`，已实测确认）。本文以下内容为该文件删除前的存档描述，**不再对应任何现存代码**，请勿按本文引用 `文件:行号` 去产品代码里找实现。保留本文仅作历史追溯用。
+
+> 覆盖源文件：`Sources/AuroraDrive/Locate/MinimapTileCache.swift`（179 行，**该文件已删除**）。基于当前仓库逐单元编写。
 
 ## 一、常量、状态与对外接口（第 1–90 行）
 

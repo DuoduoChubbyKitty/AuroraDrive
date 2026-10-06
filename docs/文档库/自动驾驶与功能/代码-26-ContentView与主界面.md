@@ -1,6 +1,6 @@
 # 代码-26 ContentView 与主界面
 
-> 覆盖源文件：**旧版 AuroraDriveApp.swift 下部（2164 行起）的 ContentView 已在 UI 大改版中删除**。现 ContentView = `App/MissionConsole.swift`（3934 行）:2772。
+> 覆盖源文件：**旧版 AuroraDriveApp.swift 下部（2164 行起）的 ContentView 已在 UI 大改版中删除**。现 ContentView = `App/MissionConsole.swift`（**4224 行**，2026-10-02 `wc -l` 实测；原文写 3934 行）:2772。
 >
 > **⚠️ 2026-09-25 深度复核块（本档旧内容已整体失效）**：
 > ① 旧 ContentView + FloatingMinimap + TopToolbar（本档原描述对象）**全部删除**——被"任务控制中心"取代（网页原型一比一原生翻译，见 代码-27）；
@@ -318,6 +318,15 @@ minimapBody
 - `.onAppear { loadLog() }` + `.onDisappear { stopAutoRefresh() }`——**离开视图自动停刷新（防 Timer 泄漏）**
 
 **代码-26 文档至此完整**（AuroraDriveApp 2164–4379 行全覆盖；全文件 40 个顶层定义全部覆盖，无遗漏）。
+
+## 十-A、ViewportPanel 与 QuestCard 当前任务卡片（2026-10-06 复核块）
+
+> 现役主界面（MissionConsole 版）中，游戏画面预览框是 `ViewportPanel`（MissionConsole.swift:562，挂在 LeftColumn）。本节为 2026-10-06 逐行核实补充；逐行细节另见 代码-27 的「三-A / 三-B / 三-C / 三-F」节。
+
+- **ZStack 层叠自底向上**（MissionConsole.swift:565-725）：`FrameHostView`（:568）→ `UpscaleFrameHostView`（:572-575）→ `AuroraLightField`（:578-579）→ `ObstacleOverlay`（:588-592，数据源 displayDetections）→ `MaskOverlay`（:598-605）→ **QuestCard**（`.overlay(alignment: .topLeading)` :630-640，左上角、padding top 44 / leading 14）→ 左上/右上 TagChip（:643-664）→ 卡死/路况横幅（:686-700）→ AutoSpeedPill + DualGauge（:703-725）。
+- **QuestCard（v3 终态，2026-10-06）**：定义 MissionConsole.swift:856。定宽 260pt（:901）；**常驻显示**——任务名 nil/空白时显示「暂无任务」+ 距离「--」（:903-906、:908-927），不再整卡隐藏；任务名 12.5pt（:928）；「任务直线距离」「任务弯道距离」各独占一行（:941-954、:957-970），拿不到一律「--」（:884-887）；辉光 = 两层 `.background` + `.blur` + `.blendMode(.plusLighter)` 加法发光（:1013-1027），卡片投影已删（:1029-1046）；文字层残留一个 `.shadow(glowFar, radius: 4)` 仅作用文字（:935）。
+- **ViewportPanel 投影修复**：`.shadow(black 0.78, r17, y14)` 从修饰符链末端挪进 `.background{}`（MissionConsole.swift:727-761），投影只跟随视口底图、不再连带投到 overlay 里的 QuestCard 与 TagChip（原卡片下方实测压暗 −27.05）。
+- **数据与刷新**：QuestCard 纯读 `@Observable DriveState` 字段（questName/locatorFound/locatorX/locatorY/locatorTarget/routePlan，AuroraDriveApp.swift:4145-4172），无自有定时器（MissionConsole.swift:853-855）；任务名与目标来自 QuestPanelReader OCR——tick 里 ingest（AuroraDriveApp.swift:6435-6437），确认后 onConfirmed **先比后写** questName + `setLocatorTarget`（:5575-5580）；整条刷新由 30Hz DispatchSource tick 驱动（MissionConsole.swift:5534-5560，待机降 ~3.75Hz）。
 
 ## 十、FrameHost / UpscaleFrameHost 直绘宿主与 Vendor 接口（第 3465–3651 行）
 

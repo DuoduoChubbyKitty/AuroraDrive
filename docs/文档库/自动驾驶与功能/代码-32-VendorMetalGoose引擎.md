@@ -1,6 +1,6 @@
 # 代码-32 Vendor/MetalGoose Metal 引擎
 
-> 覆盖源文件：`Vendor/MetalGoose/Engine/`（6 文件 **3246 行**）：GooseEngine.swift（**2057 行**）+ CaptureSettings.swift（236）+ GooseUpscaler.swift（**107**，代码-26 单元十已详）+ WindowCaptureManager.swift（364）+ Shaders.metal（466）+ Stubs.swift（16）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Vendor/MetalGoose/Engine/`（6 文件 **3246 行**）：GooseEngine.swift（**1890 行**，2026-10-02 `wc -l` 实测；原文写 2057 行**）+ CaptureSettings.swift（236）+ GooseUpscaler.swift（**107**，代码-26 单元十已详）+ WindowCaptureManager.swift（364）+ Shaders.metal（466）+ Stubs.swift（16）。基于当前仓库逐单元编写。
 >
 > **2026-09-25 深度复核记录**：GooseEngine 1988→**2057 行**（+69）、GooseUpscaler 91→**107 行**（+16）——增量为 9-24 优化改动 11（**新增 `GooseEngine.ingest(pixelBuffer:)` façade 转发**，与 ingest(cgImage:) 的 MTKView 检查逐行一致）与改动 9（引擎进程跳过 Metal 初始化）配套；其余 4 文件行数零变化（byte-for-byte 保留原则不变）。
 
@@ -51,11 +51,14 @@
 
 | 层 | 文件 | 总行数 | 状态 |
 |---|---|---|---|
-| **根层**（原版完整 goose 应用） | AutoUpdater(310)/CaptureSettings(236)/ContentView(**891**)/GlobalHotkeyManager(74)/GooseEngine(**1890**)/LICENSE/Localizable.xcstrings/MGHUD(**409**)/MetalGooseApp(10)/NOTICE.md/OverlayWindowManager(**503**)/README.md/Shaders.metal(468)/WindowCaptureManager(364) | 4687 | **原版独立 MetalGoose.app（插帧超分应用），不参与 AuroraDrive 编译（⚠️ 2026-09-20 起 Package.swift `exclude` 已显式列出根层这 15 个文件，消除 unhandled 告警；sources 白名单始终未列根层）** |
+| **根层**（原版完整 goose 应用） | AutoUpdater(310)/CaptureSettings(236)/ContentView(**891**)/GlobalHotkeyManager(74)/GooseEngine(**1890**)/LICENSE/Localizable.xcstrings/MGHUD(**409**)/**MetalGoose.entitlements**/MetalGooseApp(10)/NOTICE.md/OverlayWindowManager(**503**)/README.md/Shaders.metal(**466**)/WindowCaptureManager(364) | 4687 | **原版独立 MetalGoose.app（插帧超分应用），不参与 AuroraDrive 编译（⚠️ 2026-09-20 起 Package.swift `exclude` 已显式列出根层这 15 个文件，消除 unhandled 告警；sources 白名单始终未列根层）** |
+| | | | ⚠️ **2026-09-29 实测订正**：① 上表原漏列 `MetalGoose.entitlements`（但它在 `Package.swift` exclude 里，**共 15 项是对的**）；② 根层 `Shaders.metal` 实为 **466 行**（非 468），且与 Engine/ 版**完全相同** |
 | **Engine/ 子目录**（AuroraDrive 编译子集） | GooseEngine(**1988**)/CaptureSettings(236)/GooseUpscaler(91)/Shaders.metal(466)/Stubs(16)/WindowCaptureManager(364) | 3161 | **Package.swift sources 白名单 84–88 行列 5 个 .swift——AuroraDrive 只用 Engine/ 子集** |
 
 - **Engine/ 版 GooseEngine 比根层多 98 行**（1988 vs 1890）：AuroraDrive 扩展（`public func ingest` + updateCaptureStats 调用 + 错误码 EXT 系列）
-- **Shaders.metal 两份**（根层 468 / Engine/ 466）——几乎一致；**运行时编译读的是 Engine/ 那份**（候选路径 ②③）
+- **Shaders.metal 两份**（根层 / Engine/）——**⚠️ 2026-09-29 实测订正：两份完全相同**
+  （均 **466 行 / 17,016 字节**，`diff` 零差异；本文原写「根层 468 / Engine 466，几乎一致」，
+  行数与"几乎"均不准确）；**运行时编译读的是 Engine/ 那份**（候选路径 ②③）
 - **`Stubs.swift`（Engine/ 独有，16 行）**："Minimal stub for MetalGoose's `MouseConstraintManager` (cursor-drawing helper). **The full implementation lives in MetalGoose's OverlayWindowManager.swift and is intentionally NOT vendored.** GooseEngine only requires this single accessor on the display path, so a trivial stub is sufficient. **This file is AuroraDrive's own addition and is NOT part of the upstream GPL v3.0 source**"——**`currentCursorFraction()` 恒返回 (0.5, 0.5)（屏幕中心）：合成光标永远画在 drawable 中心**（不追踪真实鼠标——显示路径不需要）
 
 **关键常量（grep 实测）**：`maxInFlight = 3`（在途帧上限）/ `measurementWindow = 0.5`（测量窗口，5 处使用：帧率偏好节流:808 / 历史容量:939 / pllGain:952 / EMA alpha:1336 / CPU 采样节流:1384）/ `minFrameTimeSamples = 8`（统计下限）/ `frameTimeHistoryCapacity`（refreshRate × 0.5 动态）/ `texturePoolDepth = capacity + maxInFlight`（= 7）。

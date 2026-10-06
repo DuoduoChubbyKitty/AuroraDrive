@@ -90,6 +90,8 @@
 
 6. **深度核对整个项目**（这次对话做了 3 轮核对）
    - 核对了 31 个 Swift 文件 / 18,169 行
+     > ⚠️ **2026-09-29 实测更新**：现为 **41 个 Swift 文件 / 26,440 行**
+     > （`Sources/` 下 `wc -l`；不含 Vendor/Engine 5 个文件）。本文其余同类数字同理后移。
    - 核对了 MaaNTE 目录：86 个 py / 45 个 CustomAction / 25 个任务
    - 核对了构建部署链路（`run.sh` 真实行为）
    - 修正了 2 处行号错误（`GameKey` 在 `:233` 不是 `:281`）
@@ -140,6 +142,7 @@
 ### 项目与代码
 - 路径：`/Users/dupi/Desktop/自动驾驶系统`
 - 源码：`Sources/AuroraDrive/`，**31 个 Swift 文件 / 18,169 行**
+  > ⚠️ **2026-09-29 实测**：**41 个文件 / 26,440 行**（含 Vendor/Engine 共 46 个）。
 - 当前 git HEAD：`5776c38`
 - **稳定基线 commit：`c65189d`**（面板往外扩展布局，已验证稳定）
 - 最近 6 个 commit：
@@ -507,6 +510,24 @@ md5: fe77609e3ff4e7fad85b4eb54a8deb3a  vs  6dcf5e9ea8b5007c81dda752dc509edc
 ## 0.1 项目规模（实测）
 - 路径：`/Users/dupi/Desktop/自动驾驶系统`
 - 源码：`Sources/AuroraDrive/` **31 个 Swift 文件 / 18,169 行**
+  > ### ⚠️⚠️ 2026-09-29 复核：本节数字已过期，**请勿再作为"唯一真相源"引用**
+  >
+  > **实测（`find Sources -name "*.swift" -exec wc -l {} +`）**：
+  >
+  > | 口径 | 本文声称 | **实测（2026-09-29）** |
+  > |---|---|---|
+  > | `Sources/` 全部 .swift | 31 个 | **41 个** |
+  > | 总行数 | 18,169 行 | **26,440 行** |
+  > | 含 Vendor/Engine 5 文件 | — | **46 个** |
+  > | `Package.swift` sources 白名单 | — | **44 条**（39 + 5，零遗漏） |
+  >
+  > **差 +10 个文件 / +8,271 行**。增长来自两批：
+  > ① **9-27 光流与运动预测**：`OpticalFlowBridge`(384) / `MotionPredictor`(425) / `LaneFallback`(365) / `FallbackGuard`(280) / `YolopxEngine`(1124)
+  > ② **9-28 掩码链路**：`EngineMain` +206 / `EngineClient` +134 / `AuroraDriveApp` +277
+  >
+  > **权威台账请查**：`docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md` 第二节
+  > （该文档的 2026-09-29 复核块已更新为实测值）。
+  > **本节保留原数字**是为了留痕，**不作删除**——但请以实测值为准。
 - 最大的文件（改动风险最高的，动之前必须三思）：
   | 文件 | 行数 | 职责 | 风险 |
   |---|---|---|---|
@@ -771,7 +792,7 @@ cd /Users/dupi/Desktop/自动驾驶系统
 🟢 **允许改动（改动成本低、风险可控）**
 | 位置 | 允许的操作 |
 |---|---|
-| `AgentLoop.swift` | 可自由重写（新文件，227 行，独立性强）|
+| `AgentLoop.swift` | 可自由重写（新文件，227 行 **→ 2026-09-29 实测已增至 325 行**，独立性强）|
 | `AIAgentPanel.swift` 的 `callLLM` / `plainAnswer` / `runLLMTest` | 可重写（LLM 相关）|
 | `AIAgentPanel.swift` 的 `execute()` switch | 只能**加 case**，不能改已有 case |
 | `AIAgentPanel.swift` 的 `AgentSkillLibrary.all` | 只能**加条目**，不能改已有条目 |
@@ -1255,14 +1276,14 @@ final class RecordEngine: @unchecked Sendable {
 | 4 | 游戏窗口护栏 | 无游戏时被拦下 + 打印提示，**0 乱点** |
 | 5 | 停止释放 | `stopSkill` 后按键全部释放 + timer 取消 |
 | 6 | 日志如实 | 状态描述与真实行为一致 |
-| 7 | 文档同步 | `docs/ai-agent-panel.md` 技能表更新 |
+| 7 | 文档同步 | `docs/文档库/探索文档/ai-agent-panel.md` 技能表更新 |
 | 8 | 提交 | 单独 1 个 commit，信息写清改了什么/验证了什么 |
 
 ### 2.8 面板与文档同步（漏了等于没做）
 
 - 每个新技能：面板按钮 + 关键词 + 自测项
-- 更新 `docs/ai-agent-panel.md`：技能表（**真实状态**）、新参数、文件地图
-- 新增 `docs/MaaNTE移植对照表.md`：把 2.2 的表填上最终结论
+- 更新 `docs/文档库/探索文档/ai-agent-panel.md`：技能表（**真实状态**）、新参数、文件地图
+- 新增 `docs/文档库/Maa深度/MaaNTE移植对照表.md`：把 2.2 的表填上最终结论
 - 文档里禁止含糊描述；已实现的要写清真实行为与限制
 - ⚠️ 每个技能都必须显式写 `ported:`（不要依赖默认值，见缺陷 4）
 
@@ -1298,7 +1319,7 @@ final class RecordEngine: @unchecked Sendable {
 | 9 | 执行通道未变 | `git diff c65189d -- AIAgentPanel.swift` 里 `runSkill/toggleSkill/stopAll` 签名 0 改动 | ✅ |
 | 10 | 部署同步 | 裸二进制与 `.app` 内二进制 md5 一致 | ✅ |
 | 11 | 无远程操作 | `git log --all --oneline` 无 push 痕迹；`git remote -v` 未动 | ✅ |
-| 12 | 文档同步 | `docs/ai-agent-panel.md` 技能表与实际一致 | ✅ |
+| 12 | 文档同步 | `docs/文档库/探索文档/ai-agent-panel.md` 技能表与实际一致 | ✅ |
 
 ================================================================================
 # 第 6 章  工作循环（每轮照此执行）
@@ -1410,8 +1431,8 @@ final class RecordEngine: @unchecked Sendable {
 - 本地 git 提交历史（每项一个 commit，信息清晰）
 
 ## 8.2 文档
-- 更新 `docs/ai-agent-panel.md`（技能表真实状态、新参数、文件地图）
-- 新增 `docs/MaaNTE移植对照表.md`（24 任务逐项结论）
+- 更新 `docs/文档库/探索文档/ai-agent-panel.md`（技能表真实状态、新参数、文件地图）
+- 新增 `docs/文档库/Maa深度/MaaNTE移植对照表.md`（24 任务逐项结论）
 
 ## 8.3 最终报告（必须包含以下 5 部分）
 ```markdown

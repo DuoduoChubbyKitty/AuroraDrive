@@ -3,8 +3,8 @@
 > 目标：在侧边栏集成一个真正会"看屏幕玩游戏"的 AI，零配置、完全免费、延迟低
 
 > 【2026-09-19 现状标注】本文档为早期设计方案（2026-09-16），与实际落地形态有偏差：
-> - 后端**没有用 Python**：实际是原生 Swift 实现——`Sources/AuroraDrive/AgentLoop.swift`（AgentLoop + MockLLMPlanner/RealLLMPlanner 双规划器）+ `AIAgentPanel.swift` 统一技能通道，详见 `docs/ai-agent-panel.md` 与 `docs/AI-Agent最终实施方案.md`
-> - LLM 通路：规划走**用户自配的 OpenAI 兼容 API**（Key 存本地小本本，0 钥匙串访问；无 Key 时 MockLLMPlanner 降级）；Pollinations 免费口按 `docs/模型厂商关系与推荐规则.md` 只作管理员"教配置"的零 Key 例外，**不**是干活模型
+> - 后端**没有用 Python**：实际是原生 Swift 实现——`Sources/AuroraDrive/AgentLoop.swift`（AgentLoop + MockLLMPlanner/RealLLMPlanner 双规划器）+ `AIAgentPanel.swift` 统一技能通道，详见 `docs/文档库/探索文档/ai-agent-panel.md` 与 `docs/文档库/自动驾驶与功能/AI-Agent最终实施方案.md`
+> - LLM 通路：规划走**用户自配的 OpenAI 兼容 API**（Key 存本地小本本，0 钥匙串访问；无 Key 时 MockLLMPlanner 降级）；Pollinations 免费口按 `docs/文档库/探索文档/模型厂商关系与推荐规则.md` 只作管理员"教配置"的零 Key 例外，**不**是干活模型
 > - 实测已验证：真实 LLM tool-calling 规划（`finish_reason=tool_calls`，如「先登录然后再领奖励」→ auto_login→rewards），游戏前台按键注入 e2e 跑通（`--agent-command`），legacy 循环双层游戏窗口护栏（adb63ad）
 > - 本文第三、四节的提示词为设计草案；实际 RealLLMPlanner 走原生 tool-calling 协议（工具数/解析日志见防线 10）。五、六节路线图与成功率指标未被重验（待核实）
 

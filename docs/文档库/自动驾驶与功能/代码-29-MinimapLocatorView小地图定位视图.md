@@ -1,6 +1,11 @@
 # 代码-29 ControlWiring / MapWiring / LocateRuntime（控制台接线与地图数据层）
 
-> 覆盖源文件：`Sources/AuroraDrive/App/ControlWiring.swift`（**450 行**）+ `MapWiring.swift`（**254 行**）+ `LocateRuntime.swift`（**35 行**）。
+> 📌 **文件名失效提示（2026-09-29 复核追加）**：**本文文件名中的 `MinimapLocatorView` 已不存在**
+> （UI 大改版删除，纯逻辑类型析出到 `LocateRuntime.swift`，UI 侧由 MissionConsole 的
+> MiniMapCard / MiniMapCanvas 承载）。文件名保留不改是为了不破坏既有交叉引用，**内容已正确**。
+>
+> 覆盖源文件：`Sources/AuroraDrive/App/ControlWiring.swift`（**476 行**，2026-10-02 `wc -l` 实测；原文写 450 行）+ `MapWiring.swift`（**357 行**，2026-10-02 `wc -l` 实测）+ `LocateRuntime.swift`（**35 行**）。
+> ⚠️ 2026-09-29 实测：`ControlWiring.swift` 现为 **475 行**（+25），正文行号可能有个位数偏移。
 >
 > **⚠️ 2026-09-25 重建说明**：本档原覆盖 `App/MinimapLocatorView.swift`（196 行）——该文件已在 UI 大改版中删除，纯逻辑类型（LocateGate/LocateContext）被析出到 `LocateRuntime.swift` 单独留存（源码头注释实录），UI 侧由 MissionConsole 的 MiniMapCard/MiniMapCanvas 承载。本档现按三个新文件的实际内容重写。
 

@@ -7,7 +7,7 @@
 
 > **【2026-09-19 现状标注】（下文为评估时点快照，以下结论已被后续实现推翻/更新）**
 > - "最大硬缺口是鼠标注入"**已解决**：`MouseController.swift`（`click(at:)` / `scrollWheel(lines:)`，CGEvent mouse 注入）+ `ControlEngine.pressGameKey(typeText:)` 均已落地
-> - "任务编排是第二大缺口"**已解决**：`AgentLoop.swift`（LLM tool-calling 规划）+ `AIAgentPanel.swift` 技能循环（15 项技能已移植，13 条验收全过，见 `docs/最终报告.md`；legacy 护栏缺口也已修 adb63ad）
+> - "任务编排是第二大缺口"**已解决**：`AgentLoop.swift`（LLM tool-calling 规划）+ `AIAgentPanel.swift` 技能循环（15 项技能已移植，13 条验收全过，见 `docs/文档库/探索文档/最终报告.md`；legacy 护栏缺口也已修 adb63ad）
 > - 方案 D"复杂功能保持 MaaNTE 独立子进程"**未采用**：MaaNTE 只做工具（ROI/模板/任务定义），不整体接管项目；代码侧以 Swift 原生 + override 为主
 > - BidKing（竞价）PR#434 代码已提取到独立文件夹 `BidKing_PR434/`（git 7b7d2db，未合并）
 > - MaaNTE 模板/ROI 挖掘最终结论：250 个 ROI 节点 override 已生成（181 规则套用 + 32 精确反推，+83 偏移规则）；剩 24 个缺模板节点须实机采集补齐；坐标体系 1470×923 固定（游戏窗口不可改分辨率），运行期 `ScreenshotTargetLongSide=1280` 缩比，OCR 必须 GPU
