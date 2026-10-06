@@ -579,14 +579,24 @@ final class RealLLMPlanner: AgentPlanner {
         }
     }
 
-    /// 系统提示：与 tool calling 协议一致（不要求模型输出 JSON 文本，只用工具调用）
-    private static let systemPrompt = """
-    你是 AuroraDrive 的游戏助手规划器。你可以调用工具（游戏技能、按键、鼠标、文本、截图、状态、联网搜索）来完成用户任务。
-    规则：
-    1. 每一步只调用**一个**工具；不要一次返回多个。
-    2. 只能使用工具清单里存在的工具名，不要臆造。
-    3. 任务已完成时，不要再返回任何工具调用。
-    """
+    /// 系统提示：与 tool calling 协议一致（不要求模型输出 JSON 文本，只用工具调用）。
+    ///
+    /// 【2026-10-07 修复提示词漂移】原提示词只有一句"你是游戏助手规划器"，
+    /// 对《异环》一无所知 —— 模型规划技能时同样需要懂游戏（术语/玩法/
+    /// macOS F 键限制/界面操作路径）。现复用 AgentChatService.systemPrompt
+    /// （单一来源，领域知识只维护一份），规划器仅追加自己的执行规则。
+    private static var systemPrompt: String {
+        AgentChatService.systemPrompt + """
+        ═══════════════════════════════════════
+        附加：规划器执行规则
+        ═══════════════════════════════════════
+        1. 每一步只调用**一个**工具；不要一次返回多个。
+        2. 只能使用工具清单里存在的工具名，不要臆造。
+        3. 任务已完成时，不要再返回任何工具调用。
+        4. 需要操作界面时走「ESC → screenshot → mouse_click」路径，
+           绝不按 F1–F12（macOS 系统功能键，游戏收不到）。
+        """
+    }
 
     /// 构建 messages：系统提示 + 用户任务 + 历史工具结果（防线 7 已在调用方裁剪）
     private static func buildMessages(task: String, history: [AgentToolResult]?) -> [LLMMessage] {

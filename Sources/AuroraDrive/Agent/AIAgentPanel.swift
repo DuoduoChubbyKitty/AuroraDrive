@@ -246,10 +246,18 @@ final class AgentSkillCenter: @unchecked Sendable {
 
         // 构建 messages：系统提示 + 用户任务 + 历史工具结果
         // 修复：系统提示与 tool calling 协议一致（不再要求输出 JSON 数组）
+        // 【2026-10-07 提示词漂移修复】领域知识统一走 AgentChatService.systemPrompt
+        // （懂《异环》：术语/玩法/macOS F 键限制/界面路径），此处只追加 tool-calling
+        // 协议约束，避免三处提示词各自漂移。
         var messages: [[String: Any]] = [
-            ["role": "system", "content": """
-            你是异环游戏自动化助手。用提供的工具完成用户任务。
-            一次只调用一个工具。不要解释，不要输出 JSON 文本。
+            ["role": "system", "content": AgentChatService.systemPrompt + """
+
+            ═══════════════════════════════════════
+            附加：工具调用协议约束
+            ═══════════════════════════════════════
+            1. 一次只调用一个工具；不要一次返回多个。
+            2. 需要操作界面时走「ESC → screenshot → mouse_click」路径，
+               绝不按 F1–F12（macOS 系统功能键，游戏收不到）。
             """],
             ["role": "user", "content": task]
         ]
