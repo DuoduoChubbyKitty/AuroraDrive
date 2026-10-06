@@ -1,0 +1,225 @@
+pageType: content
+background: {type: solid, color: "#F7F4EB"}
+notes: 核心判断：系统靠降级梯子保持可用，而不是靠单一模型。
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [48, 27, 665, 20]
+    content:
+      text: "COURSE WORKSHOP / 系统总览"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#5C7267"
+  - elementId: title
+    elementType: text
+    bounds: [48, 76, 864, 64]
+    content:
+      text: "先看清系统边界，再谈性能"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 30
+      color: "#243F35"
+      bold: true
+  - elementId: exhibitTag
+    elementType: text
+    bounds: [754, 46, 158, 13]
+    content:
+      text: "EXHIBIT"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#8A9A90"
+      align: right
+
+  - elementId: colLabel
+    elementType: text
+    bounds: [48, 164, 348, 25]
+    content:
+      text: "核心判断"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: thesis
+    elementType: text
+    bounds: [48, 207, 332, 177]
+    content:
+      text: |-
+        一个模型
+        不够用，
+        要会退让。
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 30
+      color: "#243F35"
+      bold: true
+
+  - elementId: thesisFoot
+    elementType: text
+    bounds: [48, 420, 330, 43]
+    content:
+      text: "单页只讲一个判断：可用性来自退让机制。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 17
+      color: "#3F5B4E"
+
+  - elementId: rule1
+    elementType: shape
+    bounds: [48, 400, 330, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: rail
+    elementType: shape
+    bounds: [416, 164, 1, 300]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: n1
+    elementType: text
+    bounds: [441, 167, 50, 38]
+    content:
+      text: "01"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 26
+      color: "#8A9A90"
+
+  - elementId: h1
+    elementType: text
+    bounds: [514, 170, 249, 32]
+    content:
+      text: "端到端主驾"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 23
+      color: "#243F35"
+      bold: true
+
+  - elementId: t1
+    elementType: text
+    bounds: [780, 176, 132, 24]
+    content:
+      text: "e2e 档"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#8A9A90"
+      align: right
+
+  - elementId: d1
+    elementType: text
+    bounds: [514, 211, 398, 47]
+    content:
+      text: "m9_mono 单目模型直接从画面出操控量，健康度 0.65 以上时在岗。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: n2
+    elementType: text
+    bounds: [441, 261, 50, 38]
+    content:
+      text: "02"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 26
+      color: "#8A9A90"
+
+  - elementId: h2
+    elementType: text
+    bounds: [514, 264, 249, 32]
+    content:
+      text: "YOLO 接管"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 23
+      color: "#243F35"
+      bold: true
+
+  - elementId: t2
+    elementType: text
+    bounds: [780, 270, 132, 24]
+    content:
+      text: "yolo 档"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#8A9A90"
+      align: right
+
+  - elementId: d2
+    elementType: text
+    bounds: [514, 305, 398, 47]
+    content:
+      text: "端到端下线时，检测头出框，规则表把框翻译成转向与制动。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: n3
+    elementType: text
+    bounds: [441, 355, 50, 38]
+    content:
+      text: "03"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 26
+      color: "#8A9A90"
+
+  - elementId: h3
+    elementType: text
+    bounds: [514, 358, 249, 32]
+    content:
+      text: "脱困与规则"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 23
+      color: "#243F35"
+      bold: true
+
+  - elementId: t3
+    elementType: text
+    bounds: [780, 364, 132, 24]
+    content:
+      text: "recover / rule"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#8A9A90"
+      align: right
+
+  - elementId: d3
+    elementType: text
+    bounds: [514, 399, 398, 47]
+    content:
+      text: "低于 3 km/h 持续 3 秒进脱困；恢复阈值 0.80，留 0.15 滞回缓冲。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: sep475
+    elementType: shape
+    bounds: [48, 475, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: readout
+    elementType: text
+    bounds: [48, 482, 864, 22]
+    content:
+      text: "四档降级由 DegradeStateMachine 驱动，阈值全部可在源码中逐条核对。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: footer
+    elementType: text
+    bounds: [48, 505, 783, 16]
+    content:
+      text: "来源：《05-control-safety》与《01-architecture》"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#7C8C82"
+
+  - elementId: pageno
+    elementType: text
+    bounds: [871, 504, 41, 22]
+    content:
+      text: "02"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 11
+      color: "#243F35"
+      align: right
+

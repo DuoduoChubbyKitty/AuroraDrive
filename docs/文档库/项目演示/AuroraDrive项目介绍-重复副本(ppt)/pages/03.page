@@ -1,0 +1,195 @@
+pageType: content
+background: {type: solid, color: "#F7F4EB"}
+notes: 概念结构：六层职责串成一条闭环，依赖自上而下。
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [48, 27, 665, 20]
+    content:
+      text: "COURSE WORKSHOP / 概念结构"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#5C7267"
+  - elementId: title
+    elementType: text
+    bounds: [48, 76, 864, 64]
+    content:
+      text: "六层职责串成一条闭环"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 30
+      color: "#243F35"
+      bold: true
+  - elementId: exhibitTag
+    elementType: text
+    bounds: [754, 46, 158, 13]
+    content:
+      text: "EXHIBIT"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#8A9A90"
+      align: right
+
+  - elementId: mapLabel
+    elementType: text
+    bounds: [48, 152, 850, 25]
+    content:
+      text: "HYPOTHESIS MAP / 每一层都要有可核对的产物"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: root
+    elementType: shape
+    bounds: [48, 272, 219, 105]
+    shapeName: rect
+    fill: {type: solid, color: "#447A62"}
+    border: {width: 0, color: "#447A62"}
+
+  - elementId: rootText
+    elementType: text
+    bounds: [60, 285, 195, 86]
+    content:
+      text: |-
+        捕获 → 推理
+        → 决策 → 注入
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#F7F4EB"
+
+  - elementId: b1
+    elementType: shape
+    bounds: [350, 184, 170, 58]
+    shapeName: rect
+    fill: {type: solid, color: "#E5EBDD"}
+    border: {width: 0, color: "#E5EBDD"}
+
+  - elementId: b1t
+    elementType: text
+    bounds: [362, 197, 146, 39]
+    content:
+      text: "看得见"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+
+  - elementId: b1a
+    elementType: text
+    bounds: [608, 177, 299, 34]
+    content:
+      text: "ScreenCaptureKit 30fps"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: b1b
+    elementType: text
+    bounds: [608, 219, 299, 34]
+    content:
+      text: "四路回调：UI / 检测 / 显示"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: b2
+    elementType: shape
+    bounds: [350, 282, 170, 58]
+    shapeName: rect
+    fill: {type: solid, color: "#E5EBDD"}
+    border: {width: 0, color: "#E5EBDD"}
+
+  - elementId: b2t
+    elementType: text
+    bounds: [362, 295, 146, 39]
+    content:
+      text: "想得明白"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+
+  - elementId: b2a
+    elementType: text
+    bounds: [608, 275, 299, 34]
+    content:
+      text: "m9_mono 与 YOLOPX 双路"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: b2b
+    elementType: text
+    bounds: [608, 317, 299, 34]
+    content:
+      text: "光流把 15Hz 补到 30Hz"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: b3
+    elementType: shape
+    bounds: [350, 380, 170, 58]
+    shapeName: rect
+    fill: {type: solid, color: "#E5EBDD"}
+    border: {width: 0, color: "#E5EBDD"}
+
+  - elementId: b3t
+    elementType: text
+    bounds: [362, 393, 146, 39]
+    content:
+      text: "动得起来"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+
+  - elementId: b3a
+    elementType: text
+    bounds: [608, 373, 299, 34]
+    content:
+      text: "CGEvent 注入 HID 层按键"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: b3b
+    elementType: text
+    bounds: [608, 415, 299, 34]
+    content:
+      text: "规则表：直行 / 减速 / 急刹"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: sep462
+    elementType: shape
+    bounds: [48, 462, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: readout
+    elementType: text
+    bounds: [48, 482, 864, 22]
+    content:
+      text: "命门在写入路径：只有 hidSystemState 事件源加 cghidEventTap，游戏才读得到。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: footer
+    elementType: text
+    bounds: [48, 505, 783, 16]
+    content:
+      text: "来源：《代码-00 源码树与架构总览》职责分层口径"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#7C8C82"
+
+  - elementId: pageno
+    elementType: text
+    bounds: [871, 504, 41, 22]
+    content:
+      text: "03"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 11
+      color: "#243F35"
+      align: right
+

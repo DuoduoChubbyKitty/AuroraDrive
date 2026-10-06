@@ -48,9 +48,8 @@ graphflow-out/
 .dsh-edit-review.json
 .dsh-edit-review-archive.json
 
-# ===== 已废弃 =====
+# ===== 已废弃（目录已移除，规则保留防误提交；src-tauri/ 已删不再列）=====
 Plugins/
-src-tauri/
 各类研究/
 
 # ===== 密钥（绝不入库）=====
@@ -135,19 +134,22 @@ tools/roadnet/web/palette/
 tools/roadnet/web/versions/
 
 # ===== 本地工作区/临时目录（2026-10-06 用户指定：只 ignore 不删）=====
-attachments-import/
-desktop-out/
-iwY1tpok53eCTKn5-grok-workspace/
+# 2026-10-07：T4 整理。diag_area/diag_steps/graphflow-out/attachments-import/
+# grok-workspace 均已搬入 .workspace/，原路径删除，旧规则保留也无害但清理之。
+# 2026-10-07：T1 整理。desktop-out/ ppt/ AuroraDrive-项目介绍/
+# AuroraDrive-项目介绍-2/ 已搬入 docs/文档库/项目演示/，PPT 属项目资产入库，
+# 故删除对应 ignore 规则（原文件均 <2MB，无 >50MB 项）。
+.workspace/
+# recordings/ —— 运行时录制目录（RecordEngine.swift 写入），空只是没录过，保留原位。
+recordings/
 .dsh-workspace-notes/
-ppt/
 print/
 Resources/
-AuroraDrive-项目介绍/
-AuroraDrive-项目介绍-2/
+AuroraDrive-交接文案.md
 AuroraDrive-交接文档.md
 交接文档-异环外置盘.md
 目标模式文档-自动驾驶修复.md
-vendor-local/
+# vendor-local/ —— 目录已移除，删该规则
 node_modules/
 
 # ===== 第三方源码与构建依赖（版权/体积，不入库）=====

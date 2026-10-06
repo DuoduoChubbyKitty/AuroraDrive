@@ -1,0 +1,74 @@
+pageType: cover
+background: {type: solid, color: "#F7F4EB"}
+notes: 收尾页。一句话结论加深色侧卡。
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [48, 24, 700, 18]
+    content:
+      text: "AURORADRIVE / 极光智行"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#5C7267"
+
+  - elementId: title
+    elementType: text
+    bounds: [48, 68, 864, 64]
+    content:
+      text: "把系统讲清楚，比把它说响重要"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 31
+      color: "#243F35"
+      bold: true
+
+  - elementId: closingBig
+    elementType: text
+    bounds: [48, 160, 650, 236]
+    content:
+      text: |-
+        捕获、推理、
+        定位、控制，
+        一环都不能少。
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 54
+      color: "#243F35"
+      bold: true
+
+  - elementId: closingCard
+    elementType: shape
+    bounds: [714, 168, 198, 254]
+    shapeName: rect
+    fill: {type: solid, color: "#E5EBDD"}
+    border: {width: 0, color: "#E5EBDD"}
+
+  - elementId: closingCardText
+    elementType: text
+    bounds: [736, 211, 152, 160]
+    content:
+      text: |-
+        下一步
+        把 5% 的
+        误读摸清楚
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 24
+      color: "#243F35"
+
+  - elementId: pageno
+    elementType: text
+    bounds: [871, 504, 41, 22]
+    content:
+      text: "12"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 11
+      color: "#243F35"
+      align: right
+
+  - elementId: footer
+    elementType: text
+    bounds: [48, 505, 783, 16]
+    content:
+      text: "来源：AuroraDrive 文档库 · 全部数字取自仓库实测记录"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#7C8C82"
+

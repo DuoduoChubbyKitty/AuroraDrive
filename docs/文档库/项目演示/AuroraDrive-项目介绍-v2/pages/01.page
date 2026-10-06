@@ -1,0 +1,84 @@
+pageType: cover
+background: {type: solid, color: "#F7F4EB"}
+notes: 封面。项目定位一句话：macOS 上针对《异环》的视角自动驾驶系统，屏幕到按键的闭环。
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [48, 24, 700, 18]
+    content:
+      text: "AURORADRIVE / 极光智行"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#5C7267"
+
+  - elementId: title
+    elementType: text
+    bounds: [48, 68, 864, 64]
+    content:
+      text: "macOS 上的《异环》视角自动驾驶系统"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 31
+      color: "#243F35"
+      bold: true
+
+  - elementId: hero
+    elementType: text
+    bounds: [48, 146, 630, 196]
+    content:
+      text: |-
+        从屏幕到按键，
+        一条 30Hz 的闭环。
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 62
+      color: "#243F35"
+      bold: true
+
+  - elementId: heroCard
+    elementType: shape
+    bounds: [716, 146, 196, 254]
+    shapeName: rect
+    fill: {type: solid, color: "#E5EBDD"}
+    border: {width: 0, color: "#E5EBDD"}
+
+  - elementId: heroCardText
+    elementType: text
+    bounds: [740, 182, 152, 184]
+    content:
+      text: |-
+        捕获
+        推理
+        定位
+        控制
+        显示
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 21
+      color: "#243F35"
+
+  - elementId: sub
+    elementType: text
+    bounds: [48, 392, 812, 44]
+    content:
+      text: "屏幕捕获 → CoreML 推理 → 按键注入 · 41 个 Swift 文件 / 26,440 行"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: footer
+    elementType: text
+    bounds: [48, 505, 783, 16]
+    content:
+      text: "来源：README.md 与《代码-00 源码树与架构总览》 · 2026-09-29 复核"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#7C8C82"
+
+  - elementId: pageno
+    elementType: text
+    bounds: [871, 504, 41, 22]
+    content:
+      text: "01"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 11
+      color: "#243F35"
+      align: right
+

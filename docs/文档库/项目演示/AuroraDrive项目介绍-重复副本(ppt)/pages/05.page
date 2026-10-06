@@ -1,0 +1,242 @@
+pageType: content
+background: {type: solid, color: "#F7F4EB"}
+notes: 自测表：三种现象下系统退到哪一档。
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [48, 27, 665, 20]
+    content:
+      text: "COURSE WORKSHOP / 限时练习"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#5C7267"
+  - elementId: title
+    elementType: text
+    bounds: [48, 76, 864, 64]
+    content:
+      text: "出问题的时候退到哪一档"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 30
+      color: "#243F35"
+      bold: true
+  - elementId: exhibitTag
+    elementType: text
+    bounds: [754, 46, 158, 13]
+    content:
+      text: "EXHIBIT"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#8A9A90"
+      align: right
+
+  - elementId: hi
+    elementType: shape
+    bounds: [686, 165, 226, 282]
+    shapeName: rect
+    fill: {type: solid, color: "#E5EBDD"}
+    border: {width: 0, color: "#E5EBDD"}
+
+  - elementId: c0
+    elementType: text
+    bounds: [48, 175, 202, 36]
+    content:
+      text: "现象与触发条件"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: c1h
+    elementType: text
+    bounds: [270, 175, 192, 36]
+    content:
+      text: "第一反应"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: c2h
+    elementType: text
+    bounds: [483, 175, 193, 36]
+    content:
+      text: "第二反应"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: c3h
+    elementType: text
+    bounds: [698, 175, 214, 36]
+    content:
+      text: "最后兜底"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#3F5B4E"
+      bold: true
+
+  - elementId: s230
+    elementType: shape
+    bounds: [48, 230, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: r1c0
+    elementType: text
+    bounds: [48, 242, 194, 57]
+    content:
+      text: "画面置信度低于 0.65"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+
+  - elementId: r1c1
+    elementType: text
+    bounds: [270, 242, 184, 57]
+    content:
+      text: "降到 YOLO 接管"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: r1c2
+    elementType: text
+    bounds: [483, 242, 185, 57]
+    content:
+      text: "再降到纯规则"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: r1c3
+    elementType: text
+    bounds: [698, 242, 206, 57]
+    content:
+      text: "回升到 0.80 才恢复"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+      bold: true
+
+  - elementId: s299
+    elementType: shape
+    bounds: [48, 299, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: r2c0
+    elementType: text
+    bounds: [48, 311, 194, 57]
+    content:
+      text: "速度读数丢失"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+
+  - elementId: r2c1
+    elementType: text
+    bounds: [270, 311, 184, 57]
+    content:
+      text: "卡住计时冻结"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: r2c2
+    elementType: text
+    bounds: [483, 311, 185, 57]
+    content:
+      text: "不误触发脱困"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: r2c3
+    elementType: text
+    bounds: [698, 311, 206, 57]
+    content:
+      text: "读回真值再继续"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+      bold: true
+
+  - elementId: s368
+    elementType: shape
+    bounds: [48, 368, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: r3c0
+    elementType: text
+    bounds: [48, 380, 194, 57]
+    content:
+      text: "游戏窗口消失"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+
+  - elementId: r3c1
+    elementType: text
+    bounds: [270, 380, 184, 57]
+    content:
+      text: "护栏立即取消"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: r3c2
+    elementType: text
+    bounds: [483, 380, 185, 57]
+    content:
+      text: "悬停等待不乱点"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: r3c3
+    elementType: text
+    bounds: [698, 380, 206, 57]
+    content:
+      text: "窗口回来才继续"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+      bold: true
+
+  - elementId: sep450
+    elementType: shape
+    bounds: [48, 450, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: readout
+    elementType: text
+    bounds: [48, 482, 864, 22]
+    content:
+      text: "阈值来自 DegradeStateMachine：降级 0.65 / 恢复 0.80 / 卡住 3.0 km/h 乘 3.0 秒。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: footer
+    elementType: text
+    bounds: [48, 505, 783, 16]
+    content:
+      text: "来源：《代码-20-DegradeStateMachine 降级状态机》与 legacy-guard-patch"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#7C8C82"
+
+  - elementId: pageno
+    elementType: text
+    bounds: [871, 504, 41, 22]
+    content:
+      text: "05"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 11
+      color: "#243F35"
+      align: right
+

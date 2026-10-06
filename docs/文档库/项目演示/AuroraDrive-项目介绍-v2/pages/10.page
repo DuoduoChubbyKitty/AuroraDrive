@@ -1,0 +1,196 @@
+pageType: content
+background: {type: solid, color: "#F7F4EB"}
+notes: 时间线：四个真实里程碑，日期取自仓库记录。
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [48, 27, 665, 20]
+    content:
+      text: "COURSE WORKSHOP / 里程碑"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#5C7267"
+  - elementId: title
+    elementType: text
+    bounds: [48, 76, 864, 64]
+    content:
+      text: "系统是这样长出来的"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 30
+      color: "#243F35"
+      bold: true
+  - elementId: exhibitTag
+    elementType: text
+    bounds: [754, 46, 158, 13]
+    content:
+      text: "EXHIBIT"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#8A9A90"
+      align: right
+
+  - elementId: tlaxis
+    elementType: shape
+    bounds: [88, 290, 656, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#C9D2C6"}
+    border: {width: 0, color: "#C9D2C6"}
+  - elementId: tld1
+    elementType: shape
+    bounds: [88, 283, 14, 14]
+    shapeName: ellipse
+    fill: {type: solid, color: "#447A62"}
+    border: {width: 0, color: "#447A62"}
+  - elementId: tln1
+    elementType: text
+    bounds: [107, 298, 60, 25]
+    content:
+      text: "08月"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+  - elementId: tlt1
+    elementType: text
+    bounds: [78, 177, 184, 47]
+    content:
+      text: "模型落地"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 25
+      color: "#243F35"
+      bold: true
+  - elementId: tls1
+    elementType: text
+    bounds: [78, 224, 182, 57]
+    content:
+      text: "m9_mono 单目直接出操控量"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 17
+      color: "#3F5B4E"
+  - elementId: tld2
+    elementType: shape
+    bounds: [302, 283, 14, 14]
+    shapeName: ellipse
+    fill: {type: solid, color: "#447A62"}
+    border: {width: 0, color: "#447A62"}
+  - elementId: tln2
+    elementType: text
+    bounds: [321, 298, 60, 25]
+    content:
+      text: "09-19"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+  - elementId: tlt2
+    elementType: text
+    bounds: [292, 330, 184, 47]
+    content:
+      text: "文档与归档"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 25
+      color: "#243F35"
+      bold: true
+  - elementId: tls2
+    elementType: text
+    bounds: [292, 390, 182, 57]
+    content:
+      text: "22 GB 迁出外置盘，本地留证据"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 17
+      color: "#3F5B4E"
+  - elementId: tld3
+    elementType: shape
+    bounds: [516, 283, 14, 14]
+    shapeName: ellipse
+    fill: {type: solid, color: "#447A62"}
+    border: {width: 0, color: "#447A62"}
+  - elementId: tln3
+    elementType: text
+    bounds: [535, 298, 60, 25]
+    content:
+      text: "09-24"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+  - elementId: tlt3
+    elementType: text
+    bounds: [506, 177, 184, 47]
+    content:
+      text: "性能批次"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 25
+      color: "#243F35"
+      bold: true
+  - elementId: tls3
+    elementType: text
+    bounds: [506, 224, 182, 57]
+    content:
+      text: "24 项优化，发布快路径省 78.6% 热点"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 17
+      color: "#3F5B4E"
+  - elementId: tld4
+    elementType: shape
+    bounds: [730, 283, 14, 14]
+    shapeName: ellipse
+    fill: {type: solid, color: "#447A62"}
+    border: {width: 0, color: "#447A62"}
+  - elementId: tln4
+    elementType: text
+    bounds: [749, 298, 60, 25]
+    content:
+      text: "09-27"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+  - elementId: tlt4
+    elementType: text
+    bounds: [720, 330, 184, 47]
+    content:
+      text: "三合一感知"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 25
+      color: "#243F35"
+      bold: true
+  - elementId: tls4
+    elementType: text
+    bounds: [720, 390, 182, 57]
+    content:
+      text: "YOLOPX 加光流，15Hz 补到 30Hz"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 17
+      color: "#3F5B4E"
+  - elementId: sep462
+    elementType: shape
+    bounds: [48, 462, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: readout
+    elementType: text
+    bounds: [48, 482, 864, 22]
+    content:
+      text: "看变化本身，而不只是看时间点：模型、文档、性能、感知各推进一轮。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: footer
+    elementType: text
+    bounds: [48, 505, 783, 16]
+    content:
+      text: "来源：README 复核块、PROGRESS.md 与 Git 提交记录"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#7C8C82"
+
+  - elementId: pageno
+    elementType: text
+    bounds: [871, 504, 41, 22]
+    content:
+      text: "10"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 11
+      color: "#243F35"
+      align: right
+

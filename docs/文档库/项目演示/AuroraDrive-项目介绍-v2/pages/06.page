@@ -1,0 +1,256 @@
+pageType: content
+background: {type: solid, color: "#F7F4EB"}
+notes: 趋势页：速度识别的三道校验闸门，按触发顺序排列。
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [48, 27, 665, 20]
+    content:
+      text: "COURSE WORKSHOP / 选择自测"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#5C7267"
+  - elementId: title
+    elementType: text
+    bounds: [48, 76, 864, 64]
+    content:
+      text: "先读闸门，再解释误读"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 30
+      color: "#243F35"
+      bold: true
+  - elementId: exhibitTag
+    elementType: text
+    bounds: [754, 46, 158, 13]
+    content:
+      text: "EXHIBIT"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#8A9A90"
+      align: right
+
+  - elementId: chartLabel
+    elementType: text
+    bounds: [48, 152, 850, 25]
+    content:
+      text: "A / 速度识别的三道校验 · 按触发顺序"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: track
+    elementType: shape
+    bounds: [88, 299, 824, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#C9D2C6"}
+    border: {width: 0, color: "#C9D2C6"}
+
+  - elementId: band
+    elementType: shape
+    bounds: [296, 190, 91, 236]
+    shapeName: rect
+    fill: {type: solid, color: "#E5E8DD"}
+    border: {width: 0, color: "#E5E8DD"}
+
+  - elementId: pt1
+    elementType: shape
+    bounds: [96.8, 296.8, 6.4, 6.4]
+    shapeName: ellipse
+    fill: {type: solid, color: "#243F35"}
+    border: {width: 0, color: "#243F35"}
+  - elementId: pl1
+    elementType: text
+    bounds: [54, 258, 92, 26]
+    content:
+      text: "原始读数"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#3F5B4E"
+  - elementId: pn1
+    elementType: text
+    bounds: [82, 437, 37, 24]
+    content:
+      text: "1"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 12
+      color: "#5C7267"
+  - elementId: pt2
+    elementType: shape
+    bounds: [194.8, 290.8, 6.4, 6.4]
+    shapeName: ellipse
+    fill: {type: solid, color: "#243F35"}
+    border: {width: 0, color: "#243F35"}
+  - elementId: pl2
+    elementType: text
+    bounds: [152, 252, 92, 26]
+    content:
+      text: "量程 0 到 400"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#3F5B4E"
+  - elementId: pn2
+    elementType: text
+    bounds: [180, 437, 37, 24]
+    content:
+      text: "2"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 12
+      color: "#5C7267"
+  - elementId: pt3
+    elementType: shape
+    bounds: [291, 295, 10, 10]
+    shapeName: ellipse
+    fill: {type: solid, color: "#447A62"}
+    border: {width: 0, color: "#447A62"}
+  - elementId: pl3
+    elementType: text
+    bounds: [250, 258, 92, 26]
+    content:
+      text: "跳变不超过 60"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#2F5B45"
+      bold: true
+  - elementId: pn3
+    elementType: text
+    bounds: [278, 437, 37, 24]
+    content:
+      text: "3"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 12
+      color: "#5C7267"
+  - elementId: pt4
+    elementType: shape
+    bounds: [389.8, 304.8, 6.4, 6.4]
+    shapeName: ellipse
+    fill: {type: solid, color: "#243F35"}
+    border: {width: 0, color: "#243F35"}
+  - elementId: pl4
+    elementType: text
+    bounds: [347, 266, 92, 26]
+    content:
+      text: "三帧投票"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#3F5B4E"
+  - elementId: pn4
+    elementType: text
+    bounds: [375, 437, 37, 24]
+    content:
+      text: "4"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 12
+      color: "#5C7267"
+  - elementId: pt5
+    elementType: shape
+    bounds: [488.8, 310.8, 6.4, 6.4]
+    shapeName: ellipse
+    fill: {type: solid, color: "#243F35"}
+    border: {width: 0, color: "#243F35"}
+  - elementId: pl5
+    elementType: text
+    bounds: [446, 272, 92, 26]
+    content:
+      text: "输出车速"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#3F5B4E"
+  - elementId: pn5
+    elementType: text
+    bounds: [474, 437, 37, 24]
+    content:
+      text: "5"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 12
+      color: "#5C7267"
+  - elementId: rail2
+    elementType: shape
+    bounds: [655, 164, 1, 290]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: bLabel
+    elementType: text
+    bounds: [679, 163, 233, 25]
+    content:
+      text: "B / 通过率"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: big
+    elementType: text
+    bounds: [679, 202, 233, 78]
+    content:
+      text: "95%"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 56
+      color: "#243F35"
+      bold: true
+
+  - elementId: bigFoot
+    elementType: text
+    bounds: [679, 286, 229, 55]
+    content:
+      text: "通过三层校验的读数占比"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: checkNext
+    elementType: text
+    bounds: [679, 369, 229, 22]
+    content:
+      text: "CHECK NEXT / 剩下 5%"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#8A9A90"
+
+  - elementId: nextQ
+    elementType: text
+    bounds: [679, 404, 229, 50]
+    content:
+      text: |-
+        失败的那 5%
+        究竟是什么？
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 20
+      color: "#243F35"
+      bold: true
+
+  - elementId: sep462
+    elementType: shape
+    bounds: [48, 462, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: readout
+    elementType: text
+    bounds: [48, 482, 864, 22]
+    content:
+      text: "读数：三道闸门先后生效；缺口集中在第三道投票窗口，仍待分类。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: footer
+    elementType: text
+    bounds: [48, 505, 783, 16]
+    content:
+      text: "来源：《03-speed-ocr》三层校验口径与 OCR 实测记录"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#7C8C82"
+
+  - elementId: pageno
+    elementType: text
+    bounds: [871, 504, 41, 22]
+    content:
+      text: "06"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 11
+      color: "#243F35"
+      align: right
+

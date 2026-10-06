@@ -1,0 +1,171 @@
+pageType: content
+background: {type: solid, color: "#F7F4EB"}
+notes: 复核文化：文档里写过的数字也要重核，两处差距靠实测发现。
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [48, 27, 665, 20]
+    content:
+      text: "COURSE WORKSHOP / 复核记录"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#5C7267"
+  - elementId: title
+    elementType: text
+    bounds: [48, 76, 864, 64]
+    content:
+      text: "文档写过的数字，也要重核"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 30
+      color: "#243F35"
+      bold: true
+  - elementId: exhibitTag
+    elementType: text
+    bounds: [754, 46, 158, 13]
+    content:
+      text: "EXHIBIT"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#8A9A90"
+      align: right
+
+  - elementId: rLabel
+    elementType: text
+    bounds: [48, 168, 290, 26]
+    content:
+      text: "THE REVISION"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 12
+      color: "#5C7267"
+
+  - elementId: rBig
+    elementType: text
+    bounds: [48, 217, 288, 121]
+    content:
+      text: |-
+        实测
+        才算数。
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 34
+      color: "#243F35"
+      bold: true
+
+  - elementId: rBody
+    elementType: text
+    bounds: [48, 369, 281, 78]
+    content:
+      text: "本轮全库复核逐文件对照源码，行数、协议版本与参数表都被改写。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 20
+      color: "#3F5B4E"
+
+  - elementId: rrail
+    elementType: shape
+    bounds: [378, 164, 1, 300]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: c1k
+    elementType: text
+    bounds: [402, 174, 340, 32]
+    content:
+      text: "CoordinateCapture.swift / 行"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 20
+      color: "#243F35"
+      bold: true
+
+  - elementId: bar1a
+    elementType: shape
+    bounds: [415, 225, 199, 20]
+    shapeName: rect
+    fill: {type: solid, color: "#B8BEB4"}
+    border: {width: 0, color: "#B8BEB4"}
+
+  - elementId: bar1b
+    elementType: shape
+    bounds: [415, 255, 340, 20]
+    shapeName: rect
+    fill: {type: solid, color: "#447A62"}
+    border: {width: 0, color: "#447A62"}
+
+  - elementId: n1
+    elementType: text
+    bounds: [760, 229, 152, 45]
+    content:
+      text: "635 到 1083"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 21
+      color: "#243F35"
+      align: right
+
+  - elementId: c2k
+    elementType: text
+    bounds: [402, 316, 340, 32]
+    content:
+      text: "CLI 参数 / 个"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 20
+      color: "#243F35"
+      bold: true
+
+  - elementId: bar2a
+    elementType: shape
+    bounds: [415, 367, 234, 20]
+    shapeName: rect
+    fill: {type: solid, color: "#B8BEB4"}
+    border: {width: 0, color: "#B8BEB4"}
+
+  - elementId: bar2b
+    elementType: shape
+    bounds: [415, 397, 340, 20]
+    shapeName: rect
+    fill: {type: solid, color: "#447A62"}
+    border: {width: 0, color: "#447A62"}
+
+  - elementId: n2
+    elementType: text
+    bounds: [760, 371, 152, 45]
+    content:
+      text: "20 到 29"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 21
+      color: "#243F35"
+      align: right
+
+  - elementId: sep462
+    elementType: shape
+    bounds: [48, 462, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: readout
+    elementType: text
+    bounds: [48, 482, 864, 22]
+    content:
+      text: "上图：旧记录。下图：本轮实测。两次订正分别来自逐文件行数统计与参数表清点。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: footer
+    elementType: text
+    bounds: [48, 505, 783, 16]
+    content:
+      text: "来源：《代码-00 源码树与架构总览》2026-09-29 复核块与《代码-33》"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#7C8C82"
+
+  - elementId: pageno
+    elementType: text
+    bounds: [871, 504, 41, 22]
+    content:
+      text: "09"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 11
+      color: "#243F35"
+      align: right
+

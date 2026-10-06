@@ -1,0 +1,200 @@
+pageType: content
+background: {type: solid, color: "#F7F4EB"}
+notes: 说明本项目的验证约定：判据先写，再看结果。
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [48, 27, 665, 20]
+    content:
+      text: "COURSE WORKSHOP / 验证约定"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 10
+      color: "#5C7267"
+  - elementId: title
+    elementType: text
+    bounds: [48, 76, 864, 64]
+    content:
+      text: "判据先写下来，再看结果"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 30
+      color: "#243F35"
+      bold: true
+  - elementId: exhibitTag
+    elementType: text
+    bounds: [754, 46, 158, 13]
+    content:
+      text: "EXHIBIT"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#8A9A90"
+      align: right
+
+  - elementId: vLabel
+    elementType: text
+    bounds: [48, 168, 290, 26]
+    content:
+      text: "THE EVIDENCE RULE"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 12
+      color: "#5C7267"
+
+  - elementId: vBig
+    elementType: text
+    bounds: [48, 217, 288, 110]
+    content:
+      text: |-
+        验证
+        一个判断。
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 30
+      color: "#243F35"
+      bold: true
+
+  - elementId: vBody
+    elementType: text
+    bounds: [48, 361, 281, 88]
+    content:
+      text: "引擎日志里的自检行是唯一的准入凭据；日志之外的说法一律视为未验证。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 20
+      color: "#3F5B4E"
+
+  - elementId: vrail
+    elementType: shape
+    bounds: [378, 164, 1, 300]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: h1k
+    elementType: text
+    bounds: [402, 177, 141, 34]
+    content:
+      text: "假设"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+      bold: true
+
+  - elementId: h1v
+    elementType: text
+    bounds: [561, 177, 350, 58]
+    content:
+      text: "权限恢复后，引擎自检应输出 ax 与 screen 均为 true。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: sep236
+    elementType: shape
+    bounds: [392, 236, 520, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: h2k
+    elementType: text
+    bounds: [402, 248, 141, 34]
+    content:
+      text: "对照"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+      bold: true
+
+  - elementId: h2v
+    elementType: text
+    bounds: [561, 248, 350, 58]
+    content:
+      text: "对照同一份日志里 fail-fast 出现的次数。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: sep307
+    elementType: shape
+    bounds: [392, 307, 520, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: h3k
+    elementType: text
+    bounds: [402, 319, 141, 34]
+    content:
+      text: "度量"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+      bold: true
+
+  - elementId: h3v
+    elementType: text
+    bounds: [561, 319, 350, 58]
+    content:
+      text: "YOLOPX 掩码格子数，以及帧流是否持续有帧。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: sep378
+    elementType: shape
+    bounds: [392, 378, 520, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: h4k
+    elementType: text
+    bounds: [402, 390, 141, 34]
+    content:
+      text: "判据"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#243F35"
+      bold: true
+
+  - elementId: h4v
+    elementType: text
+    bounds: [561, 390, 350, 58]
+    content:
+      text: "三项全过才算链路可用；任何一项不过，结论不导出。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 18
+      color: "#3F5B4E"
+
+  - elementId: sep462
+    elementType: shape
+    bounds: [48, 462, 864, 1]
+    shapeName: rect
+    fill: {type: solid, color: "#D8DCD0"}
+    border: {width: 0, color: "#D8DCD0"}
+
+  - elementId: readout
+    elementType: text
+    bounds: [48, 482, 864, 22]
+    content:
+      text: "实测记录：最后一轮自检 ax=true screen=true，fail-fast 0 次，掩码 da 312 格 / ll 41 格。"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 13
+      color: "#5C7267"
+
+  - elementId: footer
+    elementType: text
+    bounds: [48, 505, 783, 16]
+    content:
+      text: "来源：引擎日志复核块（2026-09-29）与 PROGRESS.md"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 9
+      color: "#7C8C82"
+
+  - elementId: pageno
+    elementType: text
+    bounds: [871, 504, 41, 22]
+    content:
+      text: "08"
+      fontFamily: {latin: Arial, ea: Noto Sans CJK SC, mac: PingFang SC, win: Microsoft YaHei}
+      fontSize: 11
+      color: "#243F35"
+      align: right
+
