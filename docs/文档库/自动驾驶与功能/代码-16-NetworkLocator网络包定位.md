@@ -2,6 +2,13 @@
 
 > 覆盖源文件：`Sources/AuroraDrive/Locate/NetworkLocator.swift`（**612 行**，2026-10-06 实测 `wc -l`）。
 >
+> **🔄 2026-10-07 D7b 增量复核（关键澄清）**：本文第四节回答"`networkLocator.start()` 是否已移除"，结论**极易被误读成"网络定位功能已下线"——不是！** 请务必先读 **4.0 三态速查表**：
+> - ① 旧 `NetworkLocator.start()` 调用点 **已移除**（只剩注释，`AuroraDriveApp.swift:5958` / `:5986`）；
+> - ② 但 **`CoordinateCapture`（另一条网络定位链路）是活的、且常开**——懒初始化 + `cc.start()` 在 `AuroraDriveApp.swift:4447-4461`，注释「纯网络定位」；
+> - ③ `NetworkLocator.swift`（WebSocket 路径）**编译在、但全仓零实例化**（`grep "NetworkLocator(" Sources/` = 0 命中）。
+>
+> 一句话：**被移除的只是「NetworkLocator 这条 WebSocket 调用链」，网络定位功能本身没有下线。**
+>
 > **🔄 2026-10-06 重核说明**：本文件相对 2026-09-29 版文档已发生结构性变化，全部行号按当前工作树重新核实（下文所有 `文件:行号` 均为 2026-10-06 实测）：
 > ① **`DualModeLocator` 类已被整体删除**（全仓 grep 无任何命中），文件现只含常量/`CoordinateTransform`、`UE5PacketDecoder`、`LocalPoseSocketClient`、`NetworkLocator` 四个单元；
 > ② 2026-10-04 品牌清理：`kMaaNTEServerURL` → `kLocalPoseBridgeURL`（`NetworkLocator.swift:23`）、`MaaNTESocketClient` → `LocalPoseSocketClient`（`NetworkLocator.swift:387`），端口 9004 未变；
@@ -115,6 +122,67 @@
 **给别的 AI 的调用提示**：WebSocket 路线依赖**本机 9004 端口的位姿桥接 WebSocket 服务在跑**——服务不在则 `locate()` 永远返回 coordinate_stale。当前项目里跑着的网络定位实际是 `代码-04 CoordinateCapture`（libpcap 自包含，无外部服务依赖）。真 visual 定位在 `代码-17 VisualLocator`。
 
 **NetworkLocator 文档至此完整**（612 行全覆盖：常量与变换 → UE5PacketDecoder → LocalPoseSocketClient → NetworkLocator）。
+
+## 四、★ 该链路当前状态：**调用点已移除，但"网络定位功能未下线"**（2026-10-07 实核）
+
+> 本节回答"`networkLocator.start()` 是否已移除"。**结论分三层，务必逐层读清——这三层极易混淆**：
+> **① 调用链已死**：`NetworkLocator` 类与文件都还在、可编译，但产品代码中已无任何实例化与调用点；
+> **② 功能没死**：真正在跑的"网络定位"是**另一条链路 `CoordinateCapture`**（设计上就是网络定位，当前**常开**）；
+> **③ 因此不能说"网络定位功能已下线"**——下线的只是 `NetworkLocator` 这条 WebSocket 路径。
+
+### 4.0 三态速查表（⚠️ 最容易混淆的三件事，先看这里）
+
+| # | 对象 | 状态 | 一句话 | 实测出处 |
+|---|---|---|---|---|
+| ① | `NetworkLocator.start()` **调用点** | ❌ **已移除** | 只剩注释，没人调 | `AuroraDriveApp.swift:5958`（`startDriving()` 内）、`:5986`（`stopDriving()` 内） |
+| ② | **`CoordinateCapture`（网络定位功能本体）** | ✅ **活的、常开** | 懒初始化即 `cc.start()`，成功置 `networkReady=true` | `AuroraDriveApp.swift:4447-4461`（注释「纯网络定位，无自愈引擎」:4447） |
+| ③ | `NetworkLocator.swift`（WebSocket 路径） | ⚠️ **编译在但零实例化** | 死代码/待复用，`locate()` 无产品调用者 | `grep -rn "NetworkLocator(" Sources/` → **0 命中**（2026-10-07 实测） |
+
+> **⚠️ 命名陷阱（最坑人的一处）**：`LocateContext.networkReady`（`LocateRuntime.swift:33`）如今由 **`CoordinateCapture`** 写（`AuroraDriveApp.swift:4456`），**不是** `NetworkLocator`。字段名里的 "network" 指的是**网络定位这件事**，不是 `NetworkLocator` 这个类——**看到 `networkReady=true` 不代表 `NetworkLocator` 在跑**。
+
+### 4.1 逐项证据
+
+| 检查项 | 实测结果 | 出处 |
+|---|---|---|
+| `NetworkLocator.start()` 调用点 | **已移除**，只剩注释 | `AuroraDriveApp.swift:5958` — `// networkLocator.start()  // 旧网络抓包定位已移除    // 启动网络抓包定位`（在 `startDriving()` 内，:5957 `captureEngine.start()` 之后、:5959 `inferenceEngine.loadIfNeeded()` 之前） |
+| `NetworkLocator.stop()` 调用点 | **已移除**，只剩注释 | `AuroraDriveApp.swift:5986` — `// networkLocator.stop()   // 旧网络抓包定位已移除`（在 `stopDriving()` 内，:5984 `captureEngine.stop()` 之后） |
+| 实例化 `NetworkLocator()` | **全仓零命中**（`grep -rn "NetworkLocator(" Sources/` → **0 命中**，2026-10-07 实测；仅 `LocateRuntime.swift:31` 有类型声明） | 2026-10-07 实核 |
+| 旧实例声明 | 已注释掉 | `AuroraDriveApp.swift:5407-5408` — `// 旧NetworkPacketCapture已移除（不编译），使用移植的NetworkLocator` + `// @ObservationIgnored let networkLocator = NetworkPacketCapture()` |
+| 回调接线 | 已注释掉 | `AuroraDriveApp.swift:5855-5860` — `// 旧网络定位已移除` / `// 旧网络定位回调已移除（NetworkPacketCapture不编译）` / `// networkLocator.onLocate = …` / `// networkLocator.onStatusChange = …`（实测首行注释在 **:5855**） |
+| 类型声明 | **保留**，但无人赋值 | `App/LocateRuntime.swift:31` — `var networkLocator: NetworkLocator? = nil`（`LocateContext` 成员，**初始 nil，全仓无任何赋值点**；同类的 `visualLocator`（:30）同样无人赋值） |
+| `start()` 方法本体 | **仍然存在** | `NetworkLocator.swift:400-405`（`LocalPoseSocketClient.start()`）；`NetworkLocator.prepare()`（:535-541）内部会调它 |
+
+### 4.2 当前实际在跑的定位是谁
+
+- **实际活跃**：`代码-04 CoordinateCapture`（libpcap 自包含抓包，无外部服务依赖）。它由 `DriveState.runNetworkLocateStep()`（`AuroraDriveApp.swift:4445` 起；**函数声明实测在 :4445**）**懒初始化并常开**：`:4448` 判 `coordinateCapture == nil` → `:4452` `let cc = CoordinateCapture()` → `:4453` `let ok = cc.start()` → `:4456` `locateCtx.networkReady = true`。
+- **`networkReady` 的含义已经变味**：`LocateContext.networkReady`（`LocateRuntime.swift:33`）如今由 **CoordinateCapture** 写（`:4456`），而**不是** `NetworkLocator`。`locateSource()`（`:4439`，实测声明在 :4438）与 `runNetworkLocateStep()`（`:4464` 的门）都以它为门。⚠️ **命名陷阱：字段叫 networkReady，实际指 CoordinateCapture 就绪。**
+- **`NetworkLocator.locate()` 当前无产品调用者**——本文件整套（WebSocket 客户端 + UE5 位流解码）处于**休眠**状态。
+- **⚠️ 防误读（再强调一次）**：本节只说明 `NetworkLocator` 休眠；**网络定位功能（CoordinateCapture）是活跃的**。另外 `AuroraDriveApp.swift:1560-1562` 处还有一处**自检/网卡自适应夹具**（`let cc = CoordinateCapture(); cc.start()`，配 `ck("自适应抓包启动", …)` + `probeRounds`），属 `--nic-selftest` 类入口，与产品常开链路不是同一处，勿混计。
+
+### 4.3 与文档其余部分的关系
+
+- 本文第一~三节描述的**代码实体全部有效**（行号已 2026-10-06 复核、2026-10-07 抽检吻合：文件仍 612 行，`LocalPoseSocketClient` 仍在 :387，`NetworkLocator` 仍在 :526）；**失效的只是"它在产品里被调用"这一前提**。
+- **依赖前提仍在**：若将来重新接线，仍需**本机 9004 端口的位姿桥接 WebSocket 服务在跑**（`kLocalPoseBridgeURL = "ws://127.0.0.1:9004"`，:23）——服务不在则 `locate()` 永远返回 `coordinate_stale`（:546-548）。
+- **"旧网络抓包定位已移除"注释的措辞歧义（诚实记录）**：该注释字面像在说"本文件已删"，实测**文件未被删除**；被移除的是**调用点**。`AuroraDriveApp.swift:5407` 的措辞更准确（"旧 NetworkPacketCapture 已移除（不编译），使用移植的 NetworkLocator"）——即：旧的抓包类被删、移植版 `NetworkLocator` 保留为**候选实现**，但**尚未接线**。这两处注释并存，建议未来以 :5407 的表述为准。
+
+### 4.4 本次改动核实
+
+- `Sources/AuroraDrive/Locate/` 目录在 `HEAD~5..HEAD` 范围内**零改动**（`git diff --stat HEAD~5..HEAD -- Sources/AuroraDrive/Locate/` 输出为空，2026-10-07 实测）；工作树亦无未提交改动。该文件最后一次改动为 `faecc6f`（2026-10-06 18:26）。
+- 因此本文**"调用点已移除"状态是历史既有事实，不是 10-07 的新改动**——本次只是把它**明确标注**出来。
+- ⚠️ **未验证**：`LocateContext.networkLocator` / `visualLocator` 两个字段是否有**计划中**的接线（未找到 TODO/注释说明），本轮无法判断是"暂缓"还是"已放弃"。
+
+### 4.5 D7b 补完：三态自检清单（2026-10-07 实测）
+
+| 论断 | 状态 |
+|---|---|
+| `NetworkLocator.start()`/`stop()` 调用点只剩注释 | ✅ `AuroraDriveApp.swift:5958` / `:5986` `sed` 实测 |
+| `grep -rn "NetworkLocator(" Sources/` = 0 命中 | ✅ 实测计数 0 |
+| **`CoordinateCapture` 由 `runNetworkLocateStep()` 懒初始化并常开** | ✅ `AuroraDriveApp.swift:4445-4461` 逐行实测（`:4447` 注释「纯网络定位」、`:4452-4453` `CoordinateCapture()`+`cc.start()`、`:4456` `networkReady=true`） |
+| **"网络定位功能未下线"** | ✅ 由上两条共同支撑（链路 ① 死、功能 ② 活） |
+| `LocateContext.networkReady` 由 CoordinateCapture 写、而非 NetworkLocator | ✅ `LocateRuntime.swift:33` 声明 + `AuroraDriveApp.swift:4456` 写点 |
+| 文件仍 612 行、`LocalPoseSocketClient` :387、`NetworkLocator` :526 | ✅ `wc -l` + `sed` 实测 |
+| `NetworkLocator.prepare()` :535-541 内部调 `start()` | ✅ 实测 `prepare()` :535-541：`:536` `socketClient = LocalPoseSocketClient()`、`:537` `socketClient?.start()`、`:539` `isConnected = true`、`:540` 无条件 `return true` |
+| 重启接线是否有计划 | ⚠️ **未验证**（同上 4.4 末条） |
 
 ## 附：B 符号不一致现状（2026-10-06 逐行核实）
 

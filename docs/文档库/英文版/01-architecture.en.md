@@ -1,7 +1,7 @@
 # 1. Architecture Overview
 
 > Sources: `AuroraDriveApp.swift`(4379) `DegradeStateMachine.swift`(250)
-> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [系统架构总览](../自动驾驶与功能/01-architecture.md)
+> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [系统架构总览](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/01-architecture.md)
 
 > **Archive note (verified 2026-09-19, baseline 7b7d2db)**: `AuroraDriveApp.swift` grew from 3276 to 4379 lines; `NetworkHealer` was removed (76e9027 — network localization is now a lazy `CoordinateCapture` init, no self-healing engine); a new "engine mode" was added (`EngineClient`/`EngineMain`: a background engine process, the UI only forwards commands).
 

@@ -1,5 +1,178 @@
 # 代码-31 构建部署与 run.sh 全解
 
+> ### ⚠️ 2026-10-07 复核块（**持锁构建 → mtime 防静默 → 原子双写部署 → 自检矩阵**，逐条实测）
+>
+> 本次把「日常迭代怎么构建、怎么验证构建真的生效、怎么部署、部署后跑什么」固化成可复制流程。
+> 实测快照：`AuroraDriveUI` **13,347,768 B**（2026-10-07 02:29:11）、
+> `.build/scratch/release/AuroraDrive` 同尺寸（02:27:48）、
+> `.app/Contents/MacOS/AuroraDriveUI` 同尺寸（02:29:11）——两者都是**原子替换**的产物。
+>
+> **三处 sha256 实测完全一致**（「双写一致性」最硬的证据，本次已跑）：
+>
+> ```
+> cb36c690a9fb672b8b1418c8bdedf3f39224c1e391f43ba6a0dbbc6f0c27470e  .build/scratch/release/AuroraDrive
+> cb36c690a9fb672b8b1418c8bdedf3f39224c1e391f43ba6a0dbbc6f0c27470e  ./AuroraDriveUI
+> cb36c690a9fb672b8b1418c8bdedf3f39224c1e391f43ba6a0dbbc6f0c27470e  AuroraDriveUI.app/Contents/MacOS/AuroraDriveUI
+> ```
+>
+> 另：构建锁当前空闲（`bash scripts/build-lock.sh status` → `🔓 无锁（空闲）`）。
+>
+> ---
+>
+> ## ★ 一、标准构建命令（持锁，唯一推荐写法）
+>
+> ```bash
+> cd /Users/dupi/Desktop/自动驾驶系统
+> bash scripts/build-lock.sh run "<原因>" -- \
+>   swift build -c release --disable-sandbox --scratch-path .build/scratch
+> ```
+>
+> 逐项理由（全部有源码/实测依据）：
+>
+> | 片段 | 为什么必须有 |
+> |---|---|
+> | `bash scripts/build-lock.sh run "<原因>" --` | **多人/多 agent 并发时 SwiftPM 是整模块编译**，会互相打断（`error: input file '...' was modified during the build`，`build-lock.sh:7-11`）；且一人写坏全组都验不了。`run` 自动加锁/解锁（`:129-138`），拿不到锁退出码 **3**（`:95`） |
+> | `-c release` | 发布构建；自检/基准都在 release 产物上跑 |
+> | `--disable-sandbox` | DSH workspace 沙盒下 SwiftPM 自身 sandbox_apply 会 `Operation not permitted` → manifest 编译失败（run.sh:69-73 的 9-24 修复记录） |
+> | `--scratch-path .build/scratch` | 统一 scratch 目录，与增量缓存共用；`scripts/perf-snapshot.sh:128`、`scripts/regression-gate.sh:66`、`run.sh:85` 三处同一写法 |
+>
+> **产物路径**：`.build/scratch/release/AuroraDrive`（**不是** `.build/release/`，别找错文件）。
+>
+> 不需要锁的场合（单人、空仓、只读检查）可以直接 `swift build -c release --disable-sandbox --scratch-path .build/scratch`，
+> 但只要有人在同时构建/跑基准，走锁是硬要求。
+>
+> ---
+>
+> ## ★ 二、构建后必做：**校验二进制 mtime ≥ 源码 mtime**（防静默不重编译）
+>
+> **为什么必须查**：SwiftPM 增量构建在若干情况下会「看起来成功、实际没重编」——
+> 产物 mtime 比源码还旧，而你**照样 cp 上去了**，于是「改了代码但行为没变」，
+> 排查方向全错（会怀疑自己改错地方、怀疑自检不会红）。
+> **这是构建环节最隐蔽的假绿，与自检层的 oneShotFlags 假绿同级。**
+>
+> ```bash
+> cd /Users/dupi/Desktop/自动驾驶系统
+> BIN=.build/scratch/release/AuroraDrive
+>
+> # ① 产物必须存在且比「最新的一个源文件」新
+> newest_src=$(find Sources -name '*.swift' -exec stat -f '%m %N' {} \; | sort -rn | head -1)
+> echo "最新源文件: $newest_src"
+> stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' "$BIN"
+>
+> # ② 一行判定（列出所有比产物新的源文件；输出为空 = 通过）
+> find Sources -name '*.swift' -newer "$BIN" -print
+> #    ✅ 空输出 → 产物是最新的
+> #    ❌ 有输出 → **静默未重编译**，删缓存重来（见下）
+>
+> # ③ 更硬的证据：源码里新加的东西必须能在二进制里被 strings 找到
+> strings "$BIN" | grep -c -- '--websearch-selftest'      # 期望 ≥ 1
+> ```
+>
+> **本次实测**：`find Sources -name '*.swift' -newer AuroraDriveUI` → **0 个文件**；
+> 最新源文件 `Sources/AuroraDrive/Agent/AIAgentPanel.swift`（02:26:30）早于二进制（02:29:11）→ **通过**。
+>
+> **不通过时的标准处理**（顺序照做）：
+>
+> ```bash
+> cd /Users/dupi/Desktop/自动驾驶系统
+> # 只删 scratched 产物，再重建（保守做法；彻底做法是 rm -rf .build，但代价是全量重编）
+> rm -rf .build/scratch/release/AuroraDrive
+> bash scripts/build-lock.sh run "强制重编" -- \
+>   swift build -c release --disable-sandbox --scratch-path .build/scratch
+> find Sources -name '*.swift' -newer .build/scratch/release/AuroraDrive -print   # 必须为空
+> ```
+>
+> ⚠️ **`run.sh` 的老做法是每次 `rm -rf .build` 全量重编**（`run.sh:80`）——
+> 那是「宁可慢也别静默」的取舍，日常迭代**不建议**（代价高），但**上线前**可以用它兜底一次。
+>
+> ---
+>
+> ## ★ 三、标准部署流程：备份 /tmp → `cp` + `mv` **原子双写**
+>
+> **两个目标必须同时更新**（`AuroraDriveUI` 裸可执行 + `.app/Contents/MacOS/AuroraDriveUI`）：
+> 只更新一个 → 用户从不同入口启动到**两个不同版本**，症状荒诞且极难排查
+> （历史教训：把备份二进制放进 `.app/Contents/MacOS/` 里，见 `AuroraDrive-交接文案.md:114`）。
+>
+> **本流程与 `run.sh:102-113` 的实际做法逐句对齐**（同一套动作，这里补了备份与校验）：
+>
+> ```bash
+> cd /Users/dupi/Desktop/自动驾驶系统
+> SRC=.build/scratch/release/AuroraDrive
+> TS=$(date +%Y%m%d-%H%M%S)
+> APP=AuroraDriveUI.app/Contents/MacOS/AuroraDriveUI
+>
+> # ① 备份当前线上二进制到 /tmp（可回滚点）
+> cp -p ./AuroraDriveUI "/tmp/AuroraDriveUI.bak-deploy-$TS"
+>
+> # ② 原子替换：先 cp 到临时名（同目录，保证同一文件系统），再 mv 换 inode
+> #    —— 与 run.sh:105 / run.sh:112 同款写法（.tmp.$$）
+> cp "$SRC" "./AuroraDriveUI.tmp.$$" && mv -f "./AuroraDriveUI.tmp.$$" ./AuroraDriveUI
+> cp "$SRC" "$APP.tmp.$$"            && mv -f "$APP.tmp.$$" "$APP"
+>
+> # ③ ad-hoc 签名 + 去隔离标记（顺序照抄 run.sh:104-107：
+> #    签 BIN_SRC → cp+mv → xattr -d；两边都要去隔离）
+> /usr/bin/codesign --force --deep --sign - "$SRC" 2>/dev/null || true
+> /usr/bin/xattr -d com.apple.quarantine ./AuroraDriveUI 2>/dev/null || true
+> /usr/bin/xattr -d com.apple.quarantine "$APP" 2>/dev/null || true
+>
+> # ④ 双写一致性自证（三处 sha256 必须完全相同）
+> shasum -a 256 "$SRC" ./AuroraDriveUI "$APP"
+> ```
+>
+> **部署前清旧进程**（`run.sh` 的 `pkill -f "AuroraDriveUI" || true`）——
+> 防新旧两个 UI 抢引擎 socket（0.5s 断开重连死循环）。
+>
+> **为什么要 `cp` 到临时名再 `mv`（原子替换）而不是直接 `cp` 覆盖**：
+> 直接 `cp` 是**原地覆盖同一 inode**；正在运行的实例按需分页，会陆续从磁盘读到
+> **新旧混合的页** → CDHash 校验失败 → 内核直接杀（Taskgated Invalid Signature）。
+> `mv` 换 inode 后，运行中实例继续引用旧 inode（unlink 后 vnode 存活），新实例用新文件，互不影响。
+> 该修复与完整背景见本文 §一「SIGKILL 根因」与 `run.sh:94-101` 注释。
+>
+> **部署后必须再跑自检**（否则等于「部署了个没验证过的文件」）：
+>
+> ```bash
+> cd /Users/dupi/Desktop/自动驾驶系统
+> # 用**已部署的那个文件**跑，不是 .build 产物
+> AURORA_UI_LOCAL=1 ./AuroraDriveUI --tool-selftest | tail -2
+> AURORA_UI_LOCAL=1 ./AuroraDriveUI --wire-selftest | tail -2
+> # 完整矩阵见 代码-33 §5
+> ```
+>
+> ⚠️ **TCC 条目提醒（仍然成立，见本文 §一）**：权限只挂在**裸可执行文件**上，
+> 不能拿 `.app` bundle 启动去跑需要 AX/录屏权限的自检（会 `ax=false screen=false`）。
+>
+> ---
+>
+> ## ★ 四、部署场景下的 8 个 AI 自检（及为什么它们改变交付流程）
+>
+> 本次新增的 8 个 AI flag 让「部署后验证」从「跑通不崩」升级为**可断言的交付门禁**
+> （逐个 flag、依赖、实测项数详见 代码-33 §2 与 §5）。对**构建部署**流程的直接影响有三条：
+>
+> 1. **`--tool-selftest` / `--websearch-selftest` / `--llm-selftest`（离线）不需要网络也不需要游戏**，
+>    可以放进任何一次部署后的冒烟检查，成本只有几秒。
+> 2. **`--control-selftest` / `--llm-vision-selftest` 需要 TCC 权限**，
+>    必须用**裸可执行文件**跑（`.app` 无授权），且 `--control-selftest` 依赖辅助功能权限。
+> 3. **`--llm-probe` / `--llm-selftest --network` / `--tool-call-demo` 需要网络**，
+>    属于「联网可用性」验收，不放进无网冒烟。
+>
+> 一条可复制的部署后冒烟（离线部分，约十几秒）：
+>
+> ```bash
+> cd /Users/dupi/Desktop/自动驾驶系统
+> bash scripts/build-lock.sh run "部署后冒烟" -- bash -c '
+> BIN=./AuroraDriveUI
+> for f in --quest-selftest --route-selftest --taxonomy-selftest --wire-selftest \
+>          --llm-selftest --control-selftest --tool-selftest; do
+>   AURORA_UI_LOCAL=1 $BIN $f > /tmp/smoke$(echo $f | tr -d --).log 2>&1
+>   echo "$f -> EXIT=$?"
+> done
+> AURORA_UI_LOCAL=1 $BIN --websearch-selftest "swift actor" >/tmp/smoke-websearch.log 2>&1
+> echo "--websearch-selftest -> EXIT=$?"
+> '
+> ```
+>
+> ---
+
 > 覆盖源文件：`run.sh`（**182 行**，2026-09-29 `wc -l` 实测；本文写 170 行）+ `scripts/setup_toolchain.sh`（77 行）+ Package.swift 构建面 + 部署产物实况。基于当前仓库逐单元编写。
 >
 > ### 📌 2026-09-29 复核追加：模型检查补了 YOLOPX（+12 行）
@@ -167,6 +340,10 @@ fi
 
 ### 3.1 为什么需要构建锁（`scripts/build-lock.sh:6-17` 文件头注释，本次核实）
 
+> **⚠️ 2026-10-07 补**：本节就是顶部「标准构建命令」的依据——`scripts/build-lock.sh` 的
+> 取用方式见 3.2；`mkdir` 原子锁、残留锁只提示不自动删、`release` 校验 pid（3.3）三条设计约束
+> 本次逐行复核仍然成立（**脚本 146 行**，`wc -l` 实测）。
+
 1. **SwiftPM 是全模块编译**：多人并发改文件 + 并发 `swift build` 会互相打断，典型报错
    `error: input file '.../AuroraTheme.swift' was modified during the build`（`:7-11`）；
    且一人写坏，全组的 `swift build` 一起失败。
@@ -196,4 +373,8 @@ trap 'bash scripts/build-lock.sh release' EXIT
   （`:91-94`，"万一真的还在跑"）；持锁进程已死也只提示可安全清理（`:87-90`）——保守策略。
 - `release` 校验持有者 pid 与调用方一致才删（`:102-107`），防误删别人的锁。
 
-**构建部署文档至此完整**（run.sh 四步全解 → 工具链遗留说明 → 训练包/脚本群 → 模型文件 → 备份 → **构建锁**）。
+**构建部署文档至此完整**（run.sh 四步全解 → 工具链遗留说明 → 训练包/脚本群 → 模型文件 → 备份 → **构建锁** → **2026-10-07 复核对：持锁构建 / mtime 防静默 / 原子双写部署 / 部署后自检矩阵**）。
+
+> **配套阅读**：
+> - CLI flag 全集、8 个 AI 自检的**逐 flag 说明 + 两个陷阱 + 完整自检矩阵** → 代码-33 进程模式与CLI参数全解 §1/§2/§5
+> - AI 助手链路设计 → 代码-23 / AI_AGENT_DESIGN.md；踩坑总表 → pitfalls.md

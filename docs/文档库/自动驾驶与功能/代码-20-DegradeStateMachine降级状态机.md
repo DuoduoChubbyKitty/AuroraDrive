@@ -1,7 +1,8 @@
 # 代码-20 DegradeStateMachine 降级状态机
 
-> 覆盖源文件：`Sources/AuroraDrive/Agent/DegradeStateMachine.swift`（**165 行**，2026-10-06 `wc -l` 实测）。
+> 覆盖源文件：`Sources/AuroraDrive/Agent/DegradeStateMachine.swift`（**165 行**，2026-10-07 `wc -l` 复测，与旧记一致）。
 > 本文 2026-10-06 由文档更新代理 A5 全文按当前源码重写：旧文基于含 `.recover` 脱困档的四档版本（250 行），该档已于 **2026-09-30 整体删除**——现为**三档梯子**，卡住检测计时/脱困超时等机制一并移除。
+> **2026-10-07 由文档核对代理 E4 复核**：源文件 165 行与三档梯子描述**全部属实，正文行号逐条核对无误**；仅**第四节「调用现场」的 AuroraDriveApp.swift 行号整体漂移**（因为 App 主文件已增至 8456 行），本次只修该节行号，其余未改动。
 
 ## 一、三档梯子与可调阈值（DegradeStateMachine.swift:1-56）
 
@@ -93,12 +94,15 @@ let recov = min(0.99, degradeHealth + recoverHysteresis)    // :114 恢复阈值
 
 **`pct(_ v: Double) -> String`（private，:162-164）**：置信度百分比字符串——`String(format: "%.0f%%", v * 100)`（转换原因里的"健康 92%"就是它拼的）。
 
-## 四、调用现场（DriveState.tick，2026-10-06 补充）
+## 四、调用现场（DriveState.tick；2026-10-07 由核对代理 E4 按当前 App 重测行号）
 
-- 持有：`let degradeStm = DegradeStateMachine()`（AuroraDriveApp.swift:5276）。
-- 每帧调用：`tick()` 内 App:6686-6695（九参数：m9Live/assistLive/confidence 作 health/warmingUp/speedKmh/speedValid/dt/sportMode/forceRuleMode）→ 先比后写同步 `mode`（App:6697）。
-- 阈值同步：`degradeStm.degradeHealth = degradeThreshold`（App:6558）。
-- 暖机判据：`inferenceEngine.lastResult == nil && Date().timeIntervalSince(drivingStartTime) < 3.0`（App:6684-6685）。
-- 决策结果消费：`switch decided` 按档取控制量（App:6871-6886，见 代码-25 第八节）。
+> ⚠️ 本节旧行号（AuroraDriveApp.swift 8335 行版）**已失效**——App 主文件现为 **8456 行**，下列行号 2026-10-07 逐条 `grep` 回读核实。
 
-**DegradeStateMachine 文档至此完整**（165 行全覆盖：三档梯子 → update 优先级链 → transition/reset）。给别的 AI 的最关键提示：**forceRule > 极速 > 暖机 > 健康度梯子**的优先级顺序不能颠倒（forceRule 是紧急安全开关，必须压过一切）；**脱困档与卡住计时已于 2026-09-30 整体删除，不要再按四档模型理解本文件**；卡死（零速 30s）现在走 DriveState 的 `needsManualIntervention` 人工介入横幅（AuroraDriveApp.swift:6653-6680），与状态机完全解耦。
+- 持有：`let degradeStm = DegradeStateMachine()`（AuroraDriveApp.swift:5397）。
+- 每帧调用：`func tick()`（App:6505）内 App:6807-6815（九参数：m9Live/assistLive/confidence 作 health/warmingUp/speedKmh/speedValid/dt/sportMode/forceRuleMode）→ 先比后写同步 `mode`（App:6818）。
+- 阈值同步：`degradeStm.degradeHealth = degradeThreshold`（App:6679）。
+- 暖机判据：`inferenceEngine.lastResult == nil && Date().timeIntervalSince(drivingStartTime) < 3.0`（App:6805-6806）。
+- 决策结果消费：`switch decided` 按档取控制量（App:6989-7002）——`.rule` 档即 `ruleController.decide(detections:)`（App:7000）；档位门控见 `Self.laneKeepTiers`（App:7038）。
+- 停止驾驶时复位：`degradeStm.reset()`（App:5987）。
+
+**DegradeStateMachine 文档至此完整**（165 行全覆盖：三档梯子 → update 优先级链 → transition/reset）。给别的 AI 的最关键提示：**forceRule > 极速 > 暖机 > 健康度梯子**的优先级顺序不能颠倒（forceRule 是紧急安全开关，必须压过一切）；**脱困档与卡住计时已于 2026-09-30 整体删除，不要再按四档模型理解本文件**；卡死（零速 30s）现在走 DriveState 的 `needsManualIntervention` 人工介入横幅（判定块 AuroraDriveApp.swift:6789-6801，字段声明 App:5242-5258），与状态机完全解耦。

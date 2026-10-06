@@ -1,5 +1,223 @@
 # 代码-33 进程模式与 CLI 参数全解
 
+> ### ⚠️ 2026-10-07 复核块（**AI 自检 8 flag 入库 + oneShotFlags 陷阱定案**，逐行实测）
+>
+> 本次基于当前工作区快照 `AuroraDriveApp.swift`（**8456 行**，`wc -l` 实测）逐条打开源码核对。
+> **下文 2026-10-06 块与旧正文的行号已整体偏移**（数组与分发段被 AI 施工下推），以本块为准。
+>
+> ---
+>
+> ## ★ 一、oneShotFlags 现已 **45 项**（`AuroraDriveApp.swift:919-953` 实测展开计数）
+>
+> 实测方法（**不要按 `]` 截断，注释里也有 `]`，会少数**）：
+>
+> ```bash
+> cd /Users/dupi/Desktop/自动驾驶系统
+> python3 - <<'EOF'
+> import re
+> lines = open('Sources/AuroraDrive/App/AuroraDriveApp.swift').read().split('\n')
+> for n, l in enumerate(lines):
+>     if 'let oneShotFlags' in l: start = n
+>     if '--websearch-selftest"]' in l: end = n; break
+> code = '\n'.join(l for l in lines[start:end+1] if not l.strip().startswith('//'))
+> flags = re.findall(r'"(--[a-z0-9-]+)"', code)
+> print('行范围 %d-%d，项数=%d，去重后=%d' % (start+1, end+1, len(flags), len(set(flags))))
+> print('\n'.join('%2d %s' % (i, f) for i, f in enumerate(flags, 1)))
+> EOF
+> ```
+>
+> **实测输出（2026-10-07）**：行范围 `919-953`，**项数 = 45，去重后 = 45**（无重复项）。
+> 与 2026-10-06 记录的 37 项相比，**本次 AI 施工新增 8 项**（第 38–45 项）：
+>
+> | # | flag | 分组 | 说明 |
+> |---|---|---|---|
+> | 38 | `--llm-selftest` | A1 协议/链路 | 离线默认，`--network` 追加真实请求 |
+> | 39 | `--llm-probe` | A1 探活 | 7 渠道真实健康表 |
+> | 40 | `--llm-vision-selftest` | A1 视觉 | 真实截图 → 视觉模型 |
+> | 41 | `--control-selftest` | A2 按键 | 四证据链 |
+> | 42 | `--tool-selftest` | A3 工具 | 注册表 + schema + dryRun |
+> | 43 | `--tool-call-demo` | A3 端到端 | 模型决策 → 工具分发 → 执行 |
+> | 44 | `--llm-perf-selftest` | 性能预算 | 主线程阻塞 / 首字延迟 / 内存 |
+> | 45 | `--websearch-selftest` | W5 联网搜索 | 解析器离线默认，`--network` 真发请求 |
+>
+> **完整 45 项清单**（源码顺序，`919-953`）：
+> `--speed-selftest`、`--tcc-selftest`、`--test-xpc`、`--yolo-selftest`、`--upscale-selftest`、
+> `--yolo-bench`、`--daemon`、`--mc-shot`、`--mc-map`、`--mc-map-offline`、`--fit-selftest`、
+> `--limit-selftest`、`--nic-autotest`、`--proto-selftest`、`--yolopx-selftest`、
+> `--opticalflow-selftest`、`--motion-selftest`、`--corner-selftest`、`--perf-selftest`、
+> `--tick-profile`、`--tick-bench`、`--realshot-selftest`、`--egobox-selftest`、`--ayolom-selftest`、
+> `--lanekeep-selftest`、`--perception-selftest`、`--wire-selftest`、`--lanekeep-reality`、
+> `--route-selftest`、`--taxonomy-selftest`、`--mc-route`、`--mc-route-loading`、`--mc-map-bench`、
+> `--flags-help`、`--cache-selftest`、`--quest-selftest`、`--mc-quest`、
+> **`--llm-selftest`、`--llm-probe`、`--llm-vision-selftest`、`--control-selftest`、`--tool-selftest`、
+> `--tool-call-demo`、`--llm-perf-selftest`、`--websearch-selftest`**。
+>
+> ---
+>
+> ## ★ 二、8 个 AI flag 逐个源码核实（作用 / 用法 / 依赖 / 实测项数）
+>
+> 所有命令统一前缀：`BIN=./AuroraDriveUI`（或构建产物 `./.build/scratch/release/AuroraDrive`），
+> **自检必须带 `AURORA_UI_LOCAL=1`** —— 否则会尝试连/拉引擎，结论受环境干扰。
+>
+> | flag | 源码入口 | 分发行 | 依赖 | 实测项数 | 退出码 |
+> |---|---|---|---|---|---|
+> | `--llm-selftest [--network]` | `LLMSelfTest.runLLM(ledger:network:)`（`Agent/LLMSelfTest.swift:93`） | `:1027-1034` | 离线无需网络；`--network` 需网络 | **93 通过 / 0 失败**（离线） | 失败项数 |
+> | `--llm-probe` | `LLMSelfTest.runProbe(ledger:)`（`:961`） | `:1035-1041` | **需要网络** | 2 项断言 + 逐模型健康表（13 条） | 失败项数 |
+> | `--llm-vision-selftest` | `LLMSelfTest.runVision(ledger:)`（`:996`） | `:1042-1048` | **网络 + 屏幕录制权限** | **6 通过 / 0 失败**（证据文件里 `✅` 计 7，多的是 `[LLMTransport] ✅` 传输层日志行而非断言——以汇总行的 6 为准） | 失败项数 |
+> | `--control-selftest` | `LLMSelfTest.runControl(ledger:)`（`:1087`） | `:1049-1055` | **辅助功能权限**（启动器需 `ax=true`） | **32 通过 / 0 失败** | 失败项数 |
+> | `--tool-selftest` | `LLMSelfTest.runTools(ledger:)`（`:1360`） | `:1056-1062` | 无（纯注册表，离线可跑） | **150 通过 / 0 失败** | 失败项数 |
+> | `--tool-call-demo <task>` | `LLMSelfTest.runToolCallDemo(ledger:task:live:)`（`:1635`） | `:1063-1071` | **需要网络**（真实模型请求）；默认 dryRun | **9 通过 / 0 失败** | 失败项数 |
+> | `--llm-perf-selftest [--seconds N]` | `LLMSelfTest.runPerf(ledger:seconds:)`（`:1797`） | `:1072-1081` | 无（进程内采样） | **6 条确定性断言**（源码 `ledger.check` 实测 6 处）+ 1 条首字延迟（有候选才计入，故汇总行是 **6/0 PASS** 或 **6/1 FAIL**） | 失败项数 |
+> | `--websearch-selftest <q> [--network]` | `WebSearchSelfTest.runFromCommandLine(_:)`（`Agent/WebSearch.swift:1451`） | `:1088-1093` | 离线可跑；`--network` 需网络 | **42 通过 / 0 失败**（离线；`✅` 行实测计数 = 42） | 失败项数 |
+>
+> ⚠️ **`--tool-selftest` 项数会随后续施工变动**：`verify/evidence-llm/a3-tool-selftest.txt`
+> 记录的是 **144**（2026-10-06），本次在**已部署二进制**上复跑得 **150** ——
+> 增量来自技能/工具清单扩充。**引用项数前请以当次实跑输出为准**，不要照抄历史数字。
+>
+> ### 2.1 可复制执行的完整命令
+>
+> ```bash
+> cd /Users/dupi/Desktop/自动驾驶系统
+> BIN=./AuroraDriveUI          # 已部署；构建产物用 ./.build/scratch/release/AuroraDrive
+>
+> # A1 协议 / SSE / 错误分类 / 候选排序（离线恒跑，无需网络）
+> AURORA_UI_LOCAL=1 $BIN --llm-selftest
+> # A1 追加真实请求（"对话真能用"的唯一有效证据；失败计入退出码）
+> AURORA_UI_LOCAL=1 $BIN --llm-selftest --network
+> # A1 七渠道探活健康表（需网络）
+> AURORA_UI_LOCAL=1 $BIN --llm-probe
+> # A1 真实截图 → 视觉模型（需网络 + 屏幕录制权限）
+> AURORA_UI_LOCAL=1 $BIN --llm-vision-selftest
+> # A2 按键四证据链（需辅助功能权限；无权限时①即红，不会假绿）
+> AURORA_UI_LOCAL=1 $BIN --control-selftest
+> # A3 工具注册表 + schema + 全工具 dryRun（离线可跑）
+> AURORA_UI_LOCAL=1 $BIN --tool-selftest
+> # A3 端到端闭环：模型决策 → 工具分发 → 执行（默认 dryRun，不注入任何事件）
+> AURORA_UI_LOCAL=1 $BIN --tool-call-demo "领奖励"
+> # A3 端到端 **真注入**（会真的按键！仅在游戏前台、确认可接受时用）
+> AURORA_UI_LOCAL=1 $BIN --tool-call-demo "领奖励" --live
+> # 性能预算断言（默认 6s，可 --seconds 覆盖）
+> AURORA_UI_LOCAL=1 $BIN --llm-perf-selftest --seconds 6
+> # W5 联网搜索（离线跑解析器夹具；--network 真发 search + fetch）
+> AURORA_UI_LOCAL=1 $BIN --websearch-selftest "swift actor"
+> AURORA_UI_LOCAL=1 $BIN --websearch-selftest "异环 攻略" --network
+> ```
+>
+> **判失败统一按 `EXIT != 0`**；退出码语义是「失败项数」（上限 127）。
+>
+> ### 2.2 各 flag 的边界与诚实标注（照抄源码注释，不美化）
+>
+> - `--llm-selftest` **不带 `--network` 时**源码会显式打印
+>   「本次未带 --network：**未验证**「对话真能用」这一步」——即**离线全绿 ≠ 对话可用**。
+> - `--llm-vision-selftest` 在无屏幕录制权限时**如实标注环境受限并提前返回**（不算失败）；
+>   无视觉候选时同样「不静默降级」，源码注释写明这是产品契约。
+> - `--llm-probe` 的 2 条断言是「至少一个模型 ok」+「耗时 < 120s」，
+>   逐模型健康态是**打印**而非断言（要看细节就读输出，别只看 PASS）。
+> - `--websearch-selftest` 的离线夹具全部是 **2026-10-06 本机实测抓下来的原始 HTML**
+>   （DDG Lite / 403 反爬页 / Wikipedia JSON / 正文提取 / `<header>` 误删回归），
+>   断言的是真实格式而不是脑补格式。
+> - `--tool-call-demo` 的 `--live` **会真的注入按键**；默认 dryRun 不注入。
+>
+> ---
+>
+> ## ★ 三、陷阱一：**oneShotFlags 漏登记 = 假绿**（实测踩过）
+>
+> **登记（进数组）与分发（写 `if args.contains` 分支）是两件事，缺一不可**，
+> 而且**两种缺法的症状完全不同** —— 这是本坑最阴的地方：
+>
+> | 情况 | 会发生什么 | 退出码 | 表面现象 |
+> |---|---|---|---|
+> | **只分发、没登记** | 分支写在 `:1257` 判定**之后** → 被 UI 单实例锁挡掉（`isOneShot=false` → `acquireUISingleInstanceLock()` 失败 → 打印「已有 AuroraDrive 实例在运行」→ `exit(0)`） | **0** ⚠️ | **假绿**：脚本看到 EXIT=0，以为自检通过，实际一行断言都没跑 |
+> | **只登记、没分发** | 数组里有名字 → 不被锁挡；但**没有分支** → 掉进正常启动路径 `AuroraDriveApp.main()` → **开出一个 GUI 窗口** | 挂起/非 0 | 「自检」变成了开界面，脚本超时 |
+> | **登记 + 分发都有** | 正确：`exit(runBlockingSelfTest(...))` | 失败项数 | 正常 |
+>
+> **源码原话**（`AuroraDriveApp.swift:1004-1006`）：
+> > 【为什么必须在这里分发】flag 在 oneShotFlags 里登记只解决"不被 UI 单实例锁挡掉"，
+> > **不解决"跑起来"** —— 少了这段分发，`--llm-selftest` 会走到正常启动路径（开 UI），
+> > 自检等于没跑。登记与分发是两件事，缺一不可。
+>
+> 数组上方的注释也连写三处 ⚠️（`:933-934`、`:937`、`:940`、`:949-950`），其中 W5 那次最狠：
+> > ⚠️ W5 实测警告：漏登记时进程会被 UI 单实例锁挡掉**却仍 exit 0** —— **假绿**。
+> > 登记与分发必须同时存在。
+>
+> **为什么会 exit 0 而不是报错**：那段代码的本意是「用户重复双击图标时体面退出」
+> （`:1258-1263`，注释写明原因是「两个 UI 会互抢引擎 socket（0.5s 断开重连死循环）」），
+> 对一个**误入这条路的自检**它同样是 0 —— 于是掩盖了「自检根本没跑」。
+>
+> **防假绿的验证手法**（新增 flag 时必做，本机可复制）：
+>
+> ```bash
+> cd /Users/dupi/Desktop/自动驾驶系统
+> # ① 先确认 flag 在数组里（应打印 45，且能看到目标 flag）
+> grep -n -- '--websearch-selftest' Sources/AuroraDrive/App/AuroraDriveApp.swift | head -3
+> # ② 再确认「真的跑了」：输出里必须有自检的抬头行与汇总行，而不是锁提示
+> AURORA_UI_LOCAL=1 ./AuroraDriveUI --websearch-selftest "swift actor" 2>&1 | tail -3
+> #    ✅ 期望看到：═══ 结果：全部通过 ═══
+> #    ❌ 若看到：[App] 已有 AuroraDrive 实例在运行 —— 本次启动退出   ← 就是本坑
+> # ③ 反向对照：故意跑一个**不存在的** flag，观察它走正常启动（会开 UI，据此确认分流边界）
+> ```
+>
+> ---
+>
+> ## ★ 四、陷阱二：**分发绝不能用 `DispatchSemaphore`**（实测死锁，栈已留证）
+>
+> **症状**：`--control-selftest` 跑 2 分钟零输出，进程活着但什么都不打印。
+>
+> **取证**：`sample` 栈卡在（证据文件 `verify/evidence-llm/dispatch-deadlock-sample.txt`，
+> 采样 2410 次全部命中同一帧）：
+>
+> ```
+> 2410 specialized static AuroraDriveLauncher.main()  (AuroraDriveApp.swift:1033)
+>   → _dispatch_semaphore_wait_slow (libdispatch) → _dispatch_sema4_wait
+>     → semaphore_wait_trap (libsystem_kernel.dylib)
+> ```
+>
+> **根因**：自检内部要 `MainActor.run`（取 `DriveState.shared.controlEngine`、截图取帧），
+> 而主线程被 `semaphore.wait()` 占死 → MainActor 永远排不上 → 互等成死锁。
+> **注意这不是"慢"，是永久卡死**：等多久都不会出结果。
+>
+> **修法**：**主线程泵 RunLoop + 轮询结果盒子**（`AuroraDriveApp.swift:1017-1025`，实测有效）：
+>
+> ```swift
+> /// 一次性 CLI 自检的结果盒子（:713-715）
+> final class SelfTestResultBox: @unchecked Sendable { var value: Int? }
+>
+> func runBlockingSelfTest(_ title: String, _ body: @escaping () async -> Int) -> Int32 {
+>     let box = SelfTestResultBox()
+>     Task { box.value = await body() }              // 异步跑自检
+>     while box.value == nil {                       // 主线程泵事件
+>         RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
+>     }
+>     return Int32(min(box.value ?? 0, 127))         // 失败项数截到 127
+> }
+> ```
+>
+> **为什么 runloop 泵能行**：主线程仍在**处理事件**（而不是被 wait 阻塞），
+> 于是派发到 MainActor 的 `MainActor.run` 能真正执行，Task 正常推进。
+> 源码注释（`:1008-1014`）把这条记为「血泪教训」。
+>
+> **推论（写新自检时照做）**：
+> ① 需要主线程上下文的断言 → 整段放进**一次** `MainActor.run`，
+> 不要在多个 `await` 之后分散执行（async 函数在每个挂起点后**不保证回到同一线程**，
+> `CFRunLoopAddSource(CFRunLoopGetCurrent())` 会绑到当时的线程上 → 泵另一个 runloop → 收不到事件）；
+> ② 任何「主线程等异步结果」的地方，一律 runloop 泵，**永不** `semaphore.wait()`。
+>
+> ---
+>
+> ## ★ 五、8 个 AI flag 的一行速查（源码分流顺序）
+>
+> 分流顺序（`AuroraDriveApp.swift` 实测）：oneShotFlags 数组定义 `:919-953` →
+> `--perf-selftest` `:1094` → `--tick-profile` `:1108` → `--tick-bench` `:1121` →
+> `--realshot-selftest` `:1133` → … → `runBlockingSelfTest` 定义 `:1017` →
+> **AI 段 `:1027-1093`** →
+> `--map-window-test` `:1253`（**在锁判定之前**，故可在 UI 运行时验证新构建）→
+> **UI 单实例锁判定 `:1257-1263`** → 禁用窗口状态恢复 `:1265+` → `AuroraDriveApp.main()`。
+>
+> **判据**：任何一个 flag 的 `if args.contains(...)` 若写在 `:1257` **之后**，
+> 就必须出现在 `oneShotFlags` 里，否则必被锁挡掉。
+>
+> ---
+
 > ### ⚠️ 2026-10-06 复核块（自检家族 / `--mc-*` 夹具 / 双进程引擎交接，逐行实测）
 >
 > 本次基于当前工作区快照（`AuroraDriveApp.swift` **8335 行** / `EngineMain.swift` **1154 行** /
@@ -25,14 +243,18 @@
 > `AuroraDriveApp.main()`（:1193）。
 > 除 `--engine` 外全部 one-shot：跑完即 `exit()`，不参与 UI 锁（:904-905 注释）。
 >
-> **oneShotFlags 现为 37 项**（:906-925 实测展开计数；2026-09-29 记录的 17 项之外又新增 20 项）：
+> **⚠️ 本段项数与行号已过时（2026-10-07 订正）**：当时实测 **37 项**（旧行号 `:906-925`）；
+> 本次 AI 施工后数组为 **45 项**、行号 `:919-953`、锁判定移到 `:1257-1263`，
+> 新增 8 个 AI flag。**以本文顶部 2026-10-07 复核块为准**，以下保留作历史。
+>
+> **oneShotFlags 当时为 37 项**（:906-925 实测展开计数；2026-09-29 记录的 17 项之外又新增 20 项）：
 > `--corner-selftest`、`--perf-selftest`、`--tick-profile`、`--tick-bench`、`--realshot-selftest`、
 > `--egobox-selftest`、`--ayolom-selftest`、`--lanekeep-selftest`、`--perception-selftest`、
 > `--wire-selftest`、`--lanekeep-reality`、`--route-selftest`、`--taxonomy-selftest`、`--mc-route`、
 > `--mc-route-loading`、`--mc-map-bench`、`--flags-help`、`--cache-selftest`、`--quest-selftest`、`--mc-quest`。
 > 注释两处 ⚠️ 强调数组**手写维护**，漏登记会被 UI 单实例锁挡掉（:919-921、:923-925）——
 > 新夹具的 `if args.contains(...)` 分支若写在 :1136 判定之后即被锁挡掉，症状是打印
-> 「已有 AuroraDrive 实例在运行」退出（:1138-1141）。
+> 「已有 AuroraDrive 实例在运行」退出（:1138-1141）。**（该症状 2026-10-07 确认仍 exit 0 → 假绿，见顶部块）**
 >
 > `--mc-*` 无头出图必须在 Launcher 无 GUI 阶段同步跑完：截图是纯离屏 ImageRenderer 渲染，
 > 放 onAppear 里无窗口时 view 不 layout → 永不触发、进程卡 240s（:742-744 注释）。
@@ -215,7 +437,7 @@
 | **GUI 模式**（默认） | `AuroraDriveApp.main()` | SwiftUI 界面 + engine.sock 探测（无引擎 spawn 自己）+ 全部防冻结措施 |
 | **引擎模式** | `--engine` → `EngineMain.run()` | **纯后台驾驶引擎：不触碰 SwiftUI、不创建窗口、不跑 NSApp**；dispatchMain 常驻；自身 engine.lock |
 | **命令模式** | `--agent-command "<指令>"` | **.accessory 后台运行、不抢焦点、全部窗口 orderOut（保持游戏所在 Space 激活，供键注入落到游戏内）**；独立引擎组（AppDelegate.agentEngines 静态持有） |
-| **一次性自检** | 7 个自检 flag | **短命进程或被 launchd 托管，不参与 UI 锁**（oneShotFlags） |
+| **一次性自检** | **45 个** one-shot flag | **短命进程或被 launchd 托管，不参与 UI 锁**（`oneShotFlags`，`AuroraDriveApp.swift:919-953`）；跑完即 `exit()`。⚠️ 2026-10-07 实测：初版 7 → 17 → 37 → **45** |
 
 **CLI 参数全集（grep 86 处引用整理）：**
 
@@ -240,8 +462,21 @@
 | `--agent-layout-shot` | ContentView.onAppear:2319 | runLayoutCompare()——折叠 vs 展开两帧并排 /tmp/aurora_layout_compare.png | 代码-23 单元十三 |
 | `--locate-live` | VisualLocator:118/185/275 | **诊断开关**——locate 每次把耗时落 stderr（[LOCATELIVE-DIAG] locate total=Nms） | 代码-17 |
 | `--skip_view` / `--skip_yolo` | App:1616（Python 训练参数） | startTraining 传给 train_game_assist.py——视角分类器不训 + YOLO 用现成预训练 | 代码-25 单元六 |
+| `--llm-selftest [--network]` | Launcher.main:1027-1034 | **A1 协议/SSE/错误分类/候选排序**（离线恒跑）；`--network` 追加真实请求且失败计入退出码 | 代码-23 |
+| `--llm-probe` | Launcher.main:1035-1041 | **A1 七渠道真实探活**健康表（需网络）；逐模型健康态是打印而非断言 | 代码-23 |
+| `--llm-vision-selftest` | Launcher.main:1042-1048 | **A1 真实截图 → 视觉模型**（需网络 + 录屏权限；无权限时如实标注环境受限，不假绿） | 代码-23 |
+| `--control-selftest` | Launcher.main:1049-1055 | **A2 按键四证据链**（权限 / 计数 / 自建 tap / NSEvent）；需辅助功能权限 | 代码-08/23 |
+| `--tool-selftest` | Launcher.main:1056-1062 | **A3 注册表覆盖 + schema 合法 + 全工具 dryRun**（离线可跑） | 代码-23 |
+| `--tool-call-demo <task>` | Launcher.main:1063-1071 | **A3 端到端**：模型决策 → 工具分发 → 执行；`--live` 才真注入按键，默认 dryRun | 代码-23 |
+| `--llm-perf-selftest [--seconds N]` | Launcher.main:1072-1081 | **性能预算断言**（主线程阻塞 / 首字延迟 / 内存）；默认 6s | 代码-23/38 |
+| `--websearch-selftest <q> [--network]` | Launcher.main:1088-1093 | **W5 联网搜索**：离线跑真实 HTML 夹具，`--network` 真发 search+fetch | 代码-23 |
 
-**oneShotFlags（7 个短命进程，Launcher.main:661–663）**：`--speed-selftest / --tcc-selftest / --test-xpc / --yolo-selftest / --upscale-selftest / --yolo-bench / --daemon`——源注释："**它们是短命进程或被 launchd 托管，若参与锁会与常驻 UI 互斥，导致自检失败或用户无法启动界面**"；非 oneShot 且 UI 锁失败 → 打印原因 + exit(0)。
+> ⚠️ **2026-10-07 三度订正：现已 45 项**（`AuroraDriveApp.swift:919-953`）——
+> 37 项（2026-10-06）→ 45 项（本次 +8 个 AI flag）。**下表为历史快照，最新清单见本文顶部复核块。**
+> 另：下面「非 oneShot 且 UI 锁失败 → 打印原因 + exit(0)」这句的 `exit(0)` 正是**假绿**的来源，
+> 详见顶部「陷阱一：oneShotFlags 漏登记 = 假绿」。
+
+**oneShotFlags（初版 7 个短命进程，Launcher.main:661–663）**：`--speed-selftest / --tcc-selftest / --test-xpc / --yolo-selftest / --upscale-selftest / --yolo-bench / --daemon`——源注释："**它们是短命进程或被 launchd 托管，若参与锁会与常驻 UI 互斥，导致自检失败或用户无法启动界面**"；非 oneShot 且 UI 锁失败 → 打印原因 + exit(0)。
 
 > ### ⚠️ 2026-09-29 订正：oneShotFlags 实际已是 **17 项**（原记 7 项）
 >
@@ -325,4 +560,62 @@ AuroraDriveLauncher.main()
 | `~/Library/Logs/AuroraTCCSelfTest.log` | --tcc-selftest | TCC 权限预检结果 |
 | `/tmp/upselftest_result.txt` | --upscale-selftest | 插帧自检验定 |
 
-**代码-33 文档至此完整**（spawnEngine 引擎拉起 → Launcher 分流 → GUI 完整启动链 → 两份日志与排障分工）。
+## 五、完整自检矩阵（4 既有 + 8 新增，2026-10-07 在**已部署二进制**上实跑）
+
+跑法统一：`AURORA_UI_LOCAL=1 ./AuroraDriveUI --<flag>`（`.app` bundle 未获 TCC 授权，见代码-31）。
+下表「实测项数」全部是本次**真跑输出**（不是读代码数出来的）。
+
+### 5.1 四个既有回归自检（基线，必须保持全绿）
+
+| # | flag | 覆盖 | 实测输出（2026-10-07） | EXIT |
+|---|---|---|---|---|
+| 1 | `--quest-selftest` | 任务面板 OCR（8 条真实面板文字 + 反例/投票/链消歧/坐标语义/节流） | `═══ 结果：全部通过 ✅ ═══` | 0 |
+| 2 | `--route-selftest` | 路网寻路（冻结基线 664 节点 / 932 边 / 0.61 米每像素） | `路网寻路自检 PASS —— 全部通过`（平均规划 0.063 ms） | 0 |
+| 3 | `--taxonomy-selftest` | 词表 / 聚类（组数=7、合计=1777、聚类 < 5ms） | `词表 / 聚类自检 PASS —— 全部通过` | 0 |
+| 4 | `--wire-selftest` | 引擎配置通道四处「手切档位静默失效」修复 | `═══ 结果：通过 14 / 失败 0 ═══` | 0 |
+
+> 前三个的判据是**短语**（`全部通过`），不是「通过 N 项」——
+> 脚本判失败请用 **`EXIT != 0`**，别去 grep 数字（`--wire-selftest` 是唯一打印计数的）。
+
+### 5.2 八个新增 AI 自检（A1/A2/A3 + W5 + 性能预算）
+
+| # | flag | 预期项数 | 依赖 | 失败面 |
+|---|---|---|---|---|
+| 5 | `--llm-selftest` | **93 / 0**（离线）；带 `--network` 时历史实测 **99 / 0** | 离线可跑 | 协议 / SSE 分片 / 错误分类 / 候选排序 |
+| 6 | `--llm-probe` | **2 条断言** + 13 条逐模型健康态打印 | **网络** | 全部模型不可达即红 |
+| 7 | `--llm-vision-selftest` | **6 / 0** | 网络 + 屏幕录制权限 | 无权限 → 环境受限（不算失败）；有权限但模型不回 → 红 |
+| 8 | `--control-selftest` | **32 / 0** | 辅助功能权限 | 权限缺失、计数不增、tap 抓不到、NSEvent 未观察 → 红 |
+| 9 | `--tool-selftest` | **150 / 0**（2026-10-06 记录为 144，**随工具扩充增长**） | 无 | 注册表/schema/dryRun 任一失败 |
+| 10 | `--tool-call-demo "领奖励"` | **9 / 0** | **网络** | 无工具候选、模型不选工具、分发失败 |
+| 11 | `--llm-perf-selftest --seconds 6` | **6 条确定性断言** + 1 条首字延迟（有候选才计入）→ 汇总 **6/0 PASS** 或 **6/1 FAIL** | 无 | 首字延迟预算（免 key 主力渠道达标；zenFree/限流重试路径历史超标） |
+| 12 | `--websearch-selftest "swift actor"` | **42 / 0** | 离线可跑（`--network` 需网络） | 解析器夹具 / 跳转解包 / 正文提取 / 反爬识别 / Wikipedia JSON |
+
+**一键跑完整矩阵（可复制，持构建锁避免与别人抢 CPU）**：
+
+```bash
+cd /Users/dupi/Desktop/自动驾驶系统
+BIN=./AuroraDriveUI
+
+bash scripts/build-lock.sh run "自检矩阵" -- bash -c '
+BIN=./AuroraDriveUI
+run() { echo "───── $* ─────"; AURORA_UI_LOCAL=1 "$@" 2>&1 | tail -2; echo ">>> EXIT=${PIPESTATUS[0]}"; }
+run $BIN --quest-selftest
+run $BIN --route-selftest
+run $BIN --taxonomy-selftest
+run $BIN --wire-selftest
+run $BIN --llm-selftest
+run $BIN --control-selftest
+run $BIN --tool-selftest
+run $BIN --websearch-selftest "swift actor"
+'
+# 需网络的两项单独跑（耗时较长，其中 --tool-call-demo 默认 dryRun 不注入按键）
+AURORA_UI_LOCAL=1 $BIN --llm-probe
+AURORA_UI_LOCAL=1 $BIN --llm-selftest --network
+AURORA_UI_LOCAL=1 $BIN --llm-vision-selftest
+AURORA_UI_LOCAL=1 $BIN --tool-call-demo "领奖励"
+```
+
+**跨进程并发注意**：自检跑起来会占 CPU，耗时类数字（`--llm-perf-selftest`、`--perf-selftest`）
+必须在**无并发负载**时测，否则数字不可比（该纪律见代码-31 §3.1 与 `scripts/build-lock.sh:14-17`）。
+
+**代码-33 文档至此完整**（spawnEngine 引擎拉起 → Launcher 分流 → GUI 完整启动链 → 日志与排障 → **AI 自检矩阵**）。

@@ -1,7 +1,7 @@
 # Internals · Coordinate Calibration
 
 > Implemented in `CoordinateCapture.swift` (`worldToMapPixel`)
-> Up: [Network Localization](02-network-locate.en.md) ｜ 中文: [坐标标定](../自动驾驶与功能/coordinate-calibration.md)
+> Up: [Network Localization](02-network-locate.en.md) ｜ 中文: [坐标标定](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/coordinate-calibration.md)
 
 ## 1. Problem
 

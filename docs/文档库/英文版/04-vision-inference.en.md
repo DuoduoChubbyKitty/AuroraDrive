@@ -1,7 +1,7 @@
 # 4. Vision & Inference
 
 > Sources: `CaptureEngine.swift`(639) `InferenceEngine.swift`(432) `YoloEngine.swift`(807) `ConfidenceEstimator.swift`(248) `RecordEngine.swift`(424) `YolopxEngine.swift` `OpticalFlowBridge.swift` `MotionPredictor.swift` `FallbackGuard.swift` `Vendor/MetalGoose/` `Vendor/OpenCVFlow/`
-> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [视觉与推理子系统](../自动驾驶与功能/04-vision-inference.md)
+> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [视觉与推理子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/04-vision-inference.md)
 
 > **Archive note (verified 2026-09-19, baseline 7b7d2db)**: all sections check out against current code; only line counts / the base map were corrected (InferenceEngine 432 / YoloEngine 807 / RecordEngine 424; the big map was upgraded to 13056×13056 map-2026-08 extended version on 2026-09-13). For the speed-OCR dual-model details see Level-3 doc 3 (3.7 is the glyph-removal archive).
 >

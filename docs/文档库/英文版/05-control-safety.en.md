@@ -1,7 +1,7 @@
 # 5. Control & Safety
 
 > Sources: `ControlEngine.swift`(373) `KeyboardMonitor.swift`(113) `RuleController.swift`(185) `EscapeController.swift`(217) `DegradeStateMachine.swift`(250)
-> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [控制与安全子系统](../自动驾驶与功能/05-control-safety.md)
+> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [控制与安全子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/05-control-safety.md)
 
 > **Archive note (verified 2026-09-19, baseline 7b7d2db)**: ControlEngine grew from 236 to 373 lines (new `GameKey` enum for AI-agent key injection, etc.); `postKeyEvent` gained a reserved `autorepeat` parameter (default false — every real call path still uses "fresh press" semantics). Line references below updated to current code.
 

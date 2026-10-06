@@ -1,7 +1,7 @@
 # Internals · App Nap Countermeasures
 
 > Implemented in `AuroraDriveApp.swift`, `AppDelegate.applicationDidFinishLaunching`
-> Up: [Architecture Overview](01-architecture.en.md) ｜ 中文: [App Nap 对抗](../自动驾驶与功能/app-nap.md)
+> Up: [Architecture Overview](01-architecture.en.md) ｜ 中文: [App Nap 对抗](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/app-nap.md)
 
 ## 1. Problem
 

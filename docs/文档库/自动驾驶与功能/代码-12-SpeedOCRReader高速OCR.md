@@ -361,4 +361,28 @@ return (String(chars), confs.reduce(0, +) / Double(confs.count))
 - `CVPixelBufferCreate`（32BGRA + CGImage/CGBitmapContext/**Metal** 兼容）→ 锁 base → `CGContext.draw 1:1 写入`（`bytesPerRow = width*4`——**避免 padding 干扰后续 CIImage 路径**）
 - bitmapInfo：`premultipliedFirst | byteOrder32Little`（BGRA 通道序，与 CaptureEngine 原生池一致）
 
-**SpeedOCRReader 文档至此完整**（1540 行全覆盖：双模型架构 → 常量 → 2026-09-30 后台加载修复 → infer 闸 0+三闸门 → finish 三层校验 → cropSlots → recognizePPOCR 与静止帧复用 → ctcDecode → recognizeCNN → 图像处理 → 自检）。这是 Inference 层最复杂的文件，也是"读不到速度"排障的权威参考。任务面板 OCR 的同层姊妹模块见 [代码-13](<代码-13-InferenceEngine端到端推理.md>) 第五节。
+**SpeedOCRReader 文档至此完整**（1540 行全覆盖：双模型架构 → 常量 → 2026-09-30 后台加载修复 → infer 闸 0+三闸门 → finish 三层校验 → cropSlots → recognizePPOCR 与静止帧复用 → ctcDecode → recognizeCNN → 图像处理 → 自检）。这是 Inference 层最复杂的文件，也是"读不到速度"排障的权威参考。任务面板 OCR 的同层姊妹模块见 [代码-13](代码-13-InferenceEngine端到端推理.md) 第五节。
+
+---
+
+## 2026-10-07 复核：**本文档所述源码本次未改动**
+
+> 本节是对 2026-10-07 那批改动（`2c0459a` / `d9675ab` / `db0ce81` / `22a6604`，全部集中在 `Sources/AuroraDrive/Agent/` + `Control/ControlEngine.swift` + `App/AuroraDriveApp.swift`）是否触及 `SpeedOCRReader.swift` 的**如实核查结论**。
+> **结论：未改动。上文全部内容（含 1540 行口径与所有行号）继续有效，无需修订。**
+
+**证据（三条，均可复现）**：
+
+| # | 命令 | 结果 |
+|---|---|---|
+| ① | `git diff --stat HEAD~5..HEAD -- Sources/AuroraDrive/Inference/SpeedOCRReader.swift` | **输出为空**（本次窗口内零改动） |
+| ② | `git log -1 -- Sources/AuroraDrive/Inference/SpeedOCRReader.swift` | 最后一次改动是 **`faecc6f`（2026-10-06 18:26）**，**在本次窗口之外** |
+| ③ | **blob 哈希逐字节比对**：`git rev-parse faecc6f:<path>` = `git rev-parse HEAD:<path>` = **`cd938f3511cc43ae959d7e1d6f076bf240f5e1c3`** | **同一个 Git blob 对象** ⟹ 内容**逐字节完全相同**，连注释都没动 |
+
+补充：`git status --porcelain Sources/AuroraDrive/Inference/SpeedOCRReader.swift` **输出为空** ⟹ 工作区也无未提交改动（`md5` 实测 `43076a68cfb34ed1ed3c498ec0d64336`）。`wc -l` 实测仍为 **1540 行**，与上文口径一致。
+
+**整个 `Inference/` 目录本次均未改动**（`git diff --stat HEAD~5..HEAD -- Sources/AuroraDrive/Inference/` 输出为空）：`InferenceEngine.swift` 仍 522 行、`QuestPanelReader.swift` 仍 1160 行、`YoloEngine.swift` 仍 843 行、`YolopxEngine.swift` 仍 1666 行——即 [代码-13](代码-13-InferenceEngine端到端推理.md) 上半部分的全部行号同样**继续有效**。
+
+**⚠️ 一处需要读者注意的措辞校正（非本次改动，是上文的口径）**：上文末尾提到的「任务面板 OCR 同层姊妹模块」即 `QuestPanelReader`——**两者是两条独立的 OCR 链路**（SpeedOCRReader 读速度表数字 → `DriveState.speedKmh`；QuestPanelReader 读任务面板文字 → `setLocatorTarget`）。2026-10-07 新增的**第三条**「看图」链路是 AI 助手（把整帧发给远端多模态 LLM），它与前两者**无任何代码/数据通道**——详见 代码-13 §9.1 的三链路对照。
+
+**复核完 · 2026-10-07 · 结论：本次未改动，无需修订**
+

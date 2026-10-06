@@ -1,11 +1,37 @@
 # 代码-25 AuroraDriveApp 之 DriveState 状态主体
 
-> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（**8335 行**，2026-10-06 `wc -l` 实测）之中部：DriveMode/DriveModeGroup/RecordLabelMapper + DriveState。
-> 本文 2026-10-06 由文档更新代理 A5 复核：旧正文行号基准（5175 行版）已整体过期，**本文内所有 文件:行号 均按当前 8335 行版本重新核实**；无法核实的论断一律标「未验证」。
+> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（**8456 行**，2026-10-07 `wc -l` 实测；10-06 版为 8335 行）之中部：DriveMode/DriveModeGroup/RecordLabelMapper + DriveState。
+> 本文 2026-10-06 由文档更新代理 A5 复核：旧正文行号基准（5175 行版）已整体过期，**本文内所有 文件:行号 均按 8335 行版本重新核实**；无法核实的论断一律标「未验证」。
+
+> **🔄 2026-10-07 增量复核（D7）——本文覆盖内容本次未改动，但行号整体 +121：**
+>
+> ① **行号 +121 的成因**：10-06 深夜 AI 助手施工（提交 `2c0459a`）与滑动窗口修复（`22a6604`）使文件由 8335 → **8456 行**。新增内容全在文件前部（`SelfTestResultBox` :704-716、自检 flag 登记 :935-948、自检分发块 :1001-1094），**位于 `DriveState` 之前**，故 `DriveState` 及其后所有行号统一 **+121**。抽查验证（2026-10-07 逐条 `sed` 实测旧锚点 +121 后命中）：`final class DriveState` 3981→**4102** ✓、`locatorFound` 4145→4266 ✓、`setLocatorTarget` 4293→4414 ✓、`clearRoute` 4194→4315 ✓、`degradeStm` 5276→5397 ✓、`inferenceEngine` 5300→5421 ✓、`egoBoxFilter` 5331→5452 ✓、`fallbackGuard` 5362→5483 ✓、`questPanel` 5502→5623 ✓、`tick()` 6383→**6505**（起）✓、`degradeStm.update` 6686→6807 ✓、`ruleController.decide` 6879→7000 ✓、`readPose()` 7271→**7392** ✓、`applyLaneAdvice` 7618→7739 ✓。
+> **阅读换算规则：本文正文里的 `App:NNNN` + 121 = 当前真实行号**（内容语义未变，仅偏移）。
+>
+> ⚠️ **2026-10-07 D7b 补记（重要，先读再读正文）**：**文首这条 `+121` 规则本身在 §六、§七、§九 被违反了**——那三节的「新锚点」写的是**未加 121 的旧值**（且 §九 还混用了新值 `applyCommand` App:7321）。D7b 已逐条实测，**统一汇总为下方「§附·换算总表」**，请一律以该表为准；§六/§七/§九 的内联锚点按表理解即 `+121`（已就地标注 3 处明显矛盾的锚点）。§八、§十、§十一、§十二 的锚点经抽检**基本正确**（§十一 队列表 1 处、§十二 若干处偏差见总表末段）。
+>
+> ② **AI 面板改动不在本文覆盖范围**（用户明确要求核实项）：`sendChatMessage` / 滑动窗口 `appendMessage`+`maxMessages=200` / 后端选择器 / 视觉开关 / 配置向导 / 底部小字 / 诊断面板 **全部落在 `Agent/AIAgentPanel.swift`**，与本文覆盖的 `AuroraDriveApp.swift` 中段（DriveMode + DriveState）**无重叠**。`AuroraDriveApp.swift` 本次仅两处变动，均在本文范围外：自检 flag 登记与分发（:935-1094），以及 `ControlEngine`（另一文件）。→ **本文本次未改动任何 DriveState 逻辑**，10-06 复核结论全部继续有效。
+>
+> ③ 与 AI 面板的**唯一接口点**是 `AgentSkillCenter.configure(control:capture:)`（`AuroraDriveApp.swift:533`，`AppDelegate` 侧；DriveState 侧另见 `MissionConsole.swift:5635/5641/5657`），**本次未改动**（`git diff HEAD~5..HEAD -- Sources/AuroraDrive/App/AuroraDriveApp.swift` 仅 3 个 hunk，均在 :701/:935/:1001 附近，未触及 `configure` 调用点）。
+
+## 〇·五、AI 面板改动落点（2026-10-07，**代码不在本文覆盖文件内**）
+
+> 用户要求核实"代码-25 的 AI 面板相关改动"。**实测结论：这些改动在 `AuroraDriveApp.swift` 里一条都没有**——它们全在 `Sources/AuroraDrive/Agent/AIAgentPanel.swift`（3253 行）+ `AgentChatService.swift`。本节只做**落点索引**，避免后续读者到 `DriveState` 里翻找。
+
+| 改动 | 实现位置（2026-10-07 实测） | 一句话说明 |
+|---|---|---|
+| **真实对话接线** `sendChatMessage` | `AIAgentPanel.swift:1557-1620`（`private func`） | 自由聊天从"硬编码套话"改为真实 LLM：`sendUserMessage` :1487 → 无技能命中时 :1541 `sendChatMessage(trimmed, source:)`。带最近 40 条历史（:1559 `messages.suffix(40)`）转 `ChatTurn`，服务端再裁到 12 轮。占位消息 + 流式增量 `replaceMessage`（:1592-1598），失败走 `localReply` 并标注"（离线回复：无可用模型）"（:1610-1613） |
+| **滑动窗口** `appendMessage` / `maxMessages=200` | `AIAgentPanel.swift:201`（`messages`）、**:203**（`static let maxMessages = 200`）、:205（`droppedMessageCount`）、**`appendMessage` :208-215**、`resetDroppedMessageCount` :218-220、**`replaceMessage` :223-226** | 修「AI 那个窗口会无限变大」：超 200 条丢最旧的并累计 `droppedMessageCount`。**所有写入路径统一走 `appendMessage`**（原 6 处直接 `append` 已改造：`init` :484-486、`sendUserMessage` :1490、`sendChatMessage` 占位 :1575、`replyAssistant` :1694、`appendSystem` :1698、:1752）。UI 提示"更早的 N 条消息已折叠"（:2955-2962，`AgentConversationView` :2947）；"新建对话"重置计数（`newConversation` :1749-1753，`droppedMessageCount = 0` :1751） |
+| **后端选择器** | `AIAgentPanel.swift:2296-2340` | 免 key 渠道开箱即用、需 key 渠道在 `apiKey` 为空时置灰；`backendKind` 定义 `AgentSettings.swift:149`（`LLMBackendKind`，默认 `.ovhAnonymous` 免 key），切换落盘 `AgentSettings.keyBackend`（:167） |
+| **📷 视觉开关** | `AIAgentPanel.swift:2342-2360`（`Toggle`）；消费点 `sendChatMessage` :1571 `let wantVision = aiSettings.visionEnabled` + 取帧 :1583-1586 | 默认**关**（隐私优先，`AgentSettings.swift:153` 默认 `false`、:233 注释"缺省 false"）。开启后随请求带当前帧；**拿不到帧不静默降级**——如实告知"本次按纯文本发送"（:1587-1591）。取帧 `encodeCurrentFrameForVision()` :1636-1641（`@MainActor`，长边 1568px + JPEG 0.8，:1631-1635 实测理由） |
+| **配置向导** | `AIAgentPanel.swift:2547`（`struct AgentSettingsSheet`）、`navigationTitle("AI 助手配置向导")` :2611、底部导航 :2586-2608 | 三步向导：免 key 路线 `applyKeyless()` :2699-2702 把后端设为免 key 渠道；渠道连通性测试结果回写 :2820-2830 |
+| **底部小字 + 诊断面板** | 小字 :2245-2292（`healthSnapshot.displayLine`，hover tooltip 展示候选链）；"诊断"按钮 :2266-2274；`struct LLMDiagnosticsSheet` **:2453**（`navigationTitle("模型渠道诊断")` :2523） | 数据源 `LLMHealthMonitor.snapshot()`（actor，进面板即刷 + 30s 轮询 :2276-2285）。全挂时显示"⚠️ 无可用模型（点此诊断）"；正常形如 `免费档 · ovh · Qwen2.5-VL-72B · 健康 4/7 · 0.9s` |
+
+**语义边界提示**：本表信息来自当前源码行号实测，**未逐条通读 `AgentChatService` / `LLMHealthMonitor` 内部实现**——涉及"7 渠道聚合 / 降级链 / 探活策略"等细节请以 [代码-23-AIAgentPanel与17技能](代码-23-AIAgentPanel与17技能.md) 为准（**未验证**：本文未核对该文档是否已覆盖 10-07 增量）。
 
 > 常用锚点（2026-10-06 实测）：`final class DriveState` 在 **AuroraDriveApp.swift:3981**；定位器/任务字段在 **4144–4162**；`setLocatorTarget` **4293**；`clearRoute` **4194**；决策组件持有 **5276–5362**；`questPanel` **5502** + `onConfirmed` 接线 **5575–5579**；onFrame 接线 **5583–5596**；`tick()` **6383 起**（引擎分流 6400–6403、quest OCR 门 6435–6436、卡死检测 6653–6680、降级决策 6686–6697、置信度 6699–6717、按档输出 6872–6886、`ruleController.decide` 6879、分段决策 7252–7295）；`readPose()` **7271–7282**。
 >
-> ⚠️ **历史行号基准存档**（下列旧正文小节标题里的行号来自更早版本，与当前 8335 行版已不对应——各节内容经 2026-10-06 复核后仅行号偏移、语义以本节内带新行号的表述为准）：
+> ⚠️ **历史行号基准存档**（下列旧正文小节标题里的行号来自更早版本，与当前 **8456 行**版已不对应——各节内容经 2026-10-06 复核后仅行号偏移、语义以本节内带新行号的表述为准；**2026-10-07 起再统一 +121**）：
 > - 3665 行版（09-29）：DriveState 记 1304–3079
 > - 5175 行版（09-29）：DriveMode 2273–2300、DriveState 2373 起
 > - 6698 行版（10-02）：全文按该版行号编写
@@ -274,7 +300,8 @@
 
 ## 六、档位开关 / 防冻结禁用 / 一键训练与模型热部署
 
-> 新锚点：`setUpscaleEnabled` App:5894、`setGameModeBoost` App:5905、`startTraining` App:5948、`deployTrainedModel` App:5994、`clearRawClips` App:6040。
+> 新锚点（**2026-10-07 D7b 实测，已含 +121**）：`setUpscaleEnabled` **App:6015**、`setGameModeBoost` **App:6026**、`startTraining` **App:6069**、`deployTrainedModel` **App:6115**、`clearRawClips` **App:6161**。
+> ⚠️ 旧版本行写 5894/5905/5948/5994/6040 = **未加 121 的旧值**；`+121` 后为 6015/6026/6069/6115/6161，与实测函数声明**逐条吻合**（`sed` 核过）。
 
 **`setUpscaleEnabled(_ on: Bool)`（第 1554–1563 行）**——插帧/超分开关：
 
@@ -319,7 +346,8 @@
 
 ## 七、tickEngineMode 回声防环与 pushEngineConfigIfChanged
 
-> 新锚点：`tickEngineMode()` App:6058 起（速度回传落位 App:6125-6128、版本守卫 App:6106-6120 附近）；`pushEngineConfigIfChanged` 在其后。本节逐条语义复核仍准确。
+> 新锚点（**2026-10-07 D7b 实测，已含 +121**）：`tickEngineMode()` **App:6179** 起；版本守卫实测 **App:6231-6241**（`if client.isEngineStale` :6231、`engineRelaunching` 防重入 :6232-6235、驾驶中提示 :6236-6237、无错配清空 :6239-6240）；速度回传落位实测 **App:6244-6249**（mode/confidence/remoteSpeedKmh/effectiveSpeed/speedValid 逐个先比后写）；`pushEngineConfigIfChanged()` 实测 **App:6385**。本节逐条语义复核仍准确。
+> ⚠️ 旧版此行写「App:6058 起 / 6125-6128 / 6106-6120」= **未加 121 的旧值**（`+121` → 6179 / 6246-6249 / 6227-6241）。
 
 **`tickEngineMode()`（@MainActor，第 1719–1813 行）**——引擎模式下每 tick 拉取显示数据（**本地抓屏/推理/按键全部不跑**）：
 
@@ -396,7 +424,8 @@ case .rule: let ruleCmd = ruleController.decide(detections: detections)         
 
 ## 九、recordFrameIfNeeded 与 applyCommand 按键映射
 
-> 新锚点：`recordFrameIfNeeded()` App:7162 起（glyph 跳过 App:7164-7165、专家模式键码标签 App:7172-7180）；`applyCommand` App:7321 起（转向死区/互斥/refreshHeldKeys 语义不变）。
+> 新锚点（**2026-10-07 D7b 实测，已含 +121**）：`recordFrameIfNeeded()` **App:7283** 起（glyph 跳过实测 **:7286** `guard !recordEngine.glyphMode else { return }`、专家模式键码标签实测 **:7294-7301**：`:7295/:7296` A=0/D=2、`:7298` W=13、`:7300/:7301` S=1/Space=49）；`applyCommand` **App:7442** 起（转向死区/互斥/refreshHeldKeys 语义不变）。
+> ⚠️ 旧版此行写 `recordFrameIfNeeded` App:7162、`applyCommand` App:7321 = **未加 121 的旧值**；`+121` → 7283 / 7442，与实测声明吻合。**本节内联的「2038/2096」「2097–2127」「2131–2160」等行号同样是旧基准**（见文末换算总表）。
 
 **`recordFrameIfNeeded()`（private，第 2097–2127 行）**——每帧录制写帧（画面 + 控制量），驾驶与待机共用：
 
@@ -570,7 +599,7 @@ controlEngine.refreshHeldKeys()
 | `com.aurora.yolo` | YoloEngine.swift:145 | userInteractive | YOLO 检测推理（:307 提及避免与 captureQueue 写竞争） |
 | `com.aurora.inference` | InferenceEngine.swift:111 | userInteractive | M9/assist E2E 推理 |
 | `com.aurora.yolopx` | YolopxEngine.swift:445 | env `AURORA_INFER_QOS=interactive` 可覆盖（默认 userInitiated，YolopxEngine.swift:441-443） | YOLOPX/A-YOLOM 推理 |
-| `agent.skill`（workQueue） | AIAgentPanel.swift:276 | userInteractive | AI 技能工作队列 |
+| `agent.skill`（workQueue） | AIAgentPanel.swift:**256**（⚠️ D7b 订正：旧写 :276——实测 :276 是 `guard !settings.apiKey.isEmpty`，队列声明在 :256） | userInteractive | AI 技能工作队列 |
 | `aurora.engine.client` | EngineClient.swift:147 | userInteractive | UI 侧 socket 读 + 重连定时器 |
 | `aurora.engine.socket` | EngineMain.swift:437 | userInteractive | 引擎侧 socket 服务 |
 | `aurora.engine.tick` | EngineMain.swift:781 | userInteractive | 引擎 30Hz tick 定时源，**回调再 main.async 进主线程**（:784-789） |
@@ -580,8 +609,8 @@ controlEngine.refreshHeldKeys()
 | `aurora.privilege.process` | PrivilegePill.swift:251 | utility | 提权脚本执行 |
 | `com.aurora.tick` | MissionConsole.swift:5534 | userInteractive | 地图控制台 tick 驱动（30Hz / 待机 3.75Hz），回调 main.async（:5558） |
 | `com.aurora.netlocate` | MissionConsole.swift:5604 | userInteractive | 网络定位轮询 10Hz，回调 main.async（:5607） |
-| `com.aurora.logsink` | App:8216-8217 | utility | 日志缓冲写盘 |
-| `aurora.upscale.ingest` | App:7980 | userInitiated | 插帧 ingest |
+| `com.aurora.logsink` | App:**8337-8338**（⚠️ D7b 订正：旧写 :8216-8217） | utility | 日志缓冲写盘 |
+| `aurora.upscale.ingest` | App:**8101**（⚠️ D7b 订正：旧写 :7980） | userInitiated | 插帧 ingest |
 | `com.aurora.record.write` | RecordEngine.swift:75 | （默认/unspecified） | 录制写盘 |
 | `com.aurora.confidence.brightness`（brightnessQueue） | ConfidenceEstimator.swift:217-218 | userInitiated | 画面亮度估计 |
 
@@ -630,3 +659,32 @@ controlEngine.refreshHeldKeys()
 - **PrioritySetup.swift**（74 行）：root renice 守护，每 5s 把本进程（含 --engine 引擎子进程）renice -20（:12-14）。详见 代码-30。
 - **PrivilegePill.swift**（472 行）：应用内密码提权（`sudo -S` 走 stdin，不进 argv；绝不用系统授权弹窗，:8-25 设计约束）；`aurora.privilege.process` 队列 qos .utility（:251-252）。详见 代码-30。
 - **WireSelfTest.swift**（222 行）：引擎配置通道自检（`--wire-selftest`），起因「手切档位静默失效」四处缺陷叠加（:12-28：①sendCommand 静默失败 ②pushConfig 日志说谎 ③先记账后发送 ④心跳超时只置 isConnected 不动 isActive，:28）。详见 代码-33。
+
+## §附、D7b 行号换算总表与勘误（2026-10-07 逐条 `sed` 实测）
+
+**背景**：`AuroraDriveApp.swift` 由 8335 → **8456 行**（提交 `2c0459a` 真对话/自主按键 + `22a6604` 会话滑动窗口，新增内容全在 `DriveState` 之前的文件前部），故 `DriveState` 及其后统一 **+121**。文首已给出该规则，但 **§六/§七/§九 的「新锚点」行违反了它**（写成未加 121 的旧值）。下表为实测汇总。
+
+### A. 正文内联锚点勘误（已就地订正 6 处）
+
+| 节 | 旧写 | ✅ 实测（= 旧值 +121） |
+|---|---|---|
+| §六 头部 | setUpscaleEnabled 5894 / setGameModeBoost 5905 / startTraining 5948 / deployTrainedModel 5994 / clearRawClips 6040 | **6015 / 6026 / 6069 / 6115 / 6161**（`sed` 逐条命中函数声明） |
+| §七 头部 | tickEngineMode 6058 / 速度回传 6125-6128 / 版本守卫 6106-6120 | **6179 / 6244-6249 / 6231-6241** |
+| §七 头部 | `pushEngineConfigIfChanged` 「在其后」 | **6385**（实测函数声明） |
+| §九 头部 | recordFrameIfNeeded 7162 / applyCommand 7321 | **7283 / 7442** |
+| §十一 队列表 | `agent.skill` AIAgentPanel.swift:**276** | **256**（:276 实为 `guard !settings.apiKey`） |
+| §十一 队列表 | logsink App:8216-8217 / upscale.ingest App:7980 | **8337-8338 / 8101** |
+
+### B. 未订正但需按 `+121` 理解的内联行号（§九 正文）
+
+`recordFrameIfNeeded` 正文里的「第 2097–2127 行」「2038/2096 行注释」、`applyCommand` 的「第 2131–2160 行」「2156–2159 行注释」等，均为**旧基准**；语义（glyph 跳过 / 专家模式键码标签 / 转向死区 ±0.1 / 油门刹车互斥 0.3 / 每帧 `refreshHeldKeys()`）经实测仍然正确，仅行号需按函数名重新定位。
+
+### C. 已实测确认**正确**的关键锚点（可直接引用）
+
+`final class DriveState` **:4102**、`locatorFound` **:4266**、`locatorX/Y/Score/Heading` **:4267-4270**、`locatorAccelX/Z` **:4274/:4276**、`locatorTarget` **:4277**、`questName` **:4283**、`routePlan` **:4293**、`clearRoute()` **:4315**（`locatorTarget = nil` :4320）、`setLocatorTarget(x:y:)` **:4414**、`heading(from:to:)` **:4416**、`runNetworkLocateStep()` **:4445**（懒初始化 :4448-4461）、`locateSource()` **:4438**、`dlog` **:4778**、`isRecording didSet` **:4887**、`stuckZeroThreshold` **:5248**、`captureEngine` **:5373**、`degradeStm` **:5397**、`ruleController` **:5415**、`confidenceEst` **:5416**、`inferenceEngine` **:5421**、`assistEngine` **:5426**、`yoloEngine` **:5431**、`yolopxEngine` **:5445**、`egoBoxFilter` **:5452**、`driveSegment` **:5462**、`fallbackGuard` **:5483**、`speedOCR` **:5614**、`questPanel` **:5623**、`startDriving()` **:5881**、`stopDriving()` **:5973**、`tick()` **:6505**、`readPose()` **:7392**、`segmentDecisionForRule` **:7406**、`applyCommand` **:7442**、`recordFrameIfNeeded` **:7283**、`applyLaneAdvice` **:7739**、`setenv("AURORA_EGO_CHECK")` **:3541** / `unsetenv` **:3545**。
+
+### D. 本档本次**未验证**的残留项（诚实记录）
+
+- §八 tick 内部若干细分锚点（如「待机分支 App:6556-6572」「卡死 App:6653-6680」「降级 6682-6697」）为 10-06 基准的 `+121` 推算值，**未逐条 `sed` 复核**（抽查 `tick()` :6505、感知层 :6701、降级 update :6807、按档输出 :6992/:7000 命中）。
+- §十二 若干 EngineMain 行号（:810/:823-826/:599）实测**命中**；但 `App:6127-6128`（speedValid）实测指向的是**模型部署**区（应为 :6248-6249），已在 §七 订正。
+- AI 面板改动全在 `Agent/AIAgentPanel.swift`（**3253 行**，最后一次改动 `22a6604` 2026-10-07 02:29），与本文覆盖的 `DriveState` 段**无重叠**——§〇·五 落点表行号经抽查基本吻合（`appendMessage` :208-215、`sendChatMessage` :1557、`encodeCurrentFrameForVision` :1636-1641、`AgentSettingsSheet` :2547、`LLMDiagnosticsSheet` :2453、`AgentConversationView` :2947、折叠提示 :2955-2962）。

@@ -6,7 +6,7 @@
 
 屏幕捕获 → CoreML 推理 → 按键注入，附带网络抓包定位、速度识别（PP-OCRv6 微调 int8）与 MetalFX 显示增强
 
-[English Documentation](README.en.md) · 开发者文档 · [Developer Guide (EN)](docs/文档库/英文版/DEVELOPER_GUIDE.en.md)
+[English Documentation](README.en.md) · [开发者文档](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) · [Developer Guide (EN)](docs/文档库/英文版/DEVELOPER_GUIDE.en.md) · **[📚 文档总索引](docs/00-文档总索引.md)**
 
 </div>
 
@@ -28,13 +28,40 @@
 
 ## ✨ 核心功能 / Features
 
-- **端到端自动驾驶**：M9 单目模型直接从画面输出操控量，四档降级保底（端到端 → YOLO 接管 → 脱困 → 规则兜底）
+- **端到端自动驾驶**：M9 单目模型直接从画面输出操控量，**三档降级**保底（端到端 → YOLO 接管 → 规则兜底）
 - **网络抓包定位**：libpcap 捕获 UE5 移动同步包（tcp/30031），位流解码出世界坐标 + 朝向，映射到 13056×13056 大地图像素（map-2026-08，2026-09-13 升级）
 - **速度识别**：PP-OCRv6 微调整行模型（`models/ppocrv6_tiny_ft_int8.mlpackage`，int8 量化，GPU 推理）为主路径，逐位 CNN（`speed_digit_cnn_v4*`）为备用，三层校验
 - **BPF 权限自动安装**：App 内输入一次管理员密码，自动安装 LaunchDaemon，每次开机自动恢复 `/dev/bpf*` 读写权
-- **自愈式定位**：网络失效 → 视觉模板匹配顶班 → 后台 8 种诊断 + 自动修复 → 自动切回
+- **AI 助手（真对话 + 自主操作）**：接大模型**真对话**（流式输出，增量按 15Hz 节流；候选链最多尝试 4 个，全链失败才回退本地套话并标注「离线回复」）；助手可**自主调工具**（共 **30 个**）；操作游戏界面走**「ESC → 截图 → 鼠标点击」唯一可靠路径**。会话带**滑动窗口**（上限 200 条 ≈100 轮）
+- **任务面板 OCR**：读游戏左侧任务面板文字 → 查 `models/quest_index.json` → 世界坐标目标（**默认开启**，每 0.7s 一次 Vision OCR）
 - **全收集交互地图**：多图层开关（传送点/材料/宝箱/谕石），实时玩家位置 + 朝向
+- **路网先验**：`models/route_graph.json` 修复版 **664 节点 / 932 边**，断头率 19.3% → 5.4%
 - **MetalFX 显示增强**：超分 + 插帧，只作用于显示层，**绝不进入**「捕获→推理→按键」决策链路
+
+<details>
+<summary><b>📌 逐条代码依据（2026-10-07 核实，点开查看）</b></summary>
+
+| 功能 | 依据（`文件:行号` / 命令） |
+|---|---|
+| **三档**降级（原写「四档含脱困」**已过期**） | 脱困档 `.recover` 于 2026-09-30 整体删除：`Sources/AuroraDrive/Agent/DegradeStateMachine.swift:5-9`；`EscapeController` 类型已删、仅留 `ControlCommand` 输出格式：`Sources/AuroraDrive/Control/EscapeController.swift:12`、`AuroraDriveApp.swift:5411-5412` |
+| 网络定位**仍活着**（旧抓包路径已移除） | 旧 `networkLocator.start()` 已注释：`AuroraDriveApp.swift:5958`（原注释「旧网络抓包定位已移除」）；**现行** `CoordinateCapture` 懒初始化 + `cc.start()`：`AuroraDriveApp.swift:4447-4461`（注释「纯网络定位，无自愈引擎」）；libpcap 实调用 `CoordinateCapture.swift:1047`；过滤器/端口 `CoordinateCapture.swift:567` |
+| `NetworkLocator` **编译但零实例化** | `grep -rn "NetworkLocator(" Sources/` → **零命中**；仅 `Sources/AuroraDrive/App/LocateRuntime.swift:31` 有一个从未赋值的字段 |
+| 三层校验 | `Sources/AuroraDrive/Inference/SpeedOCRReader.swift:638-653`（Layer 1 量程 / Layer 2 跳变 / Layer 3 多帧确认） |
+| AI **真对话** | `Sources/AuroraDrive/Agent/AgentChatService.swift:109-115`（候选上限 4、增量 15Hz 节流）；同文件 `:22-26` 记「全链失败不抛错给 UI，回退 `localReply` 并标注『离线回复』」 |
+| 自主调工具 **30 个** | `Sources/AuroraDrive/Agent/ToolRegistry.swift:16-23`（18 技能 + 4 键位 + 1 文本 + 3 鼠标 + 2 观察 + 2 搜索）；技能挂载 `:151-158`；四道护栏 `:24-34` |
+| **ESC + 鼠标**路径 | `AgentChatService.swift:340-348`（「这条路（ESC → 截图 → 鼠标点击）是本工具操作界面的**唯一可靠方式**」）；技能内 ESC 实注入 `AIAgentPanel.swift:1232`（`pressGameKey(.esc, duration: 0.05)`）；键位自检探针 `LLMSelfTest.swift:1160` |
+| **滑动窗口** | `Sources/AuroraDrive/Agent/AIAgentPanel.swift:197-214`（`static let maxMessages = 200`） |
+| 任务面板 **OCR** | `Sources/AuroraDrive/Inference/QuestPanelReader.swift:414-431`（`minInterval = 0.7`）；默认开启：`Sources/AuroraDrive/Core/AuroraFlags.swift:192-201`（`questOCR` 默认 `true`） |
+| 路网 **664/932** | `Sources/AuroraDrive/App/AuroraDriveApp.swift:2091`（「断头 118 (19.3%) → 36 (5.4%)，节点 612→664，边 825→932」）+ `:2095-2096` 自检断言；数据文件实测 `models/route_graph.json` → `nodes:664 / edges:932` |
+| 三级新鲜度（替代原「自愈式定位」） | `AuroraDriveApp.swift:4515-4527`（live ≤18s / recent ≤40s / stale ≤90s / lost >90s） |
+| MetalFX 仅显示层 | `Sources/AuroraDrive/Capture/CaptureEngine.swift:55`（「走独立回调**不干扰主路径**」）；`AuroraDriveApp.swift:5755` |
+
+</details>
+
+> ⚠️ **2026-10-07 删除条目说明**：原第 5 条「**自愈式定位**：网络失效 → 视觉模板匹配顶班 → 后台 8 种诊断 + 自动修复 → 自动切回」**已整条删除** ——
+> 自愈引擎 `NetworkHealer` 已随 commit 76e9027 退役；`VisualLocator` 类型虽存在（`Sources/AuroraDrive/Locate/VisualLocator.swift:27`）但**从未被实例化**（`grep -rn "VisualLocator(" Sources/` 零命中，`LocateRuntime.swift:30` 的字段始终为 `nil`）；
+> 「8 种诊断 + 自动修复」在源码中**无对应实现**。按「不许编造功能」原则，不保留无法核实的宣传。
+> **现行做法**：网络定位 + **三级新鲜度**，陈旧只如实标注、不闪断，且 `recent` 起不再参与决策（更保守）。
 
 ## 🚀 快速开始 / Quick Start
 
@@ -60,8 +87,8 @@ cd AuroraDrive
 │ 30Hz CVPixelBuffer    │   │ YOLO(yolo26s) 检测        │   │ (ControlEngine)     │
 ├─ 定位层 Locate ───────┤   │ 速度OCR(PP-OCRv6) 30Hz  │   ├─ 显示层 Display ───┤
 │ libpcap tcp/30031     │   ├─ 决策层 Decide ──────────┤   │ MetalFX 超分+插帧   │
-│ UE5位流→世界坐标       │   │ 四档降级状态机             │   │ 全收集交互地图      │
-│ →13056px 地图像素     │   │ e2e/yolo/recover/rule     │   │ (仅人眼观看)        │
+│ UE5位流→世界坐标       │   │ 三档降级状态机             │   │ 全收集交互地图      │
+│ →13056px 地图像素     │   │ e2e/yolo/rule             │   │ (仅人眼观看)        │
 └───────────────────────┘   └───────────────────────────┘   └────────────────────┘
 ```
 
@@ -81,7 +108,8 @@ cd AuroraDrive
 | **④ 掩码可视化** | 可行驶区/车道线掩码经共享内存传回 UI 叠加显示（bit-pack，160×160 网格） | 写作后新增 |
 
 > 另注：架构图中 `YOLO(yolo26s) 检测` 的表述需留意——`yolo26s` 在项目中**主要用于预测侧**，
-> 而游戏内目标检测的主路径是 **YOLOPX 的 `det` 头**。详见 `代码-14` 与 `04-vision-inference` §4.8。
+> 而游戏内目标检测的主路径是 **YOLOPX 的 `det` 头**。详见 [`代码-14-YoloEngine目标检测.md`](docs/文档库/自动驾驶与功能/代码-14-YoloEngine目标检测.md)
+> 与 [`04-vision-inference.md` §4.8](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/04-vision-inference.md)（该文已归档，`§4.8 YOLOPX 三合一感知` 位于该文件第 92 行）。
 
 ## 🧹 2026-09-19 磁盘清理 / Disk cleanup
 
@@ -112,16 +140,33 @@ cd AuroraDrive
 
 ## 📚 文档 / Documentation
 
+> ⚠️ **2026-10-07 断链修复说明**：下方「三级」一栏原指向 `自动驾驶与功能/` 下的 `01-architecture.md`～`05-control-safety.md` 五个文件，这些文件已于 2026-10-02 整体迁入 **`历史归档/05-自动驾驶与功能-早期稿/`**（`ls` 实测：原路径 No such file）。
+> 本次按「文件存在→改指新路径」原则**全部重指到归档实际位置**，并标注「早期稿」。
+> **当前权威正文在 `代码-XX` 系列**（`代码-00` 是导航页），早期稿仅供追溯。
+
 | 层级 | 中文 | English |
 |---|---|---|
 | 入口 Overview | [README（本页）](README.md) | [README.en](README.en.md) |
 | 二级 Developer Guide | [开发者文档](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) | [Developer Guide](docs/文档库/英文版/DEVELOPER_GUIDE.en.md) |
-| 三级 Architecture | [系统架构](docs/文档库/自动驾驶与功能/01-architecture.md) | [Architecture](docs/文档库/英文版/01-architecture.en.md) |
-| 三级 Network Locate | [网络定位](docs/文档库/自动驾驶与功能/02-network-locate.md) | [Network Localization](docs/文档库/英文版/02-network-locate.en.md) |
-| 三级 Speed OCR | [速度识别](docs/文档库/自动驾驶与功能/03-speed-ocr.md) | [Speed Recognition](docs/文档库/英文版/03-speed-ocr.en.md) |
-| 三级 Vision & Inference | [视觉与推理](docs/文档库/自动驾驶与功能/04-vision-inference.md) | [Vision & Inference](docs/文档库/英文版/04-vision-inference.en.md) |
-| 三级 Control & Safety | [控制与安全](docs/文档库/自动驾驶与功能/05-control-safety.md) | [Control & Safety](docs/文档库/英文版/05-control-safety.en.md) |
-| 四级 Internals | [核心实现原理](docs/文档库/自动驾驶与功能/) | [Internals](docs/文档库/英文版/) |
+| 三级 Architecture（早期稿） | [系统架构](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/01-architecture.md) | [Architecture](docs/文档库/英文版/01-architecture.en.md) |
+| 三级 Network Locate（早期稿） | [网络定位](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/02-network-locate.md) | [Network Localization](docs/文档库/英文版/02-network-locate.en.md) |
+| 三级 Speed OCR（早期稿） | [速度识别](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/03-speed-ocr.md) | [Speed Recognition](docs/文档库/英文版/03-speed-ocr.en.md) |
+| 三级 Vision & Inference（早期稿） | [视觉与推理](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/04-vision-inference.md) | [Vision & Inference](docs/文档库/英文版/04-vision-inference.en.md) |
+| 三级 Control & Safety（早期稿） | [控制与安全](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/05-control-safety.md) | [Control & Safety](docs/文档库/英文版/05-control-safety.en.md) |
+| 四级 Internals（现行） | [核心实现原理：代码-00 源码树与架构总览](docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md) · [全文索引](docs/文档库/自动驾驶与功能/00-文档索引.md) | [Internals 索引（EN）](docs/文档库/英文版/00-本目录索引.md) |
+
+**现行分模块文档（`代码-00`~`代码-39`，共 40 篇）**：按子系统一一对应源码，含 `文件:行号` 级引用，**与当前代码同步维护**。常用入口：
+
+| 主题 | 文档 |
+|---|---|
+| 源码树 / 架构总览 | [代码-00-源码树与架构总览](docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md) |
+| 网络坐标采集 | [代码-04-CoordinateCapture网络坐标采集](docs/文档库/自动驾驶与功能/代码-04-CoordinateCapture网络坐标采集.md) |
+| 速度 OCR | [代码-12-SpeedOCRReader高速OCR](docs/文档库/自动驾驶与功能/代码-12-SpeedOCRReader高速OCR.md) |
+| 降级状态机（三档） | [代码-20-DegradeStateMachine降级状态机](docs/文档库/自动驾驶与功能/代码-20-DegradeStateMachine降级状态机.md) |
+| AI 助手面板 | [代码-23-AIAgentPanel与17技能](docs/文档库/自动驾驶与功能/代码-23-AIAgentPanel与17技能.md) |
+| 进程间通信 | [代码-07-EngineClient进程间通信](docs/文档库/自动驾驶与功能/代码-07-EngineClient进程间通信.md) |
+| 路网先验 | [代码-36-RoadMapPrior路网先验](docs/文档库/自动驾驶与功能/代码-36-RoadMapPrior路网先验.md) |
+| BPF 权限与 LaunchDaemon | [bpf-daemon](docs/文档库/自动驾驶与功能/bpf-daemon.md) |
 
 ## 📄 许可证 / License
 

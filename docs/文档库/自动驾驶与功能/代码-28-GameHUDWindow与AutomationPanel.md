@@ -1,11 +1,12 @@
 # 代码-28 GameHUDWindow 帧率浮层 与 AuroraTheme 主题令牌
 
-> 📌 **文件名失效提示（2026-09-29 复核追加）**：**本文文件名中的 `AutomationPanel` 已不存在**
-> （UI 大改版删除，职责拆到 MissionConsole 的 AutomationBigButton / RunStatusCard / SkillOverlay）。
+> 📌 **文件名失效提示（2026-10-07 由核对代理 E4 复核确认）**：**本文文件名中的 `AutomationPanel` 已不存在**
+> ——`grep -rn "AutomationPanel" Sources/` 现**零命中**（2026-10-07 实测）：定义、引用、残注释全无，
+> 早前「UI 大改版删除，职责拆到 MissionConsole 的 AutomationBigButton / RunStatusCard / SkillOverlay」的说法属实。
 > 文件名保留不改是为了不破坏既有交叉引用，**内容已正确**。
 >
-> 覆盖源文件：`Sources/AuroraDrive/App/GameHUDWindow.swift`（**123 行**）+ `AuroraTheme.swift`（**419 行**，2026-10-02 `wc -l` 实测；原文写 345 行**，UI 大改版新增）。
-> ⚠️ 2026-09-29 实测：`AuroraTheme.swift` 现为 **373 行**（+28），正文行号可能有个位数偏移。
+> 覆盖源文件：`Sources/AuroraDrive/App/GameHUDWindow.swift`（**123 行**）+ `AuroraTheme.swift`（**773 行**，2026-10-07 `wc -l` 实测）。
+> ⚠️ **2026-10-07 行数勘误（E4 实测）**：`AuroraTheme.swift` 现为 **773 行**。本文旧头部同时写着「419 行（2026-10-02 实测）」与「373 行（2026-09-29 实测）」两个数字，**均已过时**（419 那次实测之后文件又涨了 354 行）；正文第二节标题「AuroraTheme 主题令牌（345 行）」更是三手旧数——三处本次一并改正为 773。
 >
 > **⚠️ 2026-09-25 重建说明**：本档原覆盖 GameHUDWindow.swift（120 行）+ `App/AutomationPanel.swift`（251 行）——**AutomationPanel 已在 UI 大改版中删除**（其"驾驶开关/状态"职责由 MissionConsole 的 AutomationBigButton + RunStatusCard 承载，自动化技能入口由 SkillOverlay 承载）。本档现补上同为大改版产物的 AuroraTheme（全项目视觉令牌的唯一权威源）。
 
@@ -23,15 +24,15 @@
 
 **接口**：`fpsProvider: (() -> (assist: Double, game: Double))?`（调用方注入取值闭包，避免依赖具体引擎内部）；`isInstalled`（window != nil）；`debugState`（诊断字符串：visible/level/frame）。
 
-**引用关系（旧档 grep 记录 + 大改版后）**：安装调用方 = DriveState.init（`--engine` 模式下不装）；fpsProvider 唯一赋值方在 DriveState；`uninstall()` 零调用（无卸载路径，与旧版一致）。
+**引用关系（2026-10-07 由 E4 重测行号）**：实例 `let gameHUD = GameHUDWindow()`（AuroraDriveApp.swift:5376）；安装调用方 = `DriveState.init()`（App:5629 起），`gameHUD.install()`（App:5681），**`--engine` 模式下不装**（`if !CommandLine.arguments.contains("--engine")` App:5677），另有 `AURORA_DISABLE_HUD=1` 诊断开关跳过安装（App:5676-5680）；fpsProvider 唯一赋值方在 DriveState（App:5644）；`uninstall()` 零调用（全仓仅 GameHUDWindow.swift:106 有定义，无卸载路径，与旧版一致）。
 
-## 二、AuroraTheme 主题令牌（345 行，UI 大改版新增）
+## 二、AuroraTheme 主题令牌（**773 行**，UI 大改版新增；2026-10-07 E4 实测）
 
 **这是什么**：任务控制中心全部视觉规范的**唯一权威源**——从网页原型 CSS 变量逐一等价翻译（`--void`/`--s0..--s3`/`--ice`/`--txt` 等），任何 MissionConsole 子视图取色只准从这里取，**禁止散落硬编码色值**。
 
-**`Color.init(hex:alpha:)`（18–26 行）**：`0xRRGGBB` 字面量构造（比 Color(red:green:blue:) 好读）。
+**`Color.init(hex:alpha:)`（AuroraTheme.swift:18-29）**：`0xRRGGBB` 字面量构造（比 Color(red:green:blue:) 好读）。
 
-**`enum Aurora` 令牌总表（32 行起）**：
+**`enum Aurora` 令牌总表（AuroraTheme.swift:32 起）**：
 
 | 组 | 令牌 | 值 | 网页对应 |
 |---|---|---|---|
@@ -45,7 +46,7 @@
 | 圆角 | `r1..r4` | 8/12/15/20 | — |
 | 字体 | `mono(_:_)` / `sans(_:_)` / `label(_:)` | 等宽/无衬线/全大写小标签 | HUD 数字用 mono |
 
-**`RoadCondition` enum（约 100 行起，本文件内定义）**：路况自适应 6 档状态机（simple/easy/medium/busy/extreme/off），`String/CaseIterable/Identifiable/Sendable`——**定义在 AuroraTheme 是刻意的**：路况的核心用途是"状态色驱动全局"（DriveState 1756 MARK 注释："黑灰白 UI · 状态色驱动全局"），enum 与视觉档位绑定。判定阈值/自动限速在 ControlWiring 的 AutoRoadCondition（见代码-29）。
+**`RoadCondition` enum（AuroraTheme.swift:238 起，本文件内定义）**：路况自适应 6 档状态机（simple/easy/medium/busy/extreme/off），`String/CaseIterable/Identifiable/Sendable`——**定义在 AuroraTheme 是刻意的**：路况的核心用途是"状态色驱动全局"（DriveState 1756 MARK 注释："黑灰白 UI · 状态色驱动全局"），enum 与视觉档位绑定。判定阈值/自动限速在 ControlWiring 的 AutoRoadCondition（见代码-29）。
 
 **给别的 AI 的铁律提示（用户原话级约束）**：
 1. **视觉要求极高**——"非常高级"、反复抠细节、往死里抠细节
@@ -70,7 +71,7 @@
 | `hair` | 0xE4E9F2 α0.22 | :769 | 分隔线/标签 |
 | `radius` | `Aurora.radiusCard` = 12 | :772（radiusCard 定义 AuroraTheme.swift:108） | 卡片圆角（注释「小方框不要用面板级 16」） |
 
-- **实测修正注释（AuroraTheme.swift:724-738）**：首版把卡片底做成白色（0xFFFFFF α0.16），亮底复测文字对比度仅 1.57:1（WCAG AA 要 4.5:1）→ 改回深色玻璃 `scrimHi → scrim` 渐变；银白只保留在描边与外侧辉光上。
-- 辉光的用法（在 QuestCard 侧）：两层 `.background` + `.blur` + `.blendMode(.plusLighter)` 加法发光（MissionConsole.swift:1013-1027）——`.shadow` 的 alpha lerp 在亮背景上会压暗，详见 代码-27「三-A」节 4。
+- **实测修正注释（AuroraTheme.swift:723-738）**：首版把卡片底做成白色（0xFFFFFF α0.16），亮底复测文字对比度仅 1.57:1（WCAG AA 要 4.5:1）→ 改回深色玻璃 `scrimHi → scrim` 渐变；银白只保留在描边与外侧辉光上。
+- 辉光的用法（在 QuestCard 侧）：两层 `.background` + `.blur` + `.blendMode(.plusLighter)` 加法发光（MissionConsole.swift:1016、1023 为两处 `.fill(AuroraSilver.glow*)`，`.blendMode(.plusLighter)` 在 :1018/:1025，块注释起点 :1007）——`.shadow` 的 alpha lerp 在亮背景上会压暗，详见 代码-27「三-A」节 4。
 
 **GameHUDWindow 与 AuroraTheme 文档至此完整**。

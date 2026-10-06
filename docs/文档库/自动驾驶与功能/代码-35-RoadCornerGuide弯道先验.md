@@ -1,7 +1,8 @@
 # 代码-35 RoadCornerGuide 弯道/路口先验
 
-> 覆盖源文件：`Sources/AuroraDrive/Inference/RoadCornerGuide.swift`（**757 行，2026-10-06 `wc -l` 复测**；2026-10-02 版为 752 行，行号以 757 行版为准，已逐条回读核实）
-> 数据源：`models/road_corners_v3b.json`（**1622667 B**，2026-10-06 复测）
+> 覆盖源文件：`Sources/AuroraDrive/Inference/RoadCornerGuide.swift`（**757 行，2026-10-07 `wc -l` 复测，与旧记一致**；2026-10-02 版为 752 行，行号以 757 行版为准，已逐条回读核实）
+> 数据源：`models/road_corners_v3b.json`（**1622667 B**，2026-10-07 `ls -l` 复测，与旧记一致）
+> 🔁 **2026-10-07 由文档核对代理 E4 复核**：源文件 757 行未变，第二节类型/API 表与第四节参数行号、第五节航向符号链**逐条核对无误**；**仅第五·五节「在驾驶全链路中的位置」的 AuroraDriveApp.swift 行号失效**（App 已增至 8456 行），本次只修该节。数据统计（3135 点/1924 bend/1211 junction）**本次未重测**，沿用 2026-10-02 实测值。
 > 关联：[`代码-34-DriveSegmentController驾驶分段控制器.md`](代码-34-DriveSegmentController驾驶分段控制器.md)（消费方）、
 > [`代码-36-RoadMapPrior路网先验.md`](代码-36-RoadMapPrior路网先验.md)（姊妹先验）
 
@@ -66,13 +67,15 @@ signedHeadingDiff(from:to:)            :639–644
 
 **方向核验**：罗盘角 0°=北 → 90°=东，**右转时航向角增大** ⟹ `diff > 0` 对应右转 ✓ 链路自洽。
 
-## 五·五、★ 在驾驶全链路中的位置（2026-10-06 补，行号已核实）
+## 五·五、★ 在驾驶全链路中的位置（2026-10-07 由核对代理 E4 按当前 App 重测行号）
 
 本文件是**真实操控链的弯道数据源**——不是 RoutePlan（A*）：
 
 - 消费入口：`DriveSegmentController.stepFromVision` → `RoadCornerGuide.shared.cornerAhead`（`Agent/DriveSegmentController.swift:157`）；路口走 `junctionAhead`/`chooseExit`/`steerForJunction`（:161-163/:280-284）；回正/过弯用 `signedHeadingDiff`（:217/:263/:310）。
-- 生效路径：`DriveState.tick()`（AuroraDriveApp.swift:6384）→ laneKeepTiers 门（:6917）→ `readPose()`（locatorScore≥0.4，:7271-7279）→ `segmentDecisionForRule`（:7285-7301）→ `mapSteer` 覆盖视觉转向（:6930-6940）→ `applyCommand`（:7321-7350）注入按键。
+- 生效路径：`DriveState.tick()`（AuroraDriveApp.swift:6505）→ laneKeepTiers 门（:7038）→ `readPose()`（locatorScore≥0.4，定义 :7392-7400）→ `segmentDecisionForRule`（:7406-7422）→ `mapSteer` 覆盖视觉转向（:7051-7061）→ `applyCommand`（:7442-7471）注入按键。
 - 对照：`RoutePlan`（A*，`App/RouteGraph.swift:404-540`）的 `points` 只供小地图画线（`App/MissionConsole.swift:3912-3942`）与弯道距离显示（:627-635），**不产生按键**（未验证有其它接线）。
+
+> ⚠️ 本节旧行号（App 8335 行版：`tick()` :6384、档位门 :6917、readPose :7271-7279、applyCommand :7321-7350）**已全部失效**——App 主文件现为 **8456 行**，上面行号 2026-10-07 逐条 `grep` 回读核实。
 
 ## 六、空间索引与其等价性证明
 
@@ -129,3 +132,4 @@ signedHeadingDiff(from:to:)            :639–644
 ---
 
 **本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。2026-10-06 由文档更新代理 A8 复核：全文行号按 757 行版回读更新，并补「在驾驶全链路中的位置」一节；数据统计（3135 点/1924 bend/1211 junction）未重测，沿用 2026-10-02 实测值。
+**2026-10-07 由文档核对代理 E4 复核**：源文件 757 行、数据文件 1622667 B 均未变；第二节类型/API 表（`RoadBranch:44` / `RoadCorner:58` / `CornerHit:102` / `RoadCornerGuide:112`、`ensureLoaded:234`、`cornerAhead:355`、`steerForCorner:421`、`speedAdviceForCorner:472`、`junctionAhead:503`、`chooseExit:534`、`effReach:567`、`steerForJunction:602`、`headingDiff:632`、`signedHeadingDiff:639`、`debugCornerAt:649`、`cornerAheadLinearReference:661`、`junctionProbeFromOwnData:695`、`probeFromOwnData:717`、`selfTest:738`）与第四节参数行号、第五节航向符号链**全部核对无误**；第五·五节 App 行号按 8456 行版重测。

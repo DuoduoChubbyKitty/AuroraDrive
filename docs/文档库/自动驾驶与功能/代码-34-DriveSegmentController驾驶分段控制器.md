@@ -1,7 +1,8 @@
 # 代码-34 DriveSegmentController 驾驶分段控制器
 
-> 覆盖源文件：`Sources/AuroraDrive/Agent/DriveSegmentController.swift`（**430 行，2026-10-06 `wc -l` 复测**；2026-10-02 版为 429 行，行号以 430 行版为准，关键行号已逐条回读核实）
+> 覆盖源文件：`Sources/AuroraDrive/Agent/DriveSegmentController.swift`（**430 行，2026-10-07 `wc -l` 复测，与旧记一致**；2026-10-02 版为 429 行，行号以 430 行版为准，关键行号已逐条回读核实）
 > ⚠️ 本文件**未在 git 跟踪**（untracked），是 2026-09-30 新增的分段控制层。
+> 🔁 **2026-10-07 由文档核对代理 E4 复核**：源文件 **430 行未变**，第一～五节与第七节的所有 `DriveSegmentController.swift:N` 行号**逐条核对无误**；**仅第六节「消费端接线」的 AuroraDriveApp.swift 行号整体失效**（App 已增至 8456 行），本次只修该节行号。第七节「缺陷 1」中的消费端行号（:6930/:6942）一并更新为 :7051/:7063。
 > 关联：[`代码-24-AuroraDriveApp入口与AppDelegate.md`](代码-24-AuroraDriveApp入口与AppDelegate.md)（消费端）、
 > [`代码-35-RoadCornerGuide弯道先验.md`](代码-35-RoadCornerGuide弯道先验.md)（弯道数据源）、
 > [`代码-36-RoadMapPrior路网先验.md`](代码-36-RoadMapPrior路网先验.md)（路网数据源）
@@ -71,27 +72,27 @@ var reason: String
 
 **用户原话的成功判据**：「在那条道路里，而且已经向前行驶一段距离，而且都能拟合在道路里，并且模型已经能正常识别到车道线，才能算成功」——四条与代码一一对应 ✅
 
-## 六、消费端接线（2026-10-06 复核，行号已更新）
+## 六、消费端接线（2026-10-07 由核对代理 E4 按当前 App 重测行号）
 
-调用链（`Sources/AuroraDrive/App/AuroraDriveApp.swift`，⚠️ 源文件已增至 8335 行，以下行号 2026-10-06 回读核实）：
+调用链（`Sources/AuroraDrive/App/AuroraDriveApp.swift`，⚠️ 源文件已增至 **8456 行**、`tick()` 在 **:6505**，以下行号 2026-10-07 逐条 `grep` 回读核实）：
 
 ```
-:5426-5428  laneKeepTiers 声明（AURORA_LANEKEEP_TIERS，默认 rule,yolo）
-:6917     if Self.laneKeepTiers.contains(decided) {       ← 档位门：rule+yolo 档都跑（2026-10-02 放开）
-:6928       if let pose = readPose(),                     ← 定位门：locatorScore>=0.4（readPose :7271-7279）
-:6929          let segDecision = segmentDecisionForRule(pose: pose) {   （:7285-7301）
-:6930        if segDecision.overridesVision, let ms = segDecision.mapSteer {
-:6933        currentCommand.steer = max(-1.0, min(1.0, ms))    ← 覆盖视觉转向（±1.0 限幅）
-:6934-6938   // 压油门（限速生效时）
-:6939        segmentUsed = true
-:6940        logSegmentIfNeeded(segDecision, before: before)
+:5547-5549  laneKeepTiers 声明（AURORA_LANEKEEP_TIERS，默认 rule,yolo；AuroraFlags.swift:280）
+:7038     if Self.laneKeepTiers.contains(decided) {       ← 档位门：rule+yolo 档都跑（2026-10-02 放开）
+:7049       if let pose = readPose(),                     ← 定位门：locatorScore>=0.4（readPose 定义 :7392-7400）
+:7050          let segDecision = segmentDecisionForRule(pose: pose) {   （定义 :7406-7422）
+:7051        if segDecision.overridesVision, let ms = segDecision.mapSteer {
+:7054        currentCommand.steer = max(-1.0, min(1.0, ms))    ← 覆盖视觉转向（±1.0 限幅）
+:7055-7058   // 压油门（限速生效时）
+:7060        segmentUsed = true
+:7061        logSegmentIfNeeded(segDecision, before: before)
             } else {
-:6942        logSegmentIfNeeded(segDecision, before: nil)   ← ★ 限速在此被静默丢弃
+:7063        logSegmentIfNeeded(segDecision, before: nil)   ← ★ 限速在此被静默丢弃
             }
-:6945-6949  if !segmentUsed, let advice = laneFallback.evaluate(...)  ← 第三优先
+:7066-7070  if !segmentUsed, let advice = laneFallback.evaluate(...)  ← 第三优先
 ```
 
-**readPose 定位门（:7271-7279）**：`guard locatorFound`、坐标非有限值、**`guard locatorScore >= 0.4`** 三道，任一不过返回 nil → fail-open 回落视觉。新鲜度档位→分数映射 `locatorScoreForTier`（:7262-7269）：live≤18s→1.0（唯一过 0.4 门槛）、recent 18~40s→0.3、stale 40~90s→0.1、lost→0（比旧行为更保守：陈旧定位不再驱动驾驶）。
+**readPose 定位门（:7392-7400）**：`guard locatorFound`、坐标非有限值、**`guard locatorScore >= 0.4`** 三道，任一不过返回 nil → fail-open 回落视觉。新鲜度档位→分数映射 `locatorScoreForTier`（:7383-7390）：live≤18s→1.0（唯一过 0.4 门槛）、recent 18~40s→0.3、stale 40~90s→0.1、lost→0（比旧行为更保守：陈旧定位不再驱动驾驶）。
 
 **优先级链**：地图（`overridesVision`）> 视觉（`laneFallback`）> 底层模型；
 **避障仍可再覆盖地图**。
@@ -106,7 +107,7 @@ var reason: String
 
 ### 缺陷 1 · 地图段限速**全线失效**
 
-**因果链**（每环都有行号，2026-10-06 按 430 行版核实）：
+**因果链**（每环都有行号，2026-10-07 按 430 行版 + App 8456 行版复核）：
 
 1. `:61` `var overridesVision: Bool { mapSteer != nil }`
    → **限速是否生效取决于 `mapSteer`，与 `speedLimitKmh` 无关**
@@ -115,7 +116,7 @@ var reason: String
 3. `:237` `let lim = speedLimitForCorner(nil, spd, radius: nil)`
    → `:406-411` 该函数 `hit == nil` 时返回 nil ⇒ **地图段稳态永远没有限速值**
 4. `:383`（`stepHandover`）→ 返回 `mapSteer: nil, speedLimitKmh: 30.0` → **同样被丢**
-5. 消费端 `AuroraDriveApp.swift:6930` 的 `if` 进不来 → `:6942` 静默丢弃
+5. 消费端 `AuroraDriveApp.swift:7051` 的 `if` 进不来 → `:7063` 静默丢弃
 
 **后果**：文件自己的注释写着「路口一律限速 30（保守），并压住油门」「交接未完成期间：保守（不加油、不给转向）」，
 **实测「压住油门」从未生效过**。（`stepMapTurn` `:230–235` 的转向是有的，所以「一直没转向」不成立。）
@@ -132,23 +133,24 @@ var reason: String
 ### 缺陷 3 · **本文件零自检**
 
 430 行、用户点名的能力，**一条断言都没有**。
-全仓 `grep DriveSegmentController` 命中仅：`AuroraDriveApp.swift:4061` 附近（初始化）、
-本文件自身（2026-10-06 复核；tick 内消费点见第六节行号）。
+全仓 `grep -rn DriveSegmentController Sources/` 命中仅：`AuroraDriveApp.swift:5462`（实例声明 `let driveSegment = DriveSegmentController()`）、
+`AuroraDriveApp.swift:7042`/`:7359`/`:7408`（注释引用）、`Core/AuroraFlags.swift:461-466`（6 个 `AURORA_SEG_*` 的 `readBy` 登记）、
+本文件自身（2026-10-07 E4 复核；tick 内消费点见第六节行号）。**无任何自检文件引用它**。
 
-对比：`PerfSelfTest` 753 行、`RealShotSelfTest` 257 行、`RoadCornerGuide.selfTest` 均有断言。
+对比：`PerfSelfTest` 984 行、`RealShotSelfTest` 257 行、`RoadCornerGuide.selfTest`（`:738`）均有断言。
 
 ---
 
-## 七·五、★ 与 RoutePlan 的关系（2026-10-06 核实，勿混淆）
+## 七·五、★ 与 RoutePlan 的关系（2026-10-07 核实，勿混淆）
 
-**本控制器的弯道点来自 `RoadCornerGuide`（`models/road_corners_v3b.json` 打点集，:157/:161/:280），与 `RoutePlanner.route()` 的 A* `RoutePlan`（`App/RouteGraph.swift:404-540`）是两条完全独立的数据链**：
+**本控制器的弯道点来自 `RoadCornerGuide`（`models/road_corners_v3b.json` 打点集，DriveSegmentController.swift:157/:161/:280），与 `RoutePlanner.route()` 的 A* `RoutePlan`（`App/RouteGraph.swift:404-540`，同文件第二个重载在 :543-553）是两条完全独立的数据链**：
 
 | | RoadCornerGuide（本控制器用） | RoutePlan（A*） |
 |---|---|---|
 | 数据 | 离线弯道/路口打点库 | 路网图上两点间最短/少拐弯折线 |
 | 触发 | 定位位姿（`readPose()`，locatorScore≥0.4） | 用户任务/小地图交互 |
 | 消费 | **转向控制**（mapSteer 覆盖视觉） | 小地图画线（MissionConsole.swift:3912-3942）+ 弯道距离显示（:627-635） |
-| 能否产生按键 | **能**（经 DriveSegmentController → applyCommand） | **不能**（未验证有到控制的任何接线） |
+| 能否产生按键 | **能**（经 DriveSegmentController → applyCommand，AuroraDriveApp.swift:7442-7471） | **不能**（未验证有到控制的任何接线） |
 
 ---
 
@@ -160,3 +162,4 @@ var reason: String
 ---
 
 **本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。2026-10-06 由文档更新代理 A8 复核：全文行号按 430 行版回读更新、消费端行号按 AuroraDriveApp.swift 8335 行版更新、补「与 RoutePlan 的关系」一节；缺陷 1/2 仍在（未修，未实测）。
+**2026-10-07 由文档核对代理 E4 复核**：源文件 430 行未变、第一～五节行号全对；第六节消费端行号按 App 8456 行版整体重测（tick 移到 :6505，档位门 :7038，分段块 :7049-7064，readPose :7392-7400，applyCommand :7442-7471）；缺陷 3 的 `PerfSelfTest` 行数由旧记 753 更正为实测 **984**，并补 `grep` 命中清单。缺陷 1/2 **仍在（未修、未实测）**。

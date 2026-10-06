@@ -1,7 +1,7 @@
 # 2. Network Localization
 
 > Sources: `CoordinateCapture.swift`(635, primary) `VisualLocator.swift`(491, idle) `MinimapLocatorView.swift`(196) `MinimapTileCache.swift`(179) `NetworkLocator.swift`(626, dead)
-> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [网络定位子系统](../自动驾驶与功能/02-network-locate.md)
+> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [网络定位子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/02-network-locate.md)
 > Deep dives: [UE5 Bitstream](ue5-bitstream.en.md) · [Coordinate Calibration](coordinate-calibration.en.md) · [BPF & LaunchDaemon](bpf-daemon.en.md)
 
 > **Archive note (verified 2026-09-19, baseline 7b7d2db)**: `NetworkHealer.swift`(377) was deleted in 76e9027 (self-healing retired; localization is now a lazy `CoordinateCapture` init); the capture filter is now `tcp port 30031 or udp` (MaaNTE-aligned, UDP allowed); minimum payload length relaxed from 70 to 32 bytes; the base map was upgraded to 13056×13056 (map-2026-08, 2026-09-13) with kCalibTX/TY re-calibrated accordingly.

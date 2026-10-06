@@ -1,10 +1,13 @@
 # 代码-21 RuleController 规则控制器
 
-> 覆盖源文件：`Sources/AuroraDrive/Agent/RuleController.swift`（**200 行，2026-10-06 `wc -l` 复测**）。基于当前仓库逐单元编写。**2026-09-25 深度复核**：9-24 性能优化改动 8 给 `struct Detection` 加了 `Equatable` 协议（源码 :29）+ 6 处「先比后写」消费点；**2026-10-06 复核**：源文件又增 13 行（187→200），核心是 `decide()` 内 **2026-10-02 取消规则侧自动刹车**（:141-152 注释，详见二节），行号以 200 行版为准（已逐条回读核实）。
+> 覆盖源文件：`Sources/AuroraDrive/Agent/RuleController.swift`（**200 行，2026-10-07 `wc -l` 复测，与旧记一致**）。基于当前仓库逐单元编写。**2026-09-25 深度复核**：9-24 性能优化改动 8 给 `struct Detection` 加了 `Equatable` 协议（源码 :29）+ 6 处「先比后写」消费点；**2026-10-06 复核**：源文件又增 13 行（187→200），核心是 `decide()` 内 **2026-10-02 取消规则侧自动刹车**（:141-152 注释，详见二节），行号以 200 行版为准（已逐条回读核实）。
+> **2026-10-07 由文档核对代理 E4 复核**：源文件 **200 行未变**，正文所有 `RuleController.swift:N` 行号**逐条核对无误**（含 brake 恒 0 三档表）；**仅消费端 AuroraDriveApp.swift 行号失效**（App 已增至 8456 行、`tick()` 移到 :6505），本次只修 〇节与「调用链」两处的 App 行号。
 
-## 〇、★ 在驾驶全链路中的位置（2026-10-06 补，行号已核实）
+## 〇、★ 在驾驶全链路中的位置（2026-10-07 由核对代理 E4 按当前 App 重测行号）
 
-RuleController 是降级三档梯子里**最低档（.rule）的决策者**：`DriveState.tick()`（`App/AuroraDriveApp.swift:6384`）→ 降级状态机选档（:6686-6694，`Agent/DegradeStateMachine.swift:74-139`）→ `.rule` 档时 `ruleController.decide(detections:)`（AuroraDriveApp.swift:6879）产出 `ControlCommand` → `applyCommand`（:7321-7350）映射为按键。`.yolo` 档（`decide`）与 `.rule` 态（`fuse`）的语义见下文；⚠️ 融合入口 `fuse` 的档位语义随 laneKeepTiers（`AURORA_LANEKEEP_TIERS`，默认 `rule,yolo`，AuroraDriveApp.swift:5426-5428）放开而扩展——车道保持/分段覆盖叠加在 `.rule`、`.yolo` 两档的输出之上（:6917-6967）。
+RuleController 是降级三档梯子里**最低档（.rule）的决策者**：`DriveState.tick()`（`App/AuroraDriveApp.swift:6505`）→ 降级状态机选档（:6807-6815，`Agent/DegradeStateMachine.swift:74-139`）→ `.rule` 档时 `ruleController.decide(detections:)`（AuroraDriveApp.swift:7000，`detections` 取自 `yoloEngine.detections` :6752）产出 `ControlCommand` → `applyCommand`（:7442-7471）映射为按键。`.yolo` 档（`decide`）与 `.rule` 态（`fuse`）的语义见下文；⚠️ 融合入口 `fuse` 的档位语义随 laneKeepTiers（`AURORA_LANEKEEP_TIERS`，默认 `rule,yolo`，AuroraDriveApp.swift:5547-5549、`Core/AuroraFlags.swift:280`）放开而扩展——车道保持/分段覆盖叠加在 `.rule`、`.yolo` 两档的输出之上（:7038-7064）。
+
+> ⚠️ 本节旧行号（App 8335 行版）**已失效**：App 主文件现为 **8456 行**，`tick()` 已从旧记 :6384 移到 **:6505**；上述行号 2026-10-07 逐条 `grep` 回读核实。
 
 ## 一、Detection 类型：危险区与紧迫度（第 1–70 行）
 
@@ -98,6 +101,6 @@ case .danger, .critical: return ruleCmd             // 危险/急刹：规则覆
 - **危险时 confidence 也用规则侧的 obs.confidence**（ruleCmd 自带）——此时降级状态机看到的是 YOLO 检测置信度
 - ⚠️ 与上面 2026-10-02 变更联动：`.danger/.critical` 时 fuse 返回的 ruleCmd 现在 **brake 恒 0**——规则覆盖也不会按 S 倒车。
 
-**调用链（2026-10-06 核实）**：`DriveState.tick()`（AuroraDriveApp.swift:6384）→ 降级状态机 `degradeStm.update()`（:6686-6694）选定档位 → `.rule` 档时 `ruleController.decide(detections:)`（:6879，`detections` 来自 `yoloEngine.detections` :6631）；车道保持/分段覆盖可再叠加在 rule/yolo 档输出上（:6917-6967）→ `applyCommand`（:7034→:7321-7350）→ ControlEngine 按键映射。
+**调用链（2026-10-07 由核对代理 E4 重测行号）**：`DriveState.tick()`（AuroraDriveApp.swift:6505）→ 降级状态机 `degradeStm.update()`（:6807-6815）选定档位 → `.rule` 档时 `ruleController.decide(detections:)`（:7000，`detections` 来自 `yoloEngine.detections` :6752）；车道保持/分段覆盖可再叠加在 rule/yolo 档输出上（:7038-7064）→ `applyCommand`（:7442-7471）→ ControlEngine 按键映射。
 
 **RuleController 文档至此完整**（200 行全覆盖：Detection 类型 → decide/fuse 决策）。

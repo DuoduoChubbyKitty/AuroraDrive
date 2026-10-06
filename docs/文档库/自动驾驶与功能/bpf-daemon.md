@@ -5,7 +5,7 @@
 > ⚠️ **2026-09-29 复核提示**：`代码-30-系统配置四件套.md` 记载「**BPF 检测改动态枚举**」
 > （旧实现只看 `/dev/bpf0` 恒 666 → 假绿状态，是「小药丸弹不出来」的根因），
 > 这是本文写成之后的改动。**行数减少是因为旧实现被移除、改为动态枚举**——属正常演进。
-> 上级：[网络定位子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/02-network-locate.md) ｜ English: [BPF & LaunchDaemon](../神秘乱七八糟的文档/历史归档/03-英文版/bpf-daemon.en.md)
+> 上级：[网络定位子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/02-network-locate.md) ｜ English: [BPF & LaunchDaemon](../英文版/bpf-daemon.en.md)
 
 > **档案标注（2026-09-19 核对更新，基线 7b7d2db）**：`BPFSetup.swift` 由 125 行增至 162 行——新增 `isLaunchDaemonLoaded()`（`launchctl list | grep` 判断）、`needsLoad()`（已装未载）与 `loadDaemonIfNeeded()`（`launchctl load` + `start` 补载）三个 API（后两者目前无调用方，属预留能力）；启动路径仍为：BPF 可用 → 通过；否则 Daemon 未装 → 弹密码窗；Daemon 已装 → `tryImmediateChmod()` 重测。脚本内容、路径与判定表未变，正文各节核对仍成立。
 

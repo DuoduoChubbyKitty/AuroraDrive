@@ -1,7 +1,7 @@
 # 3. Speed Recognition
 
 > Sources: `SpeedOCRReader.swift` (1243 lines)
-> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [速度识别子系统](../自动驾驶与功能/03-speed-ocr.md)
+> Up: [Developer Guide](DEVELOPER_GUIDE.en.md) ｜ 中文: [速度识别子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/03-speed-ocr.md)
 
 > **Archive note (verified 2026-09-19)**: after the 2026-09 dual-model rework the architecture is **PP-OCRv6 full-line primary + per-digit CNN backup** (the glyph template matcher was deleted); inference throttle changed from 1/30 to 1/15 (15Hz). Sections 3.1–3.6 below are restated for the new architecture; 3.7 is the removal archive of the glyph path.
 

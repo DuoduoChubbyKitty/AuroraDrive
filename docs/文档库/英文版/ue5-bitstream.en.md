@@ -1,7 +1,7 @@
 # Internals · UE5 Movement Packet Bitstream
 
 > Source: reverse-engineered from MaaNTE's `nte_coordinate_api.py`; Swift port in `CoordinateCapture.swift` (`UE5Decoder`)
-> Up: [Network Localization](02-network-locate.en.md) ｜ 中文: [UE5 位流解析](../自动驾驶与功能/ue5-bitstream.md)
+> Up: [Network Localization](02-network-locate.en.md) ｜ 中文: [UE5 位流解析](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/ue5-bitstream.md)
 
 > **Archive note (verified 2026-09-19)**: the bitstream protocol itself is unchanged; the capture side was aligned with MaaNTE's "tcp port 30031 or udp + try whenever the payload is ≥32 bytes", and 2026-09-13 fixed the `hasValidRotation` argument (`locEnd + 7` → `locEnd`). Line references below updated to current code.
 
