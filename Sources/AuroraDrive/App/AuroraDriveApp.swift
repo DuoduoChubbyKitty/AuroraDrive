@@ -950,7 +950,14 @@ struct AuroraDriveLauncher {
                               //         仍 exit 0 —— **假绿**。登记与分发必须同时存在。
                               "--llm-selftest", "--llm-probe", "--llm-vision-selftest",
                               "--control-selftest", "--tool-selftest", "--tool-call-demo",
-                              "--llm-perf-selftest", "--websearch-selftest"]
+                              "--llm-perf-selftest", "--websearch-selftest",
+                              // 2026-10-07（S5 全量测试发现漏登记）：
+                              //   这两个自检**早就有分发代码**，但从未登记进本数组
+                              //   —— 一旦 UI 进程在跑（持 ui.lock），它们会被单实例锁
+                              //   挡掉却仍 exit 0（**假绿**）。同款陷阱第 3 次出现。
+                              //   · --agent-selftest  AI 技能链路 + 指令解析自检（AIAgentPanel 内）
+                              //   · --map-selftest    原生地图严格自检（MapSelfTest.swift）
+                              "--agent-selftest", "--map-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -6072,7 +6079,20 @@ final class DriveState {
         trainingLog = "启动训练进程…"
 
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/local/bin/python3.11")
+        // 【2026-10-07 去硬编码】原来写死 `/usr/local/bin/python3.11`
+        //   —— 那是 Python.org 安装器的路径；纯 Homebrew 机器只有
+        //   /opt/homebrew/bin/python3，Intel 机器又是 /usr/local/bin/python3。
+        //   改成多候选探测 + `AURORA_PYTHON` 环境变量覆盖（与
+        //   `scripts/perf-snapshot.sh` 同一套回退策略）。
+        let pythonCandidates: [String] = [
+            ProcessInfo.processInfo.environment["AURORA_PYTHON"] ?? "",
+            "/opt/homebrew/bin/python3",        // Apple Silicon Homebrew
+            "/usr/local/bin/python3",           // Intel Homebrew / Python.org
+            "/usr/bin/python3",                 // 系统自带
+        ].filter { !$0.isEmpty }
+        let pythonPath = pythonCandidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+            ?? "/usr/bin/python3"
+        proc.executableURL = URL(fileURLWithPath: pythonPath)
         // 只训控制模型；YOLO 检测已由 YoloEngine 实时运行，视角分类器已移除。
         proc.arguments = ["src/train_game_assist.py", "--skip_view", "--skip_yolo"]
         proc.currentDirectoryURL = AuroraPaths.projectRoot()
