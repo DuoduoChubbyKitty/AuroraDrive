@@ -1,0 +1,43 @@
+=== RUN #1 (guarded) ===
+cmd: env AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --llm-perf-selftest --seconds 6
+ts:  2026-10-06 22:51:30 +0800
+domain-before: d41d8cd98f00b204e9800998ecf8427e
+
+═══ 性能预算自检（--llm-perf-selftest）═══
+时间: 2026-10-06 22:51:30 +0800
+采样时长 6s
+
+── ① 内存增量（<50MB） ──
+  起始 RSS = 14.0MB
+  ✅ AI 单例构造后内存增量 <50MB  增量 2.6MB（14.0MB → 16.6MB）
+
+── ② SSE/JSON 解析在后台线程（不占主线程） ──
+  200 个 SSE 分片解析（主线程）耗时 2.26ms
+  ✅ 解析本身足够轻（单次 <0.5ms，200 次 <100ms）  2.26ms / 200 次
+  ✅ 错误分类 2000 次 <50ms  2.16ms / 2000 次
+
+── ③ 候选链构建耗时 ──
+  ✅ 候选链构建 <300ms（缓存命中路径）  0.4ms
+
+── ④ 主线程阻塞探针 ──
+  主线程 tick 间隔: p50=3.04ms p95=3.08ms max=3.19ms（n=1997）
+  ✅ 主线程 p95 抖动 <10ms（无同步阻塞）  p95=3.08ms
+
+── ⑤ 采样期间内存增长 ──
+  ✅ 采样期间内存增长 <20MB  增长 4.3MB（16.6MB → 20.9MB）
+  起始 14.0MB / 初始化后 16.6MB / 结束 20.9MB
+
+── ⑥ 首字延迟（真实流式请求） ──
+[LLMTransport] ❌ OVHcloud 匿名/Qwen3.5-9B rateLimited：API rate limit exceeded
+  ⚠️ 首字延迟测量失败（LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(23.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)）→ 本项「未验证」
+  ⚠️ 未收到任何 delta → 首字延迟「未验证」
+
+═══ 性能预算自检：PASS（6 通过 / 0 失败）═══
+
+═══ 性能预算：PASS（6 通过 / 0 失败）═══
+
+>>> EXIT=0
+
+-- guard --
+domain-after: d41d8cd98f00b204e9800998ecf8427e
+verdict: CLEAN (unchanged) -> result trustworthy

@@ -478,71 +478,98 @@ final class ControlEngine: @unchecked Sendable {
     // MARK: - AI Agent 游戏键位支持
 
     /// 游戏常用键枚举（MaaNTE 实际使用的所有键）
-    /// CGKeyCode 值来自 macOS HID Usage Table
+    ///
+    /// ⚠️ 注释里的数字是**macOS 虚拟键码**（`kVK_ANSI_*`，来自 HID Usage Table 的
+    ///    USB Keyboard 页，但**不是** ASCII 码，也不是 Windows VK_* 码）。
+    ///    权威来源：`Carbon/HIToolbox/Events.h` 的 `kVK_*` 常量。
+    ///    验证方式见 `gameKeyToKeyCode` 上方的缺陷记录。
     enum GameKey: String, CaseIterable {
         // 移动
-        case w = "W"   // 87
-        case a = "A"   // 65
-        case s = "S"   // 83
-        case d = "D"   // 68
+        case w = "W"   // 13
+        case a = "A"   // 0
+        case s = "S"   // 1
+        case d = "D"   // 2
         // 交互
-        case f = "F"   // 70
-        case e = "E"   // 69
-        case space = "Space"  // 32
+        case f = "F"   // 3
+        case e = "E"   // 14
+        case space = "Space"  // 49
         // UI
-        case esc = "ESC"  // 27
-        case q = "Q"     // 81
-        case r = "R"     // 82
-        case m = "M"     // 77
-        case b = "B"     // 66
-        case t = "T"     // 84
+        case esc = "ESC"  // 53
+        case q = "Q"     // 12
+        case r = "R"     // 15
+        case m = "M"     // 46
+        case b = "B"     // 11
+        case t = "T"     // 17
         // 异环 HUD 功能热键（G2：rewards 入口页切换用；实测 F3=卡布罗集市 F4=活动页）
         case f1 = "F1"   // 122
         case f2 = "F2"   // 120
         case f4 = "F4"   // 118
         // 修饰键
-        case shift = "Shift"   // 160 (Left Shift)
-        case ctrl = "Ctrl"     // 162 (Right Ctrl)
+        case shift = "Shift"   // 56 (kVK_Shift = Left Shift)
+        case ctrl = "Ctrl"     // 59 (kVK_Control = Left Control)
         // 数字选择
-        case one = "1"   // 49
-        case two = "2"   // 50
-        case three = "3" // 51
-        case four = "4"  // 52
-        case five = "5"  // 53
-        case six = "6"   // 54
-        case seven = "7" // 55
+        case one = "1"   // 18
+        case two = "2"   // 19
+        case three = "3" // 20
+        case four = "4"  // 21
+        case five = "5"  // 23
+        case six = "6"   // 22
+        case seven = "7" // 26
         // 俄罗斯方块 / 节奏游戏
-        case j = "J"     // 74
-        case k = "K"     // 75
-        case l = "L"     // 76
+        case j = "J"     // 38
+        case k = "K"     // 40
+        case l = "L"     // 37
         // 钢琴低音
-        case z = "Z"     // 90
-        case x = "X"     // 88
-        case c = "C"     // 67
-        case v = "V"     // 86
-        case n = "N"     // 78
+        case z = "Z"     // 6
+        case x = "X"     // 7
+        case c = "C"     // 8
+        case v = "V"     // 9
+        case n = "N"     // 45
         // 钢琴中音
-        case g = "G"     // 71
-        case h = "H"     // 72
-        case i = "I"     // 73
+        case g = "G"     // 5
+        case h = "H"     // 4
+        case i = "I"     // 34
         // 钢琴高音
-        case y = "Y"     // 89
-        case u = "U"     // 85
+        case y = "Y"     // 16
+        case u = "U"     // 32
     }
 
-    /// GameKey → CGKeyCode 映射表
+    /// GameKey → CGKeyCode 映射表。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-10-06 缺陷修复记录（W8 独立验证发现，Lead 授权修复）
+    /// ══════════════════════════════════════════════════════════════════════════
+    ///
+    /// 【原缺陷】本表最初误用 **ASCII / Windows `VK_*` 码**当作 macOS `CGKeyCode`
+    ///   （W=87、A=65、S=83、D=68、Space=32、ESC=27、Shift=0xA0、Ctrl=0xA2 …），
+    ///   38 项里 **35 项错误**。macOS 把 87 解释成**小键盘 5**、65 是**小键盘 `.`**、
+    ///   83 是**小键盘 1**、32 是 **`u`**、27 是 **`-`**、0xA0/0xA2 **无字符** ——
+    ///   即自动按键类技能/工具**发出去的全是错键**（车仍能动，因为驾驶路径走的是
+    ///   下方 `KeyMap`，那张表本来就对）。
+    ///
+    /// 【三重独立取证】（原始输出：`verify/evidence-llm/finding-F1-gamekey-keycodes.txt`）
+    ///   ① Carbon `kVK_*` 权威常量对照 → 35/38 不符
+    ///   ② 向 `.cghidEventTap` 注入 `virtualKey=87`，自建 CGEventTap 抓回后读
+    ///      `keyboardGetUnicodeString` → 得到 `"5"`（注入 13 则正确得到 `"w"`）
+    ///   ③ 系统键盘布局翻译 `TIS`/`UCKeyTranslate` → 87 翻译为 `5`
+    ///   验证入口：`./AuroraDriveUI --control-selftest`（会断言每个键的 Unicode 翻译）
+    ///
+    /// 【为什么以前没被发现】`KeyMap`（:48-58，驾驶路径 W/S/A/D/空格/Shift）用的是
+    ///   **正确**键码，所以自动驾驶一直正常；`GameKey` 只服务 AI 技能与工具注入路径，
+    ///   而那条路径此前没有「抓回事件读翻译」的验证手段 —— 直到 W8 的
+    ///   `--control-selftest` 四证据链把这一环补上。
     private static let gameKeyToKeyCode: [GameKey: CGKeyCode] = [
-        .w: 87, .a: 65, .s: 83, .d: 68,
-        .f: 70, .e: 69, .space: 32,
-        .esc: 27, .q: 81, .r: 82, .m: 77, .b: 66, .t: 84,
+        .w: 13, .a: 0, .s: 1, .d: 2,
+        .f: 3, .e: 14, .space: 49,
+        .esc: 53, .q: 12, .r: 15, .m: 46, .b: 11, .t: 17,
         .f1: 122, .f2: 120, .f4: 118,
-        .shift: 0xA0, .ctrl: 0xA2,
-        .one: 49, .two: 50, .three: 51, .four: 52,
-        .five: 53, .six: 54, .seven: 55,
-        .j: 74, .k: 75, .l: 76,
-        .z: 90, .x: 88, .c: 67, .v: 86, .n: 78,
-        .g: 71, .h: 72, .i: 73,
-        .y: 89, .u: 85,
+        .shift: 56, .ctrl: 59,
+        .one: 18, .two: 19, .three: 20, .four: 21,
+        .five: 23, .six: 22, .seven: 26,
+        .j: 38, .k: 40, .l: 37,
+        .z: 6, .x: 7, .c: 8, .v: 9, .n: 45,
+        .g: 5, .h: 4, .i: 34,
+        .y: 16, .u: 32,
     ]
 
     /// 根据游戏键名获取 CGKeyCode

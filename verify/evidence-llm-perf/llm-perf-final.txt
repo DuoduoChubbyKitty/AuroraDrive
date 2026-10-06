@@ -1,0 +1,44 @@
+=== RUN #1 (guarded) ===
+cmd: env AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --llm-perf-selftest --seconds 6
+ts:  2026-10-06 23:01:11 +0800
+domain-before: d41d8cd98f00b204e9800998ecf8427e
+
+═══ 性能预算自检（--llm-perf-selftest）═══
+时间: 2026-10-06 23:01:11 +0800
+采样时长 6s
+
+── ① 内存增量（<50MB） ──
+  起始 RSS = 14.1MB
+  ✅ AI 单例构造后内存增量 <50MB  增量 2.6MB（14.1MB → 16.7MB）
+
+── ② SSE/JSON 解析在后台线程（不占主线程） ──
+  200 个 SSE 分片解析（主线程）耗时 1.09ms
+  ✅ 解析本身足够轻（单次 <0.5ms，200 次 <100ms）  1.09ms / 200 次
+  ✅ 错误分类 2000 次 <50ms  2.17ms / 2000 次
+
+── ③ 候选链构建耗时 ──
+  ✅ 候选链构建 <300ms（缓存命中路径）  0.2ms
+
+── ④ 主线程阻塞探针 ──
+  主线程 tick 间隔: p50=3.08ms p95=3.12ms max=5.26ms（n=1971）
+  ✅ 主线程 p95 抖动 <10ms（无同步阻塞）  p95=3.12ms
+
+── ⑤ 采样期间内存增长 ──
+  ✅ 采样期间内存增长 <20MB  增长 5.6MB（16.7MB → 22.4MB）
+  起始 14.1MB / 初始化后 16.7MB / 结束 22.4MB
+
+── ⑥ 首字延迟（真实流式请求） ──
+[LLMTransport] ✅ OVHcloud 匿名/Qwen3.5-9B 流式 0 字 工具 0 个 63 片
+  [TTFB 尝试] ovhAnonymous/Qwen3.5-9B 未返回 delta，试下一个
+  首字: 1576ms（渠道=zenFree/space-bunny-free），片段="一"
+  ❌ 首字延迟 <1500ms  1576ms
+
+═══ 性能预算自检：FAIL（6 通过 / 1 失败）═══
+
+═══ 性能预算：FAIL（6 通过 / 1 失败）═══
+
+>>> EXIT=1
+
+-- guard --
+domain-after: d41d8cd98f00b204e9800998ecf8427e
+verdict: CLEAN (unchanged) -> result trustworthy

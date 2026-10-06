@@ -1,0 +1,23 @@
+═══ 安全校验：二进制凭据扫描 ═══
+命令: strings AuroraDriveUI | grep -iE "sk-|Bearer [A-Za-z0-9]{20,}"
+时间: 2026-10-06 23:24:34 +0800
+二进制: AuroraDriveUI  sha256=3460c737f7a50cea42d320b483f9e595df143cef1f858a5eca651a40ebf99e5b  大小=12773272B
+
+── ① 业务凭据模式扫描（sk- / Bearer 长串）──
+ sk- 
+
+── ② 逐条核对 sk- 字样来源（证明非凭据）──
+11143: sk- 
+说明：以上 'sk-' 出自 UI 输入框占位符（AIAgentPanel.swift:2233-2234
+      TextField("sk-...") / prompt: Text("sk-xxxxxxxx")）与自检的泄漏扫描逻辑
+      （LLMSelfTest.swift:213-217 判断 value.contains("sk-")），**不是凭据**。
+
+── ③ Bearer 全量清点 ──
+   1 Bearer public
+
+── ④ 用户 key 是否出现在二进制里 ──
+✓ 未发现用户 key 前缀（��）
+
+── ⑤ 偏好域与用户资产状态 ──
+defaults read com.aurora.drive.aiagent → 2026-10-06 23:24:34.832 defaults[4223:33111517] 
+-rw-------@ 1 dupi  staff  51 Sep 15 21:48 /Users/dupi/Library/Application Support/AuroraDrive/llm-key-notebook.txt

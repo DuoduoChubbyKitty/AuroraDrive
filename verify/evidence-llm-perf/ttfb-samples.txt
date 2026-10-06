@@ -1,0 +1,42 @@
+═══ 首字延迟（TTFB）实测 · 多轮取样（W8）═══
+命令: AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --llm-perf-selftest --seconds 2
+说明: 每次独立进程；候选链按健康态动态变化，故逐轮记录渠道与耗时
+时间: 2026-10-06 23:23:06 +0800
+
+── 第 1 轮 ──
+── ⑥ 首字延迟（真实流式请求） ──
+  [TTFB 尝试] ovhAnonymous/Mistral-Small-3.2-24B-Instruct-2506 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(52.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+  [TTFB 尝试] ovhAnonymous/Qwen3.5-9B 未返回 delta，试下一个
+  [TTFB 尝试] ovhAnonymous/Qwen2.5-VL-72B-Instruct 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(50.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+── 第 2 轮 ──
+── ⑥ 首字延迟（真实流式请求） ──
+  首字: 1169ms（渠道=ovhAnonymous/Qwen2.5-VL-72B-Instruct），片段="一"
+  ✅ 首字延迟 <1500ms  1169ms
+── 第 3 轮 ──
+── ⑥ 首字延迟（真实流式请求） ──
+  [TTFB 尝试] ovhAnonymous/Qwen2.5-VL-72B-Instruct 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(38.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+  [TTFB 尝试] ovhAnonymous/Mistral-Small-3.2-24B-Instruct-2506 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(38.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+  [TTFB 尝试] ovhAnonymous/Qwen3.5-9B 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(37.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+── 第 4 轮 ──
+── ⑥ 首字延迟（真实流式请求） ──
+  [TTFB 尝试] ovhAnonymous/Qwen2.5-VL-72B-Instruct 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(29.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+  [TTFB 尝试] ovhAnonymous/Mistral-Small-3.2-24B-Instruct-2506 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(29.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+  [TTFB 尝试] ovhAnonymous/Qwen3.5-9B 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(29.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+── 第 5 轮 ──
+── ⑥ 首字延迟（真实流式请求） ──
+  [TTFB 尝试] ovhAnonymous/Qwen2.5-VL-72B-Instruct 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(21.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+  [TTFB 尝试] ovhAnonymous/Mistral-Small-3.2-24B-Instruct-2506 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(21.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+  [TTFB 尝试] ovhAnonymous/Qwen3.5-9B 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(21.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+── 第 6 轮 ──
+── ⑥ 首字延迟（真实流式请求） ──
+  首字: 870ms（渠道=ovhAnonymous/Qwen2.5-VL-72B-Instruct），片段="一"
+  ✅ 首字延迟 <1500ms  870ms
+── 第 7 轮 ──
+── ⑥ 首字延迟（真实流式请求） ──
+  [TTFB 尝试] ovhAnonymous/Qwen3.5-9B 未返回 delta，试下一个
+  首字: 349ms（渠道=ovhAnonymous/Qwen2.5-VL-72B-Instruct），片段="一"
+  ✅ 首字延迟 <1500ms  349ms
+── 第 8 轮 ──
+── ⑥ 首字延迟（真实流式请求） ──
+  首字: 1036ms（渠道=ovhAnonymous/Mistral-Small-3.2-24B-Instruct-2506），片段="好的"
+  ✅ 首字延迟 <1500ms  1036ms

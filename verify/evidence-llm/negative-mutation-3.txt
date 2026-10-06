@@ -1,0 +1,29 @@
+═══ 负向对照 · 变异 3：ToolRegistry 少注册一个工具 ═══
+bash: line 6: AgentSkillLibrary.all: command not found
+bash: command substitution: line 7: syntax error: unexpected end of file
+变异点: ToolRegistry.swift registerAll() 的  → 
+         即：18 个技能工具只挂 17 个（少挂 skill__tomato_juice）
+方法: 复制产品源码到 /tmp/w8-mutation 改副本；产品码零改动
+时间: 2026-10-06 23:30:33 +0800
+
+① 产品码零改动证明：
+   产品 ToolRegistry.swift sha256 = c09a1d555fb300be9784eaa7c230b63011b3115f0a89445dd1a56cf1c588e3a8
+   产品 git diff 行数 = 0（0=未改）
+② 变异前副本 sha256 = c09a1d555fb300be9784eaa7c230b63011b3115f0a89445dd1a56cf1c588e3a8
+
+③ 变异已注入：AgentSkillLibrary.all → .dropLast()
+④ 变异后副本 sha256 = 57d4d994c5044a00fe30d2eb745d492387c754a1faeed097c8be72b6654fba40
+
+⑤ 编译（独立 scratch）：
+Build complete! (89.66s)
+
+⑥ 自检原始输出：
+  ❌ 已挂载 skill__tomato_juice  isImplemented=false
+  ❌ 工具条目总数 = 30  得到=29 期望=30（技能18 + 键位4 + 鼠标3 + 文本1 + 搜索2 + 观察2）
+  ❌ 18 个技能工具的 isImplemented 与 ported 逐一一致  skill__tomato_juice：缺工具
+  ❌ ToolRegistry.selfCheck() 无问题  缺少技能工具：skill__tomato_juice
+═══ A3 工具自检：FAIL（137 通过 / 4 失败）═══
+═══ A3 工具：FAIL（137 通过 / 4 失败）═══
+>>> EXIT=4
+
+【结论】变异 3 被检出：EXIT=��要求 ≠0）✓ 共 4 条断言命中

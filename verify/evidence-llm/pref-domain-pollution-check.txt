@@ -1,0 +1,35 @@
+═══ 偏好域污染独立核查（W8）═══
+命令: defaults read com.aurora.drive.aiagent / grep 18099 / ls -la 应用支持目录
+时间: 2026-10-06 21:57:13 +0800
+
+── ① defaults read com.aurora.drive.aiagent ──
+2026-10-06 21:57:13.466 defaults[35634:32885219] 
+Domain com.aurora.drive.aiagent does not exist
+
+── ② 桩地址 18099 残留扫描 ──
+0
+（0 = 无残留）
+
+── ③ 域名录存在性 ──
+域不存在 ✓（与 Lead 复核一致）
+
+── ④ 用户 API Key 小本本（mtime 应为 09-15 21:48 原样）──
+total 152
+drwx------@   7 dupi  staff    224 Oct  6 16:44 .
+drwx------+ 131 dupi  staff   4192 Oct  5 18:52 ..
+-rwx------@   1 dupi  staff  64264 Sep 10 12:31 AuroraDriveUserAgent
+-rw-------@   1 dupi  staff      5 Oct  6 16:44 engine.lock
+srw-------@   1 dupi  staff      0 Oct  6 16:44 engine.sock
+-rw-------@   1 dupi  staff     51 Sep 15 21:48 llm-key-notebook.txt
+-rw-------@   1 dupi  staff      5 Oct  6 16:44 ui.lock
+
+── ⑤ 本次核查是否由 W8 自检造成写入 ──
+W8 的 LLMSelfTest 只调用 AgentSettings.load() 纯读，不调用 save()/defaults set。
+逐证据：grep -n 'AgentSettings' Sources/AuroraDrive/Agent/LLMSelfTest.swift 只见 load()。
+504:        let settings = AgentSettings.load()
+661:        ledger.note("AgentSettings.model 出厂默认=「\(AgentSettings().model)」"
+693:        let settings = AgentSettings.load()
+878:        let settings = AgentSettings.load()
+1358:        let settings = AgentSettings.load()
+1477:        _ = AgentSettings.load()
+1537:        let settings = AgentSettings.load()

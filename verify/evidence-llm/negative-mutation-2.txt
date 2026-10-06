@@ -1,0 +1,48 @@
+═══ 负向对照 · 变异 2：.gated 分类改成降级（可恢复门禁 → 永久失效）═══
+变异点: LLMHealth.swift noteFailure 的 case .gated 分支
+         正确: record.health = .gated + 冷却 600s（容量池可能恢复，非终态）
+         变异: record.health = .dead  + cooldownUntil = nil（永久判死）
+方法: 复制产品源码到 /tmp/w8-mutation 改副本；产品码零改动
+时间: 2026-10-06 23:30:22 +0800
+
+① 产品码零改动证明：
+   产品 LLMHealth.swift sha256 = 8d2719453f7a594533a0fc73ae1863d3b88ce37fa0f6fd8b675071e9d3490145
+   产品 git diff 行数 = 0（0=未改）
+② 变异后副本 sha256 = b9d6f0d789cabd49ae5d479aaed6db870bd117ae088110c3fa8ea8c3855934a9
+   变异源码原文：
+             case .gated:         return 3   // 门禁：冷却较久
+             case .deprecated:    return 4   // 已下线：等 replacement
+             case .dead:          return 5   // 永久失效：只比被剔除好一点
+             case .regionBlocked: return 6   // 本会话永久：最后
+             }
+         }
+     
+         /// UI 展示用语。
+
+③ 编译（独立 scratch，规避 SwiftPM 增量缓存假阴性）：
+   命令: cd /tmp/w8-mutation && swift build -c release --disable-sandbox --scratch-path .build-m2b
+   → Build complete!
+
+④ 自检原始输出（**直接**命中 4 条 .gated 语义断言）：
+── 健康状态机语义（.gated 可恢复 vs .dead 永久） ──
+  noteFailure(.gated) 后 effectiveHealth = dead（期望 gated）
+  ❌ 喂 .gated 错误 → 健康态 = .gated（不是 .dead）  得到=dead 期望=gated
+  ❌ 喂 .gated 后**不是**永久终态 .dead  health=dead
+  record.health=dead reason=免费层门禁（变异）
+  ❌ record 存在且 health = .gated  record.health=dead
+  noteFailure(.modelNotFound) 后 effectiveHealth = dead（期望 dead）
+  ❌ 两类未被混同（.gated ≠ .dead 的映射各自成立）  .gated→dead vs .modelNotFound→dead
+═══ A1 LLM 自检：FAIL（89 通过 / 4 失败）═══
+>>> EXIT=4
+
+【结论】变异 2 被**直接**检出：EXIT=4（要求 ≠0）✓
+
+【重要过程说明 —— 自检强度的一次真实修复】
+  第一版自检**没有**针对 .gated 语义的专用断言，只能靠候选链次序（⑦/⑨）
+  **间接**捕获该变异。实测该间接检出**不稳定**：
+    · 一次 EXIT=1（候选链多渠道路径下次序扰动命中）
+    · 一次 EXIT=0（候选链恰只剩单渠道时，次序断言是盲的 → 漏检）
+  本小姐据此**补了一条直接断言**（喂 .gated 错误给真实 noteFailure，断言
+  落到 .gated 而非 .dead，并做 .modelNotFound→.dead 的反向对照），
+  现在变异 2 稳定 EXIT=4。
+  —— 这是验证方对自己断言强度的修复，不是产品缺陷。

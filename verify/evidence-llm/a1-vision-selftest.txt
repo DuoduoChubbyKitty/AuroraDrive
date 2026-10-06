@@ -1,0 +1,35 @@
+=== RUN #1 (guarded) ===
+cmd: env AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --llm-vision-selftest
+ts:  2026-10-06 23:32:32 +0800
+domain-before: d41d8cd98f00b204e9800998ecf8427e
+
+═══ A1 · 视觉链路自检（--llm-vision-selftest）═══
+时间: 2026-10-06 23:32:32 +0800
+
+── 环境前置 ──
+  ✅ 屏幕录制权限已授权  CGPreflightScreenCaptureAccess=true
+  ✅ 辅助功能权限已授权（本项对视觉非必需，仅记录）  AXIsProcessTrusted=true
+  会话: ScreenIsLocked=? OnConsole=1 user=dupi frontmost=DeepSeek Harness pid=9991
+
+── 真实截屏 → 图片编码 ──
+[HUD] 无 NSApplication 上下文（引擎进程）→ 跳过 HUD 安装
+23:32:32 [upscale] 引擎初始化: 可用=true
+23:32:32 [network] 定位引擎初始化完成
+  ✅ 抓到真实屏幕帧  2940×1912
+  ✅ 截屏过图片编码门限（长边 ≤1568）  1568×1020，73048 字节
+
+── 视觉候选 + 真实提问 ──
+  ✅ 存在视觉候选  视觉候选 1 个：zenFree/space-bunny-free
+[LLMTransport] ✅ OpenCode Zen/space-bunny-free HTTP 200 文本 33 字 工具 0 个 1 片
+  [视觉] zenFree/space-bunny-free → 4427ms：浏览器中显示的是 WorkBuddy 网关看板的面板密码登录页面。
+  ✅ 视觉模型返回非空描述  长度=33
+
+═══ A1 视觉自检：PASS（6 通过 / 0 失败）═══
+
+═══ A1 视觉：PASS（6 通过 / 0 失败）═══
+
+>>> EXIT=0
+
+-- guard --
+domain-after: d41d8cd98f00b204e9800998ecf8427e
+verdict: CLEAN (unchanged) -> result trustworthy

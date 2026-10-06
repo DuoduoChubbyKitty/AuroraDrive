@@ -1,0 +1,98 @@
+═══ 【独立验证发现 F1】ControlEngine.GameKey 键码表与 macOS 虚拟键码不符 ═══
+取证时间: 2026-10-06 21:27:15 +0800
+被验文件: Sources/AuroraDrive/Control/ControlEngine.swift
+文件指纹: 8e9c935f21977b4af12722d1956843312fcfc1ba20dd308ec893668bb73eefd3  Sources/AuroraDrive/Control/ControlEngine.swift
+git 状态: 0 处工作区改动（0=与 HEAD 一致，非本轮施工产物）
+引入提交: 
+
+── 方法① macOS 权威表对照（Carbon kVK_*，SDK 头文件常量）──
+命令: swiftc keymap2.swift && ./keymap2   （/tmp/ctrl_probe/keymap2.swift）
+键名   产品表   系统翻译    macOS权威   差
+W 87       5 13          ✗ 应为 13('w')
+A 65       . 0           ✗ 应为 0('a')
+S 83       1 1           ✗ 应为 1('s')
+D 68       (无字符) 2           ✗ 应为 2('d')
+F 70        3           ✗ 应为 3('f')
+E 69       + 14          ✗ 应为 14('e')
+Space 32       u 49          ✗ 应为 49(' ')
+ESC 27       - 53          ✗ 应为 53('')
+Q 81       = 12          ✗ 应为 12('q')
+R 82       0 15          ✗ 应为 15('r')
+M 77        46          ✗ 应为 46('m')
+B 66        11          ✗ 应为 11('b')
+T 84       2 17          ✗ 应为 17('t')
+F1 122       122         —
+F2 120       120         —
+F4 118       118         —
+Shift 160      (无字符) 56          ✗ 应为 56('(无)')
+Ctrl 162      (无字符) 59          ✗ 应为 59('(无)')
+1 49         18          ✗ 应为 18('1')
+2 50       ` 19          ✗ 应为 19('2')
+3 51        20          ✗ 应为 20('3')
+4 52        21          ✗ 应为 21('4')
+5 53        23          ✗ 应为 23('5')
+6 54       (无字符) 22          ✗ 应为 22('6')
+7 55       (无字符) 26          ✗ 应为 26('7')
+J 74       (无字符) 38          ✗ 应为 38('j')
+K 75       / 40          ✗ 应为 40('k')
+L 76        37          ✗ 应为 37('l')
+Z 90       (无字符) 6           ✗ 应为 6('z')
+X 88       6 7           ✗ 应为 7('x')
+C 67       * 8           ✗ 应为 8('c')
+V 86       4 9           ✗ 应为 9('v')
+N 78       - 45          ✗ 应为 45('n')
+G 71        5           ✗ 应为 5('g')
+H 72        4           ✗ 应为 4('h')
+I 73       (无字符) 34          ✗ 应为 34('i')
+Y 89       7 16          ✗ 应为 16('y')
+U 85       3 32          ✗ 应为 32('u')
+
+【结论】不匹配 35 / 38 项
+
+── 方法② 事件投递实测：CGEventTap 抓取注入事件并读取其 Unicode 翻译 ──
+命令: ./unicap   （post virtualKey=N 到 .cghidEventTap，用 CGEventTap 抓回）
+— 对照组：真实 macOS 键码 13 (W) —
+   keycode=13 type=down unicode="w"
+   keycode=13 type=up unicode="w"
+— 产品表：GameKey.w = 87 —
+   keycode=87 type=down unicode="5"
+   keycode=87 type=up unicode="5"
+— 产品表：GameKey.space = 32（真实空格应为 49）—
+   keycode=32 type=down unicode="u"
+   keycode=32 type=up unicode="u"
+
+── 方法③ 系统键盘布局翻译（TIS/UCKeyTranslate）──
+（已含于方法① 的『系统翻译』列）
+
+── 结论 ──
+产品表把 ASCII / Windows 虚拟键码当作 macOS CGKeyCode 使用：
+  W→87(ASCII 'W')  A→65  S→83  D→68  Space→32  ESC→27  Shift→0xA0(Windows VK_LSHIFT) Ctrl→0xA2(Windows VK_RCONTROL)
+macOS 实际含义：87=小键盘5  65=小键盘.  83=小键盘1  32=u  27=-  160/162=无字符
+修正应为（kVK_*）：W=13 A=0 S=1 D=2 F=3 E=14 Space=49 ESC=53 Q=12 R=15 M=46 B=11 T=17
+                  1..7=18,19,20,21,23,22,26 J=38 K=40 L=37 Z=6 X=7 C=8 V=9 N=45 G=5 H=4 I=34 Y=16 U=32
+                  Shift=56 Ctrl=59
+仅 F1(122)/F2(120)/F4(118) 三项恰好一致（这三个键的 macOS 码与表值相同）。
+
+影响面（grep 使用者）：
+  Sources/AuroraDrive/Agent/ToolRegistry.swift:533:        control.pressGameKey(key, duration: duration)
+  Sources/AuroraDrive/Agent/ToolRegistry.swift:546:        control.holdGameKey(key)
+  Sources/AuroraDrive/Agent/ToolRegistry.swift:564:        control.releaseGameKey(key)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:765:            control.pressGameKey(.k, duration: 0.05)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:806:            control.pressGameKey(.f, duration: 0.05)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:819:                self.control?.pressGameKey(.esc, duration: 0.05)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:966:            control.pressGameKey(key, duration: 0.08)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:999:            control.pressGameKey(.f, duration: 0.1)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1036:            control.pressGameKey(.f, duration: 0.1)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1113:            control.pressGameKey(.f, duration: 0.1)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1185:                    control?.pressGameKey(.esc, duration: 0.05)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1188:                control?.pressGameKey(k, duration: 0.05)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1275:            control.pressGameKey(.f, duration: 0.08)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1278:            control.pressGameKey(.f, duration: 0.08)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1319:            control.pressGameKey(.space, duration: 0.12)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1320:            control.pressGameKey(.shift, duration: 0.10)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1360:            control.pressGameKey(.f, duration: 0.06)
+  Sources/AuroraDrive/Agent/AIAgentPanel.swift:1362:            control.pressGameKey(.f, duration: 0.06)
+
+对比：驾驶路径的 KeyMap（throttle=13/brake=1/steerLeft=0/steerRight=2/handbrake=49/boost=56）
+      —— 这一组**是正确的 macOS 键码**（见 ControlEngine.swift:53-58），故车能动能转向。
+      GameKey 表只被 AI 技能/工具路径使用 → 自动按键类技能会发错键。

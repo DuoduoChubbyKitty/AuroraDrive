@@ -525,3 +525,121 @@ static func isGameVisible() -> Bool {
 ---
 
 **修正记录完 · 2026-10-02**
+---
+
+## 修正记录 2026-10-06：AI 助手「真对话 + 自主按键 + 自主调工具」施工
+
+> 本篇上方正文基于 2026-10-02 的 2667 行版本。2026-10-06 的施工把 AI 助手从
+> 「技能宏面板」升级为「能对话 + 能调工具 + 能真实注入按键」的助手，本节记录变化与
+> 新增文件。**行号以当前源码为准**（`AIAgentPanel.swift` 已增至 3100+ 行）。
+
+### 一、修掉的病根：聊天是「壳子」
+
+**改造前**（`sendUserMessage` 兜底分支）：
+```swift
+// 本地命令回复（未接入外部 LLM 时的诚实行为）
+replyAssistant(localReply(to: trimmed))   // ← 硬编码套话，永远这几句
+```
+而真正的模型问答函数 `plainAnswer` 写好了却**全仓只被 `runLLMTest` 调用过一次**，
+生产路径零调用 —— 用户打字聊天永远得到「试试输入「登录」/「排球」/「停止」」。
+
+**改造后**（`AIAgentPanel.swift` 的 `sendChatMessage`）：
+```
+sendUserMessage 兜底 → sendChatMessage → AgentChatService.reply（actor）
+   ├─ 带最近 12 轮对话历史 + 系统提示（说明它能聊天/调工具/看图）
+   ├─ 候选链降级（最多 4 个候选，跨 7 渠道）
+   ├─ 流式增量回 UI（15Hz 节流，避免每 token 重绘）
+   └─ 全链失败 → localReply 兜底，且**标注「（离线回复：无可用模型）」**
+```
+
+### 二、新增文件（Agent/ 目录）
+
+| 文件 | 职责 |
+|---|---|
+| `AgentSettings.swift` | 配置结构（从 AIAgentPanel 抽出，8 渠道 + 视觉/降级开关；持久化格式逐字兼容） |
+| `LLMBackend.swift` | 7 渠道描述符 + 注册表（OVH 5 模型轮转表、Zen 三头、Pollinations 37 模型等，全部实测） |
+| `LLMTransport.swift` | OpenAI 兼容传输：SSE 流式解析、图片 part 编码（长边 1568px/JPEG 0.8）、12 类错误分类 |
+| `LLMHealth.swift` | 健康监控与降级链：自适应探活、跨渠道候选聚合、熔断、双层缓存 |
+| `ToolRegistry.swift` | **工具挂载注册表**：30 个工具（18 技能 + 38 键位 + 鼠标 + 文本 + 搜索 + 观察） |
+| `WebSearch.swift` | 联网搜索（DuckDuckGo Lite 主力 + Wikipedia 兜底，实测可用） |
+| `AgentChatService.swift` | 聊天粘合层（系统提示 + 历史 + 候选链 + 流式 → 一段回复） |
+| `LLMSelfTest.swift` | 三证据链 CLI 自检（A1/A2/A3 + 探活 + 视觉 + 性能） |
+
+### 三、七个渠道（免 key 层 4 个 + 需 key 层 3 个）
+
+| 渠道 | 端点 | 免 key | 视觉 |
+|---|---|---|---|
+| OVHcloud 匿名层 | `oai.endpoints.kepler.ai.cloud.ovh.net/v1` | ✅（`apiKeyEnv: ''`） | ✅ `Qwen2.5-VL-72B-Instruct` |
+| OpenCode Zen | `opencode.ai/zen/v1` | ✅（三头注入） | ✅ `space-bunny-free` |
+| Pollinations 新 | `gen.pollinations.ai/v1` | ✅ | ❌ 图片请求要 key |
+| Pollinations 旧 | `text.pollinations.ai/openai` | ✅ | ❌ |
+| 智谱 GLM | `open.bigmodel.cn/api/paas/v4` | ⚠️ 注册免费 | ✅ `glm-4.6v-flash` |
+| Groq | `api.groq.com/openai/v1` | ⚠️ 注册免费 | 部分 |
+| OpenRouter | `openrouter.ai/api/v1` | ⚠️ 注册免费 | ✅ |
+
+**关键实测事实**（决定架构）：OVH 匿名配额是 **per IP AND per model**（源码出处
+`dsh-vision-router/src/lib/core-primitives.js:1779-1788`），故 429 时切下一个模型即
+获得**独立配额桶**；而免费渠道会**时段性波动**（Pollinations 间歇性要求 key、
+OVH 频繁 429），所以**降级链不是加分项而是生存必需**。
+
+### 四、工具挂载（30 个，AI 自主调用）
+
+| 类别 | 数量 | 说明 |
+|---|---|---|
+| 技能 | 18 | `skill__*`，底层 `AgentSkillCenter.runSkill(id:source:.ai)`；**15 个已移植 / 3 个如实拒绝**（pinkpaw、rhythm、preset_realtime） |
+| 键位 | 4 | `press_key`/`hold_key`/`release_key`/`release_all_keys`，走 `GameKey` **全量 38 键** |
+| 文本 | 1 | `type_text` |
+| 鼠标 | 3 | `mouse_move`/`mouse_click`/`mouse_scroll` |
+| 搜索 | 2 | `web_search`/`web_fetch` |
+| 观察 | 2 | `screenshot`/`get_status` |
+
+**四道护栏**：观测模式（`AURORA_OBSERVE_ONLY=1`）→ 游戏窗口检测 → `AXIsProcessTrusted`
+（未授权明确报错不静默）→ dryRun 零注入。`ToolResult.postedEvents` 记录事件增量，
+是「按键真注入」的证据字段。
+
+### 五、UI 三件（用户明确要求）
+
+1. **底部常驻小字**（输入框正下方，`Aurora.fsMicro`）：`免费档 · ovh · Qwen3.6-27B · 健康 2/44`；
+   降级 `⚠️ 已降级 → …`；全挂 `⚠️ 无可用模型（点此诊断）`；**开视觉时显示 `👁 …` 并切到视觉候选**
+2. **管理员式配置向导**（3 步）：选路线（免注册 / 要更强能力）→ 每个 provider 一张卡
+   （注册链接 + 分步说明 + 粘贴框 + **「测试连接」当场验证**）→ 完成。
+   **不内置、不代填、不代注册**
+3. **后端选择器 + 📷 视觉开关**：8 渠道菜单，`apiKey` 为空时需 key 渠道**置灰**；
+   视觉开关默认关（隐私），开启时把当前帧降采样后随对话发送
+
+### 六、CLI 自检（7 个入口，必须同时「登记 oneShotFlags」+「分发」）
+
+```bash
+./AuroraDrive --llm-selftest [--network]   # A1 协议/SSE/错误分类/候选排序 + 真对话
+./AuroraDrive --llm-probe                  # 7 渠道探活健康表
+./AuroraDrive --llm-vision-selftest        # 真实截图 → 视觉模型
+./AuroraDrive --control-selftest           # A2 按键四证据链
+./AuroraDrive --tool-selftest              # A3 工具注册表（144 项）
+./AuroraDrive --tool-call-demo "帮我领奖励" # A3 端到端闭环（模型决策→分发→执行）
+./AuroraDrive --llm-perf-selftest          # 性能预算
+```
+
+> ⚠️ **陷阱**：`oneShotFlags` 是手写数组，**漏登记会被 UI 单实例锁挡掉却仍 exit 0（假绿）**
+> （2026-10-06 W5 实测）。登记与分发是两件事，缺一不可。
+
+### 七、已知波动（如实记录，非缺陷）
+
+- **Pollinations 免 key 层时段性要求 key**：同一端点在不同时段实测「正常返回」与
+  `A valid API key is required` 并存（本机 21:50 连续 6 次成功；W1/W8 另时段多次 401）
+- **OVH 匿名层频繁 429**：5 个模型桶轮流限流，`--llm-selftest --network` 有时需第 2–4 个候选才成功
+- **免费视觉源稀少**：免 key 且带视觉实测只有 OVH `Qwen2.5-VL-72B` 与 Zen `space-bunny-free`；
+  Pollinations 的图片请求**一律要 key**（隔离实验：1×1 像素 / 公开 URL / 真实截图全部 401，纯文本对照组通）
+
+### 八、验证结论（2026-10-06，独立验证方 W8）
+
+| 项 | 结果 |
+|---|---|
+| A1 真对话 | ✅ PASS 99/0（模型真答「1+1=2」，非套话） |
+| A2 自主按键 | ✅ PASS 32/0（四证据链；**修复了既存缺陷 F1：GameKey 键码表 35/38 项错误**） |
+| A3 工具表 | ✅ PASS 144/0（30 工具全挂 + 护栏 + 非法参数拒绝） |
+| A3 端到端 | ✅ PASS 9/9 ×3（模型真选 `skill__rewards`） |
+| 4 回归 | ✅ quest/route/taxonomy/wire 全 EXIT=0 |
+| 安全 | ✅ 二进制 0 业务凭据（唯一 `Bearer public` 哨兵）；用户 key 未入二进制 |
+| 性能 | ⚠️ 部分受限（本机 loadavg≈4.0 + OOM；主线程 p95 抖动 3.09ms 与改动前同量级，红线达标） |
+
+详见 `verify/REPORT-llm.md`（28.6KB）与 `verify/REPORT-llm-perf.md`（10.4KB）。

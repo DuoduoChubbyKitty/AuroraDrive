@@ -1,0 +1,37 @@
+═══ 4 个既有回归自检（W8 最终复跑）═══
+命令: AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --<x>-selftest
+二进制 sha256: 65efca03f0ade1bee3ce88380b6039b74e6a271abf8652b6c701e21cb6f09d42
+时间: 2026-10-06 23:32:36 +0800
+
+───── --quest-selftest ─────
+
+── 8. 节流（0.7s，不是每帧）──
+✅ 0.7s 内不重复跑  t=100 跑=true t=100.5 跑=false t=100.71 跑=true
+
+═══ 结果：全部通过 ✅ ═══
+>>> EXIT=0
+
+───── --route-selftest ─────
+    平均拐弯 W=0: 15.6 → W=200: 12.1（降 23%）
+    平均单次规划 0.061 ms（299 次）
+  ✓ 平均拐弯数确实下降  — 15.6 → 12.1
+  ✓ 平均单次规划 < 2 ms  — 0.061 ms
+路网寻路自检 PASS —— 全部通过
+>>> EXIT=0
+
+───── --taxonomy-selftest ─────
+  ✓ 含传送点的团，代表点 = 传送点  — 检查 8 个团，0 个不符
+── 聚类性能 ──
+  ✓ 单次聚类 < 5 ms（曾 120 ms）  — 实测 0.331 ms
+
+词表 / 聚类自检 PASS —— 全部通过
+>>> EXIT=0
+
+───── --wire-selftest ─────
+  ✓ F2 forceRule 优先于极速模式（§0 排在 §1 之前） — sportMode=true + forceRule=true → 纯规则兜底
+  ✓ F3 解除 forceRule 后能回到正常梯子（不是永久锁死在规则档） — 解锁后=YOLO接管
+
+═══ 结果：通过 14 / 失败 0 ═══
+✅ 引擎配置通道四处修复全部生效
+>>> EXIT=0
+

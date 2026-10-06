@@ -1,0 +1,64 @@
+🔒 已取构建锁：/var/folders/5l/s95v6qq94058n290ft4zrs1r0000gn/T//aurora-build.lock（pid=74958 · W8 性能复测3）
+═══ 性能基线自检（--perf-selftest）═══
+采样时长 12s（每指标 6 轮）
+子系统: 直方图统计用**相邻间隔**，p95/p99 反映长尾（平均值会抹平卡顿）
+
+── 加载 ──
+[yolopx] 模型加载: ayolom_n_int8.mlmodelc
+[yolopx]   ✓ ayolom_n_int8.mlmodelc — 加载成功
+  yolopx 加载: 36 ms  已加载=是  模型=ayolom_n_int8.mlmodelc
+[warmup] ayolom_n_int8.mlmodelc 预热完成: 7.1ms
+  yolo26s 加载: 30 ms  已加载=是
+[warmup] yolo26s.mlmodelc 预热完成: 6.1ms  computeUnits=all(自动选 ANE/GPU/CPU)
+  M9 加载: 16 ms  已加载=是
+[warmup] m9_mono 预热完成: 1.6ms  computeUnits=all(自动选 ANE/GPU/CPU)
+  assist 加载: 16 ms  已加载=是
+
+[warmup] game_assist_control 预热完成: 1.2ms  computeUnits=all(自动选 ANE/GPU/CPU)
+── 测量中（12s）──
+
+═══ 结果 ═══
+  tick 提交次数 301（25.0 Hz 提交）
+
+  ── 各子系统单次耗时（ms）──
+    submit.yolopx    n=301  p50=0.016   p95=0.041   p99=0.074   max=0.427    mean=0.021
+    submit.m9        n=301  p50=0.003   p95=0.009   p99=0.014   max=0.095    mean=0.005
+    submit.assist    n=301  p50=0.003   p95=0.005   p99=0.013   max=0.021    mean=0.003
+    submit.yolo26s   n=301  p50=0.005   p95=0.015   p99=0.026   max=0.309    mean=0.007
+    infer.yolopx     n=300  p50=14.510  p95=20.520  p99=24.723  max=47.566   mean=14.985
+    infer.m9         n=301  p50=1.899   p95=8.020   p99=14.100  max=29.299   mean=2.840
+    infer.assist     n=301  p50=1.912   p95=7.588   p99=13.055  max=30.748   mean=2.691
+    infer.yolo26s    n=300  p50=7.545   p95=12.469  p99=16.390  max=44.273   mean=8.439
+    opticalflow      n=301  p50=2.475   p95=6.051   p99=8.814   max=31.023   mean=3.044
+    tick.loop        n=301  p50=2.517   p95=6.501   p99=8.938   max=31.074   mean=3.095
+
+  ── 红线项（不许劣化）──
+    R2 检测框数量: 0 个（基线 9）
+       ⚠️ 少于基线 9 —— 若是纯色测试图属正常（无真实目标），
+          回归对比请用**同一张图/同一环境**，只看前后是否一致。
+    R3 掩码精度: 可行驶 0.00%（基线 26.19%）  车道线 0.000%（基线 8.042%）
+    R1 各模型出结果频率:
+       yolopx 24.93 Hz   推理计数=300
+       m9 25.02 Hz   推理计数=301
+       assist 25.02 Hz   推理计数=300
+       yolo26s 24.93 Hz   推理计数=300
+
+  ── 地图先验查询（.rule 档热路径，已预热）──
+    （每项 120 次采样）
+    map.isOnRoad         n=120  p50=0.000   p95=0.000   p99=0.000   max=0.003    mean=0.000
+    map.nearestRoad      n=120  p50=0.000   p95=0.000   p99=0.000   max=0.002    mean=0.000
+    map.cornerAhead      n=120  p50=0.001   p95=0.001   p99=0.001   max=0.002    mean=0.001
+    map.junctionAhead    n=120  p50=0.003   p95=0.003   p99=0.003   max=0.007    mean=0.003
+    索引对拍: 探针命中 91 次，不一致 0 次 ✓ 与线性扫描等价
+    → 一帧地图查询合计: p50 0.004 ms / p95 0.005 ms（tick 预算 33.3ms）
+  ── dlog 落盘成本（E3）──
+    dlog.append（热路径） n=300  p50=0.000   p95=0.000   p99=0.005   max=1.044    mean=0.005
+    dlog.flushNow（落盘） n=1    p50=0.090   p95=0.090   p99=0.090   max=0.090    mean=0.090
+    → 优化前每次 6 syscall；优化后热路径应为 ~0.000ms（300 次采样）
+  引擎进程 CPU: 39.8% 核（区间 12s）
+  说明：CPU% 为本次进程累计 CPU 增量 / 墙钟，口径与文档 §2.1 的 ps 均值接近但更瞬时。
+
+═══ 性能基线自检：PASS ═══
+
+【基线记录提示】把上面数字抄进文档，后续每批优化后的对比都以此为参照。
+🔓 已释放构建锁：/var/folders/5l/s95v6qq94058n290ft4zrs1r0000gn/T//aurora-build.lock

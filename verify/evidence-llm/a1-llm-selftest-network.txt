@@ -1,0 +1,165 @@
+=== RUN #1 (guarded) ===
+cmd: env AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --llm-selftest --network
+ts:  2026-10-06 23:40:19 +0800
+domain-before: d41d8cd98f00b204e9800998ecf8427e
+
+═══ A1 · LLM 链路自检（--llm-selftest --network）═══
+时间: 2026-10-06 23:40:19 +0800
+
+── 消息与工具编码（OpenAI 兼容形状） ──
+  ✅ 无图 content 是 String  content=Optional("你好")
+  ✅ role 透传  得到=user 期望=user
+  ✅ assistant 空文本仍带 content 键  keys=content,role
+  ✅ 有图 content 是数组且 2 个 part  得到=2 期望=2
+  ✅ part[0] 是 text  type=text
+  ✅ part[1] 是 image_url.data:image/jpeg;base64,  url 前缀=data:image/jpeg;base64,/9j/4
+  ✅ tool 消息带 tool_call_id  tool_call_id=call_1
+  ✅ 工具规格是 function 包装层  type=function
+  ✅ 工具 parameters 被解析成对象（不是字符串）  parameters 类型=Dictionary<String, Any>
+  ✅ 图片长边门限 1568px  得到=1568 期望=1568
+  ✅ JPEG 质量 0.8  得到=0.8 期望=0.8（Double 比较）
+  ✅ 2940×1912 → 长边 ≤1568  编码后 1568×1020（长边 1568）
+  ✅ 2940×1912 → 字节 ≤2MB  52913 字节 / 上限 2000000
+  ✅ 编码产物是 JPEG（FFD8FF 魔数）  前 3 字节=FFD8FF
+  ✅ base64 估算量级合理（>1KB 且 ≤2MB 的 4/3）  encodedByteCount≈70574
+
+── SSE 流式解析（分片边界） ──
+  ✅ 标准 SSE 三段拼出「你好」  得到=你好 期望=你好
+  ✅ [DONE] 哨兵被识别  sawDoneSentinel=true
+  ✅ 跨包切分的 JSON 仍完整拼出  得到=完整回答 期望=完整回答
+  ✅ 多字节中文字符跨包不丢字  得到=中文 期望=中文
+  ✅ 无空行分隔的 SSE 也能解析  得到=AB 期望=AB
+  ✅ 注释/心跳行被忽略且不影响内容  得到=X 期望=X
+  ✅ reasoning_content → .reasoning 事件  得到=想一想 期望=想一想
+  ✅ tool_calls 累积为 1 个调用  得到=1 期望=1
+  ✅ 工具名解析正确  得到=press_key 期望=press_key
+  ✅ 分片 arguments 拼接完整  得到={"key":"W"} 期望={"key":"W"}
+  ✅ finish_reason 透传  得到=tool_calls 期望=tool_calls
+  ✅ extractJSONObject 不受正文花括号干扰  切出={"a":"x{y}z"}
+  ✅ extractJSONObject 遇转义引号不错位  切出={"a":"\"}"}
+  ✅ 空 content 分片不产生 delta（上层据此判 .badResponse）  text="" sawContentChunk=false
+
+── 错误分类（12 类逐条） ──
+  ✅ FreeTierError → .gated  得到=gated 期望=gated（httpStatus=402 upstreamType=FreeTierError）
+  ✅ RegionError → .regionBlocked  得到=regionBlocked 期望=regionBlocked（httpStatus=403 upstreamType=RegionError）
+  ✅ ModelDeprecated + replacement → .modelDeprecated  得到=modelDeprecated 期望=modelDeprecated（httpStatus=400 upstreamType=ModelDeprecated）
+  ✅ ModelDeprecated 无 replacement → .modelNotFound  得到=modelNotFound 期望=modelNotFound（httpStatus=400 upstreamType=ModelDeprecated）
+  ✅ server_error → .upstream  得到=upstream 期望=upstream（httpStatus=500 upstreamType=server_error）
+  ✅ 429 → .rateLimited  得到=rateLimited 期望=rateLimited（httpStatus=429 upstreamType=-）
+  ✅ 401 → .invalidKey  得到=invalidKey 期望=invalidKey（httpStatus=401 upstreamType=-）
+  ✅ 404 → .modelNotFound  得到=modelNotFound 期望=modelNotFound（httpStatus=404 upstreamType=-）
+  ✅ 纯 5xx 无 body → .upstream  得到=upstream 期望=upstream（httpStatus=503 upstreamType=-）
+  ✅ 429 Retry-After 头被解析为秒数  得到=17.0 期望=17.0（kind=rateLimited）
+  ✅ 429 无 Retry-After 时 retryAfter=nil（不编造）  retryAfter=nil
+  ✅ modelDeprecated 带出 replacementModel  得到=Qwen3.6-27B 期望=Qwen3.6-27B
+  ✅ URLError.timedOut → .timeout  得到=timeout 期望=timeout
+  ✅ URLError.notConnectedToInternet → .network  得到=network 期望=network
+  ✅ CancellationError → .cancelled  得到=cancelled 期望=cancelled
+  ✅ LLMErrorKind 共 12 类  得到=12 期望=12（missingKey,invalidKey,rateLimited,gated,regionBlocked,modelDeprecated,modelNotFound,upstream,timeout,network,badResponse,cancelled）
+
+── 候选链顺序（降级链契约） ──
+  当前配置: backend=ovhAnonymous model=deepseek-chat key=有 fallback=true effectiveBackends=ovhAnonymous,zenFree,pollinations,pollinationsLegacy
+  ✅ 候选链非空（免 key 层必须能给至少 1 个候选）  候选数=34
+  候选链前 8: ovhAnonymous/Qwen3.5-397B-A17B → zenFree/space-bunny-free → pollinations/openai/gpt-5.5 → pollinations/openai/gpt-oss-20b → pollinations/x-ai/grok-4.6 → pollinations/x-ai/grok-4.3 → pollinations/x-ai/grok-4.20 → pollinations/moonshotai/kimi-k3
+  ✅ 首位与用户选定渠道同源 或 有明确降级理由  首位=ovhAnonymous/Qwen3.5-397B-A17B 用户选定=ovhAnonymous/deepseek-chat 同渠道=true
+  ✅ 候选链无重复  得到=34 期望=34
+  ✅ 候选渠道全部 ∈ effectiveBackends  检查 34 个候选
+  ✅ requireVision=true → 全部 supportsVision  视觉候选 1 个；不合格=无
+  ✅ requireTools=true → 全部 supportsTools  工具候选 31 个；不合格=无
+  ⚠️ fallbackEnabled=true（当前配置），跳过「仅 1 个候选」断言
+
+── ⑦⑧ 候选链顺序契约（渠道分组次序 + 连续性） ──
+  渠道分组次序: ovhAnonymous → zenFree → pollinations → pollinationsLegacy
+  声明次序:     ovhAnonymous → zenFree → pollinations → pollinationsLegacy → zhipu → groq → openRouter → userKey
+  ✅ ⑦ 除首个（用户选定）渠道外，其余渠道按 allCases 声明序严格递增  位置索引=[0, 1, 2, 3] 分组数=4 首个=用户选定(ovhAnonymous)? true
+  ✅ ⑧ 同渠道候选连续成组（无交错）  4 个渠道分组连续
+  ⚠️ 链中 OVH 候选 1 个，不足以验证分组契约（跳过 ⑨）
+
+── 8 渠道描述符 ──
+  ✅ 渠道数 = LLMBackendKind.allCases.count  得到=8 期望=8
+  ✅ 渠道数 = 8  得到=8 期望=8
+  ✅ 免 key 层 = OVH/Zen/Pollinations/旧Pollinations  实际=ovhAnonymous,zenFree,pollinations,pollinationsLegacy
+  ✅ 需 key 层 = 智谱/Groq/OpenRouter/自定义  实际=zhipu,groq,openRouter,userKey
+  ✅ ovhAnonymous baseURL 合法  https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
+  ✅ zenFree baseURL 合法  https://opencode.ai/zen/v1
+  ✅ pollinations baseURL 合法  https://gen.pollinations.ai/v1
+  ✅ pollinationsLegacy baseURL 合法  https://text.pollinations.ai/openai
+  ✅ zhipu baseURL 合法  https://open.bigmodel.cn/api/paas/v4
+  ✅ groq baseURL 合法  https://api.groq.com/openai/v1
+  ✅ openRouter baseURL 合法  https://openrouter.ai/api/v1
+  ✅ userKey baseURL 合法  https://api.deepseek.com
+  ✅ OVH 静态表 5 个模型  得到=5 期望=5
+  ✅ OVH 轮转首位 = Qwen3.5-397B-A17B  Qwen3.5-397B-A17B
+  ✅ OVH 视觉模型 = Qwen2.5-VL-72B-Instruct  supportsVision 命中数=1
+  ✅ Pollinations 静态表 37 个模型  得到=37 期望=37
+  ✅ Pollinations 全部 supportsVision=false（图片要 key）  视觉模型数=0
+  ✅ Zen 注入 User-Agent=opencode/1.18.30  opencode/1.18.30
+  ✅ Zen 注入 Authorization=Bearer public  Bearer public
+  ✅ Zen 注入 x-opencode-session=ses_+26hex  ses_7d31a2370d0b844550c57ec00b（长度 30）
+  ✅ Zen session 实例内稳定（两次取描述符同值）  得到=ses_7d31a2370d0b844550c57ec00b 期望=ses_7d31a2370d0b844550c57ec00b
+  ✅ 无硬编码 sk- 凭据（描述符全字段扫描）  扫描 8 个描述符
+
+── 配置与降级链契约 ──
+  ✅ 无 key 时全勾也只生效免 key 层  生效=ovhAnonymous,zenFree,pollinations,pollinationsLegacy
+  ✅ 无 key 时生效渠道数 = 4  得到=4 期望=4
+  ✅ 有 key 时生效渠道数 = 8  得到=8 期望=8
+  ✅ 无 key 选需 key 渠道 → 不可用  currentBackendUsable=false
+  ✅ 8 渠道全部有 riskNote（如实告知风险）  8/8
+  ✅ visionEnabled 默认 false（隐私默认）  默认=false
+  ✅ 默认后端 = ovhAnonymous（开箱即用）  得到=ovhAnonymous 期望=ovhAnonymous
+  ⚠️ AgentSettings.model 出厂默认=「deepseek-chat」（历史字段，免 key 渠道下由 resolvedModel 覆盖）
+
+── 健康状态机语义（.gated 可恢复 vs .dead 永久） ──
+  ✅ .gated 属「已知坏」  isKnownBad=true
+  ✅ .gated 不可作候选（需冷却）  isSelectable=false
+  ✅ .dead 属「已知坏」  isKnownBad=true
+  noteFailure(.gated) 后 effectiveHealth = gated（期望 gated）
+  ✅ 喂 .gated 错误 → 健康态 = .gated（不是 .dead）  得到=gated 期望=gated
+  ✅ 喂 .gated 后**不是**永久终态 .dead  health=gated
+  record.health=gated reason=免费层门禁
+  ✅ record 存在且 health = .gated  record.health=gated
+  noteFailure(.modelNotFound) 后 effectiveHealth = dead（期望 dead）
+  ✅ 喂 .modelNotFound → 健康态 = .dead  得到=dead 期望=dead
+  ✅ 两类未被混同（.gated ≠ .dead 的映射各自成立）  .gated→gated vs .modelNotFound→dead
+  ⚠️ 已 resetCache() 清理自检桩，避免影响后续候选链断言
+
+── 健康监控 LLMHealthMonitor.selfCheck() ──
+  检查项 12 条：
+    · OVH 静态表按大到小轮转（5 模型）
+    · 探活间隔 60s ≥ 5s（免费档保护）
+    · 默认/覆盖间隔 ≥ 30s
+    · FreeTierError → gated
+    · RegionError → regionBlocked
+    · 429 → rateLimited
+    · ModelDeprecated → deprecated
+    · 熔断：2 次不熔断、3 次熔断
+    · requireVision=true 时全部候选支持视觉（1 个）
+    · 候选链无重复
+    · 冷却中的候选已被剔除
+    · 健康数 0/44 自洽
+  ✅ health.selfCheck 无 failures  failures=0
+  ✅ health.selfCheck ok 与 failures 一致  ok=true failures=0
+  ✅ snapshot 健康数 ≤ 总数（不虚报健康）  健康 0/44 模型=Qwen3.5-397B-A17B
+  小字预览: 免费档 · ovh · Qwen3.5-397B-A17B · 健康 0/44 · --
+
+── 真实请求（--network） ──
+  配置: backend=ovhAnonymous model=deepseek-chat key=有（51 字符）
+  ✅ 候选链非空  候选数=40
+[LLMTransport] ❌ OVHcloud 匿名/Qwen3.5-397B-A17B rateLimited：API rate limit exceeded
+  [尝试] ovhAnonymous/Qwen3.5-397B-A17B → 失败 rateLimited：API rate limit exceeded
+2026-10-06 23:40:20.689 AuroraDrive[15670:33147124] [LLMHealth] OVH 轮转 → 下一个模型（429 on Qwen3.5-397B-A17B）
+[LLMTransport] ✅ OpenCode Zen/space-bunny-free HTTP 200 文本 5 字 工具 0 个 1 片
+  [尝试] zenFree/space-bunny-free → 12622ms，回答 5 字：1+1=2
+  ✅ zenFree/space-bunny-free 返回非空  长度=5
+  ✅ zenFree/space-bunny-free 非套话模板  未命中模板词
+  ✅ zenFree/space-bunny-free 回答含正确答案「2」（真推理而非模板）  回答原文=1+1=2
+  ✅ zenFree/space-bunny-free 端到端延迟 < 30s（硬超时内）  12622ms
+  ✅ A1：候选链上至少一个模型返回了有效回答  已获得非空且含正确答案的回复
+
+═══ A1 LLM 自检：PASS（99 通过 / 0 失败）═══
+
+>>> EXIT=0
+
+-- guard --
+domain-after: d41d8cd98f00b204e9800998ecf8427e
+verdict: CLEAN (unchanged) -> result trustworthy

@@ -33,6 +33,7 @@
 
 import AppKit
 import CoreGraphics
+import ImageIO
 import Observation
 import SwiftUI
 
@@ -77,71 +78,12 @@ enum AgentModel: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// AI 面板配置（API Key / 模型 / 端点）——用户自己填写，安全存 Keychain
-struct AgentSettings: Codable, Sendable {
-    var apiKey: String = ""
-    var baseUrl: String = "https://api.deepseek.com"
-    var model: String = "deepseek-chat"
-    var thinkingDepth: Int = 1  // 1-4: 低Low/中Mid/高High/极致Max，映射到 temperature
-
-    static let service = "com.aurora.drive.aiagent"
-    static let keyApi = "apiKey"
-    static let keyBase = "baseUrl"
-    static let keyModel = "model"
-    static let keyDepth = "thinkingDepth"
-
-    /// 固定 suite 的 UserDefaults（CLI 与 .app 共用同一份，避免进程名不同域不同）
-    static let suiteName = "com.aurora.drive.aiagent"
-    static var defaults: UserDefaults {
-        UserDefaults(suiteName: suiteName) ?? .standard
-    }
-
-    /// API Key「小本本」文件（用户指令：不再访问钥匙串——启动路径每次读 Keychain 是启动异常根因；
-    /// 改存用户目录 0600 文件，启动路径零 Keychain 接触）
-    static var notebookURL: URL {
-        let dir = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("AuroraDrive", isDirectory: true)
-        return dir.appendingPathComponent("llm-key-notebook.txt")
-    }
-
-    /// 保存（API Key → 本地小本本文件 0600；非敏感字段 → 固定域 UserDefaults；全程不碰钥匙串）
-    func save() throws {
-        // 非敏感字段存固定域 UserDefaults（与进程名无关，CLI 与 GUI 共用）
-        AgentSettings.defaults.set(baseUrl, forKey: AgentSettings.keyBase)
-        AgentSettings.defaults.set(model, forKey: AgentSettings.keyModel)
-        AgentSettings.defaults.set(thinkingDepth, forKey: AgentSettings.keyDepth)
-        AgentSettings.defaults.synchronize()
-        guard !apiKey.isEmpty else { return }
-        let fm = FileManager.default
-        try fm.createDirectory(at: AgentSettings.notebookURL.deletingLastPathComponent(),
-                                withIntermediateDirectories: true)
-        try (apiKey.data(using: .utf8) ?? Data()).write(to: AgentSettings.notebookURL, options: .atomic)
-        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: AgentSettings.notebookURL.path)
-    }
-
-    /// 从本地小本本加载（不碰钥匙串）
-    static func load() -> AgentSettings {
-        var settings = AgentSettings()
-        // 读取 apiKey（本地小本本文件）
-        if let data = try? Data(contentsOf: notebookURL),
-           let key = String(data: data, encoding: .utf8), !key.isEmpty {
-            settings.apiKey = key
-        }
-        // 读取非敏感字段（固定域）
-        let d = AgentSettings.defaults
-        settings.baseUrl = d.string(forKey: keyBase) ?? settings.baseUrl
-        settings.model = d.string(forKey: keyModel) ?? settings.model
-        settings.thinkingDepth = d.integer(forKey: keyDepth)
-        if settings.thinkingDepth < 1 { settings.thinkingDepth = 3 }
-        return settings
-    }
-
-    /// 删除本地小本本中的 API Key（函数名保留兼容，不再碰钥匙串）
-    static func deleteKeychain() {
-        try? FileManager.default.removeItem(at: notebookURL)
-    }
-}
+/// AI 面板配置（API Key / 模型 / 端点）——用户自己填写，存本地 0600 小本本。
+///
+/// ⚠️ 2026-10-06（W0 接口冻结）：定义已迁移到 `AgentSettings.swift`。
+///    抽出的原因：多渠道聚合/降级链/工具挂载施工由 8 条线并行推进，
+///    配置结构是所有线的公共依赖，独立成文件后写作用域清晰、避免冲突。
+///    字段语义、持久化格式、`notebookURL` 路径**保持逐字兼容**。
 
 // MARK: - 技能清单（人类 + AI 共用同一份）
 
@@ -1546,8 +1488,90 @@ final class AgentSkillCenter: @unchecked Sendable {
             return
         }
 
-        // 本地命令回复（未接入外部 LLM 时的诚实行为）
-        replyAssistant(localReply(to: trimmed))
+        // ── 自由聊天：走真实 LLM（2026-10-06 W6）──
+        // 病根修复：改造前这里无条件走 `localReply()` 硬编码套话，`plainAnswer`
+        // 写好了却从未被生产路径调用 —— AI 助手因此是"壳子"。
+        // 现在走 AgentChatService.reply：带最近 12 轮历史 + 系统提示 + 流式增量。
+        // localReply 只保留为"全链失败"的离线降级，且明确标注。
+        sendChatMessage(trimmed, source: source)
+    }
+
+    /// 自由聊天：走真实 LLM，流式边收边显示。
+    ///
+    /// 【线程模型】`AgentChatService` 是 actor，网络/解析都在后台；
+    /// `onDelta` 回调在后台执行，这里统一 `DispatchQueue.main.async` 更新 UI。
+    /// 流式增量按 15Hz 节流（AgentChatService 内部），UI 不会每 token 重绘。
+    ///
+    /// 【历史】取 `messages` 里最近的 user/assistant 轮次（最旧的在前），
+    /// 由 AgentChatService 负责裁剪到最近 12 轮 + 系统提示。
+    ///
+    /// 【离线降级】全链失败时 `ChatReply.text` 为空 + `errorMessage` 有值：
+    /// 回退 `localReply` 并明确标注"（离线回复：无可用模型）"——用户能分清
+    /// 是模型答的还是本地兜底，不假装。
+    private func sendChatMessage(_ text: String, source: AgentInvokeSource) {
+        // 历史：最近 40 条里的 user/assistant 轮次（服务端再裁剪到 12 轮）
+        let history: [ChatTurn] = messages.suffix(40).compactMap { msg in
+            switch msg.role {
+            case .user:       return ChatTurn(role: "user", text: msg.text)
+            case .assistant:  return ChatTurn(role: "assistant", text: msg.text)
+            case .system:     return nil
+            }
+        }
+
+        // ── 📷 视觉开关：开启时把当前帧一并发送 ──
+        // 帧来源与 ToolRegistry.screenshot 同源（DriveState.currentFrameCG 优先），
+        // 保证"面板看到的"与"工具抓到的"是同一画面。
+        // 拿不到帧时**不静默降级**成纯文本——如实告知（用户规格：不假装看了屏幕）。
+        let wantVision = aiSettings.visionEnabled
+
+        // 占位：先给一条"正在思考"，流式期间逐段更新
+        let placeholder = AgentMessage(role: .assistant, text: "…", time: Date(), source: .ai)
+        messages.append(placeholder)
+        appendSystem("🧠 正在调用模型\(wantVision ? "（含截图）" : "")…")
+
+        let service = AgentChatService.shared
+        Task { [weak self] in
+            // 取帧必须在主线程（DriveState.currentFrameCG 非线程安全）；
+            // 拿不到帧时不静默降级成纯文本 —— 如实告知（用户规格）。
+            let frameImage: LLMImage? = wantVision
+                ? await MainActor.run { Self.encodeCurrentFrameForVision() }
+                : nil
+            if wantVision && frameImage == nil {
+                await MainActor.run {
+                    self?.appendSystem("⚠️ 已开启带截图，但拿不到当前画面（屏幕录制权限未授权或采集未启动）"
+                                       + "——本次按纯文本发送")
+                }
+            }
+            let reply = await service.reply(text: text, history: history,
+                                            image: frameImage) { delta in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    // 更新占位消息为累计文本
+                    if let idx = self.messages.lastIndex(where: { $0.id == placeholder.id }) {
+                        self.messages[idx].text = delta
+                    }
+                }
+            }
+
+            await MainActor.run {
+                guard let self else { return }
+                // 移除占位，写入最终回复
+                self.messages.removeAll { $0.id == placeholder.id }
+                if reply.ok {
+                    self.replyAssistant(reply.text)
+                    self.appendSystem("🤖 \(reply.backend.displayName) · \(reply.model)"
+                                      + (reply.viaFallback ? "（已降级）" : ""))
+                } else {
+                    // 全链失败 → 离线降级，明确标注
+                    let fallback = self.localReply(to: text)
+                    let marked = "（离线回复：无可用模型）\(fallback)"
+                    self.replyAssistant(marked)
+                    if let reason = reply.errorMessage {
+                        self.appendSystem("⚠️ \(reason)")
+                    }
+                }
+            }
+        }
     }
 
     /// 判断是否为需要端到端规划的复合任务
@@ -1556,6 +1580,48 @@ final class AgentSkillCenter: @unchecked Sendable {
         let lower = text.lowercased()
         let sequentialWords = ["然后", "接着", "先", "再", "依次", "最后", "顺"]
         return sequentialWords.contains { lower.contains($0) }
+    }
+
+    /// 抓当前帧并编码成可发送的图片（供 📷 视觉开关用）。
+    ///
+    /// 【为什么要降采样】实测：2940×1912 原图 base64 约 8MB，会超上游请求限制；
+    ///   长边压到 1568px + JPEG 0.8 后约 30–800KB，实测可正常发送（W2 同一门限）。
+    /// 【为什么在主线程取帧】`DriveState.currentFrameCG` / `NSImage` 不是线程安全的，
+    ///   取帧必须 `MainActor`；编码（重）放到后台，避免卡 30fps 红线。
+    @MainActor
+    private static func encodeCurrentFrameForVision() -> LLMImage? {
+        let cg: CGImage? = DriveState.shared.currentFrameCG
+            ?? DriveState.shared.captureEngine.currentFrame?
+                .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        guard let frame = cg else { return nil }
+        return Self.downscaleForVision(frame)
+    }
+
+    /// 长边降到 1568px、JPEG 0.8（与 W2 `LLMImage` 编码门限一致）
+    private static func downscaleForVision(_ image: CGImage) -> LLMImage? {
+        let maxSide: CGFloat = 1568
+        let w = CGFloat(image.width), h = CGFloat(image.height)
+        let scale = min(1.0, maxSide / max(w, h))
+        let tw = max(1, Int(w * scale)), th = max(1, Int(h * scale))
+
+        guard let ctx = CGContext(data: nil, width: tw, height: th,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
+            return nil
+        }
+        ctx.interpolationQuality = .medium
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: tw, height: th))
+        guard let scaled = ctx.makeImage() else { return nil }
+
+        let data = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(
+            data as CFMutableData, "public.jpeg" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(dest, scaled, [
+            kCGImageDestinationLossyCompressionQuality: 0.8
+        ] as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return LLMImage(data: data as Data, mimeType: "image/jpeg")
     }
 
     /// 本地回复：状态汇总 + 可执行指令提示
@@ -1850,6 +1916,10 @@ struct AIAgentPanelView: View {
     @State private var liveModels: [String] = []
     /// 技能网格是否显示「待移植」技能（默认隐藏，降低视觉噪音；用户反馈"太乱了没法用"）
     @State private var showUnportedSkills = false
+    /// 渠道健康快照（底部常驻小字的数据源；由 30s 轮询 + 每次对话后刷新）
+    @State private var healthSnapshot: LLMHealthSnapshot?
+    /// 诊断面板（点小字旁「诊断」打开）
+    @State private var showDiagnostics = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -2129,8 +2199,126 @@ struct AIAgentPanelView: View {
                 .disabled(draftText.isEmpty)
             }
 
-            // 第二行：模型按钮 + 思考滑块
+            // ── 常驻状态小字（2026-10-06 W6，用户明确要求）──
+            //
+            // 位置：输入框正下方（不是卡片顶部），弱化色 + 微字号。
+            // 内容随真实请求实时刷新：`免费档 · ovh · Qwen2.5-VL-72B · 健康 4/7 · 0.9s`
+            // 降级时显示 `⚠️ 已降级 → zenFree · space-bunny-free`，
+            // 全挂时显示 `⚠️ 无可用模型（点此诊断）`。
+            //
+            // 数据源：`LLMHealthMonitor.snapshot()`（actor，30s 轮询 + 每次对话后刷新）。
+            // hover tooltip 展示完整候选链与各模型健康态（诊断用）。
+            HStack(spacing: Aurora.sp2) {
+                if let snap = healthSnapshot {
+                    Text(snap.displayLine)
+                        .font(.system(size: Aurora.fsMicro, weight: .medium))
+                        .foregroundStyle(snap.healthyCount == 0 ? Aurora.amber : Aurora.t3)
+                        .lineLimit(1)
+                        .help(snap.chainPreview.isEmpty
+                              ? "候选链为空（无可用模型）"
+                              : "候选链：\n" + snap.chainPreview.joined(separator: "\n"))
+                    Spacer()
+                    Button {
+                        showDiagnostics.toggle()
+                    } label: {
+                        Text("诊断")
+                            .font(.system(size: Aurora.fsMicro))
+                            .foregroundStyle(Aurora.t3)
+                    }
+                    .buttonStyle(.plain)
+                    .help("查看候选链与各模型健康态")
+                } else {
+                    Text("正在探测模型可用性…")
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.t3)
+                    Spacer()
+                }
+            }
+            .padding(.horizontal, Aurora.sp1)
+            .task {
+                // 首次进入刷新一次；之后 30s 轮询（与探活自适应策略一致）
+                while !Task.isCancelled {
+                    healthSnapshot = await LLMHealthMonitor.shared.snapshot()
+                    try? await Task.sleep(nanoseconds: 30 * 1_000_000_000)
+                }
+            }
+            .sheet(isPresented: $showDiagnostics) {
+                LLMDiagnosticsSheet()
+            }
+
+            // 第二行：后端选择器 + 📷 视觉开关 + 模型按钮 + 思考滑块
             HStack(spacing: Aurora.sp3) {
+                // ── 后端选择器（2026-10-06 W6，用户明确要求）──
+                //
+                // 规则（用户规格）：`apiKey` 为空时**只能选免 key 渠道**，
+                // 需 key 渠道置灰并提示"配置 API Key 后可切换"。
+                Menu {
+                    ForEach(LLMBackendKind.allCases, id: \.self) { kind in
+                        let usable = center.aiSettings.apiKey.isEmpty ? kind.isKeyless : true
+                        Button {
+                            var s = center.aiSettings
+                            s.backendKind = kind
+                            center.aiSettings = s
+                            try? s.save()
+                            center.appendSystem("🔀 后端已切换：\(kind.displayName)")
+                        } label: {
+                            if kind == center.aiSettings.backendKind {
+                                Label("\(kind.displayName)\(usable ? "" : "（需 API Key）")",
+                                      systemImage: "checkmark")
+                            } else {
+                                Text("\(kind.displayName)\(usable ? "" : "（需 API Key）")")
+                            }
+                        }
+                        .disabled(!usable)
+                    }
+                    Divider()
+                    Text(center.aiSettings.apiKey.isEmpty
+                         ? "配置 API Key 后可切换到需密钥渠道"
+                         : "已配置 API Key，全部渠道可用")
+                        .font(.system(size: Aurora.fsMicro))
+                } label: {
+                    HStack(spacing: Aurora.sp1) {
+                        Image(systemName: "point.3.connected.trianglepath.dotted")
+                            .font(.system(size: Aurora.fsMicro))
+                        Text(center.aiSettings.backendKind.displayName)
+                            .font(.system(size: Aurora.fsMicro, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(center.aiSettings.backendKind.isKeyless ? Aurora.ice : Aurora.amber)
+                    .padding(.horizontal, Aurora.sp2)
+                    .padding(.vertical, Aurora.sp1)
+                    .background(Capsule().fill(Color.white.opacity(0.06)))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("选择模型后端。免 key 渠道开箱即用；需 key 渠道要先填自己的 API Key。")
+
+                // ── 📷 视觉开关（默认关，隐私优先）──
+                Toggle(isOn: Binding(
+                    get: { center.aiSettings.visionEnabled },
+                    set: { v in
+                        var s = center.aiSettings
+                        s.visionEnabled = v
+                        center.aiSettings = s
+                        try? s.save()
+                        center.appendSystem(v
+                            ? "📷 已开启带截图：对话时会把当前画面发给模型（会离开本机）"
+                            : "📷 已关闭带截图")
+                    })) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: Aurora.fsMicro))
+                        Text("带截图")
+                            .font(.system(size: Aurora.fsMicro))
+                    }
+                    .foregroundStyle(center.aiSettings.visionEnabled ? Aurora.ice : Aurora.t3)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .fixedSize()
+                .help("开启后，对话时把当前屏幕画面一并发送给模型（需要视觉模型；图片会发送到第三方渠道）")
+
                 // 模型选择（真实模型清单：从 API /models 拉取，替换原硬编码假列表）
                 Menu {
                     ForEach(liveModels, id: \.self) { id in
@@ -2211,113 +2399,435 @@ struct AIAgentPanelView: View {
     }
 }
 
+// MARK: - 渠道诊断 Sheet（底部小字「诊断」入口）
+
+/// 展示 7 渠道 / 全部候选模型的健康态，供用户判断"为什么没回答"。
+///
+/// 【为什么需要】免费渠道会波动（OVH 限流、Pollinations 时段性门禁），
+/// 用户看到"无可用模型"时需要能自己查清是哪家、什么状态 —— 而不是只能等。
+struct LLMDiagnosticsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var snapshot: LLMHealthSnapshot?
+    @State private var rows: [(String, String)] = []
+    @State private var loading = true
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("当前状态") {
+                    if let s = snapshot {
+                        LabeledContent("生效渠道", value: s.backendDisplayName)
+                        LabeledContent("当前模型", value: s.model.isEmpty ? "-" : s.model)
+                        LabeledContent("健康模型", value: "\(s.healthyCount)/\(s.totalCount)")
+                        if let ms = s.latencyMs {
+                            LabeledContent("最近延迟", value: String(format: "%.0f ms", ms))
+                        }
+                        LabeledContent("探活间隔", value: String(format: "%.0f s", s.probeIntervalSeconds))
+                        Text(s.displayLine)
+                            .font(.system(size: Aurora.fsMicro))
+                            .foregroundStyle(Aurora.t3)
+                    } else {
+                        Text(loading ? "正在读取…" : "无数据").foregroundStyle(Aurora.t3)
+                    }
+                }
+
+                Section("候选链（按降级顺序）") {
+                    if let s = snapshot, !s.chainPreview.isEmpty {
+                        ForEach(Array(s.chainPreview.enumerated()), id: \.offset) { idx, line in
+                            Text("\(idx + 1). \(line)")
+                                .font(.system(size: Aurora.fsMicro, design: .monospaced))
+                        }
+                    } else {
+                        Text("候选链为空 —— 所有渠道均不可用").foregroundStyle(Aurora.amber)
+                    }
+                }
+
+                Section("各模型健康态") {
+                    if rows.isEmpty {
+                        Text(loading ? "正在读取…" : "无记录").foregroundStyle(Aurora.t3)
+                    } else {
+                        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                            HStack {
+                                Text(row.0)
+                                    .font(.system(size: Aurora.fsMicro, design: .monospaced))
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(row.1)
+                                    .font(.system(size: Aurora.fsMicro, weight: .semibold))
+                                    .foregroundStyle(row.1 == "ok" ? Aurora.ice
+                                                     : (row.1 == "unknown" ? Aurora.t3 : Aurora.amber))
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    Button("重新探活") {
+                        loading = true
+                        Task {
+                            _ = await LLMHealthMonitor.shared.probeAll(force: true)
+                            await reload()
+                        }
+                    }
+                    Text("说明：免费渠道（OVH/Zen/Pollinations）会限流或时段性收紧，"
+                         + "状态会随时间变化。填自己的 API Key 可获得稳定渠道。")
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.t3)
+                }
+            }
+            .navigationTitle("模型渠道诊断")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .frame(minWidth: 460, minHeight: 420)
+        .task { await reload() }
+    }
+
+    private func reload() async {
+        let s = await LLMHealthMonitor.shared.snapshot()
+        let states = await LLMHealthMonitor.shared.allHealthStates()
+        await MainActor.run {
+            snapshot = s
+            rows = states.sorted { $0.key < $1.key }.map { ($0.key, $0.value.rawValue) }
+            loading = false
+        }
+    }
+}
+
 // MARK: - AI 配置 Sheet
 
 struct AgentSettingsSheet: View {
     @Bindable var center: AgentSkillCenter
     @Environment(\.dismiss) private var dismiss
 
+    /// 向导步骤：1 = 选路线，2 = 填 key（仅选「要更强能力」时），3 = 完成
+    @State private var step = 1
+    /// 第 1 步选择：true = 免注册免 key；false = 我要更强能力
+    @State private var useKeyless = true
+    /// 各 provider 的测试连接结果（provider.rawValue → 结果串）
+    @State private var testResults: [String: String] = [:]
+    @State private var testing: Set<String> = []
+
     var body: some View {
         NavigationView {
-            Form {
-                Section("API 配置（本地小本本存储）") {
-                    VStack(alignment: .leading, spacing: Aurora.sp2) {
-                        Text("API Key — 粘贴你的 DeepSeek/OpenAI/Claude API Key")
-                            .font(.system(size: Aurora.fsMicro, weight: .medium))
+            VStack(alignment: .leading, spacing: Aurora.sp3) {
+                // ── 步骤指示 ──
+                HStack(spacing: Aurora.sp2) {
+                    stepDot(1, "选路线")
+                    stepDot(2, "填密钥")
+                    stepDot(3, "完成")
+                    Spacer()
+                }
+                .padding(.horizontal, Aurora.sp3)
+                .padding(.top, Aurora.sp2)
+
+                Divider()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Aurora.sp4) {
+                        switch step {
+                        case 1: stepOne
+                        case 2: stepTwo
+                        default: stepThree
+                        }
+                    }
+                    .padding(Aurora.sp3)
+                }
+
+                Divider()
+
+                // ── 底部导航 ──
+                HStack {
+                    if step > 1 {
+                        Button("上一步") { step -= 1 }
+                            .buttonStyle(.plain)
                             .foregroundStyle(Aurora.t2)
-                        TextField("sk-...", text: $center.aiSettings.apiKey,
-                                  prompt: Text("sk-xxxxxxxx"))
-                            .font(.system(.body, design: .monospaced))
-                            .textContentType(.password)
-                            .autocorrectionDisabled(true)
-                        Text("存储在本地小本本文件（0600），不再访问钥匙串")
+                    }
+                    Spacer()
+                    if step == 1 {
+                        Button(useKeyless ? "开始使用（免配置）" : "下一步") {
+                            step = useKeyless ? 3 : 2
+                            if useKeyless { applyKeyless() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else if step == 2 {
+                        Button("完成") { step = 3 }
+                            .buttonStyle(.borderedProminent)
+                    } else {
+                        Button("完成") { dismiss() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                }
+                .padding(Aurora.sp3)
+            }
+            .navigationTitle("AI 助手配置向导")
+            .frame(minWidth: 520, minHeight: 520)
+        }
+    }
+
+    // MARK: 步骤指示点
+
+    private func stepDot(_ n: Int, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            ZStack {
+                Circle()
+                    .fill(step >= n ? Aurora.ice : Aurora.t3.opacity(0.3))
+                    .frame(width: 18, height: 18)
+                Text("\(n)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(step >= n ? .black : Aurora.t3)
+            }
+            Text(label)
+                .font(.system(size: Aurora.fsMicro, weight: step == n ? .semibold : .regular))
+                .foregroundStyle(step >= n ? Aurora.t1 : Aurora.t3)
+        }
+    }
+
+    // MARK: 第 1 步 · 选路线
+
+    private var stepOne: some View {
+        VStack(alignment: .leading, spacing: Aurora.sp3) {
+            Text("选择使用方式")
+                .font(.system(size: Aurora.fsTitle, weight: .semibold))
+                .foregroundStyle(Aurora.t1)
+
+            routeCard(
+                selected: useKeyless,
+                title: "免注册 · 免 API Key（推荐）",
+                subtitle: "开箱即用，无需任何账号",
+                bullets: [
+                    "OVHcloud 匿名层（含视觉模型 Qwen2.5-VL-72B）",
+                    "OpenCode Zen 免费档（space-bunny-free，视觉）",
+                    "Pollinations（37 个文本模型）",
+                    "⚠️ 免费渠道会限流或时段性收紧，失败时自动降级"
+                ],
+                onTap: { useKeyless = true })
+
+            routeCard(
+                selected: !useKeyless,
+                title: "我要更强能力（1 分钟注册，免费）",
+                subtitle: "填自己的 API Key，更稳定",
+                bullets: [
+                    "智谱 GLM · glm-4.6v-flash（免费视觉）",
+                    "Groq · 低延迟",
+                    "OpenRouter · 免费档 15+ 模型",
+                    "不内置、不代填、不代注册 —— 只由你本人填写"
+                ],
+                onTap: { useKeyless = false })
+        }
+    }
+
+    private func routeCard(selected: Bool, title: String, subtitle: String,
+                           bullets: [String], onTap: @escaping () -> Void) -> some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: Aurora.sp2) {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(selected ? Aurora.ice : Aurora.t3)
+                    .font(.system(size: 15))
+                VStack(alignment: .leading, spacing: Aurora.sp1) {
+                    Text(title)
+                        .font(.system(size: Aurora.fsBody, weight: .semibold))
+                        .foregroundStyle(Aurora.t1)
+                    Text(subtitle)
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.t2)
+                    ForEach(bullets, id: \.self) { b in
+                        Text("· " + b)
                             .font(.system(size: Aurora.fsMicro))
                             .foregroundStyle(Aurora.t3)
                     }
                 }
+                Spacer()
+            }
+            .padding(Aurora.sp3)
+            .background(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
+                .fill(selected ? Aurora.ice.opacity(0.08) : Color.white.opacity(0.03)))
+            .overlay(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
+                .strokeBorder(selected ? Aurora.ice.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
 
-                Section("端点 & 模型") {
-                    TextField("Base URL", text: $center.aiSettings.baseUrl,
-                              prompt: Text("https://api.deepseek.com"))
-                        .font(.system(.body, design: .monospaced))
-                    TextField("Model", text: $center.aiSettings.model,
-                              prompt: Text("deepseek-chat"))
-                        .font(.system(.body, design: .monospaced))
-                    Picker("思考深度", selection: $center.aiSettings.thinkingDepth) {
-                        Text("低 Low").tag(1)
-                        Text("中 Mid").tag(2)
-                        Text("高 High").tag(3)
-                        Text("极致 Max").tag(4)
-                    }
-                    .pickerStyle(.segmented)
+    /// 免 key 路线：把后端设为免 key 渠道并把该用的键写进配置
+    private func applyKeyless() {
+        var s = center.aiSettings
+        s.backendKind = .ovhAnonymous
+        s.enabledBackends = LLMBackendKind.allCases.filter(\.isKeyless)
+        center.aiSettings = s
+        try? s.save()
+        center.appendSystem("✅ 已启用免注册渠道（OVH / Zen / Pollinations），无需 API Key")
+    }
+
+    // MARK: 第 2 步 · 手把手填 key
+
+    private var stepTwo: some View {
+        VStack(alignment: .leading, spacing: Aurora.sp3) {
+            Text("手把手配置（三选一或全填）")
+                .font(.system(size: Aurora.fsTitle, weight: .semibold))
+                .foregroundStyle(Aurora.t1)
+            Text("每个渠道都会带你去注册页；拿到 key 后粘贴到输入框，点「测试连接」当场验证。")
+                .font(.system(size: Aurora.fsMicro))
+                .foregroundStyle(Aurora.t2)
+
+            providerCard(
+                kind: .zhipu,
+                registerURL: "https://open.bigmodel.cn",
+                steps: ["打开 open.bigmodel.cn", "手机号注册（免费，1 分钟）", "控制台复制 API Key"],
+                capability: "glm-4.6v-flash（免费视觉）· glm-4v-flash 降级链")
+
+            providerCard(
+                kind: .groq,
+                registerURL: "https://console.groq.com/keys",
+                steps: ["打开 console.groq.com", "注册（免费额度）", "API Keys → Create Key"],
+                capability: "低延迟文本模型")
+
+            providerCard(
+                kind: .openRouter,
+                registerURL: "https://openrouter.ai/keys",
+                steps: ["打开 openrouter.ai", "注册（免费，无需绑卡）", "Keys → Create Key"],
+                capability: "免费档 15+ 模型，含视觉")
+
+            // 自定义端点（高级）
+            VStack(alignment: .leading, spacing: Aurora.sp2) {
+                Text("自定义端点（高级）")
+                    .font(.system(size: Aurora.fsBody, weight: .semibold))
+                    .foregroundStyle(Aurora.t1)
+                TextField("Base URL", text: Binding(
+                    get: { center.aiSettings.baseUrl },
+                    set: { center.aiSettings.baseUrl = $0 }))
+                    .font(.system(.body, design: .monospaced))
+                TextField("Model", text: Binding(
+                    get: { center.aiSettings.model },
+                    set: { center.aiSettings.model = $0 }))
+                    .font(.system(.body, design: .monospaced))
+                Text("任何 OpenAI 兼容端点都可用。")
+                    .font(.system(size: Aurora.fsMicro))
+                    .foregroundStyle(Aurora.t3)
+            }
+            .padding(Aurora.sp3)
+            .background(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
+                .fill(Color.white.opacity(0.03)))
+        }
+    }
+
+    private func providerCard(kind: LLMBackendKind, registerURL: String,
+                              steps: [String], capability: String) -> some View {
+        VStack(alignment: .leading, spacing: Aurora.sp2) {
+            HStack {
+                Text(kind.displayName)
+                    .font(.system(size: Aurora.fsBody, weight: .semibold))
+                    .foregroundStyle(Aurora.t1)
+                Spacer()
+                Button("打开注册页 →") {
+                    if let url = URL(string: registerURL) { NSWorkspace.shared.open(url) }
                 }
+                .buttonStyle(.plain)
+                .font(.system(size: Aurora.fsMicro))
+                .foregroundStyle(Aurora.ice)
+            }
+            ForEach(Array(steps.enumerated()), id: \.offset) { i, s in
+                Text("\(i + 1). \(s)")
+                    .font(.system(size: Aurora.fsMicro))
+                    .foregroundStyle(Aurora.t2)
+            }
+            Text("能力：" + capability)
+                .font(.system(size: Aurora.fsMicro))
+                .foregroundStyle(Aurora.t3)
+            Text(kind.riskNote)
+                .font(.system(size: Aurora.fsMicro))
+                .foregroundStyle(Aurora.t3)
 
-                Section("AI 规划（弱模型防线 8 熔断）") {
-                    Button {
-                        AgentLoop.shared.resetLLMDowngrade()
-                        center.appendSystem("✅ [LLM] AI 规划熔断已手动复位，重新启用 LLM 规划")
-                    } label: {
-                        Text("复位 AI 规划熔断（恢复 LLM 规划）")
-                    }
-                    Text("说明：LLM 规划任务连续失败 3 次会自动降级为本地规则模式（零幻觉），"
-                        + "降级日志见面板；点击上方按钮可随时手动恢复。")
-                        .font(.system(size: Aurora.fsMicro))
-                        .foregroundStyle(Aurora.t3)
+            HStack(spacing: Aurora.sp2) {
+                SecureField("粘贴 API Key", text: Binding(
+                    get: { center.aiSettings.apiKey },
+                    set: { center.aiSettings.apiKey = $0 }))
+                    .font(.system(.body, design: .monospaced))
+                    .textContentType(.password)
+                Button(testing.contains(kind.rawValue) ? "测试中…" : "测试连接") {
+                    testConnection(kind)
                 }
+                .disabled(testing.contains(kind.rawValue)
+                          || center.aiSettings.apiKey.isEmpty)
+            }
+            if let r = testResults[kind.rawValue] {
+                Text(r)
+                    .font(.system(size: Aurora.fsMicro, weight: .medium))
+                    .foregroundStyle(r.hasPrefix("✅") ? Aurora.ice : Aurora.amber)
+            }
+        }
+        .padding(Aurora.sp3)
+        .background(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
+            .fill(Color.white.opacity(0.03)))
+        .overlay(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
+            .strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+    }
 
-                Section("快速填充（示例配置，已填的 API Key 会保留）") {
-                    Button("Agnes（当前默认）") {
-                        center.aiSettings = AgentSettings(
-                            apiKey: center.aiSettings.apiKey,  // 保留已填 key，不抹掉
-                            baseUrl: "https://api.agnes-ai.cn",
-                            model: "agnes-2.5-flash",
-                            thinkingDepth: 3
-                        )
+    /// 当场发一次真实请求验证 key 有效性（不写入任何东西，除非成功）
+    private func testConnection(_ kind: LLMBackendKind) {
+        let key = center.aiSettings.apiKey
+        testing.insert(kind.rawValue)
+        testResults[kind.rawValue] = nil
+        Task {
+            var s = center.aiSettings
+            s.backendKind = kind
+            s.apiKey = key
+            let reply = await AgentChatService.shared.reply(
+                text: "回答两个字：收到", history: [], image: nil) { _ in }
+            await MainActor.run {
+                testing.remove(kind.rawValue)
+                if reply.ok {
+                    testResults[kind.rawValue] = "✅ 连接成功 · \(reply.backend.displayName) · \(reply.model)"
+                    // 成功才落盘并把渠道切过去
+                    var committed = center.aiSettings
+                    committed.backendKind = kind
+                    if !committed.enabledBackends.contains(kind) {
+                        committed.enabledBackends.append(kind)
                     }
-                    Button("DeepSeek") {
-                        center.aiSettings = AgentSettings(
-                            apiKey: center.aiSettings.apiKey,  // 保留已填 key，不抹掉
-                            baseUrl: "https://api.deepseek.com",
-                            model: "deepseek-chat",
-                            thinkingDepth: 3
-                        )
-                    }
-                    Button("OpenAI") {
-                        center.aiSettings = AgentSettings(
-                            apiKey: center.aiSettings.apiKey,  // 保留已填 key，不抹掉
-                            baseUrl: "https://api.openai.com",
-                            model: "gpt-4o-mini",
-                            thinkingDepth: 3
-                        )
-                    }
-                    Button("Anthropic Claude") {
-                        center.aiSettings = AgentSettings(
-                            apiKey: center.aiSettings.apiKey,  // 保留已填 key，不抹掉
-                            baseUrl: "https://api.anthropic.com",
-                            model: "claude-3-5-haiku-20241022",
-                            thinkingDepth: 4
-                        )
-                    }
+                    center.aiSettings = committed
+                    try? committed.save()
+                } else {
+                    testResults[kind.rawValue] = "❌ \(reply.errorMessage ?? "连接失败")"
                 }
             }
-            .navigationTitle("AI 配置")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
-                        do {
-                            try center.aiSettings.save()
-                            center.appendSystem("✅ API Key 已保存（本地小本本，不再访问钥匙串）")
-                            dismiss()
-                        } catch {
-                            center.appendSystem("❌ 保存失败：\(error.localizedDescription)")
-                        }
-                    }
-                    .disabled(center.aiSettings.apiKey.isEmpty)
-                }
+        }
+    }
+
+    // MARK: 第 3 步 · 完成
+
+    private var stepThree: some View {
+        VStack(alignment: .leading, spacing: Aurora.sp3) {
+            Text("配置完成 🎉")
+                .font(.system(size: Aurora.fsTitle, weight: .semibold))
+                .foregroundStyle(Aurora.t1)
+            Text(useKeyless
+                 ? "已启用免注册渠道，现在可以直接和 AI 对话了。"
+                 : "已保存你的 API Key，现在可以直接和 AI 对话了。")
+                .font(.system(size: Aurora.fsBody))
+                .foregroundStyle(Aurora.t2)
+            VStack(alignment: .leading, spacing: Aurora.sp1) {
+                Text("可以试试：")
+                    .font(.system(size: Aurora.fsMicro, weight: .semibold))
+                    .foregroundStyle(Aurora.t2)
+                Text("· 「你好」 —— 普通聊天")
+                    .font(.system(size: Aurora.fsMicro)).foregroundStyle(Aurora.t3)
+                Text("· 「帮我领奖励」 —— AI 自己调用工具")
+                    .font(.system(size: Aurora.fsMicro)).foregroundStyle(Aurora.t3)
+                Text("· 打开「📷 带截图」后问「屏幕上是什么」 —— 视觉理解")
+                    .font(.system(size: Aurora.fsMicro)).foregroundStyle(Aurora.t3)
+                Text("· 「搜一下异环最新活动」 —— 联网搜索")
+                    .font(.system(size: Aurora.fsMicro)).foregroundStyle(Aurora.t3)
             }
+            .padding(Aurora.sp3)
+            .background(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
+                .fill(Aurora.ice.opacity(0.06)))
+
+            Text("说明：本 App 不内置任何 API Key，也不代你注册。"
+                 + "免费渠道的对话内容会发送到第三方服务商，请注意隐私。")
+                .font(.system(size: Aurora.fsMicro))
+                .foregroundStyle(Aurora.t3)
         }
     }
 }

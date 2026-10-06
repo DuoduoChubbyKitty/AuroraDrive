@@ -1,0 +1,45 @@
+═══ 【W8 独立取证】偏好域污染 com.aurora.drive.aiagent ═══
+时间: 2026-10-06 22:23:24 +0800
+
+── ① 污染现场（清理前）──
+命令: defaults read com.aurora.drive.aiagent
+2026-10-06 22:23:24.300 defaults[57107:32958999] 
+Domain com.aurora.drive.aiagent does not exist
+plist: -rw-------@ 1 dupi  staff  42 Oct  6 22:23 /Users/dupi/Library/Preferences/com.aurora.drive.aiagent.plist
+
+── ② 污染源定位（不是 W8 自检）──
+命令: grep -rn '18099|stub-model' Sources/ ; grep -rln 18099 /tmp/*.swift
+· Sources/ 下无 18099 / stub-model 定义：
+· 命中 /tmp/w3check/main.swift（W3 的验证台）：
+14:let stubPort = 18099
+98:                 AgentSettings.keyModel: "stub-model",
+106:    probeSettings.model = "stub-model"
+126:        check(req.body.contains("\"model\":\"stub-model\"") || req.body.contains("\"model\" : \"stub-model\""), "body 带正确 model 名")
+
+── ③ 根因：W3 验证台的注释与代码不符 ──
+验证台注释（/tmp/w3check/main.swift:49-50）：
+        }
+    }
+但它调用的 AgentSettings.defaults 是**硬编码真实 suite**（AgentSettings.swift:174-177）：
+    static let suiteName = "com.aurora.drive.aiagent"
+    static var defaults: UserDefaults {
+        UserDefaults(suiteName: suiteName) ?? .standard
+    }
+→ 所谓『指到 /tmp 的私有 suite』从未发生：写的一直是用户的真域。
+
+── ④ W8 自检的写入面（自证清白）──
+命令: grep -n 'save()|defaults.set|deleteKeychain' Sources/AuroraDrive/Agent/LLMSelfTest.swift
+  （空：W8 自检只调 AgentSettings.load() 纯读，无任何写路径）
+
+── ⑤ 清理 ──
+命令: defaults delete com.aurora.drive.aiagent
+2026-10-06 22:23:24.368 defaults[57117:32959019] 
+Domain (com.aurora.drive.aiagent) not found.
+Defaults have not been changed.
+清理后读回：
+2026-10-06 22:23:24.375 defaults[57120:32959025] 
+Domain com.aurora.drive.aiagent does not exist
+
+── ⑥ 用户资产未受损核对 ──
+-rw-------@ 1 dupi  staff  51 Sep 15 21:48 /Users/dupi/Library/Application Support/AuroraDrive/llm-key-notebook.txt
+（mtime 应仍为 Sep 15 21:48 —— 用户 key 小本本未被改写）

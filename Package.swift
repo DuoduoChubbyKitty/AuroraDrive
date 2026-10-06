@@ -160,6 +160,7 @@ let package = Package(
                 "test-minimal-plugin.js",
                 "tools",
                 "train.log",
+                "verify",
                 "yolo26s.pt",
                 "交接文档-异环外置盘.md",
                 "目标模式文档-自动驾驶修复.md",

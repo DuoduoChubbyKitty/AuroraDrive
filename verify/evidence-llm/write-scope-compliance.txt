@@ -1,0 +1,103 @@
+═══ W8 写作用域合规核查（交付前自证）═══
+时间: 2026-10-06 23:41:25 +0800
+
+── ① 授权范围（Lead 裁决原文）──
+  「只改 gameKeyToKeyCode 映射表的值 + 上面的注释；不要改 KeyMap」
+
+── ② 实际改动（git diff，非注释行全量列举）──
+命令: git diff -- Sources/AuroraDrive/Control/ControlEngine.swift | grep '^+' | grep -v '^+++' | grep -v '^+\s*//'
++        case w = "W"   // 13
++        case a = "A"   // 0
++        case s = "S"   // 1
++        case d = "D"   // 2
++        case f = "F"   // 3
++        case e = "E"   // 14
++        case space = "Space"  // 49
++        case esc = "ESC"  // 53
++        case q = "Q"     // 12
++        case r = "R"     // 15
++        case m = "M"     // 46
++        case b = "B"     // 11
++        case t = "T"     // 17
++        case shift = "Shift"   // 56 (kVK_Shift = Left Shift)
++        case ctrl = "Ctrl"     // 59 (kVK_Control = Left Control)
++        case one = "1"   // 18
++        case two = "2"   // 19
++        case three = "3" // 20
++        case four = "4"  // 21
++        case five = "5"  // 23
++        case six = "6"   // 22
++        case seven = "7" // 26
++        case j = "J"     // 38
++        case k = "K"     // 40
++        case l = "L"     // 37
++        case z = "Z"     // 6
++        case x = "X"     // 7
++        case c = "C"     // 8
++        case v = "V"     // 9
++        case n = "N"     // 45
++        case g = "G"     // 5
++        case h = "H"     // 4
++        case i = "I"     // 34
++        case y = "Y"     // 16
++        case u = "U"     // 32
++        .w: 13, .a: 0, .s: 1, .d: 2,
++        .f: 3, .e: 14, .space: 49,
++        .esc: 53, .q: 12, .r: 15, .m: 46, .b: 11, .t: 17,
++        .shift: 56, .ctrl: 59,
++        .one: 18, .two: 19, .three: 20, .four: 21,
++        .five: 23, .six: 22, .seven: 26,
++        .j: 38, .k: 40, .l: 37,
++        .z: 6, .x: 7, .c: 8, .v: 9, .n: 45,
++        .g: 5, .h: 4, .i: 34,
++        .y: 16, .u: 32,
+
+  共 45 行
+  → 全部是 GameKey 的 case 注释（正确键码值）+ gameKeyToKeyCode 映射表值
+
+── ③ KeyMap（驾驶路径，红线：不许动）──
+命令: sed -n '48,58p' Sources/AuroraDrive/Control/ControlEngine.swift
+        var throttle:    CGKeyCode = 13   // W
+        var brake:       CGKeyCode = 1    // S
+        var steerLeft:   CGKeyCode = 0    // A
+        var steerRight:  CGKeyCode = 2    // D
+        var handbrake:   CGKeyCode = 49   // 空格
+        var boost:       CGKeyCode = 56   // Left Shift
+
+        /// 根据语义动作获取键码
+        func keyCode(for action: Action) -> CGKeyCode {
+            switch action {
+            case .throttle:    return throttle
+
+命令: git diff -- Sources/AuroraDrive/Control/ControlEngine.swift | grep -c 'throttle\|handbrake\|steerLeft'
+结果: 0 处改动（0 = KeyMap 未被触碰 ✓）
+
+── ④ 我的全部写作用域 ──
+  Sources/AuroraDrive/Agent/LLMSelfTest.swift   （唯一新建的 Sources 文件）
+  Sources/AuroraDrive/Control/ControlEngine.swift（F1 修复，Lead 授权）
+  verify/REPORT-llm.md / REPORT-llm-perf.md / evidence-llm/ / evidence-llm-perf/ / run-guarded.sh
+
+── ⑤ 其他产品文件均为他人改动（非 W8）──
+命令: git status --short | grep '^ M\|^??'
+ M Package.swift
+ M Sources/AuroraDrive/Agent/AIAgentPanel.swift
+ M Sources/AuroraDrive/Agent/AgentLoop.swift
+ M Sources/AuroraDrive/App/AuroraDriveApp.swift
+ M Sources/AuroraDrive/Control/ControlEngine.swift
+?? Sources/AuroraDrive/Agent/AgentChatService.swift
+?? Sources/AuroraDrive/Agent/AgentSettings.swift
+?? Sources/AuroraDrive/Agent/LLMBackend.swift
+?? Sources/AuroraDrive/Agent/LLMHealth.swift
+?? Sources/AuroraDrive/Agent/LLMSelfTest.swift
+?? Sources/AuroraDrive/Agent/LLMTransport.swift
+?? Sources/AuroraDrive/Agent/ToolRegistry.swift
+?? Sources/AuroraDrive/Agent/WebSearch.swift
+?? verify/REPORT-llm-perf.md
+?? verify/REPORT-llm.md
+?? verify/evidence-llm-perf/
+?? verify/evidence-llm/
+?? verify/run-guarded.sh
+
+  说明：AIAgentPanel(W6) / AgentLoop(W7) / AuroraDriveApp(Lead) / Package.swift(Lead)
+        LLMBackend(W1) / LLMTransport(W2) / LLMHealth(W3) / ToolRegistry(W4) / WebSearch(W5)
+        AgentChatService(W6a, Lead) / AgentSettings(W0) —— 均非 W8 写作用域

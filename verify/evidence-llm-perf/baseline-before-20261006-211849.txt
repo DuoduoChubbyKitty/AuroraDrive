@@ -1,0 +1,62 @@
+═══ 性能基线自检（--perf-selftest）═══
+采样时长 12s（每指标 6 轮）
+子系统: 直方图统计用**相邻间隔**，p95/p99 反映长尾（平均值会抹平卡顿）
+
+── 加载 ──
+[yolopx] 模型加载: ayolom_n_int8.mlmodelc
+[yolopx]   ✓ ayolom_n_int8.mlmodelc — 加载成功
+  yolopx 加载: 62 ms  已加载=是  模型=ayolom_n_int8.mlmodelc
+[warmup] ayolom_n_int8.mlmodelc 预热完成: 7.7ms
+  yolo26s 加载: 32 ms  已加载=是
+[warmup] yolo26s.mlmodelc 预热完成: 6.1ms  computeUnits=all(自动选 ANE/GPU/CPU)
+  M9 加载: 16 ms  已加载=是
+[warmup] m9_mono 预热完成: 1.4ms  computeUnits=all(自动选 ANE/GPU/CPU)
+  assist 加载: 15 ms  已加载=是
+
+[warmup] game_assist_control 预热完成: 1.0ms  computeUnits=all(自动选 ANE/GPU/CPU)
+── 测量中（12s）──
+
+═══ 结果 ═══
+  tick 提交次数 276（22.9 Hz 提交）
+
+  ── 各子系统单次耗时（ms）──
+    submit.yolopx    n=276  p50=0.018   p95=0.033   p99=0.047   max=0.087    mean=0.020
+    submit.m9        n=276  p50=0.003   p95=0.009   p99=0.019   max=0.085    mean=0.004
+    submit.assist    n=276  p50=0.002   p95=0.005   p99=0.008   max=0.150    mean=0.003
+    submit.yolo26s   n=276  p50=0.005   p95=0.011   p99=0.022   max=0.095    mean=0.006
+    infer.yolopx     n=276  p50=12.028  p95=14.888  p99=15.771  max=16.045   mean=12.298
+    infer.m9         n=276  p50=1.772   p95=3.705   p99=7.574   max=8.034    mean=2.100
+    infer.assist     n=276  p50=1.855   p95=5.184   p99=7.551   max=8.505    mean=2.163
+    infer.yolo26s    n=276  p50=6.587   p95=9.859   p99=10.822  max=11.455   mean=7.021
+    opticalflow      n=276  p50=2.434   p95=2.987   p99=3.234   max=3.376    mean=2.408
+    tick.loop        n=276  p50=2.477   p95=3.036   p99=3.289   max=3.414    mean=2.456
+
+  ── 红线项（不许劣化）──
+    R2 检测框数量: 0 个（基线 9）
+       ⚠️ 少于基线 9 —— 若是纯色测试图属正常（无真实目标），
+          回归对比请用**同一张图/同一环境**，只看前后是否一致。
+    R3 掩码精度: 可行驶 0.00%（基线 26.19%）  车道线 0.000%（基线 8.042%）
+    R1 各模型出结果频率:
+       yolopx 22.94 Hz   推理计数=276
+       m9 22.94 Hz   推理计数=276
+       assist 22.94 Hz   推理计数=276
+       yolo26s 22.94 Hz   推理计数=276
+
+  ── 地图先验查询（.rule 档热路径，已预热）──
+    （每项 120 次采样）
+    map.isOnRoad         n=120  p50=0.000   p95=0.000   p99=0.000   max=0.003    mean=0.000
+    map.nearestRoad      n=120  p50=0.000   p95=0.000   p99=0.000   max=0.001    mean=0.000
+    map.cornerAhead      n=120  p50=0.001   p95=0.001   p99=0.001   max=0.002    mean=0.001
+    map.junctionAhead    n=120  p50=0.003   p95=0.003   p99=0.003   max=0.006    mean=0.003
+    索引对拍: 探针命中 91 次，不一致 0 次 ✓ 与线性扫描等价
+    → 一帧地图查询合计: p50 0.004 ms / p95 0.004 ms（tick 预算 33.3ms）
+  ── dlog 落盘成本（E3）──
+    dlog.append（热路径） n=300  p50=0.000   p95=0.000   p99=0.007   max=1.493    mean=0.007
+    dlog.flushNow（落盘） n=1    p50=0.294   p95=0.294   p99=0.294   max=0.294    mean=0.294
+    → 优化前每次 6 syscall；优化后热路径应为 ~0.000ms（300 次采样）
+  引擎进程 CPU: 30.4% 核（区间 12s）
+  说明：CPU% 为本次进程累计 CPU 增量 / 墙钟，口径与文档 §2.1 的 ps 均值接近但更瞬时。
+
+═══ 性能基线自检：PASS ═══
+
+【基线记录提示】把上面数字抄进文档，后续每批优化后的对比都以此为参照。

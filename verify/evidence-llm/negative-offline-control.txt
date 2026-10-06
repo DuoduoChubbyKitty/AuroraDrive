@@ -1,0 +1,39 @@
+═══ 断网对照（--llm-selftest --network，强制无网络出口）═══
+方法: 命令前后各取一次本机网络可达性；自检进程设 HTTPS_PROXY 指向黑洞端口
+时间: 2026-10-06 22:45:09 +0800
+
+── 对照①：正常网络下 curl 可达性 ──
+ovh HTTP=429 time=2.198786s
+
+── 对照②：黑洞代理下 curl 可达性（证明断网生效）──
+ovh HTTP=000 time=0.000279s
+(curl 失败=断网生效)
+
+── 自检在黑洞代理下的表现 ──
+命令: HTTPS_PROXY=http://127.0.0.1:9 AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --llm-selftest --network
+    · 熔断：2 次不熔断、3 次熔断
+    · requireVision=true 时全部候选支持视觉（1 个）
+    · 候选链无重复
+    · 冷却中的候选已被剔除
+    · 健康数 0/44 自洽
+  ✅ health.selfCheck 无 failures  failures=0
+  ✅ health.selfCheck ok 与 failures 一致  ok=true failures=0
+  ✅ snapshot 健康数 ≤ 总数（不虚报健康）  健康 0/44 模型=Qwen3.5-397B-A17B
+  小字预览: 免费档 · ovh · Qwen3.5-397B-A17B · 健康 0/44 · --
+
+── 真实请求（--network） ──
+  配置: backend=ovhAnonymous model=deepseek-chat key=有（51 字符）
+  ✅ 候选链非空  候选数=21
+[LLMTransport] ❌ OVHcloud 匿名/Qwen3.5-397B-A17B rateLimited：API rate limit exceeded
+  [尝试] ovhAnonymous/Qwen3.5-397B-A17B → 失败 rateLimited：API rate limit exceeded
+2026-10-06 22:45:13.610 AuroraDrive[73299:33015591] [LLMHealth] OVH 轮转 → 下一个模型（429 on Qwen3.5-397B-A17B）
+[LLMTransport] ✅ OpenCode Zen/space-bunny-free HTTP 200 文本 5 字 工具 0 个 1 片
+  [尝试] zenFree/space-bunny-free → 6536ms，回答 5 字：1+1=2
+  ✅ zenFree/space-bunny-free 返回非空  长度=5
+  ✅ zenFree/space-bunny-free 非套话模板  未命中模板词
+  ✅ zenFree/space-bunny-free 回答含正确答案「2」（真推理而非模板）  回答原文=1+1=2
+  ✅ zenFree/space-bunny-free 端到端延迟 < 30s（硬超时内）  6536ms
+  ✅ A1：候选链上至少一个模型返回了有效回答  已获得非空且含正确答案的回复
+
+═══ A1 LLM 自检：PASS（91 通过 / 0 失败）═══
+>>> EXIT=0

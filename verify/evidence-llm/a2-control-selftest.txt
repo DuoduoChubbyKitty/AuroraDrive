@@ -1,0 +1,68 @@
+=== RUN #1 (guarded) ===
+cmd: env AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --control-selftest
+ts:  2026-10-06 23:40:33 +0800
+domain-before: d41d8cd98f00b204e9800998ecf8427e
+
+═══ A2 · 自主按键四证据链（--control-selftest）═══
+时间: 2026-10-06 23:40:33 +0800
+
+── 证据① 辅助功能权限 AXIsProcessTrusted() ──
+  ✅ AXIsProcessTrusted() == true  实测=true（false 时一切注入会被系统静默丢弃）
+  CoreGraphics 事件源可用性: 是
+  会话诊断: ScreenIsLocked=? OnConsole=1 user=dupi frontmost=DeepSeek Harness pid=15824
+
+── 证据②③ 注入计数自增 + 自建 CGEventTap 抓回自己发的键 ──
+[HUD] 无 NSApplication 上下文（引擎进程）→ 跳过 HUD 安装
+23:40:33 [upscale] 引擎初始化: 可用=true
+23:40:33 [network] 定位引擎初始化完成
+  ✅ 拿到 ControlEngine 实例  取自 DriveState.shared.controlEngine（产品同一实例，类型非可选）
+  注入前 postedEventCount = 0
+  ✅ 自建 CGEventTap 创建成功  tap=.cgSessionEventTap listenOnly，源挂在主 runloop
+  ✅ W 注入计数自增 = 2（down+up）  得到=2 期望=2（before=0 after=2）
+  ✅ 自建 tap 抓到 W（keyCode=13，down+up == 2）  抓到=13:d,13:u
+  ✅ W → Unicode 翻译为「w」（CapsLock 开，按小写比较）  得到="W","W" capsLock=true
+  ✅ A 注入计数自增 = 2（down+up）  得到=2 期望=2（before=2 after=4）
+  ✅ 自建 tap 抓到 A（keyCode=0，down+up == 2）  抓到=0:d,0:u
+  ✅ A → Unicode 翻译为「a」（CapsLock 开，按小写比较）  得到="A","A" capsLock=true
+  ✅ 1 注入计数自增 = 2（down+up）  得到=2 期望=2（before=4 after=6）
+  ✅ 自建 tap 抓到 1（keyCode=18，down+up == 2）  抓到=18:d,18:u
+  ✅ 1 → Unicode 翻译为「1」（CapsLock 开，按小写比较）  得到="1","1" capsLock=true
+  ✅ Space 注入计数自增 = 2（down+up）  得到=2 期望=2（before=6 after=8）
+  ✅ 自建 tap 抓到 Space（keyCode=49，down+up == 2）  抓到=49:d,49:u
+  ✅ Space → Unicode 翻译为「 」（CapsLock 开，按小写比较）  得到=" "," " capsLock=true
+  ✅ ESC 注入计数自增 = 2（down+up）  得到=2 期望=2（before=8 after=10）
+  ✅ 自建 tap 抓到 ESC（keyCode=53，down+up == 2）  抓到=53:d,53:u
+  ✅ ESC → Unicode 翻译为「」（CapsLock 开，按小写比较）  得到="","" capsLock=true
+  ✅ F1 注入计数自增 = 2（down+up）  得到=2 期望=2（before=10 after=12）
+  ✅ 自建 tap 抓到 F1（keyCode=122，down+up == 2）  抓到=122:d,122:u
+  ⚠️ F1 无 Unicode 字符（修饰键/F 键正常情形）；实测翻译=,，仅核对 keyCode
+  ✅ Shift 注入计数自增 = 2（down+up）  得到=2 期望=2（before=12 after=14）
+  ✅ 自建 tap 抓到 Shift（keyCode=56，flagsChanged ≥1）  抓到=56:flags,56:flags
+  ⚠️ Shift 无 Unicode 字符（修饰键/F 键正常情形）；实测翻译=（空），仅核对 keyCode
+  ✅ 全部探测键的 down+up 都被 tap 抓到（keyCode 逐项一致）  探测 7 个键全部抓到
+  ✅ 全部可打印键的 Unicode 翻译与 macOS 键码语义一致（F1 回归）  可打印键全部一致（旧表下这里会全是 5/./1/u/-）
+  ✅ postedEventCount 单调增长  基线=0 结束=14 增量=14
+  ✅ holdGameKey(.d) 注入 1 个事件  得到=1 期望=1（held=1）
+  ✅ heldKeys 记录到按住状态  heldKeys.count=1
+  ✅ releaseAllGameKeys 注入释放事件  增量=1
+  ✅ 释放后 heldKeys 清空（不留卡键）  得到=0 期望=0
+  ✅ typeText 注入 2 个事件  得到=2 期望=2
+
+── 证据④ NSEvent 本地监听观察到该按键 ──
+  会话: ScreenIsLocked=? OnConsole=1 user=dupi frontmost=DeepSeek Harness pid=15824
+  ✅ NSEvent 本地监听注册成功  addLocalMonitorForEvents 返回非 nil
+  NSApp.isActive=false keyWindow=false frontmost=DeepSeek Harness
+  ✅ 本地监听机制自证（构造 keyDown 经 NSApp.sendEvent 可被观察到）  收到 keyCode=[13, 13]
+  ⚠️ 环境受限·未验证：本进程当前**不是前台应用**（见上方 isActive/frontmost），注入的按键不会投递给本进程的本地监听。
+  ⚠️ 判定依据：机制自证已通过（监听器工作正常），且证据②③证明事件已进入系统事件流。
+  ⚠️ 影响：依赖前台焦点的场景在锁屏下不可验证；解锁后在 GUI 会话重跑本命令即可补齐第 ④ 条证据。
+
+═══ A2 按键自检：PASS（32 通过 / 0 失败）═══
+
+═══ A2 按键：PASS（32 通过 / 0 失败）═══
+
+>>> EXIT=0
+
+-- guard --
+domain-after: d41d8cd98f00b204e9800998ecf8427e
+verdict: CLEAN (unchanged) -> result trustworthy

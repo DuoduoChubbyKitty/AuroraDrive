@@ -1,0 +1,49 @@
+═══ 环境会话状态核对（W8 独立取证）═══
+命令: date; CGSessionCopyCurrentDictionary; who; ps -axo user,pid,comm | grep loginwindow
+时间: 2026-10-06 21:24:14 +0800  epoch=1791293054
+
+── ① date / epoch ──
+2026-10-06 21:24:14 +0800
+epoch=1791293054
+
+── ② CGSessionCopyCurrentDictionary（本 shell 上下文）──
+CGSSessionScreenIsLocked = 1
+CGSSessionScreenLockedTime = 1791293167
+CGSSessionUniqueSessionUUID = CDFA2836-9C10-49EB-9332-F0EE20DB38C8
+kCGSSessionAuditIDKey = 100024
+kCGSSessionGroupIDKey = 20
+kCGSSessionLoginwindowSafeLogin = 0
+kCGSSessionOnConsoleKey = 1
+kCGSSessionSystemSafeBoot = 0
+kCGSSessionUserIDKey = 501
+kCGSSessionUserNameKey = dupi
+kCGSessionLoginDoneKey = 1
+kCGSessionLongUserNameKey = 肚皮
+kSCSecuritySessionID = 100024
+
+── ③ who ──
+dupi             console      Sep 26 10:31 
+dupi             ttys000      Oct  6 16:44 
+
+── ④ loginwindow / Dock / Finder ──
+dupi               461 /System/Library/CoreServices/loginwindow.app/Contents/MacOS/loginwindow
+dupi              3543 /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder
+dupi             91949 /System/Library/CoreServices/Dock.app/Contents/MacOS/Dock
+dupi             91956 /System/Library/CoreServices/Dock.app/Contents/XPCServices/com.apple.dock.extra.xpc/Contents/MacOS/com.apple.dock.extra
+
+── ⑤ 时间戳一致性核对 ──
+now_epoch            = 1791293054  (2026-10-06 21:24:14)
+ScreenLockedTime     = 1791293167  (2026-10-06 21:26:07)
+差值 (locked - now)  = 113 s   ← 为『未来』值说明该字段时钟口径与本 shell 的 epoch 不一致，
+                       但 ScreenIsLocked 标志位 = 1 为直接判据。
+
+── ⑥ 本 shell 上下文能否成为前台应用（无产品码，纯系统 API）──
+SESSION=0
+SECURITYSESSION=-
+TERM=dumb
+isRunning=true isActive=false winVisible=true winNumber=83204 isKey=false
+frontmost=loginwindow pid=461
+CGWindowList: total=20 mine=0 []
+after NSApp.activate(): isActive=false isKey=false
+after NSRunningApplication.activate(): isActive=false isKey=false
+frontmost=loginwindow

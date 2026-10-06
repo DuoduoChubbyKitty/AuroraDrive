@@ -701,6 +701,19 @@ private func applyMainThreadBoost(_ enabled: Bool) {
     }
 }
 
+/// 一次性 CLI 自检的结果盒子。
+///
+/// 【为什么需要】自检入口要在主线程「等待异步 Task 完成」，但不能用
+/// `DispatchSemaphore.wait()` —— 那会占死主线程，而自检内部需要
+/// `MainActor.run`（取 DriveState.controlEngine / 截图取帧），必然死锁
+/// （2026-10-06 实测：`--control-selftest` 卡在 semaphore_wait_trap，
+/// 证据 verify/evidence-llm/dispatch-deadlock-sample.txt）。
+/// 改为「主线程泵 RunLoop + 轮询盒子」后，MainActor 能正常执行。
+/// `@unchecked Sendable`：只在 Task 内写、主线程轮询读，配合内存序足够。
+final class SelfTestResultBox: @unchecked Sendable {
+    var value: Int?
+}
+
 /// 进程入口分流：`--engine` 走纯后台引擎（EngineMain，不触碰 SwiftUI、
 /// 不创建窗口、不跑 NSApp），否则照常启动 SwiftUI 界面。
 /// 注意：@main 从 App 结构移到本 Launcher 仅为拿到最早的进程入口，
@@ -922,7 +935,22 @@ struct AuroraDriveLauncher {
                               "--flags-help", "--cache-selftest",
                               // 2026-10-06：任务面板 OCR（task-1）+ 任务卡片出图（task-2）。
                               // ⚠️ 同款陷阱：漏登记 → 被 UI 单实例锁挡掉（直接 exit）。
-                              "--quest-selftest", "--mc-quest"]
+                              "--quest-selftest", "--mc-quest",
+                              // 2026-10-06：AI 助手「真对话 + 自主按键 + 自主调工具」施工。
+                              // ⚠️ 同款陷阱：漏登记 → 被单实例锁挡掉（直接 exit）。
+                              //    · --llm-selftest [--network]  协议/SSE/错误分类/候选排序（离线默认）
+                              //    · --llm-probe                 7 渠道真实探活健康表
+                              //    · --llm-vision-selftest       真实截图 → 视觉模型断言
+                              //    · --control-selftest          按键四证据链（权限/计数/自建tap/NSEvent）
+                              //    · --tool-selftest             工具注册表列举 + schema + 全工具 dryRun
+                              //    · --tool-call-demo <task>     端到端：模型决策 → 工具分发 → 执行
+                              //    · --llm-perf-selftest         性能预算断言（W8）
+                              //    · --websearch-selftest <q>    联网搜索（W5）
+                              //      ⚠️ W5 实测警告：漏登记时进程会被 UI 单实例锁挡掉却
+                              //         仍 exit 0 —— **假绿**。登记与分发必须同时存在。
+                              "--llm-selftest", "--llm-probe", "--llm-vision-selftest",
+                              "--control-selftest", "--tool-selftest", "--tool-call-demo",
+                              "--llm-perf-selftest", "--websearch-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -969,6 +997,99 @@ struct AuroraDriveLauncher {
         if args.contains("--quest-selftest") {
             let failed = QuestPanelReader.runSelfTest()
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+
+        // ── AI 助手三证据链自检分发（2026-10-06）──
+        //
+        // 【为什么必须在这里分发】flag 在 oneShotFlags 里登记只解决"不被 UI 单实例锁
+        //   挡掉"，**不解决"跑起来"** —— 少了这段分发，`--llm-selftest` 会走到正常
+        //   启动路径（开 UI），自检等于没跑。登记与分发是两件事，缺一不可。
+        //
+        // 【为什么用 runloop 泵而不是 DispatchSemaphore —— 血泪教训】
+        //   初版用 `semaphore.wait()` 等 Task：主线程被 wait 占死，而自检内部要
+        //   `MainActor.run`（取 DriveState.controlEngine、截图取帧）→ MainActor 永远
+        //   排不上 → **死锁**（W8 实测：`--control-selftest` 跑 2 分钟零输出，sample
+        //   栈显示卡在 semaphore_wait_trap）。改成在主线程泵 RunLoop：
+        //   主线程仍在处理事件 → MainActor 能执行 → Task 正常推进。
+        //   证据：verify/evidence-llm/dispatch-deadlock-sample.txt
+        //
+        // 【约定】与其它自检一致：返回失败项数，0 = 全过。
+        func runBlockingSelfTest(_ title: String,
+                                 _ body: @escaping () async -> Int) -> Int32 {
+            let box = SelfTestResultBox()
+            Task { box.value = await body() }
+            while box.value == nil {
+                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
+            }
+            return Int32(min(box.value ?? 0, 127))
+        }
+
+        if args.contains("--llm-selftest") {
+            let ledger = SelfTestLedger()
+            let network = args.contains("--network")
+            exit(runBlockingSelfTest("A1 LLM 自检") {
+                await LLMSelfTest.runLLM(ledger: ledger, network: network)
+                return ledger.summary("A1 LLM 自检")
+            })
+        }
+        if args.contains("--llm-probe") {
+            let ledger = SelfTestLedger()
+            exit(runBlockingSelfTest("A1 探活") {
+                await LLMSelfTest.runProbe(ledger: ledger)
+                return ledger.summary("A1 探活")
+            })
+        }
+        if args.contains("--llm-vision-selftest") {
+            let ledger = SelfTestLedger()
+            exit(runBlockingSelfTest("A1 视觉") {
+                await LLMSelfTest.runVision(ledger: ledger)
+                return ledger.summary("A1 视觉")
+            })
+        }
+        if args.contains("--control-selftest") {
+            let ledger = SelfTestLedger()
+            exit(runBlockingSelfTest("A2 按键") {
+                await LLMSelfTest.runControl(ledger: ledger)
+                return ledger.summary("A2 按键")
+            })
+        }
+        if args.contains("--tool-selftest") {
+            let ledger = SelfTestLedger()
+            exit(runBlockingSelfTest("A3 工具") {
+                await LLMSelfTest.runTools(ledger: ledger)
+                return ledger.summary("A3 工具")
+            })
+        }
+        if let i = args.firstIndex(of: "--tool-call-demo"), i + 1 < args.count {
+            let ledger = SelfTestLedger()
+            let task = args[i + 1]
+            let live = args.contains("--live")
+            exit(runBlockingSelfTest("A3 端到端") {
+                await LLMSelfTest.runToolCallDemo(ledger: ledger, task: task, live: live)
+                return ledger.summary("A3 端到端")
+            })
+        }
+        if args.contains("--llm-perf-selftest") {
+            var secs = 6.0
+            if let idx = args.firstIndex(of: "--seconds"), idx + 1 < args.count,
+               let v = Double(args[idx + 1]) { secs = v }
+            let ledger = SelfTestLedger()
+            exit(runBlockingSelfTest("性能预算") {
+                await LLMSelfTest.runPerf(ledger: ledger, seconds: secs)
+                return ledger.summary("性能预算")
+            })
+        }
+        // ── 联网搜索自检（--websearch-selftest，W5）──
+        // 登记与分发必须同时存在：只登记不分发 → 走正常启动路径；
+        // 只分发不登记 → 被 UI 单实例锁挡掉却仍 exit 0（W5 实测的**假绿**陷阱）。
+        //
+        // 注意：自检台是 `WebSearchSelfTest`（enum，不是 actor），入口
+        // `runFromCommandLine(_:) -> Int32`，返回类型转 Int 给 helper 用。
+        if args.contains("--websearch-selftest") {
+            let argv = args
+            exit(runBlockingSelfTest("联网搜索") {
+                Int(await WebSearchSelfTest.runFromCommandLine(argv))
+            })
         }
         if args.contains("--perf-selftest") {
             // 时长：默认 10 秒；--seconds N 可覆盖

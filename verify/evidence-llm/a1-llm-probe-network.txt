@@ -1,0 +1,39 @@
+=== RUN #1 (guarded) ===
+cmd: env AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --llm-probe
+ts:  2026-10-06 22:26:48 +0800
+domain-before: d41d8cd98f00b204e9800998ecf8427e
+
+═══ A1 · 7 渠道探活（--llm-probe）═══
+时间: 2026-10-06 22:26:48 +0800
+  探活耗时 9.6s，共 13 条记录
+  · ovhAnonymous: 0/5 健康
+  · pollinations: 0/6 健康
+  · pollinationsLegacy: 1/1 健康
+  · zenFree: 0/1 健康
+  ✅ 至少一个模型探活为 ok  健康 1/13
+  ✅ 探活耗时 < 120s（3 并发 × 8s 超时上界内）  9.6s
+  小字: ⚠️ 无可用模型（点此诊断）
+  候选链: 
+
+  ── 逐模型健康态 ──
+    ovhAnonymous/Mistral-Small-3.2-24B-Instruct-2506 = rateLimited
+    ovhAnonymous/Qwen2.5-VL-72B-Instruct = rateLimited
+    ovhAnonymous/Qwen3.5-397B-A17B = rateLimited
+    ovhAnonymous/Qwen3.5-9B = rateLimited
+    ovhAnonymous/Qwen3.6-27B = rateLimited
+    pollinations/openai = gated
+    pollinations/openai-fast = gated
+    pollinations/openai/gpt-5-nano = gated
+    pollinations/openai/gpt-5.4 = gated
+    pollinations/openai/gpt-5.4-mini = gated
+    pollinations/openai/gpt-5.4-nano = gated
+    pollinationsLegacy/openai-fast = ok
+    zenFree/space-bunny-free = unknown
+
+═══ A1 探活：PASS（2 通过 / 0 失败）═══
+
+>>> EXIT=0
+
+-- guard --
+domain-after: d41d8cd98f00b204e9800998ecf8427e
+verdict: CLEAN (unchanged) -> result trustworthy

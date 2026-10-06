@@ -1,0 +1,43 @@
+=== RUN #1 (guarded) ===
+cmd: env AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --tool-call-demo 领奖励
+ts:  2026-10-06 23:40:37 +0800
+domain-before: d41d8cd98f00b204e9800998ecf8427e
+
+═══ A3 · 端到端工具调用闭环（--tool-call-demo「领奖励」）═══
+时间: 2026-10-06 23:40:37 +0800
+模式: dryRun（默认，不注入任何事件）
+
+── ① 工具清单装载进模型请求 ──
+  ✅ specs 数量 = 注册数  specs=30 注册=30
+  ✅ specs 数量 = 30  实际=30
+
+── ② 模型决策（真实请求，携带工具清单） ──
+  ✅ 存在支持工具的候选  候选 37 个：ovhAnonymous/Qwen3.5-397B-A17B, zenFree/space-bunny-free, pollinations/openai
+[LLMTransport] ❌ OVHcloud 匿名/Qwen3.5-397B-A17B rateLimited：API rate limit exceeded
+2026-10-06 23:40:39.125 AuroraDrive[15886:33147986] [LLMHealth] OVH 轮转 → 下一个模型（429 on Qwen3.5-397B-A17B）
+  [尝试 1] ovhAnonymous/Qwen3.5-397B-A17B → 失败 rateLimited：API rate limit exceeded
+[LLMTransport] ✅ OpenCode Zen/space-bunny-free HTTP 200 文本 33 字 工具 1 个 1 片
+  模型决策 → 工具「skill__rewards」参数 {}（渠道=zenFree/space-bunny-free，2000ms）
+  ✅ 模型返回了工具调用（而非只聊天）  工具=skill__rewards（渠道=zenFree/space-bunny-free）
+
+── ③ 工具分发与执行 ──
+  ✅ 模型选出的工具在注册表内  skill__rewards ∈ 30 个工具
+[HUD] 无 NSApplication 上下文（引擎进程）→ 跳过 HUD 安装
+23:40:41 [upscale] 引擎初始化: 可用=true
+23:40:41 [network] 定位引擎初始化完成
+  执行结果: ok=true dryRun=true postedEvents=0
+  结果文本: 干跑：将启动技能「💎自动领奖励」（未执行任何动作）
+  ✅ 工具执行返回结构完整（tool 名回填）  tool=skill__rewards
+  ✅ 工具执行结果文本非空  长度=25
+  ✅ dryRun 模式未注入任何事件  before=0 after=0
+  ✅ 闭环完成：模型决策 → 分发 → 执行 → 结果回填  使用模型=zenFree/space-bunny-free
+
+═══ A3 端到端闭环：PASS（9 通过 / 0 失败）═══
+
+═══ A3 端到端：PASS（9 通过 / 0 失败）═══
+
+>>> EXIT=0
+
+-- guard --
+domain-after: d41d8cd98f00b204e9800998ecf8427e
+verdict: CLEAN (unchanged) -> result trustworthy

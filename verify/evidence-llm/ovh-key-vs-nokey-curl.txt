@@ -1,0 +1,21 @@
+═══ 【独立复现】OVH 匿名层：带 key vs 不带 key（W8 三分对照）═══
+命令: curl POST https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions（仅改 Authorization）
+时间: 2026-10-06 22:14:41 +0800
+
+── ① 不发 Authorization 头 ──
+HTTP=429 耗时=2.991389s
+响应体: {
+  "message":"API rate limit exceeded",
+  "request_id":"6fe7237946154700dcb89855862c8f7e"
+}
+
+── ② 带本机小本本里的 key（51 字节，sk- 开头）──
+HTTP=403 耗时=0.725617s
+响应体: {"message":"Forbidden: authentication failed.  Please generate a new one at https://kepler.ai.cloud.ovh.net/v1/oauth/ovh/authorize?iam_action=publicCloudProject:ai:endpoints/call"}
+
+── ③ 空 Authorization（模拟免 key 渠道的 nil）──
+HTTP=200 耗时=0.965221s
+响应体: {"id":"chatcmpl-9c0c688f92ad4b55","choices":[{"index":0,"message":{"role":"assistant","reasoning":"Thinking Process:\n\n1","tool_calls":[]},"finish_reason":"length"}],"created":1791296085,"model":"Qwen3.5-9B","object":"chat.completion","usage":{"prompt_tokens":11,"completion_tokens":5,"total_tokens"
+
+【结论】①/③ 无 key = 真实限流状态；② 带无效 key = 认证失败（错因被替换）。
+故自检绝不能把用户 key 发给 requiresKey=false 的渠道 —— 会把 rateLimited 误判成 invalidKey。

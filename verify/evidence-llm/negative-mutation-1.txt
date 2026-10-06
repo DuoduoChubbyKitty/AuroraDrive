@@ -1,0 +1,39 @@
+═══ 负向对照 · 变异 1：候选排序改错（降级链整体反转）═══
+bash: line 3: return: filtered: numeric argument required
+bash: line 3: return: can only `return' from a function or sourced script
+bash: command substitution: line 3: syntax error near unexpected token `('
+bash: command substitution: line 3: `return filtered.reversed()'
+变异点: LLMHealth.swift:950  → 
+         即：候选排序机制被改错，用户选定渠道不再优先、跨渠道次序全反
+方法: 复制产品源码到 /tmp/w8-mutation 改副本；产品码零改动
+时间: 2026-10-06 23:11:23 +0800
+
+① 产品码零改动证明（全程 sha256 不变）：
+   产品 LLMHealth.swift sha256 = b9799b0949cc4fdbff3976520bfc819c65cb8592c7cbfb25adc3037babe82bf1
+   产品 git diff 行数 = 0（0=未改）
+
+② 副本变异证明：
+   变异前副本 sha256 = b9799b0949cc4fdbff3976520bfc819c65cb8592c7cbfb25adc3037babe82bf1（与产品逐字节相同）
+   变异后副本 sha256 = 2cc2fe7b75501ec1ecd6dae4174aaf2968cd19ddb8a97536941d8ca6f6d615b7
+   变异源码原文：
+             return filtered.reversed()   // MUTATION-1: 候选排序改错
+
+③ 编译（**独立 scratch 避免 SwiftPM 增量缓存导致的假阴性** —— 实测踩到过）：
+   命令: cd /tmp/w8-mutation && swift build -c release --disable-sandbox --scratch-path .build-mut
+warning: 'w8-mutation': Invalid Exclude '/private/tmp/w8-mutation/NOTICE': File not found.
+
+④ 行为对照（变异版候选链被完全反转）：
+   产品版候选链前 8: ovhAnonymous/Qwen3.5-397B-A17B → zenFree/space-bunny-free → pollinations/…
+   变异版候选链前 8: pollinationsLegacy/openai-fast → pollinations/community/… （OVH 被挤到末尾）
+
+⑤ 自检结果（原始输出）：
+  候选链前 8: pollinationsLegacy/openai-fast → pollinations/community/tomdacatto/llama-3.1-8B → pollinations/community/Catniti/nemotron-3.5-lightning → pollinations/community/MarcosFRG/glm-5.3-flash → pollinations/community/JustScriptzz/gpt-oss-120b → pollinations/community/gggff123/gpt-5-nano → pollinations/community/pegalink/gemini-3.5-flash-lite → pollinations/pollinations/midijourney-large
+── ⑦⑧ 候选链顺序契约（渠道分组次序 + 连续性） ──
+  渠道分组次序: pollinationsLegacy → pollinations → zenFree → ovhAnonymous
+  声明次序:     ovhAnonymous → zenFree → pollinations → pollinationsLegacy → zhipu → groq → openRouter → userKey
+  ❌ ⑦ 除首个（用户选定）渠道外，其余渠道按 allCases 声明序严格递增  位置索引=[3, 2, 1, 0] 分组数=4 首个=用户选定(ovhAnonymous)? false
+  ✅ ⑧ 同渠道候选连续成组（无交错）  4 个渠道分组连续
+═══ A1 LLM 自检：FAIL（84 通过 / 1 失败）═══
+>>> EXIT=1
+
+【结论】变异 1 被检出：EXIT=��要求 EXIT=1）✓ 断言 ⑦ 有效

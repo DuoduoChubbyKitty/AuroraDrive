@@ -1,0 +1,209 @@
+=== RUN #1 (guarded) ===
+cmd: env AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --tool-selftest
+ts:  2026-10-06 23:40:36 +0800
+domain-before: d41d8cd98f00b204e9800998ecf8427e
+
+═══ A3 · 工具注册表自检（--tool-selftest）═══
+时间: 2026-10-06 23:40:36 +0800
+
+── ① 工具覆盖清单（逐项断言） ──
+  ✅ 技能库 id 清单 = 期望的 18 个  得到=["touch", "dodge", "auto_login", "bagel_spam", "furniture", "pinkpaw", "fishing", "volleyball", "coffee", "rewards", "piano", "preset_realtime", "drive_dataset", "tomato_juice", "auto_scroll", "preset_afk", "rhythm", "coffee_lite"] 期望=["touch", "rewards", "furniture", "auto_login", "dodge", "drive_dataset", "preset_realtime", "coffee_lite", "rhythm", "piano", "tomato_juice", "auto_scroll", "fishing", "pinkpaw", "coffee", "bagel_spam", "preset_afk", "volleyball"]
+  ✅ 技能工具数 = 18  得到=18 期望=18（库中技能 id: auto_login,volleyball,fishing,coffee,coffee_lite,bagel_spam,pinkpaw,furniture,rewards,piano,rhythm,dodge,auto_scroll,touch,drive_dataset,preset_afk,preset_realtime,tomato_juice）
+  ✅ 已挂载 skill__auto_login  isImplemented=true
+  ✅ 已挂载 skill__volleyball  isImplemented=true
+  ✅ 已挂载 skill__fishing  isImplemented=true
+  ✅ 已挂载 skill__coffee  isImplemented=true
+  ✅ 已挂载 skill__coffee_lite  isImplemented=true
+  ✅ 已挂载 skill__bagel_spam  isImplemented=true
+  ✅ 已挂载 skill__pinkpaw  isImplemented=false
+  ✅ 已挂载 skill__furniture  isImplemented=true
+  ✅ 已挂载 skill__rewards  isImplemented=true
+  ✅ 已挂载 skill__piano  isImplemented=true
+  ✅ 已挂载 skill__rhythm  isImplemented=false
+  ✅ 已挂载 skill__dodge  isImplemented=true
+  ✅ 已挂载 skill__auto_scroll  isImplemented=true
+  ✅ 已挂载 skill__touch  isImplemented=true
+  ✅ 已挂载 skill__drive_dataset  isImplemented=true
+  ✅ 已挂载 skill__preset_afk  isImplemented=true
+  ✅ 已挂载 skill__preset_realtime  isImplemented=false
+  ✅ 已挂载 skill__tomato_juice  isImplemented=true
+  ✅ 已挂载键位工具 press_key
+  ✅ 已挂载键位工具 hold_key
+  ✅ 已挂载键位工具 release_key
+  ✅ 已挂载键位工具 release_all_keys
+  ✅ GameKey 取值数 = 38（源码 CaseIterable 真相源；任务书的 28 为过时数字）  得到=38 期望=38
+  ✅ GameKey 键名清单逐项一致  得到=["W", "A", "S", "D", "F", "E", "Space", "ESC", "Q", "R", "M", "B", "T", "F1", "F2", "F4", "Shift", "Ctrl", "1", "2", "3", "4", "5", "6", "7", "J", "K", "L", "Z", "X", "C", "V", "N", "G", "H", "I", "Y", "U"] 期望=["W", "A", "S", "D", "F", "E", "Space", "ESC", "Q", "R", "M", "B", "T", "F1", "F2", "F4", "Shift", "Ctrl", "1", "2", "3", "4", "5", "6", "7", "J", "K", "L", "Z", "X", "C", "V", "N", "G", "H", "I", "Y", "U"]
+  ✅ press_key schema 的 key enum 覆盖全部 28 键  得到=["7", "J", "L", "G", "F2", "1", "E", "R", "Ctrl", "S", "D", "M", "Space", "W", "5", "T", "V", "Z", "F1", "Q", "N", "I", "U", "B", "X", "2", "K", "C", "6", "Shift", "3", "4", "F4", "ESC", "F", "H", "A", "Y"] 期望=["R", "J", "V", "3", "G", "2", "Q", "Ctrl", "L", "K", "T", "B", "6", "1", "N", "F4", "F2", "U", "Z", "I", "W", "A", "M", "F1", "S", "Space", "ESC", "C", "E", "Shift", "4", "D", "F", "5", "H", "Y", "7", "X"]
+  ✅ 已挂载 type_text
+  ✅ 已挂载 mouse_move
+  ✅ 已挂载 mouse_click
+  ✅ 已挂载 mouse_scroll
+  ✅ 已挂载 screenshot
+  ✅ 已挂载 get_status
+  ✅ 已挂载 web_search
+  ✅ 已挂载 web_fetch
+  ✅ 工具条目总数 = 30  得到=30 期望=30（技能18 + 键位4 + 鼠标3 + 文本1 + 搜索2 + 观察2）
+
+── ⑦ isImplemented 精确口径（15 true / 3 false，按源码真相源） ──
+  ✅ AgentSkillLibrary.ported==true 的集合  得到=["touch", "dodge", "auto_login", "bagel_spam", "furniture", "rewards", "fishing", "volleyball", "coffee", "piano", "drive_dataset", "tomato_juice", "auto_scroll", "preset_afk", "coffee_lite"] 期望=["touch", "rewards", "furniture", "auto_login", "dodge", "drive_dataset", "coffee_lite", "piano", "tomato_juice", "auto_scroll", "fishing", "coffee", "bagel_spam", "preset_afk", "volleyball"]
+  ✅ AgentSkillLibrary.ported==false 的集合  得到=["pinkpaw", "rhythm", "preset_realtime"] 期望=["rhythm", "pinkpaw", "preset_realtime"]
+  ✅ ported=true 计数 = 15（非任务描述里的 17）  得到=15 期望=15
+  ✅ ported=false 计数 = 3  得到=3 期望=3
+  ✅ 18 个技能工具的 isImplemented 与 ported 逐一一致  18/18 一致
+
+── ⑧ 未移植技能的诚实拒绝（3 个） ──
+  ✅ skill__pinkpaw 明确拒绝且说明未移植  ok=false 原文=工具「skill__pinkpaw」在当前代码库中标记为未移植（ported:false），未执行任何动作
+  ✅ skill__preset_realtime 明确拒绝且说明未移植  ok=false 原文=工具「skill__preset_realtime」在当前代码库中标记为未移植（ported:false），未执行任何动
+  ✅ skill__rhythm 明确拒绝且说明未移植  ok=false 原文=工具「skill__rhythm」在当前代码库中标记为未移植（ported:false），未执行任何动作
+  ✅ 工具名无重复  得到=30 期望=30
+  ✅ ToolRegistry.selfCheck() 无问题  0 条
+
+── ② 每个工具的 JSON Schema 合法性 ──
+  ✅ skill__auto_login schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__auto_login required 项都在 properties 中  required=[]
+  ✅ skill__auto_login 有非空 description  长度=73
+  ✅ skill__volleyball schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__volleyball required 项都在 properties 中  required=[]
+  ✅ skill__volleyball 有非空 description  长度=35
+  ✅ skill__fishing schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__fishing required 项都在 properties 中  required=[]
+  ✅ skill__fishing 有非空 description  长度=45
+  ✅ skill__coffee schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__coffee required 项都在 properties 中  required=[]
+  ✅ skill__coffee 有非空 description  长度=39
+  ✅ skill__coffee_lite schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__coffee_lite required 项都在 properties 中  required=[]
+  ✅ skill__coffee_lite 有非空 description  长度=48
+  ✅ skill__bagel_spam schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__bagel_spam required 项都在 properties 中  required=[]
+  ✅ skill__bagel_spam 有非空 description  长度=53
+  ✅ skill__pinkpaw schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__pinkpaw required 项都在 properties 中  required=[]
+  ✅ skill__pinkpaw 有非空 description  长度=91
+  ✅ skill__furniture schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__furniture required 项都在 properties 中  required=[]
+  ✅ skill__furniture 有非空 description  长度=58
+  ✅ skill__rewards schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__rewards required 项都在 properties 中  required=[]
+  ✅ skill__rewards 有非空 description  长度=52
+  ✅ skill__piano schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__piano required 项都在 properties 中  required=[]
+  ✅ skill__piano 有非空 description  长度=48
+  ✅ skill__rhythm schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__rhythm required 项都在 properties 中  required=[]
+  ✅ skill__rhythm 有非空 description  长度=78
+  ✅ skill__dodge schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__dodge required 项都在 properties 中  required=[]
+  ✅ skill__dodge 有非空 description  长度=44
+  ✅ skill__auto_scroll schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__auto_scroll required 项都在 properties 中  required=[]
+  ✅ skill__auto_scroll 有非空 description  长度=54
+  ✅ skill__touch schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__touch required 项都在 properties 中  required=[]
+  ✅ skill__touch 有非空 description  长度=56
+  ✅ skill__drive_dataset schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__drive_dataset required 项都在 properties 中  required=[]
+  ✅ skill__drive_dataset 有非空 description  长度=66
+  ✅ skill__preset_afk schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__preset_afk required 项都在 properties 中  required=[]
+  ✅ skill__preset_afk 有非空 description  长度=63
+  ✅ skill__preset_realtime schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__preset_realtime required 项都在 properties 中  required=[]
+  ✅ skill__preset_realtime 有非空 description  长度=79
+  ✅ skill__tomato_juice schema 根 type=object 且有 properties  type=object properties=true
+  ✅ skill__tomato_juice required 项都在 properties 中  required=[]
+  ✅ skill__tomato_juice 有非空 description  长度=46
+  ✅ press_key schema 根 type=object 且有 properties  type=object properties=true
+  ✅ press_key required 项都在 properties 中  required=["key"]
+  ✅ press_key 有非空 description  长度=126
+  ✅ hold_key schema 根 type=object 且有 properties  type=object properties=true
+  ✅ hold_key required 项都在 properties 中  required=["key"]
+  ✅ hold_key 有非空 description  长度=164
+  ✅ release_key schema 根 type=object 且有 properties  type=object properties=true
+  ✅ release_key required 项都在 properties 中  required=["key"]
+  ✅ release_key 有非空 description  长度=119
+  ✅ release_all_keys schema 根 type=object 且有 properties  type=object properties=true
+  ✅ release_all_keys required 项都在 properties 中  required=[]
+  ✅ release_all_keys 有非空 description  长度=37
+  ✅ type_text schema 根 type=object 且有 properties  type=object properties=true
+  ✅ type_text required 项都在 properties 中  required=["text"]
+  ✅ type_text 有非空 description  长度=82
+  ✅ mouse_move schema 根 type=object 且有 properties  type=object properties=true
+  ✅ mouse_move required 项都在 properties 中  required=["x", "y"]
+  ✅ mouse_move 有非空 description  长度=87
+  ✅ mouse_click schema 根 type=object 且有 properties  type=object properties=true
+  ✅ mouse_click required 项都在 properties 中  required=["x", "y"]
+  ✅ mouse_click 有非空 description  长度=92
+  ✅ mouse_scroll schema 根 type=object 且有 properties  type=object properties=true
+  ✅ mouse_scroll required 项都在 properties 中  required=["lines"]
+  ✅ mouse_scroll 有非空 description  长度=37
+  ✅ screenshot schema 根 type=object 且有 properties  type=object properties=true
+  ✅ screenshot required 项都在 properties 中  required=[]
+  ✅ screenshot 有非空 description  长度=113
+  ✅ get_status schema 根 type=object 且有 properties  type=object properties=true
+  ✅ get_status required 项都在 properties 中  required=[]
+  ✅ get_status 有非空 description  长度=75
+  ✅ web_search schema 根 type=object 且有 properties  type=object properties=true
+  ✅ web_search required 项都在 properties 中  required=["query"]
+  ✅ web_search 有非空 description  长度=76
+  ✅ web_fetch schema 根 type=object 且有 properties  type=object properties=true
+  ✅ web_fetch required 项都在 properties 中  required=["url"]
+  ✅ web_fetch 有非空 description  长度=46
+
+── ③ 全工具 dryRun 调用（不注入任何事件） ──
+[HUD] 无 NSApplication 上下文（引擎进程）→ 跳过 HUD 安装
+23:40:36 [upscale] 引擎初始化: 可用=true
+23:40:36 [network] 定位引擎初始化完成
+    skill__auto_login → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🔑自动登录」（未执行任何动作）
+    skill__volleyball → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🏐自动排球」（未执行任何动作）
+    skill__fishing → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🎣自动钓鱼」（未执行任何动作）
+    skill__coffee → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🥤自动做咖啡」（未执行任何动作）
+    skill__coffee_lite → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🥛轻量做咖啡」（未执行任何动作）
+    skill__bagel_spam → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🥯贝果刷屏」（未执行任何动作）
+    skill__pinkpaw → 拒绝（dryRun=true postedEvents=0） 工具「skill__pinkpaw」在当前代码库中标记为未移植（ported:false），未执行任何动作
+  ✅ 未移植工具 skill__pinkpaw 明确拒绝  ok=false 原因=工具「skill__pinkpaw」在当前代码库中标记为未移植（ported:false），未执行任何动作
+    skill__furniture → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🪑自动收家具」（未执行任何动作）
+    skill__rewards → ok（dryRun=true postedEvents=0） 干跑：将启动技能「💎自动领奖励」（未执行任何动作）
+    skill__piano → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🎹自动弹钢琴」（未执行任何动作）
+    skill__rhythm → 拒绝（dryRun=true postedEvents=0） 工具「skill__rhythm」在当前代码库中标记为未移植（ported:false），未执行任何动作
+  ✅ 未移植工具 skill__rhythm 明确拒绝  ok=false 原因=工具「skill__rhythm」在当前代码库中标记为未移植（ported:false），未执行任何动作
+    skill__dodge → ok（dryRun=true postedEvents=0） 干跑：将启动技能「⚔️自动闪避」（未执行任何动作）
+    skill__auto_scroll → ok（dryRun=true postedEvents=0） 干跑：将启动技能「📜自动滚动」（未执行任何动作）
+    skill__touch → ok（dryRun=true postedEvents=0） 干跑：将启动技能「✋自动抚摸」（未执行任何动作）
+    skill__drive_dataset → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🎬驾驶数据采集」（未执行任何动作）
+    skill__preset_afk → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🛋️挂机预设」（未执行任何动作）
+    skill__preset_realtime → 拒绝（dryRun=true postedEvents=0） 工具「skill__preset_realtime」在当前代码库中标记为未移植（ported:false），未执行任何动作
+  ✅ 未移植工具 skill__preset_realtime 明确拒绝  ok=false 原因=工具「skill__preset_realtime」在当前代码库中标记为未移植（ported:false），未执行任何动作
+    skill__tomato_juice → ok（dryRun=true postedEvents=0） 干跑：将启动技能「🍅自动做番茄汁」（未执行任何动作）
+    press_key → ok（dryRun=true postedEvents=0） 干跑：将短按「W」0.05 秒（未注入）
+    hold_key → ok（dryRun=true postedEvents=0） 干跑：将按住「D」（未注入）
+    release_key → ok（dryRun=true postedEvents=0） 干跑：将释放「D」（未注入）
+    release_all_keys → ok（dryRun=true postedEvents=0） 干跑：将释放所有被按住的游戏键（未注入）
+    type_text → ok（dryRun=true postedEvents=0） 干跑：将输入 4 个字符「自检文本」（未注入）
+    mouse_move → ok（dryRun=true postedEvents=0） 干跑：将移动到 (100, 100)（未注入）
+    mouse_click → ok（dryRun=true postedEvents=0） 干跑：将在 (100, 100) 左键单击（未注入）
+    mouse_scroll → ok（dryRun=true postedEvents=0） 干跑：将滚动 3 行（未注入）
+    screenshot → ok（dryRun=true postedEvents=0） 干跑：将抓取当前帧并编码/写出 JPEG（未抓取、未写盘）
+    get_status → ok（dryRun=true postedEvents=0） 当前状态：
+· 游戏窗口（异环/NTE）：否
+· 辅助功能权限：是（未授权时一切注入会被系统丢弃）
+· 观测模式：否（开启时一切注入类工具被
+    web_search → ok（dryRun=true postedEvents=0） 干跑：将联网搜索「AuroraDrive 自检」（最多 3 条，未发起请求）
+    web_fetch → ok（dryRun=true postedEvents=0） 干跑：将抓取 https://example.com 正文（最多 500 字符，未发起请求）
+  ✅ 全部工具 dryRun 结构合法且未注入任何事件  30 个工具全部通过
+
+── ④ 护栏（未知工具 / 非法参数） ──
+  ✅ 未知工具 → ok=false  未知工具「no_such_tool_xyz」，未执行任何动作
+  ✅ press_key 非法键名 → ok=false  不支持的按键「NOT_A_KEY」。可用键：W/A/S/D/F/E/Space/ESC/Q/R/M/B/T/F1/F2/F4/Shift/Ctrl/1/2/3/4/5/6/7/J/K/L/Z/X/C/V/N/G/H/I/Y/U
+  ✅ web_fetch 非法协议 → ok=false  url 必须是 http/https 开头的完整网址，收到：ftp://x
+  ✅ hold_key 缺参数 → ok=false  缺少必需参数 key
+
+═══ A3 工具自检：PASS（144 通过 / 0 失败）═══
+
+═══ A3 工具：PASS（144 通过 / 0 失败）═══
+
+>>> EXIT=0
+
+-- guard --
+domain-after: d41d8cd98f00b204e9800998ecf8427e
+verdict: CLEAN (unchanged) -> result trustworthy

@@ -1,0 +1,44 @@
+=== RUN #1 (guarded) ===
+cmd: env AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --llm-perf-selftest --seconds 6
+ts:  2026-10-06 23:22:00 +0800
+domain-before: d41d8cd98f00b204e9800998ecf8427e
+
+═══ 性能预算自检（--llm-perf-selftest）═══
+时间: 2026-10-06 23:22:00 +0800
+采样时长 6s
+
+── ① 内存增量（<50MB） ──
+  起始 RSS = 14.0MB
+  ✅ AI 单例构造后内存增量 <50MB  增量 2.6MB（14.0MB → 16.7MB）
+
+── ② SSE/JSON 解析在后台线程（不占主线程） ──
+  200 个 SSE 分片解析（主线程）耗时 1.09ms
+  ✅ 解析本身足够轻（单次 <0.5ms，200 次 <100ms）  1.09ms / 200 次
+  ✅ 错误分类 2000 次 <50ms  2.11ms / 2000 次
+
+── ③ 候选链构建耗时 ──
+  ✅ 候选链构建 <300ms（缓存命中路径）  0.2ms
+
+── ④ 主线程阻塞探针 ──
+  主线程 tick 间隔: p50=3.04ms p95=3.09ms max=23.50ms（n=1992）
+  ✅ 主线程 p95 抖动 <10ms（无同步阻塞）  p95=3.09ms
+
+── ⑤ 采样期间内存增长 ──
+  ✅ 采样期间内存增长 <20MB  增长 2.8MB（16.7MB → 19.5MB）
+  起始 14.0MB / 初始化后 16.7MB / 结束 19.5MB
+
+── ⑥ 首字延迟（真实流式请求） ──
+[LLMTransport] ❌ OVHcloud 匿名/Qwen3.5-9B rateLimited：API rate limit exceeded
+  [TTFB 尝试] ovhAnonymous/Qwen3.5-9B 失败：LLMError(kind: AuroraDrive.LLMErrorKind.rateLimited, message: "API rate limit exceeded", retryAfter: Optional(53.0), replacementModel: nil, httpStatus: Optional(429), upstreamType: nil)
+  首字: 4273ms（渠道=ovhAnonymous/Qwen2.5-VL-72B-Instruct），片段="一"
+  ❌ 首字延迟 <1500ms  4273ms
+
+═══ 性能预算自检：FAIL（6 通过 / 1 失败）═══
+
+═══ 性能预算：FAIL（6 通过 / 1 失败）═══
+
+>>> EXIT=1
+
+-- guard --
+domain-after: d41d8cd98f00b204e9800998ecf8427e
+verdict: CLEAN (unchanged) -> result trustworthy
