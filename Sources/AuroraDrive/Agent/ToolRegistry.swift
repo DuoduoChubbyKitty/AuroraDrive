@@ -916,8 +916,30 @@ actor ToolRegistry {
     }
 
     /// `ControlEngine.GameKey` 的全部取值 —— 唯一键位真相源：不另建键表
+    /// AI 可用的键位名（**排除 F1–F12**）。
+    ///
+    /// 【为什么排除 —— 2026-10-06 用户指正】
+    ///   macOS 上 F1–F12 默认是**系统功能键**（F1/F2 亮度、F3 调度中心、F4 聚焦、
+    ///   F5 听写、F10–F12 音量）。除非用户在「系统设置 → 键盘」勾选
+    ///   「将 F1、F2 等键用作标准功能键」，否则 `CGEvent` 发过去只会触发**系统动作**
+    ///   （改亮度/弹窗口），游戏进程根本收不到 —— 对 AI 来说这是"按了但没作用于游戏"，
+    ///   属于**会骗到模型**的假能力。
+    ///
+    ///   项目里 `GameKey.f1/f2/f4` 的注释写着「异环 HUD 功能热键（实测 F3=卡布罗集市
+    ///   F4=活动页）」—— 那是**照抄 MaaNTE（Windows 版）**的结论：Windows 上 F 键是
+    ///   普通功能键，游戏能收；macOS 不是一回事。
+    ///
+    ///   故 **AI 工具面不暴露 F 键**；底层 `GameKey` 枚举保留它们（HUD 面板切换等
+    ///   人类操作路径可能仍需要，且删除会破坏既有调用点），只是不让模型选。
     private static var gameKeyNames: [String] {
-        ControlEngine.GameKey.allCases.map(\.rawValue)
+        ControlEngine.GameKey.allCases
+            // 排除 F1–F12（系统功能键）；保留 "F" 交互键（rawValue 恰为 "F"，长度 1）
+            .filter { key in
+                let n = key.rawValue
+                let isFunctionKey = n.count >= 2 && n.first == "F" && n.dropFirst().allSatisfy(\.isNumber)
+                return !isFunctionKey
+            }
+            .map(\.rawValue)
     }
 
     private static var gameKeyListText: String {

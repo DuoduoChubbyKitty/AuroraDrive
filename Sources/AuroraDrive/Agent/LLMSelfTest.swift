@@ -1415,8 +1415,27 @@ enum LLMSelfTest {
            let props = obj["properties"] as? [String: Any],
            let keyProp = props["key"] as? [String: Any],
            let enumValues = keyProp["enum"] as? [String] {
-            ledger.equals("press_key schema 的 key enum 覆盖全部 28 键",
-                          Set(enumValues), Set(gameKeys.map(\.rawValue)))
+            // ══════════════════════════════════════════════════════════════════
+            // 【2026-10-06 用户指正 · AI 工具面必须排除 F1–F12】
+            // ══════════════════════════════════════════════════════════════════
+            // macOS 上 F1–F12 默认是**系统功能键**（亮度/调度中心/聚焦/听写/音量）：
+            // 除非用户在「系统设置 → 键盘」勾选「将 F1、F2 等键用作标准功能键」，
+            // CGEvent 发过去只会触发系统动作，游戏收不到 —— 对模型是"按了没作用于
+            // 游戏"的**假能力**。项目里 f1/f2/f4 的注释「异环 HUD 功能热键」是照抄
+            // MaaNTE（Windows 版）的结论，macOS 不适用。
+            // 故 ToolRegistry 的 gameKeyNames 主动排除 F 键（保留 "F" 交互键），
+            // 本条断言据此改为「枚举 = 全部键 − F 键」，并**额外断言 F 键确实不在**。
+            let functionKeys = Set(gameKeys.map(\.rawValue).filter { n in
+                n.count >= 2 && n.first == "F" && n.dropFirst().allSatisfy(\.isNumber)
+            })
+            let expectedExposed = Set(gameKeys.map(\.rawValue)).subtracting(functionKeys)
+            ledger.equals("press_key schema 的 key enum = 全部键 − F1–F12（系统功能键不暴露给 AI）",
+                          Set(enumValues), expectedExposed)
+            ledger.check("press_key 不暴露 F1–F12（macOS 系统功能键）",
+                         functionKeys.isDisjoint(with: Set(enumValues)),
+                         "F 键集合=\(functionKeys.sorted()) 暴露数=\(functionKeys.intersection(Set(enumValues)).count)")
+            ledger.check("press_key 仍保留 F 交互键",
+                         Set(enumValues).contains("F"), "含 F=\(Set(enumValues).contains("F"))")
         } else {
             ledger.check("press_key schema 含 key.enum", false, "解析 schema 失败")
         }
