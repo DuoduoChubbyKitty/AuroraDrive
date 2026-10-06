@@ -1,0 +1,125 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_FeedBackEffectDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_FeedBackEffectDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'FeedBackEffectData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "q110009": {
+        "EffectNodes": [
+          {
+            "StartTime": 6,
+            "FeedBackEffectID": "DT_FeedbackEffect"
+          }
+        ]
+      },
+      "q110001-": {
+        "EffectNodes": [
+          {
+            "StartTime": 5100,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 5750,
+            "FeedBackEffectID": "FFE_Common_Superheavy"
+          },
+          {
+            "StartTime": 6350,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 7150,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 7750,
+            "FeedBackEffectID": "FFE_Common_Superheavy"
+          },
+          {
+            "StartTime": 8050,
+            "FeedBackEffectID": "FFE_Common_Light"
+          },
+          {
+            "StartTime": 8500,
+            "FeedBackEffectID": "FFE_Common_Light"
+          },
+          {
+            "StartTime": 9200,
+            "FeedBackEffectID": "FFE_Common_Light"
+          },
+          {
+            "StartTime": 10200,
+            "FeedBackEffectID": "FFE_Common_Mid"
+          },
+          {
+            "StartTime": 10600,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 11250,
+            "FeedBackEffectID": "FFE_Common_Superheavy"
+          },
+          {
+            "StartTime": 11900,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 22900,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 38200,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 39200,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 40400,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 52200,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 86000,
+            "FeedBackEffectID": "FFE_Common_Mid"
+          },
+          {
+            "StartTime": 87500,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 89000,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 94300,
+            "FeedBackEffectID": "FFE_Common_Heavy"
+          },
+          {
+            "StartTime": 99000,
+            "FeedBackEffectID": "FFE_Common_Mid"
+          },
+          {
+            "StartTime": 101100,
+            "FeedBackEffectID": "FFE_Common_Superheavy"
+          },
+          {
+            "StartTime": 105400,
+            "FeedBackEffectID": "FFE_Common_Superheavy"
+          }
+        ]
+      }
+    }
+  }
+]

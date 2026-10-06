@@ -1,0 +1,121 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_AcceptQuestTipsData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_AcceptQuestTipsData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'AcceptQuestTipsData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "EQT_EVERYDAY": {
+        "QuestTypeBgImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_YH_MainUI_TaskTips03_Text.UI_YH_MainUI_TaskTips03_Text",
+          "SubPathString": ""
+        },
+        "FontColor": {
+          "R": 0.571125,
+          "G": 0.57758,
+          "B": 0.584078,
+          "A": 1.0,
+          "Hex": "C7C8C9"
+        }
+      },
+      "EQT_LEGEND": {
+        "QuestTypeBgImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_YH_Missions_GuideIcon_FanWai.UI_YH_Missions_GuideIcon_FanWai",
+          "SubPathString": ""
+        },
+        "FontColor": {
+          "R": 0.571125,
+          "G": 0.57758,
+          "B": 0.584078,
+          "A": 1.0,
+          "Hex": "C7C8C9"
+        }
+      },
+      "EOT_MULT_SHOP": {
+        "QuestTypeBgImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_YH_MainUI_TaskTips02_Text.UI_YH_MainUI_TaskTips02_Text",
+          "SubPathString": ""
+        },
+        "FontColor": {
+          "R": 0.571125,
+          "G": 0.57758,
+          "B": 0.584078,
+          "A": 1.0,
+          "Hex": "C7C8C9"
+        }
+      },
+      "EQT_LIKING": {
+        "QuestTypeBgImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_YH_MainUI_TaskTips01_Text.UI_YH_MainUI_TaskTips01_Text",
+          "SubPathString": ""
+        },
+        "FontColor": {
+          "R": 0.571125,
+          "G": 0.57758,
+          "B": 0.584078,
+          "A": 1.0,
+          "Hex": "C7C8C9"
+        }
+      },
+      "EQT_SIDE": {
+        "QuestTypeBgImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_YH_MainUI_TaskTips02_Text.UI_YH_MainUI_TaskTips02_Text",
+          "SubPathString": ""
+        },
+        "FontColor": {
+          "R": 0.571125,
+          "G": 0.57758,
+          "B": 0.584078,
+          "A": 1.0,
+          "Hex": "C7C8C9"
+        }
+      },
+      "EQT_EVERYDAY_COM": {
+        "QuestTypeBgImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_YH_MainUI_TaskTips03_Text.UI_YH_MainUI_TaskTips03_Text",
+          "SubPathString": ""
+        },
+        "FontColor": {
+          "R": 0.571125,
+          "G": 0.57758,
+          "B": 0.584078,
+          "A": 1.0,
+          "Hex": "C7C8C9"
+        }
+      },
+      "EQT_FAVORABILITY_ATMOSPHERE": {
+        "QuestTypeBgImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_YH_MainUI_TaskTips01_Text.UI_YH_MainUI_TaskTips01_Text",
+          "SubPathString": ""
+        },
+        "FontColor": {
+          "R": 0.571125,
+          "G": 0.57758,
+          "B": 0.584078,
+          "A": 1.0,
+          "Hex": "C7C8C9"
+        }
+      },
+      "EQT_BREAKTHROUGH": {
+        "QuestTypeBgImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_YinDao1.UI_mission_YinDao1",
+          "SubPathString": ""
+        },
+        "FontColor": {
+          "R": 0.571125,
+          "G": 0.57758,
+          "B": 0.584078,
+          "A": 1.0,
+          "Hex": "C7C8C9"
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,323 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_QuestTypeDetailData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_QuestTypeDetailData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'QuestTypeDetailData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "EQT_EVERYDAY": {
+        "TypeImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_richang.UI_mission_richang",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_zhixian04.UI_mission_zhixian04",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "TableId": "/Game/Text/ST_Common.ST_Common",
+          "Key": "quest_EQT",
+          "SourceString": "{0}",
+          "LocalizedString": "{0}"
+        },
+        "bCanTrack": false,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "QuestTitle_4",
+          "SourceString": "日常",
+          "LocalizedString": "Daily"
+        },
+        "bShowInQuestPanel": false
+      },
+      "EQT_LEGEND": {
+        "TypeImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_YH_Missions_GuideIcon_FanWai.UI_YH_Missions_GuideIcon_FanWai",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_fanwai.UI_mission_fanwai",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "TableId": "/Game/Text/ST_Common.ST_Common",
+          "Key": "quest_LegendQuest",
+          "SourceString": "{0}",
+          "LocalizedString": "{0}"
+        },
+        "bCanTrack": true,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "QuestTitle_3",
+          "SourceString": "番外",
+          "LocalizedString": "Spinoffs"
+        },
+        "bShowInQuestPanel": true
+      },
+      "EOT_MULT_SHOP": {
+        "TypeImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_shangdian.UI_mission_shangdian",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_zhixian02.UI_mission_zhixian02",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "TableId": "/Game/Text/ST_Common.ST_Common",
+          "Key": "quest_MultShop",
+          "SourceString": "{0}",
+          "LocalizedString": "{0}"
+        },
+        "bCanTrack": true,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "QuestTitle_2",
+          "SourceString": "支线",
+          "LocalizedString": "Side"
+        },
+        "bShowInQuestPanel": true
+      },
+      "EQT_LIKING": {
+        "TypeImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_haogandu.UI_mission_haogandu",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_zhixian03.UI_mission_zhixian03",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "TableId": "/Game/Text/ST_Common.ST_Common",
+          "Key": "quest_LikingQuest",
+          "SourceString": "{0}",
+          "LocalizedString": "{0}"
+        },
+        "bCanTrack": true,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "QuestTitle_6",
+          "SourceString": "羁遇",
+          "LocalizedString": "Bond"
+        },
+        "bShowInQuestPanel": true
+      },
+      "EQT_SIDE": {
+        "TypeImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_shangdian.UI_mission_shangdian",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_zhixian02.UI_mission_zhixian02",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "TableId": "/Game/Text/ST_Common.ST_Common",
+          "Key": "quest_SideQuest",
+          "SourceString": "{0}",
+          "LocalizedString": "{0}"
+        },
+        "bCanTrack": true,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "QuestTitle_2",
+          "SourceString": "支线",
+          "LocalizedString": "Side"
+        },
+        "bShowInQuestPanel": true
+      },
+      "EQT_MAIN": {
+        "TypeImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_zhuxian.UI_mission_zhuxian",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_zhixian.UI_mission_zhixian",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "TableId": "/Game/Text/ST_Common.ST_Common",
+          "Key": "quest_MainQuest",
+          "SourceString": "{0}",
+          "LocalizedString": "{0}"
+        },
+        "bCanTrack": true,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "QuestTitle_1",
+          "SourceString": "正篇",
+          "LocalizedString": "Episodes"
+        },
+        "bShowInQuestPanel": true
+      },
+      "EQT_EVERYDAY_RANDOM": {
+        "TypeImage": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "CultureInvariantString": null
+        },
+        "bCanTrack": false,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "CultureInvariantString": null
+        },
+        "bShowInQuestPanel": true
+      },
+      "EQT_ADVENTURE_CHAPTER": {
+        "TypeImage": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "CultureInvariantString": null
+        },
+        "bCanTrack": false,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "CultureInvariantString": null
+        },
+        "bShowInQuestPanel": false
+      },
+      "EQT_ADVENTURE_CHAPTER_REWARD": {
+        "TypeImage": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "CultureInvariantString": null
+        },
+        "bCanTrack": false,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "CultureInvariantString": null
+        },
+        "bShowInQuestPanel": false
+      },
+      "EQT_EVERYDAY_COM": {
+        "TypeImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_richang.UI_mission_richang",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_zhixian04.UI_mission_zhixian04",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "TableId": "/Game/Text/ST_Common.ST_Common",
+          "Key": "quest_EQT",
+          "SourceString": "{0}",
+          "LocalizedString": "{0}"
+        },
+        "bCanTrack": true,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "QuestTitle_2",
+          "SourceString": "支线",
+          "LocalizedString": "Side"
+        },
+        "bShowInQuestPanel": true
+      },
+      "EQT_BREAKTHROUGH": {
+        "TypeImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_YinDao1.UI_mission_YinDao1",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_YinDao2.UI_mission_YinDao2",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "TableId": "/Game/Text/ST_Common.ST_Common",
+          "Key": "quest_EQT",
+          "SourceString": "{0}",
+          "LocalizedString": "{0}"
+        },
+        "bCanTrack": true,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "QuestTitle_5",
+          "SourceString": "引导",
+          "LocalizedString": "Guide"
+        },
+        "bShowInQuestPanel": true
+      },
+      "EQT_FAVORABILITY_ATMOSPHERE": {
+        "TypeImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_haogandu.UI_mission_haogandu",
+          "SubPathString": ""
+        },
+        "TypeTrackImage": {
+          "AssetPathName": "/Game/UI/UI/Quest/QuestMain/mission/UI_mission_zhixian03.UI_mission_zhixian03",
+          "SubPathString": ""
+        },
+        "TypeText": {
+          "TableId": "/Game/Text/ST_Common.ST_Common",
+          "Key": "quest_LikingQuest",
+          "SourceString": "{0}",
+          "LocalizedString": "{0}"
+        },
+        "bCanTrack": true,
+        "CannotTrackDesc": {
+          "CultureInvariantString": null
+        },
+        "TypeName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "QuestTitle_6",
+          "SourceString": "羁遇",
+          "LocalizedString": "Bond"
+        },
+        "bShowInQuestPanel": true
+      }
+    }
+  }
+]

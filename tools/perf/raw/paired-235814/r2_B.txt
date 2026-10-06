@@ -1,0 +1,5 @@
+tick.total.p50=0.1372
+tick.total.p95=0.1857
+tick.total.p99=0.2205
+tick.opticalflow.p50=0.0000
+tick_hz=27.15

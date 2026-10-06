@@ -1,0 +1,209 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_TrialDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_TrialDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'TrialData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "TestGold": {
+        "TrialType": "ETrialType::Gold",
+        "Location": {
+          "X": -6410.0,
+          "Y": -2390.0,
+          "Z": 50.0
+        },
+        "AreaId": "None",
+        "TrialID": "TestGold",
+        "FailRnage": 2000.0,
+        "LevelName": "testwyan"
+      },
+      "TestExp": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": 3710.0,
+          "Y": -1190.0,
+          "Z": 0.0
+        },
+        "AreaId": "None",
+        "TrialID": "None",
+        "FailRnage": 2000.0,
+        "LevelName": ""
+      },
+      "TestGold_0": {
+        "TrialType": "ETrialType::Gold",
+        "Location": {
+          "X": -6410.0,
+          "Y": -1440.0,
+          "Z": 50.0
+        },
+        "AreaId": "None",
+        "TrialID": "TestGold_0",
+        "FailRnage": 2000.0,
+        "LevelName": "testwyan"
+      },
+      "TestExp_1": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": -2705.0,
+          "Y": 3910.0,
+          "Z": 100.0
+        },
+        "AreaId": "None",
+        "TrialID": "TestExp_1",
+        "FailRnage": 2000.0,
+        "LevelName": "Testmap_cc2"
+      },
+      "TestExp_2": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": -2705.0,
+          "Y": 1140.0,
+          "Z": 100.0
+        },
+        "AreaId": "None",
+        "TrialID": "TestExp_2",
+        "FailRnage": 2000.0,
+        "LevelName": "Testmap_cc2"
+      },
+      "TestFork_1": {
+        "TrialType": "ETrialType::Fork",
+        "Location": {
+          "X": -2705.0,
+          "Y": -400.0,
+          "Z": 100.0
+        },
+        "AreaId": "None",
+        "TrialID": "TestFork_1",
+        "FailRnage": 2000.0,
+        "LevelName": "Testmap_cc2"
+      },
+      "TestFork_2": {
+        "TrialType": "ETrialType::Fork",
+        "Location": {
+          "X": -2705.0,
+          "Y": -2030.0,
+          "Z": 100.0
+        },
+        "AreaId": "None",
+        "TrialID": "TestFork_2",
+        "FailRnage": 2000.0,
+        "LevelName": "Testmap_cc2"
+      },
+      "TestGold_1": {
+        "TrialType": "ETrialType::Gold",
+        "Location": {
+          "X": -565.0,
+          "Y": -400.0,
+          "Z": 100.0
+        },
+        "AreaId": "None",
+        "TrialID": "TestGold_1",
+        "FailRnage": 2000.0,
+        "LevelName": "Testmap_cc2"
+      },
+      "TestGold_2": {
+        "TrialType": "ETrialType::Gold",
+        "Location": {
+          "X": -1945.0,
+          "Y": 2780.0,
+          "Z": 100.0
+        },
+        "AreaId": "None",
+        "TrialID": "TestGold_2",
+        "FailRnage": 2000.0,
+        "LevelName": "Testmap_cc2"
+      },
+      "QJD_CharEXP_1": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": -84725.0,
+          "Y": 130185.0,
+          "Z": 7400.0
+        },
+        "AreaId": "001",
+        "TrialID": "QJD_CharEXP_1",
+        "FailRnage": 2000.0,
+        "LevelName": "XL_map_bigworld_test"
+      },
+      "QJD_CharEXP_2": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": -85100.0,
+          "Y": 140405.0,
+          "Z": 4655.0
+        },
+        "AreaId": "001",
+        "TrialID": "QJD_CharEXP_2",
+        "FailRnage": 2000.0,
+        "LevelName": "XL_map_bigworld_test"
+      },
+      "QJD_CharEXP_3": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": -98855.0,
+          "Y": 142495.0,
+          "Z": 8885.0
+        },
+        "AreaId": "001",
+        "TrialID": "QJD_CharEXP_3",
+        "FailRnage": 2000.0,
+        "LevelName": "XL_map_bigworld_test"
+      },
+      "QJD_CharEXP_4": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": -103337.94,
+          "Y": 132602.84,
+          "Z": 12945.0
+        },
+        "AreaId": "001",
+        "TrialID": "QJD_CharEXP_4",
+        "FailRnage": 2000.0,
+        "LevelName": "XL_map_bigworld_test"
+      },
+      "QJD_CharEXP_5": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": -114228.73,
+          "Y": 132477.92,
+          "Z": 11440.0
+        },
+        "AreaId": "001",
+        "TrialID": "QJD_CharEXP_5",
+        "FailRnage": 2000.0,
+        "LevelName": "XL_map_bigworld_test"
+      },
+      "QJD_CharEXP_6": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": -120075.77,
+          "Y": 151858.25,
+          "Z": 9850.0
+        },
+        "AreaId": "001",
+        "TrialID": "QJD_CharEXP_6",
+        "FailRnage": 2000.0,
+        "LevelName": "XL_map_bigworld_test"
+      },
+      "QJD_CharEXP_7": {
+        "TrialType": "ETrialType::Exp",
+        "Location": {
+          "X": -129073.5,
+          "Y": 151951.64,
+          "Z": 6725.0
+        },
+        "AreaId": "001",
+        "TrialID": "QJD_CharEXP_7",
+        "FailRnage": 2000.0,
+        "LevelName": "XL_map_bigworld_test"
+      }
+    }
+  }
+]

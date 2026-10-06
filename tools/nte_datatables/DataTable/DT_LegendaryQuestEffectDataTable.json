@@ -1,0 +1,257 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_LegendaryQuestEffectDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_LegendaryQuestEffectDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'LegendaryQuestEffectData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "L110003": {
+        "bIsCompleted": false,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "LegendaryQuest_03",
+          "SourceString": "白藏",
+          "LocalizedString": "Baicang"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Icon_01.UI_YH_SpinoffSeries_Baicang_Close_Icon_01",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Role_01.UI_YH_SpinoffSeries_Baicang_Close_Role_01",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_RoleName_01.UI_YH_SpinoffSeries_Baicang_Close_RoleName_01",
+          "SubPathString": ""
+        }
+      },
+      "L110052": {
+        "bIsCompleted": true,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "LegendaryQuest_03",
+          "SourceString": "白藏",
+          "LocalizedString": "Baicang"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Icon_01.UI_YH_SpinoffSeries_Baicang_Close_Icon_01",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Role_01.UI_YH_SpinoffSeries_Baicang_Close_Role_01",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_RoleName_01.UI_YH_SpinoffSeries_Baicang_Close_RoleName_01",
+          "SubPathString": ""
+        }
+      },
+      "L110103": {
+        "bIsCompleted": true,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "LegendaryQuest_04",
+          "SourceString": "安魂曲",
+          "LocalizedString": "Lacrimosa"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Icon_02.UI_YH_SpinoffSeries_Baicang_Close_Icon_02",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Role_02.UI_YH_SpinoffSeries_Baicang_Close_Role_02",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_RoleName_02.UI_YH_SpinoffSeries_Baicang_Close_RoleName_02",
+          "SubPathString": ""
+        }
+      },
+      "L110139": {
+        "bIsCompleted": true,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "LegendaryQuest_04",
+          "SourceString": "安魂曲",
+          "LocalizedString": "Lacrimosa"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Icon_02.UI_YH_SpinoffSeries_Baicang_Close_Icon_02",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Role_02.UI_YH_SpinoffSeries_Baicang_Close_Role_02",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_RoleName_02.UI_YH_SpinoffSeries_Baicang_Close_RoleName_02",
+          "SubPathString": ""
+        }
+      },
+      "L110202": {
+        "bIsCompleted": false,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "LegendaryQuest_05",
+          "SourceString": "明音",
+          "LocalizedString": "Akane"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_Icon_03.UI_YH_SpinoffSeries_mingyin_Close_Icon_03",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_Role_03.UI_YH_SpinoffSeries_mingyin_Close_Role_03",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_RoleName_03.UI_YH_SpinoffSeries_mingyin_Close_RoleName_03",
+          "SubPathString": ""
+        }
+      },
+      "L110266": {
+        "bIsCompleted": true,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "LegendaryQuest_05",
+          "SourceString": "明音",
+          "LocalizedString": "Akane"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_Icon_03.UI_YH_SpinoffSeries_mingyin_Close_Icon_03",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_Role_03.UI_YH_SpinoffSeries_mingyin_Close_Role_03",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_RoleName_03.UI_YH_SpinoffSeries_mingyin_Close_RoleName_03",
+          "SubPathString": ""
+        }
+      },
+      "q110105": {
+        "bIsCompleted": false,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_ReviewQuest.ST_ReviewQuest",
+          "Key": "Main_1_1",
+          "SourceString": "月光当铺",
+          "LocalizedString": "Pawn Moonlight"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Icon_04.UI_YH_SpinoffSeries_Baicang_Close_Icon_04",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Role_04.UI_YH_SpinoffSeries_Baicang_Close_Role_04",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_RoleName_04.UI_YH_SpinoffSeries_Baicang_Close_RoleName_04",
+          "SubPathString": ""
+        }
+      },
+      "q110137": {
+        "bIsCompleted": true,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_ReviewQuest.ST_ReviewQuest",
+          "Key": "Main_1_1",
+          "SourceString": "月光当铺",
+          "LocalizedString": "Pawn Moonlight"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Icon_04.UI_YH_SpinoffSeries_Baicang_Close_Icon_04",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_Role_04.UI_YH_SpinoffSeries_Baicang_Close_Role_04",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_Baicang_Close_RoleName_04.UI_YH_SpinoffSeries_Baicang_Close_RoleName_04",
+          "SubPathString": ""
+        }
+      },
+      "L110404": {
+        "bIsCompleted": false,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "LegendaryQuest_05",
+          "SourceString": "明音",
+          "LocalizedString": "Akane"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_Icon_04.UI_YH_SpinoffSeries_mingyin_Close_Icon_04",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_Role_03.UI_YH_SpinoffSeries_mingyin_Close_Role_03",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_RoleName_03.UI_YH_SpinoffSeries_mingyin_Close_RoleName_03",
+          "SubPathString": ""
+        }
+      },
+      "L110445": {
+        "bIsCompleted": true,
+        "MainTitle": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "LegendaryQuest_05",
+          "SourceString": "明音",
+          "LocalizedString": "Akane"
+        },
+        "Subtitle": {
+          "CultureInvariantString": null
+        },
+        "LogoPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_Icon_04.UI_YH_SpinoffSeries_mingyin_Close_Icon_04",
+          "SubPathString": ""
+        },
+        "CharacterPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_Role_03.UI_YH_SpinoffSeries_mingyin_Close_Role_03",
+          "SubPathString": ""
+        },
+        "DescPhoto": {
+          "AssetPathName": "/Game/UI/UI/Quest/LegendaryQuest/UI_YH_SpinoffSeries_mingyin_Close_RoleName_03.UI_YH_SpinoffSeries_mingyin_Close_RoleName_03",
+          "SubPathString": ""
+        }
+      }
+    }
+  }
+]

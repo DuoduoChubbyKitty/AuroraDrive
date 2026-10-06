@@ -1,0 +1,22 @@
+输入                       方式               候选       判定
+------------------------------------------------------------------------
+'对话'                     core:对话          364      AMBIG(364)
+'交谈'                     core:交谈          254      AMBIG(254)
+'前往'                     core-sub:跟随奈丽前   1        UNIQUE ⚠️需人工确认
+'进入'                     core-sub:进入电话亭   1        UNIQUE ⚠️需人工确认
+'的'                      name:迎接的熏风       1        UNIQUE ⚠️需人工确认
+'。'                      name:再见？再见。      1        UNIQUE ⚠️需人工确认
+'   '                    empty            0        MISS(安全)
+'  对话  '                 core:对话          364      AMBIG(364)
+'与路边着急的研究员对话'            exact            1        UNIQUE ⚠️需人工确认
+'路边着急的研究员对话'             substr:与路边着急的研   1        UNIQUE ⚠️需人工确认
+'[剧情HeroicApearan'       miss             0        MISS(安全)
+'剧情HeroicApearan'        miss             0        MISS(安全)
+'E'                      name:神器，GET！     1        UNIQUE ⚠️需人工确认
+'1234'                   miss             0        MISS(安全)
+'abcdefgh'               miss             0        MISS(安全)
+'与路边着急的研究员对'             substr:与路边着急的研   1        UNIQUE ⚠️需人工确认
+'路边着急的'                  core-sub:与路边着急   1        UNIQUE ⚠️需人工确认
+'电梯'                     core:电梯          5        AMBIG(5)
+'电话亭'                    core:电话亭         1        UNIQUE ⚠️需人工确认
+'局长办公室'                  substr:走进局长办公室   1        UNIQUE ⚠️需人工确认

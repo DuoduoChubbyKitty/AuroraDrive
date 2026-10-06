@@ -1,0 +1,41 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_Platform",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_Platform",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'PlatformData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Windows": {
+        "ShowJoyStick": false
+      },
+      "IOS": {
+        "ShowJoyStick": true
+      },
+      "Android": {
+        "ShowJoyStick": true
+      },
+      "Mac": {
+        "ShowJoyStick": false
+      },
+      "Linux": {
+        "ShowJoyStick": false
+      },
+      "PS4": {
+        "ShowJoyStick": false
+      },
+      "PS5": {
+        "ShowJoyStick": false
+      },
+      "OpenHarmony": {
+        "ShowJoyStick": true
+      }
+    }
+  }
+]

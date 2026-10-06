@@ -1,0 +1,25 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DTOverseasAnimPahtData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DTOverseasAnimPahtData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'OverseasAnimPahtData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "/Game/Characters": {
+        "Path": "/Game/Characters",
+        "OverseasPath": "/Game/Characters/L10N_mouth/"
+      },
+      "/Game/Maps_4N/Characters": {
+        "Path": "/Game/Maps_4N/Characters",
+        "OverseasPath": "/Game/Maps_4N/Characters/L10N_mouth/"
+      }
+    }
+  }
+]

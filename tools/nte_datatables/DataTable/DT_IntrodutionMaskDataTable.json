@@ -1,0 +1,32 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_IntrodutionMaskDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_IntrodutionMaskDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'IntroductionMaskData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "TestMask": {
+        "bShowMask": true,
+        "LeftImage": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RightImage": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "LineImage": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        }
+      }
+    }
+  }
+]

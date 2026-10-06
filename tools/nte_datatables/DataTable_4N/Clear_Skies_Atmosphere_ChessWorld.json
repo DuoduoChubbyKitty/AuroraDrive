@@ -1,0 +1,27 @@
+[
+  {
+    "Type": "UDS_Weather_Settings_C",
+    "Name": "Clear_Skies_Atmosphere_ChessWorld",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "BlueprintGeneratedClass'/Game/UltraDynamicSky/Blueprints/Weather_Effects/System/UDS_Weather_Settings.UDS_Weather_Settings_C'",
+    "Package": "/Game/Maps_4N/DataTable/Clear_Skies_Atmosphere_ChessWorld",
+    "Template": {
+      "ObjectName": "UDS_Weather_Settings_C'Default__UDS_Weather_Settings_C'",
+      "ObjectPath": "/Game/UltraDynamicSky/Blueprints/Weather_Effects/System/UDS_Weather_Settings.1"
+    },
+    "Properties": {
+      "WeatherName": "Clear_Skies_Atmosphere_ChessWorld",
+      "WindIntensity": 2.0,
+      "MaterialWetness": 0.8,
+      "CloudShadowStrength": 0.0,
+      "TimeOfDayDataAsset": {
+        "ObjectName": "HTTimeOfDayDataPrimaryDataAsset'DA_TimeOfDayDatas_Atmosphere'",
+        "ObjectPath": "/Game/UltraDynamicSky/Blueprints/TimeOfDayData/DA_TimeOfDayDatas_Atmosphere.0"
+      },
+      "NativeClass": {
+        "ObjectName": "BlueprintGeneratedClass'UDS_Weather_Settings_C'",
+        "ObjectPath": "/Game/UltraDynamicSky/Blueprints/Weather_Effects/System/UDS_Weather_Settings.0"
+      }
+    }
+  }
+]

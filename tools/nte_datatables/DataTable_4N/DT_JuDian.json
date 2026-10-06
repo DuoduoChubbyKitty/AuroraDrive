@@ -1,0 +1,6335 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_JuDian",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/Maps_4N/DataTable/DT_JuDian",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'JuDianData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Judian_Jiaolu_EliteAnd2Mob": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Jiaolu_EliteAnd2Mob",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 8.726646E-09,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1706.8307,
+              "Y": -3.731166,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619413,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1940.4513,
+              "Y": -284.35117,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9961947,
+              "W": 0.087155744,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2058.9426,
+              "Y": -461.82312,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.99904823,
+              "W": -0.04361938,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2161.2805,
+              "Y": -204.64577,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364816,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2089.992,
+              "Y": 401.7772,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.99904823,
+              "W": -0.04361937,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2246.9614,
+              "Y": 257.04865,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9914449,
+              "W": -0.13052617,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2217.9182,
+              "Y": 562.7985,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9914449,
+              "W": -0.13052617,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2096.6128,
+              "Y": 679.3746,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.76604444,
+              "W": 0.64278764,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1857.7394,
+              "Y": -1061.0414,
+              "Z": -3.050192
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.76604444,
+              "W": 0.64278764,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1783.6404,
+              "Y": -1266.0168,
+              "Z": -3.050191
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.81915206,
+              "W": 0.57357645,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2109.3647,
+              "Y": -1201.8203,
+              "Z": 2.222057
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.92387956,
+              "W": -0.38268343,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0000001
+            },
+            "Translation": {
+              "X": 2917.8281,
+              "Y": 1017.84894,
+              "Z": -3.050192
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9396926,
+              "W": -0.34202012,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2672.8584,
+              "Y": 1046.9314,
+              "Z": -0.878297
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.81915206,
+              "W": -0.5735764,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2819.1372,
+              "Y": 1292.4347,
+              "Z": 2.483882
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.46174863,
+              "W": 0.8870108,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1291.7737,
+              "Y": -496.27374,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.5,
+              "W": 0.8660254,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1129.2654,
+              "Y": -648.87494,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.46174863,
+              "W": 0.8870108,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1291.7737,
+              "Y": -496.27374,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.21643959,
+              "W": 0.976296,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 986.7633,
+              "Y": -208.97392,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.1305262,
+              "W": -0.9914449,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 784.4664,
+              "Y": 1.078625,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 1.7453292E-08,
+              "W": -1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 652.6081,
+              "Y": -263.06674,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.7372773,
+              "W": 0.6755902,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1534.9337,
+              "Y": -423.06665,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.42261827,
+              "W": 0.9063078,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 896.8631,
+              "Y": -543.1719,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_elite",
+        "DropRadius": 200.0
+      },
+      "Judian_BlueDragon_SouthMiniboss": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_BlueDragon_SouthMiniboss",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2200.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_boss",
+        "DropRadius": 200.0
+      },
+      "Judian_Dilong_NorthMiniboss": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Dilong_NorthMiniboss",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2200.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_boss",
+        "DropRadius": 200.0
+      },
+      "Judian_Jiaohu_Elite": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Jiaohu_Elite",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9659258,
+              "W": 0.25881904,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1413.2075,
+              "Y": -294.00845,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364821,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1638.585,
+              "Y": -230.54596,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9396926,
+              "W": 0.34202015,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1666.9938,
+              "Y": -463.50998,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9914449,
+              "W": -0.13052619,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1806.8927,
+              "Y": 287.61578,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2059.068,
+              "Y": 402.21326,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.95371693,
+              "W": -0.30070576,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1819.232,
+              "Y": 556.8572,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.76604444,
+              "W": 0.64278764,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1308.068,
+              "Y": 419.33176,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9396926,
+              "W": 0.34202015,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2245.1804,
+              "Y": -445.69666,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.976296,
+              "W": 0.21643963,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2461.586,
+              "Y": -183.53731,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.976296,
+              "W": -0.21643959,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1968.1064,
+              "Y": 243.82068,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364818,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2184.4814,
+              "Y": 226.36847,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.95371693,
+              "W": -0.3007058,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2187.109,
+              "Y": 515.2678,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619394,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2941.011,
+              "Y": 7.334703,
+              "Z": 11.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_boss",
+        "DropRadius": 200.0
+      },
+      "Judian_Jingxi_1": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Jingxi_1",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2000.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1800.0,
+              "Y": -500.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1800.0,
+              "Y": 500.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_FT_Icefield_Elite",
+        "DropRadius": 200.0
+      },
+      "Judian_Xiezi_1lead": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Xiezi_1lead",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 0.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1536.5052,
+              "Y": 1.780822,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.984808,
+              "W": 0.173648,
+              "IsNormalized": true,
+              "Size": 1.0000002,
+              "SizeSquared": 1.0000005
+            },
+            "Translation": {
+              "X": 1692.9457,
+              "Y": -167.80873,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.996195,
+              "W": -0.087156,
+              "IsNormalized": true,
+              "Size": 1.0000004,
+              "SizeSquared": 1.0000007
+            },
+            "Translation": {
+              "X": 1761.5009,
+              "Y": 171.42033,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.92388,
+              "W": 0.382683,
+              "IsNormalized": true,
+              "Size": 1.0000002,
+              "SizeSquared": 1.0000005
+            },
+            "Translation": {
+              "X": 2085.3843,
+              "Y": -691.4006,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.843391,
+              "W": 0.5373,
+              "IsNormalized": true,
+              "Size": 0.9999998,
+              "SizeSquared": 0.99999964
+            },
+            "Translation": {
+              "X": 2007.617,
+              "Y": -902.06964,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.906308,
+              "W": 0.422618,
+              "IsNormalized": true,
+              "Size": 1.0000001,
+              "SizeSquared": 1.0000002
+            },
+            "Translation": {
+              "X": 2271.6677,
+              "Y": -824.9514,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.984808,
+              "W": -0.173648,
+              "IsNormalized": true,
+              "Size": 1.0000002,
+              "SizeSquared": 1.0000005
+            },
+            "Translation": {
+              "X": 2155.2705,
+              "Y": 604.8911,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.991445,
+              "W": -0.130526,
+              "IsNormalized": true,
+              "Size": 1.0000001,
+              "SizeSquared": 1.0000002
+            },
+            "Translation": {
+              "X": 2495.579,
+              "Y": 636.554,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.976296,
+              "W": -0.21644,
+              "IsNormalized": true,
+              "Size": 1.0000001,
+              "SizeSquared": 1.0000002
+            },
+            "Translation": {
+              "X": 2303.148,
+              "Y": 887.38556,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2500.0,
+              "Y": 0.0,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2400.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_boss",
+        "DropRadius": 200.0
+      },
+      "Judian_Zhizhu_1EliteAnd4Lifu": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Zhizhu_1EliteAnd4Lifu",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1650.0,
+              "Y": -0.0,
+              "Z": 5.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1390.0,
+              "Y": -461.0,
+              "Z": 5.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2077.0,
+              "Y": -546.0,
+              "Z": 5.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1412.0,
+              "Y": 512.0,
+              "Z": 5.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2009.0,
+              "Y": 513.0,
+              "Z": 5.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.46174863,
+              "W": -0.8870108,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2410.888,
+              "Y": 119.64537,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.46174863,
+              "W": -0.8870108,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2703.8162,
+              "Y": 830.47375,
+              "Z": 28.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.1736482,
+              "W": -0.9848077,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2267.2585,
+              "Y": 10.762562,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.38268343,
+              "W": 0.9238795,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2341.3604,
+              "Y": -431.43854,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.5,
+              "W": 0.8660254,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2061.111,
+              "Y": -402.1276,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.30070582,
+              "W": 0.95371693,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2031.0798,
+              "Y": -256.38562,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.13052617,
+              "W": 0.9914449,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1529.7013,
+              "Y": -348.17047,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.043619405,
+              "W": -0.99904823,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1247.7465,
+              "Y": 268.23184,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.6755902,
+              "W": 0.7372773,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1662.6725,
+              "Y": -506.67566,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.70710677,
+              "W": -0.70710677,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1412.287,
+              "Y": 511.68976,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.5,
+              "W": -0.8660254,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1286.8368,
+              "Y": 523.9021,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1171.895,
+              "Y": -109.769424,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.04361937,
+              "W": 0.99904823,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 710.3568,
+              "Y": 386.71912,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.21643962,
+              "W": 0.976296,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 839.4254,
+              "Y": -402.13675,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_elite",
+        "DropRadius": 200.0
+      },
+      "Judian_Yunniu_1f": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Yunniu_1f",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.976296,
+              "W": 0.21643962,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1295.9005,
+              "Y": -339.71466,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9396926,
+              "W": 0.34202015,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1423.5204,
+              "Y": -560.76056,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364821,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1639.7389,
+              "Y": -373.56577,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9914449,
+              "W": -0.13052619,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1729.3363,
+              "Y": 341.37448,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9961947,
+              "W": -0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1977.3131,
+              "Y": 269.3318,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1861.1865,
+              "Y": 538.07367,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.7071068,
+              "W": -0.70710677,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1313.2075,
+              "Y": 463.61227,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.57357645,
+              "W": -0.81915206,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1366.2261,
+              "Y": 709.27313,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.46174863,
+              "W": -0.8870108,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1077.3268,
+              "Y": 711.9007,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.21643962,
+              "W": -0.976296,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1055.814,
+              "Y": 36.902042,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.38268343,
+              "W": -0.9238795,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 876.0197,
+              "Y": 228.39375,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.25881907,
+              "W": -0.9659258,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 700.52155,
+              "Y": 32.054935,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      },
+      "Judian_Yunniu_Simple1": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Yunniu_Simple1",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.976296,
+              "W": 0.21643962,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1179.5046,
+              "Y": -402.39645,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9396926,
+              "W": 0.34202015,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1282.7511,
+              "Y": -614.95496,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364821,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1535.9064,
+              "Y": -468.79605,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9914449,
+              "W": -0.13052619,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1648.471,
+              "Y": 361.1177,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1755.2396,
+              "Y": 560.1703,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9961947,
+              "W": -0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1926.0509,
+              "Y": 300.90994,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.976296,
+              "W": 0.21644,
+              "IsNormalized": true,
+              "Size": 1.0000001,
+              "SizeSquared": 1.0000002
+            },
+            "Translation": {
+              "X": 1179.5046,
+              "Y": -402.39645,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.939693,
+              "W": 0.34202,
+              "IsNormalized": true,
+              "Size": 1.0000002,
+              "SizeSquared": 1.0000006
+            },
+            "Translation": {
+              "X": 1282.7511,
+              "Y": -614.95496,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.984808,
+              "W": 0.173648,
+              "IsNormalized": true,
+              "Size": 1.0000002,
+              "SizeSquared": 1.0000005
+            },
+            "Translation": {
+              "X": 1535.9064,
+              "Y": -468.79605,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.991445,
+              "W": -0.130526,
+              "IsNormalized": true,
+              "Size": 1.0000001,
+              "SizeSquared": 1.0000002
+            },
+            "Translation": {
+              "X": 1648.471,
+              "Y": 361.1177,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.984808,
+              "W": -0.173648,
+              "IsNormalized": true,
+              "Size": 1.0000002,
+              "SizeSquared": 1.0000005
+            },
+            "Translation": {
+              "X": 1755.2396,
+              "Y": 560.1703,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.996195,
+              "W": -0.087156,
+              "IsNormalized": true,
+              "Size": 1.0000004,
+              "SizeSquared": 1.0000007
+            },
+            "Translation": {
+              "X": 1926.0509,
+              "Y": 300.90994,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2300.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      },
+      "Judian_Yunniu_Simple1_0": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Yunniu_Simple1_0",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.976296,
+              "W": 0.21643962,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1179.5046,
+              "Y": -402.39645,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9396926,
+              "W": 0.34202015,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1282.7511,
+              "Y": -614.95496,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364821,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1535.9064,
+              "Y": -468.79605,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9914449,
+              "W": -0.13052619,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1648.471,
+              "Y": 361.1177,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1755.2396,
+              "Y": 560.1703,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9961947,
+              "W": -0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1926.0509,
+              "Y": 300.90994,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2500.0,
+              "Y": 11.780822,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.97629595,
+              "W": 0.21643995,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1679.5046,
+              "Y": -402.39645,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9396928,
+              "W": 0.3420197,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1782.7511,
+              "Y": -614.95496,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9914449,
+              "W": 0.13052596,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2148.471,
+              "Y": 361.1177,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9848078,
+              "W": 0.1736479,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2255.2397,
+              "Y": 560.1703,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99619466,
+              "W": 0.087155916,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2426.0508,
+              "Y": 300.90994,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2035.5052,
+              "Y": -500.0,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      },
+      "Judian_Yunniu_Simple2": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Yunniu_Simple2",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1536.5052,
+              "Y": 1.780822,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.95371693,
+              "W": 0.3007058,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1817.0703,
+              "Y": -436.0989,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9659258,
+              "W": 0.25881907,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2050.6526,
+              "Y": -427.01724,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9063078,
+              "W": 0.42261827,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1955.1511,
+              "Y": -743.12445,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9914449,
+              "W": 0.13052619,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1840.372,
+              "Y": 319.2253,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9961947,
+              "W": -0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2182.1453,
+              "Y": 321.1079,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2012.3077,
+              "Y": 587.7564,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.5372996,
+              "W": 0.8433915,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1262.8475,
+              "Y": -553.0743,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.34202012,
+              "W": 0.9396926,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1017.1434,
+              "Y": -655.24097,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.60876137,
+              "W": 0.7933534,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1231.6686,
+              "Y": -885.9199,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.13052621,
+              "W": -0.9914449,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 917.38715,
+              "Y": 244.45734,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 853.11646,
+              "Y": -54.805058,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.08715575,
+              "W": -0.9961947,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1151.1793,
+              "Y": 79.26858,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.130526,
+              "W": -0.991445,
+              "IsNormalized": true,
+              "Size": 1.0000001,
+              "SizeSquared": 1.0000002
+            },
+            "Translation": {
+              "X": 917.38715,
+              "Y": 244.45734,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 853.11646,
+              "Y": -54.805058,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.087156,
+              "W": -0.996195,
+              "IsNormalized": true,
+              "Size": 1.0000004,
+              "SizeSquared": 1.0000007
+            },
+            "Translation": {
+              "X": 1151.1793,
+              "Y": 79.26858,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.34202,
+              "W": 0.939693,
+              "IsNormalized": true,
+              "Size": 1.0000002,
+              "SizeSquared": 1.0000006
+            },
+            "Translation": {
+              "X": 1017.1434,
+              "Y": -655.24097,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.608761,
+              "W": 0.793353,
+              "IsNormalized": true,
+              "Size": 0.99999946,
+              "SizeSquared": 0.999999
+            },
+            "Translation": {
+              "X": 1231.6686,
+              "Y": -885.9199,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.130526,
+              "W": -0.991445,
+              "IsNormalized": true,
+              "Size": 1.0000001,
+              "SizeSquared": 1.0000002
+            },
+            "Translation": {
+              "X": 917.38715,
+              "Y": 244.45734,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_elite",
+        "DropRadius": 200.0
+      },
+      "Judian_Yunniu_Simple2_0": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Yunniu_Simple2_0",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1536.5052,
+              "Y": 1.780822,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.95371693,
+              "W": 0.3007058,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1817.0703,
+              "Y": -436.0989,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9659258,
+              "W": 0.25881907,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2050.6526,
+              "Y": -427.01724,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9063078,
+              "W": 0.42261827,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1955.1511,
+              "Y": -743.12445,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9914449,
+              "W": 0.13052619,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1840.372,
+              "Y": 319.2253,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9961947,
+              "W": -0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2182.1453,
+              "Y": 321.1079,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2012.3077,
+              "Y": 587.7564,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.5372996,
+              "W": 0.8433915,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1262.8475,
+              "Y": -563.0743,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.34202012,
+              "W": 0.9396926,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1017.1434,
+              "Y": -645.24097,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.60876137,
+              "W": 0.7933534,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1221.6686,
+              "Y": -885.9199,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.13052621,
+              "W": 0.9914449,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 917.38715,
+              "Y": 254.45734,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 853.11646,
+              "Y": -44.805058,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.08715575,
+              "W": -0.9961947,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1151.1793,
+              "Y": 79.26858,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      },
+      "Judian_Yunniu_Simple3": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Yunniu_Simple3",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1536.5052,
+              "Y": 1.780822,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.95371693,
+              "W": 0.3007058,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1817.0703,
+              "Y": -436.0989,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9659258,
+              "W": 0.25881907,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2050.6526,
+              "Y": -427.01724,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9063078,
+              "W": 0.42261827,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1955.1511,
+              "Y": -743.12445,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9914449,
+              "W": 0.13052619,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1840.372,
+              "Y": 319.2253,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9961947,
+              "W": -0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2182.1453,
+              "Y": 321.1079,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2012.3077,
+              "Y": 587.7564,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.5372996,
+              "W": 0.8433915,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1262.8475,
+              "Y": -553.0743,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.34202012,
+              "W": 0.9396926,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1017.1434,
+              "Y": -655.24097,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.60876137,
+              "W": 0.7933534,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1231.6686,
+              "Y": -885.9199,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.13052621,
+              "W": -0.9914449,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 917.38715,
+              "Y": 244.45734,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 853.11646,
+              "Y": -54.805058,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.08715575,
+              "W": -0.9961947,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1151.1793,
+              "Y": 79.26858,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      },
+      "Judian_Jingxi_Simple1": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Jingxi_Simple1",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9659258,
+              "W": 0.25881907,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 891.60175,
+              "Y": -183.72284,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.8870108,
+              "W": 0.46174863,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 971.96515,
+              "Y": -437.39648,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364822,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1220.4634,
+              "Y": -243.79265,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.99904823,
+              "W": -0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1531.431,
+              "Y": 338.22247,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.99904823,
+              "W": -0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1290.8512,
+              "Y": 395.2727,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1544.0569,
+              "Y": 601.9222,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9063078,
+              "W": 0.42261827,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1749.8469,
+              "Y": -394.4258,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.8433914,
+              "W": 0.53729963,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1803.7587,
+              "Y": -726.72766,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9238795,
+              "W": 0.38268346,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1977.8206,
+              "Y": -446.10913,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9914449,
+              "W": 0.13052619,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1840.372,
+              "Y": 319.2253,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9961947,
+              "W": -0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2182.1453,
+              "Y": 321.1079,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2012.3077,
+              "Y": 587.7564,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      },
+      "Judian_Jingxi_Simple2": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Jingxi_Simple2",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1536.5052,
+              "Y": 1.780822,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364822,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1692.9457,
+              "Y": -167.80873,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9961947,
+              "W": -0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1761.5009,
+              "Y": 171.42033,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9238795,
+              "W": 0.38268346,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2085.3843,
+              "Y": -691.4006,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.8433914,
+              "W": 0.53729963,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2007.617,
+              "Y": -902.06964,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9063078,
+              "W": 0.42261827,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2271.6677,
+              "Y": -824.9514,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364816,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2155.2705,
+              "Y": 604.8911,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9914449,
+              "W": -0.13052617,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2495.579,
+              "Y": 636.554,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.976296,
+              "W": -0.21643959,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2303.148,
+              "Y": 887.38556,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2393.266,
+              "Y": -46.217033,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364822,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2956.344,
+              "Y": -569.6725,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9961947,
+              "W": 0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2991.133,
+              "Y": 568.62384,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      },
+      "Judian_Jingxi_Simple3": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Jingxi_Simple3",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9659258,
+              "W": 0.25881907,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 891.60175,
+              "Y": -183.72284,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.8870108,
+              "W": 0.46174863,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 971.96515,
+              "Y": -437.39648,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364822,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1220.4634,
+              "Y": -243.79265,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.99904823,
+              "W": -0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1531.431,
+              "Y": 338.22247,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.99904823,
+              "W": -0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1290.8512,
+              "Y": 395.2727,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1544.0569,
+              "Y": 601.9222,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9063078,
+              "W": 0.42261827,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1749.8469,
+              "Y": -394.4258,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.8433914,
+              "W": 0.53729963,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1803.7587,
+              "Y": -726.72766,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9238795,
+              "W": 0.38268346,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1977.8206,
+              "Y": -446.10913,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 8.726646E-09,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1840.372,
+              "Y": 19.225323,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9961947,
+              "W": 0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1940.372,
+              "Y": 521.1079,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9848077,
+              "W": 0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1940.372,
+              "Y": 787.7564,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      },
+      "Judian_Heiyang_Patrol": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Heiyang_Patrol",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1423.9253,
+              "Y": -35.76937,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9961947,
+              "W": 0.08715577,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1242.418,
+              "Y": -359.71677,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9961947,
+              "W": 0.08715579,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1570.922,
+              "Y": -305.54877,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.04361944,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1448.6827,
+              "Y": -529.47675,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9961947,
+              "W": 0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1288.7399,
+              "Y": 337.47098,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1526.3522,
+              "Y": 256.4451,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.976296,
+              "W": 0.21643959,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1566.3683,
+              "Y": 478.44882,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9396926,
+              "W": 0.34202015,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1744.0514,
+              "Y": -828.283,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.90630776,
+              "W": 0.4226183,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1700.237,
+              "Y": -1013.1427,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.043619033,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1823.9253,
+              "Y": -35.76937,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99619466,
+              "W": 0.087155916,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1642.418,
+              "Y": -359.71677,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99619466,
+              "W": 0.087155916,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1970.922,
+              "Y": -305.54877,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619033,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1848.6827,
+              "Y": -529.47675,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99619466,
+              "W": 0.087155916,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1688.7399,
+              "Y": 337.47098,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.043619033,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1926.3522,
+              "Y": 256.4451,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.97629595,
+              "W": 0.21643995,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1966.3683,
+              "Y": 478.44882,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.90630794,
+              "W": 0.4226179,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2100.237,
+              "Y": -1013.1427,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_elite",
+        "DropRadius": 200.0
+      },
+      "Judian_Jiaolu_01": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Jiaolu_01",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1423.9253,
+              "Y": -35.76937,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9961947,
+              "W": 0.08715577,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1242.418,
+              "Y": -359.71677,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9961947,
+              "W": 0.08715579,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1570.922,
+              "Y": -305.54877,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.04361944,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1448.6827,
+              "Y": -529.47675,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9961947,
+              "W": 0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1288.7399,
+              "Y": 337.47098,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1526.3522,
+              "Y": 256.4451,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.976296,
+              "W": 0.21643959,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1566.3683,
+              "Y": 478.44882,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9396926,
+              "W": 0.34202015,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1744.0514,
+              "Y": -828.283,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.90630776,
+              "W": 0.4226183,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1700.237,
+              "Y": -1013.1427,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364821,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2044.6892,
+              "Y": -359.22,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364821,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2188.274,
+              "Y": -476.1847,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619413,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2322.729,
+              "Y": -325.61017,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619387,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1958.126,
+              "Y": 3.896276,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9848077,
+              "W": 0.17364818,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1808.6515,
+              "Y": 99.559364,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1827.4325,
+              "Y": -479.22934,
+              "Z": 12.222057
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619394,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2188.5552,
+              "Y": 13.333635,
+              "Z": 37.949806
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9063078,
+              "W": 0.42261827,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1892.0304,
+              "Y": 472.50827,
+              "Z": 37.94981
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_elite",
+        "DropRadius": 200.0
+      },
+      "Judian_Jiaolu_02": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Jiaolu_02",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9914449,
+              "W": 0.13052621,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1000.1801,
+              "Y": -343.52374,
+              "Z": 37.949806
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.1736482,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1113.8032,
+              "Y": -516.8967,
+              "Z": 36.222057
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.04361944,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1236.082,
+              "Y": -332.9685,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9659258,
+              "W": 0.258819,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1242.5806,
+              "Y": 330.7975,
+              "Z": 37.949806
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.976296,
+              "W": 0.2164396,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1445.5175,
+              "Y": 288.5479,
+              "Z": 36.222057
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9396926,
+              "W": 0.3420201,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1401.9248,
+              "Y": 505.069,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9396926,
+              "W": 0.34202015,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1611.6605,
+              "Y": -236.97197,
+              "Z": 37.94981
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.976296,
+              "W": 0.21643962,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1672.8013,
+              "Y": -442.78333,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.976296,
+              "W": 0.21643962,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1863.9163,
+              "Y": -347.7493,
+              "Z": 30.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1849.0981,
+              "Y": 197.74997,
+              "Z": 41.09098
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 4.3633232E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2036.6128,
+              "Y": 129.51912,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9914449,
+              "W": 0.13052617,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2084.9111,
+              "Y": 356.48294,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 6.123234E-17,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2000.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      },
+      "Judian_Watcher_01": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Watcher_01",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1498.9783,
+              "Y": 2.546489,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9961947,
+              "W": 0.08715577,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1311.3383,
+              "Y": -275.69278,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.04361943,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1730.824,
+              "Y": -336.60333,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619387,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1299.4581,
+              "Y": 265.48975,
+              "Z": 37.94981
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1772.5107,
+              "Y": 276.19318,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.5,
+              "W": 0.8660254,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 898.21704,
+              "Y": -413.53806,
+              "Z": 36.222057
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.5372996,
+              "W": 0.8433915,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1088.6865,
+              "Y": -331.74704,
+              "Z": 37.949806
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.60876137,
+              "W": 0.7933534,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1058.1176,
+              "Y": -565.89795,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9659258,
+              "W": 0.25881904,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1437.3586,
+              "Y": 182.48566,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1580.9221,
+              "Y": 142.1654,
+              "Z": 41.09098
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9848077,
+              "W": 0.17364816,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1578.6107,
+              "Y": 308.8321,
+              "Z": 30.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619387,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1974.5055,
+              "Y": -149.93561,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2195.6296,
+              "Y": -91.639534,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364821,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2112.2935,
+              "Y": -281.45416,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1498.9783,
+              "Y": 2.546489,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9961947,
+              "W": 0.08715577,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1311.3383,
+              "Y": -275.69278,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619387,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1299.4581,
+              "Y": 265.48975,
+              "Z": 37.94981
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_elite",
+        "DropRadius": 200.0
+      },
+      "Judian_Watcher_01_0": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Watcher_01_0",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1498.9783,
+              "Y": 2.546489,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9961947,
+              "W": 0.08715577,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1311.3383,
+              "Y": -275.69278,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.04361943,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1730.824,
+              "Y": -336.60333,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619387,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1299.4581,
+              "Y": 265.48975,
+              "Z": 37.94981
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1772.5107,
+              "Y": 276.19318,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.5,
+              "W": 0.8660254,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 898.21704,
+              "Y": -413.53806,
+              "Z": 36.222057
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.5372996,
+              "W": 0.8433915,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1088.6865,
+              "Y": -331.74704,
+              "Z": 37.949806
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.60876137,
+              "W": 0.7933534,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1058.1176,
+              "Y": -565.89795,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9659258,
+              "W": 0.25881904,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1437.3586,
+              "Y": 182.48566,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1580.9221,
+              "Y": 142.1654,
+              "Z": 41.09098
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9848077,
+              "W": 0.17364816,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1578.6107,
+              "Y": 308.8321,
+              "Z": 30.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619387,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1974.5055,
+              "Y": -149.93561,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.99904823,
+              "W": 0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2195.6296,
+              "Y": -91.639534,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364821,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2112.2935,
+              "Y": -281.45416,
+              "Z": 28.090996
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 1.0,
+              "W": 2.6179938E-08,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1498.9783,
+              "Y": 2.546489,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9961947,
+              "W": 0.08715577,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1311.3383,
+              "Y": -275.69278,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.99904823,
+              "W": 0.043619387,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1299.4581,
+              "Y": 265.48975,
+              "Z": 37.94981
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_elite",
+        "DropRadius": 200.0
+      },
+      "Judian_Jingxi_Simple1_0": {
+        "Level": {
+          "AssetPathName": "/Game/Maps_4N/Maps/Map_Arena_Test.Map_Arena_Test",
+          "SubPathString": ""
+        },
+        "MonsterPoolID": "Judian_Jingxi_Simple1_0",
+        "DynamicZ": -100000.0,
+        "PlayerRotation": {
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "Roll": 0.0
+        },
+        "FinishExitDelay": 3.5,
+        "MonsterRelativeTransforms": [
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9659258,
+              "W": 0.25881907,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 801.60175,
+              "Y": -183.72284,
+              "Z": 35.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.8870108,
+              "W": 0.46174863,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 881.96515,
+              "Y": -437.39648,
+              "Z": 32.47812
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9848077,
+              "W": 0.17364822,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1130.4634,
+              "Y": -243.79265,
+              "Z": 28.090986
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.99904823,
+              "W": -0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1531.431,
+              "Y": 338.22247,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.99904823,
+              "W": -0.04361936,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1290.8512,
+              "Y": 395.2727,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.9848077,
+              "W": -0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 1544.0569,
+              "Y": 601.9222,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9063078,
+              "W": 0.42261827,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1749.8469,
+              "Y": -344.4258,
+              "Z": 26.478117
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.8433914,
+              "W": 0.53729963,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1803.7587,
+              "Y": -676.72766,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.9238795,
+              "W": 0.38268346,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1977.8206,
+              "Y": -396.10913,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9914449,
+              "W": 0.13052619,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 1840.372,
+              "Y": 369.2253,
+              "Z": 28.090979
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9961947,
+              "W": 0.087155715,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 2182.1453,
+              "Y": 371.1079,
+              "Z": 28.09099
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          {
+            "Rotation": {
+              "X": -0.0,
+              "Y": 0.0,
+              "Z": -0.9848077,
+              "W": 0.17364815,
+              "IsNormalized": true,
+              "Size": 0.99999994,
+              "SizeSquared": 0.99999994
+            },
+            "Translation": {
+              "X": 2012.3077,
+              "Y": 637.7564,
+              "Z": 58.09101
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          }
+        ],
+        "DropGroupID": "drop_stronghold_mob",
+        "DropRadius": 200.0
+      }
+    }
+  }
+]

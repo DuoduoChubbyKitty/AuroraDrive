@@ -1,0 +1,719 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DialogSoundTable_Chat",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DialogSoundTable_Chat",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'MessageDialogSoundData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "WF_001_NPC02301_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_026": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02301_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_027": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02301_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02301_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02301_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02301_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02301_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_028": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Anomaly019_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Anomaly019_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Anomaly019_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC06101_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC06101_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC06101_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC06101_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02302_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02302_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02302_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02302_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02302_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02302_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04902_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04902_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04902_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04902_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02304_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02304_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02304_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02304_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC02304_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC00303_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC00303_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC00303_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC00303_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC05004_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_021": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC05004_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC05004_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC05004_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC05004_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC05004_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04401_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_024": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04401_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04401_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04401_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Player_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04401_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04402_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_NPC04402_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "BWF_001_NPC010_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/NPC010/Play_Vo_BW_NPC010_004_01.Play_Vo_BW_NPC010_004_01",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "BWF_001_NPC010_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/NPC010/Play_Vo_BW_NPC010_004_02.Play_Vo_BW_NPC010_004_02",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Anomaly043_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Anomaly043/Play_Vo_WF_001_Anomaly043_001.Play_Vo_WF_001_Anomaly043_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WF_001_Anomaly043_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Anomaly043/Play_Vo_WF_001_Anomaly043_002.Play_Vo_WF_001_Anomaly043_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      }
+    }
+  }
+]

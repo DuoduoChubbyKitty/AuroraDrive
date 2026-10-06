@@ -1,0 +1,388 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_CharacterWorldAmbiance",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_CharacterWorldAmbiance",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'StoryNpcEventData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "WA001": {
+        "StoryNpcIDs": [
+          "NPC_001"
+        ]
+      },
+      "WA002": {
+        "StoryNpcIDs": [
+          "NPC_001"
+        ]
+      },
+      "WA005": {
+        "StoryNpcIDs": [
+          "NPC_011",
+          "Anomaly_004"
+        ]
+      },
+      "WA006": {
+        "StoryNpcIDs": [
+          "NPC_011"
+        ]
+      },
+      "WA007": {
+        "StoryNpcIDs": [
+          "NPC_011"
+        ]
+      },
+      "WA008": {
+        "StoryNpcIDs": [
+          "NPC_011"
+        ]
+      },
+      "WA009": {
+        "StoryNpcIDs": [
+          "NPC_004"
+        ]
+      },
+      "WA010": {
+        "StoryNpcIDs": [
+          "NPC_004"
+        ]
+      },
+      "WA011": {
+        "StoryNpcIDs": [
+          "NPC_004"
+        ]
+      },
+      "WA014": {
+        "StoryNpcIDs": [
+          "NPC_009"
+        ]
+      },
+      "WA015": {
+        "StoryNpcIDs": [
+          "NPC_009"
+        ]
+      },
+      "WA016": {
+        "StoryNpcIDs": [
+          "NPC_009",
+          "NPC_013"
+        ]
+      },
+      "WA017": {
+        "StoryNpcIDs": [
+          "NPC_003"
+        ]
+      },
+      "WA018": {
+        "StoryNpcIDs": [
+          "NPC_003"
+        ]
+      },
+      "WA019": {
+        "StoryNpcIDs": [
+          "NPC_003"
+        ]
+      },
+      "WA020": {
+        "StoryNpcIDs": [
+          "NPC_015"
+        ]
+      },
+      "WA021": {
+        "StoryNpcIDs": [
+          "NPC_015"
+        ]
+      },
+      "WA022": {
+        "StoryNpcIDs": [
+          "NPC_015"
+        ]
+      },
+      "WA023": {
+        "StoryNpcIDs": [
+          "NPC_008",
+          "NPC_012"
+        ]
+      },
+      "WA024": {
+        "StoryNpcIDs": [
+          "NPC_008"
+        ]
+      },
+      "WA025": {
+        "StoryNpcIDs": [
+          "NPC_008"
+        ]
+      },
+      "WA026": {
+        "StoryNpcIDs": [
+          "NPC_006"
+        ]
+      },
+      "WA027": {
+        "StoryNpcIDs": [
+          "NPC_006"
+        ]
+      },
+      "WA030": {
+        "StoryNpcIDs": [
+          "NPC_016"
+        ]
+      },
+      "WA031": {
+        "StoryNpcIDs": [
+          "NPC_016"
+        ]
+      },
+      "WA032": {
+        "StoryNpcIDs": [
+          "NPC_016"
+        ]
+      },
+      "WA033": {
+        "StoryNpcIDs": [
+          "NPC_014"
+        ]
+      },
+      "WA034": {
+        "StoryNpcIDs": [
+          "NPC_014"
+        ]
+      },
+      "WA035": {
+        "StoryNpcIDs": [
+          "NPC_014"
+        ]
+      },
+      "WA036": {
+        "StoryNpcIDs": [
+          "NPC_013"
+        ]
+      },
+      "WA037": {
+        "StoryNpcIDs": [
+          "NPC_013"
+        ]
+      },
+      "WA038": {
+        "StoryNpcIDs": [
+          "NPC_012"
+        ]
+      },
+      "WA039": {
+        "StoryNpcIDs": [
+          "NPC_012"
+        ]
+      },
+      "WA040": {
+        "StoryNpcIDs": [
+          "NPC_005"
+        ]
+      },
+      "WA041": {
+        "StoryNpcIDs": [
+          "NPC_005"
+        ]
+      },
+      "WA042": {
+        "StoryNpcIDs": []
+      },
+      "WA043": {
+        "StoryNpcIDs": [
+          "NPC_010"
+        ]
+      },
+      "WA044": {
+        "StoryNpcIDs": [
+          "NPC_010"
+        ]
+      },
+      "WA045": {
+        "StoryNpcIDs": [
+          "NPC_1029"
+        ]
+      },
+      "WA046": {
+        "StoryNpcIDs": [
+          "NPC_1029"
+        ]
+      },
+      "WA047": {
+        "StoryNpcIDs": [
+          "NPC_1029"
+        ]
+      },
+      "WA048": {
+        "StoryNpcIDs": [
+          "NPC_1029"
+        ]
+      },
+      "WA04901": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA04902": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA04903": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA04904": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA04905": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA04906": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA04907": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA04908": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA05001": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA05002": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA05003": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA051": {
+        "StoryNpcIDs": [
+          "NPC_024"
+        ]
+      },
+      "WA05501": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05502": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05503": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05601": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05602": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05603": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05701": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05702": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05703": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05704": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05705": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05706": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA05707": {
+        "StoryNpcIDs": [
+          "NPC_032"
+        ]
+      },
+      "WA052": {
+        "StoryNpcIDs": [
+          "NPC_028"
+        ]
+      },
+      "WA053": {
+        "StoryNpcIDs": [
+          "NPC_028"
+        ]
+      },
+      "WA05401": {
+        "StoryNpcIDs": [
+          "NPC_028"
+        ]
+      },
+      "WA05402": {
+        "StoryNpcIDs": [
+          "NPC_028"
+        ]
+      },
+      "WA058": {
+        "StoryNpcIDs": [
+          "NPC_027"
+        ]
+      },
+      "WA059": {
+        "StoryNpcIDs": [
+          "NPC_027"
+        ]
+      },
+      "WA060": {
+        "StoryNpcIDs": [
+          "NPC_027"
+        ]
+      }
+    }
+  }
+]

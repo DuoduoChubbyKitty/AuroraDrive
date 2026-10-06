@@ -1,0 +1,339 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_CollectibleGroupDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/Maps_4N/DataTable/DT_CollectibleGroupDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'CollectibleGroupConfig'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "FT_Collectible_Valcano_1": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 40,
+        "MaxSpawnCount": 40,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Valcano/FT_BP_CollectibleActor_Valcano_1.FT_BP_CollectibleActor_Valcano_1_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_1001"
+      },
+      "FT_Collectible_Valcano_2": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 122,
+        "MaxSpawnCount": 122,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Valcano/FT_BP_CollectibleActor_Valcano_2.FT_BP_CollectibleActor_Valcano_2_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_1002"
+      },
+      "FT_Collectible_Valcano_3": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 61,
+        "MaxSpawnCount": 61,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Valcano/FT_BP_CollectibleActor_Valcano_3.FT_BP_CollectibleActor_Valcano_3_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_1101"
+      },
+      "FT_Collectible_Valcano_Butterfly": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 10,
+        "MaxSpawnCount": 10,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Valcano/FT_BP_CollectibleActor_Valcano_Butterfly.FT_BP_CollectibleActor_Valcano_Butterfly_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_Butterfly_Volcano"
+      },
+      "FT_Collectible_Snow_1": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 43,
+        "MaxSpawnCount": 43,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Snow/FT_BP_CollectibleActor_Snow_1.FT_BP_CollectibleActor_Snow_1_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_2001"
+      },
+      "FT_Collectible_Snow_2": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 44,
+        "MaxSpawnCount": 44,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Snow/FT_BP_CollectibleActor_Snow_2.FT_BP_CollectibleActor_Snow_2_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_2101"
+      },
+      "FT_Collectible_Snow_3": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 27,
+        "MaxSpawnCount": 27,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Snow/FT_BP_CollectibleActor_Snow_3.FT_BP_CollectibleActor_Snow_3_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_2002"
+      },
+      "FT_Collectible_Snow_Butterfly": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 10,
+        "MaxSpawnCount": 10,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Snow/FT_BP_CollectibleActor_Snow_Butterfly.FT_BP_CollectibleActor_Snow_Butterfly_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_Butterfly_Snow"
+      },
+      "FT_Collectible_Lake_1": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 59,
+        "MaxSpawnCount": 59,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Lake/FT_BP_CollectibleActor_Lake_1.FT_BP_CollectibleActor_Lake_1_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_3101"
+      },
+      "FT_Collectible_Lake_2": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 81,
+        "MaxSpawnCount": 81,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Lake/FT_BP_CollectibleActor_Lake_2.FT_BP_CollectibleActor_Lake_2_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_3001"
+      },
+      "FT_Collectible_Lake_3": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 60,
+        "MaxSpawnCount": 60,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Lake/FT_BP_CollectibleActor_Lake_3.FT_BP_CollectibleActor_Lake_3_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_3102"
+      },
+      "FT_Collectible_Lake_Butterfly": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 16,
+        "MaxSpawnCount": 16,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Lake/FT_BP_CollectibleActor_Lake_Butterfly.FT_BP_CollectibleActor_Lake_Butterfly_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_Butterfly_Lake"
+      },
+      "FT_Collectible_Castle_1": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 74,
+        "MaxSpawnCount": 74,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Castle/FT_BP_CollectibleActor_Castle_1.FT_BP_CollectibleActor_Castle_1_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_4101"
+      },
+      "FT_Collectible_Castle_2": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 81,
+        "MaxSpawnCount": 81,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Castle/FT_BP_CollectibleActor_Castle_2.FT_BP_CollectibleActor_Castle_2_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_4102"
+      },
+      "FT_Collectible_Castle_3": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 70,
+        "MaxSpawnCount": 70,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Castle/FT_BP_CollectibleActor_Castle_3.FT_BP_CollectibleActor_Castle_3_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_4103"
+      },
+      "FT_Collectible_Castle_Butterfly": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 10,
+        "MaxSpawnCount": 10,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/Castle/FT_BP_CollectibleActor_Castle_Butterfly.FT_BP_CollectibleActor_Castle_Butterfly_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_Butterfly_Castle"
+      },
+      "FT_Collectible_0001": {
+        "LevelName": "Maps_4N",
+        "MinSpawnCount": 2,
+        "MaxSpawnCount": 2,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Level/Collectiable/FT_BP_CollectibleActor_0001.FT_BP_CollectibleActor_0001_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_FT_CollectingMaterial_0001"
+      },
+      "FT_Collectible_WuChao_01": {
+        "LevelName": "DLC_WuChao",
+        "MinSpawnCount": 7,
+        "MaxSpawnCount": 7,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Blueprints/Level/Quest/WXY/Quest_Wuchao/WuChao_BP/Wuchao_Food/FT_BP_CollectibleActor_q110600_Food_01.FT_BP_CollectibleActor_q110600_Food_01_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_Food_122"
+      },
+      "FT_Collectible_WuChao_02": {
+        "LevelName": "DLC_WuChao",
+        "MinSpawnCount": 6,
+        "MaxSpawnCount": 6,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Blueprints/Level/Quest/WXY/Quest_Wuchao/WuChao_BP/Wuchao_Food/FT_BP_CollectibleActor_Valcano_Base_ChildFT_BP_CollectibleActor_q110600_Food_02.FT_BP_CollectibleActor_Valcano_Base_ChildFT_BP_CollectibleActor_q110600_Food_02_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_Food_123"
+      },
+      "FT_Collectible_WuChao_03": {
+        "LevelName": "DLC_WuChao",
+        "MinSpawnCount": 4,
+        "MaxSpawnCount": 4,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Blueprints/Level/Quest/WXY/Quest_Wuchao/WuChao_BP/Wuchao_Food/FT_BP_CollectibleActor_q110600_Food_03.FT_BP_CollectibleActor_q110600_Food_03_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_Food_124"
+      },
+      "FT_Collectible_WuChao_04": {
+        "LevelName": "DLC_WuChao",
+        "MinSpawnCount": 5,
+        "MaxSpawnCount": 5,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Blueprints/Level/Quest/WXY/Quest_Wuchao/WuChao_BP/Wuchao_Food/FT_BP_CollectibleActor_q110600_Food_04.FT_BP_CollectibleActor_q110600_Food_04_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_Food_125"
+      },
+      "FT_Collectible_WuChao_05": {
+        "LevelName": "DLC_WuChao",
+        "MinSpawnCount": 4,
+        "MaxSpawnCount": 4,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Blueprints/Level/Quest/WXY/Quest_Wuchao/WuChao_BP/Wuchao_Food/FT_BP_CollectibleActor_q110600_Food_05.FT_BP_CollectibleActor_q110600_Food_05_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_Food_126"
+      },
+      "FT_Collectible_WuChao_06": {
+        "LevelName": "DLC_WuChao",
+        "MinSpawnCount": 4,
+        "MaxSpawnCount": 4,
+        "RefreshType": "ECollectibleRefreshType::FixedTimeRefresh",
+        "RefreshMinutes": 1,
+        "RefreshTimerClock": "DailyReset",
+        "bClearPickedOnRefresh": true,
+        "ActorClass": {
+          "AssetPathName": "/Game/Blueprints/Level/Quest/WXY/Quest_Wuchao/WuChao_BP/Wuchao_Food/FT_BP_CollectibleActor_q110600_Food_06.FT_BP_CollectibleActor_q110600_Food_06_C",
+          "SubPathString": ""
+        },
+        "DefaultDropID": "drop_Food_127"
+      }
+    }
+  }
+]

@@ -1,0 +1,1502 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_FT_FloorChallenge",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/Maps_4N/DataTable/DT_FT_FloorChallenge",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'FinalTowerFloorChallengeRow'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "1": {
+        "MonsterPoolID": "FT_Floor_01",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "2": {
+        "MonsterPoolID": "FT_Floor_02",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "3": {
+        "MonsterPoolID": "FT_Floor_03",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "4": {
+        "MonsterPoolID": "FT_Floor_04",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "5": {
+        "MonsterPoolID": "FT_Floor_05",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "6": {
+        "MonsterPoolID": "FT_Floor_06",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "7": {
+        "MonsterPoolID": "FT_Floor_07",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "8": {
+        "MonsterPoolID": "FT_Floor_08",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "9": {
+        "MonsterPoolID": "FT_Floor_09",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "10": {
+        "MonsterPoolID": "FT_Floor_10",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 240,
+        "MonsterRelativeTransforms": []
+      },
+      "11": {
+        "MonsterPoolID": "FT_Floor_11",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "12": {
+        "MonsterPoolID": "FT_Floor_12",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "13": {
+        "MonsterPoolID": "FT_Floor_13",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "14": {
+        "MonsterPoolID": "FT_Floor_14",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "15": {
+        "MonsterPoolID": "FT_Floor_15",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "16": {
+        "MonsterPoolID": "FT_Floor_16",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "17": {
+        "MonsterPoolID": "FT_Floor_17",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "18": {
+        "MonsterPoolID": "FT_Floor_18",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "19": {
+        "MonsterPoolID": "FT_Floor_19",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "20": {
+        "MonsterPoolID": "FT_Floor_20",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 240,
+        "MonsterRelativeTransforms": []
+      },
+      "21": {
+        "MonsterPoolID": "FT_Floor_21",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "22": {
+        "MonsterPoolID": "FT_Floor_22",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "23": {
+        "MonsterPoolID": "FT_Floor_23",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "24": {
+        "MonsterPoolID": "FT_Floor_24",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "25": {
+        "MonsterPoolID": "FT_Floor_25",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "26": {
+        "MonsterPoolID": "FT_Floor_26",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "27": {
+        "MonsterPoolID": "FT_Floor_27",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "28": {
+        "MonsterPoolID": "FT_Floor_28",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "29": {
+        "MonsterPoolID": "FT_Floor_29",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "30": {
+        "MonsterPoolID": "FT_Floor_30",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 240,
+        "MonsterRelativeTransforms": []
+      },
+      "31": {
+        "MonsterPoolID": "FT_Floor_31",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "32": {
+        "MonsterPoolID": "FT_Floor_32",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "33": {
+        "MonsterPoolID": "FT_Floor_33",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "34": {
+        "MonsterPoolID": "FT_Floor_34",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "35": {
+        "MonsterPoolID": "FT_Floor_35",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "36": {
+        "MonsterPoolID": "FT_Floor_36",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "37": {
+        "MonsterPoolID": "FT_Floor_37",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "38": {
+        "MonsterPoolID": "FT_Floor_38",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "39": {
+        "MonsterPoolID": "FT_Floor_39",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "40": {
+        "MonsterPoolID": "FT_Floor_40",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 240,
+        "MonsterRelativeTransforms": []
+      },
+      "41": {
+        "MonsterPoolID": "FT_Floor_41",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "42": {
+        "MonsterPoolID": "FT_Floor_42",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "43": {
+        "MonsterPoolID": "FT_Floor_43",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "44": {
+        "MonsterPoolID": "FT_Floor_44",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "45": {
+        "MonsterPoolID": "FT_Floor_45",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "46": {
+        "MonsterPoolID": "FT_Floor_46",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "47": {
+        "MonsterPoolID": "FT_Floor_47",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "48": {
+        "MonsterPoolID": "FT_Floor_48",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "49": {
+        "MonsterPoolID": "FT_Floor_49",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "50": {
+        "MonsterPoolID": "FT_Floor_50",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 240,
+        "MonsterRelativeTransforms": []
+      },
+      "51": {
+        "MonsterPoolID": "FT_Floor_51",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "52": {
+        "MonsterPoolID": "FT_Floor_52",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "53": {
+        "MonsterPoolID": "FT_Floor_53",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "54": {
+        "MonsterPoolID": "FT_Floor_54",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "55": {
+        "MonsterPoolID": "FT_Floor_55",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "56": {
+        "MonsterPoolID": "FT_Floor_56",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "57": {
+        "MonsterPoolID": "FT_Floor_57",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "58": {
+        "MonsterPoolID": "FT_Floor_58",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "59": {
+        "MonsterPoolID": "FT_Floor_59",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "60": {
+        "MonsterPoolID": "FT_Floor_60",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 240,
+        "MonsterRelativeTransforms": []
+      },
+      "61": {
+        "MonsterPoolID": "FT_Floor_61",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "62": {
+        "MonsterPoolID": "FT_Floor_62",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "63": {
+        "MonsterPoolID": "FT_Floor_63",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "64": {
+        "MonsterPoolID": "FT_Floor_64",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "65": {
+        "MonsterPoolID": "FT_Floor_65",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "66": {
+        "MonsterPoolID": "FT_Floor_66",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "67": {
+        "MonsterPoolID": "FT_Floor_67",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "68": {
+        "MonsterPoolID": "FT_Floor_68",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "69": {
+        "MonsterPoolID": "FT_Floor_69",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "70": {
+        "MonsterPoolID": "FT_Floor_70",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 240,
+        "MonsterRelativeTransforms": []
+      },
+      "71": {
+        "MonsterPoolID": "FT_Floor_71",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "72": {
+        "MonsterPoolID": "FT_Floor_72",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "73": {
+        "MonsterPoolID": "FT_Floor_73",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "74": {
+        "MonsterPoolID": "FT_Floor_74",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "75": {
+        "MonsterPoolID": "FT_Floor_75",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "76": {
+        "MonsterPoolID": "FT_Floor_76",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "77": {
+        "MonsterPoolID": "FT_Floor_77",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "78": {
+        "MonsterPoolID": "FT_Floor_78",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "79": {
+        "MonsterPoolID": "FT_Floor_79",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "80": {
+        "MonsterPoolID": "FT_Floor_80",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 240,
+        "MonsterRelativeTransforms": []
+      },
+      "81": {
+        "MonsterPoolID": "FT_Floor_81",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "82": {
+        "MonsterPoolID": "FT_Floor_82",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "83": {
+        "MonsterPoolID": "FT_Floor_83",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "84": {
+        "MonsterPoolID": "FT_Floor_84",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 90,
+        "MonsterRelativeTransforms": []
+      },
+      "85": {
+        "MonsterPoolID": "FT_Floor_85",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "86": {
+        "MonsterPoolID": "FT_Floor_86",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "87": {
+        "MonsterPoolID": "FT_Floor_87",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "88": {
+        "MonsterPoolID": "FT_Floor_88",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "89": {
+        "MonsterPoolID": "FT_Floor_89",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_02",
+          "SourceString": "普通",
+          "LocalizedString": "Normal"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss1.YH_UI_Tower_icon_boss1",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "90": {
+        "MonsterPoolID": "FT_Floor_90",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 240,
+        "MonsterRelativeTransforms": []
+      },
+      "91": {
+        "MonsterPoolID": "FT_Floor_91",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 120,
+        "MonsterRelativeTransforms": []
+      },
+      "92": {
+        "MonsterPoolID": "FT_Floor_92",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 120,
+        "MonsterRelativeTransforms": []
+      },
+      "93": {
+        "MonsterPoolID": "FT_Floor_93",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 120,
+        "MonsterRelativeTransforms": []
+      },
+      "94": {
+        "MonsterPoolID": "FT_Floor_94",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 120,
+        "MonsterRelativeTransforms": []
+      },
+      "95": {
+        "MonsterPoolID": "FT_Floor_95",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 180,
+        "MonsterRelativeTransforms": []
+      },
+      "96": {
+        "MonsterPoolID": "FT_Floor_96",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "97": {
+        "MonsterPoolID": "FT_Floor_97",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "98": {
+        "MonsterPoolID": "FT_Floor_98",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_03",
+          "SourceString": "精锐",
+          "LocalizedString": "Elite"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss3.YH_UI_Tower_icon_boss3",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 150,
+        "MonsterRelativeTransforms": []
+      },
+      "99": {
+        "MonsterPoolID": "FT_Floor_99",
+        "MonsterTypeText": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Clone_04",
+          "SourceString": "首领",
+          "LocalizedString": "Boss"
+        },
+        "MonsterTypeIcon": {
+          "AssetPathName": "/Game/UI/UI/FinalTower/Floor/YH_UI_Tower_icon_boss4.YH_UI_Tower_icon_boss4",
+          "SubPathString": ""
+        },
+        "TimeLimitSeconds": 300,
+        "MonsterRelativeTransforms": []
+      }
+    }
+  }
+]

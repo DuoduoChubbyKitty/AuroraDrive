@@ -1,0 +1,3103 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_AISpawnerChangeConfig",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_AISpawnerChangeConfig",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'AISpawnerChangeConfig'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "VM_P1_01": {
+        "SpawnEntries": [
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_WpExp.mon_02_BP_Melee_Clone_WpExp_C",
+              "SubPathString": ""
+            },
+            "Count": 6,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.939693,
+                  "W": 0.34202,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 104820.0,
+                  "Y": 118960.0,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": -0.0,
+                  "Z": 0.984808,
+                  "W": 0.173648,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000005
+                },
+                "Translation": {
+                  "X": 104617.24,
+                  "Y": 118595.12,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": -0.0,
+                  "Z": 0.906308,
+                  "W": 0.422618,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 104550.0,
+                  "Y": 117900.0,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": -0.0,
+                  "Z": 0.984808,
+                  "W": 0.173648,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000005
+                },
+                "Translation": {
+                  "X": 104551.49,
+                  "Y": 118428.76,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": -0.0,
+                  "Z": 0.92388,
+                  "W": 0.382683,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000005
+                },
+                "Translation": {
+                  "X": 104369.19,
+                  "Y": 118332.5,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": -0.0,
+                  "Z": 0.999048,
+                  "W": 0.043619,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 104550.0,
+                  "Y": 118790.0,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 0,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_WpExp.mon_02_BP_Melee_Clone_WpExp_C",
+              "SubPathString": ""
+            },
+            "Count": 9,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": -0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 104389.19,
+                  "Y": 118402.5,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": -0.0,
+                  "Z": 0.906308,
+                  "W": 0.422618,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 104690.0,
+                  "Y": 117990.0,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.991445,
+                  "W": 0.130526,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 104936.086,
+                  "Y": 118641.055,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": -0.0,
+                  "Z": 0.976296,
+                  "W": 0.21644,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 104790.0,
+                  "Y": 118140.0,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.991445,
+                  "W": 0.130526,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 104913.69,
+                  "Y": 118805.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.34202,
+                  "W": 0.939693,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 104489.19,
+                  "Y": 118872.5,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.991445,
+                  "W": 0.130526,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 104933.69,
+                  "Y": 118825.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.991445,
+                  "W": 0.130526,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 104923.69,
+                  "Y": 118815.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 104409.19,
+                  "Y": 118602.5,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 6,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_WpExp.mon_02_BP_Melee_Clone_WpExp_C",
+              "SubPathString": ""
+            },
+            "Count": 9,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.34202,
+                  "W": 0.939693,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 104183.69,
+                  "Y": 118425.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.34202,
+                  "W": 0.939693,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 104513.69,
+                  "Y": 119035.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.34202,
+                  "W": 0.939693,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 104903.69,
+                  "Y": 118335.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.34202,
+                  "W": 0.939693,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 105083.69,
+                  "Y": 118395.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.34202,
+                  "W": 0.939693,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 104903.69,
+                  "Y": 118025.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.34202,
+                  "W": 0.939693,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 104873.69,
+                  "Y": 118635.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.34202,
+                  "W": 0.939693,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 104203.69,
+                  "Y": 118805.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.5373,
+                  "W": 0.843391,
+                  "IsNormalized": true,
+                  "Size": 0.9999998,
+                  "SizeSquared": 0.99999964
+                },
+                "Translation": {
+                  "X": 105103.69,
+                  "Y": 118725.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.939693,
+                  "W": 0.34202,
+                  "IsNormalized": true,
+                  "Size": 1.0000002,
+                  "SizeSquared": 1.0000006
+                },
+                "Translation": {
+                  "X": 104873.69,
+                  "Y": 118925.98,
+                  "Z": -13500.964
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 15,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          }
+        ]
+      },
+      "VM_P1_02": {
+        "SpawnEntries": []
+      },
+      "VM_P1_03": {
+        "SpawnEntries": [
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_WpExp.mon_02_BP_Melee_Clone_WpExp_C",
+              "SubPathString": ""
+            },
+            "Count": 8,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 104910.0,
+                  "Y": 122800.0,
+                  "Z": -13220.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 104910.0,
+                  "Y": 122540.0,
+                  "Z": -13220.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 105230.0,
+                  "Y": 122380.0,
+                  "Z": -13190.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 105230.0,
+                  "Y": 122690.0,
+                  "Z": -13190.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 105230.0,
+                  "Y": 122970.0,
+                  "Z": -13190.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 106330.0,
+                  "Y": 123150.0,
+                  "Z": -13222.71
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 106330.0,
+                  "Y": 123380.0,
+                  "Z": -13222.71
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 106660.0,
+                  "Y": 123380.0,
+                  "Z": -13222.71
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 0,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_WpExp.mon_02_BP_Melee_Clone_WpExp_C",
+              "SubPathString": ""
+            },
+            "Count": 6,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 105010.0,
+                  "Y": 123010.0,
+                  "Z": -13220.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 105150.0,
+                  "Y": 123220.0,
+                  "Z": -13220.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 105190.0,
+                  "Y": 122870.0,
+                  "Z": -13220.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 105560.0,
+                  "Y": 122680.0,
+                  "Z": -13220.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 105420.0,
+                  "Y": 122900.0,
+                  "Z": -13220.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 105580.0,
+                  "Y": 123130.0,
+                  "Z": -13220.0
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 8,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          }
+        ]
+      },
+      "VM_P1_04": {
+        "SpawnEntries": [
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_WpExp.mon_02_BP_Melee_Clone_WpExp_C",
+              "SubPathString": ""
+            },
+            "Count": 3,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 108370.0,
+                  "Y": 121000.0,
+                  "Z": -13352.71
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 108660.0,
+                  "Y": 120650.0,
+                  "Z": -13302.71
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 109400.0,
+                  "Y": 120810.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 0,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          }
+        ]
+      },
+      "VM_P1_05": {
+        "SpawnEntries": [
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_WpExp.mon_02_BP_Melee_Clone_WpExp_C",
+              "SubPathString": ""
+            },
+            "Count": 9,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111820.0,
+                  "Y": 119830.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111550.0,
+                  "Y": 119520.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111830.0,
+                  "Y": 120120.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111900.0,
+                  "Y": 119990.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111750.0,
+                  "Y": 119950.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111980.0,
+                  "Y": 120110.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 112380.0,
+                  "Y": 120670.0,
+                  "Z": -13255.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 112130.0,
+                  "Y": 120670.0,
+                  "Z": -13255.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 112130.0,
+                  "Y": 120520.0,
+                  "Z": -13255.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 0,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_WpExp.mon_02_BP_Melee_Clone_WpExp_C",
+              "SubPathString": ""
+            },
+            "Count": 8,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111910.0,
+                  "Y": 120590.0,
+                  "Z": -13315.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111580.0,
+                  "Y": 120320.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111820.0,
+                  "Y": 120440.0,
+                  "Z": -13315.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111710.0,
+                  "Y": 120340.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111620.0,
+                  "Y": 120190.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111500.0,
+                  "Y": 120120.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111600.0,
+                  "Y": 120020.0,
+                  "Z": -13365.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": 0.0,
+                  "Y": 0.0,
+                  "Z": 0.0,
+                  "W": 1.0,
+                  "IsNormalized": true,
+                  "Size": 1.0,
+                  "SizeSquared": 1.0
+                },
+                "Translation": {
+                  "X": 111780.0,
+                  "Y": 120570.0,
+                  "Z": -13315.329
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 9,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          }
+        ]
+      },
+      "VM_P2_01": {
+        "SpawnEntries": [
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_Exp.mon_02_BP_Melee_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 6,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114560.0,
+                  "Y": 127340.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114430.0,
+                  "Y": 127390.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114720.0,
+                  "Y": 127410.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114530.0,
+                  "Y": 127540.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114650.0,
+                  "Y": 127690.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114740.0,
+                  "Y": 127640.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 0,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_Exp.mon_02_BP_Melee_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 10,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114510.0,
+                  "Y": 127350.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114440.0,
+                  "Y": 127470.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114660.0,
+                  "Y": 127500.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114580.0,
+                  "Y": 127620.0,
+                  "Z": -12239.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114790.0,
+                  "Y": 127430.0,
+                  "Z": -12269.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114690.0,
+                  "Y": 127300.0,
+                  "Z": -12269.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114820.0,
+                  "Y": 128260.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114690.0,
+                  "Y": 128330.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114950.0,
+                  "Y": 128460.0,
+                  "Z": -12249.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114800.0,
+                  "Y": 128540.0,
+                  "Z": -12249.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 6,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_Exp.mon_02_BP_Melee_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 10,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114690.0,
+                  "Y": 127550.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114700.0,
+                  "Y": 127560.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114710.0,
+                  "Y": 127570.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114720.0,
+                  "Y": 127580.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114730.0,
+                  "Y": 127590.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114740.0,
+                  "Y": 127600.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114750.0,
+                  "Y": 127610.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114760.0,
+                  "Y": 127620.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114770.0,
+                  "Y": 127630.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 114780.0,
+                  "Y": 127640.0,
+                  "Z": -12289.12
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 16,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          }
+        ]
+      },
+      "VM_P2_02": {
+        "SpawnEntries": [
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_Exp.mon_02_BP_Melee_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 8,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 112460.0,
+                  "Y": 130200.0,
+                  "Z": -11304.873
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 112220.0,
+                  "Y": 130220.0,
+                  "Z": -11304.873
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 112340.0,
+                  "Y": 129980.0,
+                  "Z": -11304.873
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 111460.0,
+                  "Y": 129500.0,
+                  "Z": -11304.873
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 111610.0,
+                  "Y": 129370.0,
+                  "Z": -11304.873
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 111530.0,
+                  "Y": 129140.0,
+                  "Z": -11304.873
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 111270.0,
+                  "Y": 129260.0,
+                  "Z": -11304.873
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 111160.0,
+                  "Y": 129490.0,
+                  "Z": -11304.873
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 0,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          }
+        ]
+      },
+      "VM_P2_03": {
+        "SpawnEntries": [
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_02/Clone2nd/mon_02_BP_Melee_Clone_Exp.mon_02_BP_Melee_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 3,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 107330.0,
+                  "Y": 130210.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 107530.0,
+                  "Y": 130320.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 107280.0,
+                  "Y": 129950.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 0,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_01/Clone2nd/mon_01_BP_Clone_Exp.mon_01_BP_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 3,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 107190.0,
+                  "Y": 130730.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 106910.0,
+                  "Y": 130650.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 106910.0,
+                  "Y": 130360.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 0,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_01/Clone2nd/mon_01_BP_Clone_Exp.mon_01_BP_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 6,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107210.0,
+                  "Y": 130430.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107310.0,
+                  "Y": 130560.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107240.0,
+                  "Y": 130240.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107140.0,
+                  "Y": 130610.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107280.0,
+                  "Y": 130790.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107050.0,
+                  "Y": 130900.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 6,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_01/Clone2nd/mon_01_BP_Clone_Exp.mon_01_BP_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 5,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107470.0,
+                  "Y": 130740.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107490.0,
+                  "Y": 130570.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107490.0,
+                  "Y": 130400.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107310.0,
+                  "Y": 130710.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.043619,
+                  "W": 0.999048,
+                  "IsNormalized": true,
+                  "Size": 0.99999976,
+                  "SizeSquared": 0.9999995
+                },
+                "Translation": {
+                  "X": 107310.0,
+                  "Y": 130500.0,
+                  "Z": -12749.661
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 12,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          }
+        ]
+      },
+      "VM_P2_04": {
+        "SpawnEntries": [
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_01/Clone2nd/mon_01_BP_Clone_Exp.mon_01_BP_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 5,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 112120.0,
+                  "Y": 134060.0,
+                  "Z": -11852.686
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 111940.0,
+                  "Y": 133930.0,
+                  "Z": -11852.686
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 111780.0,
+                  "Y": 134060.0,
+                  "Z": -11852.686
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 111670.0,
+                  "Y": 133930.0,
+                  "Z": -11852.686
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.819152,
+                  "W": 0.573576,
+                  "IsNormalized": true,
+                  "Size": 0.9999997,
+                  "SizeSquared": 0.9999994
+                },
+                "Translation": {
+                  "X": 111520.0,
+                  "Y": 134090.0,
+                  "Z": -11852.686
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 0,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Blueprints/Character/Monster/mon_01/Clone2nd/mon_01_BP_Clone_Exp.mon_01_BP_Clone_Exp_C",
+              "SubPathString": ""
+            },
+            "Count": 3,
+            "SpawnTransformPointsOverride": [
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.130526,
+                  "W": 0.991445,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 110970.0,
+                  "Y": 133650.0,
+                  "Z": -11852.686
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.300706,
+                  "W": 0.953717,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 111060.0,
+                  "Y": 133860.0,
+                  "Z": -11852.686
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              },
+              {
+                "Rotation": {
+                  "X": -0.0,
+                  "Y": 0.0,
+                  "Z": -0.300706,
+                  "W": 0.953717,
+                  "IsNormalized": true,
+                  "Size": 1.0000001,
+                  "SizeSquared": 1.0000002
+                },
+                "Translation": {
+                  "X": 111270.0,
+                  "Y": 134070.0,
+                  "Z": -11852.686
+                },
+                "Scale3D": {
+                  "X": 1.0,
+                  "Y": 1.0,
+                  "Z": 1.0
+                }
+              }
+            ],
+            "SpawnTransformPointsTags": [],
+            "bOverrideLevelType": false,
+            "SpawnLevelTypeOverride": "EAISpawnLevelType::PermanentLevel",
+            "LevelOverride": 0,
+            "LevelMin": 0,
+            "LevelMax": 0,
+            "QuestSpawnPointOverrideIDs": [],
+            "SpawnOnlyWhenDeadNumExceeds": 5,
+            "SpawnDelayTime": 0.0,
+            "SpawnIntervalTime": 0.0,
+            "IdleStatesOverride": [],
+            "IdleStateTargetPointsContainer": [],
+            "SpawnProbability": 1.0,
+            "AIControllerOverride": null,
+            "AdditionalTags": [],
+            "AISettingsOverrideID": "None",
+            "AIConfigOverrideID": "None",
+            "FleeTargetPoints": [],
+            "AILeaveBattleType": "EAILeaveBattleType::AILBNormal",
+            "bUseDataTable": true,
+            "PlatformManagerOverride": "ESpawnerPlatformManagerOverride::NotOverride",
+            "bUseRangeForPassiveAggro": false,
+            "PassiveAggroNotifyRange": 0.0,
+            "CheckMonsterLocationLegalityZOverride": -1.0
+          }
+        ]
+      }
+    }
+  }
+]

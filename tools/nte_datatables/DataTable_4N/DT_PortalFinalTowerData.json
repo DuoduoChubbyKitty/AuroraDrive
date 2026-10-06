@@ -1,0 +1,1563 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_PortalFinalTowerData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/Maps_4N/DataTable/DT_PortalFinalTowerData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'PortalFinalTowerData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "CastleDLC": {
+        "PortalType": "EFinalTowerPortalType::Clone",
+        "EntryTransformID": "FT_BP_Portal_CastleDLC",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_CastleMainland",
+        "ExitTipId": "",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_E_Round1.D_Zone_E_Round1",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "L110338_Q1",
+            "CharacterLevel": 35,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Castle1_needlevel35",
+            "DangerCharacterLevel": 20,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_E_Round2.D_Zone_E_Round2",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Castle2_needlevel90",
+            "DangerCharacterLevel": 80,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_E_Round3.D_Zone_E_Round3",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 90,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_E.D_Zone_E",
+            "SubPathString": ""
+          },
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/Art_DragonWorld.Art_DragonWorld",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": false,
+        "CampfireIDs": [
+          "FT_Castle_Campfire01",
+          "FT_Castle_Campfire02",
+          "FT_Castle_Campfire03",
+          "FT_Castle_Campfire04",
+          "FT_Castle_Campfire05",
+          "FT_Castle_Campfire06",
+          "FT_Castle_Campfire07",
+          "FT_Castle_Campfire08",
+          "FT_Castle_Campfire09"
+        ],
+        "LambMercenaryList": [
+          {
+            "LambMercenaryID": "Lamb33_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Castle_Lv2",
+            "LambTag": "Castle_R2_33",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "9D13E00B4A8514130EAEF782989460F9",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Castle_Lv2",
+            "LambTag": "Castle_R2_66",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "77E382D14C5B022BBC348A97B168A08D",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Castle_Lv2",
+            "LambTag": "Castle_R2_99",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "3222DF7547604C74902D689A99380618",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb33_Lv3",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Castle_Lv3",
+            "LambTag": "Castle_R3_33",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "C165C563458BF5E4394DBD8E35408984",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_Lv3",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Castle_Lv3",
+            "LambTag": "Castle_R3_66",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "409E4ADA4ADF4A82657C7D9E829FB225",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_Lv3",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Castle_Lv3",
+            "LambTag": "Castle_R3_99",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "76C9CE7F46A38B2153509EA10F8B0D8B",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          }
+        ],
+        "MiniMap_TeleportId": "FT_Portal_MainToE"
+      },
+      "LakeDLC": {
+        "PortalType": "EFinalTowerPortalType::Clone",
+        "EntryTransformID": "FT_BP_Portal_LakeQuest",
+        "EntryTransformOverrides": [
+          {
+            "QuestId": "L110336_3",
+            "TransformID": "FT_BP_Portal_LakeDLC"
+          }
+        ],
+        "ExitTransformID": "FT_BP_Portal_LakeMainland",
+        "ExitTipId": "",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_D_Round1.D_Zone_D_Round1",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "L110333_P18",
+            "CharacterLevel": 25,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Lake1_needlevel25",
+            "DangerCharacterLevel": 15,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_D_Round2.D_Zone_D_Round2",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Lake2_needlevel75",
+            "DangerCharacterLevel": 60,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_D_Round3.D_Zone_D_Round3",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 85,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_D.D_Zone_D",
+            "SubPathString": ""
+          },
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/Art_LakeWorld.Art_LakeWorld",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": false,
+        "CampfireIDs": [
+          "Campfire_Lake_01_0",
+          "Campfire_Lake_01_1",
+          "Campfire_Lake_01_10",
+          "Campfire_Lake_01_11",
+          "Campfire_Lake_01_2",
+          "Campfire_Lake_01_3",
+          "Campfire_Lake_01_4",
+          "Campfire_Lake_01_5",
+          "Campfire_Lake_01_6",
+          "Campfire_Lake_01_7",
+          "Campfire_Lake_01_8",
+          "Campfire_Lake_01_9"
+        ],
+        "LambMercenaryList": [
+          {
+            "LambMercenaryID": "Lamb33_003_Lv1",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Lake_Lv1",
+            "LambTag": "zone_003_01_033",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "95C431B34015643BC278CF829219EA2F",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_003_Lv1",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Lake_Lv1",
+            "LambTag": "zone_003_01_066",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "F81D130B41B590168148FDAE9FADAAC9",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_003_Lv1",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Lake_Lv1",
+            "LambTag": "zone_003_01_099",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "504E3E134EBD29C499AF0A99A353E512",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb33_003_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Lake_Lv2",
+            "LambTag": "zone_003_02_033",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "499F00DC4BB42E668324BAB1F7CE6FAD",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_003_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Lake_Lv2",
+            "LambTag": "zone_003_02_066",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "660D20794F37709E5D4A47A2437F9E91",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_003_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Lake_Lv2",
+            "LambTag": "zone_003_02_099",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "2851767E4E12F7DD74813C9CC9F1D0CF",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          }
+        ],
+        "MiniMap_TeleportId": "FT_Portal_MainToD"
+      },
+      "SnowMountainDLC": {
+        "PortalType": "EFinalTowerPortalType::Clone",
+        "EntryTransformID": "FT_BP_Portal_SnowMountainDLC",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_SnowMountainMainland",
+        "ExitTipId": "",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_C_Round1.D_Zone_C_Round1",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "L110331_P43",
+            "CharacterLevel": 15,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Snow1_needlevel15",
+            "DangerCharacterLevel": 5,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_C_Round2.D_Zone_C_Round2",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Snow2_needlevel60",
+            "DangerCharacterLevel": 45,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_C_Round3.D_Zone_C_Round3",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 80,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_C.D_Zone_C",
+            "SubPathString": ""
+          },
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/Art_SnowWorld.Art_SnowWorld",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": false,
+        "CampfireIDs": [
+          "FT_BP_CampfireActor_Snowmountain_01",
+          "FT_BP_CampfireActor_Snowmountain_02",
+          "FT_BP_CampfireActor_Snowmountain_03",
+          "FT_BP_CampfireActor_Snowmountain_04",
+          "FT_BP_CampfireActor_Snowmountain_05",
+          "FT_BP_CampfireActor_Snowmountain_06",
+          "FT_BP_CampfireActor_Snowmountain_07",
+          "FT_BP_CampfireActor_Snowmountain_08",
+          "FT_BP_CampfireActor_Snowmountain_09",
+          "FT_BP_CampfireActor_Snowmountain_10",
+          "FT_BP_CampfireActor_Snowmountain_11",
+          "FT_BP_CampfireActor_Snowmountain_12"
+        ],
+        "LambMercenaryList": [
+          {
+            "LambMercenaryID": "Lamb33_Lv1",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Snow_Lv1",
+            "LambTag": "Snow_Boss_Lv1",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "63C7C65B4D0565133A0711868F12433F",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb33_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Snow_Lv2",
+            "LambTag": "Snow_Boss_Lv2",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "9375B8BB47589E748DB49A81AE500E73",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb33_Lv3",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Snow_Lv3",
+            "LambTag": "Snow_Boss_Lv3",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "DDA0CAAA450A0C9F4912B1BB98E5AAB8",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_Lv1",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Snow_Lv1",
+            "LambTag": "Snow_Boss_Lv1",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "82C2FB3F4BD111820CC82BA98B1EC23E",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Snow_Lv2",
+            "LambTag": "Snow_Boss_Lv2",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "82C2FB3F4BD111820CC82BA98B1EC23E",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_Lv3",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Snow_Lv3",
+            "LambTag": "Snow_Boss_Lv3",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "82C2FB3F4BD111820CC82BA98B1EC23E",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_Lv1",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Snow_Lv1",
+            "LambTag": "Snow_Boss_Lv1",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "8705A9E54B6F3B19E50A4CAE5B627606",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Snow_Lv2",
+            "LambTag": "Snow_Boss_Lv2",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "F0B751244EC06D8A21F9DF8B0DD9E9AB",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_Lv3",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Snow_Lv3",
+            "LambTag": "Snow_Boss_Lv3",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "B709221641CF3D8E37E14F9C92EA4B93",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          }
+        ],
+        "MiniMap_TeleportId": "FT_Portal_MainToC"
+      },
+      "ValcanoDLC": {
+        "PortalType": "EFinalTowerPortalType::Clone",
+        "EntryTransformID": "FT_BP_Portal_ValcanoDLC",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_ValcanoMainland",
+        "ExitTipId": "",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_B_Round1.D_Zone_B_Round1",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "L110330",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Volca1_needlevel1",
+            "DangerCharacterLevel": 1,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_B_Round2.D_Zone_B_Round2",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Volca2_needlevel40",
+            "DangerCharacterLevel": 35,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_B_Round3.D_Zone_B_Round3",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 75,
+            "DangerCharacterLevelTipId": "DangerCharacterLevelTip"
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/Art_VolcanoWorld.Art_VolcanoWorld",
+            "SubPathString": ""
+          },
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_B.D_Zone_B",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": false,
+        "CampfireIDs": [
+          "FT_BP_CampfireActor_Quest_P1_1",
+          "BP_Campfire_Volcano_P1_2",
+          "BP_Campfire_Volcano_P2_1",
+          "BP_Campfire_Volcano_P2_2",
+          "BP_Campfire_Volcano_P3_1",
+          "BP_Campfire_Volcano_P3_2",
+          "BP_Campfire_Volcano_P4_1",
+          "BP_Campfire_Volcano_P4_2",
+          "BP_Campfire_Volcano_P4_3",
+          "BP_Campfire_Volcano_P4_4",
+          "BP_Campfire_Volcano_P4_5",
+          "BP_Campfire_Volcano_P5_1",
+          "BP_Campfire_Volcano_P5_2",
+          "BP_Campfire_Volcano_P5_3"
+        ],
+        "LambMercenaryList": [
+          {
+            "LambMercenaryID": "Lamb33_Lv1",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Volcano_lv1",
+            "LambTag": "Volcano_lv1_33",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "A0AD5CFC4B2DE42288741ABBA2F1D411",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_Lv1",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Volcano_lv1",
+            "LambTag": "Volcano_lv1_66",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "15EFBE4747D95929C8298496E5AC801E",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_Lv1",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Volcano_lv2",
+            "LambTag": "Volcano_lv2_99",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "1B00C01047B3822E6656F9AD964F4AE1",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb33_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Volcano_lv2",
+            "LambTag": "Volcano_lv2_33",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "3483EE6E4CE97639E253D685460AA9FA",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Volcano_lv2",
+            "LambTag": "Volcano_lv2_66",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "A8FB9182480A9FEC8F39C7AFD79247E3",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_Lv2",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Volcano_lv2",
+            "LambTag": "Volcano_lv2_99",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "602DCD474F9E360E59E0EEA681770553",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb33_Lv3",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 33000,
+            "SpawnID": "LambMerc33_Volcano_lv3",
+            "LambTag": "Volcano_lv3_33",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "6BF5EDC74E2B5B94CA8090A18D859509",
+              "SourceString": "33",
+              "LocalizedString": "33"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb66_Lv3",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 66000,
+            "SpawnID": "LambMerc66_Volcano_lv3",
+            "LambTag": "Volcano_lv3_66",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "E972170246500C7F4B62B99D36FEFDDA",
+              "SourceString": "66",
+              "LocalizedString": "66"
+            }
+          },
+          {
+            "LambMercenaryID": "Lamb99_Lv3",
+            "CurrencyID": "FTGoldCoin",
+            "Cost": 99000,
+            "SpawnID": "LambMerc99_Volcano_lv3",
+            "LambTag": "Volcano_lv3_99",
+            "icon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "LambMercenaryName": {
+              "Namespace": "",
+              "Key": "2BDB1A7E4938A21AD391E4836A24C8BF",
+              "SourceString": "99",
+              "LocalizedString": "99"
+            }
+          }
+        ],
+        "MiniMap_TeleportId": "FT_Portal_MainToB"
+      },
+      "VillageDLC": {
+        "PortalType": "EFinalTowerPortalType::Village",
+        "EntryTransformID": "FT_BP_Portal_VillageDLC",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_VillageMainland",
+        "ExitTipId": "ui_exit_final_tower_scene",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "L110328",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "L110328",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "L110328",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [],
+        "IsLockShowInteract": false,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "FT_Portal_MainToA"
+      },
+      "CampDLC": {
+        "PortalType": "EFinalTowerPortalType::Camp",
+        "EntryTransformID": "FT_BP_Portal_CampDLC",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_YingdiBackTemp",
+        "ExitTipId": "ui_exit_final_tower_camp",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [],
+        "IsLockShowInteract": false,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "FT_Camp"
+      },
+      "Chess_DLC": {
+        "PortalType": "EFinalTowerPortalType::MiniGame",
+        "EntryTransformID": "FT_BP_Portal_ChessDLC_01",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_ChessMainland_01",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Chesss_01.D_Chesss_01",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": false,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "None"
+      },
+      "JumpFunDLC_01": {
+        "PortalType": "EFinalTowerPortalType::MiniGame",
+        "EntryTransformID": "FT_JumpJumpFun_01",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_JumpJumpFun_01_Reset",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_JumpJumpFun_01.D_JumpJumpFun_01",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": true,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "None"
+      },
+      "JumpFunDLC_02": {
+        "PortalType": "EFinalTowerPortalType::MiniGame",
+        "EntryTransformID": "FT_BP_Portal_JumpFunDLC_02",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_JumpFunMainland_02",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_JumpJumpFun_02.D_JumpJumpFun_02",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": false,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "None"
+      },
+      "ArenaDLC": {
+        "PortalType": "EFinalTowerPortalType::MiniGame",
+        "EntryTransformID": "FT_Arena_01",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_Arena_01_Reset",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Arena.D_Arena",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Arena.D_Arena",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Arena.D_Arena",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_ArenaFight.D_ArenaFight",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": true,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "None"
+      },
+      "BounceDLC": {
+        "PortalType": "EFinalTowerPortalType::MiniGame",
+        "EntryTransformID": "FT_Bounce_01",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_Bounce_01_Reset",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Bounce.D_Bounce",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Bounce.D_Bounce",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Bounce.D_Bounce",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_ArenaFight.D_ArenaFight",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": true,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "None"
+      },
+      "BlackSheepDLC": {
+        "PortalType": "EFinalTowerPortalType::MiniGame",
+        "EntryTransformID": "FT_BP_Portal_SheepDLC",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_SheepMainland",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_BlackSheep.D_BlackSheep",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_BlackSheep_lv2.D_BlackSheep_lv2",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_BlackSheep_lv3.D_BlackSheep_lv3",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 0,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_ArenaFight.D_ArenaFight",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": true,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "None"
+      },
+      "KnightDLC": {
+        "PortalType": "EFinalTowerPortalType::MiniGame",
+        "EntryTransformID": "FT_BP_Portal_KnightDLC",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_KnightMainland",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_BlackSheep.D_BlackSheep",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 20,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_knight_needlevel20",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_BlackSheep.D_BlackSheep",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 20,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_knight_needlevel20",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_BlackSheep.D_BlackSheep",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 20,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_knight_needlevel20",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Armor_01.D_Armor_01",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": true,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "None"
+      },
+      "RedFogDLC": {
+        "PortalType": "EFinalTowerPortalType::MiniGame",
+        "EntryTransformID": "FT_BP_Portal_RedFogDLC",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_BP_Portal_RedFogMainLand",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_BlackSheep.D_BlackSheep",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 40,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Volca2_needlevel40",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_BlackSheep.D_BlackSheep",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 40,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Volca2_needlevel40",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_BlackSheep.D_BlackSheep",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 40,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Volca2_needlevel40",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_RedFog_01.D_RedFog_01",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": true,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "None"
+      },
+      "ShinkuFight": {
+        "PortalType": "EFinalTowerPortalType::MiniGame",
+        "EntryTransformID": "FT_ShinkuFight",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_ShinkuFight_Reset",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 1,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_ShinkuFight.D_ShinkuFight",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 100,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Playthrough3_needlevel100",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_ShinkuFight.D_ShinkuFight",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 100,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Playthrough3_needlevel100",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_ShinkuFight.D_ShinkuFight",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 100,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "ui_portal_Playthrough3_needlevel100",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_ArenaFight.D_ArenaFight",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": true,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "None"
+      },
+      "FloorChallenge": {
+        "PortalType": "EFinalTowerPortalType::FloorChallenge",
+        "EntryTransformID": "FT_FloorChallenge_Entry",
+        "EntryTransformOverrides": [],
+        "ExitTransformID": "FT_FloorChallenge_Exit",
+        "ExitTipId": "ui_exit_clone_to_final_tower",
+        "LoadingUIType": "ETransferLoadingUIType::AutoWaitLoading",
+        "SequenceId": "None",
+        "PlaythroughDatas": [
+          {
+            "Playthrough": 2,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_E_FloorChallenge.D_Zone_E_FloorChallenge",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          },
+          {
+            "Playthrough": 3,
+            "DifferenceDataLayerAssets": [
+              {
+                "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_E_FloorChallenge.D_Zone_E_FloorChallenge",
+                "SubPathString": ""
+              }
+            ],
+            "QuestId": "None",
+            "CharacterLevel": 1,
+            "QuestTipId": "",
+            "CharacterLevelTipId": "",
+            "DangerCharacterLevel": 0,
+            "DangerCharacterLevelTipId": ""
+          }
+        ],
+        "CommonDataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_Zone_E_FloorChallenge.D_Zone_E_FloorChallenge",
+            "SubPathString": ""
+          },
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/Art_DragonWorld.Art_DragonWorld",
+            "SubPathString": ""
+          }
+        ],
+        "IsLockShowInteract": false,
+        "CampfireIDs": [],
+        "LambMercenaryList": [],
+        "MiniMap_TeleportId": "FT_Portal_FloorChallenge"
+      }
+    }
+  }
+]

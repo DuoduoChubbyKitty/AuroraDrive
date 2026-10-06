@@ -1,0 +1,360 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_MiniMapArea",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_MiniMapArea",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'MiniMapAreaData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "test_yaoql_2": {
+        "AreaName": {
+          "CultureInvariantString": "测试区域1"
+        },
+        "AreaNameNoneFormat": {
+          "CultureInvariantString": null
+        },
+        "MapName": "TestMap_yaoql",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "None",
+        "FogID": "test_yaoql_2",
+        "TowerID": "Testyaoql_2"
+      },
+      "test1": {
+        "AreaName": {
+          "CultureInvariantString": "003"
+        },
+        "AreaNameNoneFormat": {
+          "CultureInvariantString": null
+        },
+        "MapName": "Testmap_liuyang",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "None",
+        "FogID": "WertheimerTower_003",
+        "TowerID": "WertheimerTower_003"
+      },
+      "test": {
+        "AreaName": {
+          "CultureInvariantString": "001"
+        },
+        "AreaNameNoneFormat": {
+          "CultureInvariantString": null
+        },
+        "MapName": "Testmap_liuyang",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "None",
+        "FogID": "WertheimerTower_003",
+        "TowerID": "WertheimerTower_003"
+      },
+      "000": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area000",
+          "SourceString": "M10区",
+          "LocalizedString": "Area M10"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area000_NoFormat",
+          "SourceString": "M10区",
+          "LocalizedString": "Area M10"
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "Trinity",
+        "TowerID": "None"
+      },
+      "001": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area001",
+          "SourceString": "桥间地",
+          "LocalizedString": "Bridge Crossings"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area001_NoFormat",
+          "SourceString": "桥间地",
+          "LocalizedString": "Bridge Crossings"
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "WertheimerTower_001",
+        "TowerID": "WertheimerTower_001"
+      },
+      "002": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area002",
+          "SourceString": "未闻浦 ",
+          "LocalizedString": "Unheard Shores"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area002_NoFormat",
+          "SourceString": "未闻浦 ",
+          "LocalizedString": "Unheard Shores "
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "WertheimerTower_002",
+        "TowerID": "WertheimerTower_002"
+      },
+      "003": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area003",
+          "SourceString": "绘空町",
+          "LocalizedString": "Illusion Town"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area003_NoFormat",
+          "SourceString": "绘空町",
+          "LocalizedString": "Illusion Town"
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "WertheimerTower_003",
+        "TowerID": "WertheimerTower_003"
+      },
+      "004": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area004",
+          "SourceString": "米格尔区",
+          "LocalizedString": "Miguel District"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area004_NoFormat",
+          "SourceString": "米格尔区",
+          "LocalizedString": "Miguel District"
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "WertheimerTower_004",
+        "TowerID": "WertheimerTower_004"
+      },
+      "005": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area005",
+          "SourceString": "新赫兰德区",
+          "LocalizedString": "New Herland District"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area005_NoFormat",
+          "SourceString": "新赫兰德区",
+          "LocalizedString": "New Herland District"
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "WertheimerTower_005",
+        "TowerID": "WertheimerTower_005"
+      },
+      "006": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area006",
+          "SourceString": "泊暮区",
+          "LocalizedString": "Halfport District"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area006",
+          "SourceString": "泊暮区",
+          "LocalizedString": "Halfport District"
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "WertheimerTower_006",
+        "TowerID": "WertheimerTower_006"
+      },
+      "008": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area008",
+          "SourceString": "拘留所",
+          "LocalizedString": "Detention Facility"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area008",
+          "SourceString": "拘留所",
+          "LocalizedString": "Detention Facility"
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "WertheimerTower_008",
+        "TowerID": "None"
+      },
+      "009": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area009",
+          "SourceString": "向阳岛",
+          "LocalizedString": "Sunni Island"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area009",
+          "SourceString": "向阳岛",
+          "LocalizedString": "Sunni Island"
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "WertheimerTower_009",
+        "TowerID": "None"
+      },
+      "010": {
+        "AreaName": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area010",
+          "SourceString": "噗卡乐园",
+          "LocalizedString": "Pukaland"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area010",
+          "SourceString": "噗卡乐园",
+          "LocalizedString": "Pukaland"
+        },
+        "MapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "City001",
+        "FogID": "WertheimerTower_010",
+        "TowerID": "None"
+      },
+      "4N_Main": {
+        "AreaName": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_Main",
+          "SourceString": "沃伦大陆",
+          "LocalizedString": "Warren Continent"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_Main",
+          "SourceString": "沃伦大陆",
+          "LocalizedString": "Warren Continent"
+        },
+        "MapName": "Maps_4N",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "None",
+        "FogID": "None",
+        "TowerID": "None"
+      },
+      "4N_A": {
+        "AreaName": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_A",
+          "SourceString": "绵绵村",
+          "LocalizedString": "Fuzzy Village"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_A",
+          "SourceString": "绵绵村",
+          "LocalizedString": "Fuzzy Village"
+        },
+        "MapName": "Maps_4N",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "None",
+        "FogID": "None",
+        "TowerID": "None"
+      },
+      "4N_B": {
+        "AreaName": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_B",
+          "SourceString": "巧克力火山",
+          "LocalizedString": "Chocolate Volcano"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_B",
+          "SourceString": "巧克力火山",
+          "LocalizedString": "Chocolate Volcano"
+        },
+        "MapName": "Maps_4N",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "None",
+        "FogID": "None",
+        "TowerID": "None"
+      },
+      "4N_C": {
+        "AreaName": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_C",
+          "SourceString": "牛奶雪冰山",
+          "LocalizedString": "Milk Ice Mountain"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_C",
+          "SourceString": "牛奶雪冰山",
+          "LocalizedString": "Milk Ice Mountain"
+        },
+        "MapName": "Maps_4N",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "None",
+        "FogID": "None",
+        "TowerID": "None"
+      },
+      "4N_D": {
+        "AreaName": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_D",
+          "SourceString": "琥珀湖",
+          "LocalizedString": "Amber Syrup Lake"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_D",
+          "SourceString": "琥珀湖",
+          "LocalizedString": "Amber Syrup Lake"
+        },
+        "MapName": "Maps_4N",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "None",
+        "FogID": "None",
+        "TowerID": "None"
+      },
+      "4N_E": {
+        "AreaName": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_E",
+          "SourceString": "赤龙古堡",
+          "LocalizedString": "Crimson Castle"
+        },
+        "AreaNameNoneFormat": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_E",
+          "SourceString": "赤龙古堡",
+          "LocalizedString": "Crimson Castle"
+        },
+        "MapName": "Maps_4N",
+        "BelongsGameplayAreaID": "None",
+        "BelongsCityID": "None",
+        "FogID": "None",
+        "TowerID": "None"
+      }
+    }
+  }
+]

@@ -1,0 +1,21 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "GMLevelData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/GMLevelData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'GMLevelDataRow'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "NewRow": {
+        "GMCmd": "",
+        "GMLevel": 1
+      }
+    }
+  }
+]

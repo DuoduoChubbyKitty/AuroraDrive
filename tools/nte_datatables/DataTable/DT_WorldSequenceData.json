@@ -1,0 +1,4433 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_WorldSequenceData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_WorldSequenceData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'WorldSequenceData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "WeatherimerTower_001": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/cutscenes/HM_U00C00_13/HM_U00C00_13.HM_U00C00_13",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": true,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 10.0,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "boss_13_3": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Character/Monster/boss_13/boss_13_3/boss_13_3.boss_13_3",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "boss07Test": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Character/Monster/boss_07/TestBoss07.TestBoss07",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": false,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "CR_Lacrimosa": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/cutscenes_BJ/HM_Create01_001_b01/HM_Create01_001_b01.HM_Create01_001_b01",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": false,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "CR_Skia": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/cutscenes_BJ/HM_Create01_001_b02/HM_Create01_001_b02.HM_Create01_001_b02",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": false,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "CR_Fadia": {
+        "SequenceTemple": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": false,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_EibonBed": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Actors/Sleep/SQ_EibonBed.SQ_EibonBed",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 1.0,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SE_World_BlackBird": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/cutscenes/HM_Blackbird_001/HM_Blackbird_ALL01.HM_Blackbird_ALL01",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": -0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": -99845.22,
+              "Y": 174876.44,
+              "Z": 5489.5015
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": true,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_HouseBed_LL_2": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Actors/Sleep/SQ_HouseBed_LL_2.SQ_HouseBed_LL_2",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.5,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_HouseBed_LLL_2": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Actors/Sleep/SQ_HouseBed_LLL_2.SQ_HouseBed_LLL_2",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.5,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_HouseBed_LLL_1": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Actors/Sleep/SQ_HouseBed_LLL_1.SQ_HouseBed_LLL_1",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.5,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_HouseBed_LL_1": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Actors/Sleep/SQ_HouseBed_LL_1.SQ_HouseBed_LL_1",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.5,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_HouseBed_L_1": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Actors/Sleep/SQ_HouseBed_L_1.SQ_HouseBed_L_1",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.5,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "boss_19": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Character/Monster/boss_19/boss19_seq/boss_019_show04.boss_019_show04",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": true,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "boss_10_stage": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/cutscenes/HM_Boss_alkn_show_01/Shot/HM_Boss_alkn_show_01_ALL.HM_Boss_alkn_show_01_ALL",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "boss_027_Spawn": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Character/Monster/boss_27/Boss_027_AppearSeq/Boss_027_AppearSeq.Boss_027_AppearSeq",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "boss_18_Spawn": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Character/Monster/boss_18/Boss_18_stage2_ChaseEnd_SEQ.Boss_18_stage2_ChaseEnd_SEQ",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "L110133_change": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/cutscenes/HM_Boss_ahq_show_01/Shot/HM_Boss_ahq_show_01ALL.HM_Boss_ahq_show_01ALL",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "boss_09_stage": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/cutscenes/HM_Boss_hzs_show_01/Shot/HM_Boss_hzs_show_01.HM_Boss_hzs_show_01",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "boss_019_ChangeStage": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/cutscenes/Boss_019_ChangeStageSeq/Boss_019_ChangeStageSeq.Boss_019_ChangeStageSeq",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "boss_32_ChangeStage": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Character/Monster/Boss_32/Boss_32_ChangeStageSeq/new/ALL_NEW.ALL_NEW",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "Seq_wlcb": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps/Map_DLC/DLC_CardboardCastle/Seq_wlcb.Seq_wlcb",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::ForceKeepState",
+          "bPauseAtEnd": true,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": false,
+          "CantSkipTime": 2.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 60,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_WishingTree": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/FX/Nia/Scene/wishingTree/seq_wishtree.seq_wishtree",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": false,
+          "CantSkipTime": 2.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.5,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 0,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_PrisonMorning": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Level/World/Interact/Prison/PrisonDaily/SQ_PrisonMorning.SQ_PrisonMorning",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": true,
+          "bHideHud": true,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 1.5,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SE_NestBird_Entrance_Begin": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Environment/Building/DLC_Structures/DLC_NestBird/SE_NestBird_Entrance_Begin_all.SE_NestBird_Entrance_Begin_all",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": false,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.5,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 0,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_50_Banding": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Level/SingleLevel/Hospital/LS_Hospital_BandageArrest/LS_Hospital_BandageArrest.LS_Hospital_BandageArrest",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 1.0,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_50_Locker": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Level/SingleLevel/Hospital/LS_Hospital_BandageLocker/LS_Hospital_BandageLocker.LS_Hospital_BandageLocker",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 1.0,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SE_Theater_Entrance_Begin": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Environment/Building/DLC_Structures/DLC_Theater/SE_Theater_Entrance_Begin_all.SE_Theater_Entrance_Begin_all",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": false,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.5,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 0,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_WJ103301": {
+        "SequenceTemple": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_WJBoss013": {
+        "SequenceTemple": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "Boss26StageSeq": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Characters/Monster/boss_26/cam/act_13_camera01.act_13_camera01",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "Seq_Regalia_bsjdl_up": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Level/SingleLevel/Regalia/Seq_Regalia_bsjdl_up.Seq_Regalia_bsjdl_up",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": false,
+          "bHideUI": true,
+          "bHideCursor": false,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": false,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 1.0,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "Seq_Regalia_bsjdl_down": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/Level/SingleLevel/Regalia/Seq_Regalia_bsjdl_down.Seq_Regalia_bsjdl_down",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": true,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": false,
+          "bHideUI": true,
+          "bHideCursor": false,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": false,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 1.0,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": false,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_shinkuUlt": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/SkillsAnimation_Live/shinku/mon_shinku_skill_ultraskill.mon_shinku_skill_ultraskill",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": false,
+          "CantSkipTime": 2.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 90,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_60_Seq": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/mon_60/seq/mon_60_seq.mon_60_Seq",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "Boss_36_throw_Seq": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Blueprints/Character/Monster/boss_36/SequenceActor/Boss_36_ThrowSeq.Boss_36_ThrowSeq",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_daffoUlt": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/sequence_pack/SkillsAnimation_Live/daffodill/mon_daffodill_Sequence.mon_daffodill_Sequence",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": true,
+          "bBestViewDistanceQuality": false,
+          "CantSkipTime": 2.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 90,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "Boss_36_Ult_Seq": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/boss_36/boss_36_act14_seq_new01/boss_36_act14_seq_new.boss_36_act14_seq_new",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_056_Henshin": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/mon_56/mon_h_act_03.mon_h_act_03",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_52_standoff": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/mon_52/mon_h_act_standoff.mon_h_act_standoff",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": true,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 90,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_52_Kill_S": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/mon_52/mon_h_act_08seq1.mon_h_act_08seq1",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 90,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_52_Kill_E": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/mon_52/mon_h_act_08seq2.mon_h_act_08seq2",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 90,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_55_Shadow": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/mon_55/mon_dazhao_seq.mon_dazhao_seq",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": true,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 90,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_53_ult_1": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/mon_53/animation/Sequence/Seq_mon_53_Ult_Section1.Seq_mon_53_Ult_Section1",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "mon_53_ult_2": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/mon_53/animation/Sequence/Seq_mon_53_Ult_Section2.Seq_mon_53_Ult_Section2",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": true,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "Boss_36s2_Ult_Seq": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Maps_4N/Characters/Monster/boss_36_s2/cam/mon_h_act_15_1.mon_h_act_15_1",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": true,
+          "bDisableLookAtInput": true,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": false,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": false,
+          "SpawnedNpcHideDistance": 30000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 30000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": true,
+          "CantSkipTime": -1.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": false,
+          "bIsSequenceFadeOut": false,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 50,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_OctopusSpinCup_test": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/GameFeatures/Pukaland/SkyDance/PukaLand_bazhuayu.PukaLand_bazhuayu",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": false,
+          "CantSkipTime": 0.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": true,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 90,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      },
+      "SQ_SkyDance": {
+        "SequenceTemple": {
+          "AssetPathName": "/Game/Blueprints/GameFeatures/Pukaland/SkyDance/PukaLand_yixiang.PukaLand_yixiang",
+          "SubPathString": ""
+        },
+        "Settings": {
+          "bAutoPlay": false,
+          "LoopCount": {
+            "Value": 0
+          },
+          "TickInterval": {
+            "TickIntervalSeconds": 0.0,
+            "EvaluationBudgetMicroseconds": 0.0,
+            "bTickWhenPaused": false,
+            "bAllowRounding": true
+          },
+          "PlayRate": 1.0,
+          "StartTime": 0.0,
+          "bRandomStartTime": false,
+          "bDisableMovementInput": false,
+          "bDisableLookAtInput": false,
+          "bHidePlayer": false,
+          "bHideHud": false,
+          "bDisableCameraCuts": false,
+          "FinishCompletionStateOverride": "EMovieSceneCompletionModeOverride::None",
+          "bPauseAtEnd": false,
+          "bInheritTickIntervalFromOwner": true,
+          "bDynamicWeighting": false
+        },
+        "GameplaySettings": {
+          "bDisableKeyboardInput": true,
+          "bHideUI": true,
+          "bHideCursor": true,
+          "bRecoverAllUIWhenEnd": true,
+          "bHideHeadUpInfo": true,
+          "bPauseCameraSwitch": true,
+          "bHideSpawnedNpc": true,
+          "bStopBehaviorTree": false,
+          "bHideVehicle": true,
+          "SpawnedNpcHideDistance": 3000.0,
+          "bHideSpawnedVisualActor": false,
+          "SpawnedVisualActorHideDistance": 3000.0,
+          "bStopToEnd": true,
+          "BackwardFrameStopTo": 6,
+          "bCheckSafeDistanceToPlayer": true,
+          "bDontSendClientSideCameraUpdatesToServer": true,
+          "bShowBulletScreen": true,
+          "bPauseGameSound": false,
+          "bBestViewDistanceQuality": false,
+          "CantSkipTime": 0.0,
+          "bSkipNeedConfirm": true,
+          "bCanFinishWhenFadeInOut": false,
+          "bIsSequenceFadeIn": true,
+          "bIsSequenceFadeOut": true,
+          "FadeOutSequenceTime": 0.8,
+          "bUseTransformOrigin": false,
+          "TransformOriginActor": null,
+          "TransformOrigin": {
+            "Rotation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0,
+              "W": 1.0,
+              "IsNormalized": true,
+              "Size": 1.0,
+              "SizeSquared": 1.0
+            },
+            "Translation": {
+              "X": 0.0,
+              "Y": 0.0,
+              "Z": 0.0
+            },
+            "Scale3D": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "bBreakAllSkillMontange": true,
+          "bActuallyStopBeforeAnim": false,
+          "bResetCamera": true,
+          "bSyncCameraYaw": false,
+          "bForceAddToNewSpawnedTickGroup": true,
+          "ShowSimpleActorNum": 90,
+          "bIgnoreWeatherInRoom": false,
+          "bNeverSilent": true,
+          "bHandlePause": false,
+          "bInvitedNpcHidden": true,
+          "bCanInterruptWhenTransfer": false,
+          "bIgnorDialogue": true
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,34 @@
+# 验证 2 基线快照  2026-10-06 14:59:03
+# 用途：SpeedOCRReader.swift / NetworkLocator.swift 在 70b4d17 已是 M 状态（历史改动），
+#       必须用本快照区分「task-1 改的」与「之前就改的」
+
+4e6c8b6a277f1b42ce31fd24b7e7060120e5a0151aa8a706637e3b8793b55d19  Sources/AuroraDrive/Inference/SpeedOCRReader.swift
+defe0f296300f12b51e708a1ebebf7c0807abe722ff4a53f27751a6e536d2b05  Sources/AuroraDrive/Locate/NetworkLocator.swift
+ff4e121670299f591a1ce3eb4c99133ed3b2360291e33eb4675e956a1a2fee35  Sources/AuroraDrive/Capture/CoordinateCapture.swift
+bd6852c6be6df53c7a1c1742d45344113d8dfe48f8e04db1e07f90adc5a04b65  Sources/AuroraDrive/App/MapWiring.swift
+ccc074efc0e13a1e3490dea5fd1a11947161d168ffb406c4f92ad6ffd8f816e6  Sources/AuroraDrive/App/MissionConsole.swift
+471e0707ea9964f4be83c67218714357b2733b9e74af794ed0e871806027dc90  Sources/AuroraDrive/Core/AuroraFlags.swift
+d08fc0c8866c4626a1c3cc79a481bbd133fc91940291f36770547ab2a258f85d  Sources/AuroraDrive/App/AuroraDriveApp.swift
+
+## git diff --numstat vs 70b4d17
+385	46	Sources/AuroraDrive/App/AuroraDriveApp.swift
+153	86	Sources/AuroraDrive/App/MapWiring.swift
+1274	92	Sources/AuroraDrive/App/MissionConsole.swift
+54	0	Sources/AuroraDrive/Capture/CoordinateCapture.swift
+103	14	Sources/AuroraDrive/Inference/SpeedOCRReader.swift
+23	67	Sources/AuroraDrive/Locate/NetworkLocator.swift
+
+## locatorTarget / setLocatorTarget 语义契约（task-1 不得改）
+
+定义:
+  AuroraDriveApp.swift:4084  var locatorTarget: (x: Double, y: Double)? = nil
+  AuroraDriveApp.swift:4215  func setLocatorTarget(x: Double, y: Double) { locatorTarget = (x, y) }
+  AuroraDriveApp.swift:4121  locatorTarget = nil   (清除)
+
+语义 = 世界坐标（UE5 厘米）。三处消费点证明:
+  MissionConsole.swift:2365  let dx = Double(t.x) - s.locatorX   → 之后 /100 得米，两者必须同系
+  MissionConsole.swift:3794  注释原文:「locatorTarget 存的是**世界坐标**(UE5 厘米，见 :1398 的 (t.x - locatorX)/100.0)」
+  MissionConsole.swift:772   注释原文:「locatorTarget 与 locatorX/Y 同为世界坐标」
+
+→ task-1 把 quest_index 的 x/y/z（世界坐标）直接喂 setLocatorTarget 是【正确】的，不得做坐标换算。
+→ 若 task-1 改了这个语义（例如改成存地图像素），即为 FAIL。

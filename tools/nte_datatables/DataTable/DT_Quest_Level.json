@@ -1,0 +1,801 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_Quest_Level",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_Quest_Level",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'QuestData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "q110091": {
+        "QuestId": "q110091",
+        "QuestName": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q110091_QuestName",
+          "SourceString": "猎人进阶指南",
+          "LocalizedString": "Guide for Advanced Hunters"
+        },
+        "ChapterID": "None",
+        "ChapterProgress": 100.0,
+        "DisplayMapName": "QiaoJianDi",
+        "TrackMapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsFloorArea": "None",
+        "floor": 0,
+        "bNeedCrossBox": false,
+        "bProgressNeedTrack": false,
+        "bAllowPukalandCancelTracking": true,
+        "ObjectivesInfo": [
+          {
+            "NeedLevel": 10,
+            "ObjectiveID": "1",
+            "ObjectiveTips": "序章q110088-塔吉多q110150",
+            "ObjectiveType": "EObjectiveType::EOT_ROLE_LEVEL",
+            "Amount": 1,
+            "TargetType": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "MonsterTrackIcon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "TargetTag": "None",
+            "Optional": false,
+            "Description": {
+              "TableId": "/Game/Text/ST_Quest.ST_Quest",
+              "Key": "QuestLevelCondition",
+              "SourceString": "将<blue>猎人等级</>提升到<red>{0}</>级",
+              "LocalizedString": "Reach <blue>Hunter Level</> <red>{0}</>"
+            },
+            "CompletedDescription": {
+              "CultureInvariantString": null
+            },
+            "NeedShowProgress": false,
+            "bHideTrackIndicatorInFightState": true,
+            "IntroduceInfo": null,
+            "bOnlyInClient": false,
+            "TrackInfo": null,
+            "CompleteTeleportID": "None",
+            "CompleteTeleport": null,
+            "CompleteCameraRotation": null,
+            "CompleteDistance": null,
+            "ShortcutJumpData": null
+          }
+        ],
+        "QuestType": "EQuestType::EQT_MAIN",
+        "bNeedRedpoint": false,
+        "bLoop": false,
+        "ObjectiveType": "EQuestProcessType::EQPT_SEQUENCE",
+        "bMainQuestAutoSpeak": true,
+        "bShowQuestAcceptTips": false,
+        "bShowQuestCompleteTip": false,
+        "HideOrShowMainFormWidgets": null,
+        "bHideQuestMark": false,
+        "bHideTrackMark": false,
+        "ShowAcceptMsg": false,
+        "ShowSubmitMsg": false,
+        "bNeedPlayAnimation": true,
+        "bUseSpecialQuestSettleUI": false,
+        "bForceHybridQuest": false,
+        "PanelDescription": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q999999_QuestPanel",
+          "SourceString": "当前猎人等级不足，需提升等级以解锁新的主线任务。\r\n可通过以下方式快速获得猎人经验：\r\n・完成<orange>探索指南中的活跃度任务与阶段任务</>\r\n・提升<orange>大亨等级</>\r\n・消耗<orange>本性像素</>\r\n・完成<orange>各类任务内容</>\r\n・完成<orange>异象委托</>等大世界玩法",
+          "LocalizedString": "Your Hunter Level is too low to unlock new Main Quests.\r\nQuick ways to earn Hunter EXP:\r\nComplete <orange>Participation Quests and Stage Quests in the Exploration Guide</>\r\nIncrease your <orange>Tycoon Level</>\r\nSpend <orange>Character Pixels</>\r\nComplete <orange>various Quests</>\r\nComplete <orange>Anomaly Commissions</> and other Open World modes"
+        },
+        "UnlockTeleportID": "None",
+        "BuffInfo": null,
+        "TrackQuestConditionRange": null,
+        "TrackConditionList": [],
+        "PreQuests": [
+          {
+            "PreQuestName": "q110088",
+            "ObjectiveID": "1"
+          }
+        ],
+        "PreQuestConditionType": "EQuestConditionType::And",
+        "NeedLevel": 0,
+        "NeedYahahaID": "None",
+        "NeedVisionID": "None",
+        "NeedTycoonLevel": 0,
+        "AcceptQuestConditionRange": null,
+        "NeedConditionType": "EQuestConditionType::And",
+        "bNotSatisfyCanNotAccept": false,
+        "SatisfyData": null,
+        "LimitMapName": "None",
+        "QuestResetTime": null,
+        "FailedData": null,
+        "NextQuests": [
+          "q110150"
+        ],
+        "bAutoNext": true,
+        "NeedSubmit": false,
+        "PatcherTag": "None",
+        "QuestSubmitDescription": {
+          "CultureInvariantString": null
+        },
+        "SubmitConsume": null,
+        "UIParamString": "",
+        "bFreezeSinPoint": false,
+        "bNeedTmporaryTrack": true,
+        "bForceTrack": false,
+        "bForceTrackExceptMain": false,
+        "NeedIgnoreFavorabilityNPCWhenTracking": false,
+        "bCanMainQuestChangeTrack": true,
+        "LikeabilityData": null,
+        "QuestAward": null,
+        "QuestTimeLock": null,
+        "QuestWeatherLock": null,
+        "ReloadLocation": null,
+        "TrialCharacterID": "None",
+        "ActivateYahahaID": "None",
+        "SubmitActivateYahahaIDs": [],
+        "AcceptActivateYahahaIDs": [],
+        "ActivateFogID": "None",
+        "bChangeTrackAnim": false,
+        "CustomTrackText": {
+          "CultureInvariantString": null
+        }
+      },
+      "q1101501": {
+        "QuestId": "q1101501",
+        "QuestName": {
+          "TableId": "/Game/Text/ST_MainQuest.ST_MainQuest",
+          "Key": "q1101501_QuestName",
+          "SourceString": "猎人进阶指南",
+          "LocalizedString": "Guide for Advanced Hunters"
+        },
+        "ChapterID": "None",
+        "ChapterProgress": 100.0,
+        "DisplayMapName": "QiaoJianDi",
+        "TrackMapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsFloorArea": "None",
+        "floor": 0,
+        "bNeedCrossBox": false,
+        "bProgressNeedTrack": false,
+        "bAllowPukalandCancelTracking": true,
+        "ObjectivesInfo": [
+          {
+            "NeedLevel": 10,
+            "ObjectiveID": "1",
+            "ObjectiveTips": "（弃用）塔吉多q110192-月光当铺q110101",
+            "ObjectiveType": "EObjectiveType::EOT_ROLE_LEVEL",
+            "Amount": 1,
+            "TargetType": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "MonsterTrackIcon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "TargetTag": "None",
+            "Optional": false,
+            "Description": {
+              "TableId": "/Game/Text/ST_Quest.ST_Quest",
+              "Key": "QuestLevelCondition",
+              "SourceString": "将<blue>猎人等级</>提升到<red>{0}</>级",
+              "LocalizedString": "Reach <blue>Hunter Level</> <red>{0}</>"
+            },
+            "CompletedDescription": {
+              "CultureInvariantString": null
+            },
+            "NeedShowProgress": false,
+            "bHideTrackIndicatorInFightState": true,
+            "IntroduceInfo": null,
+            "bOnlyInClient": false,
+            "TrackInfo": null,
+            "CompleteTeleportID": "None",
+            "CompleteTeleport": null,
+            "CompleteCameraRotation": null,
+            "CompleteDistance": null,
+            "ShortcutJumpData": null
+          }
+        ],
+        "QuestType": "EQuestType::EQT_EASTER_EGG",
+        "bNeedRedpoint": false,
+        "bLoop": false,
+        "ObjectiveType": "EQuestProcessType::EQPT_SEQUENCE",
+        "bMainQuestAutoSpeak": true,
+        "bShowQuestAcceptTips": false,
+        "bShowQuestCompleteTip": false,
+        "HideOrShowMainFormWidgets": null,
+        "bHideQuestMark": false,
+        "bHideTrackMark": false,
+        "ShowAcceptMsg": false,
+        "ShowSubmitMsg": false,
+        "bNeedPlayAnimation": true,
+        "bUseSpecialQuestSettleUI": false,
+        "bForceHybridQuest": false,
+        "PanelDescription": {
+          "TableId": "/Game/Text/ST_MainQuest.ST_MainQuest",
+          "Key": "q1101501_QuestPanel",
+          "SourceString": " ",
+          "LocalizedString": " "
+        },
+        "UnlockTeleportID": "None",
+        "BuffInfo": null,
+        "TrackQuestConditionRange": null,
+        "TrackConditionList": [],
+        "PreQuests": [
+          {
+            "PreQuestName": "q110192",
+            "ObjectiveID": "1"
+          }
+        ],
+        "PreQuestConditionType": "EQuestConditionType::And",
+        "NeedLevel": 0,
+        "NeedYahahaID": "None",
+        "NeedVisionID": "None",
+        "NeedTycoonLevel": 0,
+        "AcceptQuestConditionRange": null,
+        "NeedConditionType": "EQuestConditionType::And",
+        "bNotSatisfyCanNotAccept": false,
+        "SatisfyData": null,
+        "LimitMapName": "None",
+        "QuestResetTime": null,
+        "FailedData": null,
+        "NextQuests": [],
+        "bAutoNext": true,
+        "NeedSubmit": false,
+        "PatcherTag": "None",
+        "QuestSubmitDescription": {
+          "CultureInvariantString": null
+        },
+        "SubmitConsume": null,
+        "UIParamString": "LikeabilityChatMain",
+        "bFreezeSinPoint": false,
+        "bNeedTmporaryTrack": true,
+        "bForceTrack": false,
+        "bForceTrackExceptMain": false,
+        "NeedIgnoreFavorabilityNPCWhenTracking": false,
+        "bCanMainQuestChangeTrack": true,
+        "LikeabilityData": null,
+        "QuestAward": null,
+        "QuestTimeLock": null,
+        "QuestWeatherLock": null,
+        "ReloadLocation": null,
+        "TrialCharacterID": "None",
+        "ActivateYahahaID": "None",
+        "SubmitActivateYahahaIDs": [],
+        "AcceptActivateYahahaIDs": [],
+        "ActivateFogID": "None",
+        "bChangeTrackAnim": false,
+        "CustomTrackText": {
+          "CultureInvariantString": null
+        }
+      },
+      "q110300": {
+        "QuestId": "q110300",
+        "QuestName": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q110091_QuestName",
+          "SourceString": "猎人进阶指南",
+          "LocalizedString": "Guide for Advanced Hunters"
+        },
+        "ChapterID": "None",
+        "ChapterProgress": 100.0,
+        "DisplayMapName": "QiaoJianDi",
+        "TrackMapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsFloorArea": "None",
+        "floor": 0,
+        "bNeedCrossBox": false,
+        "bProgressNeedTrack": false,
+        "bAllowPukalandCancelTracking": true,
+        "ObjectivesInfo": [
+          {
+            "NeedLevel": 14,
+            "ObjectiveID": "1",
+            "ObjectiveTips": "塔吉多q110192-拍卖会q110301",
+            "ObjectiveType": "EObjectiveType::EOT_ROLE_LEVEL",
+            "Amount": 1,
+            "TargetType": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "MonsterTrackIcon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "TargetTag": "None",
+            "Optional": false,
+            "Description": {
+              "TableId": "/Game/Text/ST_Quest.ST_Quest",
+              "Key": "QuestLevelCondition",
+              "SourceString": "将<blue>猎人等级</>提升到<red>{0}</>级",
+              "LocalizedString": "Reach <blue>Hunter Level</> <red>{0}</>"
+            },
+            "CompletedDescription": {
+              "CultureInvariantString": null
+            },
+            "NeedShowProgress": false,
+            "bHideTrackIndicatorInFightState": true,
+            "IntroduceInfo": null,
+            "bOnlyInClient": false,
+            "TrackInfo": null,
+            "CompleteTeleportID": "None",
+            "CompleteTeleport": null,
+            "CompleteCameraRotation": null,
+            "CompleteDistance": null,
+            "ShortcutJumpData": null
+          }
+        ],
+        "QuestType": "EQuestType::EQT_MAIN",
+        "bNeedRedpoint": false,
+        "bLoop": false,
+        "ObjectiveType": "EQuestProcessType::EQPT_SEQUENCE",
+        "bMainQuestAutoSpeak": true,
+        "bShowQuestAcceptTips": false,
+        "bShowQuestCompleteTip": false,
+        "HideOrShowMainFormWidgets": null,
+        "bHideQuestMark": false,
+        "bHideTrackMark": false,
+        "ShowAcceptMsg": false,
+        "ShowSubmitMsg": false,
+        "bNeedPlayAnimation": true,
+        "bUseSpecialQuestSettleUI": false,
+        "bForceHybridQuest": false,
+        "PanelDescription": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q999999_QuestPanel",
+          "SourceString": "当前猎人等级不足，需提升等级以解锁新的主线任务。\r\n可通过以下方式快速获得猎人经验：\r\n・完成<orange>探索指南中的活跃度任务与阶段任务</>\r\n・提升<orange>大亨等级</>\r\n・消耗<orange>本性像素</>\r\n・完成<orange>各类任务内容</>\r\n・完成<orange>异象委托</>等大世界玩法",
+          "LocalizedString": "Your Hunter Level is too low to unlock new Main Quests.\r\nQuick ways to earn Hunter EXP:\r\nComplete <orange>Participation Quests and Stage Quests in the Exploration Guide</>\r\nIncrease your <orange>Tycoon Level</>\r\nSpend <orange>Character Pixels</>\r\nComplete <orange>various Quests</>\r\nComplete <orange>Anomaly Commissions</> and other Open World modes"
+        },
+        "UnlockTeleportID": "None",
+        "BuffInfo": null,
+        "TrackQuestConditionRange": null,
+        "TrackConditionList": [],
+        "PreQuests": [
+          {
+            "PreQuestName": "q110192",
+            "ObjectiveID": "1"
+          }
+        ],
+        "PreQuestConditionType": "EQuestConditionType::And",
+        "NeedLevel": 0,
+        "NeedYahahaID": "None",
+        "NeedVisionID": "None",
+        "NeedTycoonLevel": 0,
+        "AcceptQuestConditionRange": null,
+        "NeedConditionType": "EQuestConditionType::And",
+        "bNotSatisfyCanNotAccept": false,
+        "SatisfyData": null,
+        "LimitMapName": "None",
+        "QuestResetTime": null,
+        "FailedData": null,
+        "NextQuests": [
+          "q110301"
+        ],
+        "bAutoNext": true,
+        "NeedSubmit": false,
+        "PatcherTag": "None",
+        "QuestSubmitDescription": {
+          "CultureInvariantString": null
+        },
+        "SubmitConsume": null,
+        "UIParamString": "",
+        "bFreezeSinPoint": false,
+        "bNeedTmporaryTrack": true,
+        "bForceTrack": false,
+        "bForceTrackExceptMain": false,
+        "NeedIgnoreFavorabilityNPCWhenTracking": false,
+        "bCanMainQuestChangeTrack": true,
+        "LikeabilityData": null,
+        "QuestAward": null,
+        "QuestTimeLock": null,
+        "QuestWeatherLock": null,
+        "ReloadLocation": null,
+        "TrialCharacterID": "None",
+        "ActivateYahahaID": "None",
+        "SubmitActivateYahahaIDs": [],
+        "AcceptActivateYahahaIDs": [],
+        "ActivateFogID": "None",
+        "bChangeTrackAnim": false,
+        "CustomTrackText": {
+          "CultureInvariantString": null
+        }
+      },
+      "q110400": {
+        "QuestId": "q110400",
+        "QuestName": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q110091_QuestName",
+          "SourceString": "猎人进阶指南",
+          "LocalizedString": "Guide for Advanced Hunters"
+        },
+        "ChapterID": "None",
+        "ChapterProgress": 200.0,
+        "DisplayMapName": "QiaoJianDi",
+        "TrackMapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsFloorArea": "None",
+        "floor": 0,
+        "bNeedCrossBox": false,
+        "bProgressNeedTrack": false,
+        "bAllowPukalandCancelTracking": true,
+        "ObjectivesInfo": [
+          {
+            "NeedLevel": 24,
+            "ObjectiveID": "1",
+            "ObjectiveTips": "拍卖会q110394-讨债人q110401",
+            "ObjectiveType": "EObjectiveType::EOT_ROLE_LEVEL",
+            "Amount": 1,
+            "TargetType": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "MonsterTrackIcon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "TargetTag": "None",
+            "Optional": false,
+            "Description": {
+              "TableId": "/Game/Text/ST_Quest.ST_Quest",
+              "Key": "QuestLevelCondition",
+              "SourceString": "将<blue>猎人等级</>提升到<red>{0}</>级",
+              "LocalizedString": "Reach <blue>Hunter Level</> <red>{0}</>"
+            },
+            "CompletedDescription": {
+              "CultureInvariantString": null
+            },
+            "NeedShowProgress": false,
+            "bHideTrackIndicatorInFightState": true,
+            "IntroduceInfo": null,
+            "bOnlyInClient": false,
+            "TrackInfo": null,
+            "CompleteTeleportID": "None",
+            "CompleteTeleport": null,
+            "CompleteCameraRotation": null,
+            "CompleteDistance": null,
+            "ShortcutJumpData": null
+          }
+        ],
+        "QuestType": "EQuestType::EQT_MAIN",
+        "bNeedRedpoint": false,
+        "bLoop": false,
+        "ObjectiveType": "EQuestProcessType::EQPT_SEQUENCE",
+        "bMainQuestAutoSpeak": true,
+        "bShowQuestAcceptTips": false,
+        "bShowQuestCompleteTip": false,
+        "HideOrShowMainFormWidgets": null,
+        "bHideQuestMark": false,
+        "bHideTrackMark": false,
+        "ShowAcceptMsg": false,
+        "ShowSubmitMsg": false,
+        "bNeedPlayAnimation": true,
+        "bUseSpecialQuestSettleUI": false,
+        "bForceHybridQuest": false,
+        "PanelDescription": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q999999_QuestPanel",
+          "SourceString": "当前猎人等级不足，需提升等级以解锁新的主线任务。\r\n可通过以下方式快速获得猎人经验：\r\n・完成<orange>探索指南中的活跃度任务与阶段任务</>\r\n・提升<orange>大亨等级</>\r\n・消耗<orange>本性像素</>\r\n・完成<orange>各类任务内容</>\r\n・完成<orange>异象委托</>等大世界玩法",
+          "LocalizedString": "Your Hunter Level is too low to unlock new Main Quests.\r\nQuick ways to earn Hunter EXP:\r\nComplete <orange>Participation Quests and Stage Quests in the Exploration Guide</>\r\nIncrease your <orange>Tycoon Level</>\r\nSpend <orange>Character Pixels</>\r\nComplete <orange>various Quests</>\r\nComplete <orange>Anomaly Commissions</> and other Open World modes"
+        },
+        "UnlockTeleportID": "None",
+        "BuffInfo": null,
+        "TrackQuestConditionRange": null,
+        "TrackConditionList": [],
+        "PreQuests": [
+          {
+            "PreQuestName": "q110394",
+            "ObjectiveID": "1"
+          }
+        ],
+        "PreQuestConditionType": "EQuestConditionType::And",
+        "NeedLevel": 0,
+        "NeedYahahaID": "None",
+        "NeedVisionID": "None",
+        "NeedTycoonLevel": 0,
+        "AcceptQuestConditionRange": null,
+        "NeedConditionType": "EQuestConditionType::And",
+        "bNotSatisfyCanNotAccept": false,
+        "SatisfyData": null,
+        "LimitMapName": "None",
+        "QuestResetTime": null,
+        "FailedData": null,
+        "NextQuests": [
+          "q110401"
+        ],
+        "bAutoNext": true,
+        "NeedSubmit": false,
+        "PatcherTag": "None",
+        "QuestSubmitDescription": {
+          "CultureInvariantString": null
+        },
+        "SubmitConsume": null,
+        "UIParamString": "",
+        "bFreezeSinPoint": false,
+        "bNeedTmporaryTrack": true,
+        "bForceTrack": false,
+        "bForceTrackExceptMain": false,
+        "NeedIgnoreFavorabilityNPCWhenTracking": false,
+        "bCanMainQuestChangeTrack": true,
+        "LikeabilityData": null,
+        "QuestAward": null,
+        "QuestTimeLock": null,
+        "QuestWeatherLock": null,
+        "ReloadLocation": null,
+        "TrialCharacterID": "None",
+        "ActivateYahahaID": "None",
+        "SubmitActivateYahahaIDs": [],
+        "AcceptActivateYahahaIDs": [],
+        "ActivateFogID": "None",
+        "bChangeTrackAnim": false,
+        "CustomTrackText": {
+          "CultureInvariantString": null
+        }
+      },
+      "L110300": {
+        "QuestId": "L110300",
+        "QuestName": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q110091_QuestName",
+          "SourceString": "猎人进阶指南",
+          "LocalizedString": "Guide for Advanced Hunters"
+        },
+        "ChapterID": "None",
+        "ChapterProgress": 300.0,
+        "DisplayMapName": "QiaoJianDi",
+        "TrackMapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsFloorArea": "None",
+        "floor": 0,
+        "bNeedCrossBox": false,
+        "bProgressNeedTrack": false,
+        "bAllowPukalandCancelTracking": true,
+        "ObjectivesInfo": [
+          {
+            "NeedLevel": 26,
+            "ObjectiveID": "1",
+            "ObjectiveTips": "真红任务前置等级限制",
+            "ObjectiveType": "EObjectiveType::EOT_ROLE_LEVEL",
+            "Amount": 1,
+            "TargetType": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "MonsterTrackIcon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "TargetTag": "None",
+            "Optional": false,
+            "Description": {
+              "TableId": "/Game/Text/ST_Quest.ST_Quest",
+              "Key": "QuestLevelCondition",
+              "SourceString": "将<blue>猎人等级</>提升到<red>{0}</>级",
+              "LocalizedString": "Reach <blue>Hunter Level</> <red>{0}</>"
+            },
+            "CompletedDescription": {
+              "CultureInvariantString": null
+            },
+            "NeedShowProgress": false,
+            "bHideTrackIndicatorInFightState": true,
+            "IntroduceInfo": null,
+            "bOnlyInClient": false,
+            "TrackInfo": null,
+            "CompleteTeleportID": "None",
+            "CompleteTeleport": null,
+            "CompleteCameraRotation": null,
+            "CompleteDistance": null,
+            "ShortcutJumpData": null
+          }
+        ],
+        "QuestType": "EQuestType::EQT_LEGEND",
+        "bNeedRedpoint": false,
+        "bLoop": false,
+        "ObjectiveType": "EQuestProcessType::EQPT_SEQUENCE",
+        "bMainQuestAutoSpeak": true,
+        "bShowQuestAcceptTips": false,
+        "bShowQuestCompleteTip": false,
+        "HideOrShowMainFormWidgets": null,
+        "bHideQuestMark": false,
+        "bHideTrackMark": false,
+        "ShowAcceptMsg": false,
+        "ShowSubmitMsg": false,
+        "bNeedPlayAnimation": true,
+        "bUseSpecialQuestSettleUI": false,
+        "bForceHybridQuest": false,
+        "PanelDescription": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q999999_QuestPanel",
+          "SourceString": "当前猎人等级不足，需提升等级以解锁新的主线任务。\r\n可通过以下方式快速获得猎人经验：\r\n・完成<orange>探索指南中的活跃度任务与阶段任务</>\r\n・提升<orange>大亨等级</>\r\n・消耗<orange>本性像素</>\r\n・完成<orange>各类任务内容</>\r\n・完成<orange>异象委托</>等大世界玩法",
+          "LocalizedString": "Your Hunter Level is too low to unlock new Main Quests.\r\nQuick ways to earn Hunter EXP:\r\nComplete <orange>Participation Quests and Stage Quests in the Exploration Guide</>\r\nIncrease your <orange>Tycoon Level</>\r\nSpend <orange>Character Pixels</>\r\nComplete <orange>various Quests</>\r\nComplete <orange>Anomaly Commissions</> and other Open World modes"
+        },
+        "UnlockTeleportID": "None",
+        "BuffInfo": null,
+        "TrackQuestConditionRange": null,
+        "TrackConditionList": [],
+        "PreQuests": [
+          {
+            "PreQuestName": "q110784",
+            "ObjectiveID": "1"
+          }
+        ],
+        "PreQuestConditionType": "EQuestConditionType::And",
+        "NeedLevel": 0,
+        "NeedYahahaID": "None",
+        "NeedVisionID": "None",
+        "NeedTycoonLevel": 0,
+        "AcceptQuestConditionRange": null,
+        "NeedConditionType": "EQuestConditionType::And",
+        "bNotSatisfyCanNotAccept": false,
+        "SatisfyData": null,
+        "LimitMapName": "None",
+        "QuestResetTime": null,
+        "FailedData": null,
+        "NextQuests": [
+          "L110301_F"
+        ],
+        "bAutoNext": true,
+        "NeedSubmit": false,
+        "PatcherTag": "None",
+        "QuestSubmitDescription": {
+          "CultureInvariantString": null
+        },
+        "SubmitConsume": null,
+        "UIParamString": "",
+        "bFreezeSinPoint": false,
+        "bNeedTmporaryTrack": true,
+        "bForceTrack": false,
+        "bForceTrackExceptMain": false,
+        "NeedIgnoreFavorabilityNPCWhenTracking": false,
+        "bCanMainQuestChangeTrack": true,
+        "LikeabilityData": null,
+        "QuestAward": null,
+        "QuestTimeLock": null,
+        "QuestWeatherLock": null,
+        "ReloadLocation": null,
+        "TrialCharacterID": "None",
+        "ActivateYahahaID": "None",
+        "SubmitActivateYahahaIDs": [],
+        "AcceptActivateYahahaIDs": [],
+        "ActivateFogID": "None",
+        "bChangeTrackAnim": false,
+        "CustomTrackText": {
+          "CultureInvariantString": null
+        }
+      },
+      "q110600": {
+        "QuestId": "q110600",
+        "QuestName": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q110091_QuestName",
+          "SourceString": "猎人进阶指南",
+          "LocalizedString": "Guide for Advanced Hunters"
+        },
+        "ChapterID": "None",
+        "ChapterProgress": 300.0,
+        "DisplayMapName": "QiaoJianDi",
+        "TrackMapName": "XL_map_bigworld_test",
+        "BelongsGameplayAreaID": "None",
+        "BelongsFloorArea": "None",
+        "floor": 0,
+        "bNeedCrossBox": false,
+        "bProgressNeedTrack": false,
+        "bAllowPukalandCancelTracking": true,
+        "ObjectivesInfo": [
+          {
+            "NeedLevel": 1,
+            "ObjectiveID": "1",
+            "ObjectiveTips": "雾巢任务前置等级限制（临时",
+            "ObjectiveType": "EObjectiveType::EOT_ROLE_LEVEL",
+            "Amount": 1,
+            "TargetType": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "MonsterTrackIcon": {
+              "AssetPathName": "",
+              "SubPathString": ""
+            },
+            "TargetTag": "None",
+            "Optional": false,
+            "Description": {
+              "TableId": "/Game/Text/ST_Quest.ST_Quest",
+              "Key": "QuestLevelCondition",
+              "SourceString": "将<blue>猎人等级</>提升到<red>{0}</>级",
+              "LocalizedString": "Reach <blue>Hunter Level</> <red>{0}</>"
+            },
+            "CompletedDescription": {
+              "CultureInvariantString": null
+            },
+            "NeedShowProgress": false,
+            "bHideTrackIndicatorInFightState": true,
+            "IntroduceInfo": null,
+            "bOnlyInClient": false,
+            "TrackInfo": null,
+            "CompleteTeleportID": "None",
+            "CompleteTeleport": null,
+            "CompleteCameraRotation": null,
+            "CompleteDistance": null,
+            "ShortcutJumpData": null
+          }
+        ],
+        "QuestType": "EQuestType::EQT_MAIN",
+        "bNeedRedpoint": false,
+        "bLoop": false,
+        "ObjectiveType": "EQuestProcessType::EQPT_SEQUENCE",
+        "bMainQuestAutoSpeak": true,
+        "bShowQuestAcceptTips": false,
+        "bShowQuestCompleteTip": false,
+        "HideOrShowMainFormWidgets": null,
+        "bHideQuestMark": false,
+        "bHideTrackMark": false,
+        "ShowAcceptMsg": false,
+        "ShowSubmitMsg": false,
+        "bNeedPlayAnimation": true,
+        "bUseSpecialQuestSettleUI": false,
+        "bForceHybridQuest": false,
+        "PanelDescription": {
+          "TableId": "/Game/Text/ST_Mainquest_prologue.ST_Mainquest_prologue",
+          "Key": "q999999_QuestPanel",
+          "SourceString": "当前猎人等级不足，需提升等级以解锁新的主线任务。\r\n可通过以下方式快速获得猎人经验：\r\n・完成<orange>探索指南中的活跃度任务与阶段任务</>\r\n・提升<orange>大亨等级</>\r\n・消耗<orange>本性像素</>\r\n・完成<orange>各类任务内容</>\r\n・完成<orange>异象委托</>等大世界玩法",
+          "LocalizedString": "Your Hunter Level is too low to unlock new Main Quests.\r\nQuick ways to earn Hunter EXP:\r\nComplete <orange>Participation Quests and Stage Quests in the Exploration Guide</>\r\nIncrease your <orange>Tycoon Level</>\r\nSpend <orange>Character Pixels</>\r\nComplete <orange>various Quests</>\r\nComplete <orange>Anomaly Commissions</> and other Open World modes"
+        },
+        "UnlockTeleportID": "None",
+        "BuffInfo": null,
+        "TrackQuestConditionRange": null,
+        "TrackConditionList": [],
+        "PreQuests": [
+          {
+            "PreQuestName": "L110355",
+            "ObjectiveID": "1"
+          }
+        ],
+        "PreQuestConditionType": "EQuestConditionType::And",
+        "NeedLevel": 0,
+        "NeedYahahaID": "None",
+        "NeedVisionID": "None",
+        "NeedTycoonLevel": 0,
+        "AcceptQuestConditionRange": null,
+        "NeedConditionType": "EQuestConditionType::And",
+        "bNotSatisfyCanNotAccept": false,
+        "SatisfyData": null,
+        "LimitMapName": "None",
+        "QuestResetTime": null,
+        "FailedData": null,
+        "NextQuests": [
+          "q110601"
+        ],
+        "bAutoNext": true,
+        "NeedSubmit": false,
+        "PatcherTag": "None",
+        "QuestSubmitDescription": {
+          "CultureInvariantString": null
+        },
+        "SubmitConsume": null,
+        "UIParamString": "",
+        "bFreezeSinPoint": false,
+        "bNeedTmporaryTrack": true,
+        "bForceTrack": false,
+        "bForceTrackExceptMain": false,
+        "NeedIgnoreFavorabilityNPCWhenTracking": false,
+        "bCanMainQuestChangeTrack": true,
+        "LikeabilityData": null,
+        "QuestAward": null,
+        "QuestTimeLock": null,
+        "QuestWeatherLock": null,
+        "ReloadLocation": null,
+        "TrialCharacterID": "None",
+        "ActivateYahahaID": "None",
+        "SubmitActivateYahahaIDs": [],
+        "AcceptActivateYahahaIDs": [],
+        "ActivateFogID": "None",
+        "bChangeTrackAnim": false,
+        "CustomTrackText": {
+          "CultureInvariantString": null
+        }
+      }
+    }
+  }
+]

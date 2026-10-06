@@ -1,0 +1,77 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_GoogleAchievement_Oversea",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_GoogleAchievement_Oversea",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'GoogleAchievementTableRow'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "explore_27": {
+        "AchievementId": "CgkIsb71ioMcEAIQAQ",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQAQ"
+      },
+      "explore_25": {
+        "AchievementId": "CgkIsb71ioMcEAIQAg",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQAg"
+      },
+      "quest_1": {
+        "AchievementId": "CgkIsb71ioMcEAIQDg",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQAw"
+      },
+      "Life_31": {
+        "AchievementId": "CgkIsb71ioMcEAIQCA",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQBA"
+      },
+      "battle_6": {
+        "AchievementId": "CgkIsb71ioMcEAIQDQ",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQBQ"
+      },
+      "interest_3": {
+        "AchievementId": "CgkIsb71ioMcEAIQDw",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQBg"
+      },
+      "friendship_32": {
+        "AchievementId": "CgkIsb71ioMcEAIQBQ",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQBw"
+      },
+      "Life_67": {
+        "AchievementId": "CgkIsb71ioMcEAIQBg",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQCA"
+      },
+      "Life_70": {
+        "AchievementId": "CgkIsb71ioMcEAIQDA",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQDw"
+      },
+      "develop_1": {
+        "AchievementId": "CgkIsb71ioMcEAIQBw",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQCg"
+      },
+      "develop_7": {
+        "AchievementId": "CgkIsb71ioMcEAIQCQ",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQCw"
+      },
+      "explore_1": {
+        "AchievementId": "CgkIsb71ioMcEAIQBA",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQDA"
+      },
+      "Play_1": {
+        "AchievementId": "CgkIsb71ioMcEAIQCw",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQDQ"
+      },
+      "Play_13": {
+        "AchievementId": "CgkIsb71ioMcEAIQCg",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQDg"
+      },
+      "Play_27": {
+        "AchievementId": "CgkIsb71ioMcEAIQAw",
+        "AchievementID_IW": "CgkI1rHbyZYDEAIQDw"
+      }
+    }
+  }
+]

@@ -1,0 +1,19 @@
+[
+  {
+    "Type": "CollectibleDataAsset",
+    "Name": "DA_Collectible",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'CollectibleDataAsset'",
+    "Package": "/Game/Maps_4N/DataTable/DA_Collectible",
+    "Properties": {
+      "CollectibleGroupDataTable": {
+        "ObjectName": "DataTable'DT_CollectibleGroupDataTable'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/DT_CollectibleGroupDataTable.0"
+      },
+      "CollectiblePointDataTable": {
+        "ObjectName": "DataTable'DT_CollectiblePointDataTable'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/DT_CollectiblePointDataTable.0"
+      }
+    }
+  }
+]

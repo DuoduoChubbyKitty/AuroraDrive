@@ -1,0 +1,26 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_City",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_City",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'CityData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "City001": {
+        "CityName": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "DelegateMission_014",
+          "SourceString": "海特洛市",
+          "LocalizedString": "Hethereau"
+        },
+        "BelongsMapName": "XL_map_bigworld_test"
+      }
+    }
+  }
+]

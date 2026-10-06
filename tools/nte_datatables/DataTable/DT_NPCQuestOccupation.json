@@ -1,0 +1,1249 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_NPCQuestOccupation",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_NPCQuestOccupation",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'NPCQuestOccupation'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "NPC_001": {
+        "LockQuests": [
+          {
+            "BeginQuest": "K110501",
+            "EndQuest": "K110501",
+            "QuestChapter": "SU026_01"
+          },
+          {
+            "BeginQuest": "K110502",
+            "EndQuest": "K110506",
+            "QuestChapter": "SU026_02"
+          },
+          {
+            "BeginQuest": "K110507",
+            "EndQuest": "K110508",
+            "QuestChapter": "SU026_03"
+          },
+          {
+            "BeginQuest": "K110043",
+            "EndQuest": "K110048",
+            "QuestChapter": "SU003"
+          },
+          {
+            "BeginQuest": "s111819",
+            "EndQuest": "s111821",
+            "QuestChapter": "SU062"
+          },
+          {
+            "BeginQuest": "WJ101301_YC",
+            "EndQuest": "WJ101301_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ101401_YC",
+            "EndQuest": "WJ101401_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ101601_YC",
+            "EndQuest": "WJ101601_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_002": {
+        "LockQuests": [
+          {
+            "BeginQuest": "K112221",
+            "EndQuest": "K112223",
+            "QuestChapter": "SU109"
+          }
+        ]
+      },
+      "NPC_003": {
+        "LockQuests": [
+          {
+            "BeginQuest": "WJ102501_YC",
+            "EndQuest": "WJ102501_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ102601_YC",
+            "EndQuest": "WJ102601_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          },
+          {
+            "BeginQuest": "q110906",
+            "EndQuest": "q110977",
+            "QuestChapter": "MU01_08"
+          }
+        ]
+      },
+      "NPC_004": {
+        "LockQuests": [
+          {
+            "BeginQuest": "k111401",
+            "EndQuest": "k111404",
+            "QuestChapter": "SU029_01"
+          },
+          {
+            "BeginQuest": "k111405",
+            "EndQuest": "k111405",
+            "QuestChapter": "SU029_02"
+          },
+          {
+            "BeginQuest": "k111406",
+            "EndQuest": "k111407",
+            "QuestChapter": "SU029_03"
+          },
+          {
+            "BeginQuest": "WJ102101_YC",
+            "EndQuest": "WJ102101_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ102201_YC",
+            "EndQuest": "WJ102201_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ102301_YC",
+            "EndQuest": "WJ102301_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_005": {
+        "LockQuests": [
+          {
+            "BeginQuest": "K111101",
+            "EndQuest": "K111101",
+            "QuestChapter": "SU028_01"
+          },
+          {
+            "BeginQuest": "K111102",
+            "EndQuest": "K111103",
+            "QuestChapter": "SU028_02"
+          },
+          {
+            "BeginQuest": "K111104",
+            "EndQuest": "K111107",
+            "QuestChapter": "SU028_03"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          },
+          {
+            "BeginQuest": "q110906",
+            "EndQuest": "q110977",
+            "QuestChapter": "MU01_08"
+          }
+        ]
+      },
+      "NPC_006": {
+        "LockQuests": [
+          {
+            "BeginQuest": "WJ101901_YC",
+            "EndQuest": "WJ101901_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110401",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_007": {
+        "LockQuests": [
+          {
+            "BeginQuest": "K112221",
+            "EndQuest": "K112222",
+            "QuestChapter": "SU109"
+          }
+        ]
+      },
+      "NPC_008": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110040",
+            "EndQuest": "q110087",
+            "QuestChapter": "MP02"
+          },
+          {
+            "BeginQuest": "q110106",
+            "EndQuest": "q110137",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110151",
+            "EndQuest": "q110192",
+            "QuestChapter": "MU01_02"
+          },
+          {
+            "BeginQuest": "S110409",
+            "EndQuest": "S110412",
+            "QuestChapter": "SU005"
+          },
+          {
+            "BeginQuest": "S110801",
+            "EndQuest": "S110803",
+            "QuestChapter": "SU010"
+          },
+          {
+            "BeginQuest": "S110820",
+            "EndQuest": "S110820",
+            "QuestChapter": "SU010"
+          },
+          {
+            "BeginQuest": "q110501",
+            "EndQuest": "q1105992",
+            "QuestChapter": "MU01_05"
+          },
+          {
+            "BeginQuest": "WJ101001_YC",
+            "EndQuest": "WJ101001_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ101101_YC",
+            "EndQuest": "WJ101101_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ101201_YC",
+            "EndQuest": "WJ101201_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_009": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110040",
+            "EndQuest": "q110087",
+            "QuestChapter": "MP02"
+          },
+          {
+            "BeginQuest": "q110106",
+            "EndQuest": "q110107",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110119",
+            "EndQuest": "q110120_1",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110136",
+            "EndQuest": "q110136",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110151",
+            "EndQuest": "q110192",
+            "QuestChapter": "MU01_02"
+          },
+          {
+            "BeginQuest": "q110301",
+            "EndQuest": "q110394",
+            "QuestChapter": "MU01_03"
+          },
+          {
+            "BeginQuest": "K111005",
+            "EndQuest": "K111012",
+            "QuestChapter": "SU038_03"
+          },
+          {
+            "BeginQuest": "K111201",
+            "EndQuest": "K111202",
+            "QuestChapter": "SU037_01"
+          },
+          {
+            "BeginQuest": "K111211",
+            "EndQuest": "K111217",
+            "QuestChapter": "SU037_02"
+          },
+          {
+            "BeginQuest": "K111221",
+            "EndQuest": "K111222",
+            "QuestChapter": "SU037_03"
+          },
+          {
+            "BeginQuest": "q110401",
+            "EndQuest": "q110414",
+            "QuestChapter": "MU01_04"
+          },
+          {
+            "BeginQuest": "q110501",
+            "EndQuest": "q1105992",
+            "QuestChapter": "MU01_05"
+          },
+          {
+            "BeginQuest": "WJ103001_YC",
+            "EndQuest": "WJ103001_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ103101_YC",
+            "EndQuest": "WJ103101_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ103201_YC",
+            "EndQuest": "WJ103201_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "K112202",
+            "EndQuest": "K112202",
+            "QuestChapter": "SU107"
+          },
+          {
+            "BeginQuest": "K112211",
+            "EndQuest": "K112211",
+            "QuestChapter": "SU108"
+          },
+          {
+            "BeginQuest": "q110601",
+            "EndQuest": "q110784",
+            "QuestChapter": "MU01_06"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_010": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110040",
+            "EndQuest": "q110087",
+            "QuestChapter": "MP02"
+          },
+          {
+            "BeginQuest": "L110101",
+            "EndQuest": "L110139",
+            "QuestChapter": "LC02"
+          },
+          {
+            "BeginQuest": "q110106",
+            "EndQuest": "q110107",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110101",
+            "EndQuest": "q110105",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110119",
+            "EndQuest": "q110120_1",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110136",
+            "EndQuest": "q110136",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "L110001",
+            "EndQuest": "L110003",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "q110150",
+            "EndQuest": "q110192",
+            "QuestChapter": "MU01_02"
+          },
+          {
+            "BeginQuest": "S110801_1",
+            "EndQuest": "S110803",
+            "QuestChapter": "SU010"
+          },
+          {
+            "BeginQuest": "K110802",
+            "EndQuest": "K110804",
+            "QuestChapter": "SU024_01"
+          },
+          {
+            "BeginQuest": "q110301",
+            "EndQuest": "q110314",
+            "QuestChapter": "MU01_03"
+          },
+          {
+            "BeginQuest": "B110001",
+            "EndQuest": "B110002",
+            "QuestChapter": "SU039"
+          },
+          {
+            "BeginQuest": "K111701",
+            "EndQuest": "K111704",
+            "QuestChapter": "SU047"
+          },
+          {
+            "BeginQuest": "k111711",
+            "EndQuest": "k111714",
+            "QuestChapter": "SU048"
+          },
+          {
+            "BeginQuest": "k111721",
+            "EndQuest": "k111722",
+            "QuestChapter": "SU049"
+          },
+          {
+            "BeginQuest": "q110415",
+            "EndQuest": "q110415",
+            "QuestChapter": "MU01_04"
+          },
+          {
+            "BeginQuest": "q110402",
+            "EndQuest": "q110402",
+            "QuestChapter": "MU01_04"
+          },
+          {
+            "BeginQuest": "q110501",
+            "EndQuest": "q1105992",
+            "QuestChapter": "MU01_05"
+          },
+          {
+            "BeginQuest": "WJ100701_YC",
+            "EndQuest": "WJ100701_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "q110601",
+            "EndQuest": "q110784",
+            "QuestChapter": "MU01_06"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_011": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110040",
+            "EndQuest": "q110087",
+            "QuestChapter": "MP02"
+          },
+          {
+            "BeginQuest": "q110106",
+            "EndQuest": "q110137",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110151",
+            "EndQuest": "q110192",
+            "QuestChapter": "MU01_02"
+          },
+          {
+            "BeginQuest": "S110801",
+            "EndQuest": "S110803",
+            "QuestChapter": "SU010"
+          },
+          {
+            "BeginQuest": "S110820",
+            "EndQuest": "S110820",
+            "QuestChapter": "SU010"
+          },
+          {
+            "BeginQuest": "K110601",
+            "EndQuest": "K110604",
+            "QuestChapter": "SU023_01"
+          },
+          {
+            "BeginQuest": "K110605",
+            "EndQuest": "K110605",
+            "QuestChapter": "SU023_02"
+          },
+          {
+            "BeginQuest": "K110606",
+            "EndQuest": "K110607",
+            "QuestChapter": "SU023_03"
+          },
+          {
+            "BeginQuest": "q110301",
+            "EndQuest": "q110314",
+            "QuestChapter": "MU01_03"
+          },
+          {
+            "BeginQuest": "L110201",
+            "EndQuest": "L110266",
+            "QuestChapter": "LC03"
+          },
+          {
+            "BeginQuest": "q110401",
+            "EndQuest": "q110401",
+            "QuestChapter": "MU01_04"
+          },
+          {
+            "BeginQuest": "q110414",
+            "EndQuest": "q110493",
+            "QuestChapter": "MU01_04"
+          },
+          {
+            "BeginQuest": "q110501",
+            "EndQuest": "q1105992",
+            "QuestChapter": "MU01_05"
+          },
+          {
+            "BeginQuest": "WJ100101_YC",
+            "EndQuest": "WJ100101_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ100201_YC",
+            "EndQuest": "WJ100201_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ100301_YC",
+            "EndQuest": "WJ100301_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ100401_YC",
+            "EndQuest": "WJ100401_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ100501_YC",
+            "EndQuest": "WJ100501_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110401",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_012": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110040",
+            "EndQuest": "q110087",
+            "QuestChapter": "MP02"
+          },
+          {
+            "BeginQuest": "q110106",
+            "EndQuest": "q110137",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110150",
+            "EndQuest": "q110192",
+            "QuestChapter": "MU01_02"
+          },
+          {
+            "BeginQuest": "S110801",
+            "EndQuest": "S110803",
+            "QuestChapter": "SU010"
+          },
+          {
+            "BeginQuest": "S110820",
+            "EndQuest": "S110820",
+            "QuestChapter": "SU010"
+          },
+          {
+            "BeginQuest": "K110802",
+            "EndQuest": "K110804",
+            "QuestChapter": "SU024_01"
+          },
+          {
+            "BeginQuest": "K110805",
+            "EndQuest": "K110806",
+            "QuestChapter": "SU024_02"
+          },
+          {
+            "BeginQuest": "K110807",
+            "EndQuest": "K110808",
+            "QuestChapter": "SU024_03"
+          },
+          {
+            "BeginQuest": "q110501",
+            "EndQuest": "q1105992",
+            "QuestChapter": "MU01_05"
+          },
+          {
+            "BeginQuest": "WJ100901_YC",
+            "EndQuest": "WJ100901_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_013": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110040",
+            "EndQuest": "q110087",
+            "QuestChapter": "MP02"
+          },
+          {
+            "BeginQuest": "q110131",
+            "EndQuest": "q110134",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110150",
+            "EndQuest": "q110192",
+            "QuestChapter": "MU01_02"
+          },
+          {
+            "BeginQuest": "K111001",
+            "EndQuest": "K111001",
+            "QuestChapter": "SU038_01"
+          },
+          {
+            "BeginQuest": "K111002",
+            "EndQuest": "K111004",
+            "QuestChapter": "SU038_02"
+          },
+          {
+            "BeginQuest": "K111005",
+            "EndQuest": "K111012",
+            "QuestChapter": "SU038_03"
+          },
+          {
+            "BeginQuest": "q110401",
+            "EndQuest": "q110492",
+            "QuestChapter": "MU01_04"
+          },
+          {
+            "BeginQuest": "q110501",
+            "EndQuest": "q1105992",
+            "QuestChapter": "MU01_05"
+          },
+          {
+            "BeginQuest": "WJ103501_YC",
+            "EndQuest": "WJ103501_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "K112201",
+            "EndQuest": "K112202",
+            "QuestChapter": "SU107"
+          },
+          {
+            "BeginQuest": "q110601",
+            "EndQuest": "q110784",
+            "QuestChapter": "MU01_06"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_014": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110301",
+            "EndQuest": "q110394",
+            "QuestChapter": "MU01_03"
+          },
+          {
+            "BeginQuest": "K111601",
+            "EndQuest": "K111602",
+            "QuestChapter": "SU034_01"
+          },
+          {
+            "BeginQuest": "WJ104101_YC",
+            "EndQuest": "WJ104101_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110401",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_015": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110114",
+            "EndQuest": "q110117",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "q110301",
+            "EndQuest": "q110394",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "K111601",
+            "EndQuest": "K111602",
+            "QuestChapter": "SU034_01"
+          },
+          {
+            "BeginQuest": "K111603",
+            "EndQuest": "K111604",
+            "QuestChapter": "SU034_02"
+          },
+          {
+            "BeginQuest": "K111605",
+            "EndQuest": "K111610",
+            "QuestChapter": "SU034_03"
+          },
+          {
+            "BeginQuest": "WJ104201_YC",
+            "EndQuest": "WJ104201_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ104301_YC",
+            "EndQuest": "WJ104301_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ104401_YC",
+            "EndQuest": "WJ104401_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_016": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110301",
+            "EndQuest": "q110394",
+            "QuestChapter": "MU01_03"
+          },
+          {
+            "BeginQuest": "WJ103901_YC",
+            "EndQuest": "WJ103901_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_017": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110301",
+            "EndQuest": "q110394",
+            "QuestChapter": "MU01_03"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_018": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110301",
+            "EndQuest": "q110394",
+            "QuestChapter": "MU01_03"
+          },
+          {
+            "BeginQuest": "K111601",
+            "EndQuest": "K111602",
+            "QuestChapter": "SU034_01"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "Anomaly_004": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110040",
+            "EndQuest": "q110087",
+            "QuestChapter": "MP02"
+          },
+          {
+            "BeginQuest": "L110101",
+            "EndQuest": "L110139",
+            "QuestChapter": "LC02"
+          },
+          {
+            "BeginQuest": "q110101",
+            "EndQuest": "q110137",
+            "QuestChapter": "MU01_01"
+          },
+          {
+            "BeginQuest": "q110150",
+            "EndQuest": "q110192",
+            "QuestChapter": "MU01_02"
+          },
+          {
+            "BeginQuest": "S110801_1",
+            "EndQuest": "S110820",
+            "QuestChapter": "SU010"
+          },
+          {
+            "BeginQuest": "k110901",
+            "EndQuest": "k110902",
+            "QuestChapter": "SU025_01"
+          },
+          {
+            "BeginQuest": "k110903",
+            "EndQuest": "k110904",
+            "QuestChapter": "SU025_02"
+          },
+          {
+            "BeginQuest": "k110905",
+            "EndQuest": "k110906",
+            "QuestChapter": "SU025_03"
+          },
+          {
+            "BeginQuest": "q110301",
+            "EndQuest": "q110314",
+            "QuestChapter": "MU01_03"
+          },
+          {
+            "BeginQuest": "K111701",
+            "EndQuest": "k111702",
+            "QuestChapter": "SU047"
+          },
+          {
+            "BeginQuest": "q110415",
+            "EndQuest": "q110415",
+            "QuestChapter": "MU01_04"
+          },
+          {
+            "BeginQuest": "q110501",
+            "EndQuest": "q1105992",
+            "QuestChapter": "MU01_05"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "Anomaly_022": {
+        "LockQuests": [
+          {
+            "BeginQuest": "S110815",
+            "EndQuest": "S110819",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "K110336",
+            "EndQuest": "K110336",
+            "QuestChapter": "SU001"
+          },
+          {
+            "BeginQuest": "K111101",
+            "EndQuest": "K111101",
+            "QuestChapter": "SU028_01"
+          }
+        ]
+      },
+      "Anomaly_050": {
+        "LockQuests": [
+          {
+            "BeginQuest": "S110815",
+            "EndQuest": "S110819",
+            "QuestChapter": "SU010"
+          },
+          {
+            "BeginQuest": "K111101",
+            "EndQuest": "K111101",
+            "QuestChapter": "SU028_01"
+          }
+        ]
+      },
+      "Anomaly_001": {
+        "LockQuests": [
+          {
+            "BeginQuest": "S110815",
+            "EndQuest": "S110820",
+            "QuestChapter": "SU010"
+          }
+        ]
+      },
+      "NPC_06101": {
+        "LockQuests": [
+          {
+            "BeginQuest": "K110003",
+            "EndQuest": "K110007",
+            "QuestChapter": "SU003"
+          },
+          {
+            "BeginQuest": "K110012",
+            "EndQuest": "K110030",
+            "QuestChapter": "SU003"
+          },
+          {
+            "BeginQuest": "K1100303",
+            "EndQuest": "K110037",
+            "QuestChapter": "SU003"
+          },
+          {
+            "BeginQuest": "K110043",
+            "EndQuest": "K110048",
+            "QuestChapter": "SU003"
+          }
+        ]
+      },
+      "NPC_06001": {
+        "LockQuests": [
+          {
+            "BeginQuest": "S110513",
+            "EndQuest": "S110517",
+            "QuestChapter": "SU002"
+          }
+        ]
+      },
+      "NPC_06001_test": {
+        "LockQuests": [
+          {
+            "BeginQuest": "S110513",
+            "EndQuest": "S110517",
+            "QuestChapter": "SU002"
+          },
+          {
+            "BeginQuest": "q110040",
+            "EndQuest": "q110041",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110002",
+            "EndQuest": "L110003",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "K110001",
+            "EndQuest": "K110002",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "S111001",
+            "EndQuest": "S111002",
+            "QuestChapter": "None"
+          }
+        ]
+      },
+      "Anomaly_054": {
+        "LockQuests": [
+          {
+            "BeginQuest": "S110801_1",
+            "EndQuest": "S110820",
+            "QuestChapter": "SU010"
+          }
+        ]
+      },
+      "NPC_021": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110421",
+            "EndQuest": "q110421",
+            "QuestChapter": "MU_01_04"
+          },
+          {
+            "BeginQuest": "q110901",
+            "EndQuest": "q110978",
+            "QuestChapter": "MU01_08"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_05702": {
+        "LockQuests": [
+          {
+            "BeginQuest": "S111701",
+            "EndQuest": "S111703",
+            "QuestChapter": "SU035"
+          },
+          {
+            "BeginQuest": "S110104",
+            "EndQuest": "S110104",
+            "QuestChapter": "SU007"
+          }
+        ]
+      },
+      "NPC_026": {
+        "LockQuests": [
+          {
+            "BeginQuest": "B110001",
+            "EndQuest": "B110004",
+            "QuestChapter": "SU039"
+          },
+          {
+            "BeginQuest": "B110005",
+            "EndQuest": "B110005",
+            "QuestChapter": "SU039_08"
+          },
+          {
+            "BeginQuest": "WJ104601_YC",
+            "EndQuest": "WJ104601_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "K111901",
+            "EndQuest": "K111901",
+            "QuestChapter": "SU089"
+          },
+          {
+            "BeginQuest": "K111902",
+            "EndQuest": "K111910",
+            "QuestChapter": "SU090"
+          },
+          {
+            "BeginQuest": "K111911",
+            "EndQuest": "K111913",
+            "QuestChapter": "SU091"
+          }
+        ]
+      },
+      "NPC_026_BankRob": {
+        "LockQuests": [
+          {
+            "BeginQuest": "B110001",
+            "EndQuest": "B110004",
+            "QuestChapter": "SU039"
+          },
+          {
+            "BeginQuest": "B110005",
+            "EndQuest": "B110005",
+            "QuestChapter": "SU039_08"
+          }
+        ]
+      },
+      "NPC_1029": {
+        "LockQuests": [
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_024": {
+        "LockQuests": [
+          {
+            "BeginQuest": "K112001",
+            "EndQuest": "K112002",
+            "QuestChapter": "SU095"
+          },
+          {
+            "BeginQuest": "K112003",
+            "EndQuest": "K112005",
+            "QuestChapter": "SU096"
+          },
+          {
+            "BeginQuest": "K112006",
+            "EndQuest": "K112007",
+            "QuestChapter": "SU097"
+          },
+          {
+            "BeginQuest": "WJ104801_YC",
+            "EndQuest": "WJ104801_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ104901_YC",
+            "EndQuest": "WJ104901_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "K112221",
+            "EndQuest": "K112223",
+            "QuestChapter": "SU109"
+          },
+          {
+            "BeginQuest": "q110601",
+            "EndQuest": "q110784",
+            "QuestChapter": "MU01_06"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_032": {
+        "LockQuests": [
+          {
+            "BeginQuest": "WJ105201_YC",
+            "EndQuest": "WJ105201_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ105301_YC",
+            "EndQuest": "WJ105301_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ105401_YC",
+            "EndQuest": "WJ105401_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "K112101",
+            "EndQuest": "K112105",
+            "QuestChapter": "SU080"
+          },
+          {
+            "BeginQuest": "K112111",
+            "EndQuest": "K112113",
+            "QuestChapter": "SU081"
+          },
+          {
+            "BeginQuest": "K112121",
+            "EndQuest": "K112124",
+            "QuestChapter": "SU082"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_028": {
+        "LockQuests": [
+          {
+            "BeginQuest": "WJ105001_YC",
+            "EndQuest": "WJ105001_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "WJ105101_YC",
+            "EndQuest": "WJ105101_YC",
+            "QuestChapter": "None"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_022": {
+        "LockQuests": [
+          {
+            "BeginQuest": "K112221",
+            "EndQuest": "K112223",
+            "QuestChapter": "SU109"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_1050": {
+        "LockQuests": [
+          {
+            "BeginQuest": "K112221",
+            "EndQuest": "K112223",
+            "QuestChapter": "SU109"
+          },
+          {
+            "BeginQuest": "q110901",
+            "EndQuest": "q110978",
+            "QuestChapter": "MU01_08"
+          }
+        ]
+      },
+      "NPC_027": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110601",
+            "EndQuest": "q110784",
+            "QuestChapter": "MU01_06"
+          },
+          {
+            "BeginQuest": "K112401",
+            "EndQuest": "K112403",
+            "QuestChapter": "SU112"
+          },
+          {
+            "BeginQuest": "K112404",
+            "EndQuest": "K112406",
+            "QuestChapter": "SU110"
+          },
+          {
+            "BeginQuest": "K112407",
+            "EndQuest": "K112408",
+            "QuestChapter": "SU111"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      },
+      "NPC_031": {
+        "LockQuests": [
+          {
+            "BeginQuest": "q110601",
+            "EndQuest": "q110784",
+            "QuestChapter": "MU01_06"
+          },
+          {
+            "BeginQuest": "L110443",
+            "EndQuest": "L110448",
+            "QuestChapter": "LC04"
+          }
+        ]
+      }
+    }
+  }
+]

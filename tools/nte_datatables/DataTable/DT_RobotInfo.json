@@ -1,0 +1,2617 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_RobotInfo",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_RobotInfo",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'RobotInfoData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Robot0001": {
+        "RobotName": {
+          "CultureInvariantString": "UrbanCat"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0002": {
+        "RobotName": {
+          "CultureInvariantString": "Kai021"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0003": {
+        "RobotName": {
+          "CultureInvariantString": "Leo102"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0004": {
+        "RobotName": {
+          "CultureInvariantString": "HaruKaze"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0005": {
+        "RobotName": {
+          "CultureInvariantString": "SoftBunny"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0006": {
+        "RobotName": {
+          "CultureInvariantString": "Rin23"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0007": {
+        "RobotName": {
+          "CultureInvariantString": "ShadowLeaf"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0008": {
+        "RobotName": {
+          "CultureInvariantString": "YukiNova"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0009": {
+        "RobotName": {
+          "CultureInvariantString": "HikariBlue"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0010": {
+        "RobotName": {
+          "CultureInvariantString": "NovaStorm"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0011": {
+        "RobotName": {
+          "CultureInvariantString": "UrbanWolf"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0012": {
+        "RobotName": {
+          "CultureInvariantString": "Eric88"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0013": {
+        "RobotName": {
+          "CultureInvariantString": "RenKaze"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0014": {
+        "RobotName": {
+          "CultureInvariantString": "Alex1998"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0015": {
+        "RobotName": {
+          "CultureInvariantString": "CoffeeCat"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0016": {
+        "RobotName": {
+          "CultureInvariantString": "Mia88"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0017": {
+        "RobotName": {
+          "CultureInvariantString": "Haru19"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0018": {
+        "RobotName": {
+          "CultureInvariantString": "NightRider"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0019": {
+        "RobotName": {
+          "CultureInvariantString": "RinYuki"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0020": {
+        "RobotName": {
+          "CultureInvariantString": "Mika88"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0021": {
+        "RobotName": {
+          "CultureInvariantString": "Ryan23"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0022": {
+        "RobotName": {
+          "CultureInvariantString": "LazyPanda"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0023": {
+        "RobotName": {
+          "CultureInvariantString": "SoraLight"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0024": {
+        "RobotName": {
+          "CultureInvariantString": "Aoi66"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0025": {
+        "RobotName": {
+          "CultureInvariantString": "AkiraSky"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0026": {
+        "RobotName": {
+          "CultureInvariantString": "Luna021"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0027": {
+        "RobotName": {
+          "CultureInvariantString": "HappyOtter"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0028": {
+        "RobotName": {
+          "CultureInvariantString": "Sora27"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0029": {
+        "RobotName": {
+          "CultureInvariantString": "SilentFox"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0030": {
+        "RobotName": {
+          "CultureInvariantString": "Yuki52"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0031": {
+        "RobotName": {
+          "CultureInvariantString": "AoiSky"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0032": {
+        "RobotName": {
+          "CultureInvariantString": "Jason77"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0033": {
+        "RobotName": {
+          "CultureInvariantString": "Leo77"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0034": {
+        "RobotName": {
+          "CultureInvariantString": "MilkTeaTime"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0035": {
+        "RobotName": {
+          "CultureInvariantString": "IronPanda"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0036": {
+        "RobotName": {
+          "CultureInvariantString": "LuckyTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0037": {
+        "RobotName": {
+          "CultureInvariantString": "NightCoffee"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0038": {
+        "RobotName": {
+          "CultureInvariantString": "Nina520"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0039": {
+        "RobotName": {
+          "CultureInvariantString": "SunnyTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0040": {
+        "RobotName": {
+          "CultureInvariantString": "BlueRaven"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0041": {
+        "RobotName": {
+          "CultureInvariantString": "BlueCoffee"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0042": {
+        "RobotName": {
+          "CultureInvariantString": "Ren84"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0043": {
+        "RobotName": {
+          "CultureInvariantString": "Chris84"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0044": {
+        "RobotName": {
+          "CultureInvariantString": "MikaStar"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0045": {
+        "RobotName": {
+          "CultureInvariantString": "UrbanBunny"
+        },
+        "RobotAvatar": {
+          "ID": "1008",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0046": {
+        "RobotName": {
+          "CultureInvariantString": "Luna77"
+        },
+        "RobotAvatar": {
+          "ID": "1052",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0047": {
+        "RobotName": {
+          "CultureInvariantString": "RedComet"
+        },
+        "RobotAvatar": {
+          "ID": "1003",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0048": {
+        "RobotName": {
+          "CultureInvariantString": "AoiCloud"
+        },
+        "RobotAvatar": {
+          "ID": "1003",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0049": {
+        "RobotName": {
+          "CultureInvariantString": "HaruSky"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0050": {
+        "RobotName": {
+          "CultureInvariantString": "WildFalcon"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0051": {
+        "RobotName": {
+          "CultureInvariantString": "UrbanTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0052": {
+        "RobotName": {
+          "CultureInvariantString": "Lucas35"
+        },
+        "RobotAvatar": {
+          "ID": "1054",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0053": {
+        "RobotName": {
+          "CultureInvariantString": "YukiRiver"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0054": {
+        "RobotName": {
+          "CultureInvariantString": "Kevin17"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0055": {
+        "RobotName": {
+          "CultureInvariantString": "SleepyFox"
+        },
+        "RobotAvatar": {
+          "ID": "1052",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0056": {
+        "RobotName": {
+          "CultureInvariantString": "Emma66"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0057": {
+        "RobotName": {
+          "CultureInvariantString": "Emma73"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0058": {
+        "RobotName": {
+          "CultureInvariantString": "ColdRiver"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0059": {
+        "RobotName": {
+          "CultureInvariantString": "YunaMoon"
+        },
+        "RobotAvatar": {
+          "ID": "1025",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0060": {
+        "RobotName": {
+          "CultureInvariantString": "Mila21"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0061": {
+        "RobotName": {
+          "CultureInvariantString": "Ethan27"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0062": {
+        "RobotName": {
+          "CultureInvariantString": "LittleComet"
+        },
+        "RobotAvatar": {
+          "ID": "1010",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0063": {
+        "RobotName": {
+          "CultureInvariantString": "RikuNova"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0064": {
+        "RobotName": {
+          "CultureInvariantString": "Aiden18"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0065": {
+        "RobotName": {
+          "CultureInvariantString": "RenStar"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0066": {
+        "RobotName": {
+          "CultureInvariantString": "Lily33"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0067": {
+        "RobotName": {
+          "CultureInvariantString": "LuckyCat"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0068": {
+        "RobotName": {
+          "CultureInvariantString": "Jason25"
+        },
+        "RobotAvatar": {
+          "ID": "1010",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0069": {
+        "RobotName": {
+          "CultureInvariantString": "NeonRaven"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0070": {
+        "RobotName": {
+          "CultureInvariantString": "Ryan66"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0071": {
+        "RobotName": {
+          "CultureInvariantString": "SoraWind"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0072": {
+        "RobotName": {
+          "CultureInvariantString": "Daniel91"
+        },
+        "RobotAvatar": {
+          "ID": "1",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0073": {
+        "RobotName": {
+          "CultureInvariantString": "Nina35"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0074": {
+        "RobotName": {
+          "CultureInvariantString": "CloudWalker"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0075": {
+        "RobotName": {
+          "CultureInvariantString": "MoonWalker"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0076": {
+        "RobotName": {
+          "CultureInvariantString": "NightFalcon"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0077": {
+        "RobotName": {
+          "CultureInvariantString": "QuietRiver"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0078": {
+        "RobotName": {
+          "CultureInvariantString": "Ava99"
+        },
+        "RobotAvatar": {
+          "ID": "1025",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0079": {
+        "RobotName": {
+          "CultureInvariantString": "NightPanda"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0080": {
+        "RobotName": {
+          "CultureInvariantString": "SilverFox"
+        },
+        "RobotAvatar": {
+          "ID": "2",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0081": {
+        "RobotName": {
+          "CultureInvariantString": "LittleTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0082": {
+        "RobotName": {
+          "CultureInvariantString": "Kevin92"
+        },
+        "RobotAvatar": {
+          "ID": "1054",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0083": {
+        "RobotName": {
+          "CultureInvariantString": "Jack52"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0084": {
+        "RobotName": {
+          "CultureInvariantString": "SoraWave"
+        },
+        "RobotAvatar": {
+          "ID": "1052",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0085": {
+        "RobotName": {
+          "CultureInvariantString": "HappyBunny"
+        },
+        "RobotAvatar": {
+          "ID": "1010",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0086": {
+        "RobotName": {
+          "CultureInvariantString": "Bella56"
+        },
+        "RobotAvatar": {
+          "ID": "1025",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0087": {
+        "RobotName": {
+          "CultureInvariantString": "FastShadow"
+        },
+        "RobotAvatar": {
+          "ID": "1021",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0088": {
+        "RobotName": {
+          "CultureInvariantString": "RikuLight"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0089": {
+        "RobotName": {
+          "CultureInvariantString": "MikaWind"
+        },
+        "RobotAvatar": {
+          "ID": "1008",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0090": {
+        "RobotName": {
+          "CultureInvariantString": "IronRaven"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0091": {
+        "RobotName": {
+          "CultureInvariantString": "UrbanStorm"
+        },
+        "RobotAvatar": {
+          "ID": "1052",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0092": {
+        "RobotName": {
+          "CultureInvariantString": "Aria25"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0093": {
+        "RobotName": {
+          "CultureInvariantString": "RenWave"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0094": {
+        "RobotName": {
+          "CultureInvariantString": "Mason18"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0095": {
+        "RobotName": {
+          "CultureInvariantString": "WarmTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1010",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0096": {
+        "RobotName": {
+          "CultureInvariantString": "Ella09"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0097": {
+        "RobotName": {
+          "CultureInvariantString": "Ivy83"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0098": {
+        "RobotName": {
+          "CultureInvariantString": "SilverTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0099": {
+        "RobotName": {
+          "CultureInvariantString": "AoiMoon"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0100": {
+        "RobotName": {
+          "CultureInvariantString": "Lucy47"
+        },
+        "RobotAvatar": {
+          "ID": "1054",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0101": {
+        "RobotName": {
+          "CultureInvariantString": "Mila83"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0102": {
+        "RobotName": {
+          "CultureInvariantString": "CoffeeFox"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0103": {
+        "RobotName": {
+          "CultureInvariantString": "YunaSky"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0104": {
+        "RobotName": {
+          "CultureInvariantString": "Ruby09"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0105": {
+        "RobotName": {
+          "CultureInvariantString": "HaruCloud"
+        },
+        "RobotAvatar": {
+          "ID": "1010",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0106": {
+        "RobotName": {
+          "CultureInvariantString": "Ivy77"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0107": {
+        "RobotName": {
+          "CultureInvariantString": "SoftCat"
+        },
+        "RobotAvatar": {
+          "ID": "1025",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0108": {
+        "RobotName": {
+          "CultureInvariantString": "Aria28"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0109": {
+        "RobotName": {
+          "CultureInvariantString": "LuckyNova"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0110": {
+        "RobotName": {
+          "CultureInvariantString": "Chloe71"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0111": {
+        "RobotName": {
+          "CultureInvariantString": "HikariSky"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0112": {
+        "RobotName": {
+          "CultureInvariantString": "Noah21"
+        },
+        "RobotAvatar": {
+          "ID": "1025",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0113": {
+        "RobotName": {
+          "CultureInvariantString": "Eric38"
+        },
+        "RobotAvatar": {
+          "ID": "1021",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0114": {
+        "RobotName": {
+          "CultureInvariantString": "LazyOtter"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0115": {
+        "RobotName": {
+          "CultureInvariantString": "CalmWolf"
+        },
+        "RobotAvatar": {
+          "ID": "1054",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0116": {
+        "RobotName": {
+          "CultureInvariantString": "WinterFox"
+        },
+        "RobotAvatar": {
+          "ID": "1008",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0117": {
+        "RobotName": {
+          "CultureInvariantString": "SunnyFox"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0118": {
+        "RobotName": {
+          "CultureInvariantString": "Owen71"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0119": {
+        "RobotName": {
+          "CultureInvariantString": "UrbanOtter"
+        },
+        "RobotAvatar": {
+          "ID": "1025",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0120": {
+        "RobotName": {
+          "CultureInvariantString": "BlueComet"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0121": {
+        "RobotName": {
+          "CultureInvariantString": "LittleFox"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0122": {
+        "RobotName": {
+          "CultureInvariantString": "Zoe44"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0123": {
+        "RobotName": {
+          "CultureInvariantString": "Dylan92"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0124": {
+        "RobotName": {
+          "CultureInvariantString": "RikuMoon"
+        },
+        "RobotAvatar": {
+          "ID": "1021",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0125": {
+        "RobotName": {
+          "CultureInvariantString": "LazyCat"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0126": {
+        "RobotName": {
+          "CultureInvariantString": "Nora17"
+        },
+        "RobotAvatar": {
+          "ID": "1010",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0127": {
+        "RobotName": {
+          "CultureInvariantString": "GoldenWolf"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0128": {
+        "RobotName": {
+          "CultureInvariantString": "SoraNova"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0129": {
+        "RobotName": {
+          "CultureInvariantString": "YunaLight"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0130": {
+        "RobotName": {
+          "CultureInvariantString": "IronFalcon"
+        },
+        "RobotAvatar": {
+          "ID": "1010",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0131": {
+        "RobotName": {
+          "CultureInvariantString": "SilentStorm"
+        },
+        "RobotAvatar": {
+          "ID": "1010",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0132": {
+        "RobotName": {
+          "CultureInvariantString": "Aiden05"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0133": {
+        "RobotName": {
+          "CultureInvariantString": "MikaMoon"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0134": {
+        "RobotName": {
+          "CultureInvariantString": "Logan44"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0135": {
+        "RobotName": {
+          "CultureInvariantString": "NightTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0136": {
+        "RobotName": {
+          "CultureInvariantString": "Chloe28"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0137": {
+        "RobotName": {
+          "CultureInvariantString": "Ava91"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0138": {
+        "RobotName": {
+          "CultureInvariantString": "NovaTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1054",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0139": {
+        "RobotName": {
+          "CultureInvariantString": "YukiStorm"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0140": {
+        "RobotName": {
+          "CultureInvariantString": "Maya81"
+        },
+        "RobotAvatar": {
+          "ID": "1025",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0141": {
+        "RobotName": {
+          "CultureInvariantString": "Ruby73"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0142": {
+        "RobotName": {
+          "CultureInvariantString": "QuietFox"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0143": {
+        "RobotName": {
+          "CultureInvariantString": "RenCloud"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0144": {
+        "RobotName": {
+          "CultureInvariantString": "Lily33"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0145": {
+        "RobotName": {
+          "CultureInvariantString": "HikariWave"
+        },
+        "RobotAvatar": {
+          "ID": "1021",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0146": {
+        "RobotName": {
+          "CultureInvariantString": "Zoe66"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0147": {
+        "RobotName": {
+          "CultureInvariantString": "SleepyTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0148": {
+        "RobotName": {
+          "CultureInvariantString": "Luna38"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0149": {
+        "RobotName": {
+          "CultureInvariantString": "UrbanFalcon"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0150": {
+        "RobotName": {
+          "CultureInvariantString": "Mila05"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0151": {
+        "RobotName": {
+          "CultureInvariantString": "AoiNova"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0152": {
+        "RobotName": {
+          "CultureInvariantString": "Aaron19"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0153": {
+        "RobotName": {
+          "CultureInvariantString": "Ella62"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0154": {
+        "RobotName": {
+          "CultureInvariantString": "WarmCoffee"
+        },
+        "RobotAvatar": {
+          "ID": "1054",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0155": {
+        "RobotName": {
+          "CultureInvariantString": "RedShadow"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0156": {
+        "RobotName": {
+          "CultureInvariantString": "NightTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0157": {
+        "RobotName": {
+          "CultureInvariantString": "SunnyCat"
+        },
+        "RobotAvatar": {
+          "ID": "1008",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0158": {
+        "RobotName": {
+          "CultureInvariantString": "Jason66"
+        },
+        "RobotAvatar": {
+          "ID": "1052",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0159": {
+        "RobotName": {
+          "CultureInvariantString": "UrbanTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0160": {
+        "RobotName": {
+          "CultureInvariantString": "NeonTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0161": {
+        "RobotName": {
+          "CultureInvariantString": "CoffeeBunny"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0162": {
+        "RobotName": {
+          "CultureInvariantString": "Ivy27"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0163": {
+        "RobotName": {
+          "CultureInvariantString": "Leo81"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0164": {
+        "RobotName": {
+          "CultureInvariantString": "HaruNova"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0165": {
+        "RobotName": {
+          "CultureInvariantString": "SunnyPanda"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0166": {
+        "RobotName": {
+          "CultureInvariantString": "Ella19"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0167": {
+        "RobotName": {
+          "CultureInvariantString": "LuckyRaven"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0168": {
+        "RobotName": {
+          "CultureInvariantString": "SoraStorm"
+        },
+        "RobotAvatar": {
+          "ID": "1023",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0169": {
+        "RobotName": {
+          "CultureInvariantString": "AoiLight"
+        },
+        "RobotAvatar": {
+          "ID": "1054",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0170": {
+        "RobotName": {
+          "CultureInvariantString": "IronShadow"
+        },
+        "RobotAvatar": {
+          "ID": "1052",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0171": {
+        "RobotName": {
+          "CultureInvariantString": "SilentRider"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0172": {
+        "RobotName": {
+          "CultureInvariantString": "Adam47"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0173": {
+        "RobotName": {
+          "CultureInvariantString": "YunaStar"
+        },
+        "RobotAvatar": {
+          "ID": "1054",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0174": {
+        "RobotName": {
+          "CultureInvariantString": "Bella87"
+        },
+        "RobotAvatar": {
+          "ID": "1021",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0175": {
+        "RobotName": {
+          "CultureInvariantString": "HappyCat"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0176": {
+        "RobotName": {
+          "CultureInvariantString": "Oscar62"
+        },
+        "RobotAvatar": {
+          "ID": "1008",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0177": {
+        "RobotName": {
+          "CultureInvariantString": "Lucy73"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0178": {
+        "RobotName": {
+          "CultureInvariantString": "UrbanComet"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0179": {
+        "RobotName": {
+          "CultureInvariantString": "RikuStar"
+        },
+        "RobotAvatar": {
+          "ID": "1008",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0180": {
+        "RobotName": {
+          "CultureInvariantString": "Zoe66"
+        },
+        "RobotAvatar": {
+          "ID": "1052",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0181": {
+        "RobotName": {
+          "CultureInvariantString": "Ryan56"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0182": {
+        "RobotName": {
+          "CultureInvariantString": "SoftFox"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0183": {
+        "RobotName": {
+          "CultureInvariantString": "RenRiver"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0184": {
+        "RobotName": {
+          "CultureInvariantString": "Nora87"
+        },
+        "RobotAvatar": {
+          "ID": "1052",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0185": {
+        "RobotName": {
+          "CultureInvariantString": "MikaCloud"
+        },
+        "RobotAvatar": {
+          "ID": "1039",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0186": {
+        "RobotName": {
+          "CultureInvariantString": "Henry38"
+        },
+        "RobotAvatar": {
+          "ID": "1025",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0187": {
+        "RobotName": {
+          "CultureInvariantString": "NightOtter"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0188": {
+        "RobotName": {
+          "CultureInvariantString": "Maya45"
+        },
+        "RobotAvatar": {
+          "ID": "1073",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0189": {
+        "RobotName": {
+          "CultureInvariantString": "WildNova"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0190": {
+        "RobotName": {
+          "CultureInvariantString": "Bella21"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0191": {
+        "RobotName": {
+          "CultureInvariantString": "YukiSky"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0192": {
+        "RobotName": {
+          "CultureInvariantString": "Lucy27"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0193": {
+        "RobotName": {
+          "CultureInvariantString": "Ruby52"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0194": {
+        "RobotName": {
+          "CultureInvariantString": "QuietTiger"
+        },
+        "RobotAvatar": {
+          "ID": "1070",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0195": {
+        "RobotName": {
+          "CultureInvariantString": "SilverStorm"
+        },
+        "RobotAvatar": {
+          "ID": "1055",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0196": {
+        "RobotName": {
+          "CultureInvariantString": "NightFox"
+        },
+        "RobotAvatar": {
+          "ID": "1025",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0197": {
+        "RobotName": {
+          "CultureInvariantString": "WarmPanda"
+        },
+        "RobotAvatar": {
+          "ID": "1033",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0198": {
+        "RobotName": {
+          "CultureInvariantString": "Nora18"
+        },
+        "RobotAvatar": {
+          "ID": "1020",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0199": {
+        "RobotName": {
+          "CultureInvariantString": "LittlePanda"
+        },
+        "RobotAvatar": {
+          "ID": "1019",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      },
+      "Robot0200": {
+        "RobotName": {
+          "CultureInvariantString": "BlueFalcon"
+        },
+        "RobotAvatar": {
+          "ID": "1004",
+          "FrameId": "None",
+          "BackGroundId": "None",
+          "TitleId": "None",
+          "TitleCustomNameValue": 0,
+          "TitleBlueprintIndex": -1
+        }
+      }
+    }
+  }
+]

@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# ═══════════════════════════════════════════════════════════════════════════
+# DEPRECATED（2026-10-04）：本脚本已废弃，**不要再用**。
+#
+# 取代者：`tools/map/build/build_taxonomy.py`
+#
+# 为什么废弃：本脚本从 `models/FINAL_complete_map_database.json`（旧库，坐标实测
+#   中位差 2463px）生成 `models/marker_taxonomy.json`。而 2026-10-04 已完成
+#   **合并真源**：
+#     · 点位真源 = `models/map_locations.json`（1777 点，每个点位**内嵌** group/groupLabel）
+#     · 分类真源 = `models/map_categories.json`（42 类 7 组）
+#     · `models/marker_taxonomy.json` **已删除**，`MarkerTaxonomy` 只读 `map_categories.json`
+#   ⟹ 本脚本的产物已不存在，运行它只会生成一份**没人读的陈旧文件**，
+#     并让「两个真源」的隐患复活。
+# 保留文件本身（不删）仅为留存变更历史；请勿在任何流水线里调用。
+# ═══════════════════════════════════════════════════════════════════════════
 """
 build_taxonomy.py — 从原始标记库生成 App 用的分类词表
 

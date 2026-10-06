@@ -1,0 +1,13 @@
+✅ /Users/dupi/Desktop/自动驾驶系统/verify/evidence/quest_index.rebuilt.json  2.57 MB
+   统计: {'files': 39, 'objectives': 3819, 'with_coord': 2938, 'with_desc': 3086, 'exact_keys': 1372, 'core_keys': 1984, 'name_keys': 1128}
+
+=== 比对 ===
+现有 stats : {"core_keys": 1984, "exact_keys": 1372, "files": 39, "name_keys": 1128, "objectives": 3819, "with_coord": 2938, "with_desc": 3086}
+重建 stats : {"core_keys": 1984, "exact_keys": 1372, "files": 39, "name_keys": 1128, "objectives": 3819, "with_coord": 2938, "with_desc": 3086}
+stats 相等 : True
+sha256 现有: 160dbf8c9edc7c496bcb656815911e8175fa1c570fce64f1752b2e8db8762eec
+sha256 重建: 160dbf8c9edc7c496bcb656815911e8175fa1c570fce64f1752b2e8db8762eec
+字节级相同 : True
+doc 相等(除顺序): True
+
+期望值硬比对 : 全部一致 ✅

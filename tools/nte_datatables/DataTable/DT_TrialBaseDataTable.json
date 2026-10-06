@@ -1,0 +1,62 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_TrialBaseDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_TrialBaseDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'TrialBaseData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Gold": {
+        "MiniMapIconId": "TialExp",
+        "NeedStamina": 1,
+        "TrialDesc": {
+          "TableId": "/Game/Text/ST_WorldActorDialogue.ST_WorldActorDialogue",
+          "Key": "WorldResource_Common_Msg_01",
+          "SourceString": "<!>击败所有怪物！",
+          "LocalizedString": "Defeat all the monsters!"
+        },
+        "DropID": "drop_Goldtrial",
+        "AwardActorClass": {
+          "AssetPathName": "/Game/Blueprints/Level/World/Common/TrialActor/BP_TrialAwardActor.BP_TrialAwardActor_C",
+          "SubPathString": ""
+        }
+      },
+      "Exp": {
+        "MiniMapIconId": "TialExp",
+        "NeedStamina": 1,
+        "TrialDesc": {
+          "TableId": "/Game/Text/ST_WorldActorDialogue.ST_WorldActorDialogue",
+          "Key": "WorldResource_Common_Msg_01",
+          "SourceString": "<!>击败所有怪物！",
+          "LocalizedString": "Defeat all the monsters!"
+        },
+        "DropID": "drop_exptrial",
+        "AwardActorClass": {
+          "AssetPathName": "/Game/Blueprints/Level/World/Common/TrialActor/BP_TrialAwardActor.BP_TrialAwardActor_C",
+          "SubPathString": ""
+        }
+      },
+      "Fork": {
+        "MiniMapIconId": "TialExp",
+        "NeedStamina": 1,
+        "TrialDesc": {
+          "TableId": "/Game/Text/ST_WorldActorDialogue.ST_WorldActorDialogue",
+          "Key": "WorldResource_Common_Msg_01",
+          "SourceString": "<!>击败所有怪物！",
+          "LocalizedString": "Defeat all the monsters!"
+        },
+        "DropID": "drop_Weaponexptrial",
+        "AwardActorClass": {
+          "AssetPathName": "/Game/Blueprints/Level/World/Common/TrialActor/BP_TrialAwardActor.BP_TrialAwardActor_C",
+          "SubPathString": ""
+        }
+      }
+    }
+  }
+]

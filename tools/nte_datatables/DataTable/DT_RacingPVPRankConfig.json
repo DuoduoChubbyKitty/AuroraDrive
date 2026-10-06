@@ -1,0 +1,35 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_RacingPVPRankConfig",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_RacingPVPRankConfig",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'RacingPVPRankConfigData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "1": {
+        "PVPRankTexture": {
+          "AssetPathName": "/Game/UI/UI/RaceCar/PVPRank/Rank/UI_YH_Racing_‌FriendRank_List_NO1.UI_YH_Racing_‌FriendRank_List_NO1",
+          "SubPathString": ""
+        }
+      },
+      "2": {
+        "PVPRankTexture": {
+          "AssetPathName": "/Game/UI/UI/RaceCar/PVPRank/Rank/UI_YH_Racing_‌FriendRank_List_NO2.UI_YH_Racing_‌FriendRank_List_NO2",
+          "SubPathString": ""
+        }
+      },
+      "3": {
+        "PVPRankTexture": {
+          "AssetPathName": "/Game/UI/UI/RaceCar/PVPRank/Rank/UI_YH_Racing_‌FriendRank_List_NO3.UI_YH_Racing_‌FriendRank_List_NO3",
+          "SubPathString": ""
+        }
+      }
+    }
+  }
+]

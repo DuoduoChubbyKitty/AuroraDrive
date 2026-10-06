@@ -1,0 +1,1457 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DialogSoundTable_TakeOrder",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DialogSoundTable_TakeOrder",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'MessageDialogSoundData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Normal001_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Normal001_Player_001.Play_Vo_Normal001_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal002_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Normal002_Player_001.Play_Vo_Normal002_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal003_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Normal003_Player_001.Play_Vo_Normal003_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal004_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Normal004_Player_001.Play_Vo_Normal004_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal006_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Normal006_Player_001.Play_Vo_Normal006_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable002_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Damageable002_Player_001.Play_Vo_Damageable002_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable003_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Damageable003_Player_001.Play_Vo_Damageable003_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable004_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Damageable004_Player_001.Play_Vo_Damageable004_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable005_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Damageable005_Player_001.Play_Vo_Damageable005_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big001_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Big001_Player_001.Play_Vo_Big001_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big002_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Big002_Player_001.Play_Vo_Big002_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big003_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Big003_Player_001.Play_Vo_Big003_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big004_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Big004_Player_001.Play_Vo_Big004_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big005_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Big005_Player_001.Play_Vo_Big005_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend001_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Urgend001_Player_001.Play_Vo_Urgend001_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend002_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Urgend002_Player_001.Play_Vo_Urgend002_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend003_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Urgend003_Player_001.Play_Vo_Urgend003_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend004_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Urgend004_Player_001.Play_Vo_Urgend004_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend004_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Urgend004_Player_002.Play_Vo_Urgend004_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend005_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Urgend005_Player_001.Play_Vo_Urgend005_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend005_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Urgend005_Player_002.Play_Vo_Urgend005_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_fight_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_fight_Player_001.Play_Vo_Random_fight_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_001.Play_Vo_Random_argue_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_003.Play_Vo_Random_argue_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_004.Play_Vo_Random_argue_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_006.Play_Vo_Random_argue_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_007.Play_Vo_Random_argue_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_009.Play_Vo_Random_argue_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_011.Play_Vo_Random_argue_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_013.Play_Vo_Random_argue_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_015.Play_Vo_Random_argue_Player_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_016.Play_Vo_Random_argue_Player_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_018.Play_Vo_Random_argue_Player_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_020.Play_Vo_Random_argue_Player_020",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_022.Play_Vo_Random_argue_Player_022",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_023.Play_Vo_Random_argue_Player_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_025.Play_Vo_Random_argue_Player_025",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_027": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_027.Play_Vo_Random_argue_Player_027",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_028": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_028.Play_Vo_Random_argue_Player_028",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_030": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_030.Play_Vo_Random_argue_Player_030",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_031": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_031.Play_Vo_Random_argue_Player_031",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_032": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_032.Play_Vo_Random_argue_Player_032",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_033": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_033.Play_Vo_Random_argue_Player_033",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_Player_034": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_argue_Player_034.Play_Vo_Random_argue_Player_034",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_ghost_NPC_001.Play_Vo_Random_ghost_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_ghost_NPC_002.Play_Vo_Random_ghost_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_ghost_NPC_003.Play_Vo_Random_ghost_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_NPC_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_ghost_NPC_004.Play_Vo_Random_ghost_NPC_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_NPC_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_ghost_NPC_005.Play_Vo_Random_ghost_NPC_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_NPC_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_ghost_NPC_006.Play_Vo_Random_ghost_NPC_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_NPC_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_ghost_NPC_007.Play_Vo_Random_ghost_NPC_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_ghost_Player_001.Play_Vo_Random_ghost_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_ghost_Player_002.Play_Vo_Random_ghost_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_ghost_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/TakeOrders/Play_Vo_Random_ghost_Player_003.Play_Vo_Random_ghost_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_001.Play_Vo_TakeOrders_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_002.Play_Vo_TakeOrders_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_003.Play_Vo_TakeOrders_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_004.Play_Vo_TakeOrders_NPC_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_005.Play_Vo_TakeOrders_NPC_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_006.Play_Vo_TakeOrders_NPC_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_007.Play_Vo_TakeOrders_NPC_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_008.Play_Vo_TakeOrders_NPC_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_009.Play_Vo_TakeOrders_NPC_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_012.Play_Vo_TakeOrders_NPC_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "TakeOrders_NPC_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_TakeOrders_NPC_013.Play_Vo_TakeOrders_NPC_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal001_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal001_NPC_001.Play_Vo_Normal001_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal001_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal001_NPC_002.Play_Vo_Normal001_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal002_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal002_NPC_001.Play_Vo_Normal002_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal002_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal002_NPC_002.Play_Vo_Normal002_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal003_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal003_NPC_001.Play_Vo_Normal003_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal003_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal003_NPC_002.Play_Vo_Normal003_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal004_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal004_NPC_001.Play_Vo_Normal004_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal004_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal004_NPC_002.Play_Vo_Normal004_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal006_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal006_NPC_001.Play_Vo_Normal006_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Normal006_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Normal006_NPC_002.Play_Vo_Normal006_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable002_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Damageable002_NPC_001.Play_Vo_Damageable002_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable002_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Damageable002_NPC_002.Play_Vo_Damageable002_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable003_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Damageable003_NPC_001.Play_Vo_Damageable003_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable003_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Damageable003_NPC_002.Play_Vo_Damageable003_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable004_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Damageable004_NPC_001.Play_Vo_Damageable004_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable004_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Damageable004_NPC_002.Play_Vo_Damageable004_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable005_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Damageable005_NPC_001.Play_Vo_Damageable005_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Damageable005_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Damageable005_NPC_002.Play_Vo_Damageable005_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big001_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big001_NPC_001.Play_Vo_Big001_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big001_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big001_NPC_002.Play_Vo_Big001_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big002_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big002_NPC_001.Play_Vo_Big002_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big002_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big002_NPC_002.Play_Vo_Big002_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big003_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big003_NPC_001.Play_Vo_Big003_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big003_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big003_NPC_002.Play_Vo_Big003_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big004_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big004_NPC_001.Play_Vo_Big004_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big004_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big004_NPC_002.Play_Vo_Big004_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big005_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big005_NPC_001.Play_Vo_Big005_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big005_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Big005_NPC_002.Play_Vo_Big005_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend001_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend001_NPC_001.Play_Vo_Urgend001_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend001_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend001_NPC_002.Play_Vo_Urgend001_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend002_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend002_NPC_001.Play_Vo_Urgend002_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend002_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend002_NPC_002.Play_Vo_Urgend002_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend002_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend002_NPC_003.Play_Vo_Urgend002_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend003_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend003_NPC_001.Play_Vo_Urgend003_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend003_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend003_NPC_002.Play_Vo_Urgend003_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend003_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend003_NPC_003.Play_Vo_Urgend003_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend004_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend004_NPC_001.Play_Vo_Urgend004_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend004_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend004_NPC_002.Play_Vo_Urgend004_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend005_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend005_NPC_001.Play_Vo_Urgend005_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Urgend005_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Urgend005_NPC_002.Play_Vo_Urgend005_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_fight_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_fight_NPC_001.Play_Vo_Random_fight_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_fight_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_fight_NPC_002.Play_Vo_Random_fight_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_fight_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_fight_NPC_003.Play_Vo_Random_fight_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_001.Play_Vo_Random_argue_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_002.Play_Vo_Random_argue_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_003.Play_Vo_Random_argue_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_004.Play_Vo_Random_argue_NPC_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_005.Play_Vo_Random_argue_NPC_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_006.Play_Vo_Random_argue_NPC_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_007.Play_Vo_Random_argue_NPC_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_008.Play_Vo_Random_argue_NPC_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_009.Play_Vo_Random_argue_NPC_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_010.Play_Vo_Random_argue_NPC_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_011.Play_Vo_Random_argue_NPC_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_012.Play_Vo_Random_argue_NPC_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_013.Play_Vo_Random_argue_NPC_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_014.Play_Vo_Random_argue_NPC_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_015.Play_Vo_Random_argue_NPC_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_016.Play_Vo_Random_argue_NPC_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_017.Play_Vo_Random_argue_NPC_017",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_018.Play_Vo_Random_argue_NPC_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_019.Play_Vo_Random_argue_NPC_019",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_020.Play_Vo_Random_argue_NPC_020",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_021": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_021.Play_Vo_Random_argue_NPC_021",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_022.Play_Vo_Random_argue_NPC_022",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_023.Play_Vo_Random_argue_NPC_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_024": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_024.Play_Vo_Random_argue_NPC_024",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Random_argue_NPC_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Play_Vo_Random_argue_NPC_025.Play_Vo_Random_argue_NPC_025",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big006_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big006_NPC_001.Play_Vo_Big006_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big006_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Zero/Play_Vo_Big006_Player_001.Play_Vo_Big006_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big006_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big006_NPC_002.Play_Vo_Big006_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big006_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big006_NPC_003.Play_Vo_Big006_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big006_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Zero/Play_Vo_Big006_Player_002.Play_Vo_Big006_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big007_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big007_NPC_001.Play_Vo_Big007_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big007_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Zero/Play_Vo_Big007_Player_001.Play_Vo_Big007_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big007_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big007_NPC_002.Play_Vo_Big007_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big007_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big007_NPC_003.Play_Vo_Big007_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big007_NPC_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big007_NPC_004.Play_Vo_Big007_NPC_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big008_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big008_NPC_001.Play_Vo_Big008_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big008_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big008_NPC_002.Play_Vo_Big008_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big008_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big008_NPC_003.Play_Vo_Big008_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big008_NPC_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big008_NPC_004.Play_Vo_Big008_NPC_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big008_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Zero/Play_Vo_Big008_Player_001.Play_Vo_Big008_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big009_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big009_NPC_001.Play_Vo_Big009_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big009_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big009_NPC_002.Play_Vo_Big009_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big009_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big009_NPC_003.Play_Vo_Big009_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big009_NPC_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big009_NPC_004.Play_Vo_Big009_NPC_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big009_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Zero/Play_Vo_Big009_Player_001.Play_Vo_Big009_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big010_NPC_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big010_NPC_001.Play_Vo_Big010_NPC_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big010_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Zero/Play_Vo_Big010_Player_001.Play_Vo_Big010_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big010_NPC_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big010_NPC_002.Play_Vo_Big010_NPC_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big010_NPC_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big010_NPC_003.Play_Vo_Big010_NPC_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big010_NPC_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big010_NPC_004.Play_Vo_Big010_NPC_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big010_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Zero/Play_Vo_Big010_Player_002.Play_Vo_Big010_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Big010_NPC_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Big/Play_Vo_Big010_NPC_005.Play_Vo_Big010_NPC_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      }
+    }
+  }
+]

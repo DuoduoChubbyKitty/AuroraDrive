@@ -1,0 +1,31 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_RoleLevelBaseConfig",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_RoleLevelBaseConfig",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'RoleLevelBaseConfig'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "1": {
+        "InitMaxWorldLevel": 0,
+        "RoleLevelLimit": 60,
+        "ConversionCapitalID": "Gold",
+        "ConversionRatio": 10.0,
+        "MinRestorWorldLevel": 3,
+        "BrokenAwardDropID": "None",
+        "LevelRedPointTag": "Redpoint.Menu.RoleLevelReward",
+        "AjustWorldLevelCD": 86400,
+        "LevelStageNum": 10,
+        "FunctionUnlockId": "WorldLevelReward",
+        "FunctionUnlockTechID": "LevelReward",
+        "BrokenQuestTechID": "LevelBreak"
+      }
+    }
+  }
+]

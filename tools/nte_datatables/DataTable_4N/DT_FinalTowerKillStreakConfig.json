@@ -1,0 +1,82 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_FinalTowerKillStreakConfig",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/Maps_4N/DataTable/DT_FinalTowerKillStreakConfig",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'FinalTowerKillStreakConfigData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Default": {
+        "KillStreakDuration": 30000,
+        "Tiers": [
+          {
+            "StreakThreshold": 10,
+            "TierBuffIDs": [
+              "Buff_Kill_15"
+            ],
+            "TierDisplayName": {
+              "TableId": "/Game/Text/ST_Bagel.ST_Bagel",
+              "Key": "Bagel_Comment_Name1",
+              "SourceString": "<!>直播评论名字1",
+              "LocalizedString": "Live comment name 1"
+            }
+          },
+          {
+            "StreakThreshold": 20,
+            "TierBuffIDs": [
+              "Buff_Kill_30"
+            ],
+            "TierDisplayName": {
+              "TableId": "/Game/Text/ST_Bagel.ST_Bagel",
+              "Key": "Bagel_Comment_Name2",
+              "SourceString": "<!>直播评论名字2",
+              "LocalizedString": "Live comment name 2"
+            }
+          },
+          {
+            "StreakThreshold": 40,
+            "TierBuffIDs": [
+              "Buff_Kill_50"
+            ],
+            "TierDisplayName": {
+              "TableId": "/Game/Text/ST_Bagel.ST_Bagel",
+              "Key": "Bagel_Comment_Name2",
+              "SourceString": "<!>直播评论名字2",
+              "LocalizedString": "Live comment name 2"
+            }
+          },
+          {
+            "StreakThreshold": 80,
+            "TierBuffIDs": [
+              "Buff_Kill_100"
+            ],
+            "TierDisplayName": {
+              "TableId": "/Game/Text/ST_Bagel.ST_Bagel",
+              "Key": "Bagel_Comment_Name2",
+              "SourceString": "<!>直播评论名字2",
+              "LocalizedString": "Live comment name 2"
+            }
+          },
+          {
+            "StreakThreshold": 120,
+            "TierBuffIDs": [
+              "Buff_Kill_150"
+            ],
+            "TierDisplayName": {
+              "TableId": "/Game/Text/ST_Bagel.ST_Bagel",
+              "Key": "Bagel_Comment_Name2",
+              "SourceString": "<!>直播评论名字2",
+              "LocalizedString": "Live comment name 2"
+            }
+          }
+        ]
+      }
+    }
+  }
+]

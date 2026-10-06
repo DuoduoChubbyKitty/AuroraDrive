@@ -1,0 +1,215 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_IntroduceDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_IntroduceDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'IntroductionData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Test1": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout.BPUI_Shout_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "CultureInvariantString": "<!>test1"
+        }
+      },
+      "Test2": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout.BPUI_Shout_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "CultureInvariantString": "<!>test2"
+        }
+      },
+      "THD_K110344_L_1": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogG1.BPUI_Shout_dogG1_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_L_33",
+          "SourceString": "（就是这个力道！千万别停~）",
+          "LocalizedString": "(That's more like it! Don't stop!)"
+        }
+      },
+      "THD_K110344_L_2": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogG2.BPUI_Shout_dogG2_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_L_34",
+          "SourceString": "（起飞！起飞！）",
+          "LocalizedString": "(Take off! Take off!)"
+        }
+      },
+      "THD_K110344_L_3": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogG2.BPUI_Shout_dogG2_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_L_35",
+          "SourceString": "（舒服舒服~）",
+          "LocalizedString": "(This feels great!)"
+        }
+      },
+      "THD_K110344_L_4": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogG2.BPUI_Shout_dogG2_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/Dialogue/ST_Dialogue_Liking.ST_Dialogue_Liking",
+          "Key": "SU001_NPC007A_L_61",
+          "SourceString": "（继续、继续！不要停！）",
+          "LocalizedString": "(Keep going! Don't stop!)"
+        }
+      },
+      "THD_K110344_M_1": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogB1.BPUI_Shout_dogB1_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_M_07",
+          "SourceString": "挺好……",
+          "LocalizedString": "Pretty good…"
+        }
+      },
+      "THD_K110344_M_2": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogB2.BPUI_Shout_dogB2_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_M_08",
+          "SourceString": "汪！不错！",
+          "LocalizedString": "Woof! Nice!"
+        }
+      },
+      "THD_K110344_M_3": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogB3.BPUI_Shout_dogB3_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_M_09",
+          "SourceString": "头皮有点……",
+          "LocalizedString": "My scalp feels funny…"
+        }
+      },
+      "THD_K110344_R_1": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogY1.BPUI_Shout_dogY1_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_R_19",
+          "SourceString": "相当舒适~",
+          "LocalizedString": "This feels good!"
+        }
+      },
+      "THD_K110344_R_2": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogY2.BPUI_Shout_dogY2_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_R_20",
+          "SourceString": "后背再来两下汪~",
+          "LocalizedString": "Two more hits on the back, Woof!"
+        }
+      },
+      "THD_K110344_R_3": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogY3.BPUI_Shout_dogY3_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_R_21",
+          "SourceString": "嗷嗷，疼疼疼疼疼……",
+          "LocalizedString": "Ouch ouch ouch ouch…"
+        }
+      },
+      "THD_K110344_R_4": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogY2.BPUI_Shout_dogY2_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/Dialogue/ST_Dialogue_Liking.ST_Dialogue_Liking",
+          "Key": "SU001_NPC007A_R_102",
+          "SourceString": "灵魂要飞了……",
+          "LocalizedString": "I think I'm about to die here…"
+        }
+      },
+      "THD_K110344_R_5": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogY1.BPUI_Shout_dogY1_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/Dialogue/ST_Dialogue_Liking.ST_Dialogue_Liking",
+          "Key": "SU001_NPC007A_R_103",
+          "SourceString": "力道会不会还是太轻了？",
+          "LocalizedString": "Harder…!"
+        }
+      },
+      "THD_K110359_L_1": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogG2.BPUI_Shout_dogG2_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_L_37",
+          "SourceString": "(起飞！起飞！）",
+          "LocalizedString": "(Take off! Take off!)"
+        }
+      },
+      "THD_K110359_M_1": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogB1.BPUI_Shout_dogB1_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_M_13",
+          "SourceString": "挺好……",
+          "LocalizedString": "Pretty good…"
+        }
+      },
+      "THD_K110359_R_1": {
+        "IntroductionTemplate": {
+          "AssetPathName": "/Game/UI/Blueprints/BPUI_Shout_dogY1.BPUI_Shout_dogY1_C",
+          "SubPathString": ""
+        },
+        "IntroductionText": {
+          "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_Liking.ST_IntroduceMsg_Liking",
+          "Key": "ST001_NPC007A_R_24",
+          "SourceString": "还可以~",
+          "LocalizedString": "Doing just fine!"
+        }
+      }
+    }
+  }
+]

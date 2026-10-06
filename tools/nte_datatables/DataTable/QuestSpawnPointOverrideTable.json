@@ -1,0 +1,2519 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "QuestSpawnPointOverrideTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/QuestSpawnPointOverrideTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'QuestSpawnPointRow'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "q310001": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "None",
+            "EndQuestID": "None",
+            "SpawnLocation": {
+              "X": -90330.0,
+              "Y": 149510.0,
+              "Z": 4078.8308
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110004": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110004",
+            "EndQuestID": "q110005",
+            "SpawnLocation": {
+              "X": 4001.0332,
+              "Y": 272106.1,
+              "Z": 7752.925
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q310002": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q310002",
+            "EndQuestID": "q310003",
+            "SpawnLocation": {
+              "X": 3190.0,
+              "Y": -1225.0,
+              "Z": 0.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "K110504": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K110504",
+            "EndQuestID": "K110504",
+            "SpawnLocation": {
+              "X": 1293.5139,
+              "Y": 264920.75,
+              "Z": 7633.671
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 269.41962,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "K110505",
+            "EndQuestID": "K110505",
+            "SpawnLocation": {
+              "X": 943.82495,
+              "Y": 263118.2,
+              "Z": 7637.818
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 81.69945,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "K110506",
+            "EndQuestID": "K110506",
+            "SpawnLocation": {
+              "X": 943.82495,
+              "Y": 263118.2,
+              "Z": 7637.818
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 81.69945,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "K110503",
+            "EndQuestID": "K110503",
+            "SpawnLocation": {
+              "X": 1293.5139,
+              "Y": 264920.75,
+              "Z": 7633.671
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 269.41962,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "K110009": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K110009",
+            "EndQuestID": "K110011",
+            "SpawnLocation": {
+              "X": -38051.004,
+              "Y": 28299.225,
+              "Z": 7704.7275
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "K110012": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K110012",
+            "EndQuestID": "K110014",
+            "SpawnLocation": {
+              "X": -37886.027,
+              "Y": 32078.166,
+              "Z": 7715.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 90.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "K111004": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K111004",
+            "EndQuestID": "K111004",
+            "SpawnLocation": {
+              "X": -96860.78,
+              "Y": 154921.08,
+              "Z": 4575.242
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -179.08603,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110352_haniel_h1": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110352_haniel_h2",
+            "EndQuestID": "q110352_haniel_h4",
+            "SpawnLocation": {
+              "X": 6649.233,
+              "Y": 1221.9719,
+              "Z": -5515.6504
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 40.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110352_haniel_h5",
+            "EndQuestID": "q110352_haniel_h8",
+            "SpawnLocation": {
+              "X": 6992.732,
+              "Y": 1213.956,
+              "Z": -5515.627
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 42.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110352_manager_h5": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110352_haniel_h6",
+            "EndQuestID": "q110352_haniel_h7",
+            "SpawnLocation": {
+              "X": 6887.721,
+              "Y": 1114.1195,
+              "Z": -5515.627
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 45.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110352_Anomaly_005_h4": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110352_haniel_h5",
+            "EndQuestID": "q110352_haniel_h7",
+            "SpawnLocation": {
+              "X": 7102.2153,
+              "Y": 1327.8066,
+              "Z": -5440.322
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 220.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110352_keren_h4": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110352_haniel_h5",
+            "EndQuestID": "q110352_haniel_h7",
+            "SpawnLocation": {
+              "X": 6913.8096,
+              "Y": 1309.608,
+              "Z": -5515.6597
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 2.8125,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_009_q1103432": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110344",
+            "EndQuestID": "q110344",
+            "SpawnLocation": {
+              "X": -3643.4238,
+              "Y": -69.145584,
+              "Z": 360.522
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 16.874998,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q1103441",
+            "EndQuestID": "q1103451",
+            "SpawnLocation": {
+              "X": -4378.898,
+              "Y": -2290.7954,
+              "Z": -5545.7896
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -337.5,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110346",
+            "EndQuestID": "q110346",
+            "SpawnLocation": {
+              "X": 1407.1283,
+              "Y": -261.94156,
+              "Z": -5697.135
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 67.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_015_q1103432": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110344",
+            "EndQuestID": "q110344",
+            "SpawnLocation": {
+              "X": -3642.696,
+              "Y": 81.9041,
+              "Z": 360.522
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 348.75,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q1103441",
+            "EndQuestID": "q1103451",
+            "SpawnLocation": {
+              "X": -4378.8687,
+              "Y": -2139.6733,
+              "Z": -5545.7896
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -14.0625,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110346",
+            "EndQuestID": "q110346",
+            "SpawnLocation": {
+              "X": 1301.6398,
+              "Y": -135.34795,
+              "Z": -5697.135
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 438.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_017_q1103432": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110344",
+            "EndQuestID": "q110344",
+            "SpawnLocation": {
+              "X": -3492.0498,
+              "Y": -82.26298,
+              "Z": 360.522
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 376.875,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q1103441",
+            "EndQuestID": "q1103451",
+            "SpawnLocation": {
+              "X": -4227.8203,
+              "Y": -2303.0774,
+              "Z": -5545.7896
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 22.5,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110346",
+            "EndQuestID": "q110346",
+            "SpawnLocation": {
+              "X": 1559.2566,
+              "Y": -282.06888,
+              "Z": -5688.135
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -168.75,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_040_A_q110372": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q1103721",
+            "EndQuestID": "q1103722",
+            "SpawnLocation": {
+              "X": -1061.943,
+              "Y": 8747.089,
+              "Z": -5667.066
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 126.5625,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110373",
+            "EndQuestID": "q110373",
+            "SpawnLocation": {
+              "X": -284.43774,
+              "Y": 7008.5073,
+              "Z": -5667.066
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -182.8125,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110374",
+            "EndQuestID": "q1103741",
+            "SpawnLocation": {
+              "X": -2471.5906,
+              "Y": -2443.7095,
+              "Z": -5516.485
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -157.5,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110375",
+            "EndQuestID": "q110375",
+            "SpawnLocation": {
+              "X": -4220.0,
+              "Y": -2224.0,
+              "Z": -5461.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_040_A_q110382": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110383",
+            "EndQuestID": "q110384",
+            "SpawnLocation": {
+              "X": -3576.0188,
+              "Y": -2219.6108,
+              "Z": 5193.522
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 5.625,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_040_A_q110387": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q1103871",
+            "EndQuestID": "q1103872",
+            "SpawnLocation": {
+              "X": -4041.5608,
+              "Y": -2199.5017,
+              "Z": 12229.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_oldfriend_q110347": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110347_kuhara_h2",
+            "EndQuestID": "q110347",
+            "SpawnLocation": {
+              "X": 2785.895,
+              "Y": 580.8083,
+              "Z": -5840.1206
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -40.556553,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_oldfriend2_q110347": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110347_kuhara_h2",
+            "EndQuestID": "q110347",
+            "SpawnLocation": {
+              "X": 2879.848,
+              "Y": 621.7427,
+              "Z": -5840.1206
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -77.11905,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_015_q110347": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110347_kuhara_h3",
+            "EndQuestID": "q110347",
+            "SpawnLocation": {
+              "X": 1414.4191,
+              "Y": 4730.675,
+              "Z": -5839.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 112.5,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "K111012": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K111012",
+            "EndQuestID": "K111012",
+            "SpawnLocation": {
+              "X": -136872.89,
+              "Y": 173053.77,
+              "Z": 6624.98
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 45.653484,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_004_s110811": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "s110810",
+            "EndQuestID": "s110810",
+            "SpawnLocation": {
+              "X": 143.22978,
+              "Y": 269003.6,
+              "Z": 8154.9556
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 30.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "s110811",
+            "EndQuestID": "s110811",
+            "SpawnLocation": {
+              "X": 143.22978,
+              "Y": 269003.6,
+              "Z": 8154.9556
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 30.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_054_s110813": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "s110813",
+            "EndQuestID": "s110813",
+            "SpawnLocation": {
+              "X": 130.66147,
+              "Y": 268989.5,
+              "Z": 8154.9556
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -357.9984,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "s110814",
+            "EndQuestID": "s110814",
+            "SpawnLocation": {
+              "X": 560.0,
+              "Y": 268800.0,
+              "Z": 8150.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -100.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "s110815",
+            "EndQuestID": "s110815",
+            "SpawnLocation": {
+              "X": 622.85486,
+              "Y": 268848.16,
+              "Z": 8150.8853
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -504.60544,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_008_k110910": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "k110913",
+            "EndQuestID": "k110913",
+            "SpawnLocation": {
+              "X": -91340.0,
+              "Y": 149325.0,
+              "Z": 4580.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 88.052734,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "S110709": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "S110709",
+            "EndQuestID": "S110709",
+            "SpawnLocation": {
+              "X": -16842.447,
+              "Y": 38526.6,
+              "Z": 7625.1025
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 90.042496,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_014_K110731": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K110733",
+            "EndQuestID": "K110733",
+            "SpawnLocation": {
+              "X": -104746.586,
+              "Y": 139824.2,
+              "Z": 10223.137
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 16.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "K110734",
+            "EndQuestID": "K110735",
+            "SpawnLocation": {
+              "X": -104501.56,
+              "Y": 139838.78,
+              "Z": 10229.765
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -110.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_06101_K110015": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K110015",
+            "EndQuestID": "K110015",
+            "SpawnLocation": {
+              "X": -84849.555,
+              "Y": -71.96103,
+              "Z": 8433.25
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.312619,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_03503_S110301": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "S110301",
+            "EndQuestID": "S110301",
+            "SpawnLocation": {
+              "X": -151327.97,
+              "Y": 163201.56,
+              "Z": 7522.0938
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -17.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_03602_S110301": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "S110301",
+            "EndQuestID": "S110301",
+            "SpawnLocation": {
+              "X": -151282.11,
+              "Y": 163285.42,
+              "Z": 7522.0938
+            },
+            "SpawnRot": {
+              "Pitch": -0.0,
+              "Yaw": -56.25,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110403_NPC002": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110404",
+            "EndQuestID": "q110405",
+            "SpawnLocation": {
+              "X": 4168.0737,
+              "Y": 272168.47,
+              "Z": 7756.671
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 90.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110406",
+            "EndQuestID": "q110407",
+            "SpawnLocation": {
+              "X": 3976.7778,
+              "Y": 274746.22,
+              "Z": 27552.623
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -273.17236,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110403_NPC009": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110404",
+            "EndQuestID": "q110405",
+            "SpawnLocation": {
+              "X": 4009.3425,
+              "Y": 272220.16,
+              "Z": 7756.671
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 90.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110406",
+            "EndQuestID": "q110407",
+            "SpawnLocation": {
+              "X": 4012.398,
+              "Y": 272762.2,
+              "Z": 7122.6455
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -273.17236,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110403_NPC013": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110404",
+            "EndQuestID": "q110405",
+            "SpawnLocation": {
+              "X": 3889.2869,
+              "Y": 272073.28,
+              "Z": 7756.671
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 87.79156,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110406",
+            "EndQuestID": "q110407",
+            "SpawnLocation": {
+              "X": 3906.9116,
+              "Y": 274603.75,
+              "Z": 27552.623
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 89.9976,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100102": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100103",
+            "EndQuestID": "WJ100103",
+            "SpawnLocation": {
+              "X": 21264.0,
+              "Y": 62333.0,
+              "Z": 6333.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 168.75,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100202": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100202",
+            "EndQuestID": "WJ100202",
+            "SpawnLocation": {
+              "X": -52777.45,
+              "Y": 55.308388,
+              "Z": 7340.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 115.61415,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100401": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100402",
+            "EndQuestID": "WJ100403",
+            "SpawnLocation": {
+              "X": -89057.0,
+              "Y": 147801.0,
+              "Z": 4065.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 61.875,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100301": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100302",
+            "EndQuestID": "WJ100303",
+            "SpawnLocation": {
+              "X": -34954.957,
+              "Y": 39512.504,
+              "Z": 7637.7095
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 90.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "k111403": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "k111403",
+            "EndQuestID": "k111403",
+            "SpawnLocation": {
+              "X": -170526.0,
+              "Y": 143171.0,
+              "Z": 6441.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 255.80519,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "k111302": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "k111302",
+            "EndQuestID": "k111302",
+            "SpawnLocation": {
+              "X": -18192.0,
+              "Y": 34588.0,
+              "Z": 7625.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 27.334476,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "k111305": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "k111306",
+            "EndQuestID": "k111306",
+            "SpawnLocation": {
+              "X": -62188.0,
+              "Y": 13760.0,
+              "Z": 7450.2446
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 71.55564,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "k111307": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "k111307",
+            "EndQuestID": "k111307",
+            "SpawnLocation": {
+              "X": -18726.0,
+              "Y": 76653.0,
+              "Z": 6382.581
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 35.384686,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ101802": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ101802",
+            "EndQuestID": "WJ101804",
+            "SpawnLocation": {
+              "X": -110546.0,
+              "Y": 134541.0,
+              "Z": 11619.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -154.6875,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ101902": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ101902",
+            "EndQuestID": "WJ101903",
+            "SpawnLocation": {
+              "X": -28821.0,
+              "Y": -1799.0,
+              "Z": 8489.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -30.9375,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "S111316": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "S111316",
+            "EndQuestID": "S111316",
+            "SpawnLocation": {
+              "X": 258.20697,
+              "Y": -10888.679,
+              "Z": 83.764114
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -86.97014,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "S111322": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "S111322",
+            "EndQuestID": "S111322",
+            "SpawnLocation": {
+              "X": -3948.887,
+              "Y": -5985.6963,
+              "Z": 77.3003
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 269.59213,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100202_Loop": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100202_Loop",
+            "EndQuestID": "WJ100202_Loop",
+            "SpawnLocation": {
+              "X": -52777.45,
+              "Y": 55.308388,
+              "Z": 7340.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 115.61415,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100102_Loop": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100103_Loop",
+            "EndQuestID": "WJ100103_Loop",
+            "SpawnLocation": {
+              "X": 21264.0,
+              "Y": 62333.0,
+              "Z": 6333.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 168.75,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100401_Loop": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100402_Loop",
+            "EndQuestID": "WJ100403_Loop",
+            "SpawnLocation": {
+              "X": -89057.0,
+              "Y": 147801.0,
+              "Z": 4065.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 61.875,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "WJ100403_Loop",
+            "EndQuestID": "WJ100404_Loop",
+            "SpawnLocation": {
+              "X": -89057.0,
+              "Y": 147801.0,
+              "Z": 4065.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 61.875,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100301_Loop": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100302_Loop",
+            "EndQuestID": "WJ100303_Loop",
+            "SpawnLocation": {
+              "X": -34954.957,
+              "Y": 39512.504,
+              "Z": 7637.7095
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 90.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ101802_Loop": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ101802_Loop",
+            "EndQuestID": "WJ101804_Loop",
+            "SpawnLocation": {
+              "X": -110546.0,
+              "Y": 134541.0,
+              "Z": 11619.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -154.6875,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ101902_Loop": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ101902_Loop",
+            "EndQuestID": "WJ101903_Loop",
+            "SpawnLocation": {
+              "X": -28821.0,
+              "Y": -1799.0,
+              "Z": 8489.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -30.9375,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "K111904": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K111904",
+            "EndQuestID": "K111904",
+            "SpawnLocation": {
+              "X": 25324.719,
+              "Y": 68924.85,
+              "Z": 6323.5527
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -105.669655,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "K111906": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K111906",
+            "EndQuestID": "K111906",
+            "SpawnLocation": {
+              "X": 22597.695,
+              "Y": 65422.68,
+              "Z": 6315.552
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 74.140816,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "K111909": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K111909",
+            "EndQuestID": "K111909",
+            "SpawnLocation": {
+              "X": 21726.352,
+              "Y": 58154.703,
+              "Z": 6314.205
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -10.756434,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100402": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100403",
+            "EndQuestID": "WJ100404",
+            "SpawnLocation": {
+              "X": -89057.0,
+              "Y": 147801.0,
+              "Z": 4065.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 61.875,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "WJ100402_Loop": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "WJ100403_Loop",
+            "EndQuestID": "WJ100404_Loop",
+            "SpawnLocation": {
+              "X": -89057.0,
+              "Y": 147801.0,
+              "Z": 4065.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 61.875,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110007_NPC002": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110007",
+            "EndQuestID": "q110007",
+            "SpawnLocation": {
+              "X": 4342.0,
+              "Y": 267531.0,
+              "Z": 31760.0
+            },
+            "SpawnRot": {
+              "Pitch": -0.0,
+              "Yaw": -140.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_011_q110511": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110511_square_1",
+            "EndQuestID": "q110511_square_2",
+            "SpawnLocation": {
+              "X": -267349.44,
+              "Y": 359247.75,
+              "Z": 4268.1484
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 112.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_square_3",
+            "EndQuestID": "q110511_pond_1",
+            "SpawnLocation": {
+              "X": -266989.16,
+              "Y": 362251.53,
+              "Z": 4400.4883
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 70.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_pond_2",
+            "EndQuestID": "q110511_pond_3",
+            "SpawnLocation": {
+              "X": -266076.25,
+              "Y": 364075.06,
+              "Z": 4293.3223
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 110.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_pond_4",
+            "EndQuestID": "q110511_Indoor_1",
+            "SpawnLocation": {
+              "X": -266432.25,
+              "Y": 365773.72,
+              "Z": 4111.05
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 261.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_Indoor_2",
+            "EndQuestID": "q110511_Indoor_3",
+            "SpawnLocation": {
+              "X": -269697.84,
+              "Y": 365464.72,
+              "Z": 4401.6035
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 120.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_Indoor_4",
+            "EndQuestID": "q110511_Indoor_6",
+            "SpawnLocation": {
+              "X": -269790.1,
+              "Y": 363318.6,
+              "Z": 4391.9614
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 30.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_Indoor_7",
+            "EndQuestID": "q110511_Farm_1",
+            "SpawnLocation": {
+              "X": -270500.53,
+              "Y": 362801.0,
+              "Z": 4391.9614
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 213.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_Farm_2",
+            "EndQuestID": "q110513",
+            "SpawnLocation": {
+              "X": -270479.56,
+              "Y": 358079.78,
+              "Z": 4186.936
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 272.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_028_q110511": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110511_square_1",
+            "EndQuestID": "q110511_square_2",
+            "SpawnLocation": {
+              "X": -267574.44,
+              "Y": 359139.53,
+              "Z": 4268.265
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -16.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_square_3",
+            "EndQuestID": "q110511_pond_1",
+            "SpawnLocation": {
+              "X": -266820.56,
+              "Y": 362530.72,
+              "Z": 4400.4883
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -98.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_pond_2",
+            "EndQuestID": "q110511_pond_3",
+            "SpawnLocation": {
+              "X": -265856.2,
+              "Y": 364048.78,
+              "Z": 4293.3223
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -151.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_pond_4",
+            "EndQuestID": "q110511_Indoor_1",
+            "SpawnLocation": {
+              "X": -266349.12,
+              "Y": 365831.8,
+              "Z": 4132.1597
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -118.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_Indoor_2",
+            "EndQuestID": "q110511_Indoor_3",
+            "SpawnLocation": {
+              "X": -269791.3,
+              "Y": 365228.25,
+              "Z": 4400.9614
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 36.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_Indoor_4",
+            "EndQuestID": "q110511_Indoor_6",
+            "SpawnLocation": {
+              "X": -269721.38,
+              "Y": 363229.53,
+              "Z": 4391.6035
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 70.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_Indoor_7",
+            "EndQuestID": "q110511_Farm_1",
+            "SpawnLocation": {
+              "X": -270425.5,
+              "Y": 362713.47,
+              "Z": 4391.6035
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 191.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110511_Farm_2",
+            "EndQuestID": "q110513",
+            "SpawnLocation": {
+              "X": -270644.56,
+              "Y": 358156.22,
+              "Z": 4191.936
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 317.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "q110550_nnl_back3_01": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110550_nnl_back3_01",
+            "EndQuestID": "q110550_nnl_back3_01",
+            "SpawnLocation": {
+              "X": -6586.7236,
+              "Y": 2586.3838,
+              "Z": -11468.984
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 180.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back3_02",
+            "EndQuestID": "q110550_nnl_back3_02",
+            "SpawnLocation": {
+              "X": -6586.7236,
+              "Y": 2586.3838,
+              "Z": -11468.984
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back3_03",
+            "EndQuestID": "q110550_nnl_back3_03",
+            "SpawnLocation": {
+              "X": -4464.0317,
+              "Y": 1913.2922,
+              "Z": -11470.526
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back3_04",
+            "EndQuestID": "q110550_nnl_back3_04",
+            "SpawnLocation": {
+              "X": -3402.9324,
+              "Y": 2726.1206,
+              "Z": -11460.856
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 90.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back3_05",
+            "EndQuestID": "q110550_nnl_back3_05",
+            "SpawnLocation": {
+              "X": -1656.6602,
+              "Y": 5121.0503,
+              "Z": -11460.856
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back3_end",
+            "EndQuestID": "q110550_nnl_back3_end",
+            "SpawnLocation": {
+              "X": 246.21715,
+              "Y": 5107.3945,
+              "Z": -11466.098
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back2_01",
+            "EndQuestID": "q110550_nnl_back2_01",
+            "SpawnLocation": {
+              "X": 1360.1528,
+              "Y": 5123.047,
+              "Z": -11460.856
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back2_02",
+            "EndQuestID": "q110550_nnl_back2_02",
+            "SpawnLocation": {
+              "X": 1360.1528,
+              "Y": 5123.047,
+              "Z": -11460.856
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back2_03",
+            "EndQuestID": "q110550_nnl_back2_03",
+            "SpawnLocation": {
+              "X": 4855.314,
+              "Y": 4319.132,
+              "Z": -11467.8125
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -90.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back2_04",
+            "EndQuestID": "q110550_nnl_back2_04",
+            "SpawnLocation": {
+              "X": 4559.1216,
+              "Y": 2264.1128,
+              "Z": -11467.8125
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 180.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back2_05",
+            "EndQuestID": "q110550_nnl_back2_05",
+            "SpawnLocation": {
+              "X": 1407.2296,
+              "Y": 2384.3486,
+              "Z": -11465.134
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 180.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back2_end",
+            "EndQuestID": "q110550_nnl_back2_end",
+            "SpawnLocation": {
+              "X": 1407.2296,
+              "Y": 2384.3486,
+              "Z": -11465.134
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 180.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back1_01",
+            "EndQuestID": "q110550_nnl_back1_01",
+            "SpawnLocation": {
+              "X": 476.06342,
+              "Y": 2230.7456,
+              "Z": -11465.134
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -90.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back1_02",
+            "EndQuestID": "q110550_nnl_back1_02",
+            "SpawnLocation": {
+              "X": 743.80786,
+              "Y": 1000.49713,
+              "Z": -11465.134
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -90.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back1_03",
+            "EndQuestID": "q110550_nnl_back1_03",
+            "SpawnLocation": {
+              "X": 1472.3728,
+              "Y": -939.2024,
+              "Z": -11465.134
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back1_04",
+            "EndQuestID": "q110550_nnl_back1_04",
+            "SpawnLocation": {
+              "X": 2988.8071,
+              "Y": -1699.3224,
+              "Z": -11465.134
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back1_05",
+            "EndQuestID": "q110550_nnl_back1_05",
+            "SpawnLocation": {
+              "X": 2988.8071,
+              "Y": -1699.3224,
+              "Z": -11465.134
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back1_06",
+            "EndQuestID": "q110550_nnl_back1_06",
+            "SpawnLocation": {
+              "X": 2988.8071,
+              "Y": -1699.3224,
+              "Z": -11465.134
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back1_07",
+            "EndQuestID": "q110550_nnl_back1_07",
+            "SpawnLocation": {
+              "X": 5651.441,
+              "Y": -1370.7218,
+              "Z": -11454.901
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_nnl_back1_end",
+            "EndQuestID": "q110550_nnl_back1_end",
+            "SpawnLocation": {
+              "X": 5651.441,
+              "Y": -1370.7218,
+              "Z": -11454.901
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_A_084_q11055_April_01": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q11055_April_02",
+            "EndQuestID": "q11055_April_02",
+            "SpawnLocation": {
+              "X": -4654.083,
+              "Y": -19945.61,
+              "Z": -8730.87
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 90.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q11055_April_03",
+            "EndQuestID": "q11055_April_04",
+            "SpawnLocation": {
+              "X": -4654.083,
+              "Y": -19661.236,
+              "Z": -8730.87
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 90.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_1055_q110550_dfdil_03": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110550_dfdil_04",
+            "EndQuestID": "q110550_dfdil_06",
+            "SpawnLocation": {
+              "X": 4262.562,
+              "Y": -11309.385,
+              "Z": -45676.043
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -42.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_1055_q110550_dfdil_07": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110550_dfdil_08",
+            "EndQuestID": "q110550_dfdil_09",
+            "SpawnLocation": {
+              "X": 8131.9365,
+              "Y": -16821.006,
+              "Z": -44958.38
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -11.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_dfdil_10",
+            "EndQuestID": "q110550_dfdil_11",
+            "SpawnLocation": {
+              "X": 8279.295,
+              "Y": -19414.078,
+              "Z": -44890.13
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 60.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_1055_q110550_dfdil_16": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110550_dfdil_17",
+            "EndQuestID": "q110550_dfdil_19",
+            "SpawnLocation": {
+              "X": 11007.596,
+              "Y": -17417.652,
+              "Z": -44462.957
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -50.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_1055_q110550_dfdil_20": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110550_dfdil_21",
+            "EndQuestID": "q110550_dfdil_22",
+            "SpawnLocation": {
+              "X": 10902.348,
+              "Y": -19800.12,
+              "Z": -44148.72
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -78.75,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_1055_q110550_dfdil_23": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110550_dfdil_24",
+            "EndQuestID": "q110550_dfdil_26",
+            "SpawnLocation": {
+              "X": 8644.997,
+              "Y": -17799.596,
+              "Z": -42766.76
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 154.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_1055_q110550_dfdil_27": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110550_dfdil_28",
+            "EndQuestID": "q110550_dfdil_30",
+            "SpawnLocation": {
+              "X": 9926.121,
+              "Y": -18153.094,
+              "Z": -41795.426
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 104.0625,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_dfdil_31",
+            "EndQuestID": "q110550_dfdil_32",
+            "SpawnLocation": {
+              "X": 9489.153,
+              "Y": -19910.79,
+              "Z": -41727.312
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 255.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_1055_q110550_dfdil_34": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110550_dfdil_35",
+            "EndQuestID": "q110550_dfdil_35",
+            "SpawnLocation": {
+              "X": 9461.977,
+              "Y": -20627.453,
+              "Z": -41255.133
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 98.4375,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110550_dfdil_36",
+            "EndQuestID": "q110550_nnl_01",
+            "SpawnLocation": {
+              "X": 7291.7007,
+              "Y": -16423.973,
+              "Z": -99175.08
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 185.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_012_q110530": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q1105311",
+            "EndQuestID": "q1105313",
+            "SpawnLocation": {
+              "X": -87837.0,
+              "Y": 148780.0,
+              "Z": 4569.4995
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 106.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_008_q110530": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q1105311",
+            "EndQuestID": "q1105313",
+            "SpawnLocation": {
+              "X": -87726.0,
+              "Y": 149068.0,
+              "Z": 4572.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 75.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_011_q110516": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110517",
+            "EndQuestID": "q110517_laba_2",
+            "SpawnLocation": {
+              "X": -269723.94,
+              "Y": 360782.6,
+              "Z": 4229.8794
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 236.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110518",
+            "EndQuestID": "q110518_mrr_2",
+            "SpawnLocation": {
+              "X": -268504.66,
+              "Y": 361134.38,
+              "Z": 4234.8794
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -3.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110519",
+            "EndQuestID": "q110520",
+            "SpawnLocation": {
+              "X": -268682.62,
+              "Y": 362092.44,
+              "Z": 4248.4688
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 449.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_A_084_q1105694": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110570",
+            "EndQuestID": "q110570",
+            "SpawnLocation": {
+              "X": -21695.227,
+              "Y": -9591.418,
+              "Z": 7569.2954
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -42.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110571",
+            "EndQuestID": "q110571",
+            "SpawnLocation": {
+              "X": -20862.0,
+              "Y": -10799.0,
+              "Z": 7510.0
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -30.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110572",
+            "EndQuestID": "q110572",
+            "SpawnLocation": {
+              "X": -19152.227,
+              "Y": -11869.418,
+              "Z": 7495.4756
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          },
+          {
+            "BeginQuestID": "q110573",
+            "EndQuestID": "q110573",
+            "SpawnLocation": {
+              "X": -18198.227,
+              "Y": -12615.418,
+              "Z": 7403.3745
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 0.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_011_q110507": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110509",
+            "EndQuestID": "q110510",
+            "SpawnLocation": {
+              "X": -264648.9,
+              "Y": 351959.75,
+              "Z": 3305.7317
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 194.0625,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_028_q110507": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110509",
+            "EndQuestID": "q110510",
+            "SpawnLocation": {
+              "X": -264824.8,
+              "Y": 351641.75,
+              "Z": 3308.262
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 194.0625,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_009_K111214": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K111215",
+            "EndQuestID": "K111216",
+            "SpawnLocation": {
+              "X": -143909.47,
+              "Y": 249453.92,
+              "Z": 2352.9292
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -110.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_013_K111215": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K111215",
+            "EndQuestID": "K111216",
+            "SpawnLocation": {
+              "X": -143941.58,
+              "Y": 249325.78,
+              "Z": 2351.039
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 64.0,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_032_K112103": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K112103",
+            "EndQuestID": "K112103",
+            "SpawnLocation": {
+              "X": -77596.016,
+              "Y": 48120.473,
+              "Z": 7734.2695
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 46.324387,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_032_K112124": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "K112124",
+            "EndQuestID": "K112124",
+            "SpawnLocation": {
+              "X": 44460.285,
+              "Y": 104570.61,
+              "Z": 9902.25
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -103.78234,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "NPC_04002_S110302": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "S110312",
+            "EndQuestID": "S110313",
+            "SpawnLocation": {
+              "X": -151491.69,
+              "Y": 165320.14,
+              "Z": 7874.927
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -275.625,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13103_q110935": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110937",
+            "EndQuestID": "q110938",
+            "SpawnLocation": {
+              "X": 32181.4,
+              "Y": -14683.453,
+              "Z": 585.1255
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -0.979532,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC12801_q110940": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110940",
+            "EndQuestID": "q1109401",
+            "SpawnLocation": {
+              "X": 27328.271,
+              "Y": -20964.377,
+              "Z": 430.60583
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -68.839775,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13301_q1109442": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q1109442",
+            "EndQuestID": "q1109443",
+            "SpawnLocation": {
+              "X": 43161.21,
+              "Y": -10188.673,
+              "Z": 1221.0691
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 37.22162,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13203_q110950": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110950",
+            "EndQuestID": "q1109511",
+            "SpawnLocation": {
+              "X": 25157.246,
+              "Y": -22682.947,
+              "Z": 630.0677
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 86.07013,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC12801_q110950": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110950",
+            "EndQuestID": "q110950",
+            "SpawnLocation": {
+              "X": 25284.053,
+              "Y": -22773.838,
+              "Z": 649.1258
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 86.07013,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13204_q110950": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110950",
+            "EndQuestID": "q1109511",
+            "SpawnLocation": {
+              "X": 25065.451,
+              "Y": -22785.908,
+              "Z": 629.7201
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": 85.89437,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13102_q110955": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110955",
+            "EndQuestID": "q110956",
+            "SpawnLocation": {
+              "X": 27681.299,
+              "Y": -22078.37,
+              "Z": 418.72336
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -84.520485,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13304_q110955": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110955",
+            "EndQuestID": "q110956",
+            "SpawnLocation": {
+              "X": 27859.072,
+              "Y": -22068.701,
+              "Z": 418.72336
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -93.35615,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13102_q110962": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110962",
+            "EndQuestID": "q110962",
+            "SpawnLocation": {
+              "X": 42518.207,
+              "Y": -23175.521,
+              "Z": 1433.8972
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -19.245058,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13304_q110962": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110962",
+            "EndQuestID": "q110962",
+            "SpawnLocation": {
+              "X": 42619.918,
+              "Y": -23111.688,
+              "Z": 1444.2018
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -33.961155,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13303_q110962": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110962",
+            "EndQuestID": "q110962",
+            "SpawnLocation": {
+              "X": 42605.418,
+              "Y": -22932.543,
+              "Z": 1443.7023
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -27.913525,
+              "Roll": 0.0
+            }
+          }
+        ]
+      },
+      "HeiYu_NPC13301_q110969": {
+        "QuestSpawnPointOverrides": [
+          {
+            "BeginQuestID": "q110969",
+            "EndQuestID": "q110971",
+            "SpawnLocation": {
+              "X": 44657.863,
+              "Y": -25157.408,
+              "Z": 1595.1184
+            },
+            "SpawnRot": {
+              "Pitch": 0.0,
+              "Yaw": -67.41048,
+              "Roll": 0.0
+            }
+          }
+        ]
+      }
+    }
+  }
+]

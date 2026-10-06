@@ -1,0 +1,62 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_PingTypeData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_PingTypeData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'PingTypeData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "LowPing": {
+        "PingType": "EHTPingType::LowPing",
+        "PingTop": 100.0,
+        "PingColor": {
+          "B": 216,
+          "G": 237,
+          "R": 22,
+          "A": 255,
+          "Hex": "16EDD8"
+        },
+        "PingImage": {
+          "AssetPathName": "/Game/UI/UI/main/YH_UI_ping_low.YH_UI_ping_low",
+          "SubPathString": ""
+        }
+      },
+      "MidPing": {
+        "PingType": "EHTPingType::MidPing",
+        "PingTop": 200.0,
+        "PingColor": {
+          "B": 35,
+          "G": 192,
+          "R": 238,
+          "A": 255,
+          "Hex": "EEC023"
+        },
+        "PingImage": {
+          "AssetPathName": "/Game/UI/UI/main/YH_UI_ping_middle.YH_UI_ping_middle",
+          "SubPathString": ""
+        }
+      },
+      "HighPing": {
+        "PingType": "EHTPingType::HighPing",
+        "PingTop": 999.0,
+        "PingColor": {
+          "B": 64,
+          "G": 33,
+          "R": 238,
+          "A": 255,
+          "Hex": "EE2140"
+        },
+        "PingImage": {
+          "AssetPathName": "/Game/UI/UI/main/YH_UI_ping_high.YH_UI_ping_high",
+          "SubPathString": ""
+        }
+      }
+    }
+  }
+]

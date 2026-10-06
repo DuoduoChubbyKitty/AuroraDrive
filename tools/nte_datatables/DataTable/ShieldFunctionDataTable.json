@@ -1,0 +1,3456 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "ShieldFunctionDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/ShieldFunctionDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'ShieldFunctionConfig'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "WeeklyClone": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": true,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestTrack"
+          }
+        ]
+      },
+      "NormalClone": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          }
+        ]
+      },
+      "StoryClone": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          }
+        ]
+      },
+      "Abyssclone": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Bag"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuickMenuGamepad"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuickMenuKeyboard"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AchievementMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Bag"
+          }
+        ]
+      },
+      "WorldBoss": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "VisionList"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          }
+        ]
+      },
+      "TrialClone": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": true,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          }
+        ]
+      },
+      "PrisonClone": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "PrisonMatch"
+          }
+        ]
+      },
+      "CardGame": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "NewSelfie"
+          }
+        ]
+      },
+      "Vision": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "sys_igneal_State_no_lottery",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestTrack"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "VisionList"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdvVisionDesc"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "PrisonMatch"
+          }
+        ]
+      },
+      "OnlyBlockVisionList": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "VisionList"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestTrack"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdvVisionDesc"
+          }
+        ]
+      },
+      "OnlineMainForm": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "",
+            "ShieldID": "None"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "common_forbid_online",
+            "ShieldID": "LikeabilityChatMain"
+          }
+        ]
+      },
+      "VisionWithNoCamera": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "sys_igneal_State_no_lottery",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestTrack"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "NewSelfie"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "VisionList"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdvVisionDesc"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "PrisonMatch"
+          }
+        ]
+      },
+      "OnlyBlockAdvvision": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "sm_ignore_when_playing_dead_montage",
+            "ShieldID": "AdvVisionDesc"
+          }
+        ]
+      },
+      "AloneBigWorld": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          }
+        ]
+      },
+      "OnlyBlockMain": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MenuBtn"
+          }
+        ]
+      },
+      "FinalTower": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "NoteBookMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ManualMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterFormation"
+          }
+        ]
+      },
+      "Racing": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Bag"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuickMenuGamepad"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuickMenuKeyboard"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AchievementMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Bag"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SupplyShortcut"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "NewSelfie"
+          }
+        ]
+      },
+      "PrisonBoxing": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Bag"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Chat"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "PrisonMatch"
+          }
+        ]
+      },
+      "PrisonFightClub": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "PrisonMatch"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          }
+        ]
+      },
+      "Bank": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          }
+        ]
+      },
+      "Volleyball": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": true,
+            "MessageId": "",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "",
+            "ShieldID": "Menu"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuickMenuKeyboard"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuickMenuGamepad"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "NewSelfie"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Bag"
+          }
+        ]
+      },
+      "AdvVision": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "VisionList"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdvVisionDesc"
+          }
+        ]
+      },
+      "SurvivalGamePlay": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Bag"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuickMenuGamepad"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuickMenuKeyboard"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AchievementMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Bag"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SupplyShortcut"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "sys_igneal_State_no_lottery",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestTrack"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "NewSelfie"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "VisionList"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdvVisionDesc"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "PrisonMatch"
+          }
+        ]
+      },
+      "DefendNS": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuickMenuKeyboard"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AchievementMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SupplyShortcut"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "sys_igneal_State_no_lottery",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestTrack"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "NewSelfie"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "VisionList"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdvVisionDesc"
+          },
+          {
+            "IsEnabled": false,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "PrisonMatch"
+          }
+        ]
+      },
+      "HauntedHouse": {
+        "ShieldDatas": [
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdventureManual"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CombatAwardMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "ActivityMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterMainform"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CityTycoon"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "BigMap"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Friend"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "WorldLevelReward"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": true,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "QuestPanel"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "AdjustTime"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "OnlineLobby"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MailMainForm"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "EditPlayerInfo"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Mall"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "SinPointWidget"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LikeabilityChatMain"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "MovablePlayer"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "CharacterTeach"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "LotteryCharacterTrial"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "feixingqi"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "Menu"
+          },
+          {
+            "IsEnabled": true,
+            "IsHide": false,
+            "IsAutoCloseSelf": false,
+            "MessageId": "scene_forbid_open_ui",
+            "ShieldID": "NewSelfie"
+          }
+        ]
+      }
+    }
+  }
+]

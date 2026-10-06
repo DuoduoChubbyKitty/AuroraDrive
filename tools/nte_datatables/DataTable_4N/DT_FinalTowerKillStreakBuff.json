@@ -1,0 +1,107 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_FinalTowerKillStreakBuff",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/Maps_4N/DataTable/DT_FinalTowerKillStreakBuff",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'FinalTowerKillStreakBuffData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Buff_Kill_15": {
+        "Name": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_15",
+          "SourceString": "连破",
+          "LocalizedString": "Onslaught"
+        },
+        "Desc": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_15_Des",
+          "SourceString": "每拥有1层「连破」，全队攻击力提升5%，暴击率提升1%。",
+          "LocalizedString": "Increases allies' ATK by 5% and Crit Chance by 1% per stack of Onslaught."
+        },
+        "Buff": {
+          "ObjectName": "BlueprintGeneratedClass'Buff_Kill_15_C'",
+          "ObjectPath": "/Game/Blueprints/Abilities/Buff/Fantasy/Kill/Buff_Kill_15/Buff_Kill_15.1"
+        }
+      },
+      "Buff_Kill_30": {
+        "Name": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_30",
+          "SourceString": "溃灭",
+          "LocalizedString": "Ravage"
+        },
+        "Desc": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_30_Des",
+          "SourceString": "全队「环合效率」及「充能效率」提升20%。",
+          "LocalizedString": "Increases allies' Cycle Efficiency and Charge Efficiency by 20%."
+        },
+        "Buff": {
+          "ObjectName": "BlueprintGeneratedClass'Buff_Kill_30_C'",
+          "ObjectPath": "/Game/Blueprints/Abilities/Buff/Fantasy/Kill/Buff_KIll_30/Buff_Kill_30.0"
+        }
+      },
+      "Buff_Kill_50": {
+        "Name": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_50",
+          "SourceString": "压制",
+          "LocalizedString": "Domination"
+        },
+        "Desc": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_50_Des",
+          "SourceString": "每隔15秒，冻结大范围内目标，持续2秒。",
+          "LocalizedString": "Freezes targets in a large area every 15s for 2s."
+        },
+        "Buff": {
+          "ObjectName": "BlueprintGeneratedClass'Buff_Kill_50_C'",
+          "ObjectPath": "/Game/Blueprints/Abilities/Buff/Fantasy/Kill/Buff_Kill_50/Buff_Kill_50.0"
+        }
+      },
+      "Buff_Kill_100": {
+        "Name": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_100",
+          "SourceString": "极意",
+          "LocalizedString": "Transcendence"
+        },
+        "Desc": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_100_Des",
+          "SourceString": "每隔20秒，召唤带有恩惠意味的抚慰光芒笼罩自身，持续8秒。效果影响范围内，全队每秒回复自身10%生命值，并对范围内目标每秒造成200%*攻击力的伤害。",
+          "LocalizedString": "Summons a benevolent soothing light every 20s for 8s, restoring 10% Max HP per second to allies within the area and dealing DMG equal to 200% of ATK per second to targets within range."
+        },
+        "Buff": {
+          "ObjectName": "BlueprintGeneratedClass'Buff_Kill_100_C'",
+          "ObjectPath": "/Game/Blueprints/Abilities/Buff/Fantasy/Kill/Buff_Kill_100/Buff_Kill_100.0"
+        }
+      },
+      "Buff_Kill_150": {
+        "Name": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_150",
+          "SourceString": "登神",
+          "LocalizedString": "Apotheosis"
+        },
+        "Desc": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "Buff_Kill_150_Des",
+          "SourceString": "每隔20秒，召唤带有惩戒意味的严厉光芒打击大范围内的目标，造成2000%*攻击力的伤害。",
+          "LocalizedString": "Summons a punitive beam of light every 20s, dealing DMG equal to 2000% of ATK to targets in a large area."
+        },
+        "Buff": {
+          "ObjectName": "BlueprintGeneratedClass'Buff_Kill_150_C'",
+          "ObjectPath": "/Game/Blueprints/Abilities/Buff/Fantasy/Kill/Buff_Kill_150/Buff_Kill_150.0"
+        }
+      }
+    }
+  }
+]

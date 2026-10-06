@@ -1,0 +1,170 @@
+{
+  "label": "阶段A前(HEAD)",
+  "timestamp": "2026-10-04T21:15:24+0800",
+  "load": {
+    "load1": 3.01,
+    "ncpu": 8,
+    "oversub": 0.38,
+    "timing_unreliable": false
+  },
+  "dimensions": {
+    "frames": {
+      "1200": {},
+      "300": {}
+    },
+    "frames_extra": {
+      "marker_layer_old_ms": 41.66,
+      "marker_layer_new_ms": 8.07,
+      "near_marker_old_ms": 6.36,
+      "near_marker_new_ms": 2.17
+    },
+    "rates": {
+      "tick_hz": 25.5,
+      "yolopx_hz": 25.52,
+      "yolopx_count": 205,
+      "m9_hz": 25.52,
+      "m9_count": 205,
+      "assist_hz": 25.52,
+      "assist_count": 205,
+      "yolo26s_hz": 25.52,
+      "yolo26s_count": 205
+    },
+    "infer": {
+      "submit.yolopx": {
+        "n": 205,
+        "p50": 0.014,
+        "p95": 0.026,
+        "p99": 0.034,
+        "max": 0.045,
+        "mean": 0.016
+      },
+      "submit.m9": {
+        "n": 205,
+        "p50": 0.003,
+        "p95": 0.007,
+        "p99": 0.015,
+        "max": 0.058,
+        "mean": 0.004
+      },
+      "submit.assist": {
+        "n": 205,
+        "p50": 0.002,
+        "p95": 0.004,
+        "p99": 0.009,
+        "max": 0.027,
+        "mean": 0.002
+      },
+      "submit.yolo26s": {
+        "n": 205,
+        "p50": 0.005,
+        "p95": 0.01,
+        "p99": 0.021,
+        "max": 0.024,
+        "mean": 0.006
+      },
+      "opticalflow": {
+        "n": 205,
+        "p50": 2.402,
+        "p95": 3.191,
+        "p99": 3.683,
+        "max": 3.703,
+        "mean": 2.438
+      },
+      "tick.loop": {
+        "n": 205,
+        "p50": 2.447,
+        "p95": 3.229,
+        "p99": 3.718,
+        "max": 3.763,
+        "mean": 2.478
+      }
+    },
+    "model_quality": {
+      "R2_det_count": 0,
+      "R3_drivable_pct": 0.0,
+      "R3_lane_pct": 0.0,
+      "yolopx-selftest": {
+        "has_fail_marker": true,
+        "pass_marker": true,
+        "lines": 64
+      },
+      "speed-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": false,
+        "lines": 27
+      },
+      "motion-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": true,
+        "lines": 34
+      },
+      "fit-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": false,
+        "lines": 26
+      },
+      "route-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": true,
+        "lines": 31
+      },
+      "taxonomy-selftest": {
+        "has_fail_marker": true,
+        "pass_marker": true,
+        "lines": 40
+      },
+      "limit-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": true,
+        "lines": 56
+      },
+      "opticalflow-selftest": {
+        "has_fail_marker": true,
+        "pass_marker": true,
+        "lines": 14
+      }
+    },
+    "memory": {
+      "T4_first_frame_load_ms": null,
+      "T4_first_render_ms": null,
+      "T4_cache_hit_ms": null,
+      "T4_rerender_ms": null,
+      "T4_cull_ms": null,
+      "T5_rss_growth_mb": null,
+      "T5_start_rss_mb": null,
+      "T6_map_tile_ms": null,
+      "load_factor": null,
+      "has_fail_marker": false
+    },
+    "image_quality": {
+      "path": "/tmp/aurora_mc_map_online.png",
+      "exists": true,
+      "bytes": 2590173,
+      "md5": "63048fc4023c0372dd183a5322f069e5",
+      "mtime": "Oct  4 21:10:40 2026",
+      "size": [
+        2640,
+        1720
+      ],
+      "pixel_sig_64": "ef7c7052ceed4c61e43940b1826d5f10",
+      "distinct_colors_64": 1911,
+      "mean_rgb": [
+        29.95,
+        35.42,
+        38.14
+      ]
+    },
+    "threads": {
+      "peak": 7,
+      "samples": 28,
+      "median": 7
+    },
+    "engineering": {
+      "unhandled_lines": 0,
+      "warning_count": 58,
+      "error_count": 4,
+      "build_ok": false,
+      "check_package_sources_ok": true
+    }
+  }
+}

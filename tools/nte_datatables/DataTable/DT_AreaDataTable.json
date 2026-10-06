@@ -1,0 +1,476 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_AreaDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_AreaDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'AreaData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "City01": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "DelegateMission_014",
+          "SourceString": "海特洛市",
+          "LocalizedString": "Hethereau"
+        },
+        "AreaPriority": 1,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_000": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "Area000",
+          "SourceString": "M10区",
+          "LocalizedString": "Area M10"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_001": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "Area001",
+          "SourceString": "桥间地",
+          "LocalizedString": "Bridge Crossings"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_002": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "Area002",
+          "SourceString": "未闻浦 ",
+          "LocalizedString": "Unheard Shores"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_003": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "Area003",
+          "SourceString": "绘空町",
+          "LocalizedString": "Illusion Town"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_004": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "Region004",
+          "SourceString": "米格尔区",
+          "LocalizedString": "Miguel District"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_005": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "Region002",
+          "SourceString": "新赫兰德区",
+          "LocalizedString": "New Herland District"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_006": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area006",
+          "SourceString": "泊暮区",
+          "LocalizedString": "Halfport District"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_008": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area008",
+          "SourceString": "拘留所",
+          "LocalizedString": "Detention Facility"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_009": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area009",
+          "SourceString": "向阳岛",
+          "LocalizedString": "Sunni Island"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_010": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Area010",
+          "SourceString": "噗卡乐园",
+          "LocalizedString": "Pukaland"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_coffee_200": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "SubArea00205",
+          "SourceString": "一咖舍",
+          "LocalizedString": "The Cafe by Origen"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_coffee_201": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "SubArea00205",
+          "SourceString": "一咖舍",
+          "LocalizedString": "The Cafe by Origen"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_coffee_202": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "SubArea00205",
+          "SourceString": "一咖舍",
+          "LocalizedString": "The Cafe by Origen"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_coffee_203": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "SubArea00205",
+          "SourceString": "一咖舍",
+          "LocalizedString": "The Cafe by Origen"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "City01_coffee_204": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/ST_QuestDisplayMapNameDetail.ST_QuestDisplayMapNameDetail",
+          "Key": "SubArea00205",
+          "SourceString": "一咖舍",
+          "LocalizedString": "The Cafe by Origen"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "Robbank_001": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Robbank_Area_001",
+          "SourceString": "G-接待大厅",
+          "LocalizedString": "G – Reception Hall"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "Robbank_002": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Robbank_Area_002",
+          "SourceString": "LG1-办公层",
+          "LocalizedString": "LG1 – Office Floor"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "Robbank_003": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Robbank_Area_003",
+          "SourceString": "LG2-藏品层",
+          "LocalizedString": "LG2 – Collection Floor"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "Robbank_004": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Robbank_Area_004",
+          "SourceString": "LG3-金库层",
+          "LocalizedString": "LG3 – Vault Floor"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "Robbank_005": {
+        "AreaTitle": {
+          "TableId": "/Game/Text/Minimap/ST_MapAreaDetails.ST_MapAreaDetails",
+          "Key": "Map_Robbank_Area_005",
+          "SourceString": "核心金库",
+          "LocalizedString": "Core Vault"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "4N_Main": {
+        "AreaTitle": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_Main",
+          "SourceString": "沃伦大陆",
+          "LocalizedString": "Warren Continent"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "4N_A": {
+        "AreaTitle": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_A",
+          "SourceString": "绵绵村",
+          "LocalizedString": "Fuzzy Village"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "4N_B": {
+        "AreaTitle": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_B",
+          "SourceString": "巧克力火山",
+          "LocalizedString": "Chocolate Volcano"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "4N_C": {
+        "AreaTitle": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_C",
+          "SourceString": "牛奶雪冰山",
+          "LocalizedString": "Milk Ice Mountain"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "4N_D": {
+        "AreaTitle": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_D",
+          "SourceString": "琥珀湖",
+          "LocalizedString": "Amber Syrup Lake"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      },
+      "4N_E": {
+        "AreaTitle": {
+          "TableId": "/Game/Maps_4N/Text/ST_MapAreaDetails_4N.ST_MapAreaDetails_4N",
+          "Key": "4N_E",
+          "SourceString": "赤龙古堡",
+          "LocalizedString": "Crimson Castle"
+        },
+        "AreaPriority": 0,
+        "AreaParticleAsset": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "FieldOfViewSize": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      }
+    }
+  }
+]

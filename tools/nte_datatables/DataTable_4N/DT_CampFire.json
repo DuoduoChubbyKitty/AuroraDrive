@@ -1,0 +1,827 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_CampFire",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/Maps_4N/DataTable/DT_CampFire",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'CampfireConfigData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Test1": {
+        "CampfireID": "Test1",
+        "position": {
+          "X": -2420.0,
+          "Y": 12110.0,
+          "Z": 1260.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "None",
+        "TeleportID": "None",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "campfire_Castle_01": {
+        "CampfireID": "campfire_Castle_01",
+        "position": {
+          "X": -165613.88,
+          "Y": -152401.47,
+          "Z": 8388.961
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "None",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01": {
+        "CampfireID": "Campfire_Lake_01",
+        "position": {
+          "X": 114919.77,
+          "Y": -123809.96,
+          "Z": 3326.1504
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire00",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Yingdi_01_0": {
+        "CampfireID": "Campfire_Yingdi_01_0",
+        "position": {
+          "X": 158.33556,
+          "Y": -3540.0522,
+          "Z": 10703.108
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "None",
+        "TeleportID": "None",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_SnowMountain_01": {
+        "CampfireID": "Campfire_SnowMountain_01",
+        "position": {
+          "X": -345338.0,
+          "Y": 103731.44,
+          "Z": -5996.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "None",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Yingdi": {
+        "CampfireID": "Campfire_Yingdi",
+        "position": {
+          "X": 737.0927,
+          "Y": -3039.073,
+          "Z": -29297.0
+        },
+        "OverrideDistance": 3000.0,
+        "bNeedActive": false,
+        "OwnerID": "None",
+        "TeleportID": "None",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Quest_P1_1": {
+        "CampfireID": "FT_BP_CampfireActor_Quest_P1_1",
+        "position": {
+          "X": 109920.0,
+          "Y": 117946.0,
+          "Z": -13812.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire01",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P1_2": {
+        "CampfireID": "BP_Campfire_Volcano_P1_2",
+        "position": {
+          "X": 101815.945,
+          "Y": 120169.09,
+          "Z": -13587.789
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire02",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P2_1": {
+        "CampfireID": "BP_Campfire_Volcano_P2_1",
+        "position": {
+          "X": 112487.0,
+          "Y": 122275.0,
+          "Z": -12116.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire03",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P2_2": {
+        "CampfireID": "BP_Campfire_Volcano_P2_2",
+        "position": {
+          "X": 110935.0,
+          "Y": 136520.0,
+          "Z": -11298.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire04",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P3_1": {
+        "CampfireID": "BP_Campfire_Volcano_P3_1",
+        "position": {
+          "X": 112078.0,
+          "Y": 141422.0,
+          "Z": -10603.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire05",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P3_2": {
+        "CampfireID": "BP_Campfire_Volcano_P3_2",
+        "position": {
+          "X": 111102.0,
+          "Y": 139913.0,
+          "Z": -9549.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire06",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P4_1": {
+        "CampfireID": "BP_Campfire_Volcano_P4_1",
+        "position": {
+          "X": 114285.586,
+          "Y": 151277.86,
+          "Z": -6667.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire07",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P4_2": {
+        "CampfireID": "BP_Campfire_Volcano_P4_2",
+        "position": {
+          "X": 122203.516,
+          "Y": 162945.3,
+          "Z": -3550.0342
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire08",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P4_3": {
+        "CampfireID": "BP_Campfire_Volcano_P4_3",
+        "position": {
+          "X": 108165.22,
+          "Y": 158457.33,
+          "Z": -1186.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire09",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P4_4": {
+        "CampfireID": "BP_Campfire_Volcano_P4_4",
+        "position": {
+          "X": 95496.0,
+          "Y": 150477.0,
+          "Z": 2344.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire10",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P4_5": {
+        "CampfireID": "BP_Campfire_Volcano_P4_5",
+        "position": {
+          "X": 112582.11,
+          "Y": 154018.64,
+          "Z": 273.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire11",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P5_1": {
+        "CampfireID": "BP_Campfire_Volcano_P5_1",
+        "position": {
+          "X": 101151.0,
+          "Y": 131961.0,
+          "Z": -16637.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire12",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P5_2": {
+        "CampfireID": "BP_Campfire_Volcano_P5_2",
+        "position": {
+          "X": 92963.086,
+          "Y": 149246.47,
+          "Z": -18900.54
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire13",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "BP_Campfire_Volcano_P5_3": {
+        "CampfireID": "BP_Campfire_Volcano_P5_3",
+        "position": {
+          "X": 96881.445,
+          "Y": 154030.67,
+          "Z": -17339.852
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_B",
+        "TeleportID": "FT_Volca_Campfire14",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_0": {
+        "CampfireID": "Campfire_Lake_01_0",
+        "position": {
+          "X": 114919.77,
+          "Y": -123809.96,
+          "Z": 3326.1504
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire00",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_1": {
+        "CampfireID": "Campfire_Lake_01_1",
+        "position": {
+          "X": 114660.92,
+          "Y": -133739.0,
+          "Z": 2249.0
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire01",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_10": {
+        "CampfireID": "Campfire_Lake_01_10",
+        "position": {
+          "X": 135024.12,
+          "Y": -97039.21,
+          "Z": 4727.8203
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire10",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_11": {
+        "CampfireID": "Campfire_Lake_01_11",
+        "position": {
+          "X": 145340.0,
+          "Y": -104600.0,
+          "Z": 4422.711
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire11",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_2": {
+        "CampfireID": "Campfire_Lake_01_2",
+        "position": {
+          "X": 122908.02,
+          "Y": -146688.42,
+          "Z": 2388.7202
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire02",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_3": {
+        "CampfireID": "Campfire_Lake_01_3",
+        "position": {
+          "X": 131792.3,
+          "Y": -150195.44,
+          "Z": 3570.736
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire03",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_4": {
+        "CampfireID": "Campfire_Lake_01_4",
+        "position": {
+          "X": 155478.28,
+          "Y": -143617.42,
+          "Z": -1265.5653
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire04",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_5": {
+        "CampfireID": "Campfire_Lake_01_5",
+        "position": {
+          "X": 147301.06,
+          "Y": -127457.32,
+          "Z": 3038.1824
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire05",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_6": {
+        "CampfireID": "Campfire_Lake_01_6",
+        "position": {
+          "X": 171098.1,
+          "Y": -127495.71,
+          "Z": 6057.8545
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire06",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_7": {
+        "CampfireID": "Campfire_Lake_01_7",
+        "position": {
+          "X": 173594.77,
+          "Y": -125762.805,
+          "Z": 18211.682
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire07",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_8": {
+        "CampfireID": "Campfire_Lake_01_8",
+        "position": {
+          "X": 121999.016,
+          "Y": -106350.94,
+          "Z": 2313.8477
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire08",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "Campfire_Lake_01_9": {
+        "CampfireID": "Campfire_Lake_01_9",
+        "position": {
+          "X": 131085.83,
+          "Y": -102623.414,
+          "Z": 3071.1794
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_D",
+        "TeleportID": "FT_Lake_Campfire09",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Castle_Campfire01": {
+        "CampfireID": "FT_Castle_Campfire01",
+        "position": {
+          "X": -165613.88,
+          "Y": -152401.47,
+          "Z": 8388.961
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "FT_Castle_Campfire01",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Castle_Campfire02": {
+        "CampfireID": "FT_Castle_Campfire02",
+        "position": {
+          "X": -151826.3,
+          "Y": -141899.8,
+          "Z": 8877.869
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "FT_Castle_Campfire02",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Castle_Campfire03": {
+        "CampfireID": "FT_Castle_Campfire03",
+        "position": {
+          "X": -140799.77,
+          "Y": -153253.84,
+          "Z": 9464.553
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "FT_Castle_Campfire03",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Castle_Campfire04": {
+        "CampfireID": "FT_Castle_Campfire04",
+        "position": {
+          "X": -145850.34,
+          "Y": -144527.47,
+          "Z": 10059.88
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "FT_Castle_Campfire04",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Castle_Campfire05": {
+        "CampfireID": "FT_Castle_Campfire05",
+        "position": {
+          "X": -137092.61,
+          "Y": -171255.19,
+          "Z": 17414.94
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "FT_Castle_Campfire05",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Castle_Campfire06": {
+        "CampfireID": "FT_Castle_Campfire06",
+        "position": {
+          "X": -117152.19,
+          "Y": -143741.28,
+          "Z": 37068.996
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "FT_Castle_Campfire06",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Castle_Campfire07": {
+        "CampfireID": "FT_Castle_Campfire07",
+        "position": {
+          "X": -155886.31,
+          "Y": -171252.95,
+          "Z": 13615.784
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "FT_Castle_Campfire07",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Castle_Campfire09": {
+        "CampfireID": "FT_Castle_Campfire09",
+        "position": {
+          "X": -113105.086,
+          "Y": -138318.83,
+          "Z": 59151.5
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "FT_Castle_Campfire09",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_01": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_01",
+        "position": {
+          "X": -346568.25,
+          "Y": 99637.016,
+          "Z": -5944.3135
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire01",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_02": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_02",
+        "position": {
+          "X": -342265.8,
+          "Y": 119410.8,
+          "Z": -11055.809
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire02",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_03": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_03",
+        "position": {
+          "X": -338783.25,
+          "Y": 130482.01,
+          "Z": -10818.599
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire03",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_04": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_04",
+        "position": {
+          "X": -342393.97,
+          "Y": 151995.28,
+          "Z": 4650.947
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire04",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_05": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_05",
+        "position": {
+          "X": -317376.75,
+          "Y": 166619.5,
+          "Z": 7359.5034
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire05",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_06": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_06",
+        "position": {
+          "X": -330378.72,
+          "Y": 158362.56,
+          "Z": 7703.3594
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire06",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_07": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_07",
+        "position": {
+          "X": -338873.84,
+          "Y": 144769.75,
+          "Z": 254.11514
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire07",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_08": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_08",
+        "position": {
+          "X": -322907.3,
+          "Y": 160764.72,
+          "Z": 4109.7427
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire08",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_09": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_09",
+        "position": {
+          "X": -343120.0,
+          "Y": 114564.195,
+          "Z": -6380.7344
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire09",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_10": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_10",
+        "position": {
+          "X": -336360.66,
+          "Y": 124953.55,
+          "Z": -7173.16
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire10",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_11": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_11",
+        "position": {
+          "X": -327248.1,
+          "Y": 136128.58,
+          "Z": -5013.4604
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire11",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_BP_CampfireActor_Snowmountain_12": {
+        "CampfireID": "FT_BP_CampfireActor_Snowmountain_12",
+        "position": {
+          "X": -325618.2,
+          "Y": 145049.27,
+          "Z": 410.09552
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_C",
+        "TeleportID": "FT_Snow_Campfire12",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Castle_Campfire08": {
+        "CampfireID": "FT_Castle_Campfire08",
+        "position": {
+          "X": -146272.17,
+          "Y": -136948.08,
+          "Z": 9462.277
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": true,
+        "OwnerID": "4N_E",
+        "TeleportID": "FT_Castle_Campfire08",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      },
+      "FT_Village_Lvdian": {
+        "CampfireID": "FT_Village_Lvdian",
+        "position": {
+          "X": -31453.29,
+          "Y": 132208.73,
+          "Z": 3458.479
+        },
+        "OverrideDistance": 0.0,
+        "bNeedActive": false,
+        "OwnerID": "4N_A",
+        "TeleportID": "None",
+        "ActiveNeedTrackQuest": "None",
+        "ActiveNeedTrackQuestPlaythrough": 0,
+        "ForbiddenInteractConditionRange": null
+      }
+    }
+  }
+]

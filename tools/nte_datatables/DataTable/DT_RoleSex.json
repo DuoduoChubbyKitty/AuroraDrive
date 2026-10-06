@@ -1,0 +1,23 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_RoleSex",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_RoleSex",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'RoleSexData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Female": {
+        "CharacterID": "1051"
+      },
+      "Male": {
+        "CharacterID": "1046"
+      }
+    }
+  }
+]

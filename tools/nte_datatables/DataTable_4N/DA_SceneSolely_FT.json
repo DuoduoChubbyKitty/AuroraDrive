@@ -1,0 +1,29 @@
+[
+  {
+    "Type": "HTSceneSolelyDataAsset",
+    "Name": "DA_SceneSolely_FT",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'HTSceneSolelyDataAsset'",
+    "Package": "/Game/Maps_4N/DataTable/DA_SceneSolely_FT",
+    "Properties": {
+      "MonsterArrayDataTable": [
+        {
+          "ObjectName": "DataTable'DT_MonsterStaticData_FT'",
+          "ObjectPath": "/Game/Maps_4N/DataTable/DT_MonsterStaticData_FT.0"
+        }
+      ],
+      "MonsterDropBoxDataTable": {
+        "ObjectName": "DataTable'DT_MonsterDropBox'",
+        "ObjectPath": "/Game/DataTable/Monster/DT_MonsterDropBox.0"
+      },
+      "YaHaHaCompleteConditionDataTable": {
+        "ObjectName": "DataTable'DT_FT_YaHaHaCompleteCondition'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/YaHaHa/DT_FT_YaHaHaCompleteCondition.0"
+      },
+      "DT_GuideDataTable": {
+        "ObjectName": "DataTable'DT_GuideDataTable'",
+        "ObjectPath": "/Game/DataTable/Guide/DT_GuideDataTable.0"
+      }
+    }
+  }
+]

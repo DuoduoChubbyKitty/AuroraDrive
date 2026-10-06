@@ -1,0 +1,158 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_QuestItemExchange",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_QuestItemExchange",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'QuestItemExchangeData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Prison_figues": {
+        "ItemID": "Prison_figues",
+        "MaxAmount": 1,
+        "CostItems": null,
+        "Conditions": []
+      },
+      "Prison_Paralyser": {
+        "ItemID": "Prison_Paralyser",
+        "MaxAmount": 1,
+        "CostItems": null,
+        "Conditions": []
+      },
+      "Prison_erodent": {
+        "ItemID": "Prison_erodent",
+        "MaxAmount": 1,
+        "CostItems": null,
+        "Conditions": []
+      },
+      "Prison_Uniform": {
+        "ItemID": "Prison_Uniform",
+        "MaxAmount": 2,
+        "CostItems": null,
+        "Conditions": []
+      },
+      "Prison_BedSheet": {
+        "ItemID": "Prison_BedSheet",
+        "MaxAmount": 2,
+        "CostItems": null,
+        "Conditions": []
+      },
+      "Prison_Towerkey": {
+        "ItemID": "Prison_Towerkey",
+        "MaxAmount": 1,
+        "CostItems": null,
+        "Conditions": []
+      },
+      "Prison_Towerkey_reduce": {
+        "ItemID": "None",
+        "MaxAmount": 0,
+        "CostItems": {
+          "ItemID": "Prison_Towerkey",
+          "Amount": 1
+        },
+        "Conditions": []
+      },
+      "Prison_Spoon_reduce": {
+        "ItemID": "None",
+        "MaxAmount": 0,
+        "CostItems": {
+          "ItemID": "Prison_Spoon",
+          "Amount": 1
+        },
+        "Conditions": []
+      },
+      "Prison_SideDoorkey": {
+        "ItemID": "Prison_SideDoorkey",
+        "MaxAmount": 1,
+        "CostItems": null,
+        "Conditions": []
+      },
+      "Prison_SideDoorkey_reduce": {
+        "ItemID": "None",
+        "MaxAmount": 0,
+        "CostItems": {
+          "ItemID": "Prison_SideDoorkey",
+          "Amount": 1
+        },
+        "Conditions": []
+      },
+      "Prison_Dart": {
+        "ItemID": "Prison_Dart",
+        "MaxAmount": 1,
+        "CostItems": null,
+        "Conditions": []
+      },
+      "Prison_Dart_reduce": {
+        "ItemID": "None",
+        "MaxAmount": 0,
+        "CostItems": {
+          "ItemID": "Prison_Dart",
+          "Amount": 1
+        },
+        "Conditions": []
+      },
+      "Prison_erodent_reduce": {
+        "ItemID": "None",
+        "MaxAmount": 0,
+        "CostItems": {
+          "ItemID": "Prison_erodent",
+          "Amount": 1
+        },
+        "Conditions": []
+      },
+      "Prison_figues_reduce": {
+        "ItemID": "None",
+        "MaxAmount": 0,
+        "CostItems": {
+          "ItemID": "Prison_figues",
+          "Amount": 1
+        },
+        "Conditions": []
+      },
+      "Prison_Paralyser_reduce": {
+        "ItemID": "None",
+        "MaxAmount": 0,
+        "CostItems": {
+          "ItemID": "Prison_Paralyser",
+          "Amount": 1
+        },
+        "Conditions": []
+      },
+      "Prison_BedSheet_reduce": {
+        "ItemID": "None",
+        "MaxAmount": 0,
+        "CostItems": {
+          "ItemID": "Prison_BedSheet",
+          "Amount": 2
+        },
+        "Conditions": []
+      },
+      "Prison_Uniform_reduce": {
+        "ItemID": "None",
+        "MaxAmount": 0,
+        "CostItems": {
+          "ItemID": "Prison_Uniform",
+          "Amount": 2
+        },
+        "Conditions": []
+      },
+      "Prison_Spoon": {
+        "ItemID": "Prison_Spoon",
+        "MaxAmount": 99,
+        "CostItems": null,
+        "Conditions": []
+      },
+      "Puka_Checkin": {
+        "ItemID": "Puka_Checkin",
+        "MaxAmount": 1,
+        "CostItems": null,
+        "Conditions": []
+      }
+    }
+  }
+]

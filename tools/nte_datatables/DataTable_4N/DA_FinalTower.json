@@ -1,0 +1,1686 @@
+[
+  {
+    "Type": "HTFinalTowerDataAsset",
+    "Name": "DA_FinalTower",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'HTFinalTowerDataAsset'",
+    "Package": "/Game/Maps_4N/DataTable/DA_FinalTower",
+    "Properties": {
+      "MainCharacterMap": [
+        {
+          "Key": "ERoleSex::Male",
+          "Value": "ft_character_1046"
+        },
+        {
+          "Key": "ERoleSex::Female",
+          "Value": "ft_character_1051"
+        }
+      ],
+      "CharacterItemIDs": [
+        "ft_character_mint",
+        "ft_character_1075",
+        "ft_character_1076"
+      ],
+      "CharacterBaseConfigMap": [
+        {
+          "Key": "ft_character_1051",
+          "Value": {
+            "BigWorldCharacterID": "1051",
+            "DefaultMeshes": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/051_female_rpg/player_051_female_rpg_level0/player_051_female_rpg_level0_pants/player_051_female_rpg_level0_pants.player_051_female_rpg_level0_pants",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/051_female_rpg/player_051_female_rpg_level0/player_051_female_rpg_level0_shoes/player_051_female_rpg_level0_shoes.player_051_female_rpg_level0_shoes",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/051_female_rpg/player_051_female_rpg_level0/player_051_female_rpg_level0_cloth/player_051_female_rpg_level0_cloth.player_051_female_rpg_level0_cloth",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Key": "ft_character_1046",
+          "Value": {
+            "BigWorldCharacterID": "1046",
+            "DefaultMeshes": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/046_male_rpg/player_046_male_rpg_level0/player_046_male_rpg_level0_pants/player_046_male_rpg_level0_pants.player_046_male_rpg_level0_pants",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/046_male_rpg/player_046_male_rpg_level0/player_046_male_rpg_level0_shoes/player_046_male_rpg_level0_shoes.player_046_male_rpg_level0_shoes",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/046_male_rpg/player_046_male_rpg_level0/player_046_male_rpg_level0_cloth/player_046_male_rpg_level0_cloth.player_046_male_rpg_level0_cloth",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Key": "ft_character_mint",
+          "Value": {
+            "BigWorldCharacterID": "1019",
+            "DefaultMeshes": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/019_mint_rpg/player_019_mint_rpg_level0/player_019_mint_rpg_level0_pants/player_019_mint_rpg_level0_pants.player_019_mint_rpg_level0_pants",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/019_mint_rpg/player_019_mint_rpg_level0/player_019_mint_rpg_level0_shoes/player_019_mint_rpg_level0_shoes.player_019_mint_rpg_level0_shoes",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/019_mint_rpg/player_019_mint_rpg_level0/player_019_mint_rpg_level0_cloth/player_019_mint_rpg_level0_cloth.player_019_mint_rpg_level0_cloth",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Key": "ft_character_1075",
+          "Value": {
+            "BigWorldCharacterID": "1075",
+            "DefaultMeshes": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/075_oneir_rpg/player_075_oneir_rpg_level0/player_075_oneir_rpg_level0_pants/player_075_oneiroi_rpg_level0_pants_skin.player_075_oneiroi_rpg_level0_pants_skin",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/075_oneir_rpg/player_075_oneir_rpg_level0/player_075_oneir_rpg_level0_shoes/player_075_oneiroi_rpg_level0_shoes_skin.player_075_oneiroi_rpg_level0_shoes_skin",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/075_oneir_rpg/player_075_oneir_rpg_level0/player_075_oneir_rpg_level0_cloth/player_075_oneiroi_rpg_level0_cloth_skin.player_075_oneiroi_rpg_level0_cloth_skin",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Key": "ft_character_1076",
+          "Value": {
+            "BigWorldCharacterID": "1076",
+            "DefaultMeshes": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/076_shinku_rpg/player_076_shinku_rpg_level0/player_076_shinku_rpg_level0_pants/player_076_shinku_rpg_level0_pants.player_076_shinku_rpg_level0_pants",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/076_shinku_rpg/player_076_shinku_rpg_level0/player_076_shinku_rpg_level0_shoes/player_076_shinku_rpg_level0_shoes.player_076_shinku_rpg_level0_shoes",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "Mesh": {
+                    "AssetPathName": "/Game/Maps_4N/Characters/Player/076_shinku_rpg/player_076_shinku_rpg_level0/player_076_shinku_rpg_level0_cloth/player_076_shinku_rpg_level0_cloth.player_076_shinku_rpg_level0_cloth",
+                    "SubPathString": ""
+                  },
+                  "SlotMaterials": [],
+                  "AttachEffects": []
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "SpecialJobMap": [
+        {
+          "Key": "L110347",
+          "Value": {
+            "CharacterSpecialJobMap": [
+              {
+                "Key": "ft_character_1076",
+                "Value": {
+                  "SpecialJob": "EFinalTowerJob::DragonKnight",
+                  "RewardArmorItems": [
+                    "ft_armor_1076_purple1_origin_weapon_purple_40",
+                    "ft_armor_1076_purple1_origin_chest_purple_40",
+                    "ft_armor_1076_purple1_origin_shoulder_purple_40",
+                    "ft_armor_1076_purple1_origin_legs_purple_40",
+                    "ft_armor_1076_purple1_origin_shoes_purple_40"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "EntranceQuestId": "L110303",
+      "FinalTowerSceneName": "Maps_4N",
+      "LeaveFinalTowerTargetSceneName": "XL_map_bigworld_test",
+      "PlaythroughBaseConfigMap": [
+        {
+          "Key": "1",
+          "Value": {
+            "PlaythroughName": {
+              "TableId": "/Game/Text/ST_Ui.ST_Ui",
+              "Key": "FT_Difficulty01",
+              "SourceString": "故事",
+              "LocalizedString": "Story"
+            },
+            "NeedCompleteQuestId": "L110303",
+            "CharacterMaxLevel": 40
+          }
+        },
+        {
+          "Key": "2",
+          "Value": {
+            "PlaythroughName": {
+              "TableId": "/Game/Text/ST_Ui.ST_Ui",
+              "Key": "FT_Difficulty02",
+              "SourceString": "挑战",
+              "LocalizedString": "Challenge"
+            },
+            "NeedCompleteQuestId": "L110355",
+            "CharacterMaxLevel": 100
+          }
+        },
+        {
+          "Key": "3",
+          "Value": {
+            "PlaythroughName": {
+              "TableId": "/Game/Text/ST_Ui.ST_Ui",
+              "Key": "FT_Difficulty03",
+              "SourceString": "噩梦",
+              "LocalizedString": "Nightmare"
+            },
+            "NeedCompleteQuestId": "L110355_H1",
+            "CharacterMaxLevel": 100
+          }
+        }
+      ],
+      "JuDianDataTable": {
+        "ObjectName": "DataTable'DT_JuDian'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/DT_JuDian.0"
+      },
+      "CloneAISpawnManagerGuid": "9BAEA011429F18CDC1EE5594250B4471",
+      "PauseWorldMaterial": {
+        "ObjectName": "Material'MM_Post_CaptureDistortion'",
+        "ObjectPath": "/Game/CoreMaterials/PostEffects/CameraEffect/Color/CutTo/MM_Post_CaptureDistortion.0"
+      },
+      "FloorChallengePortalId": "FloorChallenge",
+      "FloorChallengeTitleSystemID": "FinalTower_004",
+      "FloorChallengeDataTable": {
+        "ObjectName": "DataTable'DT_FT_FloorChallenge'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/DT_FT_FloorChallenge.0"
+      },
+      "FloorChallengeRegularScaleInfo": [
+        {
+          "MaxFloorIndex": 1,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.0
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 0.0
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 5,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.045
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 0.045
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 10,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.055
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 0.116
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 15,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.067
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 0.17
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 20,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.082
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 0.257
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 25,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.1
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 0.403
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 30,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.123
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 0.657
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 35,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.151
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 1.045
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 40,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.185
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 1.705
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 45,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.227
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 2.856
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 50,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.278
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 4.921
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 55,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.341
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 8.732
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 60,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.418
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 15.979
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 65,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.512
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 24.047
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 70,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.627
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 34.018
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 75,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.768
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 45.482
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 80,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.941
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 57.771
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 85,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 1.153
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 70.064
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 90,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 1.412
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 81.512
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.006088
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 95,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 1.73
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 91.368
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 100,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 2.119
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 99.079
+            }
+          ]
+        }
+      ],
+      "FloorChallengeInfiniteScaleInfo": [
+        {
+          "MaxFloorIndex": 1,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 50.0
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 2500.0
+            },
+            {
+              "Key": "DefBase",
+              "Value": 0.536
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 20,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.04
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 22.509
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 40,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.042
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 25.04
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 70,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.044
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 27.856
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 100,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.046
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 32.912
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 150,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.048
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 38.504
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 200,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.05
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 49.986
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 275,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.053
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 64.021
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 350,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.056
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 90.998
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 600,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.059
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 127.198
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 750,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.062
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 301.213
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 1000,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.065
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 529.621
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 1500,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.066
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 994.483
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 2000,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.067
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 2196.631
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 3000,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.068
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 3306.567
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 5000,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.069
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 4646.687
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 10000,
+          "PropertyAddScaleMap": [
+            {
+              "Key": "AtkBase",
+              "Value": 0.07
+            },
+            {
+              "Key": "HPMaxBase",
+              "Value": 6529.944
+            }
+          ]
+        },
+        {
+          "MaxFloorIndex": 0,
+          "PropertyAddScaleMap": []
+        }
+      ],
+      "FloorChallengeInfiniteMonsterLevel": 115,
+      "CampPortalId": "CampDLC",
+      "CampData": {
+        "PlayerParticipant": {
+          "MontageName": "Date_sitbench",
+          "CollisionProfileName": "DlgProfile",
+          "Location": {
+            "X": 718.8816,
+            "Y": -3116.6353,
+            "Z": -29200.154
+          },
+          "Rotation": {
+            "Pitch": 0.0,
+            "Yaw": 128.59207,
+            "Roll": 0.0
+          }
+        },
+        "RestorePlayerTransform": {
+          "Rotation": {
+            "X": 0.0,
+            "Y": -0.0,
+            "Z": 0.85775685,
+            "W": 0.5140556,
+            "IsNormalized": true,
+            "Size": 1.0,
+            "SizeSquared": 1.0
+          },
+          "Translation": {
+            "X": 793.5413,
+            "Y": -3105.7024,
+            "Z": -29201.615
+          }
+        },
+        "bRestCamera": true,
+        "NPCParticipants": [
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Maps_4N/Blueprints/Character/NPC/BP_FTZhenhongNPC.BP_FTZhenhongNPC_C",
+              "SubPathString": ""
+            },
+            "DlgIdleState": {
+              "AssetPathName": "/Game/Blueprints/Character/NPC/NPC_032/Idle_shinku_FT_sit.Idle_shinku_FT_sit_C",
+              "SubPathString": ""
+            },
+            "DlgIdleMontage": {
+              "AssetPathName": "/Game/Characters/Player/076_shinku/DHanimation/NPC032_sit_yingdi_Montage.NPC032_sit_yingdi_Montage",
+              "SubPathString": ""
+            },
+            "Location": {
+              "X": 569.2165,
+              "Y": -2970.9255,
+              "Z": -29197.309
+            },
+            "Rotation": {
+              "Pitch": 0.0,
+              "Yaw": -7.510491,
+              "Roll": 0.0
+            }
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Maps_4N/Blueprints/Character/NPC/BP_FTYiluoyiNPC.BP_FTYiluoyiNPC_C",
+              "SubPathString": ""
+            },
+            "DlgIdleState": {
+              "AssetPathName": "/Game/Blueprints/Character/NPC/NPC_028/Idle_oneir_FT_sit.Idle_oneir_FT_sit_C",
+              "SubPathString": ""
+            },
+            "DlgIdleMontage": {
+              "AssetPathName": "/Game/Characters/Player/075_oneir/DHanimation/NPC028_sit_yingdi_Montage.NPC028_sit_yingdi_Montage",
+              "SubPathString": ""
+            },
+            "Location": {
+              "X": 632.0,
+              "Y": -3129.0,
+              "Z": -29206.32
+            },
+            "Rotation": {
+              "Pitch": 0.0,
+              "Yaw": 27.578999,
+              "Roll": -0.0
+            }
+          },
+          {
+            "AITemplate": {
+              "AssetPathName": "/Game/Maps_4N/Blueprints/Character/NPC/BP_FTMintNPC.BP_FTMintNPC_C",
+              "SubPathString": ""
+            },
+            "DlgIdleState": {
+              "AssetPathName": "/Game/Blueprints/Character/NPC/NPC_001/Idle_mint_FT_sit.Idle_mint_FT_sit_C",
+              "SubPathString": ""
+            },
+            "DlgIdleMontage": {
+              "AssetPathName": "/Game/Characters/Player/019_mint/DHanimation/NPC001_sit_yingdi_Montage.NPC001_sit_yingdi_Montage",
+              "SubPathString": ""
+            },
+            "Location": {
+              "X": 644.5983,
+              "Y": -3037.446,
+              "Z": -29202.162
+            },
+            "Rotation": {
+              "Pitch": 0.0,
+              "Yaw": 14.342822,
+              "Roll": 0.0
+            }
+          }
+        ],
+        "CampfireID": "Campfire_Yingdi",
+        "ExitTransferId": "FT_BP_Portal_YingdiBackTemp"
+      },
+      "ArmorRandomModifyDataTable": {
+        "ObjectName": "DataTable'DT_ArmorRandomDataTable'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_ArmorRandomDataTable.0"
+      },
+      "ArmorRandomPropDataTable": {
+        "ObjectName": "DataTable'DT_ArmorRandomPropDataTable'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_ArmorRandomPropDataTable.0"
+      },
+      "ArmorBaseAttributeCurveTable": {
+        "ObjectName": "CurveTable'CT_ArmorBaseAttribute'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/Armor/CT_ArmorBaseAttribute.0"
+      },
+      "CharacterArmorArtDataTableMap": [
+        {
+          "Key": "ft_character_1051",
+          "Value": {
+            "ObjectName": "DataTable'DT_ArmorArt_1051'",
+            "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_ArmorArt_1051.0"
+          }
+        },
+        {
+          "Key": "ft_character_1046",
+          "Value": {
+            "ObjectName": "DataTable'DT_ArmorArt_1051'",
+            "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_ArmorArt_1051.0"
+          }
+        },
+        {
+          "Key": "ft_character_1075",
+          "Value": {
+            "ObjectName": "DataTable'DT_ArmorArt_1075'",
+            "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_ArmorArt_1075.0"
+          }
+        },
+        {
+          "Key": "ft_character_1076",
+          "Value": {
+            "ObjectName": "DataTable'DT_ArmorArt_1076'",
+            "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_ArmorArt_1076.0"
+          }
+        },
+        {
+          "Key": "ft_character_mint",
+          "Value": {
+            "ObjectName": "DataTable'DT_ArmorArt_Mint'",
+            "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_ArmorArt_Mint.0"
+          }
+        }
+      ],
+      "ArmorEffectDataTable": {
+        "ObjectName": "DataTable'DT_FT_ArmorEffectData'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_FT_ArmorEffectData.0"
+      },
+      "ArmorSuitDataTable": {
+        "ObjectName": "DataTable'DT_FT_ArmorSuitData'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_FT_ArmorSuitData.0"
+      },
+      "ArmorIdentifyDataTable": {
+        "ObjectName": "DataTable'DT_FT_ArmorIdentifyData'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/Armor/DT_FT_ArmorIdentifyData.0"
+      },
+      "ArmorIdentifyCostItemId": "FTGoldCoin",
+      "ArmorQualityDataMap": [
+        {
+          "Key": "ITEM_QUALITY_WHITE",
+          "Value": {
+            "TypeMap": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_WEAPON",
+                "Value": {
+                  "IdentifyCostNum": 50,
+                  "BasePower": 6,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 50,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 50
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "IdentifyCostNum": 50,
+                  "BasePower": 6,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 50,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 50
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "IdentifyCostNum": 50,
+                  "BasePower": 6,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 50,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 50
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOULDER",
+                "Value": {
+                  "IdentifyCostNum": 50,
+                  "BasePower": 6,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 50,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 50
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "IdentifyCostNum": 50,
+                  "BasePower": 6,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 50,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 50
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY1",
+                "Value": {
+                  "IdentifyCostNum": 50,
+                  "BasePower": 6,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 50,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 50
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY2",
+                "Value": {
+                  "IdentifyCostNum": 50,
+                  "BasePower": 6,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 50,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 50
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Key": "ITEM_QUALITY_BLUE",
+          "Value": {
+            "TypeMap": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_WEAPON",
+                "Value": {
+                  "IdentifyCostNum": 120,
+                  "BasePower": 8,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 120,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 120
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "IdentifyCostNum": 120,
+                  "BasePower": 8,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 120,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 120
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "IdentifyCostNum": 120,
+                  "BasePower": 8,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 120,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 120
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOULDER",
+                "Value": {
+                  "IdentifyCostNum": 120,
+                  "BasePower": 8,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 120,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 120
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "IdentifyCostNum": 120,
+                  "BasePower": 8,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 120,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 120
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY1",
+                "Value": {
+                  "IdentifyCostNum": 120,
+                  "BasePower": 8,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 120,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 120
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY2",
+                "Value": {
+                  "IdentifyCostNum": 120,
+                  "BasePower": 8,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 120,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 120
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Key": "ITEM_QUALITY_PURPLE",
+          "Value": {
+            "TypeMap": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_WEAPON",
+                "Value": {
+                  "IdentifyCostNum": 270,
+                  "BasePower": 10,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 300,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 300
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "IdentifyCostNum": 270,
+                  "BasePower": 10,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 300,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 300
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "IdentifyCostNum": 270,
+                  "BasePower": 10,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 300,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 300
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOULDER",
+                "Value": {
+                  "IdentifyCostNum": 270,
+                  "BasePower": 10,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 300,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 300
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "IdentifyCostNum": 270,
+                  "BasePower": 10,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 300,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 300
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY1",
+                "Value": {
+                  "IdentifyCostNum": 270,
+                  "BasePower": 10,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 300,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 300
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY2",
+                "Value": {
+                  "IdentifyCostNum": 270,
+                  "BasePower": 10,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 300,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 300
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Key": "ITEM_QUALITY_ORANGE",
+          "Value": {
+            "TypeMap": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_WEAPON",
+                "Value": {
+                  "IdentifyCostNum": 675,
+                  "BasePower": 12,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 750,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 750
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "IdentifyCostNum": 675,
+                  "BasePower": 12,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 750,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 750
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "IdentifyCostNum": 675,
+                  "BasePower": 12,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 750,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 750
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOULDER",
+                "Value": {
+                  "IdentifyCostNum": 675,
+                  "BasePower": 12,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 750,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 750
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "IdentifyCostNum": 670,
+                  "BasePower": 12,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 750,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 750
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY1",
+                "Value": {
+                  "IdentifyCostNum": 675,
+                  "BasePower": 12,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 750,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 750
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY2",
+                "Value": {
+                  "IdentifyCostNum": 675,
+                  "BasePower": 12,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 750,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 750
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Key": "ITEM_QUALITY_RED",
+          "Value": {
+            "TypeMap": [
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_WEAPON",
+                "Value": {
+                  "IdentifyCostNum": 2700,
+                  "BasePower": 15,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 3000,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 3000
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_CHEST",
+                "Value": {
+                  "IdentifyCostNum": 2700,
+                  "BasePower": 15,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 3000,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 3000
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_LEGS",
+                "Value": {
+                  "IdentifyCostNum": 2700,
+                  "BasePower": 15,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 3000,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 3000
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOULDER",
+                "Value": {
+                  "IdentifyCostNum": 2700,
+                  "BasePower": 15,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 3000,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 3000
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_SHOES",
+                "Value": {
+                  "IdentifyCostNum": 2700,
+                  "BasePower": 15,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 3000,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 3000
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY1",
+                "Value": {
+                  "IdentifyCostNum": 2700,
+                  "BasePower": 15,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 3000,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 3000
+                }
+              },
+              {
+                "Key": "EItemType::ITEM_TYPE_FINAL_TOWER_ACCESSORY2",
+                "Value": {
+                  "IdentifyCostNum": 2700,
+                  "BasePower": 15,
+                  "LevelPowerKey": "PowerMain",
+                  "BasePrice": 3000,
+                  "BaseScorePrice": 0,
+                  "NotIdentifiedBaseScorePrice": 3000
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "ArmorPowerCurveTable": {
+        "ObjectName": "CurveTable'CT_ArmorPower'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/Armor/CT_ArmorPower.0"
+      },
+      "PortalDataTable": {
+        "ObjectName": "DataTable'DT_PortalFinalTowerData'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/DT_PortalFinalTowerData.0"
+      },
+      "CharacterUpgradeDataTable": {
+        "ObjectName": "DataTable'DT_FT_CharacterUpgradeDataTable'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/Character/DT_FT_CharacterUpgradeDataTable.0"
+      },
+      "MonsterFTPackDataTable": {
+        "ObjectName": "DataTable'DT_MonsterPackData_FT'",
+        "ObjectPath": "/Game/DataTable/PackData/DT_MonsterPackData_FT.0"
+      },
+      "FinalTowerJobNameMap": [
+        {
+          "Key": "EFinalTowerJob::Swordman",
+          "Value": {
+            "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+            "Key": "Career_Swordman",
+            "SourceString": "剑士",
+            "LocalizedString": "Swordsman"
+          }
+        },
+        {
+          "Key": "EFinalTowerJob::Mage",
+          "Value": {
+            "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+            "Key": "Career_Mage",
+            "SourceString": "法师",
+            "LocalizedString": "Mage"
+          }
+        },
+        {
+          "Key": "EFinalTowerJob::Warrior",
+          "Value": {
+            "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+            "Key": "Career_Warrior",
+            "SourceString": "野蛮人",
+            "LocalizedString": "Barbarian"
+          }
+        },
+        {
+          "Key": "EFinalTowerJob::Civilian",
+          "Value": {
+            "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+            "Key": "Career_Civilian",
+            "SourceString": "平民",
+            "LocalizedString": "Commoner"
+          }
+        },
+        {
+          "Key": "EFinalTowerJob::DragonKnight",
+          "Value": {
+            "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+            "Key": "Career_DragonKnight",
+            "SourceString": "龙骑士",
+            "LocalizedString": "Dragon Knight"
+          }
+        }
+      ],
+      "FinalTowerJobIconMap": [
+        {
+          "Key": "EFinalTowerJob::Swordman",
+          "Value": {
+            "AssetPathName": "/Game/UI/UI/FinalTower/HUD/YH_UI_FT_Job_Swordman.YH_UI_FT_Job_Swordman",
+            "SubPathString": ""
+          }
+        },
+        {
+          "Key": "EFinalTowerJob::Mage",
+          "Value": {
+            "AssetPathName": "/Game/UI/UI/FinalTower/HUD/YH_UI_FT_Job_Mage.YH_UI_FT_Job_Mage",
+            "SubPathString": ""
+          }
+        },
+        {
+          "Key": "EFinalTowerJob::Warrior",
+          "Value": {
+            "AssetPathName": "/Game/UI/UI/FinalTower/HUD/YH_UI_FT_Job_Warrior.YH_UI_FT_Job_Warrior",
+            "SubPathString": ""
+          }
+        },
+        {
+          "Key": "EFinalTowerJob::Civilian",
+          "Value": {
+            "AssetPathName": "/Game/UI/UI/FinalTower/HUD/YH_UI_FT_Job_Civilian.YH_UI_FT_Job_Civilian",
+            "SubPathString": ""
+          }
+        },
+        {
+          "Key": "EFinalTowerJob::DragonKnight",
+          "Value": {
+            "AssetPathName": "/Game/UI/UI/FinalTower/HUD/YH_UI_FT_Job_DK.YH_UI_FT_Job_DK",
+            "SubPathString": ""
+          }
+        }
+      ],
+      "PlayerLevelUpParticle": {
+        "SoftPSTemplate": {
+          "AssetPathName": "/Game/FX/Nia/UI_3D/Levelup/NS_zhenhong_UI_LVUP.NS_zhenhong_UI_LVUP",
+          "SubPathString": ""
+        }
+      },
+      "CampfireClearGETag": {
+        "TagName": "Ability.Fantasy.Potion.Debuff"
+      },
+      "CampfireConfigDataTable": {
+        "ObjectName": "DataTable'DT_CampFire'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/DT_CampFire.0"
+      },
+      "MonsterResetDataTable": {
+        "ObjectName": "DataTable'DT_FinalTowerMonsterReset'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/DT_FinalTowerMonsterReset.0"
+      },
+      "FinalTowerAdventureQuestDataTable": {
+        "ObjectName": "DataTable'DT_FinalTowerAdventureSimpleQuest'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/AdventureManual/DT_FinalTowerAdventureSimpleQuest.0"
+      },
+      "FinalTowerAdventurePlayThroughDataTable": {
+        "ObjectName": "DataTable'DT_FinalTowerAdventurePlayThrough'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/AdventureManual/DT_FinalTowerAdventurePlayThrough.0"
+      },
+      "KillStreakBuffDataTable": {
+        "ObjectName": "DataTable'DT_FinalTowerKillStreakBuff'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/DT_FinalTowerKillStreakBuff.0"
+      },
+      "KillStreakConfigDataTable": {
+        "ObjectName": "DataTable'DT_FinalTowerKillStreakConfig'",
+        "ObjectPath": "/Game/Maps_4N/DataTable/DT_FinalTowerKillStreakConfig.0"
+      },
+      "FirstTransform": {
+        "Rotation": {
+          "X": 0.0,
+          "Y": -0.0,
+          "Z": 0.7828273,
+          "W": 0.622239,
+          "IsNormalized": true,
+          "Size": 1.0,
+          "SizeSquared": 1.0
+        },
+        "Translation": {
+          "X": -16546.967,
+          "Y": 118202.15,
+          "Z": 4338.7524
+        }
+      },
+      "EnterSpecLoadingID": "DLC_Maps_4N_Entry",
+      "ExitSpecLoadingID": "DLC_Maps_4N_Exit",
+      "MaxRecycleCount": 50,
+      "ShopRecycleCoin": "FTGoldCoin",
+      "ShopRecycleSelectLevel": [
+        {
+          "Key": "-1",
+          "Value": -1
+        },
+        {
+          "Key": "30",
+          "Value": 30
+        },
+        {
+          "Key": "40",
+          "Value": 40
+        },
+        {
+          "Key": "50",
+          "Value": 50
+        },
+        {
+          "Key": "60",
+          "Value": 60
+        },
+        {
+          "Key": "70",
+          "Value": 70
+        },
+        {
+          "Key": "80",
+          "Value": 80
+        },
+        {
+          "Key": "90",
+          "Value": 90
+        }
+      ],
+      "MiniMapIconAddParams": {
+        "BelongsLevelName": "XL_map_bigworld_test",
+        "BelongsAreaID": "005",
+        "Keywords": "FinalTower",
+        "EnterTransform": {
+          "Translation": {
+            "X": 33110.387,
+            "Y": 64394.652,
+            "Z": 9461.0
+          }
+        }
+      }
+    }
+  }
+]

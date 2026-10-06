@@ -1,0 +1,16 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_NewGuideDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_NewGuideDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'NewGuideData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {}
+  }
+]

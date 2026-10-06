@@ -1,0 +1,26 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_TreasureBoxConditionDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_TreasureBoxConditionDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'AIRefreshConfig'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "MB_AbandonedCastle_L110049": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'L110049_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/L110049.0"
+          }
+        ]
+      }
+    }
+  }
+]

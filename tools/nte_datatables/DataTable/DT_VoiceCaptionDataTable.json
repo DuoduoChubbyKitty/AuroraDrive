@@ -1,0 +1,5282 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_VoiceCaptionDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_VoiceCaptionDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'VoiceCaptionData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "q110002": {
+        "Captions": [
+          {
+            "StartTime": 4032,
+            "CultureStartTimes": [],
+            "EndTime": 8121,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Prologue_MainSQC003_Zero_00001",
+              "SourceString": "这些数字，跟这座城市的异象波动状况有关？",
+              "LocalizedString": "Are these numbers related to the anomaly fluctuation in the city?"
+            }
+          },
+          {
+            "StartTime": 8294,
+            "CultureStartTimes": [],
+            "EndTime": 13334,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Prologue_MainSQC003_Nelly_00001",
+              "SourceString": "对，<blue>「维特海默值」</>——衡量目标对象背离现实浓度的数值。",
+              "LocalizedString": "Yes, the <blue>Wertheimer Index</>— measures how much an object deviates from reality."
+            }
+          },
+          {
+            "StartTime": 13996,
+            "CultureStartTimes": [],
+            "EndTime": 20217,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Prologue_MainSQC003_Nelly_00002",
+              "SourceString": "持续监测城市各区域维特海默值的变化，我们便能对新出现的异象快速作出反应。",
+              "LocalizedString": "By monitoring the changes in the Wertheimer Index across different areas, we can respond to emerging anomalies."
+            }
+          },
+          {
+            "StartTime": 24019,
+            "CultureStartTimes": [],
+            "EndTime": 29980,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Prologue_MainSQC003_Skia_00001",
+              "SourceString": "——半港区的维特海默值波动幅度较为剧烈，收容六组的人，撑不了多久。",
+              "LocalizedString": "—The Wertheimer Index in the Halfport strongly fluctuates. Unit 6 won't last very long."
+            }
+          },
+          {
+            "StartTime": 31017,
+            "CultureStartTimes": [],
+            "EndTime": 35712,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Prologue_MainSQC003_Fadia_00001",
+              "SourceString": "啊呀，还以为终于能大闹一场了呢……区区Ⅴ级异象……",
+              "LocalizedString": "Oh man, Just a Class V? I thought I could finally have some fun…"
+            }
+          },
+          {
+            "StartTime": 36518,
+            "CultureStartTimes": [],
+            "EndTime": 39254,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Prologue_MainSQC003_Skia_00002",
+              "SourceString": "……先走一步，现场见。",
+              "LocalizedString": "I'll go ahead. See you at the site."
+            }
+          },
+          {
+            "StartTime": 48384,
+            "CultureStartTimes": [],
+            "EndTime": 50342,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Prologue_MainSQC003_Fadia_00002",
+              "SourceString": "怎么，熟人？",
+              "LocalizedString": "Who's that?"
+            }
+          },
+          {
+            "StartTime": 51091,
+            "CultureStartTimes": [],
+            "EndTime": 53395,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Prologue_MainSQC003_Cang_00001",
+              "SourceString": "不告诉你。",
+              "LocalizedString": "Nunya business."
+            }
+          }
+        ]
+      },
+      "q110048": {
+        "Captions": [
+          {
+            "StartTime": 1780,
+            "CultureStartTimes": [],
+            "EndTime": 3147,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_01_Player_001",
+              "SourceString": "你好？",
+              "LocalizedString": "Hello?"
+            }
+          },
+          {
+            "StartTime": 6984,
+            "CultureStartTimes": [],
+            "EndTime": 8496,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_01_Player_003",
+              "SourceString": "请问有人在吗？",
+              "LocalizedString": "Anybody here?"
+            }
+          },
+          {
+            "StartTime": 35499,
+            "CultureStartTimes": [],
+            "EndTime": 36973,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_01_NPC021A_001",
+              "SourceString": "看这里！",
+              "LocalizedString": "Over here!"
+            }
+          },
+          {
+            "StartTime": 37198,
+            "CultureStartTimes": [],
+            "EndTime": 39694,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_01_Player_002",
+              "SourceString": "……你好？",
+              "LocalizedString": "Hello?"
+            }
+          },
+          {
+            "StartTime": 43375,
+            "CultureStartTimes": [],
+            "EndTime": 46456,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_01_NPC021A_002",
+              "SourceString": "喂——在这里！",
+              "LocalizedString": "Hey! Over here!"
+            }
+          },
+          {
+            "StartTime": 48320,
+            "CultureStartTimes": [],
+            "EndTime": 50752,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_01_NPC021A_003",
+              "SourceString": "把书扶起来。",
+              "LocalizedString": "Put the book back."
+            }
+          },
+          {
+            "StartTime": 61819,
+            "CultureStartTimes": [],
+            "EndTime": 68103,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_01_NPC021A_004",
+              "SourceString": "按我，要找人就按我……记得不要太用力！",
+              "LocalizedString": "Press me. If you're looking for someone, press on me… but not too hard!"
+            }
+          }
+        ]
+      },
+      "q110053": {
+        "Captions": [
+          {
+            "StartTime": 3693,
+            "CultureStartTimes": [],
+            "EndTime": 6700,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC001_001",
+              "SourceString": "最后一击——决一胜负吧，小海獭！",
+              "LocalizedString": "Final blow—let's settle this, little otter!"
+            }
+          },
+          {
+            "StartTime": 9442,
+            "CultureStartTimes": [],
+            "EndTime": 15806,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC009_001",
+              "SourceString": "……一大早就哐啷哐啷吵死了……塔吉多你在干嘛？",
+              "LocalizedString": "All this racket early in the morning… Taygedo, what are you doing?"
+            }
+          },
+          {
+            "StartTime": 21637,
+            "CultureStartTimes": [],
+            "EndTime": 29376,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC009_002",
+              "SourceString": "可恶，昨晚就不该把最后一瓶也喝了……解酒药……解酒药在哪儿来着……",
+              "LocalizedString": "Darn, shouldn't have finished that last bottle last night… Where's the hangover medicine…"
+            }
+          },
+          {
+            "StartTime": 42264,
+            "CultureStartTimes": [],
+            "EndTime": 45777,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC009_003",
+              "SourceString": "哪儿来的脏东西？！给我死！",
+              "LocalizedString": "What's this dirty thing?! Die!"
+            }
+          },
+          {
+            "StartTime": 49780,
+            "CultureStartTimes": [],
+            "EndTime": 54725,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC009_004",
+              "SourceString": "这位是新加入的鉴定师，伊波恩的古董鉴定就靠{Gender}|gender(他,她)了！",
+              "LocalizedString": "This is our new appraiser, Eibon's antique evaluations depend on {Gender}|gender(him,her)!"
+            }
+          },
+          {
+            "StartTime": 54989,
+            "CultureStartTimes": [],
+            "EndTime": 58151,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_Player_001",
+              "SourceString": "今后就麻烦大家了，我会认真工作的。",
+              "LocalizedString": "From now on, I'll do my best."
+            }
+          },
+          {
+            "StartTime": 59873,
+            "CultureStartTimes": [],
+            "EndTime": 61353,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC011_001",
+              "SourceString": "嘿嘿，以后我会罩你的！",
+              "LocalizedString": "Hehe, I'll watch your back!"
+            }
+          },
+          {
+            "StartTime": 61738,
+            "CultureStartTimes": [],
+            "EndTime": 66299,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC008_001",
+              "SourceString": "有了鉴定师，浔总算可以少收点假货了吧？",
+              "LocalizedString": "With an appraiser, Hotori can stop buying fake goods, right?"
+            }
+          },
+          {
+            "StartTime": 67008,
+            "CultureStartTimes": [],
+            "EndTime": 68285,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC009_005",
+              "SourceString": "臭小鬼！",
+              "LocalizedString": "You little brat!"
+            }
+          },
+          {
+            "StartTime": 70717,
+            "CultureStartTimes": [],
+            "EndTime": 78480,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC010_001",
+              "SourceString": "我再来依次介绍下吧。我和塔吉多主要负责店里的古董维护和生活后勤。",
+              "LocalizedString": "Allow me to properly introduce everyone. Taygedo and I handle antique maintenance and logistics."
+            }
+          },
+          {
+            "StartTime": 78764,
+            "CultureStartTimes": [],
+            "EndTime": 80710,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC004A_001",
+              "SourceString": "（刚才真对不起！）",
+              "LocalizedString": "(Sorry about earlier!)"
+            }
+          },
+          {
+            "StartTime": 81075,
+            "CultureStartTimes": [],
+            "EndTime": 84662,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC010_002",
+              "SourceString": "达芙蒂尔小姐负责店内与四周的安全事务。",
+              "LocalizedString": "Daffodill is responsible for security."
+            }
+          },
+          {
+            "StartTime": 85007,
+            "CultureStartTimes": [],
+            "EndTime": 85537,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC013_001",
+              "SourceString": "你好。",
+              "LocalizedString": "Hello."
+            }
+          },
+          {
+            "StartTime": 86560,
+            "CultureStartTimes": [],
+            "EndTime": 93824,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC010_003",
+              "SourceString": "娜娜莉、早雾和埃德嘉，店里承接的低级异象事件大部分由他们外出处理。",
+              "LocalizedString": "Nanally, Sakiri, and Edgar handle most of the low threat Anomaly cases."
+            }
+          },
+          {
+            "StartTime": 94128,
+            "CultureStartTimes": [],
+            "EndTime": 94979,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC012_001",
+              "SourceString": "你好。",
+              "LocalizedString": "Hello."
+            }
+          },
+          {
+            "StartTime": 96580,
+            "CultureStartTimes": [],
+            "EndTime": 99803,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC011_002",
+              "SourceString": "手上没什么工作的时候，可以跟我们一起行动！",
+              "LocalizedString": "When there's no work, you can join us!"
+            }
+          },
+          {
+            "StartTime": 101283,
+            "CultureStartTimes": [],
+            "EndTime": 109816,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC008_002",
+              "SourceString": "什么嘛，我们又不是处理不了……哼，当然啦，如果你想见见世面，也不是不可以带上你。",
+              "LocalizedString": "Not that we need the help… but if you wanna be amazed, you can come along"
+            }
+          },
+          {
+            "StartTime": 110647,
+            "CultureStartTimes": [],
+            "EndTime": 113302,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_Player_002",
+              "SourceString": "嗯，我对异象事件也很感兴趣。",
+              "LocalizedString": "Hmm. Anomaly cases interest me too."
+            }
+          },
+          {
+            "StartTime": 113606,
+            "CultureStartTimes": [],
+            "EndTime": 116302,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC010_004",
+              "SourceString": "浔小姐，伊波恩的店主——",
+              "LocalizedString": "And this is Hotori, the owner of Eibon—"
+            }
+          },
+          {
+            "StartTime": 116910,
+            "CultureStartTimes": [],
+            "EndTime": 125814,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC008_003",
+              "SourceString": "负责每天酩酊大醉！好酒……好酒……干杯！",
+              "LocalizedString": "In charge of getting drunk every day! \"Cheers, I'll drink to that.\""
+            }
+          },
+          {
+            "StartTime": 137320,
+            "CultureStartTimes": [],
+            "EndTime": 144313,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_03_NPC009_006",
+              "SourceString": "塔吉多给我抓住她！晚饭加十颗海胆——我要教训这个小矮子！",
+              "LocalizedString": "Taygedo, grab her! Ten urchins for dinner—I'm teaching this little one a lesson!"
+            }
+          }
+        ]
+      },
+      "q110084": {
+        "Captions": [
+          {
+            "StartTime": 18849,
+            "CultureStartTimes": [],
+            "EndTime": 23486,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_04_NPC009_001",
+              "SourceString": "收工，找老板结账然后拍照~",
+              "LocalizedString": "Time to wrap up, let's get paid and take our photo."
+            }
+          },
+          {
+            "StartTime": 23601,
+            "CultureStartTimes": [],
+            "EndTime": 29044,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_04_NPC004A_001",
+              "SourceString": "（塔吉多很会摆pose！）",
+              "LocalizedString": "(Taygedo is great at posing!)"
+            }
+          },
+          {
+            "StartTime": 29476,
+            "CultureStartTimes": [],
+            "EndTime": 35208,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_04_NPC011_001",
+              "SourceString": "埃德嘉、早雾，拍照的时候允许你们轮流亲吻我的左手！",
+              "LocalizedString": "Edgar, Sakiri, you can take turns kissing my left hand for the photo!"
+            }
+          },
+          {
+            "StartTime": 35366,
+            "CultureStartTimes": [],
+            "EndTime": 37728,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_04_NPC012_001",
+              "SourceString": "呃……",
+              "LocalizedString": "Uh…"
+            }
+          },
+          {
+            "StartTime": 37843,
+            "CultureStartTimes": [],
+            "EndTime": 40204,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U00C00_04_NPC008_001",
+              "SourceString": "……我才不要！",
+              "LocalizedString": "No way!"
+            }
+          }
+        ]
+      },
+      "q110127_3": {
+        "Captions": [
+          {
+            "StartTime": 470,
+            "CultureStartTimes": [],
+            "EndTime": 7700,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_01_NPC008_001",
+              "SourceString": "装神弄鬼的家伙！交易？我的愿望可不是那么便宜的东西！",
+              "LocalizedString": "Creepy psychic fraud! A deal? My wish is worth a lot more than that!"
+            }
+          },
+          {
+            "StartTime": 9400,
+            "CultureStartTimes": [],
+            "EndTime": 18200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_01_NPC019_001",
+              "SourceString": "像您这样不由分说上来就动手的客人，本店可是……会感到困扰的啊……",
+              "LocalizedString": "People who punch instead of talk aren't really… welcomed here… Ah…"
+            }
+          }
+        ]
+      },
+      "q1101711": {
+        "Captions": [
+          {
+            "StartTime": 1512,
+            "CultureStartTimes": [],
+            "EndTime": 3643,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC004A_001",
+              "SourceString": "（……）",
+              "LocalizedString": "(…)"
+            }
+          },
+          {
+            "StartTime": 4800,
+            "CultureStartTimes": [],
+            "EndTime": 6300,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC034A_001",
+              "SourceString": "呀~！",
+              "LocalizedString": "Wowza!"
+            }
+          },
+          {
+            "StartTime": 14086,
+            "CultureStartTimes": [],
+            "EndTime": 17329,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC034A_002",
+              "SourceString": "莫非……你是、塔吉多？",
+              "LocalizedString": "Could it be… are you Taygedo?"
+            }
+          },
+          {
+            "StartTime": 17431,
+            "CultureStartTimes": [],
+            "EndTime": 20228,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC004A_002",
+              "SourceString": "（完了完了完了……怎么办！）",
+              "LocalizedString": "(Oh no, oh no, oh no… What to do what to do?!)"
+            }
+          },
+          {
+            "StartTime": 25619,
+            "CultureStartTimes": [],
+            "EndTime": 26268,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC03802_001",
+              "SourceString": "老大！",
+              "LocalizedString": "Boss!"
+            }
+          },
+          {
+            "StartTime": 26430,
+            "CultureStartTimes": [],
+            "EndTime": 28133,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_Player_001",
+              "SourceString": "嚯……",
+              "LocalizedString": "Whoa…"
+            }
+          },
+          {
+            "StartTime": 32835,
+            "CultureStartTimes": [],
+            "EndTime": 34821,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC011_001",
+              "SourceString": "老大，您原来在这里……！",
+              "LocalizedString": "Boss! So this is where you've been…!"
+            }
+          },
+          {
+            "StartTime": 35146,
+            "CultureStartTimes": [],
+            "EndTime": 41023,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC011_002",
+              "SourceString": "只带两个保镖外出太危险了，请随我们回去！",
+              "LocalizedString": "It's too risky with only two bodyguards! Please, come back with us!"
+            }
+          },
+          {
+            "StartTime": 42686,
+            "CultureStartTimes": [],
+            "EndTime": 43821,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC004A_003",
+              "SourceString": "（你们……）",
+              "LocalizedString": "(You guys…)"
+            }
+          },
+          {
+            "StartTime": 44469,
+            "CultureStartTimes": [],
+            "EndTime": 47509,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC004A_004",
+              "SourceString": "（哼……啰嗦！今天，不准打扰！）",
+              "LocalizedString": "(Hmph… Enough chatter! No interruptions today!)"
+            }
+          },
+          {
+            "StartTime": 47793,
+            "CultureStartTimes": [],
+            "EndTime": 50266,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC004A_005",
+              "SourceString": "（都给塔吉多退下！）",
+              "LocalizedString": "(Everyone, make way for Taygedo!)"
+            }
+          },
+          {
+            "StartTime": 50388,
+            "CultureStartTimes": [],
+            "EndTime": 52171,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC011_003",
+              "SourceString": "呃、是！老大！",
+              "LocalizedString": "Uh, yes! Boss!"
+            }
+          },
+          {
+            "StartTime": 61900,
+            "CultureStartTimes": [],
+            "EndTime": 63684,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC034A_003",
+              "SourceString": "哇~~！",
+              "LocalizedString": "Wooow!"
+            }
+          },
+          {
+            "StartTime": 65143,
+            "CultureStartTimes": [],
+            "EndTime": 66400,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC004A_006",
+              "SourceString": "（呼……）",
+              "LocalizedString": "(Phew…)"
+            }
+          },
+          {
+            "StartTime": 71508,
+            "CultureStartTimes": [],
+            "EndTime": 74507,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC004A_007",
+              "SourceString": "（亲爱的塔可小姐，初次见面——）",
+              "LocalizedString": "(Dear Tako, it's a pleasure to meet you…)"
+            }
+          },
+          {
+            "StartTime": 74670,
+            "CultureStartTimes": [],
+            "EndTime": 79331,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_01_NPC034A_004",
+              "SourceString": "塔吉多！比咱想象的还要酷！",
+              "LocalizedString": "Taygedo! You're even cooler than we thought! (Hehe)"
+            }
+          }
+        ]
+      },
+      "q110112": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 5330,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_01_NPC008_002",
+              "SourceString": "站住！你们都不准出手，这只臭鸟，看我怎么抓住它！",
+              "LocalizedString": "Stop! No one else touches it. This annoying bird, I'm gonna catch it so hard!"
+            }
+          },
+          {
+            "StartTime": 12505,
+            "CultureStartTimes": [],
+            "EndTime": 17654,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_01_NPC008_003",
+              "SourceString": "你给我……站住！不准跑！",
+              "LocalizedString": "You… stay still! Don't run!"
+            }
+          },
+          {
+            "StartTime": 22937,
+            "CultureStartTimes": [],
+            "EndTime": 24021,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_01_NPC008_001",
+              "SourceString": "抓住它！",
+              "LocalizedString": "Catch it!"
+            }
+          },
+          {
+            "StartTime": 28761,
+            "CultureStartTimes": [],
+            "EndTime": 37152,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_01_NPC02501_001",
+              "SourceString": "这是什么？我们之前来调查都没有看到这东西！果然冬司的失踪是和这个异象有关吧？",
+              "LocalizedString": "What's this? We didn't see this during our previous investigation! Toshi's disappearance must be connected to this anomaly!"
+            }
+          },
+          {
+            "StartTime": 40638,
+            "CultureStartTimes": [],
+            "EndTime": 44246,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_01_NPC012_001",
+              "SourceString": "抱歉……我也没有查到这个异象的资料。",
+              "LocalizedString": "Sorry… I couldn't find any data on this anomaly."
+            }
+          },
+          {
+            "StartTime": 44368,
+            "CultureStartTimes": [],
+            "EndTime": 50367,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_01_NPC011_002",
+              "SourceString": "连我的智囊团第一人都不知道这个异象？你脑袋里可是装着一个图书馆诶！",
+              "LocalizedString": "Even the brainiac doesn't know? You've got a whole library in your head!"
+            }
+          },
+          {
+            "StartTime": 106988,
+            "CultureStartTimes": [],
+            "EndTime": 108244,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_01_NPC008_004",
+              "SourceString": "喂！",
+              "LocalizedString": "Hey!"
+            }
+          }
+        ]
+      },
+      "q110130": {
+        "Captions": [
+          {
+            "StartTime": 3758,
+            "CultureStartTimes": [],
+            "EndTime": 8366,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_02_NPC009A_001",
+              "SourceString": "呕——",
+              "LocalizedString": "Puke—"
+            }
+          },
+          {
+            "StartTime": 8683,
+            "CultureStartTimes": [],
+            "EndTime": 15624,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_02_NPC008_001",
+              "SourceString": "这个东西！怎么又被你吞进去了！",
+              "LocalizedString": "Oh my gosh! Why did you swallow that again?!"
+            }
+          },
+          {
+            "StartTime": 16718,
+            "CultureStartTimes": [],
+            "EndTime": 24062,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_02_NPC011_001",
+              "SourceString": "它这——又是在生哪门子气啊？",
+              "LocalizedString": "Hey! Why is this thing angry again?"
+            }
+          }
+        ]
+      },
+      "q110134": {
+        "Captions": [
+          {
+            "StartTime": 6998,
+            "CultureStartTimes": [],
+            "EndTime": 14198,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_03_NPC02201_001",
+              "SourceString": "咳咳咳咳……咳咳咳咳……这、这是哪里……",
+              "LocalizedString": "Cough, cough… cough, cough, cough… Wh-what is this place…?"
+            }
+          },
+          {
+            "StartTime": 15753,
+            "CultureStartTimes": [],
+            "EndTime": 18316,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_03_NPC02201_002",
+              "SourceString": "蒲、蒲公英……？",
+              "LocalizedString": "Dan-Dandelion?"
+            }
+          },
+          {
+            "StartTime": 18950,
+            "CultureStartTimes": [],
+            "EndTime": 21168,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_03_NPC013A_002",
+              "SourceString": "汪！汪！",
+              "LocalizedString": "Woof! Woof!"
+            }
+          },
+          {
+            "StartTime": 21571,
+            "CultureStartTimes": [],
+            "EndTime": 24912,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_03_NPC02201_003",
+              "SourceString": "是蒲公英！我就知道是你！",
+              "LocalizedString": "It's Dandelion! I knew it was you!"
+            }
+          },
+          {
+            "StartTime": 24998,
+            "CultureStartTimes": [],
+            "EndTime": 26323,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_03_NPC013A_003",
+              "SourceString": "汪！汪汪汪！",
+              "LocalizedString": "Woof! Woof, woof, woof!"
+            }
+          },
+          {
+            "StartTime": 26438,
+            "CultureStartTimes": [],
+            "EndTime": 39715,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_03_NPC02201_004",
+              "SourceString": "蒲公英，这段时间你到底跑到哪里去了你这只坏狗！呜呜呜呜……我怎么都找不到你……吓死我了呜呜呜呜………",
+              "LocalizedString": "Dandelion, where have you been, you bad doggy! *Sniffles* I've been looking for you… Aw, you really scared me soulless!"
+            }
+          },
+          {
+            "StartTime": 39816,
+            "CultureStartTimes": [],
+            "EndTime": 42436,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_03_Player_001",
+              "SourceString": "多亏你及时赶到，谢谢。",
+              "LocalizedString": "Thank you for getting here in time."
+            }
+          },
+          {
+            "StartTime": 42523,
+            "CultureStartTimes": [],
+            "EndTime": 46180,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C01_03_NPC013_001",
+              "SourceString": "客气，这一路也辛苦你照顾娜娜莉他们。",
+              "LocalizedString": "No need for thanks. I appreciate you taking care of Nanally and the others along the way."
+            }
+          }
+        ]
+      },
+      "q110189": {
+        "Captions": [
+          {
+            "StartTime": 15058,
+            "CultureStartTimes": [],
+            "EndTime": 18833,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC004A_001",
+              "SourceString": "（塔吉多在此奉上——特别表演！）",
+              "LocalizedString": "(Taygedo proudly presents a special performance!)"
+            }
+          },
+          {
+            "StartTime": 19518,
+            "CultureStartTimes": [],
+            "EndTime": 20734,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC034A_001",
+              "SourceString": "哇——",
+              "LocalizedString": "Woah!!"
+            }
+          },
+          {
+            "StartTime": 20856,
+            "CultureStartTimes": [],
+            "EndTime": 22072,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC04310_001",
+              "SourceString": "好厉害！",
+              "LocalizedString": "That's amazing!"
+            }
+          },
+          {
+            "StartTime": 29369,
+            "CultureStartTimes": [],
+            "EndTime": 31436,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC004A_002",
+              "SourceString": "Tayge！",
+              "LocalizedString": "Tayge!"
+            }
+          },
+          {
+            "StartTime": 34436,
+            "CultureStartTimes": [],
+            "EndTime": 36828,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC034A_002",
+              "SourceString": "哇~！是咱们俩！",
+              "LocalizedString": "It's us!"
+            }
+          },
+          {
+            "StartTime": 37598,
+            "CultureStartTimes": [],
+            "EndTime": 41490,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_Player_001",
+              "SourceString": "（塔吉多……居然能做到这种地步吗？）",
+              "LocalizedString": "(Taygedo… can actually do something like this?)"
+            }
+          },
+          {
+            "StartTime": 41611,
+            "CultureStartTimes": [],
+            "EndTime": 47368,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC004A_002",
+              "SourceString": "Tayge！",
+              "LocalizedString": "Tayge!"
+            }
+          },
+          {
+            "StartTime": 49719,
+            "CultureStartTimes": [],
+            "EndTime": 52881,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC004A_004",
+              "SourceString": "（这个！送给塔可小姐！）",
+              "LocalizedString": "(This! For Tako!)"
+            }
+          },
+          {
+            "StartTime": 56448,
+            "CultureStartTimes": [],
+            "EndTime": 60000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC004A_005",
+              "SourceString": "（塔、塔吉多想要告诉……塔可小姐……）",
+              "LocalizedString": "(Ta-Taygedo wants to tell… Tako…)"
+            }
+          },
+          {
+            "StartTime": 60421,
+            "CultureStartTimes": [],
+            "EndTime": 65380,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC034A_003",
+              "SourceString": "塔吉多……欸、咦？",
+              "LocalizedString": "Taygedo… uh, huh?"
+            }
+          },
+          {
+            "StartTime": 68326,
+            "CultureStartTimes": [],
+            "EndTime": 69000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC004A_006",
+              "SourceString": "Ta？",
+              "LocalizedString": "Ta?"
+            }
+          },
+          {
+            "StartTime": 77203,
+            "CultureStartTimes": [],
+            "EndTime": 79798,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC004A_007",
+              "SourceString": "（怎怎怎么回事！）",
+              "LocalizedString": "(Whawhawhat's going on!)"
+            }
+          },
+          {
+            "StartTime": 81987,
+            "CultureStartTimes": [],
+            "EndTime": 85676,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC011_001",
+              "SourceString": "不是？刚刚不还好好的吗！发生什么事了！",
+              "LocalizedString": "Wasn't everything okay? What in the world happened?!"
+            }
+          },
+          {
+            "StartTime": 86811,
+            "CultureStartTimes": [],
+            "EndTime": 93013,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC012_001",
+              "SourceString": "糟了……难道是塔吉多的能力，促成本是异象的「随心泥」失控了……",
+              "LocalizedString": "Oh no… Could Taygedo's ability have caused the Imaginadough to spiral out of control?"
+            }
+          },
+          {
+            "StartTime": 93540,
+            "CultureStartTimes": [],
+            "EndTime": 94756,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC034A_004",
+              "SourceString": "呀！",
+              "LocalizedString": "Eek!"
+            }
+          },
+          {
+            "StartTime": 95810,
+            "CultureStartTimes": [],
+            "EndTime": 97715,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_NPC010_001",
+              "SourceString": "塔可小姐，危险！",
+              "LocalizedString": "Miss Tako, look out!"
+            }
+          },
+          {
+            "StartTime": 104201,
+            "CultureStartTimes": [],
+            "EndTime": 105417,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C02_03_Player_002",
+              "SourceString": "老大！",
+              "LocalizedString": "Boss!"
+            }
+          }
+        ]
+      },
+      "L110011": {
+        "Captions": [
+          {
+            "StartTime": 6888,
+            "CultureStartTimes": [],
+            "EndTime": 14572,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_01_01",
+              "SourceString": "哎呀，在这里碰到，可真是缘分呐~",
+              "LocalizedString": "Oh, look who it is! Lucky me, running into you."
+            }
+          },
+          {
+            "StartTime": 16891,
+            "CultureStartTimes": [],
+            "EndTime": 20001,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_Player_01_01",
+              "SourceString": "……？",
+              "LocalizedString": "…?"
+            }
+          },
+          {
+            "StartTime": 20923,
+            "CultureStartTimes": [],
+            "EndTime": 27230,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_01_02",
+              "SourceString": "喂喂，怎么一脸困惑？难道……已经不认得我了？！",
+              "LocalizedString": "Hey, what's with the confused face? Don't you recognize me?"
+            }
+          },
+          {
+            "StartTime": 27576,
+            "CultureStartTimes": [],
+            "EndTime": 29620,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_Player_01_02",
+              "SourceString": "呃……白藏队长？",
+              "LocalizedString": "Uh… Captain Baicang?"
+            }
+          },
+          {
+            "StartTime": 29822,
+            "CultureStartTimes": [],
+            "EndTime": 34401,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_01_03",
+              "SourceString": "Bingo~我就知道，你不是那么冷漠绝情的人呢~",
+              "LocalizedString": "Bingo! I knew you weren't that cold-hearted."
+            }
+          }
+        ]
+      },
+      "L110046": {
+        "Captions": [
+          {
+            "StartTime": 7864,
+            "CultureStartTimes": [],
+            "EndTime": 8158,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_Player_02_01",
+              "SourceString": "白藏！",
+              "LocalizedString": "Baicang!"
+            }
+          },
+          {
+            "StartTime": 8179,
+            "CultureStartTimes": [],
+            "EndTime": 15532,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_02_02",
+              "SourceString": "遇到他之后如果发现陷入了特殊情况，沟通的事情就交给我了，不是这么规划过了吗？",
+              "LocalizedString": "Huh… Look. Didn't we agree that I'd be the one to communicate with him if we find him under special circumstances?"
+            }
+          },
+          {
+            "StartTime": 16312,
+            "CultureStartTimes": [],
+            "EndTime": 19524,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_02_03",
+              "SourceString": "好了。总算是能跟你面对面讲话了。",
+              "LocalizedString": "There, we're finally having a conversation now."
+            }
+          },
+          {
+            "StartTime": 19715,
+            "CultureStartTimes": [],
+            "EndTime": 23371,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_02_04",
+              "SourceString": "你说这个浑身长满杂草的模样是「新生」？",
+              "LocalizedString": "You're covered in weeds. Is this what you meant when you said you were \"reborn\"?"
+            }
+          },
+          {
+            "StartTime": 24961,
+            "CultureStartTimes": [],
+            "EndTime": 35418,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_02_05",
+              "SourceString": "这样啊，能这么斩钉截铁地断言，一定是因为这地方破落到连个能用的镜子都没给你剩下……",
+              "LocalizedString": "And you sound very sure. Well, guess there isn't even a mirror around for you to check yourself with…"
+            }
+          },
+          {
+            "StartTime": 38020,
+            "CultureStartTimes": [],
+            "EndTime": 45904,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_02_06",
+              "SourceString": "哈哈开玩笑，是已经有所觉悟，不打算再次出现在海特洛市的大街上了吧？",
+              "LocalizedString": "Just kidding. Guess you've made up your mind to never show up again on the streets of Hethereau, yeah?"
+            }
+          },
+          {
+            "StartTime": 47101,
+            "CultureStartTimes": [],
+            "EndTime": 47776,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC03304_02_01",
+              "SourceString": "…………",
+              "LocalizedString": "…"
+            }
+          },
+          {
+            "StartTime": 48072,
+            "CultureStartTimes": [],
+            "EndTime": 48828,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC005_02_01",
+              "SourceString": "等一下……",
+              "LocalizedString": "Wait…"
+            }
+          },
+          {
+            "StartTime": 49904,
+            "CultureStartTimes": [],
+            "EndTime": 67885,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_02_07",
+              "SourceString": "又或是想等父母找到这里来，把他们拉下水一并吞噬，在这个全新的家园里其乐融融……手牵手和外面的社会说再见？",
+              "LocalizedString": "Or were you thinking about waiting for your parents… to come here for you… and build your lovely family over here, tucked away from the rest of world?"
+            }
+          },
+          {
+            "StartTime": 69593,
+            "CultureStartTimes": [],
+            "EndTime": 78999,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_02_08",
+              "SourceString": "这就是你现在的真实想法？是你爱他们的方式啊~原来如此！",
+              "LocalizedString": "Is that really what you're thinking now? So that's how you love them. I see!"
+            }
+          },
+          {
+            "StartTime": 101260,
+            "CultureStartTimes": [],
+            "EndTime": 105897,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_cang01_NPC006_02_09",
+              "SourceString": "如果觉得我说的不对……就「由你自己来说说看」吧。",
+              "LocalizedString": "If you think I'm wrong… well, why don't you do the \"talking\" instead?"
+            }
+          }
+        ]
+      },
+      "L110109": {
+        "Captions": [
+          {
+            "StartTime": 60562,
+            "CultureStartTimes": [],
+            "EndTime": 62760,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_Player_001",
+              "SourceString": "怎么了塔吉多？",
+              "LocalizedString": "What's wrong, Taygedo?"
+            }
+          },
+          {
+            "StartTime": 83335,
+            "CultureStartTimes": [],
+            "EndTime": 84877,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004_007",
+              "SourceString": "唔……痛……",
+              "LocalizedString": "Nngh… it hurts…"
+            }
+          },
+          {
+            "StartTime": 84950,
+            "CultureStartTimes": [],
+            "EndTime": 86914,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004A_003",
+              "SourceString": "（蝙蝠、说、说话了……）",
+              "LocalizedString": "(The bat… it's talking…)"
+            }
+          },
+          {
+            "StartTime": 90450,
+            "CultureStartTimes": [],
+            "EndTime": 93956,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004_001",
+              "SourceString": "还没……到时间。",
+              "LocalizedString": "No… Not time yet…"
+            }
+          },
+          {
+            "StartTime": 97289,
+            "CultureStartTimes": [],
+            "EndTime": 102737,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004_002",
+              "SourceString": "安魂曲……再睡一下……",
+              "LocalizedString": "Five… Five more minutes…"
+            }
+          },
+          {
+            "StartTime": 105245,
+            "CultureStartTimes": [],
+            "EndTime": 107090,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004A_004",
+              "SourceString": "（蝙蝠、变成人了……）",
+              "LocalizedString": "(Bat, became a person!)"
+            }
+          },
+          {
+            "StartTime": 107177,
+            "CultureStartTimes": [],
+            "EndTime": 111068,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004_003",
+              "SourceString": "啊，电视机……说话了。",
+              "LocalizedString": "Ah. TV… Talking…"
+            }
+          },
+          {
+            "StartTime": 112711,
+            "CultureStartTimes": [],
+            "EndTime": 114182,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC001_001",
+              "SourceString": "安魂曲前辈——",
+              "LocalizedString": "Lacrimosa senpai!"
+            }
+          },
+          {
+            "StartTime": 118997,
+            "CultureStartTimes": [],
+            "EndTime": 121138,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC001_002",
+              "SourceString": "安魂曲前辈——你在哪儿——",
+              "LocalizedString": "Lacrimosa senpai! Where are you?"
+            }
+          },
+          {
+            "StartTime": 121353,
+            "CultureStartTimes": [],
+            "EndTime": 122398,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_Player_003",
+              "SourceString": "薄荷的声音？",
+              "LocalizedString": "Is that Mint?"
+            }
+          },
+          {
+            "StartTime": 125784,
+            "CultureStartTimes": [],
+            "EndTime": 126476,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC001_003",
+              "SourceString": "可可！",
+              "LocalizedString": "Coco!"
+            }
+          }
+        ]
+      },
+      "L110115": {
+        "Captions": [
+          {
+            "StartTime": 3452,
+            "CultureStartTimes": [],
+            "EndTime": 6726,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC001_004",
+              "SourceString": "静悄悄的……静悄悄的……",
+              "LocalizedString": "Quiet as a mouse… quietttt…"
+            }
+          },
+          {
+            "StartTime": 13535,
+            "CultureStartTimes": [],
+            "EndTime": 14519,
+            "CultureEndTimes": [
+              {
+                "Key": "EVoiceCultureType::ko",
+                "Value": 15200
+              }
+            ],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004_004",
+              "SourceString": "饿……",
+              "LocalizedString": "Hungry…"
+            }
+          },
+          {
+            "StartTime": 15767,
+            "CultureStartTimes": [],
+            "EndTime": 18839,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004_005",
+              "SourceString": "主动上门……吃番茄酱。",
+              "LocalizedString": "Tomato jelly…"
+            }
+          },
+          {
+            "StartTime": 19043,
+            "CultureStartTimes": [],
+            "EndTime": 21779,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC001_005",
+              "SourceString": "啊，前辈~等等。",
+              "LocalizedString": "Ah, senpai! wait up!"
+            }
+          },
+          {
+            "StartTime": 24419,
+            "CultureStartTimes": [],
+            "EndTime": 27299,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC001_006",
+              "SourceString": "要付钱~不能直接拿！",
+              "LocalizedString": "You gotta pay first! You can't just take it!"
+            }
+          },
+          {
+            "StartTime": 31619,
+            "CultureStartTimes": [],
+            "EndTime": 32147,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004_006",
+              "SourceString": "诶？",
+              "LocalizedString": "…Eh?"
+            }
+          },
+          {
+            "StartTime": 53053,
+            "CultureStartTimes": [],
+            "EndTime": 57248,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC001_007",
+              "SourceString": "呃……前辈她偶尔会出现这种小意外……",
+              "LocalizedString": "Uh… senpai tends to have these little… accidents sometimes…"
+            }
+          },
+          {
+            "StartTime": 58092,
+            "CultureStartTimes": [],
+            "EndTime": 61110,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC004_008",
+              "SourceString": "安魂曲……不是故意的。",
+              "LocalizedString": "Lacrimosa… didn't mean to."
+            }
+          },
+          {
+            "StartTime": 64893,
+            "CultureStartTimes": [],
+            "EndTime": 68069,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_Player_004",
+              "SourceString": "……好像能理解民众的误会了。",
+              "LocalizedString": "…I kind of get why the public misunderstood now."
+            }
+          },
+          {
+            "StartTime": 68643,
+            "CultureStartTimes": [],
+            "EndTime": 73609,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+              "Key": "HM_Lacrimosa01_NPC001_008",
+              "SourceString": "事后、事后都会照价赔偿的……",
+              "LocalizedString": "We'll pay—we'll pay for everything later, I promise…"
+            }
+          }
+        ]
+      },
+      "S110801B": {
+        "Captions": [
+          {
+            "StartTime": 1000,
+            "CultureStartTimes": [],
+            "EndTime": 2500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Dialogue_Side.ST_Dialogue_Side",
+              "Key": "SU015_Blank_007",
+              "SourceString": "请受试者正对屏幕，即将为您拍摄证件照。",
+              "LocalizedString": "Please face the screen directly, test subject. Your ID photo will be taken momentarily."
+            }
+          },
+          {
+            "StartTime": 2550,
+            "CultureStartTimes": [],
+            "EndTime": 4050,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Dialogue_Side.ST_Dialogue_Side",
+              "Key": "SU015_NPC004A_144",
+              "SourceString": "（塔吉多，满分微笑！）",
+              "LocalizedString": "(Taygedo, perfect smile!)"
+            }
+          },
+          {
+            "StartTime": 4100,
+            "CultureStartTimes": [],
+            "EndTime": 5600,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Dialogue_Side.ST_Dialogue_Side",
+              "Key": "SU015_Blank_008",
+              "SourceString": "请受试者保持平视，不要踮脚。",
+              "LocalizedString": "Test subject, please keep your gaze level and don't stand on your tiptoes."
+            }
+          },
+          {
+            "StartTime": 5650,
+            "CultureStartTimes": [],
+            "EndTime": 7000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Dialogue_Side.ST_Dialogue_Side",
+              "Key": "SU015_NPC004A_145",
+              "SourceString": "（塔吉多，被发现了！）",
+              "LocalizedString": "(Taygedo, busted!)"
+            }
+          }
+        ]
+      },
+      "q110327": {
+        "Captions": [
+          {
+            "StartTime": 2209,
+            "CultureStartTimes": [],
+            "EndTime": 3503,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_01_NPC015_001",
+              "SourceString": "邀请函在他身上么？",
+              "LocalizedString": "Is he carrying the invitation?"
+            }
+          },
+          {
+            "StartTime": 4389,
+            "CultureStartTimes": [],
+            "EndTime": 5370,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_01_Player_001",
+              "SourceString": "嗯，带着。",
+              "LocalizedString": "Yes, he is."
+            }
+          },
+          {
+            "StartTime": 9194,
+            "CultureStartTimes": [],
+            "EndTime": 10400,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_01_NPC015_002",
+              "SourceString": "邀请函已确认。",
+              "LocalizedString": "Invitation located."
+            }
+          },
+          {
+            "StartTime": 11854,
+            "CultureStartTimes": [],
+            "EndTime": 14398,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_01_NPC015_003",
+              "SourceString": "完成「替换」后，别忘了告诉哈索尔。",
+              "LocalizedString": "After the swap, don't forget to tell Hathor."
+            }
+          },
+          {
+            "StartTime": 15038,
+            "CultureStartTimes": [],
+            "EndTime": 15488,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_01_Player_002",
+              "SourceString": "嗯？",
+              "LocalizedString": "Hmm?"
+            }
+          },
+          {
+            "StartTime": 24159,
+            "CultureStartTimes": [],
+            "EndTime": 26863,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_01_NPC015_004",
+              "SourceString": "哈索尔，要遵守交通规则哦~",
+              "LocalizedString": "Hathor, be sure to obey the traffic laws!"
+            }
+          },
+          {
+            "StartTime": 49002,
+            "CultureStartTimes": [],
+            "EndTime": 52448,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_01_NPC1007_001",
+              "SourceString": "不是，现在的狗仔，都开雷加利亚玩跟踪的？",
+              "LocalizedString": "Paparazzi can afford Regalia these days?!"
+            }
+          },
+          {
+            "StartTime": 52724,
+            "CultureStartTimes": [],
+            "EndTime": 56736,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_01_NPC1007_002",
+              "SourceString": "嘿——今天就让你瞧瞧，什么叫真摇滚！",
+              "LocalizedString": "Hey—today, I'll show you what real rock is!"
+            }
+          }
+        ]
+      },
+      "q110360": {
+        "Captions": [
+          {
+            "StartTime": 22000,
+            "CultureStartTimes": [],
+            "EndTime": 23500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_02_NPC1019_001",
+              "SourceString": "出价1方斯。",
+              "LocalizedString": "Bidding 1 Fons."
+            }
+          },
+          {
+            "StartTime": 28000,
+            "CultureStartTimes": [],
+            "EndTime": 29500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C03_02_NPC1019_002",
+              "SourceString": "成交~",
+              "LocalizedString": "And Sold!"
+            }
+          }
+        ]
+      },
+      "q1103541": {
+        "Captions": [
+          {
+            "StartTime": 2400,
+            "CultureStartTimes": [],
+            "EndTime": 5700,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_maintask.ST_IntroduceMsg_maintask",
+              "Key": "MT01_03_NPC05801_022",
+              "SourceString": "一亿？！怎么不按剧本来啊！",
+              "LocalizedString": "One hundred million?! How could you do that!"
+            }
+          },
+          {
+            "StartTime": 6300,
+            "CultureStartTimes": [],
+            "EndTime": 8700,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/IntroduceMsg/ST_IntroduceMsg_maintask.ST_IntroduceMsg_maintask",
+              "Key": "MT01_03_NPC009_061",
+              "SourceString": "看来，胜利归我喽~",
+              "LocalizedString": "Looks like victory goes to me!"
+            }
+          }
+        ]
+      },
+      "WJ100101": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 2000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC_011_WJ1001_015",
+              "SourceString": "走喽~",
+              "LocalizedString": "Here we go!"
+            }
+          },
+          {
+            "StartTime": 6000,
+            "CultureStartTimes": [],
+            "EndTime": 8500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC_011_WJ1001_014",
+              "SourceString": "哼哼，我一直都很想试试这招……",
+              "LocalizedString": "Heh heh, I've been dying to try this move…"
+            }
+          },
+          {
+            "StartTime": 9000,
+            "CultureStartTimes": [],
+            "EndTime": 10000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC_011_WJ1001_Player_009",
+              "SourceString": "啊？",
+              "LocalizedString": "Huh?"
+            }
+          },
+          {
+            "StartTime": 19000,
+            "CultureStartTimes": [],
+            "EndTime": 21000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC_011_WJ1001_016",
+              "SourceString": "酷吧！",
+              "LocalizedString": "Pretty awesome, huh?"
+            }
+          },
+          {
+            "StartTime": 26000,
+            "CultureStartTimes": [],
+            "EndTime": 28000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC_011_WJ1001_Player_010",
+              "SourceString": "看！",
+              "LocalizedString": "Look!"
+            }
+          }
+        ]
+      },
+      "WJ100401": {
+        "Captions": [
+          {
+            "StartTime": 15000,
+            "CultureStartTimes": [],
+            "EndTime": 17000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC_011_WJ1004_006",
+              "SourceString": "呼~",
+              "LocalizedString": "Whew!"
+            }
+          },
+          {
+            "StartTime": 22500,
+            "CultureStartTimes": [],
+            "EndTime": 24500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC_011_WJ1004_Player_004",
+              "SourceString": "下次再练吧。",
+              "LocalizedString": "Let's practice again next time."
+            }
+          },
+          {
+            "StartTime": 25000,
+            "CultureStartTimes": [],
+            "EndTime": 26000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC_011_WJ1004_007",
+              "SourceString": "嗯。",
+              "LocalizedString": "Mhm."
+            }
+          },
+          {
+            "StartTime": 27000,
+            "CultureStartTimes": [],
+            "EndTime": 30000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC_011_WJ1004_008",
+              "SourceString": "饿了，去看看大叔有没有做好吃的！",
+              "LocalizedString": "I'm hungry! Let's go see if the old man's made anything good!"
+            }
+          }
+        ]
+      },
+      "WJ100501": {
+        "Captions": [
+          {
+            "StartTime": 10000,
+            "CultureStartTimes": [],
+            "EndTime": 16000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1005_A_001",
+              "SourceString": "（不和家族站在一起的老大，不算是真正的老大……）",
+              "LocalizedString": "(If you don't stand with your family… you're not much of a boss…)"
+            }
+          },
+          {
+            "StartTime": 16500,
+            "CultureStartTimes": [],
+            "EndTime": 22000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1005_A_002",
+              "SourceString": "哦，这句这句！（我势必要带着家族，在这片土地上站稳脚跟。）",
+              "LocalizedString": "Oh, this one! (I swear, I'll lead my family and claim our place on this land.)"
+            }
+          },
+          {
+            "StartTime": 28000,
+            "CultureStartTimes": [],
+            "EndTime": 30000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1005_A_003",
+              "SourceString": "多谢你啦。",
+              "LocalizedString": "Thanks a lot!"
+            }
+          },
+          {
+            "StartTime": 30000,
+            "CultureStartTimes": [],
+            "EndTime": 34000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1005_A_004",
+              "SourceString": "这就是我心里当之无愧的影史第一。",
+              "LocalizedString": "Honestly, this is hands-down my favorite film ever."
+            }
+          },
+          {
+            "StartTime": 42500,
+            "CultureStartTimes": [],
+            "EndTime": 44500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1005_A_005",
+              "SourceString": "下次也一起看吧。",
+              "LocalizedString": "Next time, we should watch it together!"
+            }
+          },
+          {
+            "StartTime": 44800,
+            "CultureStartTimes": [],
+            "EndTime": 46800,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1005_A_006",
+              "SourceString": "好。",
+              "LocalizedString": "Alrighty."
+            }
+          }
+        ]
+      },
+      "WJ101601": {
+        "Captions": [
+          {
+            "StartTime": 9000,
+            "CultureStartTimes": [],
+            "EndTime": 12000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC001_WJ1016_011",
+              "SourceString": "海风的味道……真舒服啊。",
+              "LocalizedString": "The scent of ocean breeze… it's so refreshing."
+            }
+          },
+          {
+            "StartTime": 15000,
+            "CultureStartTimes": [],
+            "EndTime": 17000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC001_WJ1016_012",
+              "SourceString": "可可，谢谢你。",
+              "LocalizedString": "Thank you… Coco…"
+            }
+          },
+          {
+            "StartTime": 17500,
+            "CultureStartTimes": [],
+            "EndTime": 19500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1016_Player_006",
+              "SourceString": "谢我什么？",
+              "LocalizedString": "For what?"
+            }
+          },
+          {
+            "StartTime": 19500,
+            "CultureStartTimes": [],
+            "EndTime": 21500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC001_WJ1016_013",
+              "SourceString": "嘿嘿。",
+              "LocalizedString": "Hehe."
+            }
+          }
+        ]
+      },
+      "WJ102101": {
+        "Captions": [
+          {
+            "StartTime": 500,
+            "CultureStartTimes": [],
+            "EndTime": 3000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1021_Player_007",
+              "SourceString": "这是……",
+              "LocalizedString": "Is this..."
+            }
+          },
+          {
+            "StartTime": 2500,
+            "CultureStartTimes": [],
+            "EndTime": 8500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC004_WJ1021_007",
+              "SourceString": "面包，番茄……番茄酱。",
+              "LocalizedString": "Bread, tomatoes… Ketchup."
+            }
+          }
+        ]
+      },
+      "WJ102201": {
+        "Captions": [
+          {
+            "StartTime": 13000,
+            "CultureStartTimes": [],
+            "EndTime": 16000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1022_Player_006",
+              "SourceString": "不知不觉，已经这么晚了啊。",
+              "LocalizedString": "Oh my, it's already so late."
+            }
+          },
+          {
+            "StartTime": 17000,
+            "CultureStartTimes": [],
+            "EndTime": 23000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1022_Player_007",
+              "SourceString": "安魂曲今天很努力，对异能的掌控明显更熟练了。之后再……",
+              "LocalizedString": "You worked really hard today, and your Esper Ability clearly improved. We can do this another..."
+            }
+          },
+          {
+            "StartTime": 24000,
+            "CultureStartTimes": [],
+            "EndTime": 26000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1022_Player_008",
+              "SourceString": "安魂曲？",
+              "LocalizedString": "Lacrimosa?"
+            }
+          }
+        ]
+      },
+      "WJ102301": {
+        "Captions": [
+          {
+            "StartTime": 3000,
+            "CultureStartTimes": [],
+            "EndTime": 8000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1023_Player_008",
+              "SourceString": "说起来，安魂曲会飞，应该很习惯高空的景致吧？",
+              "LocalizedString": "Oh yeah, you can fly, right? Aren't you used to sightseeing from high up?"
+            }
+          },
+          {
+            "StartTime": 8300,
+            "CultureStartTimes": [],
+            "EndTime": 15000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC004_WJ1023_011",
+              "SourceString": "唔……没有。飞太高，很累。很少，飞到这么高。",
+              "LocalizedString": "Umm... not really. Flying too high... tiring. Rarely... fly this high."
+            }
+          },
+          {
+            "StartTime": 17000,
+            "CultureStartTimes": [],
+            "EndTime": 19000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1023_Player_009",
+              "SourceString": "怎么样，看到星星了吗？",
+              "LocalizedString": "Do you see any stars?"
+            }
+          },
+          {
+            "StartTime": 19300,
+            "CultureStartTimes": [],
+            "EndTime": 27500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC004_WJ1023_012",
+              "SourceString": "没有……但是，下面的汽车，都变得好小，亮闪闪的。",
+              "LocalizedString": "Not yet... but cars down there, tiny and sparkly."
+            }
+          },
+          {
+            "StartTime": 28500,
+            "CultureStartTimes": [],
+            "EndTime": 32000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC004_WJ1023_013",
+              "SourceString": "大楼，也亮晶晶的。",
+              "LocalizedString": "Buildings... also sparkly."
+            }
+          },
+          {
+            "StartTime": 32200,
+            "CultureStartTimes": [],
+            "EndTime": 36000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC004_WJ1023_014",
+              "SourceString": "原来地面上，有更多星星……",
+              "LocalizedString": "So there are... more stars on land..."
+            }
+          }
+        ]
+      },
+      "WJ103001": {
+        "Captions": [
+          {
+            "StartTime": 14000,
+            "CultureStartTimes": [],
+            "EndTime": 16500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1030_Player_005",
+              "SourceString": "店长……许的是什么愿望？",
+              "LocalizedString": "Boss... what did you wish for?"
+            }
+          },
+          {
+            "StartTime": 17000,
+            "CultureStartTimes": [],
+            "EndTime": 21000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC009_WJ1030_005",
+              "SourceString": "那还用问吗？当然是发大财咯~",
+              "LocalizedString": "Do you even need to ask? To strike it rich, of course!"
+            }
+          },
+          {
+            "StartTime": 25500,
+            "CultureStartTimes": [],
+            "EndTime": 28000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1030_Player_006",
+              "SourceString": "果然是店长啊……",
+              "LocalizedString": "That's so like you, Boss..."
+            }
+          },
+          {
+            "StartTime": 36000,
+            "CultureStartTimes": [],
+            "EndTime": 41000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1030_XY",
+              "SourceString": " ",
+              "LocalizedString": "Love and Peace\r\nTo those at Eibon"
+            }
+          }
+        ]
+      },
+      "WJ103201": {
+        "Captions": [
+          {
+            "StartTime": 20000,
+            "CultureStartTimes": [],
+            "EndTime": 22000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC009_WJ1032_001",
+              "SourceString": "谢谢。",
+              "LocalizedString": "Thank you."
+            }
+          },
+          {
+            "StartTime": 23000,
+            "CultureStartTimes": [],
+            "EndTime": 26000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1032_Player_001",
+              "SourceString": "好好休息，店长。",
+              "LocalizedString": "Get some good rest, Boss."
+            }
+          }
+        ]
+      },
+      "Hospital_Ending_01": {
+        "Captions": [
+          {
+            "StartTime": 100,
+            "CultureStartTimes": [],
+            "EndTime": 6800,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCN_01",
+              "SourceString": "「隐火症」，涉异病症，初次发现于冷山医院，可传染，方式未知，无治愈手段。",
+              "LocalizedString": "The Phantom Burn Syndrome, an anomaly disease, was first discovered at Coldmount Hospital. Transmissible; mechanism unknown; no known cure."
+            }
+          },
+          {
+            "StartTime": 7166,
+            "CultureStartTimes": [],
+            "EndTime": 13300,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCN_02",
+              "SourceString": "发病早期，患者会因身体局部的灼痛感而情绪不稳定、出现自毁倾向……",
+              "LocalizedString": "Initially, patients experience localized burning sensations that cause emotional instability and self-destructive tendencies…"
+            }
+          },
+          {
+            "StartTime": 13633,
+            "CultureStartTimes": [],
+            "EndTime": 22500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCN_03",
+              "SourceString": "即使在并无烧伤的情况下，患者也会要求用绷带对患处进行包扎，这种方式疑似能减轻其灼痛感和不安心理。",
+              "LocalizedString": "Despite the absence of actual burns, patients will request bandages to wrap the affected areas. This method appears to alleviate their burning pain and psychological distress."
+            }
+          },
+          {
+            "StartTime": 22866,
+            "CultureStartTimes": [],
+            "EndTime": 30700,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCN_04",
+              "SourceString": "发病中期，症状会逐步扩散，患者会尽可能地用绷带包裹自己的肢体甚至头部，严重影响活动，",
+              "LocalizedString": "As the disorder progresses, the symptoms gradually spread. Patients will wrap as much of their body as possible, including their heads. This severely impairs mobility."
+            }
+          },
+          {
+            "StartTime": 30866,
+            "CultureStartTimes": [],
+            "EndTime": 38833,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCN_05",
+              "SourceString": "同时，将无法进行沟通，停止进食，丧失睡眠，任何尝试摘下绷带的举动会引发剧烈的反抗。",
+              "LocalizedString": "They will also become unable to communicate, eat, or sleep. Any attempt to remove the bandages will trigger violent resistance."
+            }
+          },
+          {
+            "StartTime": 38966,
+            "CultureStartTimes": [],
+            "EndTime": 42100,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCN_06",
+              "SourceString": "哪怕是处于深度麻醉状态下，也会直接苏醒。",
+              "LocalizedString": "Even if under deep anesthesia, patients will immediately regain consciousness and attempt to resist."
+            }
+          },
+          {
+            "StartTime": 42200,
+            "CultureStartTimes": [],
+            "EndTime": 45233,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCN_07",
+              "SourceString": "发病后期，症状扩散至全身……",
+              "LocalizedString": "In the final stages, symptoms will have spread over the entire body…"
+            }
+          }
+        ]
+      },
+      "Hospital_Ending_02": {
+        "Captions": [
+          {
+            "StartTime": 10966,
+            "CultureStartTimes": [],
+            "EndTime": 21200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCJ_01",
+              "SourceString": "冷山医院的一切都是施特林家族的财产，包括他们的病，他们的生，他们的死。",
+              "LocalizedString": "Everything at Coldmount Hospital is the Stirling family's property. Their illnesses, their lives, and even their deaths."
+            }
+          },
+          {
+            "StartTime": 22200,
+            "CultureStartTimes": [],
+            "EndTime": 29900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCJ_02",
+              "SourceString": "当家族将这一批实验品以患者的名义收入冷山医院时，我就已经做好了最坏的打算。",
+              "LocalizedString": "The moment the family recruited these patients to be test subjects, I prepared for the worst."
+            }
+          },
+          {
+            "StartTime": 31366,
+            "CultureStartTimes": [],
+            "EndTime": 37200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCJ_03",
+              "SourceString": "但我从未想过，最终的差错竟然出在了一个小小的实验员身上。",
+              "LocalizedString": "But I never imagined that a mere researcher would become the last straw."
+            }
+          },
+          {
+            "StartTime": 38400,
+            "CultureStartTimes": [],
+            "EndTime": 45433,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCJ_04",
+              "SourceString": "家族给所有人许诺了财富与健康，也包括他在内。可为何他要背叛？",
+              "LocalizedString": "The family promised wealth and wellbeing to everyone, including to him… So why? Why did he betray us?"
+            }
+          },
+          {
+            "StartTime": 46866,
+            "CultureStartTimes": [],
+            "EndTime": 50066,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCJ_05",
+              "SourceString": "因为对那些本就无法治愈之人产生了怜悯？",
+              "LocalizedString": "Was it out of pity for those who were beyond saving?"
+            }
+          },
+          {
+            "StartTime": 50500,
+            "CultureStartTimes": [],
+            "EndTime": 56833,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCJ_06",
+              "SourceString": "还是因为自己也感染了异病，觉得生命毫无意义，所以和我们鱼死网破？",
+              "LocalizedString": "Or because… he'd become infected by an anomaly disease, and decided to drag us all down with him to share in his despair?"
+            }
+          },
+          {
+            "StartTime": 57600,
+            "CultureStartTimes": [],
+            "EndTime": 60900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCJ_07",
+              "SourceString": "无法理解，我也没有时间关心。",
+              "LocalizedString": "I don't get it, nor do I have the patience to figure it out."
+            }
+          },
+          {
+            "StartTime": 61800,
+            "CultureStartTimes": [],
+            "EndTime": 67900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCJ_08",
+              "SourceString": "那些失控的实验品已经把这个创造了无数奇迹的地方，变成了炼狱。",
+              "LocalizedString": "Those test subjects, who are out of control, turned a place of countless miracles into a living hell."
+            }
+          },
+          {
+            "StartTime": 68866,
+            "CultureStartTimes": [],
+            "EndTime": 74666,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCJ_09",
+              "SourceString": "但即便如此，护理部也有义务将所有家族的痕迹抹除。",
+              "LocalizedString": "But even so, the Nursing Department is obligated to erase all traces of the family's involvement."
+            }
+          }
+        ]
+      },
+      "WJ101401": {
+        "Captions": [
+          {
+            "StartTime": 25000,
+            "CultureStartTimes": [],
+            "EndTime": 29000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1014_01",
+              "SourceString": "大~功~告成！",
+              "LocalizedString": "Mission! Accomplished!"
+            }
+          },
+          {
+            "StartTime": 32000,
+            "CultureStartTimes": [],
+            "EndTime": 34000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1014_02",
+              "SourceString": "不愧是我们！",
+              "LocalizedString": "That's why we're the best!"
+            }
+          }
+        ]
+      },
+      "WJ101001": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 5000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1010_01",
+              "SourceString": "萌萌异象系列大促销，走过路过进来看一下！",
+              "LocalizedString": "Adorable Anomaly Series on mega sale! Don't miss out! Come check it out now!"
+            }
+          },
+          {
+            "StartTime": 6000,
+            "CultureStartTimes": [],
+            "EndTime": 8000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1010_02",
+              "SourceString": "早雾的声音？",
+              "LocalizedString": "Is that Sakiri's voice?"
+            }
+          },
+          {
+            "StartTime": 11000,
+            "CultureStartTimes": [],
+            "EndTime": 13000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1010_03",
+              "SourceString": "早雾？",
+              "LocalizedString": "Sakiri?"
+            }
+          },
+          {
+            "StartTime": 14500,
+            "CultureStartTimes": [],
+            "EndTime": 17000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1010_04",
+              "SourceString": "你、你认错人了！",
+              "LocalizedString": "Y-you've got the wrong person!"
+            }
+          },
+          {
+            "StartTime": 19000,
+            "CultureStartTimes": [],
+            "EndTime": 21000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1010_05",
+              "SourceString": "早雾早雾！",
+              "LocalizedString": "Sakiri! Sakiri!"
+            }
+          },
+          {
+            "StartTime": 24500,
+            "CultureStartTimes": [],
+            "EndTime": 27000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1010_06",
+              "SourceString": "现在出来干嘛！",
+              "LocalizedString": "Wotcha doin' out here?"
+            }
+          },
+          {
+            "StartTime": 28000,
+            "CultureStartTimes": [],
+            "EndTime": 31000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1010_07",
+              "SourceString": "不许告诉其他人……！",
+              "LocalizedString": "Don't tell anyone else about this...!"
+            }
+          }
+        ]
+      },
+      "WJ101201": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 3000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ101201_01",
+              "SourceString": "这个口味！还有这个口味！全加上！",
+              "LocalizedString": "This flavor! And this flavor too! All of them!"
+            }
+          },
+          {
+            "StartTime": 6000,
+            "CultureStartTimes": [],
+            "EndTime": 8000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ101201_02",
+              "SourceString": "我真是个天才~",
+              "LocalizedString": "I'm such a genius!"
+            }
+          },
+          {
+            "StartTime": 16500,
+            "CultureStartTimes": [],
+            "EndTime": 18500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ101201_03",
+              "SourceString": "鬼！郎！丸！！！",
+              "LocalizedString": "Ki! Rou! Maru!!!"
+            }
+          }
+        ]
+      },
+      "WJ104201": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 8000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1042_008",
+              "SourceString": "就这么上车了?如果这是个圈套，鉴定师岂不是自投罗网？",
+              "LocalizedString": "You hopped on just like that? Wouldn't you be in danger if this was a trap?"
+            }
+          },
+          {
+            "StartTime": 8500,
+            "CultureStartTimes": [],
+            "EndTime": 11500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1042_Player_009",
+              "SourceString": "九原小姐应该没什么恶意……",
+              "LocalizedString": "I assumed you wouldn't do me any harm…"
+            }
+          },
+          {
+            "StartTime": 12000,
+            "CultureStartTimes": [],
+            "EndTime": 22000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1042_009",
+              "SourceString": "这么信任我呢~不过鉴定师在海特洛还是小心些。暗地里，可有不少双眼睛盯上了你~",
+              "LocalizedString": "Thanks for your trust, but you should stay alert in Hethereau. A good number of people are eying you in the shadows."
+            }
+          },
+          {
+            "StartTime": 23000,
+            "CultureStartTimes": [],
+            "EndTime": 26000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1042_Player_010",
+              "SourceString": "听起来，我还挺抢手的。",
+              "LocalizedString": "Seems like I’m popular."
+            }
+          },
+          {
+            "StartTime": 27000,
+            "CultureStartTimes": [],
+            "EndTime": 31000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1042_010",
+              "SourceString": "鉴定师，不必怀疑这份异能的价值。",
+              "LocalizedString": "Appraiser, don't doubt the value of your abilities."
+            }
+          }
+        ]
+      },
+      "WJ104401": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 3000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1044_008",
+              "SourceString": "今天的这顿饭，鉴定师还满意吗？",
+              "LocalizedString": "So, how do you find the meal?"
+            }
+          },
+          {
+            "StartTime": 3500,
+            "CultureStartTimes": [],
+            "EndTime": 6400,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1044_Player_007",
+              "SourceString": "夜景好看得让人有些意外。",
+              "LocalizedString": "The night view is surprisingly gorgeous."
+            }
+          },
+          {
+            "StartTime": 6500,
+            "CultureStartTimes": [],
+            "EndTime": 14000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1044_009",
+              "SourceString": "意外吗？我倒觉得，有些风景，本就只属于懂得欣赏的人。",
+              "LocalizedString": "Surprisingly? I actually think… some views are meant for those who know how to appreciate them."
+            }
+          },
+          {
+            "StartTime": 14100,
+            "CultureStartTimes": [],
+            "EndTime": 15000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1044_Player_008",
+              "SourceString": "嗯……？",
+              "LocalizedString": "Mhm…?"
+            }
+          },
+          {
+            "StartTime": 15500,
+            "CultureStartTimes": [],
+            "EndTime": 20500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1044_010",
+              "SourceString": "你若愿意跟我走，能看到的景色，可不止这些~",
+              "LocalizedString": "If you're willing to come with me, you could see far more sights than this."
+            }
+          },
+          {
+            "StartTime": 23000,
+            "CultureStartTimes": [],
+            "EndTime": 24500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1044_Player_009",
+              "SourceString": "呃……",
+              "LocalizedString": "Umm…"
+            }
+          },
+          {
+            "StartTime": 25000,
+            "CultureStartTimes": [],
+            "EndTime": 29000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1044_011",
+              "SourceString": "嘘~别急着拒绝，鉴定师。",
+              "LocalizedString": "Hush. Hold your words right now."
+            }
+          },
+          {
+            "StartTime": 34000,
+            "CultureStartTimes": [],
+            "EndTime": 37000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1044_012",
+              "SourceString": "有些话，可以留到下次说。",
+              "LocalizedString": "Some words are best kept for later."
+            }
+          }
+        ]
+      },
+      "WJ102501": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 3000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC003_WJ1025_008",
+              "SourceString": "要不要……一起走？",
+              "LocalizedString": "Appraiser, wanna… take a walk?"
+            }
+          },
+          {
+            "StartTime": 4500,
+            "CultureStartTimes": [],
+            "EndTime": 5500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1025_Player_005",
+              "SourceString": "呃…… ",
+              "LocalizedString": "Umm…"
+            }
+          },
+          {
+            "StartTime": 6000,
+            "CultureStartTimes": [],
+            "EndTime": 11000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC003_WJ1025_009",
+              "SourceString": "算了，乖、孩、子。",
+              "LocalizedString": "Never mind then, you goody two shoes."
+            }
+          },
+          {
+            "StartTime": 19000,
+            "CultureStartTimes": [],
+            "EndTime": 23000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC003_WJ1025_010",
+              "SourceString": "下次……再约大人的事。",
+              "LocalizedString": "Next time… let's do grown-up things."
+            }
+          }
+        ]
+      },
+      "WJ103901": {
+        "Captions": [
+          {
+            "StartTime": 6000,
+            "CultureStartTimes": [],
+            "EndTime": 9000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1039_009",
+              "SourceString": "是这样吗？",
+              "LocalizedString": "Is that so?"
+            }
+          },
+          {
+            "StartTime": 10000,
+            "CultureStartTimes": [],
+            "EndTime": 13000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1039_Player_009",
+              "SourceString": "哈索尔？",
+              "LocalizedString": "Hathor?"
+            }
+          },
+          {
+            "StartTime": 18000,
+            "CultureStartTimes": [],
+            "EndTime": 20000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC016_WJ1039_010",
+              "SourceString": "咳……鉴定师。",
+              "LocalizedString": "Ahem… Appraiser…"
+            }
+          }
+        ]
+      },
+      "Hospital_Ending_03": {
+        "Captions": [
+          {
+            "StartTime": 10966,
+            "CultureStartTimes": [],
+            "EndTime": 21200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_01",
+              "SourceString": "那么多的研究，那么多的牺牲……我把我的一切都奉献在了手术台上，到头来所有人都辜负了我……",
+              "LocalizedString": "So much research, so many sacrifices… I devoted everything I had to the operating table. In the end, I got nothing but betrayals…"
+            }
+          },
+          {
+            "StartTime": 22200,
+            "CultureStartTimes": [],
+            "EndTime": 29900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_02",
+              "SourceString": "为什么要露出一副看到怪物的模样？为什么不愿意听我的话？为什么不肯相信我？",
+              "LocalizedString": "Why do you look like you're staring at a monster? Why won't you listen to me? Why won't anyone believe me?"
+            }
+          },
+          {
+            "StartTime": 31366,
+            "CultureStartTimes": [],
+            "EndTime": 37200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_03",
+              "SourceString": "为什么？为什么为什么为什么？明明就差一点，就差一点！",
+              "LocalizedString": "Why, why, why, why why? I was this close! THIS CLOSE!"
+            }
+          },
+          {
+            "StartTime": 38400,
+            "CultureStartTimes": [],
+            "EndTime": 45433,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_04",
+              "SourceString": "啊，离我只有一步之遥的一点希望，他们连这个也要从我手上夺走。",
+              "LocalizedString": "A sliver of hope, just within reach, and they want to take even that away from me."
+            }
+          },
+          {
+            "StartTime": 46866,
+            "CultureStartTimes": [],
+            "EndTime": 50066,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_05",
+              "SourceString": "……算了，愤怒毫无意义，他们只是一群白痴，我早就知道的。",
+              "LocalizedString": "Forget it… Why do I even bother to get angry? They're just a bunch of imbeciles. I knew that a long time ago."
+            }
+          },
+          {
+            "StartTime": 50500,
+            "CultureStartTimes": [],
+            "EndTime": 56833,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_06",
+              "SourceString": "一切都结束了。研究不可能再继续下去……那些「实验品」……它们还可以发挥最后的价值……",
+              "LocalizedString": "It's over. The research can't keep going… those \"specimen\"… still have their final use…"
+            }
+          },
+          {
+            "StartTime": 57600,
+            "CultureStartTimes": [],
+            "EndTime": 60900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_07",
+              "SourceString": "什么「隐火症」，什么家族，都无所谓了，事到如今，谁都别想逃掉……",
+              "LocalizedString": "Be it the Phantom Burn Syndrome or family… everything is over. At this point, none can get away…"
+            }
+          },
+          {
+            "StartTime": 61800,
+            "CultureStartTimes": [],
+            "EndTime": 67900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_08",
+              "SourceString": "哈哈……哈哈哈哈……这就是他们亲手选择的结局。",
+              "LocalizedString": "Haha…Hahahaha… So this is the ending they chose."
+            }
+          },
+          {
+            "StartTime": 68866,
+            "CultureStartTimes": [],
+            "EndTime": 74666,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_09",
+              "SourceString": "……让这座医院……得到彻底的解放吧。",
+              "LocalizedString": "Let this hospital… be thoroughly… liberated."
+            }
+          }
+        ]
+      },
+      "Hospital_Ending_04": {
+        "Captions": [
+          {
+            "StartTime": 10966,
+            "CultureStartTimes": [],
+            "EndTime": 21200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_11",
+              "SourceString": "……又是这个故事……已经不记得是第几次了……",
+              "LocalizedString": "This story again…? I can't remember how many times it has been…"
+            }
+          },
+          {
+            "StartTime": 22200,
+            "CultureStartTimes": [],
+            "EndTime": 29900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_12",
+              "SourceString": "这次我是谁？是人，是怪物，是病痛，唯独不是我自己。",
+              "LocalizedString": "Who am I this time? Am I human, monster, or the sickness itself? I only know that I am not myself."
+            }
+          },
+          {
+            "StartTime": 31366,
+            "CultureStartTimes": [],
+            "EndTime": 37200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_13",
+              "SourceString": "某一天，我睁开眼，是感染了诅咒般的病症，不惜一切代价自救的医生。",
+              "LocalizedString": "One day, I opened my eyes, and I see a doctor consumed by a curse-like sickness, willing to anything to save himself."
+            }
+          },
+          {
+            "StartTime": 38400,
+            "CultureStartTimes": [],
+            "EndTime": 45433,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCK_11",
+              "SourceString": "又或者，我是隐约意识到危机，却愚蠢到没能逃脱的管理者。",
+              "LocalizedString": "Or maybe, I'm the manager who saw the danger coming, but was foolish enough to stay."
+            }
+          },
+          {
+            "StartTime": 46866,
+            "CultureStartTimes": [],
+            "EndTime": 50066,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_14",
+              "SourceString": "甚至是这座医院本身，亲自操控着这些可悲的人们走向灭亡。",
+              "LocalizedString": "Or I was the hospital itself, marching all those pathetic souls to death."
+            }
+          },
+          {
+            "StartTime": 50500,
+            "CultureStartTimes": [],
+            "EndTime": 56833,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_15",
+              "SourceString": "我扮演了那么多不同的角色，无数次试图改变命运的轨迹，而结局始终只有一个……",
+              "LocalizedString": "I played so many roles, and I tried countless times to change fate, but in the end, there was only one ending…"
+            }
+          },
+          {
+            "StartTime": 57600,
+            "CultureStartTimes": [],
+            "EndTime": 60900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_16",
+              "SourceString": "噩梦如同沼泽，不论如何挣扎都会被吞噬在无边无际的黑暗里。",
+              "LocalizedString": "Nightmares are like swamps. No matter how much you struggle, you get devoured by endless darkness."
+            }
+          },
+          {
+            "StartTime": 61800,
+            "CultureStartTimes": [],
+            "EndTime": 67900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_17",
+              "SourceString": "但这一切仅仅是虚构吗？还是发生在过去的现实？我再也分不清了。",
+              "LocalizedString": "But was everything the real life? Or was I reliving the past? I can't tell anymore."
+            }
+          },
+          {
+            "StartTime": 68866,
+            "CultureStartTimes": [],
+            "EndTime": 74666,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_18",
+              "SourceString": "那么你呢，陌生人？你所经历的，到底是事实还是臆想？",
+              "LocalizedString": "What about you, stranger? Did you experience the real life, or was it just fantasy?"
+            }
+          },
+          {
+            "StartTime": 74666,
+            "CultureStartTimes": [],
+            "EndTime": 74866,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "Hospital_Ending_NPCV_19",
+              "SourceString": "你所见证的「真相」，它的「真相」又是什么？",
+              "LocalizedString": "And the what is the \"truth\" about the \"truth\" you just saw?"
+            }
+          }
+        ]
+      },
+      "q110418": {
+        "Captions": [
+          {
+            "StartTime": 69400,
+            "CultureStartTimes": [],
+            "EndTime": 70200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C04_01_Player_001",
+              "SourceString": "达芙蒂尔！",
+              "LocalizedString": "Daffodill!"
+            }
+          },
+          {
+            "StartTime": 76400,
+            "CultureStartTimes": [],
+            "EndTime": 77200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C04_01_NPC013_001",
+              "SourceString": "交给我。",
+              "LocalizedString": "Leave it to me."
+            }
+          }
+        ]
+      },
+      "q110430": {
+        "Captions": [
+          {
+            "StartTime": 61300,
+            "CultureStartTimes": [],
+            "EndTime": 62900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C04_02_NPC022_001",
+              "SourceString": "是你。",
+              "LocalizedString": "It's you."
+            }
+          }
+        ]
+      },
+      "W107905": {
+        "Captions": [
+          {
+            "StartTime": 500,
+            "CultureStartTimes": [],
+            "EndTime": 2500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/ST_Bubble_CityMark_Chat.ST_Bubble_CityMark_Chat",
+              "Key": "SU_Prison_CNPC016010_001",
+              "SourceString": "你说好端端的人，也没啥毛病，怎么突然就昏迷不醒了？",
+              "LocalizedString": "I mean, they were in perfect shape, with no issues at all. How did they fall into a coma?"
+            }
+          },
+          {
+            "StartTime": 3000,
+            "CultureStartTimes": [],
+            "EndTime": 6000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/ST_Bubble_CityMark_Chat.ST_Bubble_CityMark_Chat",
+              "Key": "SU_Prison_CNPC016010_002",
+              "SourceString": "这种事说不准啊。人啊，有时候也挺脆弱的。",
+              "LocalizedString": "These things are hard to predict. People can be fragile."
+            }
+          }
+        ]
+      },
+      "q110545": {
+        "Captions": [
+          {
+            "StartTime": 8266,
+            "CultureStartTimes": [],
+            "EndTime": 11665,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_01_NPC074A_001",
+              "SourceString": "熊要告诫、告、告、告诫你……！",
+              "LocalizedString": "This bear must… w-w-warn you…!"
+            }
+          },
+          {
+            "StartTime": 11666,
+            "CultureStartTimes": [],
+            "EndTime": 13600,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_01_NPC010_001",
+              "SourceString": "小心！这只熊有异变！",
+              "LocalizedString": "Careful! The bear is transforming!"
+            }
+          },
+          {
+            "StartTime": 15133,
+            "CultureStartTimes": [],
+            "EndTime": 23700,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_01_NPC074A_002",
+              "SourceString": "熊要告诫你……为小孩子操心的人都会招致不幸……",
+              "LocalizedString": "This bear must warn you… worrying about kids only brings forth misfortune…"
+            }
+          },
+          {
+            "StartTime": 31866,
+            "CultureStartTimes": [],
+            "EndTime": 33210,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_01_NPC008_001",
+              "SourceString": "什么东西……好恶心！",
+              "LocalizedString": "What in Hethereau…? YUCK!"
+            }
+          },
+          {
+            "StartTime": 33215,
+            "CultureStartTimes": [],
+            "EndTime": 35300,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_01_Player_001",
+              "SourceString": "露出真面目了吗……",
+              "LocalizedString": "Finally revealing your true nature…?"
+            }
+          },
+          {
+            "StartTime": 36066,
+            "CultureStartTimes": [],
+            "EndTime": 44133,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_01_NPC074A_003",
+              "SourceString": "就像——现在，桀桀桀！",
+              "LocalizedString": "Just like you! HAHAHAHA!"
+            }
+          }
+        ]
+      },
+      "q110547": {
+        "Captions": [
+          {
+            "StartTime": 3130,
+            "CultureStartTimes": [],
+            "EndTime": 6619,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_NPC074A_001",
+              "SourceString": "诅咒你们……",
+              "LocalizedString": "Cursed humans…"
+            }
+          },
+          {
+            "StartTime": 7420,
+            "CultureStartTimes": [],
+            "EndTime": 13580,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_NPC074A_002",
+              "SourceString": "所有厌弃熊的……全、都……",
+              "LocalizedString": "All those who abandoned teddy bears…"
+            }
+          },
+          {
+            "StartTime": 26183,
+            "CultureStartTimes": [],
+            "EndTime": 28883,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_001",
+              "SourceString": "阿德勒先生？你们在哪？",
+              "LocalizedString": "Adler? Where are you?"
+            }
+          },
+          {
+            "StartTime": 60483,
+            "CultureStartTimes": [],
+            "EndTime": 64183,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_002",
+              "SourceString": "陆地上……有一艘船？",
+              "LocalizedString": "That ferry… is sailing on the land?"
+            }
+          }
+        ]
+      },
+      "q110550": {
+        "Captions": [
+          {
+            "StartTime": 14733,
+            "CultureStartTimes": [],
+            "EndTime": 20533,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_003",
+              "SourceString": "从何而来……又将……成为什么……",
+              "LocalizedString": "From where we come… to where… we go?"
+            }
+          },
+          {
+            "StartTime": 26733,
+            "CultureStartTimes": [],
+            "EndTime": 31733,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_NPC078A_001",
+              "SourceString": "（欢迎泥~欢迎泥~能康到船船的客人~！）",
+              "LocalizedString": "(Henlo, henlo, guest who can see the ferry!)"
+            }
+          },
+          {
+            "StartTime": 33733,
+            "CultureStartTimes": [],
+            "EndTime": 40480,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_004",
+              "SourceString": "扭扭？居然在这里也能看见你们这群小家伙。",
+              "LocalizedString": "I didn't expect to see you little guys here."
+            }
+          },
+          {
+            "StartTime": 91600,
+            "CultureStartTimes": [],
+            "EndTime": 92900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_005",
+              "SourceString": "那是什么？",
+              "LocalizedString": "What's that?"
+            }
+          },
+          {
+            "StartTime": 93000,
+            "CultureStartTimes": [],
+            "EndTime": 100832,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_NPC077A_003",
+              "SourceString": "（太阳。不升起，不落下。没有黑夜，没有晨曦。）",
+              "LocalizedString": "(Da sun. No rise, no set, no morning, no night.)"
+            }
+          },
+          {
+            "StartTime": 100833,
+            "CultureStartTimes": [],
+            "EndTime": 102200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_006",
+              "SourceString": "潮声",
+              "LocalizedString": "Fog,"
+            }
+          },
+          {
+            "StartTime": 105000,
+            "CultureStartTimes": [],
+            "EndTime": 106066,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_009",
+              "SourceString": "迷雾……",
+              "LocalizedString": "echoes of waves,"
+            }
+          },
+          {
+            "StartTime": 107933,
+            "CultureStartTimes": [],
+            "EndTime": 108900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_010",
+              "SourceString": "巨像？",
+              "LocalizedString": "and… a giant statue?"
+            }
+          },
+          {
+            "StartTime": 110100,
+            "CultureStartTimes": [],
+            "EndTime": 116433,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_007",
+              "SourceString": "与黑羽小姐的占卜对上了，这里应该就是娜娜莉走丢的异象空间。",
+              "LocalizedString": "These all match Blackbird's divination. This must be the Anomalous Realm Nanally got lost in."
+            }
+          },
+          {
+            "StartTime": 117600,
+            "CultureStartTimes": [],
+            "EndTime": 122266,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_U01C05_02_Player_008",
+              "SourceString": "出于什么原因只有我一个人进来了……得先告诉大家。",
+              "LocalizedString": "For some reason I'm the only one here… I need to tell the others."
+            }
+          }
+        ]
+      },
+      "q1105921": {
+        "Captions": [
+          {
+            "StartTime": 200,
+            "CultureStartTimes": [],
+            "EndTime": 4500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_NPC1018_006_01",
+              "SourceString": "忒修斯之舵……它不会允许规则被打破",
+              "LocalizedString": "The Helm of Theseus… it won't allow rules to be broken…"
+            }
+          },
+          {
+            "StartTime": 6900,
+            "CultureStartTimes": [],
+            "EndTime": 8000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_NPC1018_006_02",
+              "SourceString": "必须",
+              "LocalizedString": "It must…"
+            }
+          },
+          {
+            "StartTime": 8001,
+            "CultureStartTimes": [],
+            "EndTime": 10066,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_NPC1018_006_03",
+              "SourceString": "驶向过去",
+              "LocalizedString": "Sail to the past…"
+            }
+          },
+          {
+            "StartTime": 17600,
+            "CultureStartTimes": [],
+            "EndTime": 21466,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_026",
+              "SourceString": "是它不允许，还是你不敢改变？",
+              "LocalizedString": "Does it make the rules, or do you make the rules?"
+            }
+          },
+          {
+            "StartTime": 22133,
+            "CultureStartTimes": [],
+            "EndTime": 23466,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_028_01",
+              "SourceString": "我可以带你出去",
+              "LocalizedString": "I can bring you out,"
+            }
+          },
+          {
+            "StartTime": 24200,
+            "CultureStartTimes": [],
+            "EndTime": 30900,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_028_02",
+              "SourceString": "带你、娜娜莉、花园里的女孩、游梦人们……带你们所有人出去！",
+              "LocalizedString": "Along with Nanally, the girl in the garden, and all the Dreamwalkers!"
+            }
+          },
+          {
+            "StartTime": 31133,
+            "CultureStartTimes": [],
+            "EndTime": 35066,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_NPC1018_007",
+              "SourceString": "没用的！规则……规则……",
+              "LocalizedString": "That won't do! The rules… the rules…"
+            }
+          },
+          {
+            "StartTime": 50800,
+            "CultureStartTimes": [],
+            "EndTime": 55600,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_029",
+              "SourceString": "你忘了吗？我从一开始进来，你就说我不受规则束缚。",
+              "LocalizedString": "Remember? When I first entered here, you told me the rules here don't apply to me."
+            }
+          },
+          {
+            "StartTime": 72533,
+            "CultureStartTimes": [],
+            "EndTime": 76666,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_200",
+              "SourceString": "那些困住你们的过去和幻象……我来打破！",
+              "LocalizedString": "The past and the illusions that bind you… I'll shatter them all!"
+            }
+          },
+          {
+            "StartTime": 93300,
+            "CultureStartTimes": [],
+            "EndTime": 97533,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_030",
+              "SourceString": "一个空空如也的「0」，正适合兜走一群乱七八糟的家伙们！",
+              "LocalizedString": "Here, I am the embodiment of neverness. I might as well bring back these riffraffs!"
+            }
+          },
+          {
+            "StartTime": 115600,
+            "CultureStartTimes": [],
+            "EndTime": 118100,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_031_01",
+              "SourceString": "既然那个船舵可以载人驶向过去",
+              "LocalizedString": "If that helm can steer people to the past,"
+            }
+          },
+          {
+            "StartTime": 119200,
+            "CultureStartTimes": [],
+            "EndTime": 121233,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_031_02",
+              "SourceString": "那就由我来让它调转方向",
+              "LocalizedString": "Then I can change its direction—"
+            }
+          },
+          {
+            "StartTime": 123900,
+            "CultureStartTimes": [],
+            "EndTime": 125133,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_032_01",
+              "SourceString": "不要再倒退",
+              "LocalizedString": "No more sailing into the past…"
+            }
+          },
+          {
+            "StartTime": 126100,
+            "CultureStartTimes": [],
+            "EndTime": 127933,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_032_02",
+              "SourceString": "你们的双腿都该往前走",
+              "LocalizedString": "All of you are meant to move on."
+            }
+          },
+          {
+            "StartTime": 130833,
+            "CultureStartTimes": [],
+            "EndTime": 133233,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_033_01",
+              "SourceString": "莳小姐，试试看吧",
+              "LocalizedString": "Thyme,"
+            }
+          },
+          {
+            "StartTime": 135500,
+            "CultureStartTimes": [],
+            "EndTime": 136800,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_033_02",
+              "SourceString": "和所有人一样",
+              "LocalizedString": "You should try like the others."
+            }
+          },
+          {
+            "StartTime": 137900,
+            "CultureStartTimes": [],
+            "EndTime": 141633,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_033_03",
+              "SourceString": "抱着愤怒、沮丧、不甘、遗憾",
+              "LocalizedString": "Carry your anger, sadness, frustration, and regret,"
+            }
+          },
+          {
+            "StartTime": 142500,
+            "CultureStartTimes": [],
+            "EndTime": 146133,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "MT01_05_Player_033_04",
+              "SourceString": "眼里噙满泪水去亲眼看看前方的风景",
+              "LocalizedString": "Then behold what lies ahead with those teared-up eyes!"
+            }
+          }
+        ]
+      },
+      "WJ104801": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1048_B_001",
+              "SourceString": "有、有本事就过来啊！",
+              "LocalizedString": "C-Come at me if you can!"
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC024_WJ1048_013",
+              "SourceString": "左边我的，右边你的。",
+              "LocalizedString": "Left, mine. Right, yours."
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1048_Player_012",
+              "SourceString": "嗯？",
+              "LocalizedString": "Huh?"
+            }
+          }
+        ]
+      },
+      "WJ104901": {
+        "Captions": [
+          {
+            "StartTime": 20000,
+            "CultureStartTimes": [],
+            "EndTime": 22000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC024_WJ1049_013",
+              "SourceString": "你们有见过这个吗？",
+              "LocalizedString": "Have you ever seen this?"
+            }
+          },
+          {
+            "StartTime": 22500,
+            "CultureStartTimes": [],
+            "EndTime": 24500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1049_A_001",
+              "SourceString": "没有唉。",
+              "LocalizedString": "I dunno…"
+            }
+          },
+          {
+            "StartTime": 35000,
+            "CultureStartTimes": [],
+            "EndTime": 39000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1049_Player_007",
+              "SourceString": "能找的地方都找过了，你确定这里真有异象？",
+              "LocalizedString": "We've looked through every corner. Are you sure there's an anomaly?"
+            }
+          },
+          {
+            "StartTime": 39500,
+            "CultureStartTimes": [],
+            "EndTime": 41500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC024_WJ1049_011",
+              "SourceString": "不，还有一个地方。",
+              "LocalizedString": "There's one more location."
+            }
+          },
+          {
+            "StartTime": 42000,
+            "CultureStartTimes": [],
+            "EndTime": 43500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1049_Player_008",
+              "SourceString": "什么地方？",
+              "LocalizedString": "Where exactly?"
+            }
+          },
+          {
+            "StartTime": 43600,
+            "CultureStartTimes": [],
+            "EndTime": 46000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC024_WJ1049_012",
+              "SourceString": "屋顶！",
+              "LocalizedString": "The rooftop!"
+            }
+          }
+        ]
+      },
+      "WJBoss": {
+        "Captions": [
+          {
+            "StartTime": 39000,
+            "CultureStartTimes": [],
+            "EndTime": 44000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJBoss_01",
+              "SourceString": "异象无首铁驭已泯除，收到，交给我吧！",
+              "LocalizedString": "The Headless Rider has been nullified. Got it… leave the rest to me."
+            }
+          },
+          {
+            "StartTime": 51000,
+            "CultureStartTimes": [],
+            "EndTime": 53000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJBoss_02",
+              "SourceString": "是管理局的人。",
+              "LocalizedString": "Is she from the Bureau?"
+            }
+          }
+        ]
+      },
+      "WJ105201": {
+        "Captions": [
+          {
+            "StartTime": 14000,
+            "CultureStartTimes": [],
+            "EndTime": 17000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1052_019",
+              "SourceString": "游戏……开始！",
+              "LocalizedString": "The game… begins!"
+            }
+          },
+          {
+            "StartTime": 25500,
+            "CultureStartTimes": [],
+            "EndTime": 27000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1052_Player_010",
+              "SourceString": "好球。",
+              "LocalizedString": "Nice one!"
+            }
+          },
+          {
+            "StartTime": 29500,
+            "CultureStartTimes": [],
+            "EndTime": 32500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1052_Player_011",
+              "SourceString": "接下来……该我了！",
+              "LocalizedString": "Now… it's my turn!"
+            }
+          },
+          {
+            "StartTime": 53000,
+            "CultureStartTimes": [],
+            "EndTime": 55000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1052_MonA_007",
+              "SourceString": "简直是怪物！",
+              "LocalizedString": "What a monster…"
+            }
+          },
+          {
+            "StartTime": 55500,
+            "CultureStartTimes": [],
+            "EndTime": 59500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1052_MonC_006",
+              "SourceString": "到底什么时候才能结束……？",
+              "LocalizedString": "When will this ever end…?"
+            }
+          },
+          {
+            "StartTime": 59600,
+            "CultureStartTimes": [],
+            "EndTime": 64000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1052_020",
+              "SourceString": "好啊，那就如你所愿。",
+              "LocalizedString": "Alright then, as you… WISH!"
+            }
+          }
+        ]
+      },
+      "WJ105301": {
+        "Captions": [
+          {
+            "StartTime": 8000,
+            "CultureStartTimes": [],
+            "EndTime": 10500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1053_014",
+              "SourceString": "主人久等了，这是您点的……",
+              "LocalizedString": "Master, thanks for waiting. This is…"
+            }
+          },
+          {
+            "StartTime": 16000,
+            "CultureStartTimes": [],
+            "EndTime": 19000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1053_015",
+              "SourceString": "……您点的「美味☆魔法蛋包饭」。",
+              "LocalizedString": "…the \"Yumyum ☆ Magical Omurice\" you ordered!"
+            }
+          },
+          {
+            "StartTime": 20000,
+            "CultureStartTimes": [],
+            "EndTime": 23500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1053_A_004",
+              "SourceString": "不要忘记「美味☆魔法」，加油啊！",
+              "LocalizedString": "Don't forget to cast \"Yumyum ☆ Magic\"!"
+            }
+          },
+          {
+            "StartTime": 26500,
+            "CultureStartTimes": [],
+            "EndTime": 31500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1053_016",
+              "SourceString": "……接下来，让我来为主人施加美味的魔法吧。",
+              "LocalizedString": "And now… let me cast a spell that makes Master's food yummy."
+            }
+          },
+          {
+            "StartTime": 32500,
+            "CultureStartTimes": [],
+            "EndTime": 34500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1053_017",
+              "SourceString": "满怀着对主人的爱……",
+              "LocalizedString": "With all my love for master mine…"
+            }
+          },
+          {
+            "StartTime": 35000,
+            "CultureStartTimes": [],
+            "EndTime": 37000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1053_018",
+              "SourceString": "将一切烦恼都忘记……",
+              "LocalizedString": "Worries fade with all this rhyme…"
+            }
+          },
+          {
+            "StartTime": 38000,
+            "CultureStartTimes": [],
+            "EndTime": 40000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1053_019",
+              "SourceString": "拜托你了，蛋包饭先生……",
+              "LocalizedString": "Mister Omurice, taste so sweet…"
+            }
+          },
+          {
+            "StartTime": 41000,
+            "CultureStartTimes": [],
+            "EndTime": 44500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1053_020",
+              "SourceString": "……变美味吧，萌萌魔法。",
+              "LocalizedString": "Moe moe magic, what a treat!"
+            }
+          }
+        ]
+      },
+      "WJ105401": {
+        "Captions": [
+          {
+            "StartTime": 2000,
+            "CultureStartTimes": [],
+            "EndTime": 3500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1054_020",
+              "SourceString": "喏。",
+              "LocalizedString": "There."
+            }
+          },
+          {
+            "StartTime": 12500,
+            "CultureStartTimes": [],
+            "EndTime": 14500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1054_Player_013",
+              "SourceString": "唉？该吃饭了吧？",
+              "LocalizedString": "It's time for dinner…"
+            }
+          },
+          {
+            "StartTime": 15000,
+            "CultureStartTimes": [],
+            "EndTime": 16000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1054_022",
+              "SourceString": "这样切？",
+              "LocalizedString": "Slice it like this?"
+            }
+          },
+          {
+            "StartTime": 16200,
+            "CultureStartTimes": [],
+            "EndTime": 17500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1054_Player_015",
+              "SourceString": "刀工不错嘛。",
+              "LocalizedString": "Good knife skills."
+            }
+          },
+          {
+            "StartTime": 20500,
+            "CultureStartTimes": [],
+            "EndTime": 21500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1054_023",
+              "SourceString": "干杯！",
+              "LocalizedString": "Cheers!"
+            }
+          },
+          {
+            "StartTime": 24000,
+            "CultureStartTimes": [],
+            "EndTime": 25000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC032_WJ1054_024",
+              "SourceString": "味道怎么样？",
+              "LocalizedString": "How is it?"
+            }
+          },
+          {
+            "StartTime": 25500,
+            "CultureStartTimes": [],
+            "EndTime": 27500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1054_Player_017",
+              "SourceString": "嗯！很美味。",
+              "LocalizedString": "Delicious."
+            }
+          }
+        ]
+      },
+      "L110304": {
+        "Captions": [
+          {
+            "StartTime": 1366,
+            "CultureStartTimes": [],
+            "EndTime": 4100,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_NPC001_001",
+              "SourceString": "对了果果，给你拿着，你来丢！",
+              "LocalizedString": "Right, Taya, take this. Throw it!"
+            }
+          },
+          {
+            "StartTime": 6102,
+            "CultureStartTimes": [],
+            "EndTime": 8333,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_NPC032_001",
+              "SourceString": "唔……这样？",
+              "LocalizedString": "Umm… like this?"
+            }
+          },
+          {
+            "StartTime": 8679,
+            "CultureStartTimes": [],
+            "EndTime": 12733,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_NPC001_002",
+              "SourceString": "没错没错！那么这次奇幻游戏之旅——",
+              "LocalizedString": "That's right! Now, let our fantasy adventure—"
+            }
+          },
+          {
+            "StartTime": 13733,
+            "CultureStartTimes": [],
+            "EndTime": 16466,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_NPC001_003",
+              "SourceString": "就正式启程咯！",
+              "LocalizedString": "—officially begin!"
+            }
+          },
+          {
+            "StartTime": 45633,
+            "CultureStartTimes": [],
+            "EndTime": 48866,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_NPCRPGNarration_001",
+              "SourceString": "你是谁？这一次……",
+              "LocalizedString": "Who are you? What kind of person…"
+            }
+          },
+          {
+            "StartTime": 48866,
+            "CultureStartTimes": [],
+            "EndTime": 50500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_NPCRPGNarration_002",
+              "SourceString": "你想当怎样的人？",
+              "LocalizedString": "Do you want to be this time?"
+            }
+          }
+        ]
+      },
+      "L110305": {
+        "Captions": [
+          {
+            "StartTime": 14800,
+            "CultureStartTimes": [],
+            "EndTime": 15600,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_Player_002",
+              "SourceString": "这是……",
+              "LocalizedString": "What is…?"
+            }
+          },
+          {
+            "StartTime": 28833,
+            "CultureStartTimes": [],
+            "EndTime": 31966,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_NPC028_001",
+              "SourceString": "大概是我们的职业，什么的吧。",
+              "LocalizedString": "I think it's something like our class."
+            }
+          },
+          {
+            "StartTime": 64233,
+            "CultureStartTimes": [],
+            "EndTime": 66133,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_NPC001_006",
+              "SourceString": "怎么会这样……",
+              "LocalizedString": "Why do I look like this…?"
+            }
+          },
+          {
+            "StartTime": 73600,
+            "CultureStartTimes": [],
+            "EndTime": 75300,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_01_NPC032_002",
+              "SourceString": "你们在耍什么宝。",
+              "LocalizedString": "What shenanigans are you up to?"
+            }
+          }
+        ]
+      },
+      "L110347": {
+        "Captions": [
+          {
+            "StartTime": 43200,
+            "CultureStartTimes": [],
+            "EndTime": 45533,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "HM_Shinku01_02_NPC001_001",
+              "SourceString": "哇！真是太酷啦！果果！",
+              "LocalizedString": "Wooaaah! Taya, you're so cool!"
+            }
+          }
+        ]
+      },
+      "WJ105001": {
+        "Captions": [
+          {
+            "StartTime": 13000,
+            "CultureStartTimes": [],
+            "EndTime": 16000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1050_Player_021",
+              "SourceString": "这样，真的没问题吗……",
+              "LocalizedString": "Are you sure…?"
+            }
+          },
+          {
+            "StartTime": 33500,
+            "CultureStartTimes": [],
+            "EndTime": 38500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC028_WJ1050_018",
+              "SourceString": "我饱啦~剩下的全留给你们咯！",
+              "LocalizedString": "I'm full! You three can have the rest!"
+            }
+          },
+          {
+            "StartTime": 76000,
+            "CultureStartTimes": [],
+            "EndTime": 82000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC028_WJ1050_019",
+              "SourceString": "你们怎么啦？不觉得自己买的东西味道很不错吗？",
+              "LocalizedString": "How's that for you? Don't you think the stuff you bought is delicious?"
+            }
+          }
+        ]
+      },
+      "q110717": {
+        "Captions": [
+          {
+            "StartTime": 5933,
+            "CultureStartTimes": [],
+            "EndTime": 6733,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Miandialogue_Wuchao.ST_Miandialogue_Wuchao",
+              "Key": "HM_U01C06_04_NPC027_001",
+              "SourceString": "妮夏……",
+              "LocalizedString": "Nitsa..."
+            }
+          }
+        ]
+      },
+      "q110721_1": {
+        "Captions": [
+          {
+            "StartTime": 14620,
+            "CultureStartTimes": [],
+            "EndTime": 18250,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Miandialogue_Wuchao.ST_Miandialogue_Wuchao",
+              "Key": "HM_U01C06_05_NPC031_001",
+              "SourceString": "前辈……脚下不对劲。",
+              "LocalizedString": "Senpai! Under us…"
+            }
+          },
+          {
+            "StartTime": 18540,
+            "CultureStartTimes": [],
+            "EndTime": 19560,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Miandialogue_Wuchao.ST_Miandialogue_Wuchao",
+              "Key": "HM_U01C06_05_NPC027_001",
+              "SourceString": "呃？",
+              "LocalizedString": "Umm?"
+            }
+          },
+          {
+            "StartTime": 19940,
+            "CultureStartTimes": [],
+            "EndTime": 20690,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Miandialogue_Wuchao.ST_Miandialogue_Wuchao",
+              "Key": "HM_U01C06_05_NPC027_002",
+              "SourceString": "快跑！",
+              "LocalizedString": "Run!"
+            }
+          },
+          {
+            "StartTime": 21090,
+            "CultureStartTimes": [],
+            "EndTime": 22040,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Miandialogue_Wuchao.ST_Miandialogue_Wuchao",
+              "Key": "HM_U01C06_05_NPC031_003",
+              "SourceString": "前辈！",
+              "LocalizedString": "Senpai!"
+            }
+          },
+          {
+            "StartTime": 40620,
+            "CultureStartTimes": [],
+            "EndTime": 41620,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Miandialogue_Wuchao.ST_Miandialogue_Wuchao",
+              "Key": "HM_U01C06_05_NPC031_003",
+              "SourceString": "前辈！",
+              "LocalizedString": "Senpai!"
+            }
+          }
+        ]
+      },
+      "WJ105501": {
+        "Captions": [
+          {
+            "StartTime": 31000,
+            "CultureStartTimes": [],
+            "EndTime": 35000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC027_WJ1055_023",
+              "SourceString": "鉴定师！你看这个——",
+              "LocalizedString": "Appraiser, Appraiser, look at this—"
+            }
+          },
+          {
+            "StartTime": 37500,
+            "CultureStartTimes": [],
+            "EndTime": 39500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC027_WJ1055_024",
+              "SourceString": "……好漂亮。",
+              "LocalizedString": "It's so pretty…!"
+            }
+          },
+          {
+            "StartTime": 40000,
+            "CultureStartTimes": [],
+            "EndTime": 42000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1055_Player_018",
+              "SourceString": "灵可喜欢的话，就收下吧。",
+              "LocalizedString": "Linko, you can have it if you want."
+            }
+          },
+          {
+            "StartTime": 43000,
+            "CultureStartTimes": [],
+            "EndTime": 45500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC027_WJ1055_025",
+              "SourceString": "欸？真的可以吗？",
+              "LocalizedString": "Really? Is that okay?"
+            }
+          },
+          {
+            "StartTime": 48500,
+            "CultureStartTimes": [],
+            "EndTime": 54000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1055_Player_019",
+              "SourceString": "我很喜欢……谢谢鉴定师，我会好好珍藏的。",
+              "LocalizedString": "Mhm, I like it… Thank you, Appraiser. I'll treasure it."
+            }
+          },
+          {
+            "StartTime": 54500,
+            "CultureStartTimes": [],
+            "EndTime": 56000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1055_Player_020",
+              "SourceString": "不拿去换布丁吗？",
+              "LocalizedString": "What about the pudding?"
+            }
+          },
+          {
+            "StartTime": 56500,
+            "CultureStartTimes": [],
+            "EndTime": 62000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC027_WJ1055_026",
+              "SourceString": "哦！布丁……我用这个去换！",
+              "LocalizedString": "Oh, pudding…! I'll trade in this one instead!"
+            }
+          },
+          {
+            "StartTime": 63000,
+            "CultureStartTimes": [],
+            "EndTime": 71000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC027_WJ1055_027",
+              "SourceString": "这么大的贝壳，应该能换两个……到时候，我和鉴定师一人一个！",
+              "LocalizedString": "The shell is so huge, I should be able to get two puddings… Appraiser, we'll get one each!"
+            }
+          }
+        ]
+      },
+      "WJ105601": {
+        "Captions": [
+          {
+            "StartTime": 8000,
+            "CultureStartTimes": [],
+            "EndTime": 10000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1056_Player_013",
+              "SourceString": "这台电视好奇怪……",
+              "LocalizedString": "This TV is acting strange…"
+            }
+          },
+          {
+            "StartTime": 11000,
+            "CultureStartTimes": [],
+            "EndTime": 18000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC027_WJ1056_015",
+              "SourceString": "啊……会不会有什么很可怕的东西！啊！摄像机出故障了！",
+              "LocalizedString": "Is there going to be something… scary? Ah! The camera isn't working!"
+            }
+          },
+          {
+            "StartTime": 19000,
+            "CultureStartTimes": [],
+            "EndTime": 20000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1056_Player_014",
+              "SourceString": "我看看。",
+              "LocalizedString": "Let me take a look."
+            }
+          },
+          {
+            "StartTime": 21000,
+            "CultureStartTimes": [],
+            "EndTime": 22500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC027_WJ1056_016",
+              "SourceString": "（小贞！快点快点！）",
+              "LocalizedString": "(Xiaozhen! Hurry!)"
+            }
+          },
+          {
+            "StartTime": 23000,
+            "CultureStartTimes": [],
+            "EndTime": 24500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_Anomaly080_WJ1056_014",
+              "SourceString": "（听到啦！！）",
+              "LocalizedString": "(I hear you!)"
+            }
+          },
+          {
+            "StartTime": 25000,
+            "CultureStartTimes": [],
+            "EndTime": 27000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1056_Player_015",
+              "SourceString": "画面稳定了。",
+              "LocalizedString": "The screen stabilized."
+            }
+          },
+          {
+            "StartTime": 28000,
+            "CultureStartTimes": [],
+            "EndTime": 29500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC027_WJ1056_017",
+              "SourceString": "噢？电视好像坏掉了……",
+              "LocalizedString": "Hmm? The TV is broken…"
+            }
+          },
+          {
+            "StartTime": 31000,
+            "CultureStartTimes": [],
+            "EndTime": 32000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1056_Player_016",
+              "SourceString": "谁？！",
+              "LocalizedString": "Who's there?"
+            }
+          },
+          {
+            "StartTime": 36000,
+            "CultureStartTimes": [],
+            "EndTime": 37000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_Anomaly080_WJ1056_015",
+              "SourceString": "哇——！",
+              "LocalizedString": "Woah!!!"
+            }
+          },
+          {
+            "StartTime": 37500,
+            "CultureStartTimes": [],
+            "EndTime": 44000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC027_WJ1056_018",
+              "SourceString": "鉴定师！你还活着吗？鉴定师！鉴定师——",
+              "LocalizedString": "Appraiser! Are you still alive? Appraiser! Appraiser!"
+            }
+          }
+        ]
+      },
+      "WJ105701": {
+        "Captions": [
+          {
+            "StartTime": 2000,
+            "CultureStartTimes": [],
+            "EndTime": 5000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1057_A_006",
+              "SourceString": "OK亲爱的市民朋友们！",
+              "LocalizedString": "Alright, dear citizens of Hethereau!"
+            }
+          },
+          {
+            "StartTime": 5100,
+            "CultureStartTimes": [],
+            "EndTime": 10000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1057_A_007",
+              "SourceString": "激动人心的评选时刻正式开始！让我们有请萌萌评审团的各位评委~",
+              "LocalizedString": "And now, the moment we've all been waiting for! Let's give it up for—our panel of cuteness judges!"
+            }
+          },
+          {
+            "StartTime": 11000,
+            "CultureStartTimes": [],
+            "EndTime": 12500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1057_C_001",
+              "SourceString": "鉴定师？！",
+              "LocalizedString": "Appraiser!?"
+            }
+          },
+          {
+            "StartTime": 16000,
+            "CultureStartTimes": [],
+            "EndTime": 18500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1057_D_001",
+              "SourceString": "有请第一位选手！",
+              "LocalizedString": "Here comes our first contestant!"
+            }
+          },
+          {
+            "StartTime": 42000,
+            "CultureStartTimes": [],
+            "EndTime": 44000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1057_E_001",
+              "SourceString": "好紧张呐……",
+              "LocalizedString": "So nervous…"
+            }
+          },
+          {
+            "StartTime": 48000,
+            "CultureStartTimes": [],
+            "EndTime": 51500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_Anomaly080_WJ1057_007",
+              "SourceString": "干嘛？看什么看？",
+              "LocalizedString": "Wut? Wotcha lookin' at?"
+            }
+          },
+          {
+            "StartTime": 60000,
+            "CultureStartTimes": [],
+            "EndTime": 62000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_Anomaly080_WJ1057_008",
+              "SourceString": "哈？！！你给我戴的什么东西？",
+              "LocalizedString": "Huuuh? What are you making me wear???"
+            }
+          },
+          {
+            "StartTime": 64000,
+            "CultureStartTimes": [],
+            "EndTime": 67000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_Anomaly080_WJ1057_010",
+              "SourceString": "你这臭小鬼！",
+              "LocalizedString": "You scamp—!"
+            }
+          },
+          {
+            "StartTime": 68000,
+            "CultureStartTimes": [],
+            "EndTime": 70000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1057_F_001",
+              "SourceString": "我也是十分",
+              "LocalizedString": "I also rate her a ten."
+            }
+          },
+          {
+            "StartTime": 73000,
+            "CultureStartTimes": [],
+            "EndTime": 75500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_Anomaly080_WJ1057_009",
+              "SourceString": "不许打分！你们这些笨蛋——",
+              "LocalizedString": "You dummies don't get to rate me! Stop—"
+            }
+          },
+          {
+            "StartTime": 76000,
+            "CultureStartTimes": [],
+            "EndTime": 77000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_1057_G_001",
+              "SourceString": "我给小贞100分~",
+              "LocalizedString": "I rate Xiaozhen a hundred points!"
+            }
+          }
+        ]
+      },
+      "WJ105801": {
+        "Captions": [
+          {
+            "StartTime": 13500,
+            "CultureStartTimes": [],
+            "EndTime": 17000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1058_041",
+              "SourceString": "等等。这些家具，似乎没有攻击的意图。",
+              "LocalizedString": "Wait, the furniture pieces aren't going to attack us."
+            }
+          },
+          {
+            "StartTime": 17400,
+            "CultureStartTimes": [],
+            "EndTime": 19000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1058_042",
+              "SourceString": "它们发出的声音……",
+              "LocalizedString": "That noise they're making…"
+            }
+          },
+          {
+            "StartTime": 20000,
+            "CultureStartTimes": [],
+            "EndTime": 26000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1058_Player_036",
+              "SourceString": "拐杖……敲击地板的声音？是在模拟前主人在家时的情形吗？",
+              "LocalizedString": "A cane… thumping on the floor? Are they imitating how it was like with their previous owner?"
+            }
+          },
+          {
+            "StartTime": 32600,
+            "CultureStartTimes": [],
+            "EndTime": 42000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1058_043",
+              "SourceString": "和前主人分开后，这群孩子一定很寂寞吧。所以才故意发出奇怪的动静，希望有人能注意到它们。",
+              "LocalizedString": "The little ones must be lonely after parting with their previous owner. That's why they were making unusual noises, hoping someone would notice them."
+            }
+          },
+          {
+            "StartTime": 45000,
+            "CultureStartTimes": [],
+            "EndTime": 46500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1058_044",
+              "SourceString": "鉴定师……？",
+              "LocalizedString": "Appraiser…?"
+            }
+          },
+          {
+            "StartTime": 59000,
+            "CultureStartTimes": [],
+            "EndTime": 62000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1058_045",
+              "SourceString": "原来你还有无实物表演的天赋。",
+              "LocalizedString": "Turns out you got a talent for miming."
+            }
+          },
+          {
+            "StartTime": 63000,
+            "CultureStartTimes": [],
+            "EndTime": 65500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1058_046",
+              "SourceString": "可以……也给我倒一杯吗？",
+              "LocalizedString": "Can I… also have a cup?"
+            }
+          }
+        ]
+      },
+      "WJ105901": {
+        "Captions": [
+          {
+            "StartTime": 2000,
+            "CultureStartTimes": [],
+            "EndTime": 6000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1059_A_027",
+              "SourceString": "咳咳，咳咳咳——",
+              "LocalizedString": "Cough… cough, cough, cough…"
+            }
+          },
+          {
+            "StartTime": 6500,
+            "CultureStartTimes": [],
+            "EndTime": 8000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1059_013",
+              "SourceString": "小晴！",
+              "LocalizedString": "Haru!"
+            }
+          },
+          {
+            "StartTime": 16000,
+            "CultureStartTimes": [],
+            "EndTime": 20500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1059_A_028",
+              "SourceString": "好久没一下子说这么多话，呛着啦。",
+              "LocalizedString": "Goodness, I haven't talked so much in a while. Choked myself right up."
+            }
+          },
+          {
+            "StartTime": 20600,
+            "CultureStartTimes": [],
+            "EndTime": 25800,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1059_A_029",
+              "SourceString": "魔女小姐，我老了。你却没怎么变过呢。",
+              "LocalizedString": "Witch lady. I grew older, but you haven't changed."
+            }
+          },
+          {
+            "StartTime": 26000,
+            "CultureStartTimes": [],
+            "EndTime": 30000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1059_014",
+              "SourceString": "……因为我是魔女小姐嘛。",
+              "LocalizedString": "…I'm a witch lady, after all."
+            }
+          },
+          {
+            "StartTime": 38000,
+            "CultureStartTimes": [],
+            "EndTime": 44500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1059_A_030",
+              "SourceString": "或许……这是我最后一次回到海特洛来拜访魔女小姐啦。",
+              "LocalizedString": "Perhaps… this is the last time I come to visit you at Hethereau."
+            }
+          },
+          {
+            "StartTime": 44600,
+            "CultureStartTimes": [],
+            "EndTime": 48000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1059_A_031",
+              "SourceString": "我们再多聊一会儿吧。",
+              "LocalizedString": "Let's chat a bit longer."
+            }
+          },
+          {
+            "StartTime": 49000,
+            "CultureStartTimes": [],
+            "EndTime": 52000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1059_015",
+              "SourceString": "我再去加点茶水，等我。",
+              "LocalizedString": "I'll fill up the teapot. Be right back."
+            }
+          },
+          {
+            "StartTime": 52500,
+            "CultureStartTimes": [],
+            "EndTime": 54500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1059_Player_015",
+              "SourceString": "我来帮你。",
+              "LocalizedString": "Let me help."
+            }
+          },
+          {
+            "StartTime": 59000,
+            "CultureStartTimes": [],
+            "EndTime": 60000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1059_016",
+              "SourceString": "……",
+              "LocalizedString": "……"
+            }
+          },
+          {
+            "StartTime": 66500,
+            "CultureStartTimes": [],
+            "EndTime": 67500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1059_Player_016",
+              "SourceString": "……黑羽？",
+              "LocalizedString": "Blackbird…?"
+            }
+          },
+          {
+            "StartTime": 77000,
+            "CultureStartTimes": [],
+            "EndTime": 83000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1059_017",
+              "SourceString": "真希望小晴……能一直这么幸福。",
+              "LocalizedString": "I hope Haru… can keep on being happy."
+            }
+          }
+        ]
+      },
+      "WJ106001": {
+        "Captions": [
+          {
+            "StartTime": 4000,
+            "CultureStartTimes": [],
+            "EndTime": 7400,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1060_Player_020",
+              "SourceString": "接下来黑羽是不是要使用操纵油门和方向盘的魔法了？",
+              "LocalizedString": "Blackbird, are you going to cast a spell that maneuvers the car for you?"
+            }
+          },
+          {
+            "StartTime": 7500,
+            "CultureStartTimes": [],
+            "EndTime": 11500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1060_019",
+              "SourceString": "当然不会，不过——是你的话肯定没问题",
+              "LocalizedString": "Of course not. But… I'm sure you can deal with this. Sit tight."
+            }
+          },
+          {
+            "StartTime": 12000,
+            "CultureStartTimes": [],
+            "EndTime": 12200,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1060_Player_021",
+              "SourceString": "……诶？",
+              "LocalizedString": "…Huh?"
+            }
+          },
+          {
+            "StartTime": 12300,
+            "CultureStartTimes": [],
+            "EndTime": 13000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1060_020",
+              "SourceString": "坐稳了。",
+              "LocalizedString": "Sit tight."
+            }
+          },
+          {
+            "StartTime": 14500,
+            "CultureStartTimes": [],
+            "EndTime": 15500,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1060_Player_022",
+              "SourceString": "等——",
+              "LocalizedString": "Wait—"
+            }
+          },
+          {
+            "StartTime": 31000,
+            "CultureStartTimes": [],
+            "EndTime": 33000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1060_Player_023",
+              "SourceString": "小心！",
+              "LocalizedString": "Watch out!"
+            }
+          },
+          {
+            "StartTime": 40000,
+            "CultureStartTimes": [],
+            "EndTime": 41000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1060_Player_024",
+              "SourceString": "啊——！",
+              "LocalizedString": "Argh—!"
+            }
+          },
+          {
+            "StartTime": 52500,
+            "CultureStartTimes": [],
+            "EndTime": 55000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC021_WJ1060_021",
+              "SourceString": "好，到了",
+              "LocalizedString": "Alright, we're here."
+            }
+          },
+          {
+            "StartTime": 55500,
+            "CultureStartTimes": [],
+            "EndTime": 60000,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1060_A_001",
+              "SourceString": "（海特洛治安所提醒您：道路千万条，安全第一条，请规范驾驶，遵守交规）",
+              "LocalizedString": "(The Hethereau Security Office reminds you: There are countless roads, but safety always comes first. Please drive responsibly and obey traffic laws.)"
+            }
+          }
+        ]
+      },
+      "WJ106101": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC038_WJ1061_019",
+              "SourceString": "那个……也是古董吗？",
+              "LocalizedString": "Is that also… an antique?"
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1061_Player_011",
+              "SourceString": "好像是塔吉多最近收来的……",
+              "LocalizedString": "I think Taygedo brought that in recently…"
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1061_Player_012",
+              "SourceString": "……家用点唱机？",
+              "LocalizedString": "…A jukebox?"
+            }
+          }
+        ]
+      },
+      "WJ106301": {
+        "Captions": [
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC038_WJ1063_015",
+              "SourceString": "已经开拍了吗？",
+              "LocalizedString": "Is it turned on?"
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1063_Player_010",
+              "SourceString": "不摆个姿势吗？",
+              "LocalizedString": "Are you going to pose?"
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC038_WJ1063_016",
+              "SourceString": "这里风景很好，不是吗？",
+              "LocalizedString": "It's beautiful here."
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1063_Player_011",
+              "SourceString": "采访一下……猫头音！！！！的主唱大人，方便透露透露下一首歌是什么吗？",
+              "LocalizedString": "Lead singer of The Whoots!!!!, mind sharing what your next song is about?"
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC038_WJ1063_017",
+              "SourceString": "不方便。",
+              "LocalizedString": "I do mind."
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC038_WJ1063_018",
+              "SourceString": "怎么只是拍我？",
+              "LocalizedString": "Why aren't you in the pictures?"
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_WJ1063_Player_012",
+              "SourceString": "欸？",
+              "LocalizedString": "Huh?"
+            }
+          },
+          {
+            "StartTime": 0,
+            "CultureStartTimes": [],
+            "EndTime": 0,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+              "Key": "WLSD_NPC038_WJ1063_019",
+              "SourceString": "猫头音！！！！的鼓手大人……不摆个姿势吗？",
+              "LocalizedString": "Lead drummer, aren't you going to pose?"
+            }
+          }
+        ]
+      },
+      "q110916": {
+        "Captions": [
+          {
+            "StartTime": 59666,
+            "CultureStartTimes": [],
+            "EndTime": 60466,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Main_BlackBird.ST_Main_BlackBird",
+              "Key": "HM_U01C08_002b_NPCMan_001",
+              "SourceString": "快跑！",
+              "LocalizedString": "Run!"
+            }
+          }
+        ]
+      },
+      "q110918": {
+        "Captions": [
+          {
+            "StartTime": 19200,
+            "CultureStartTimes": [],
+            "EndTime": 20100,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Main_BlackBird.ST_Main_BlackBird",
+              "Key": "HM_U01C08_002b_NPC021_001",
+              "SourceString": "鉴定师",
+              "LocalizedString": "Appraiser."
+            }
+          },
+          {
+            "StartTime": 28633,
+            "CultureStartTimes": [],
+            "EndTime": 29333,
+            "CultureEndTimes": [],
+            "Text": {
+              "TableId": "/Game/Text/Dialogue/ST_Main_BlackBird.ST_Main_BlackBird",
+              "Key": "HM_U01C08_002b_player_001",
+              "SourceString": "黑羽！",
+              "LocalizedString": "Blackbird!"
+            }
+          }
+        ]
+      }
+    }
+  }
+]

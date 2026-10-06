@@ -1,0 +1,448 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_CityGamePlayDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_CityGamePlayDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'CityGameplayEntryData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Takeorders": {
+        "GameplayId": "Takeorders",
+        "GameplayText": {
+          "TableId": "/Game/Text/TakeOrders/ST_TakeOrders.ST_TakeOrders",
+          "Key": "toq_QuestName",
+          "SourceString": "同城派送",
+          "LocalizedString": "City Delivery"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_006.UI_YH_CityGameplay_List_006",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": true,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_Extension",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "None",
+        "JumpExtensionID": "TakeOrdersBigMapMain",
+        "CommonJumpID": "None",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "DelegateMission",
+        "EntrySwitchType": "ESwitchType::TakeOrders",
+        "MutexGameplayArray": [
+          "ECityGameplayMutexType::CityGameplayMutex_TaxiGameplay"
+        ],
+        "StaminaChangeType": "EStaminaChangeType::TakeOrders",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "Race": {
+        "GameplayId": "Race",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "UI_Race",
+          "SourceString": "车辆赛事",
+          "LocalizedString": "Races"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_003.UI_YH_CityGameplay_List_003",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_CommonJumpUI",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "Bank_05_00",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "Race",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "Race",
+        "EntrySwitchType": "ESwitchType::None",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::RacingPVPResult",
+        "ExStaminaChangeTypeArray": [
+          "EStaminaChangeType::RacingPVEResult"
+        ],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "Store": {
+        "GameplayId": "Store",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "Store_131",
+          "SourceString": "店长特供",
+          "LocalizedString": "Owner's Selection"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_007.UI_YH_CityGameplay_List_007",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_FixedIcon",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "201",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "None",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "StoreOnline",
+        "EntrySwitchType": "ESwitchType::None",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::StoreManagerResult",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "Taxi": {
+        "GameplayId": "Taxi",
+        "GameplayText": {
+          "TableId": "/Game/Text/UI/ST_LyyUI.ST_LyyUI",
+          "Key": "TaxiGameplay_007",
+          "SourceString": "雨燕出行",
+          "LocalizedString": "Swift Travel"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_002.UI_YH_CityGameplay_List_002",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": true,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_Extension",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "None",
+        "JumpExtensionID": "TaxiGameplayMain",
+        "CommonJumpID": "None",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "Taxi",
+        "EntrySwitchType": "ESwitchType::TaxiGameplay",
+        "MutexGameplayArray": [
+          "ECityGameplayMutexType::CityGameplayMutex_TakeOrders"
+        ],
+        "StaminaChangeType": "EStaminaChangeType::TaxiGameplay",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "Robbank": {
+        "GameplayId": "Robbank",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_Clone.ST_Clone",
+          "Key": "DLC_bank_Safety_Name",
+          "SourceString": "粉爪大劫案",
+          "LocalizedString": "Pink Paws Heist"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_004.UI_YH_CityGameplay_List_004",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_FixedIcon",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "Bank_05_00",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "None",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "Robbank",
+        "EntrySwitchType": "ESwitchType::RobRank",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::NaturalIncrease",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": true,
+        "bCreateSlotInCityGameplay": true
+      },
+      "FishingEntry": {
+        "GameplayId": "FishingEntry",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_Fishing.ST_Fishing",
+          "Key": "UI_Fishing_Title",
+          "SourceString": "海上钓客",
+          "LocalizedString": "Sea Angler"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_008.UI_YH_CityGameplay_List_008",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_Extension",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "FishSpot_01",
+        "JumpExtensionID": "CityFishingEntryMain",
+        "CommonJumpID": "None",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "Fishing",
+        "EntrySwitchType": "ESwitchType::Fishing",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::FishSell",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "majiang": {
+        "GameplayId": "majiang",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "mahjong_entry",
+          "SourceString": "小小麻雀",
+          "LocalizedString": "Little Sparrow"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_001.UI_YH_CityGameplay_List_001",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_FixedIcon",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "MaidCoffee_04_01",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "None",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "Majsoul",
+        "EntrySwitchType": "ESwitchType::RiichiMahjong",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::ChuanMaResult",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "Tetris": {
+        "GameplayId": "Tetris",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "Tetris_Name",
+          "SourceString": "泯除方块",
+          "LocalizedString": "Tetrominoes"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_005.UI_YH_CityGameplay_List_005",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_NearlyMapIconFromFixed",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "Shop_023_01_02",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "None",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "Shop_17",
+        "UnlockFunctionID": "Tetris",
+        "EntrySwitchType": "ESwitchType::TetrisGame",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::TetrisGameResult",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "Wiku": {
+        "GameplayId": "Wiku",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "BPUI_DrumPlaylistModule_Name",
+          "SourceString": "超强音",
+          "LocalizedString": "Super Sound"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_009.UI_YH_CityGameplay_List_009",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_UniqueID",
+        "MapUniqueID": "WikuFreePlay",
+        "JumpFixedIcon": "Bank_05_00",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "Wiku_map",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "Wiku",
+        "EntrySwitchType": "ESwitchType::None",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::PlaySongConsume",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "JailFight": {
+        "GameplayId": "JailFight",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_UI_GYJ.ST_UI_GYJ",
+          "Key": "BPUI_PrisonMatch_MainTitle",
+          "SourceString": "格斗俱乐部",
+          "LocalizedString": "Fight Club"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_012.UI_YH_CityGameplay_List_012",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_CommonJumpUI",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "None",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "JailFight",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "JailFight",
+        "EntrySwitchType": "ESwitchType::PrisonBoxing",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::PrisonBoxingResult",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "Volleyball": {
+        "GameplayId": "Volleyball",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_UI_Volleyball.ST_UI_Volleyball",
+          "Key": "UI_Volleyball",
+          "SourceString": "排球之星",
+          "LocalizedString": "Volley Star"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_013.UI_YH_CityGameplay_List_013",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_BeachVolleyball",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "None",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "Volleyball",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "Volleyball",
+        "EntrySwitchType": "ESwitchType::Volleyball",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::VolleyPVEResult",
+        "ExStaminaChangeTypeArray": [
+          "EStaminaChangeType::VolleyPVEWeekResult"
+        ],
+        "bDisplayBountyGameplay": true,
+        "bCreateSlotInCityGameplay": true
+      },
+      "PropHunt": {
+        "GameplayId": "PropHunt",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_Ui.ST_Ui",
+          "Key": "PropHunt_Title",
+          "SourceString": "徊影憧憧",
+          "LocalizedString": "Shadow-n-Seek"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_016.UI_YH_CityGameplay_List_016",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_CommonJumpUI",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "None",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "ConfigPropHunt",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "PropHunt",
+        "EntrySwitchType": "ESwitchType::PropHunt",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::PropHuntResult",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "BidKing": {
+        "GameplayId": "BidKing",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_UI_GYJ.ST_UI_GYJ",
+          "Key": "BPUI_BidKingMainForm_Title",
+          "SourceString": "即刻落槌",
+          "LocalizedString": "Going, Going, Gone!"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_014.UI_YH_CityGameplay_List_014",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_QuestGateCommonJump",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "None",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "BidKingMainForm",
+        "JumpQuestIDs": [
+          "B110111",
+          "B110112"
+        ],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "BidKing_Unlock",
+        "EntrySwitchType": "ESwitchType::BidKing",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::NaturalIncrease",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": true,
+        "bCreateSlotInCityGameplay": true
+      },
+      "ActWork": {
+        "GameplayId": "ActWork",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_UI_C.ST_UI_C",
+          "Key": "DT_CityGamePlayDataTable_actwork",
+          "SourceString": "添砖加瓦",
+          "LocalizedString": "Brick by Brick"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "/Game/UI/UI/GameplayEntrance/FunctionIcon/UI_YH_CityGameplay_List_015.UI_YH_CityGameplay_List_015",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_CommonJumpUI",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "None",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "ConstructionSiteMain",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "ActWork",
+        "EntrySwitchType": "ESwitchType::ConstructionWork",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::ConstructionSiteResult",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": true
+      },
+      "Planting": {
+        "GameplayId": "Planting",
+        "GameplayText": {
+          "TableId": "/Game/Text/ST_UI_XZC.ST_UI_XZC",
+          "Key": "Planting",
+          "SourceString": "田地种植",
+          "LocalizedString": "Planting"
+        },
+        "GameplayIcon": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "bIgnoreInOnline": false,
+        "JumpType": "ECityGameplayJumpType::ECityGameplayJumpType_CommonJumpUI",
+        "MapUniqueID": "None",
+        "JumpFixedIcon": "None",
+        "JumpExtensionID": "None",
+        "CommonJumpID": "ConstructionSiteMain",
+        "JumpQuestIDs": [],
+        "NearlyMapIconID": "None",
+        "UnlockFunctionID": "ActWork",
+        "EntrySwitchType": "ESwitchType::Max",
+        "MutexGameplayArray": [],
+        "StaminaChangeType": "EStaminaChangeType::FruitSell",
+        "ExStaminaChangeTypeArray": [],
+        "bDisplayBountyGameplay": false,
+        "bCreateSlotInCityGameplay": false
+      }
+    }
+  }
+]

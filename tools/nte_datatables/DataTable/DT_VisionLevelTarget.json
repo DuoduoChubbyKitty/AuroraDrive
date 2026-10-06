@@ -1,0 +1,33 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_VisionLevelTarget",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_VisionLevelTarget",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "UserDefinedStruct'Struct_LevelTarget'",
+        "ObjectPath": "/Game/Blueprints/Level/SingleLevel/Misc/Struct_LevelTarget.0"
+      }
+    },
+    "Rows": {
+      "DLC_Scaled_Single": {
+        "LevelTarget_2_004ECDC84A048CC376E879868B70F4B7": {
+          "TableId": "/Game/Text/ST_Clone.ST_Clone",
+          "Key": "DLC_Scaled_LevelTarget",
+          "SourceString": "逃出这里",
+          "LocalizedString": "Escape from here"
+        }
+      },
+      "DLC_Scaled_Multi": {
+        "LevelTarget_2_004ECDC84A048CC376E879868B70F4B7": {
+          "TableId": "/Game/Text/ST_Clone.ST_Clone",
+          "Key": "DLC_Scaled_LevelTarget",
+          "SourceString": "逃出这里",
+          "LocalizedString": "Escape from here"
+        }
+      }
+    }
+  }
+]

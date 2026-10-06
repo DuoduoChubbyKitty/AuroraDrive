@@ -1,0 +1,85 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_CartoonBorder",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_CartoonBorder",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'CartoonBorderData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Empty": {
+        "LeftUpTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "UpTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RightTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "LeftMidTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RightMidTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "LeftBottomTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "BottomTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RightBottomTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        }
+      },
+      "manhua": {
+        "LeftUpTexture": {
+          "AssetPathName": "/Game/UI/UI/qipao/YH_UI_frame_story_01.YH_UI_frame_story_01",
+          "SubPathString": ""
+        },
+        "UpTexture": {
+          "AssetPathName": "/Game/UI/UI/qipao/YH_UI_frame_story_02.YH_UI_frame_story_02",
+          "SubPathString": ""
+        },
+        "RightTexture": {
+          "AssetPathName": "/Game/UI/UI/qipao/YH_UI_frame_story_03.YH_UI_frame_story_03",
+          "SubPathString": ""
+        },
+        "LeftMidTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RightMidTexture": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "LeftBottomTexture": {
+          "AssetPathName": "/Game/UI/UI/qipao/YH_UI_frame_story_04.YH_UI_frame_story_04",
+          "SubPathString": ""
+        },
+        "BottomTexture": {
+          "AssetPathName": "/Game/UI/UI/qipao/YH_UI_frame_story_05.YH_UI_frame_story_05",
+          "SubPathString": ""
+        },
+        "RightBottomTexture": {
+          "AssetPathName": "/Game/UI/UI/qipao/YH_UI_frame_story_06.YH_UI_frame_story_06",
+          "SubPathString": ""
+        }
+      }
+    }
+  }
+]

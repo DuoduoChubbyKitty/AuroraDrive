@@ -1,0 +1,61 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_MiniMapSubArea",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_MiniMapSubArea",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'MiniMapSubAreaData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Test_Sub1": {
+        "SubAreaName": {
+          "CultureInvariantString": "测试场景A-1_1"
+        },
+        "BelongAreaID": "Test1",
+        "SubAreaRenderData": {
+          "BackgroundRenderRule": {
+            "BackgroundTileDatas": [],
+            "BackgroundTileDatasMobile": [],
+            "BlendMode": "EBlendMode::BLEND_Masked"
+          },
+          "ThumbnailImage": {
+            "AssetPathName": "",
+            "SubPathString": ""
+          },
+          "MiniMapCenterLocation": {
+            "X": -1540.0,
+            "Y": 420.0,
+            "Z": 80.0
+          },
+          "MiniMapEdgeSize": {
+            "X": 500.0,
+            "Y": 500.0,
+            "Z": 1.0
+          }
+        },
+        "ViewFieldScale": 1.0
+      },
+      "Test_Sub2": {
+        "SubAreaName": {
+          "CultureInvariantString": "测试场景A-2_1"
+        },
+        "BelongAreaID": "Test2",
+        "SubAreaRenderData": null,
+        "ViewFieldScale": 1.0
+      },
+      "testwyan-1": {
+        "SubAreaName": {
+          "CultureInvariantString": "测试场景A-2_1"
+        },
+        "BelongAreaID": "Testmap_wangyan_0",
+        "SubAreaRenderData": null,
+        "ViewFieldScale": 1.0
+      }
+    }
+  }
+]

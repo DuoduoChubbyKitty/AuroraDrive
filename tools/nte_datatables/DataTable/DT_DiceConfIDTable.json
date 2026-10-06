@@ -1,0 +1,34 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_DiceConfIDTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_DiceConfIDTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'HTDiceConfigRow'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Dice_Test_01": {
+        "DiceConfigID": "Dice_Test_01",
+        "ResultTableID": "Test_ResultTable",
+        "UIClassID": "DiceMain",
+        "OpenTitle": {
+          "TableId": "/Game/Text/ST_Bagel.ST_Bagel",
+          "Key": "Bagel_Chat_Content1",
+          "SourceString": "<!>聊天描述1",
+          "LocalizedString": "Chat Description 1"
+        },
+        "OpenHint": {
+          "TableId": "/Game/Text/ST_Bubble_Chat.ST_Bubble_Chat",
+          "Key": "BWF_001_NPC05501_001",
+          "SourceString": "欢迎来到卜多力！章鱼烧刚出锅，快来趁热吃！",
+          "LocalizedString": "Welcome to Budoriya! Takoyaki, fresh off the pan! Get 'em while they're hot!"
+        }
+      }
+    }
+  }
+]

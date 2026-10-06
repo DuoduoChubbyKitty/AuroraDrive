@@ -1,0 +1,81 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_MainFormVisibilityConfig",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_MainFormVisibilityConfig",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'MainFormVisibilityConfig'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "TestPukaland": {
+        "HideWidgetNames": [
+          "WrapBoxCharacter"
+        ],
+        "RemoveUIExtensionIDs": [
+          "SkillControl",
+          "QuestTrack",
+          "Interact",
+          "MiniMap"
+        ],
+        "FunctionEntryVisibleButtonNames": [
+          "ButtonCharacterInfo2",
+          "W_HTButton_AdventureManual"
+        ]
+      },
+      "PukalandHauntedHouse": {
+        "HideWidgetNames": [
+          "WrapBoxCharacter",
+          "CP_Map",
+          "Overlay_1"
+        ],
+        "RemoveUIExtensionIDs": [
+          "SkillControl",
+          "QuestTrack",
+          "MiniMap",
+          "HeterochromeSlot"
+        ],
+        "FunctionEntryVisibleButtonNames": [
+          "W_HTButton_Bag"
+        ]
+      },
+      "PukalandMaze": {
+        "HideWidgetNames": [
+          "WrapBoxCharacter",
+          "Image_Map",
+          "Image_MapIns",
+          "Image_MapIns_FT",
+          "FunctionEntryRoot"
+        ],
+        "RemoveUIExtensionIDs": [
+          "QuestTrack",
+          "MiniMap"
+        ],
+        "FunctionEntryVisibleButtonNames": []
+      },
+      "PukalandAirgun": {
+        "HideWidgetNames": [
+          "WrapBoxCharacter",
+          "CP_Map",
+          "Overlay_1",
+          "FunctionEntryRoot",
+          "CP_PlayerInfo",
+          "CharacterCP"
+        ],
+        "RemoveUIExtensionIDs": [
+          "SkillControl",
+          "QuestTrack",
+          "MiniMap",
+          "HeterochromeSlot",
+          "SupplyShortcut",
+          "MainJoyStick"
+        ],
+        "FunctionEntryVisibleButtonNames": []
+      }
+    }
+  }
+]

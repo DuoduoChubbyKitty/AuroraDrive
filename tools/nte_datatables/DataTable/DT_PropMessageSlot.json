@@ -1,0 +1,47 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_PropMessageSlot",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_PropMessageSlot",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'PropMessageSlotDataTable'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "ItemType": {
+        "PropMessageSlot": {
+          "AssetPathName": "/Game/UI/Blueprints/Message/BPUI_PropMessageObtainSlot.BPUI_PropMessageObtainSlot_C",
+          "SubPathString": ""
+        }
+      },
+      "VisionAward": {
+        "PropMessageSlot": {
+          "AssetPathName": "/Game/UI/Blueprints/Vision/BPUI_VisionAward.BPUI_VisionAward_C",
+          "SubPathString": ""
+        }
+      },
+      "CityEvent": {
+        "PropMessageSlot": {
+          "AssetPathName": "/Game/UI/Blueprints/MainForm/BPUI_CityEventComplete.BPUI_CityEventComplete_C",
+          "SubPathString": ""
+        }
+      },
+      "RobBank": {
+        "PropMessageSlot": {
+          "AssetPathName": "/Game/UI/Blueprints/Message/BPUI_Robbank_PropMessageSlot.BPUI_Robbank_PropMessageSlot_C",
+          "SubPathString": ""
+        }
+      },
+      "FinalTower": {
+        "PropMessageSlot": {
+          "AssetPathName": "/Game/UI/Blueprints/Message/BPUI_PropMessageSlot_FT.BPUI_PropMessageSlot_FT_C",
+          "SubPathString": ""
+        }
+      }
+    }
+  }
+]

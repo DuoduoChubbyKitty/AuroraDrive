@@ -1,0 +1,3 @@
+opticalflow.p50=2.301
+tick.loop.p50=2.339
+tick_hz=25.6

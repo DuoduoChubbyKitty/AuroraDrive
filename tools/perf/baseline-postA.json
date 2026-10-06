@@ -1,0 +1,252 @@
+{
+  "label": "阶段A后",
+  "timestamp": "2026-10-04T21:15:24+0800",
+  "load": {
+    "load1": 3.01,
+    "ncpu": 8,
+    "oversub": 0.38,
+    "timing_unreliable": false
+  },
+  "dimensions": {
+    "frames": {
+      "1200": {
+        "①": {
+          "name": "仅底图（基线）",
+          "avg": 234.39,
+          "p50": 231.08,
+          "p95": 279.36,
+          "max": 325.82,
+          "cold": 294.85
+        },
+        "②": {
+          "name": "ForEach 旧路径",
+          "avg": 328.58,
+          "p50": 323.87,
+          "p95": 394.04,
+          "max": 424.42,
+          "cold": 354.0
+        },
+        "③": {
+          "name": "Canvas+聚类 新路径",
+          "avg": 261.97,
+          "p50": 246.57,
+          "p95": 411.03,
+          "max": 430.63,
+          "cold": 254.87
+        }
+      },
+      "300": {
+        "①": {
+          "name": "仅底图（基线）",
+          "avg": 211.49,
+          "p50": 196.28,
+          "p95": 347.1,
+          "max": 463.25,
+          "cold": 205.36
+        },
+        "②": {
+          "name": "ForEach 旧路径",
+          "avg": 204.64,
+          "p50": 196.03,
+          "p95": 268.08,
+          "max": 358.88,
+          "cold": 220.69
+        },
+        "③": {
+          "name": "Canvas+聚类 新路径",
+          "avg": 210.47,
+          "p50": 199.22,
+          "p95": 292.62,
+          "max": 351.56,
+          "cold": 182.78
+        }
+      }
+    },
+    "frames_extra": {
+      "marker_layer_old_ms": 94.2,
+      "marker_layer_new_ms": 27.59,
+      "near_marker_old_ms": null,
+      "near_marker_new_ms": null
+    },
+    "rates": {
+      "tick_hz": 24.7,
+      "yolopx_hz": 24.71,
+      "yolopx_count": 198,
+      "m9_hz": 24.71,
+      "m9_count": 198,
+      "assist_hz": 24.71,
+      "assist_count": 198,
+      "yolo26s_hz": 24.71,
+      "yolo26s_count": 198
+    },
+    "infer": {
+      "submit.yolopx": {
+        "n": 198,
+        "p50": 0.018,
+        "p95": 0.035,
+        "p99": 0.111,
+        "max": 0.454,
+        "mean": 0.023
+      },
+      "submit.m9": {
+        "n": 198,
+        "p50": 0.004,
+        "p95": 0.009,
+        "p99": 0.01,
+        "max": 0.014,
+        "mean": 0.005
+      },
+      "submit.assist": {
+        "n": 198,
+        "p50": 0.002,
+        "p95": 0.006,
+        "p99": 0.009,
+        "max": 0.034,
+        "mean": 0.003
+      },
+      "submit.yolo26s": {
+        "n": 198,
+        "p50": 0.007,
+        "p95": 0.011,
+        "p99": 0.016,
+        "max": 0.03,
+        "mean": 0.007
+      },
+      "infer.yolopx": {
+        "n": 198,
+        "p50": 12.633,
+        "p95": 15.082,
+        "p99": 16.256,
+        "max": 22.059,
+        "mean": 12.659
+      },
+      "infer.m9": {
+        "n": 198,
+        "p50": 2.107,
+        "p95": 5.891,
+        "p99": 7.466,
+        "max": 7.717,
+        "mean": 2.633
+      },
+      "infer.assist": {
+        "n": 198,
+        "p50": 2.118,
+        "p95": 6.25,
+        "p99": 9.035,
+        "max": 10.118,
+        "mean": 2.684
+      },
+      "infer.yolo26s": {
+        "n": 198,
+        "p50": 7.299,
+        "p95": 9.677,
+        "p99": 10.732,
+        "max": 19.056,
+        "mean": 7.476
+      },
+      "opticalflow": {
+        "n": 198,
+        "p50": 3.179,
+        "p95": 4.853,
+        "p99": 6.616,
+        "max": 6.749,
+        "mean": 3.32
+      },
+      "tick.loop": {
+        "n": 198,
+        "p50": 3.227,
+        "p95": 4.926,
+        "p99": 6.747,
+        "max": 6.869,
+        "mean": 3.374
+      }
+    },
+    "model_quality": {
+      "R2_det_count": 0,
+      "R3_drivable_pct": 0.0,
+      "R3_lane_pct": 0.0,
+      "yolopx-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": true,
+        "lines": 72
+      },
+      "speed-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": false,
+        "lines": 27
+      },
+      "motion-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": true,
+        "lines": 34
+      },
+      "fit-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": false,
+        "lines": 26
+      },
+      "route-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": true,
+        "lines": 31
+      },
+      "taxonomy-selftest": {
+        "has_fail_marker": true,
+        "pass_marker": true,
+        "lines": 40
+      },
+      "limit-selftest": {
+        "has_fail_marker": false,
+        "pass_marker": true,
+        "lines": 56
+      },
+      "opticalflow-selftest": {
+        "has_fail_marker": true,
+        "pass_marker": true,
+        "lines": 14
+      }
+    },
+    "memory": {
+      "T4_first_frame_load_ms": 23.3,
+      "T4_first_render_ms": 9.26,
+      "T4_cache_hit_ms": 0.0004,
+      "T4_rerender_ms": 7.34,
+      "T4_cull_ms": 0.0055,
+      "T5_rss_growth_mb": 0.83,
+      "T5_start_rss_mb": 25.8,
+      "T6_map_tile_ms": 52.6,
+      "load_factor": 1.0,
+      "has_fail_marker": true
+    },
+    "image_quality": {
+      "path": "/tmp/aurora_mc_map_online.png",
+      "exists": true,
+      "bytes": 2590173,
+      "md5": "63048fc4023c0372dd183a5322f069e5",
+      "mtime": "Oct  4 21:10:40 2026",
+      "size": [
+        2640,
+        1720
+      ],
+      "pixel_sig_64": "ef7c7052ceed4c61e43940b1826d5f10",
+      "distinct_colors_64": 1911,
+      "mean_rgb": [
+        29.95,
+        35.42,
+        38.14
+      ]
+    },
+    "threads": {
+      "peak": 12,
+      "samples": 40,
+      "median": 12
+    },
+    "engineering": {
+      "unhandled_lines": 0,
+      "warning_count": 60,
+      "error_count": 2,
+      "build_ok": false,
+      "check_package_sources_ok": true
+    }
+  }
+}

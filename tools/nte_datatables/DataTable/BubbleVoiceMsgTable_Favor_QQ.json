@@ -1,0 +1,264 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "BubbleVoiceMsgTable_Favor_QQ",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/BubbleVoiceMsgTable_Favor_QQ",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'BubbleVoiceMsgDetail'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Bike_WLSU_NPC001_WJ1067_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSU_NPC001_WJ1067_001.Play_Vo_Bike_WLSU_NPC001_WJ1067_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC028_WJ1072_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSU_NPC028_WJ1072_001.Play_Vo_Bike_WLSU_NPC028_WJ1072_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC011_WJ1065_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSU_NPC011_WJ1065_001.Play_Vo_Bike_WLSU_NPC011_WJ1065_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC009_WJ1069_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSU_NPC009_WJ1069_001.Play_Vo_Bike_WLSU_NPC009_WJ1069_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC032_WJ1073_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSU_NPC032_WJ1073_001.Play_Vo_Bike_WLSU_NPC032_WJ1073_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC032_WJ1073_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSU_NPC032_WJ1073_002.Play_Vo_Bike_WLSU_NPC032_WJ1073_002",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC004_WJ1066_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSU_NPC004_WJ1066_001.Play_Vo_Bike_WLSU_NPC004_WJ1066_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC003_WJ1068_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSU_NPC003_WJ1068_001.Play_Vo_Bike_WLSU_NPC003_WJ1068_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC015_WJ1070_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSU_NPC015_WJ1070_001.Play_Vo_Bike_WLSU_NPC015_WJ1070_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC026_WJ1071_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSU_NPC026_WJ1071_001.Play_Vo_Bike_WLSU_NPC026_WJ1071_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC027_WJ1074_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSU_NPC027_WJ1074_001.Play_Vo_Bike_WLSU_NPC027_WJ1074_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "Bike_WLSU_NPC027_WJ1074_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSU_NPC027_WJ1074_002.Play_Vo_Bike_WLSU_NPC027_WJ1074_002",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "WLSU_NPC021_WJ1058_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSU_NPC021_WJ1058_001.Play_Vo_WLSU_NPC021_WJ1058_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "WLSU_WJ1059_A_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSU_WJ1059_A_001.Play_Vo_WLSU_WJ1059_A_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "WLSU_NPC021_WJ1060_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSU_NPC021_WJ1060_001.Play_Vo_WLSU_NPC021_WJ1060_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "WLSU_NPC023_WJ1061_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSU_NPC023_WJ1061_001.Play_Vo_WLSU_NPC023_WJ1061_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "WLSU_NPC023_WJ1062_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSU_NPC023_WJ1062_001.Play_Vo_WLSU_NPC023_WJ1062_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "WLSU_NPC023_WJ1063_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSU_NPC023_WJ1063_001.Play_Vo_WLSU_NPC023_WJ1063_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      },
+      "WLSU_NPC023_WJ1064_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSU_NPC023_WJ1064_001.Play_Vo_WLSU_NPC023_WJ1064_001",
+          "SubPathString": ""
+        },
+        "RTPCConfig": [
+          {
+            "Key": "RTPC_Voice_Enable_3D",
+            "Value": 1.0
+          }
+        ],
+        "Delay": 0.0
+      }
+    }
+  }
+]

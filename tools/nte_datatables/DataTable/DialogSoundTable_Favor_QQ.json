@@ -1,0 +1,4811 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DialogSoundTable_Favor_QQ",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DialogSoundTable_Favor_QQ",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'MessageDialogSoundData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Bike_WLSD_NPC001_WJ1067_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_001.Play_Vo_Bike_WLSD_NPC001_WJ1067_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_002.Play_Vo_Bike_WLSD_NPC001_WJ1067_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_003.Play_Vo_Bike_WLSD_NPC001_WJ1067_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_004.Play_Vo_Bike_WLSD_NPC001_WJ1067_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_005.Play_Vo_Bike_WLSD_NPC001_WJ1067_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_006.Play_Vo_Bike_WLSD_NPC001_WJ1067_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_007.Play_Vo_Bike_WLSD_NPC001_WJ1067_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_001.Play_Vo_Bike_WLSD_WJ1067_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_002.Play_Vo_Bike_WLSD_WJ1067_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_003.Play_Vo_Bike_WLSD_WJ1067_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_004.Play_Vo_Bike_WLSD_WJ1067_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_023.Play_Vo_Bike_WLSD_NPC001_WJ1067_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_024": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_024.Play_Vo_Bike_WLSD_NPC001_WJ1067_024",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_025.Play_Vo_Bike_WLSD_NPC001_WJ1067_025",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_026": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_026.Play_Vo_Bike_WLSD_NPC001_WJ1067_026",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_027": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_027.Play_Vo_Bike_WLSD_NPC001_WJ1067_027",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_028": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_028.Play_Vo_Bike_WLSD_NPC001_WJ1067_028",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_029": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_029.Play_Vo_Bike_WLSD_NPC001_WJ1067_029",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_030": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_030.Play_Vo_Bike_WLSD_NPC001_WJ1067_030",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_031": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_031.Play_Vo_Bike_WLSD_NPC001_WJ1067_031",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_032": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_032.Play_Vo_Bike_WLSD_NPC001_WJ1067_032",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_033": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_033.Play_Vo_Bike_WLSD_NPC001_WJ1067_033",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC001_WJ1067_034": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC001/Play_Vo_Bike_WLSD_NPC001_WJ1067_034.Play_Vo_Bike_WLSD_NPC001_WJ1067_034",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_009.Play_Vo_Bike_WLSD_WJ1067_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_010.Play_Vo_Bike_WLSD_WJ1067_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_011.Play_Vo_Bike_WLSD_WJ1067_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_012.Play_Vo_Bike_WLSD_WJ1067_Player_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_013.Play_Vo_Bike_WLSD_WJ1067_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1067_Player_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1067_Player_014.Play_Vo_Bike_WLSD_WJ1067_Player_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_001.Play_Vo_Bike_WLSD_NPC028_WJ1072_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_002.Play_Vo_Bike_WLSD_NPC028_WJ1072_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_003.Play_Vo_Bike_WLSD_NPC028_WJ1072_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_004.Play_Vo_Bike_WLSD_NPC028_WJ1072_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_005.Play_Vo_Bike_WLSD_NPC028_WJ1072_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_006.Play_Vo_Bike_WLSD_NPC028_WJ1072_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1072_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1072_Player_001.Play_Vo_Bike_WLSD_WJ1072_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1072_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1072_Player_002.Play_Vo_Bike_WLSD_WJ1072_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1072_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1072_Player_003.Play_Vo_Bike_WLSD_WJ1072_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_013.Play_Vo_Bike_WLSD_NPC028_WJ1072_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_014.Play_Vo_Bike_WLSD_NPC028_WJ1072_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_015.Play_Vo_Bike_WLSD_NPC028_WJ1072_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC028_WJ1072_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC028/Play_Vo_Bike_WLSD_NPC028_WJ1072_016.Play_Vo_Bike_WLSD_NPC028_WJ1072_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1072_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1072_Player_009.Play_Vo_Bike_WLSD_WJ1072_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_001.Play_Vo_Bike_WLSD_NPC011_WJ1065_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_002.Play_Vo_Bike_WLSD_NPC011_WJ1065_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_003.Play_Vo_Bike_WLSD_NPC011_WJ1065_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_004.Play_Vo_Bike_WLSD_NPC011_WJ1065_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_005.Play_Vo_Bike_WLSD_NPC011_WJ1065_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_006.Play_Vo_Bike_WLSD_NPC011_WJ1065_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_007.Play_Vo_Bike_WLSD_NPC011_WJ1065_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1065_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1065_Player_001.Play_Vo_Bike_WLSD_WJ1065_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1065_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1065_Player_002.Play_Vo_Bike_WLSD_WJ1065_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1065_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1065_Player_003.Play_Vo_Bike_WLSD_WJ1065_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1065_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1065_Player_004.Play_Vo_Bike_WLSD_WJ1065_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_023.Play_Vo_Bike_WLSD_NPC011_WJ1065_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_024": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_024.Play_Vo_Bike_WLSD_NPC011_WJ1065_024",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_025.Play_Vo_Bike_WLSD_NPC011_WJ1065_025",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC011_WJ1065_026": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC011/Play_Vo_Bike_WLSD_NPC011_WJ1065_026.Play_Vo_Bike_WLSD_NPC011_WJ1065_026",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1065_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1065_Player_009.Play_Vo_Bike_WLSD_WJ1065_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1065_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1065_Player_010.Play_Vo_Bike_WLSD_WJ1065_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1069_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1069_Player_001.Play_Vo_Bike_WLSD_WJ1069_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1069_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1069_Player_002.Play_Vo_Bike_WLSD_WJ1069_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1069_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1069_Player_003.Play_Vo_Bike_WLSD_WJ1069_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_001.Play_Vo_Bike_WLSD_NPC009_WJ1069_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_002.Play_Vo_Bike_WLSD_NPC009_WJ1069_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_003.Play_Vo_Bike_WLSD_NPC009_WJ1069_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_004.Play_Vo_Bike_WLSD_NPC009_WJ1069_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_005.Play_Vo_Bike_WLSD_NPC009_WJ1069_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_024": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_024.Play_Vo_Bike_WLSD_NPC009_WJ1069_024",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_025.Play_Vo_Bike_WLSD_NPC009_WJ1069_025",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_026": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_026.Play_Vo_Bike_WLSD_NPC009_WJ1069_026",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_027": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_027.Play_Vo_Bike_WLSD_NPC009_WJ1069_027",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC009_WJ1069_028": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC009/Play_Vo_Bike_WLSD_NPC009_WJ1069_028.Play_Vo_Bike_WLSD_NPC009_WJ1069_028",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1069_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1069_Player_008.Play_Vo_Bike_WLSD_WJ1069_Player_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1069_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1069_Player_009.Play_Vo_Bike_WLSD_WJ1069_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1073_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1073_Player_001.Play_Vo_Bike_WLSD_WJ1073_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1073_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1073_Player_002.Play_Vo_Bike_WLSD_WJ1073_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1073_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1073_Player_003.Play_Vo_Bike_WLSD_WJ1073_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1073_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1073_Player_004.Play_Vo_Bike_WLSD_WJ1073_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1073_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1073_Player_005.Play_Vo_Bike_WLSD_WJ1073_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1073_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1073_Player_006.Play_Vo_Bike_WLSD_WJ1073_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1073_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1073_Player_007.Play_Vo_Bike_WLSD_WJ1073_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_001.Play_Vo_Bike_WLSD_NPC032_WJ1073_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_002.Play_Vo_Bike_WLSD_NPC032_WJ1073_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_003.Play_Vo_Bike_WLSD_NPC032_WJ1073_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_004.Play_Vo_Bike_WLSD_NPC032_WJ1073_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_005.Play_Vo_Bike_WLSD_NPC032_WJ1073_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_006.Play_Vo_Bike_WLSD_NPC032_WJ1073_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_007.Play_Vo_Bike_WLSD_NPC032_WJ1073_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_008.Play_Vo_Bike_WLSD_NPC032_WJ1073_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_009.Play_Vo_Bike_WLSD_NPC032_WJ1073_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_010.Play_Vo_Bike_WLSD_NPC032_WJ1073_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_023.Play_Vo_Bike_WLSD_NPC032_WJ1073_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_024": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_024.Play_Vo_Bike_WLSD_NPC032_WJ1073_024",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_025.Play_Vo_Bike_WLSD_NPC032_WJ1073_025",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_026": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_026.Play_Vo_Bike_WLSD_NPC032_WJ1073_026",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_027": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_027.Play_Vo_Bike_WLSD_NPC032_WJ1073_027",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_028": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_028.Play_Vo_Bike_WLSD_NPC032_WJ1073_028",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_029": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_029.Play_Vo_Bike_WLSD_NPC032_WJ1073_029",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC032_WJ1073_030": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC032/Play_Vo_Bike_WLSD_NPC032_WJ1073_030.Play_Vo_Bike_WLSD_NPC032_WJ1073_030",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1073_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1073_Player_013.Play_Vo_Bike_WLSD_WJ1073_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1073_Player_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1073_Player_014.Play_Vo_Bike_WLSD_WJ1073_Player_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1066_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1066_Player_001.Play_Vo_Bike_WLSD_WJ1066_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1066_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1066_Player_002.Play_Vo_Bike_WLSD_WJ1066_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1066_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1066_Player_003.Play_Vo_Bike_WLSD_WJ1066_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1066_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1066_Player_004.Play_Vo_Bike_WLSD_WJ1066_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1066_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1066_Player_005.Play_Vo_Bike_WLSD_WJ1066_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_001.Play_Vo_Bike_WLSD_NPC004_WJ1066_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_002.Play_Vo_Bike_WLSD_NPC004_WJ1066_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_003.Play_Vo_Bike_WLSD_NPC004_WJ1066_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_004.Play_Vo_Bike_WLSD_NPC004_WJ1066_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_005.Play_Vo_Bike_WLSD_NPC004_WJ1066_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_006.Play_Vo_Bike_WLSD_NPC004_WJ1066_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_007.Play_Vo_Bike_WLSD_NPC004_WJ1066_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_008.Play_Vo_Bike_WLSD_NPC004_WJ1066_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_009.Play_Vo_Bike_WLSD_NPC004_WJ1066_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_019.Play_Vo_Bike_WLSD_NPC004_WJ1066_019",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_020.Play_Vo_Bike_WLSD_NPC004_WJ1066_020",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_021": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_021.Play_Vo_Bike_WLSD_NPC004_WJ1066_021",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_022.Play_Vo_Bike_WLSD_NPC004_WJ1066_022",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC004_WJ1066_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC004/Play_Vo_Bike_WLSD_NPC004_WJ1066_023.Play_Vo_Bike_WLSD_NPC004_WJ1066_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1066_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1066_Player_010.Play_Vo_Bike_WLSD_WJ1066_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1066_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1066_Player_011.Play_Vo_Bike_WLSD_WJ1066_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_001.Play_Vo_Bike_WLSD_NPC003_WJ1068_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_002.Play_Vo_Bike_WLSD_NPC003_WJ1068_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_003.Play_Vo_Bike_WLSD_NPC003_WJ1068_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_004.Play_Vo_Bike_WLSD_NPC003_WJ1068_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_005.Play_Vo_Bike_WLSD_NPC003_WJ1068_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_006.Play_Vo_Bike_WLSD_NPC003_WJ1068_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_001.Play_Vo_Bike_WLSD_WJ1068_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_002.Play_Vo_Bike_WLSD_WJ1068_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_003.Play_Vo_Bike_WLSD_WJ1068_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_004.Play_Vo_Bike_WLSD_WJ1068_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_005.Play_Vo_Bike_WLSD_WJ1068_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_006.Play_Vo_Bike_WLSD_WJ1068_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_007.Play_Vo_Bike_WLSD_WJ1068_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_014.Play_Vo_Bike_WLSD_NPC003_WJ1068_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_015.Play_Vo_Bike_WLSD_NPC003_WJ1068_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_016.Play_Vo_Bike_WLSD_NPC003_WJ1068_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_017.Play_Vo_Bike_WLSD_NPC003_WJ1068_017",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_018.Play_Vo_Bike_WLSD_NPC003_WJ1068_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC003_WJ1068_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC003/Play_Vo_Bike_WLSD_NPC003_WJ1068_019.Play_Vo_Bike_WLSD_NPC003_WJ1068_019",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_010.Play_Vo_Bike_WLSD_WJ1068_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_011.Play_Vo_Bike_WLSD_WJ1068_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_012.Play_Vo_Bike_WLSD_WJ1068_Player_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1068_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1068_Player_013.Play_Vo_Bike_WLSD_WJ1068_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_001.Play_Vo_Bike_WLSD_WJ1070_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_002.Play_Vo_Bike_WLSD_WJ1070_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_003.Play_Vo_Bike_WLSD_WJ1070_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_004.Play_Vo_Bike_WLSD_WJ1070_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_005.Play_Vo_Bike_WLSD_WJ1070_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_006.Play_Vo_Bike_WLSD_WJ1070_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_007.Play_Vo_Bike_WLSD_WJ1070_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_001.Play_Vo_Bike_WLSD_NPC015_WJ1070_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_002.Play_Vo_Bike_WLSD_NPC015_WJ1070_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_003.Play_Vo_Bike_WLSD_NPC015_WJ1070_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_004.Play_Vo_Bike_WLSD_NPC015_WJ1070_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_005.Play_Vo_Bike_WLSD_NPC015_WJ1070_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_006.Play_Vo_Bike_WLSD_NPC015_WJ1070_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_007.Play_Vo_Bike_WLSD_NPC015_WJ1070_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_008.Play_Vo_Bike_WLSD_NPC015_WJ1070_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_009.Play_Vo_Bike_WLSD_NPC015_WJ1070_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_014.Play_Vo_Bike_WLSD_NPC015_WJ1070_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_015.Play_Vo_Bike_WLSD_NPC015_WJ1070_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_016.Play_Vo_Bike_WLSD_NPC015_WJ1070_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_017.Play_Vo_Bike_WLSD_NPC015_WJ1070_017",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_018.Play_Vo_Bike_WLSD_NPC015_WJ1070_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_019.Play_Vo_Bike_WLSD_NPC015_WJ1070_019",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC015_WJ1070_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC015/Play_Vo_Bike_WLSD_NPC015_WJ1070_020.Play_Vo_Bike_WLSD_NPC015_WJ1070_020",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_010.Play_Vo_Bike_WLSD_WJ1070_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_011.Play_Vo_Bike_WLSD_WJ1070_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_012.Play_Vo_Bike_WLSD_WJ1070_Player_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1070_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1070_Player_013.Play_Vo_Bike_WLSD_WJ1070_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_001.Play_Vo_Bike_WLSD_WJ1071_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_002.Play_Vo_Bike_WLSD_WJ1071_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_003.Play_Vo_Bike_WLSD_WJ1071_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_004.Play_Vo_Bike_WLSD_WJ1071_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_005.Play_Vo_Bike_WLSD_WJ1071_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_006.Play_Vo_Bike_WLSD_WJ1071_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_007.Play_Vo_Bike_WLSD_WJ1071_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_008.Play_Vo_Bike_WLSD_WJ1071_Player_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_001.Play_Vo_Bike_WLSD_NPC026_WJ1071_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_002.Play_Vo_Bike_WLSD_NPC026_WJ1071_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_003.Play_Vo_Bike_WLSD_NPC026_WJ1071_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_004.Play_Vo_Bike_WLSD_NPC026_WJ1071_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_005.Play_Vo_Bike_WLSD_NPC026_WJ1071_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_006.Play_Vo_Bike_WLSD_NPC026_WJ1071_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_007.Play_Vo_Bike_WLSD_NPC026_WJ1071_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_008.Play_Vo_Bike_WLSD_NPC026_WJ1071_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_009.Play_Vo_Bike_WLSD_NPC026_WJ1071_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_010.Play_Vo_Bike_WLSD_NPC026_WJ1071_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_011.Play_Vo_Bike_WLSD_NPC026_WJ1071_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_012.Play_Vo_Bike_WLSD_NPC026_WJ1071_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_025.Play_Vo_Bike_WLSD_NPC026_WJ1071_025",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_026": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_026.Play_Vo_Bike_WLSD_NPC026_WJ1071_026",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_027": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_027.Play_Vo_Bike_WLSD_NPC026_WJ1071_027",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_028": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_028.Play_Vo_Bike_WLSD_NPC026_WJ1071_028",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_029": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_029.Play_Vo_Bike_WLSD_NPC026_WJ1071_029",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_030": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_030.Play_Vo_Bike_WLSD_NPC026_WJ1071_030",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC026_WJ1071_031": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC026/Play_Vo_Bike_WLSD_NPC026_WJ1071_031.Play_Vo_Bike_WLSD_NPC026_WJ1071_031",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_018.Play_Vo_Bike_WLSD_WJ1071_Player_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_019.Play_Vo_Bike_WLSD_WJ1071_Player_019",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_020.Play_Vo_Bike_WLSD_WJ1071_Player_020",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_021": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_021.Play_Vo_Bike_WLSD_WJ1071_Player_021",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1071_Player_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1071_Player_022.Play_Vo_Bike_WLSD_WJ1071_Player_022",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_003.Play_Vo_Bike_WLSD_NPC027_WJ1074_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_004.Play_Vo_Bike_WLSD_NPC027_WJ1074_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_005.Play_Vo_Bike_WLSD_NPC027_WJ1074_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_006.Play_Vo_Bike_WLSD_NPC027_WJ1074_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_007.Play_Vo_Bike_WLSD_NPC027_WJ1074_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_008.Play_Vo_Bike_WLSD_NPC027_WJ1074_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_009.Play_Vo_Bike_WLSD_NPC027_WJ1074_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_010.Play_Vo_Bike_WLSD_NPC027_WJ1074_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_011.Play_Vo_Bike_WLSD_NPC027_WJ1074_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1074_Player_001.Play_Vo_Bike_WLSD_WJ1074_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1074_Player_002.Play_Vo_Bike_WLSD_WJ1074_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1074_Player_003.Play_Vo_Bike_WLSD_WJ1074_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1074_Player_004.Play_Vo_Bike_WLSD_WJ1074_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1074_Player_007.Play_Vo_Bike_WLSD_WJ1074_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1074_Player_010.Play_Vo_Bike_WLSD_WJ1074_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_032": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_032.Play_Vo_Bike_WLSD_NPC027_WJ1074_032",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_033": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_033.Play_Vo_Bike_WLSD_NPC027_WJ1074_033",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_034": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_034.Play_Vo_Bike_WLSD_NPC027_WJ1074_034",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_035": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_035.Play_Vo_Bike_WLSD_NPC027_WJ1074_035",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_036": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_036.Play_Vo_Bike_WLSD_NPC027_WJ1074_036",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_037": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_037.Play_Vo_Bike_WLSD_NPC027_WJ1074_037",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_NPC027_WJ1074_038": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/NPC027/Play_Vo_Bike_WLSD_NPC027_WJ1074_038.Play_Vo_Bike_WLSD_NPC027_WJ1074_038",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_026": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1074_Player_026.Play_Vo_Bike_WLSD_WJ1074_Player_026",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_027": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_028": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_029": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1074_Player_029.Play_Vo_Bike_WLSD_WJ1074_Player_029",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "Bike_WLSD_WJ1074_Player_030": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Bubble/Bike/Zero/Play_Vo_Bike_WLSD_WJ1074_Player_030.Play_Vo_Bike_WLSD_WJ1074_Player_030",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_001.Play_Vo_WLSD_WJ1058_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_002.Play_Vo_WLSD_WJ1058_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_003.Play_Vo_WLSD_WJ1058_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_004.Play_Vo_WLSD_WJ1058_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_005.Play_Vo_WLSD_WJ1058_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_006.Play_Vo_WLSD_WJ1058_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_007.Play_Vo_WLSD_WJ1058_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_008.Play_Vo_WLSD_WJ1058_Player_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_009.Play_Vo_WLSD_WJ1058_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_010.Play_Vo_WLSD_WJ1058_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_011.Play_Vo_WLSD_WJ1058_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_012.Play_Vo_WLSD_WJ1058_Player_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_013.Play_Vo_WLSD_WJ1058_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_014.Play_Vo_WLSD_WJ1058_Player_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_015.Play_Vo_WLSD_WJ1058_Player_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_016.Play_Vo_WLSD_WJ1058_Player_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_017.Play_Vo_WLSD_WJ1058_Player_017",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_018.Play_Vo_WLSD_WJ1058_Player_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_019.Play_Vo_WLSD_WJ1058_Player_019",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_020.Play_Vo_WLSD_WJ1058_Player_020",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_021": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_021.Play_Vo_WLSD_WJ1058_Player_021",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_022.Play_Vo_WLSD_WJ1058_Player_022",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_023.Play_Vo_WLSD_WJ1058_Player_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_024": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_024.Play_Vo_WLSD_WJ1058_Player_024",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_025.Play_Vo_WLSD_WJ1058_Player_025",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_026": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_026.Play_Vo_WLSD_WJ1058_Player_026",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_027": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_027.Play_Vo_WLSD_WJ1058_Player_027",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_028": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_028.Play_Vo_WLSD_WJ1058_Player_028",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_029": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_029.Play_Vo_WLSD_WJ1058_Player_029",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_030": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_030.Play_Vo_WLSD_WJ1058_Player_030",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_031": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_031.Play_Vo_WLSD_WJ1058_Player_031",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_032": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_032.Play_Vo_WLSD_WJ1058_Player_032",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_033": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_033.Play_Vo_WLSD_WJ1058_Player_033",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_034": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_034.Play_Vo_WLSD_WJ1058_Player_034",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_Player_035": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1058_Player_035.Play_Vo_WLSD_WJ1058_Player_035",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_001.Play_Vo_WLSD_NPC021_WJ1058_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_002.Play_Vo_WLSD_NPC021_WJ1058_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_003.Play_Vo_WLSD_NPC021_WJ1058_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_004.Play_Vo_WLSD_NPC021_WJ1058_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_005.Play_Vo_WLSD_NPC021_WJ1058_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_006.Play_Vo_WLSD_NPC021_WJ1058_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_007.Play_Vo_WLSD_NPC021_WJ1058_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_008.Play_Vo_WLSD_NPC021_WJ1058_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_009.Play_Vo_WLSD_NPC021_WJ1058_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_010.Play_Vo_WLSD_NPC021_WJ1058_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_011.Play_Vo_WLSD_NPC021_WJ1058_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_012.Play_Vo_WLSD_NPC021_WJ1058_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_013.Play_Vo_WLSD_NPC021_WJ1058_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_014.Play_Vo_WLSD_NPC021_WJ1058_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_015.Play_Vo_WLSD_NPC021_WJ1058_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_016.Play_Vo_WLSD_NPC021_WJ1058_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_017.Play_Vo_WLSD_NPC021_WJ1058_017",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_018.Play_Vo_WLSD_NPC021_WJ1058_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_019.Play_Vo_WLSD_NPC021_WJ1058_019",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_020.Play_Vo_WLSD_NPC021_WJ1058_020",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_021": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_021.Play_Vo_WLSD_NPC021_WJ1058_021",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_022.Play_Vo_WLSD_NPC021_WJ1058_022",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_023.Play_Vo_WLSD_NPC021_WJ1058_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_024": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_024.Play_Vo_WLSD_NPC021_WJ1058_024",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_025": {
+        "DialogSoundEvent": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_026": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_026.Play_Vo_WLSD_NPC021_WJ1058_026",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_027": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_027.Play_Vo_WLSD_NPC021_WJ1058_027",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_028": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_028.Play_Vo_WLSD_NPC021_WJ1058_028",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_029": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_029.Play_Vo_WLSD_NPC021_WJ1058_029",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_030": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_030.Play_Vo_WLSD_NPC021_WJ1058_030",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_031": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_031.Play_Vo_WLSD_NPC021_WJ1058_031",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_032": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_032.Play_Vo_WLSD_NPC021_WJ1058_032",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_033": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_033.Play_Vo_WLSD_NPC021_WJ1058_033",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_034": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_034.Play_Vo_WLSD_NPC021_WJ1058_034",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_035": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_035.Play_Vo_WLSD_NPC021_WJ1058_035",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_036": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_036.Play_Vo_WLSD_NPC021_WJ1058_036",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_037": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_037.Play_Vo_WLSD_NPC021_WJ1058_037",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_038": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_038.Play_Vo_WLSD_NPC021_WJ1058_038",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_039": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_039.Play_Vo_WLSD_NPC021_WJ1058_039",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1058_040": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1058_040.Play_Vo_WLSD_NPC021_WJ1058_040",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_B_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCB/Play_Vo_WLSD_WJ1058_B_001.Play_Vo_WLSD_WJ1058_B_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_B_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCB/Play_Vo_WLSD_WJ1058_B_002.Play_Vo_WLSD_WJ1058_B_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_B_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCB/Play_Vo_WLSD_WJ1058_B_003.Play_Vo_WLSD_WJ1058_B_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_B_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCB/Play_Vo_WLSD_WJ1058_B_004.Play_Vo_WLSD_WJ1058_B_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_B_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCB/Play_Vo_WLSD_WJ1058_B_005.Play_Vo_WLSD_WJ1058_B_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_B_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCB/Play_Vo_WLSD_WJ1058_B_006.Play_Vo_WLSD_WJ1058_B_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_B_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCB/Play_Vo_WLSD_WJ1058_B_007.Play_Vo_WLSD_WJ1058_B_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_001.Play_Vo_WLSD_WJ1059_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_002.Play_Vo_WLSD_WJ1059_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_003.Play_Vo_WLSD_WJ1059_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_004.Play_Vo_WLSD_WJ1059_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_005.Play_Vo_WLSD_WJ1059_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_006.Play_Vo_WLSD_WJ1059_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_007.Play_Vo_WLSD_WJ1059_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_008.Play_Vo_WLSD_WJ1059_Player_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_009.Play_Vo_WLSD_WJ1059_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_010.Play_Vo_WLSD_WJ1059_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_011.Play_Vo_WLSD_WJ1059_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_012.Play_Vo_WLSD_WJ1059_Player_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1059_Player_013.Play_Vo_WLSD_WJ1059_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_001.Play_Vo_WLSD_WJ1059_A_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_002.Play_Vo_WLSD_WJ1059_A_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_003.Play_Vo_WLSD_WJ1059_A_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_004.Play_Vo_WLSD_WJ1059_A_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_005.Play_Vo_WLSD_WJ1059_A_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_006.Play_Vo_WLSD_WJ1059_A_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_007.Play_Vo_WLSD_WJ1059_A_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_008.Play_Vo_WLSD_WJ1059_A_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_009.Play_Vo_WLSD_WJ1059_A_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_010.Play_Vo_WLSD_WJ1059_A_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_011.Play_Vo_WLSD_WJ1059_A_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_012.Play_Vo_WLSD_WJ1059_A_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_013.Play_Vo_WLSD_WJ1059_A_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_014.Play_Vo_WLSD_WJ1059_A_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_015.Play_Vo_WLSD_WJ1059_A_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_016.Play_Vo_WLSD_WJ1059_A_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_017.Play_Vo_WLSD_WJ1059_A_017",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_018.Play_Vo_WLSD_WJ1059_A_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_019.Play_Vo_WLSD_WJ1059_A_019",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_020.Play_Vo_WLSD_WJ1059_A_020",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_021": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_021.Play_Vo_WLSD_WJ1059_A_021",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_022.Play_Vo_WLSD_WJ1059_A_022",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_023.Play_Vo_WLSD_WJ1059_A_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1059_A_024": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCA/Play_Vo_WLSD_WJ1059_A_024.Play_Vo_WLSD_WJ1059_A_024",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_001.Play_Vo_WLSD_NPC021_WJ1059_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_002.Play_Vo_WLSD_NPC021_WJ1059_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_003.Play_Vo_WLSD_NPC021_WJ1059_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_004.Play_Vo_WLSD_NPC021_WJ1059_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_005.Play_Vo_WLSD_NPC021_WJ1059_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_006.Play_Vo_WLSD_NPC021_WJ1059_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_007.Play_Vo_WLSD_NPC021_WJ1059_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_008.Play_Vo_WLSD_NPC021_WJ1059_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_009.Play_Vo_WLSD_NPC021_WJ1059_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_010.Play_Vo_WLSD_NPC021_WJ1059_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1059_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1059_011.Play_Vo_WLSD_NPC021_WJ1059_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_001.Play_Vo_WLSD_NPC021_WJ1060_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_002.Play_Vo_WLSD_NPC021_WJ1060_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_003.Play_Vo_WLSD_NPC021_WJ1060_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_004.Play_Vo_WLSD_NPC021_WJ1060_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_022.Play_Vo_WLSD_NPC021_WJ1060_022",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_023": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_023.Play_Vo_WLSD_NPC021_WJ1060_023",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_005.Play_Vo_WLSD_NPC021_WJ1060_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_006.Play_Vo_WLSD_NPC021_WJ1060_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_007.Play_Vo_WLSD_NPC021_WJ1060_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_008.Play_Vo_WLSD_NPC021_WJ1060_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_009.Play_Vo_WLSD_NPC021_WJ1060_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_010.Play_Vo_WLSD_NPC021_WJ1060_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_011.Play_Vo_WLSD_NPC021_WJ1060_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_012.Play_Vo_WLSD_NPC021_WJ1060_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_013.Play_Vo_WLSD_NPC021_WJ1060_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_014.Play_Vo_WLSD_NPC021_WJ1060_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_015.Play_Vo_WLSD_NPC021_WJ1060_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC021_WJ1060_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSD_NPC021_WJ1060_016.Play_Vo_WLSD_NPC021_WJ1060_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_001.Play_Vo_WLSD_WJ1060_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_002.Play_Vo_WLSD_WJ1060_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_020": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_020.Play_Vo_WLSD_WJ1060_Player_020",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_021": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_021.Play_Vo_WLSD_WJ1060_Player_021",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_003.Play_Vo_WLSD_WJ1060_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_004.Play_Vo_WLSD_WJ1060_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_005.Play_Vo_WLSD_WJ1060_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_006.Play_Vo_WLSD_WJ1060_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_007.Play_Vo_WLSD_WJ1060_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_008.Play_Vo_WLSD_WJ1060_Player_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_009.Play_Vo_WLSD_WJ1060_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_010.Play_Vo_WLSD_WJ1060_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_011.Play_Vo_WLSD_WJ1060_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_012.Play_Vo_WLSD_WJ1060_Player_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_013.Play_Vo_WLSD_WJ1060_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_014.Play_Vo_WLSD_WJ1060_Player_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_015.Play_Vo_WLSD_WJ1060_Player_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_016.Play_Vo_WLSD_WJ1060_Player_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_017.Play_Vo_WLSD_WJ1060_Player_017",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_001.Play_Vo_WLSD_NPC023_WJ1061_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_002.Play_Vo_WLSD_NPC023_WJ1061_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_003.Play_Vo_WLSD_NPC023_WJ1061_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_004.Play_Vo_WLSD_NPC023_WJ1061_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_005.Play_Vo_WLSD_NPC023_WJ1061_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_006.Play_Vo_WLSD_NPC023_WJ1061_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_007.Play_Vo_WLSD_NPC023_WJ1061_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_008.Play_Vo_WLSD_NPC023_WJ1061_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_009.Play_Vo_WLSD_NPC023_WJ1061_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_010.Play_Vo_WLSD_NPC023_WJ1061_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_011.Play_Vo_WLSD_NPC023_WJ1061_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_012.Play_Vo_WLSD_NPC023_WJ1061_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_013.Play_Vo_WLSD_NPC023_WJ1061_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_014.Play_Vo_WLSD_NPC023_WJ1061_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_015.Play_Vo_WLSD_NPC023_WJ1061_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_016.Play_Vo_WLSD_NPC023_WJ1061_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_017.Play_Vo_WLSD_NPC023_WJ1061_017",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1061_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1061_018.Play_Vo_WLSD_NPC023_WJ1061_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_001.Play_Vo_WLSD_WJ1061_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_002.Play_Vo_WLSD_WJ1061_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_003.Play_Vo_WLSD_WJ1061_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_004.Play_Vo_WLSD_WJ1061_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_005.Play_Vo_WLSD_WJ1061_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_006.Play_Vo_WLSD_WJ1061_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_007.Play_Vo_WLSD_WJ1061_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_008.Play_Vo_WLSD_WJ1061_Player_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_009.Play_Vo_WLSD_WJ1061_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1061_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1061_Player_010.Play_Vo_WLSD_WJ1061_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_001.Play_Vo_WLSD_WJ1062_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_002.Play_Vo_WLSD_WJ1062_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_003.Play_Vo_WLSD_WJ1062_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_004.Play_Vo_WLSD_WJ1062_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_005.Play_Vo_WLSD_WJ1062_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_006.Play_Vo_WLSD_WJ1062_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_007.Play_Vo_WLSD_WJ1062_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_008.Play_Vo_WLSD_WJ1062_Player_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_009.Play_Vo_WLSD_WJ1062_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_010.Play_Vo_WLSD_WJ1062_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_011.Play_Vo_WLSD_WJ1062_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_012.Play_Vo_WLSD_WJ1062_Player_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1062_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1062_Player_013.Play_Vo_WLSD_WJ1062_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_001.Play_Vo_WLSD_NPC023_WJ1062_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_002.Play_Vo_WLSD_NPC023_WJ1062_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_003.Play_Vo_WLSD_NPC023_WJ1062_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_004.Play_Vo_WLSD_NPC023_WJ1062_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_005.Play_Vo_WLSD_NPC023_WJ1062_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_006.Play_Vo_WLSD_NPC023_WJ1062_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_007.Play_Vo_WLSD_NPC023_WJ1062_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_008.Play_Vo_WLSD_NPC023_WJ1062_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_009.Play_Vo_WLSD_NPC023_WJ1062_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_010.Play_Vo_WLSD_NPC023_WJ1062_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_011.Play_Vo_WLSD_NPC023_WJ1062_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_012.Play_Vo_WLSD_NPC023_WJ1062_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_013.Play_Vo_WLSD_NPC023_WJ1062_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_014.Play_Vo_WLSD_NPC023_WJ1062_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_015.Play_Vo_WLSD_NPC023_WJ1062_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1062_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1062_016.Play_Vo_WLSD_NPC023_WJ1062_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_001.Play_Vo_WLSD_NPC023_WJ1063_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_002.Play_Vo_WLSD_NPC023_WJ1063_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_003.Play_Vo_WLSD_NPC023_WJ1063_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_004.Play_Vo_WLSD_NPC023_WJ1063_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_005.Play_Vo_WLSD_NPC023_WJ1063_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_006.Play_Vo_WLSD_NPC023_WJ1063_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_007.Play_Vo_WLSD_NPC023_WJ1063_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_008.Play_Vo_WLSD_NPC023_WJ1063_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_009.Play_Vo_WLSD_NPC023_WJ1063_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_010.Play_Vo_WLSD_NPC023_WJ1063_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_011.Play_Vo_WLSD_NPC023_WJ1063_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_012.Play_Vo_WLSD_NPC023_WJ1063_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_013.Play_Vo_WLSD_NPC023_WJ1063_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1063_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1063_014.Play_Vo_WLSD_NPC023_WJ1063_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1063_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1063_Player_001.Play_Vo_WLSD_WJ1063_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1063_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1063_Player_002.Play_Vo_WLSD_WJ1063_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1063_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1063_Player_003.Play_Vo_WLSD_WJ1063_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1063_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1063_Player_004.Play_Vo_WLSD_WJ1063_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1063_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1063_Player_005.Play_Vo_WLSD_WJ1063_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1063_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1063_Player_006.Play_Vo_WLSD_WJ1063_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1063_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1063_Player_007.Play_Vo_WLSD_WJ1063_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1063_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1063_Player_008.Play_Vo_WLSD_WJ1063_Player_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1063_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1063_Player_009.Play_Vo_WLSD_WJ1063_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_001.Play_Vo_WLSD_NPC023_WJ1064_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_002.Play_Vo_WLSD_NPC023_WJ1064_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_003.Play_Vo_WLSD_NPC023_WJ1064_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_004.Play_Vo_WLSD_NPC023_WJ1064_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_005.Play_Vo_WLSD_NPC023_WJ1064_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_006.Play_Vo_WLSD_NPC023_WJ1064_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_007.Play_Vo_WLSD_NPC023_WJ1064_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_008.Play_Vo_WLSD_NPC023_WJ1064_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_009.Play_Vo_WLSD_NPC023_WJ1064_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_010.Play_Vo_WLSD_NPC023_WJ1064_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_011.Play_Vo_WLSD_NPC023_WJ1064_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_012.Play_Vo_WLSD_NPC023_WJ1064_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_013.Play_Vo_WLSD_NPC023_WJ1064_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_014.Play_Vo_WLSD_NPC023_WJ1064_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_015": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_015.Play_Vo_WLSD_NPC023_WJ1064_015",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_016": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_016.Play_Vo_WLSD_NPC023_WJ1064_016",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_017": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_017.Play_Vo_WLSD_NPC023_WJ1064_017",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_018": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_018.Play_Vo_WLSD_NPC023_WJ1064_018",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_NPC023_WJ1064_019": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC023/Play_Vo_WLSD_NPC023_WJ1064_019.Play_Vo_WLSD_NPC023_WJ1064_019",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_001.Play_Vo_WLSD_WJ1064_Player_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_002.Play_Vo_WLSD_WJ1064_Player_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_003.Play_Vo_WLSD_WJ1064_Player_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_004.Play_Vo_WLSD_WJ1064_Player_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_005.Play_Vo_WLSD_WJ1064_Player_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_006": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_006.Play_Vo_WLSD_WJ1064_Player_006",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_007": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_007.Play_Vo_WLSD_WJ1064_Player_007",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_008": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_008.Play_Vo_WLSD_WJ1064_Player_008",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_009": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_009.Play_Vo_WLSD_WJ1064_Player_009",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_010": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_010.Play_Vo_WLSD_WJ1064_Player_010",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_011": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_011.Play_Vo_WLSD_WJ1064_Player_011",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_012": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_012.Play_Vo_WLSD_WJ1064_Player_012",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_013": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_013.Play_Vo_WLSD_WJ1064_Player_013",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1064_Player_014": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1064_Player_014.Play_Vo_WLSD_WJ1064_Player_014",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_Anomaly053_WJ1064_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/Anomaly053/Play_Vo_WLSD_Anomaly053_WJ1064_001.Play_Vo_WLSD_Anomaly053_WJ1064_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_Anomaly053_WJ1064_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/Anomaly053/Play_Vo_WLSD_Anomaly053_WJ1064_002.Play_Vo_WLSD_Anomaly053_WJ1064_002",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_Anomaly053_WJ1064_003": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/Anomaly053/Play_Vo_WLSD_Anomaly053_WJ1064_003.Play_Vo_WLSD_Anomaly053_WJ1064_003",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_Anomaly053_WJ1064_004": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/Anomaly053/Play_Vo_WLSD_Anomaly053_WJ1064_004.Play_Vo_WLSD_Anomaly053_WJ1064_004",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_Anomaly053_WJ1064_005": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/Anomaly053/Play_Vo_WLSD_Anomaly053_WJ1064_005.Play_Vo_WLSD_Anomaly053_WJ1064_005",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [
+          {
+            "RTPCName": "Voice_InnerVoice",
+            "RTPCValue": 1.0
+          }
+        ],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_C_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/CG/TalkMotion/HY/Play_Sfx_CG_TalkMotion_Cmn_Stick_Wood.Play_Sfx_CG_TalkMotion_Cmn_Stick_Wood",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1058_C_002": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/CG/TalkMotion/HY/Play_Sfx_CG_TalkMotion_Cmn_Wood_Squeak.Play_Sfx_CG_TalkMotion_Cmn_Wood_Squeak",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSU_NPC021_WJ1058_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPC021/Play_Vo_WLSU_NPC021_WJ1058_001.Play_Vo_WLSU_NPC021_WJ1058_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_E_001": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/NPCE/Play_Vo_WLSD_WJ1060_E_001.Play_Vo_WLSD_WJ1060_E_001",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      },
+      "WLSD_WJ1060_Player_022": {
+        "DialogSoundEvent": {
+          "AssetPathName": "/Game/WwiseAudio/Events/Voice/Dialogue/ZERO/Play_Vo_WLSD_WJ1060_Player_022.Play_Vo_WLSD_WJ1060_Player_022",
+          "SubPathString": ""
+        },
+        "RTPCConfigs": [],
+        "AuxBus": [],
+        "bShowDisableTJDVoiceToggle": false
+      }
+    }
+  }
+]

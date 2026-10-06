@@ -1,0 +1,26 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_RegionType",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_RegionType",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'RegionTypeData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Region_MAINLAND": {
+        "UrlThumbnailSuffix": "?imageView2/2/w/2560/h/1440/q/80/format/jpg"
+      },
+      "Region_IWPLAY": {
+        "UrlThumbnailSuffix": "?imageView2/2/w/2560/h/1440/q/80/format/jpg"
+      },
+      "Region_GLOBAL": {
+        "UrlThumbnailSuffix": "?imageView2/2/w/2560/h/1440/q/80/format/jpg"
+      }
+    }
+  }
+]

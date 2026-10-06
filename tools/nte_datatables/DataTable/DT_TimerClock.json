@@ -1,0 +1,169 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_TimerClock",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_TimerClock",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'TimerClockDataTable'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "DailyReset": {
+        "ClockIntervalType": "EClockIntervalType::EVERY_DAY",
+        "NetType": "EClockNetType::CLOCKNET_ServerOrStandalone",
+        "Times": [
+          {
+            "Year": 0,
+            "Month": 1,
+            "Day": 1,
+            "Hour": 5,
+            "minute": 0,
+            "Second": 0
+          }
+        ],
+        "RunOnType": 1,
+        "OnlyOnce": false,
+        "OnlyNotifyOnce": true,
+        "OfflineNotify": true
+      },
+      "CrossDayOnline": {
+        "ClockIntervalType": "EClockIntervalType::EVERY_DAY",
+        "NetType": "EClockNetType::CLOCKNET_ServerOrStandalone",
+        "Times": [
+          {
+            "Year": 0,
+            "Month": 1,
+            "Day": 1,
+            "Hour": 0,
+            "minute": 0,
+            "Second": 0
+          }
+        ],
+        "RunOnType": 1,
+        "OnlyOnce": false,
+        "OnlyNotifyOnce": true,
+        "OfflineNotify": false
+      },
+      "SleepValueReset": {
+        "ClockIntervalType": "EClockIntervalType::EVERY_HOUR",
+        "NetType": "EClockNetType::CLOCKNET_ServerOrStandalone",
+        "Times": [
+          {
+            "Year": 0,
+            "Month": 1,
+            "Day": 1,
+            "Hour": 0,
+            "minute": 0,
+            "Second": 0
+          },
+          {
+            "Year": 0,
+            "Month": 1,
+            "Day": 1,
+            "Hour": 0,
+            "minute": 30,
+            "Second": 0
+          }
+        ],
+        "RunOnType": 1,
+        "OnlyOnce": false,
+        "OnlyNotifyOnce": true,
+        "OfflineNotify": true
+      },
+      "WeeklyReset": {
+        "ClockIntervalType": "EClockIntervalType::EVERY_WEEK",
+        "NetType": "EClockNetType::CLOCKNET_ServerOrStandalone",
+        "Times": [
+          {
+            "Year": 0,
+            "Month": 1,
+            "Day": 1,
+            "Hour": 5,
+            "minute": 0,
+            "Second": 0
+          }
+        ],
+        "RunOnType": 1,
+        "OnlyOnce": false,
+        "OnlyNotifyOnce": true,
+        "OfflineNotify": true
+      },
+      "MonthlyReset": {
+        "ClockIntervalType": "EClockIntervalType::EVERY_MOUTH",
+        "NetType": "EClockNetType::CLOCKNET_ServerOrStandalone",
+        "Times": [
+          {
+            "Year": 0,
+            "Month": 1,
+            "Day": 1,
+            "Hour": 5,
+            "minute": 0,
+            "Second": 0
+          }
+        ],
+        "RunOnType": 1,
+        "OnlyOnce": false,
+        "OnlyNotifyOnce": true,
+        "OfflineNotify": true
+      },
+      "YearlyReset": {
+        "ClockIntervalType": "EClockIntervalType::EVERY_YEAR",
+        "NetType": "EClockNetType::CLOCKNET_ServerOrStandalone",
+        "Times": [
+          {
+            "Year": 0,
+            "Month": 1,
+            "Day": 1,
+            "Hour": 5,
+            "minute": 0,
+            "Second": 0
+          }
+        ],
+        "RunOnType": 1,
+        "OnlyOnce": false,
+        "OnlyNotifyOnce": true,
+        "OfflineNotify": true
+      },
+      "AuctionReset": {
+        "ClockIntervalType": "EClockIntervalType::EVERY_WEEK",
+        "NetType": "EClockNetType::CLOCKNET_ServerOrStandalone",
+        "Times": [
+          {
+            "Year": 0,
+            "Month": 1,
+            "Day": 1,
+            "Hour": 5,
+            "minute": 0,
+            "Second": 0
+          }
+        ],
+        "RunOnType": 1,
+        "OnlyOnce": false,
+        "OnlyNotifyOnce": true,
+        "OfflineNotify": true
+      },
+      "Hourly5thMinTimer": {
+        "ClockIntervalType": "EClockIntervalType::EVERY_HOUR",
+        "NetType": "EClockNetType::CLOCKNET_ServerOrStandalone",
+        "Times": [
+          {
+            "Year": 0,
+            "Month": 1,
+            "Day": 1,
+            "Hour": 0,
+            "minute": 5,
+            "Second": 0
+          }
+        ],
+        "RunOnType": 9,
+        "OnlyOnce": false,
+        "OnlyNotifyOnce": true,
+        "OfflineNotify": false
+      }
+    }
+  }
+]

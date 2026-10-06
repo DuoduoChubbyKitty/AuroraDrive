@@ -1,0 +1,77 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_PingTypePhoneData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_PingTypePhoneData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'PingTypeData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "LowPing": {
+        "PingType": "EHTPingType::LowPing",
+        "PingTop": 100.0,
+        "PingColor": {
+          "B": 0,
+          "G": 0,
+          "R": 0,
+          "A": 0,
+          "Hex": "000000"
+        },
+        "PingImage": {
+          "AssetPathName": "/Game/UI/UI/caidan/Menu_Phone/YH_UI_Phone_XinHao01.YH_UI_Phone_XinHao01",
+          "SubPathString": ""
+        }
+      },
+      "MidPing": {
+        "PingType": "EHTPingType::MidPing",
+        "PingTop": 200.0,
+        "PingColor": {
+          "B": 0,
+          "G": 0,
+          "R": 0,
+          "A": 0,
+          "Hex": "000000"
+        },
+        "PingImage": {
+          "AssetPathName": "/Game/UI/UI/caidan/Menu_Phone/YH_UI_Phone_XinHao02.YH_UI_Phone_XinHao02",
+          "SubPathString": ""
+        }
+      },
+      "HighPing": {
+        "PingType": "EHTPingType::HighPing",
+        "PingTop": 300.0,
+        "PingColor": {
+          "B": 0,
+          "G": 0,
+          "R": 0,
+          "A": 0,
+          "Hex": "000000"
+        },
+        "PingImage": {
+          "AssetPathName": "/Game/UI/UI/caidan/Menu_Phone/YH_UI_Phone_XinHao03.YH_UI_Phone_XinHao03",
+          "SubPathString": ""
+        }
+      },
+      "MaxPing": {
+        "PingType": "EHTPingType::MaxPing",
+        "PingTop": 400.0,
+        "PingColor": {
+          "B": 0,
+          "G": 0,
+          "R": 0,
+          "A": 0,
+          "Hex": "000000"
+        },
+        "PingImage": {
+          "AssetPathName": "/Game/UI/UI/caidan/Menu_Phone/YH_UI_Phone_XinHao03.YH_UI_Phone_XinHao03",
+          "SubPathString": ""
+        }
+      }
+    }
+  }
+]

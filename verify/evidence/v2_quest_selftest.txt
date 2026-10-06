@@ -1,0 +1,57 @@
+═══ 任务面板 OCR 自检（--quest-selftest）═══
+项目根: /Users/dupi/Desktop/自动驾驶系统
+索引:   /Users/dupi/Desktop/自动驾驶系统/models/quest_index.json
+统计:   files=39 objectives=3819 with_coord=2938 exact_keys=1372 core_keys=1984 name_keys=1128
+
+── 1. 真实面板文字回归（8 条）──
+  ✅ 与路边着急的研究员对话            verdict=ok         kind=exact     n=1   coord=(-17869, 125947) 可寻路=unique
+  ✅ 抵达异象管理局                verdict=ok         kind=core-sub  n=1   coord=(3975, 262435) 可寻路=unique
+  ✅ 与薄荷对话                  verdict=ambiguous  kind=exact     n=23  coord=(4240, 271950) 可寻路=否
+  ✅ 搭乘电梯                   verdict=ok         kind=exact     n=1   coord=(30757, 65971) 可寻路=unique
+  ✅ 赴约                     verdict=low        kind=core-sub  n=1   coord=(-18315, 33622) 可寻路=否
+  ✅ 与龙叔交谈                  verdict=ambiguous  kind=exact     n=3   coord=(-256320, 138608) 可寻路=coord-equivalent
+  ✅ 走进局长办公室                verdict=ok         kind=exact     n=1   coord=(3990, 267360) 可寻路=unique
+  ✅ 与艾尔菲德交流                verdict=ok         kind=exact     n=1   coord=(3990, 267360) 可寻路=unique
+  ── 命中：可寻路 6/8 ｜ verdict=ok 5/8 ｜ verdict 与 Python 一致 8/8
+✅ 8 条 verdict 与 Python 参考实现一致  8/8
+✅ 8 条可寻路命中数 = 6  可寻路 6/8（2 条 ambiguous 中 1 条被坐标等价放行；1 条 low 有意拒绝）
+✅ 8 条坐标与 Python 标准答案一致（容差 1cm）  坐标全对的唯一命中 5/8
+
+── 2. 反向用例（必须拦住）──
+✅ 「对话」判 low（364 候选，长度不足）  verdict=low 候选=364
+✅ 「[剧情HeroicApearan」判 miss  verdict=miss 候选=0
+✅ 空串判 miss  verdict=miss
+✅ 单字「的」判 miss（修复前会假报唯一）  verdict=miss 候选=0
+✅ 单字抽样 2963 个判 ok 数 = 0  ok=0
+
+── 3. 投票缓冲（连续 3 次相同才确认）──
+✅ 第 1/2 次不确认、第 3 次确认  1→nil 2→nil 3→有
+✅ 确认到正确任务与坐标  qid=L110302_M target=(30757,65971)
+✅ quest 名为空时回退到 desc  questName=「与路边着急的研究员对话」（该条 qid=---活动开始对话--- 的 quest 字段为空串）
+✅ 文本抖动后重新计票  抖动后前两次不确认
+
+── 4. 链消歧（NextQuests）与坐标等价 ──
+✅ 「与薄荷对话」判 ambiguous（23 候选）  verdict=ambiguous 候选=23
+✅ 无链锚点时消解不掉（不猜）  正确放弃，等下一帧
+✅ 锚点 WJ101302 → 唯一后继 WJ101303  选中=WJ101303 依据=chain-next
+✅ 「与龙叔交谈」3 候选坐标相同 → 坐标等价放行  候选=3 依据=coord-equivalent 目标=(-256320,138608)
+
+── 5. 坐标语义（quest_index x/y 原样喂 setLocatorTarget）──
+✅ 条目坐标与索引原始值逐位相同（无任何换算）  index=(-17868.69, 125947.41, 6440.8076) 读出=(-17868.69, 125947.41, 6440.8076)
+✅ 世界坐标量级合理（|x|,|y| < 1e6 厘米 = 10km 内）  x=-17868.69 y=125947.41（UE5 厘米）
+
+── 6. ROI 与提示行过滤 ──
+✅ ROI 换算到 2940×1912 = x 88~1176 / y 458~592  x 88~1176 / y 458~592（0.070×1912=133.84 → 截断到 592，与任务描述一致）
+✅ 提示行「V 按下进行追踪」被过滤  两条提示行均判为提示行
+✅ 正常任务文字不被误过滤  「与路边着急的研究员对话」保留
+✅ 混入提示行后仍命中（过滤生效）  qid=---活动开始对话--- target=(-17869,125947)
+
+── 7. 模糊匹配（阈值 0.62 / 可信 0.75）──
+✅ 丢字查询走 fuzzy 且判 ok  kind=fuzzy score=0.95 verdict=ok
+✅ sequenceRatio 与 difflib 一致（4 例）  全部逐位吻合
+✅ 模糊分落在 [0.62,0.75) 判 low（不冒用）  kind=fuzzy score=0.727 verdict=low
+
+── 8. 节流（0.7s，不是每帧）──
+✅ 0.7s 内不重复跑  t=100 跑=true t=100.5 跑=false t=100.71 跑=true
+
+═══ 结果：全部通过 ✅ ═══

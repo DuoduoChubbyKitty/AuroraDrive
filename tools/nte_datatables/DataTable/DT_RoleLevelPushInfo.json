@@ -1,0 +1,59 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_RoleLevelPushInfo",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_RoleLevelPushInfo",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'RoleLevelPushConfig'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "15": {
+        "PushConfigDatas": [
+          {
+            "PreQuestIDs": [
+              "q110088"
+            ],
+            "PushQuestID": "L110001_F",
+            "PushChatItemID": "None"
+          }
+        ]
+      },
+      "8": {
+        "PushConfigDatas": [
+          {
+            "PreQuestIDs": [
+              "q110088"
+            ],
+            "PushQuestID": "L110101",
+            "PushChatItemID": "None"
+          }
+        ]
+      },
+      "22": {
+        "PushConfigDatas": [
+          {
+            "PreQuestIDs": [
+              "q110394"
+            ],
+            "PushQuestID": "L110201_F",
+            "PushChatItemID": "None"
+          }
+        ]
+      },
+      "24": {
+        "PushConfigDatas": [
+          {
+            "PreQuestIDs": [],
+            "PushQuestID": "B110072",
+            "PushChatItemID": "None"
+          }
+        ]
+      }
+    }
+  }
+]

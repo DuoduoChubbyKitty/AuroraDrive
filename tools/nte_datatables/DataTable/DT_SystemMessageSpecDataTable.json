@@ -1,0 +1,29 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_SystemMessageSpecDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_SystemMessageSpecDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'SystemMessageSpecConfig'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "MsgSpec01": {
+        "icon": {
+          "AssetPathName": "/Game/UI/UI/font/tiaozi1/Zhouan_A_0.Zhouan_A_0",
+          "SubPathString": ""
+        },
+        "Description": {
+          "TableId": "/Game/Text/Dialogue/ST_Dialogue_Legend.ST_Dialogue_Legend",
+          "Key": "TLacrimosa01_NPC004A_019",
+          "SourceString": "（呜呜，鉴定师，大好人！）",
+          "LocalizedString": "(Uwah… Appraiser, the nicest!)"
+        }
+      }
+    }
+  }
+]

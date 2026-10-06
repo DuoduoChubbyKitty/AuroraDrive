@@ -1,0 +1,101 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_TextTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_TextTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'TextTableData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Common": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_Common.ST_Common",
+          "SubPathString": ""
+        }
+      },
+      "ErrCode": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_ErrCode.ST_ErrCode",
+          "SubPathString": ""
+        }
+      },
+      "Sequence": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/Sequence/ST_Sequence.ST_Sequence",
+          "SubPathString": ""
+        }
+      },
+      "Sequence_Legend": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/Sequence/ST_Sequence_Legend.ST_Sequence_Legend",
+          "SubPathString": ""
+        }
+      },
+      "UI": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_Ui.ST_Ui",
+          "SubPathString": ""
+        }
+      },
+      "Interact": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_Interact_Quest.ST_Interact_Quest",
+          "SubPathString": ""
+        }
+      },
+      "Guide": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_Guide.ST_Guide",
+          "SubPathString": ""
+        }
+      },
+      "Update": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_Update.ST_Update",
+          "SubPathString": ""
+        }
+      },
+      "KingOfAuction": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_UI_GYJ.ST_UI_GYJ",
+          "SubPathString": ""
+        }
+      },
+      "WuChao": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/Dialogue/ST_Miandialogue_Wuchao.ST_Miandialogue_Wuchao",
+          "SubPathString": ""
+        }
+      },
+      "SurvivalTalent": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_SurvivalTalent.ST_SurvivalTalent",
+          "SubPathString": ""
+        }
+      },
+      "SurvivalTalentSurvivalAttribute": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_SurvivalAttribute.ST_SurvivalAttribute",
+          "SubPathString": ""
+        }
+      },
+      "HeiYu": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/Dialogue/ST_Main_BlackBird.ST_Main_BlackBird",
+          "SubPathString": ""
+        }
+      },
+      "Volleyball": {
+        "TextTable": {
+          "AssetPathName": "/Game/Text/ST_UI_Volleyball.ST_UI_Volleyball",
+          "SubPathString": ""
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,125 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_DiceConfigTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_DiceConfigTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'HTDiceConfigRow'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Dice_Test_01": {
+        "ResultRowID": "Test1",
+        "MinRollPoint": 1,
+        "MaxRollPoint": 100,
+        "OpenTitle": {
+          "TableId": "/Game/Text/ST_Bagel.ST_Bagel",
+          "Key": "Bagel_Chat_Content1",
+          "SourceString": "<!>聊天描述1",
+          "LocalizedString": "Chat Description 1"
+        },
+        "OpenHint": {
+          "TableId": "/Game/Text/ST_Bubble_Chat.ST_Bubble_Chat",
+          "Key": "BWF_001_NPC05501_001",
+          "SourceString": "欢迎来到卜多力！章鱼烧刚出锅，快来趁热吃！",
+          "LocalizedString": "Welcome to Budoriya! Takoyaki, fresh off the pan! Get 'em while they're hot!"
+        },
+        "RollVoiceConfigs": []
+      },
+      "Dice_NPC_01": {
+        "ResultRowID": "NPC_01",
+        "MinRollPoint": 1,
+        "MaxRollPoint": 100,
+        "OpenTitle": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Dice_04",
+          "SourceString": "抉择",
+          "LocalizedString": "Choice"
+        },
+        "OpenHint": {
+          "CultureInvariantString": null
+        },
+        "RollVoiceConfigs": []
+      },
+      "Dice_NPC_02": {
+        "ResultRowID": "NPC_02",
+        "MinRollPoint": 1,
+        "MaxRollPoint": 100,
+        "OpenTitle": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Dice_04",
+          "SourceString": "抉择",
+          "LocalizedString": "Choice"
+        },
+        "OpenHint": {
+          "CultureInvariantString": null
+        },
+        "RollVoiceConfigs": []
+      },
+      "Dice_NPC_03": {
+        "ResultRowID": "NPC_03",
+        "MinRollPoint": 1,
+        "MaxRollPoint": 100,
+        "OpenTitle": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Dice_04",
+          "SourceString": "抉择",
+          "LocalizedString": "Choice"
+        },
+        "OpenHint": {
+          "CultureInvariantString": null
+        },
+        "RollVoiceConfigs": []
+      },
+      "Dice_Chest_Test": {
+        "ResultRowID": "DiceResult_Chest_Test",
+        "MinRollPoint": 1,
+        "MaxRollPoint": 100,
+        "OpenTitle": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Dice_03",
+          "SourceString": "神秘宝箱",
+          "LocalizedString": "Mysterious Chest"
+        },
+        "OpenHint": {
+          "CultureInvariantString": null
+        },
+        "RollVoiceConfigs": []
+      },
+      "Dice_Chest_Lv2": {
+        "ResultRowID": "Dice_Chest_Lv2",
+        "MinRollPoint": 1,
+        "MaxRollPoint": 100,
+        "OpenTitle": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Dice_03",
+          "SourceString": "神秘宝箱",
+          "LocalizedString": "Mysterious Chest"
+        },
+        "OpenHint": {
+          "CultureInvariantString": null
+        },
+        "RollVoiceConfigs": []
+      },
+      "Dice_Chest_Lv3": {
+        "ResultRowID": "Dice_Chest_Lv3",
+        "MinRollPoint": 1,
+        "MaxRollPoint": 100,
+        "OpenTitle": {
+          "TableId": "/Game/Text/UI/ST_UI_W.ST_UI_W",
+          "Key": "FT_Dice_03",
+          "SourceString": "神秘宝箱",
+          "LocalizedString": "Mysterious Chest"
+        },
+        "OpenHint": {
+          "CultureInvariantString": null
+        },
+        "RollVoiceConfigs": []
+      }
+    }
+  }
+]

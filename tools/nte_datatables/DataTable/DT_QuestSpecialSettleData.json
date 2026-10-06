@@ -1,0 +1,41 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_QuestSpecialSettleData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_QuestSpecialSettleData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'SpecialQuestSettleData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "q110001_0": {
+        "QuestId": "q110001_0",
+        "QuestIcon": {
+          "AssetPathName": "",
+          "SubPathString": ""
+        },
+        "bHasExtraDesc": true,
+        "ExQuestDesc": {
+          "CultureInvariantString": null
+        },
+        "MiniMapFixIconName": "None"
+      },
+      "q110103": {
+        "QuestId": "q110103",
+        "QuestIcon": {
+          "AssetPathName": "/Game/Environment/Building/Interior/Antiquestore/Build_Yiboen/Textures/01.01",
+          "SubPathString": ""
+        },
+        "bHasExtraDesc": true,
+        "ExQuestDesc": {
+          "CultureInvariantString": null
+        },
+        "MiniMapFixIconName": "Test2"
+      }
+    }
+  }
+]

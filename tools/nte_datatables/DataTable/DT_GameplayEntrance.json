@@ -1,0 +1,633 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_GameplayEntrance",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_GameplayEntrance",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'GamePlayEntranceData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "Peekaboo": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_WorldAnomaly_Peekaboo.W_Unload_WorldAnomaly_Peekaboo",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "Anomaly_Peekaboo_Entry",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Anomaly_Peekaboo_Outro",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_Peekaboo",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "WorldBoss_Boss13": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_Boss_013_WorldBoss_Battle.W_Unload_Boss_013_WorldBoss_Battle",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "TeleportWithCar",
+        "RelateAdvVisionID": "AdvVision_MotoBoss_01",
+        "ReloadTeleportID": "MotoBoss_End",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_MotoBoss_01",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "ColorsWearOff": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_WorldAnomaly_ColorsWearOff.W_Unload_WorldAnomaly_ColorsWearOff",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "Anomaly_CWO",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Anomaly_CWO_Out",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_ColorsWearOff",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "Projector_Time_01": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_WorldAnomaly_Projector_Time_01_Gameplay.W_Unload_WorldAnomaly_Projector_Time_01_Gameplay",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "Projector_Time_01_Entrance",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Projector_Time_01_ResetLoc",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_Projector_Time_01",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "Abyss_Entrance": {
+        "DataLayerAssets": [],
+        "EntryTeleportID": "Abyss_Entrance",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Abyss_ResetLoc",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [],
+        "bCanLottery": false
+      },
+      "MagicBox_Tower_01": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_WorldAnomaly_MagicBox_Tower_01_Gameplay.W_Unload_WorldAnomaly_MagicBox_Tower_01_Gameplay",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "MagicBox_Tower_01_ResetLoc",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_MagicBox_Tower_01",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "MagicBox_Cube_01": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_WorldAnomaly_MagicBox_Cube_01_Gameplay.W_Unload_WorldAnomaly_MagicBox_Cube_01_Gameplay",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "MagicBox_Cube_01_ResetLoc",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_MagicBox_Cube_01",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "ArmourBase": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_ArmourBase01.W_Unload_ArmourBase01",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "ArmourBase",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "ReloadArmourBase",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          null
+        ],
+        "bCanLottery": false
+      },
+      "SchoolMyth_Ambient": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/SchoolMyth/W_Unload_WorldAnomaly_SMAmbient.W_Unload_WorldAnomaly_SMAmbient",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "YaHahaID": "SchoolMyth_AmbientActive",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "SchoolMyth_Final": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/SchoolMyth/W_Unload_WorldAnomaly_SMFinal.W_Unload_WorldAnomaly_SMFinal",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "YaHahaID": "SchoolMyth_FinalActive",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "SchoolMyth_GuessCup": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/SchoolMyth/W_Unload_WorldAnomaly_SMGuessCup.W_Unload_WorldAnomaly_SMGuessCup",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "YaHahaID": "SchoolMyth_GuessCupActive",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "SchoolMyth_LoopClass": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/SchoolMyth/W_Unload_WorldAnomaly_SMLoopClass.W_Unload_WorldAnomaly_SMLoopClass",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "YaHahaID": "SchoolMyth_LoopClassActive",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "SchoolMyth_MagicDoll": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/SchoolMyth/W_Unload_WorldAnomaly_SMMagicDoll.W_Unload_WorldAnomaly_SMMagicDoll",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "YaHahaID": "SchoolMyth_MagicDollActive",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "SchoolMyth_MusicClass": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/SchoolMyth/W_Unload_WorldAnomaly_SMMusicClass.W_Unload_WorldAnomaly_SMMusicClass",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "YaHahaID": "SchoolMyth_MusicClassActive",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "SchoolMyth_RaceMan": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/SchoolMyth/W_Unload_WorldAnomaly_SMRaceMan.W_Unload_WorldAnomaly_SMRaceMan",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "YaHahaID": "SchoolMyth_RaceManActive",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "SchoolMyth_RunningMan": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/SchoolMyth/W_Unload_WorldAnomaly_SMRunningMan.W_Unload_WorldAnomaly_SMRunningMan",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "YaHahaID": "SchoolMyth_RunningManActive",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "SchoolMyth_ShyGuy": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/SchoolMyth/W_Unload_WorldAnomaly_SMShyGuy.W_Unload_WorldAnomaly_SMShyGuy",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "YaHahaID": "SchoolMyth_ShyguyActive",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "WorldBoss_Boss09": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_Boss_09_Battle.W_Unload_Boss_09_Battle",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "WorldBoss_09_Entrance",
+        "RelateAdvVisionID": "AdvVision_BlackBook",
+        "ReloadTeleportID": "WorldBoss_09_Exit",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [],
+        "bCanLottery": false
+      },
+      "BuildingDrawing_01": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/WorldAnomaly/BuildingDrawing/W_Unload_WorldAnomaly_BuildingDrawing_01_Level.W_Unload_WorldAnomaly_BuildingDrawing_01_Level",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "BuildingDrawing_01_Entrance",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "BuildingDrawing_01_ResetLoc",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [],
+        "bCanLottery": false
+      },
+      "WorldBoss_Boss19": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_Boss_019_WorldBoss_Battle.W_Unload_Boss_019_WorldBoss_Battle",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "Boss019_IntoBattle",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "WorldBoss_19_Exit",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_OceanChase",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "WorldBoss_Boss33": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/DL_NestBird.DL_NestBird",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "WorldBoss_33_Entrance",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "WorldBoss_33_Exit",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [],
+        "bCanLottery": false
+      },
+      "WorldBoss_Boss08": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/DL_Theater.DL_Theater",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "WorldBoss_08_Entrance",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "WorldBoss_08_Exit",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [],
+        "bCanLottery": false
+      },
+      "ColorsMerge": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_WorldAnomaly_ColorsMerge.W_Unload_WorldAnomaly_ColorsMerge",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "Anomaly_ColorsMerge",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Anomaly_ColorsMerge_Out",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_ColorsMerge",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "NiKanDao": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/WorldAnomaly/Parallax/W_Unload_WorldAnomaly_ParallaxPuzzle_01.W_Unload_WorldAnomaly_ParallaxPuzzle_01",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "ParallaxPuzzle_Portal_Out",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_NiKanDao",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "ElevatorAnomaly_01": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_WorldAnomaly_ElevatorAnomaly_01.W_Unload_WorldAnomaly_ElevatorAnomaly_01",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "ElevatorAnomaly_01_Out",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_Elevator_01",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "Anomaly_Door": {
+        "DataLayerAssets": [],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Anomaly_TheDoorProtection",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [],
+        "bCanLottery": false
+      },
+      "OceanChase": {
+        "DataLayerAssets": [],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Boss019_Exit",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [],
+        "bCanLottery": false
+      },
+      "WorldBoss_Boss15": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_WorldAnomaly_Boombox.W_Unload_WorldAnomaly_Boombox",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "None",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_BoomBox",
+            "bNeedComplete": true
+          }
+        ],
+        "bCanLottery": false
+      },
+      "Anomaly_CamSouvenir": {
+        "DataLayerAssets": [],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Anomaly_CamSouvenir",
+        "bOnlyHybridMode": false,
+        "ActiveCondition": [],
+        "bCanLottery": false
+      },
+      "JumpJumpFun_01": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps_4N/Maps/DataLayer/D_JumpJumpFun_01.D_JumpJumpFun_01",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "FT_JumpJumpFun_01",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "FT_JumpJumpFun_01_Reset",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [],
+        "bCanLottery": false
+      },
+      "Animaly_RedFlower": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/W_Unload_WorldAnomaly_RedFlowers_DLC.W_Unload_WorldAnomaly_RedFlowers_DLC",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Anomaly_RedFlower_Reload",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_RedFlower",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "ShadowChase": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/W_Unload_WorldAnomaly_ShadowChase.W_Unload_WorldAnomaly_ShadowChase",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Anomaly_ShadowChase_Protect",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_ShadowChase",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "Vision_Dancer_01": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/WorldAnomaly/Dancer/W_Unload_WorldAnomaly_Dancer.W_Unload_WorldAnomaly_Dancer",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Vision_Dancer_Reload",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_Dancer_01",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "Vision_Mirror": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/W_Unload_WorldAnomaly_Mirror.W_Unload_WorldAnomaly_Mirror",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Vision_Mirror_Reload",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_Mirror",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "PillowDreams": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/WorldAnomaly/Pillow/W_Unload_WorldAnomaly_Pillow_FirstScene.W_Unload_WorldAnomaly_Pillow_FirstScene",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "Anomaly_PillowDreams_Entry",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Anomaly_PillowDreams_Exit",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_PillowDreams",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      },
+      "BusStop": {
+        "DataLayerAssets": [
+          {
+            "AssetPathName": "/Game/Maps/Map_bigworld/DataLayer/WorldDataLayer/UnloadDataLayer/WorldAnomaly/BusStop/W_Unload_WorldAnomaly_BusStop_StopDLC.W_Unload_WorldAnomaly_BusStop_StopDLC",
+            "SubPathString": ""
+          }
+        ],
+        "EntryTeleportID": "None",
+        "RelateAdvVisionID": "None",
+        "ReloadTeleportID": "Anomaly_BusStop_ReloadPoint",
+        "bOnlyHybridMode": true,
+        "ActiveCondition": [
+          {
+            "VisionID": "Vision_BusStop",
+            "bNeedComplete": false
+          }
+        ],
+        "bCanLottery": false
+      }
+    }
+  }
+]

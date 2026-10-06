@@ -1,0 +1,7 @@
+infer.yolopx.p50=9.890
+infer.m9.p50=1.377
+infer.assist.p50=1.384
+infer.yolo26s.p50=5.076
+opticalflow.p50=1.792
+tick.loop.p50=1.818
+tick_hz=24.3

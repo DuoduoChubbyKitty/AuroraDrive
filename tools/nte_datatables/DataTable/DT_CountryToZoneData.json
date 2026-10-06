@@ -1,0 +1,633 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_CountryToZoneData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_CountryToZoneData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'CountryToZoneDataTable'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "AF": {
+        "CountryName": "阿富汗(AFGHANISTAN)",
+        "ZoneID": "SE"
+      },
+      "AU": {
+        "CountryName": "澳大利亚(AUSTRALIA)",
+        "ZoneID": "SE"
+      },
+      "BD": {
+        "CountryName": "孟加拉(BANGLADESH)",
+        "ZoneID": "SE"
+      },
+      "BN": {
+        "CountryName": "文莱(BRUNEI DARUSSALAM)",
+        "ZoneID": "SE"
+      },
+      "CN": {
+        "CountryName": "中国(CHINA)",
+        "ZoneID": "AS"
+      },
+      "FJ": {
+        "CountryName": "斐济(FIJI)",
+        "ZoneID": "SE"
+      },
+      "HK": {
+        "CountryName": "香港特别行政区(HONG KONG)",
+        "ZoneID": "AS"
+      },
+      "ID": {
+        "CountryName": "印度尼西亚(INDONESIA)",
+        "ZoneID": "SE"
+      },
+      "IN": {
+        "CountryName": "印度(INDIA)",
+        "ZoneID": "SE"
+      },
+      "JP": {
+        "CountryName": "日本(JAPAN)",
+        "ZoneID": "AS"
+      },
+      "KH": {
+        "CountryName": "柬埔寨(KAMPUCHEA(CAMBODIA))",
+        "ZoneID": "SE"
+      },
+      "KP": {
+        "CountryName": "北朝鲜(KOREA,DEM.PEOPLE’S)",
+        "ZoneID": "AS"
+      },
+      "KR": {
+        "CountryName": "韩国(REPUBLIC OF KOREA)",
+        "ZoneID": "AS"
+      },
+      "LA": {
+        "CountryName": "老挝(LAOS)",
+        "ZoneID": "SE"
+      },
+      "MM": {
+        "CountryName": "缅甸(BURMA(MYANMAR))",
+        "ZoneID": "SE"
+      },
+      "MN": {
+        "CountryName": "蒙古(MONGOLIA)",
+        "ZoneID": "AS"
+      },
+      "MO": {
+        "CountryName": "澳门地区(MACAU)",
+        "ZoneID": "AS"
+      },
+      "MY": {
+        "CountryName": "马来西亚(MALAYSIA)",
+        "ZoneID": "SE"
+      },
+      "NP": {
+        "CountryName": "尼泊尔(NEPAL)",
+        "ZoneID": "SE"
+      },
+      "NZ": {
+        "CountryName": "新西兰(NEW ZEALAND)",
+        "ZoneID": "SE"
+      },
+      "PH": {
+        "CountryName": "菲律宾(PHILIPPINES)",
+        "ZoneID": "SE"
+      },
+      "PK": {
+        "CountryName": "巴基斯坦(PAKISTAN)",
+        "ZoneID": "SE"
+      },
+      "SG": {
+        "CountryName": "新加坡(SINGAPORE)",
+        "ZoneID": "SE"
+      },
+      "TH": {
+        "CountryName": "泰国(THAILAND)",
+        "ZoneID": "SE"
+      },
+      "TW": {
+        "CountryName": "台湾省(TAIWAN)",
+        "ZoneID": "AS"
+      },
+      "VN": {
+        "CountryName": "越南(VIET NAM)",
+        "ZoneID": "SE"
+      },
+      "KG": {
+        "CountryName": "吉尔吉斯坦(KYRGYZSTAN)",
+        "ZoneID": "AS"
+      },
+      "KZ": {
+        "CountryName": "哈萨克(KAZAKHSTAN)",
+        "ZoneID": "AS"
+      },
+      "LK": {
+        "CountryName": "斯里兰卡(SRI LANKA)",
+        "ZoneID": "SE"
+      },
+      "PG": {
+        "CountryName": "巴布亚新几内亚(PAPUA NEW GUINEA)",
+        "ZoneID": "SE"
+      },
+      "TJ": {
+        "CountryName": "塔吉克斯坦(TAJIKISTAN)",
+        "ZoneID": "AS"
+      },
+      "TM": {
+        "CountryName": "土库曼(TURKMENISTAN)",
+        "ZoneID": "AS"
+      },
+      "UZ": {
+        "CountryName": "乌兹别克(UZBEKISTAN)",
+        "ZoneID": "AS"
+      },
+      "BH": {
+        "CountryName": "巴林(BAHREIN)",
+        "ZoneID": "EU"
+      },
+      "AO": {
+        "CountryName": "安哥拉(ANGOLA)",
+        "ZoneID": "EU"
+      },
+      "AE": {
+        "CountryName": "阿联酋(UNITED EMIRATES)",
+        "ZoneID": "EU"
+      },
+      "AL": {
+        "CountryName": "阿尔巴尼亚(ALBANIA)",
+        "ZoneID": "EU"
+      },
+      "AM": {
+        "CountryName": "亚美尼亚(ARMENIA)",
+        "ZoneID": "EU"
+      },
+      "AT": {
+        "CountryName": "奥地利(AUSTRIA)",
+        "ZoneID": "EU"
+      },
+      "AZ": {
+        "CountryName": "阿塞拜疆(AZERBAIJAN(REPUBLIC))",
+        "ZoneID": "EU"
+      },
+      "BE": {
+        "CountryName": "比利时(BELGIUM)",
+        "ZoneID": "EU"
+      },
+      "BF": {
+        "CountryName": "布基纳法索(BURKINA FASO)",
+        "ZoneID": "EU"
+      },
+      "BG": {
+        "CountryName": "保加利亚(BULGARIA)",
+        "ZoneID": "EU"
+      },
+      "BI": {
+        "CountryName": "布隆迪(BURUNDI)",
+        "ZoneID": "EU"
+      },
+      "BJ": {
+        "CountryName": "贝宁(BENIN)",
+        "ZoneID": "EU"
+      },
+      "BL": {
+        "CountryName": "巴勒斯坦(PALESTINE)",
+        "ZoneID": "EU"
+      },
+      "BW": {
+        "CountryName": "博茨瓦纳(BOTSWANA)",
+        "ZoneID": "EU"
+      },
+      "BY": {
+        "CountryName": "白俄罗斯(BYELORUSSIA)",
+        "ZoneID": "EU"
+      },
+      "CF": {
+        "CountryName": "中非(CENTRAL AFRICA)",
+        "ZoneID": "EU"
+      },
+      "CG": {
+        "CountryName": "刚果(CONGO)",
+        "ZoneID": "EU"
+      },
+      "CH": {
+        "CountryName": "瑞士(SWITZERLAND)",
+        "ZoneID": "EU"
+      },
+      "CM": {
+        "CountryName": "喀麦隆(CAMEROON)",
+        "ZoneID": "EU"
+      },
+      "CS": {
+        "CountryName": "捷克(CZECH REPUBIC)",
+        "ZoneID": "EU"
+      },
+      "CY": {
+        "CountryName": "塞浦路斯(CYPRUS)",
+        "ZoneID": "EU"
+      },
+      "DE": {
+        "CountryName": "德国(GERMANY)",
+        "ZoneID": "EU"
+      },
+      "DK": {
+        "CountryName": "丹麦(DENMARK)",
+        "ZoneID": "EU"
+      },
+      "DZ": {
+        "CountryName": "阿尔及利亚(ALGERIA)",
+        "ZoneID": "EU"
+      },
+      "EE": {
+        "CountryName": "爱沙尼亚(ESTONIA)",
+        "ZoneID": "EU"
+      },
+      "EG": {
+        "CountryName": "埃及(EGYPT)",
+        "ZoneID": "EU"
+      },
+      "ES": {
+        "CountryName": "西班牙(SPAIN)",
+        "ZoneID": "EU"
+      },
+      "ET": {
+        "CountryName": "埃塞俄比亚(ETHIOPIA)",
+        "ZoneID": "EU"
+      },
+      "FI": {
+        "CountryName": "芬兰(FINLAND)",
+        "ZoneID": "EU"
+      },
+      "FR": {
+        "CountryName": "法国(FRANCE)",
+        "ZoneID": "EU"
+      },
+      "GA": {
+        "CountryName": "加蓬(GABON)",
+        "ZoneID": "EU"
+      },
+      "GB": {
+        "CountryName": "英国(UNITED KINGDOM)",
+        "ZoneID": "EU"
+      },
+      "GE": {
+        "CountryName": "格鲁吉亚(GEORGIA)",
+        "ZoneID": "EU"
+      },
+      "GH": {
+        "CountryName": "加纳(GHANA)",
+        "ZoneID": "EU"
+      },
+      "GN": {
+        "CountryName": "几内亚(GUINEA)",
+        "ZoneID": "EU"
+      },
+      "GR": {
+        "CountryName": "希腊(GREECE)",
+        "ZoneID": "EU"
+      },
+      "HU": {
+        "CountryName": "匈牙利(HUNGARY)",
+        "ZoneID": "EU"
+      },
+      "IE": {
+        "CountryName": "爱尔兰(IRELAND)",
+        "ZoneID": "EU"
+      },
+      "IL": {
+        "CountryName": "以色列(ISRAEL)",
+        "ZoneID": "EU"
+      },
+      "IQ": {
+        "CountryName": "伊拉克(IRAQ)",
+        "ZoneID": "EU"
+      },
+      "IR": {
+        "CountryName": "伊朗(IRAN)",
+        "ZoneID": "EU"
+      },
+      "IS": {
+        "CountryName": "冰岛(ICELAND)",
+        "ZoneID": "EU"
+      },
+      "IT": {
+        "CountryName": "意大利(ITALY)",
+        "ZoneID": "EU"
+      },
+      "JO": {
+        "CountryName": "约旦(JORDAN)",
+        "ZoneID": "EU"
+      },
+      "KT": {
+        "CountryName": "科特迪瓦共和国(COTE O’IVOIRE)",
+        "ZoneID": "EU"
+      },
+      "KW": {
+        "CountryName": "科威特(KUWATI)",
+        "ZoneID": "EU"
+      },
+      "LB": {
+        "CountryName": "黎巴嫩(LEBANON)",
+        "ZoneID": "EU"
+      },
+      "LI": {
+        "CountryName": "列支敦士登(LIECHTENSTEIN)",
+        "ZoneID": "EU"
+      },
+      "LR": {
+        "CountryName": "利比里亚(LIBERIA)",
+        "ZoneID": "EU"
+      },
+      "LT": {
+        "CountryName": "立陶宛(LITHUANIA)",
+        "ZoneID": "EU"
+      },
+      "LU": {
+        "CountryName": "卢森堡(LUXEMBOURG)",
+        "ZoneID": "EU"
+      },
+      "LV": {
+        "CountryName": "拉脱维亚(LATVIA)",
+        "ZoneID": "EU"
+      },
+      "LY": {
+        "CountryName": "利比亚(LIBYAN)",
+        "ZoneID": "EU"
+      },
+      "MA": {
+        "CountryName": "摩洛哥(MOROCCO)",
+        "ZoneID": "EU"
+      },
+      "MC": {
+        "CountryName": "摩纳哥(MONACO)",
+        "ZoneID": "EU"
+      },
+      "MD": {
+        "CountryName": "摩尔多瓦(MOLDOVA,REPUBLIC OF)",
+        "ZoneID": "EU"
+      },
+      "MG": {
+        "CountryName": "马达加斯加(MADAGASCAR)",
+        "ZoneID": "EU"
+      },
+      "ML": {
+        "CountryName": "马里(MALI)",
+        "ZoneID": "EU"
+      },
+      "MT": {
+        "CountryName": "马耳他(MALTA)",
+        "ZoneID": "EU"
+      },
+      "MU": {
+        "CountryName": "毛里求斯(MAURITIUS)",
+        "ZoneID": "EU"
+      },
+      "MW": {
+        "CountryName": "马拉维(MALAWI)",
+        "ZoneID": "EU"
+      },
+      "MZ": {
+        "CountryName": "莫桑比克(MOZAMBIQUE)",
+        "ZoneID": "EU"
+      },
+      "NA": {
+        "CountryName": "纳米比亚(NAMIBIA)",
+        "ZoneID": "EU"
+      },
+      "NE": {
+        "CountryName": "尼日尔(NIGER)",
+        "ZoneID": "EU"
+      },
+      "NG": {
+        "CountryName": "尼日利亚(NIGERIA)",
+        "ZoneID": "EU"
+      },
+      "NL": {
+        "CountryName": "荷兰(NETHERLANDS)",
+        "ZoneID": "EU"
+      },
+      "NO": {
+        "CountryName": "挪威(NORWAY)",
+        "ZoneID": "EU"
+      },
+      "OM": {
+        "CountryName": "阿曼(OMAN)",
+        "ZoneID": "EU"
+      },
+      "PL": {
+        "CountryName": "波兰(POLAND)",
+        "ZoneID": "EU"
+      },
+      "PT": {
+        "CountryName": "葡萄牙(PORTUGAL)",
+        "ZoneID": "EU"
+      },
+      "QA": {
+        "CountryName": "卡塔尔(QATAR)",
+        "ZoneID": "EU"
+      },
+      "RO": {
+        "CountryName": "罗马尼亚(ROMANIA)",
+        "ZoneID": "EU"
+      },
+      "RU": {
+        "CountryName": "俄罗斯(RUSSIAN FEDERATION)",
+        "ZoneID": "EU"
+      },
+      "SA": {
+        "CountryName": "沙特阿拉伯(SAUDI ARABIA)",
+        "ZoneID": "EU"
+      },
+      "SC": {
+        "CountryName": "塞舌尔(SEYCHELLES)",
+        "ZoneID": "EU"
+      },
+      "SD": {
+        "CountryName": "苏丹(SUDAN)",
+        "ZoneID": "EU"
+      },
+      "SE": {
+        "CountryName": "瑞典(SWEDEN)",
+        "ZoneID": "EU"
+      },
+      "SI": {
+        "CountryName": "斯洛文尼亚(SLOVENIA)",
+        "ZoneID": "EU"
+      },
+      "SK": {
+        "CountryName": "斯洛伐克(SLOVAKIA)",
+        "ZoneID": "EU"
+      },
+      "SM": {
+        "CountryName": "圣马力诺(SAN MARINO)",
+        "ZoneID": "EU"
+      },
+      "SN": {
+        "CountryName": "塞内加尔(SENEGAL)",
+        "ZoneID": "EU"
+      },
+      "SO": {
+        "CountryName": "索马里(SOMALIA)",
+        "ZoneID": "EU"
+      },
+      "SY": {
+        "CountryName": "叙利亚(SYRIA)",
+        "ZoneID": "EU"
+      },
+      "SZ": {
+        "CountryName": "斯威士兰(SWAZILAND)",
+        "ZoneID": "EU"
+      },
+      "TD": {
+        "CountryName": "乍得(CHAD)",
+        "ZoneID": "EU"
+      },
+      "TG": {
+        "CountryName": "多哥(TOGO)",
+        "ZoneID": "EU"
+      },
+      "TN": {
+        "CountryName": "突尼斯(TUNISIA)",
+        "ZoneID": "EU"
+      },
+      "TR": {
+        "CountryName": "土耳其(TURKEY)",
+        "ZoneID": "EU"
+      },
+      "TZ": {
+        "CountryName": "坦桑尼亚(TANZANIA)",
+        "ZoneID": "EU"
+      },
+      "UA": {
+        "CountryName": "乌克兰(UKRAINE)",
+        "ZoneID": "EU"
+      },
+      "UG": {
+        "CountryName": "乌干达(UGANDA)",
+        "ZoneID": "EU"
+      },
+      "YE": {
+        "CountryName": "也门(YEMEN)",
+        "ZoneID": "EU"
+      },
+      "YU": {
+        "CountryName": "南斯拉夫联盟(YUGOSLAVIA)",
+        "ZoneID": "EU"
+      },
+      "ZA": {
+        "CountryName": "南非(SOUTH AFRICA)",
+        "ZoneID": "EU"
+      },
+      "ZM": {
+        "CountryName": "赞比亚(ZAMBIA)",
+        "ZoneID": "EU"
+      },
+      "ZR": {
+        "CountryName": "扎伊尔(ZAIRE)",
+        "ZoneID": "EU"
+      },
+      "ZW": {
+        "CountryName": "津巴布韦(ZIMBABWE)",
+        "ZoneID": "EU"
+      },
+      "CA": {
+        "CountryName": "加拿大(CANADA)",
+        "ZoneID": "NA_SA"
+      },
+      "CR": {
+        "CountryName": "哥斯达黎加(COSTA RICA)",
+        "ZoneID": "NA_SA"
+      },
+      "CU": {
+        "CountryName": "古巴(CUBA)",
+        "ZoneID": "NA_SA"
+      },
+      "DO": {
+        "CountryName": "多米尼加共和国(DOMINICAN REPUBLIC)",
+        "ZoneID": "NA_SA"
+      },
+      "HN": {
+        "CountryName": "洪都拉斯(HONDURAS)",
+        "ZoneID": "NA_SA"
+      },
+      "JM": {
+        "CountryName": "牙买加(JAMAICA)",
+        "ZoneID": "NA_SA"
+      },
+      "LC": {
+        "CountryName": "圣卢西亚(SAINT LUEIA)",
+        "ZoneID": "NA_SA"
+      },
+      "MX": {
+        "CountryName": "墨西哥(MEXICO)",
+        "ZoneID": "NA_SA"
+      },
+      "US": {
+        "CountryName": "美国(UNITED STATES)",
+        "ZoneID": "NA_SA"
+      },
+      "AR": {
+        "CountryName": "阿根廷(ARGENTINA)",
+        "ZoneID": "NA_SA"
+      },
+      "BO": {
+        "CountryName": "玻利维亚(BOLIVIA)",
+        "ZoneID": "NA_SA"
+      },
+      "BR": {
+        "CountryName": "巴西(BRAZIL)",
+        "ZoneID": "NA_SA"
+      },
+      "CL": {
+        "CountryName": "智利(CHILE)",
+        "ZoneID": "NA_SA"
+      },
+      "CO": {
+        "CountryName": "哥伦比亚(COLOMBIA)",
+        "ZoneID": "NA_SA"
+      },
+      "EC": {
+        "CountryName": "厄瓜多尔(ECUADOR)",
+        "ZoneID": "NA_SA"
+      },
+      "GT": {
+        "CountryName": "危地马拉(GUATEMALA)",
+        "ZoneID": "NA_SA"
+      },
+      "NI": {
+        "CountryName": "尼加拉瓜(NICARAGUA)",
+        "ZoneID": "NA_SA"
+      },
+      "PA": {
+        "CountryName": "巴拿马(PANAMA)",
+        "ZoneID": "NA_SA"
+      },
+      "PE": {
+        "CountryName": "秘鲁(PERU)",
+        "ZoneID": "NA_SA"
+      },
+      "PY": {
+        "CountryName": "巴拉圭(PARAGUAY)",
+        "ZoneID": "NA_SA"
+      },
+      "UY": {
+        "CountryName": "乌拉圭(URUGUAY)",
+        "ZoneID": "NA_SA"
+      },
+      "VE": {
+        "CountryName": "委内瑞拉(VENEZUELA)",
+        "ZoneID": "NA_SA"
+      },
+      "GD": {
+        "CountryName": "格林纳达(GRENADA)",
+        "ZoneID": "NA_SA"
+      },
+      "VC": {
+        "CountryName": "圣文森特岛(SAINT VINCENT)",
+        "ZoneID": "NA_SA"
+      }
+    }
+  }
+]

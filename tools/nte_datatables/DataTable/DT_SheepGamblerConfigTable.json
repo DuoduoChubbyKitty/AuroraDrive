@@ -1,0 +1,80 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_SheepGamblerConfigTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_SheepGamblerConfigTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'HTSheepGamblerConfigRow'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "SheepGambler_001_1": {
+        "Playthrough": 0,
+        "CostItemID": "FTGoldCoin",
+        "CostAmount": 6000,
+        "BaseNumber": 51,
+        "BaseDropID": "drop_SheepGambler_001_Good",
+        "LuckyNumber": 88,
+        "LuckyDropID": "drop_SheepGambler_001_Lucky",
+        "SuccessText": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "FT_NPC_LuckySheep_Win",
+          "SourceString": "哦哦，运气不错！看起来今天会有好事发生！",
+          "LocalizedString": "Ooh, luck is on your side! Seems like something good is going to happen today!"
+        },
+        "FailText": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "FT_NPC_LuckySheep_Lose",
+          "SourceString": "哎呀，真遗憾……运气好像没有站在您这边。",
+          "LocalizedString": "Oh dear, what a pity… Seems luck wasn't on your side this time."
+        }
+      },
+      "SheepGambler_001_2": {
+        "Playthrough": 0,
+        "CostItemID": "FTGoldCoin",
+        "CostAmount": 16000,
+        "BaseNumber": 51,
+        "BaseDropID": "drop_SheepGambler_002_Good",
+        "LuckyNumber": 88,
+        "LuckyDropID": "drop_SheepGambler_002_Lucky",
+        "SuccessText": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "FT_NPC_LuckySheep_Win",
+          "SourceString": "哦哦，运气不错！看起来今天会有好事发生！",
+          "LocalizedString": "Ooh, luck is on your side! Seems like something good is going to happen today!"
+        },
+        "FailText": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "FT_NPC_LuckySheep_Lose",
+          "SourceString": "哎呀，真遗憾……运气好像没有站在您这边。",
+          "LocalizedString": "Oh dear, what a pity… Seems luck wasn't on your side this time."
+        }
+      },
+      "SheepGambler_001_3": {
+        "Playthrough": 0,
+        "CostItemID": "FTGoldCoin",
+        "CostAmount": 30000,
+        "BaseNumber": 51,
+        "BaseDropID": "drop_SheepGambler_003_Good",
+        "LuckyNumber": 88,
+        "LuckyDropID": "drop_SheepGambler_003_Lucky",
+        "SuccessText": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "FT_NPC_LuckySheep_Win",
+          "SourceString": "哦哦，运气不错！看起来今天会有好事发生！",
+          "LocalizedString": "Ooh, luck is on your side! Seems like something good is going to happen today!"
+        },
+        "FailText": {
+          "TableId": "/Game/Maps_4N/DataTable/ST_FinalTower_UI.ST_FinalTower_UI",
+          "Key": "FT_NPC_LuckySheep_Lose",
+          "SourceString": "哎呀，真遗憾……运气好像没有站在您这边。",
+          "LocalizedString": "Oh dear, what a pity… Seems luck wasn't on your side this time."
+        }
+      }
+    }
+  }
+]

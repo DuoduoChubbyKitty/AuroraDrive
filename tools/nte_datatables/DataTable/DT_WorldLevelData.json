@@ -1,0 +1,16 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_WorldLevelData",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_WorldLevelData",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'WorldLevelData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {}
+  }
+]

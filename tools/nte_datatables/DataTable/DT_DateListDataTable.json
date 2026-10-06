@@ -1,0 +1,303 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_DateListDataTable",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_DateListDataTable",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'DateListData'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "D001": {
+        "DateIDs": [
+          "D0011019",
+          "D0011010",
+          "D0011055",
+          "D0011039",
+          "D0011073",
+          "D0011052",
+          "D0011004",
+          "D0011071",
+          "D0011076",
+          "D0011075",
+          "D0011072"
+        ],
+        "WorldLocation": {
+          "X": -6120.0,
+          "Y": 103861.0,
+          "Z": 9039.768
+        },
+        "FuncUnlockID": "None"
+      },
+      "D002": {
+        "DateIDs": [
+          "D0021019",
+          "D0021010",
+          "D0021055",
+          "D0021039",
+          "D0021073",
+          "D0021052",
+          "D0021004",
+          "D0021071",
+          "D0021076",
+          "D0021075",
+          "D0021072",
+          "D0021042"
+        ],
+        "WorldLocation": {
+          "X": -7162.2217,
+          "Y": 105916.914,
+          "Z": 7174.0
+        },
+        "FuncUnlockID": "None"
+      },
+      "D003": {
+        "DateIDs": [
+          "D0031019"
+        ],
+        "WorldLocation": {
+          "X": -87534.914,
+          "Y": 158682.19,
+          "Z": 3681.746
+        },
+        "FuncUnlockID": "None"
+      },
+      "D004": {
+        "DateIDs": [
+          "D0041010",
+          "D0041072"
+        ],
+        "WorldLocation": {
+          "X": -82343.0,
+          "Y": 36947.0,
+          "Z": 8243.0
+        },
+        "FuncUnlockID": "None"
+      },
+      "D005": {
+        "DateIDs": [
+          "D0051010"
+        ],
+        "WorldLocation": {
+          "X": 5115.411,
+          "Y": 1402.0986,
+          "Z": 9846.344
+        },
+        "FuncUnlockID": "None"
+      },
+      "D006": {
+        "DateIDs": [
+          "D0061052"
+        ],
+        "WorldLocation": {
+          "X": -129298.0,
+          "Y": 120952.0,
+          "Z": 7135.0
+        },
+        "FuncUnlockID": "None"
+      },
+      "D007": {
+        "DateIDs": [
+          "D0071052"
+        ],
+        "WorldLocation": {
+          "X": 53083.734,
+          "Y": 106477.195,
+          "Z": 13764.0
+        },
+        "FuncUnlockID": "None"
+      },
+      "D008": {
+        "DateIDs": [
+          "D0071052"
+        ],
+        "WorldLocation": {
+          "X": 53083.734,
+          "Y": 106477.195,
+          "Z": 13764.0
+        },
+        "FuncUnlockID": "None"
+      },
+      "D009": {
+        "DateIDs": [
+          "D0071052"
+        ],
+        "WorldLocation": {
+          "X": -69145.0,
+          "Y": 92905.0,
+          "Z": 2325.5
+        },
+        "FuncUnlockID": "None"
+      },
+      "D010": {
+        "DateIDs": [
+          "D0101004"
+        ],
+        "WorldLocation": {
+          "X": -39277.94,
+          "Y": 33945.676,
+          "Z": 7625.1763
+        },
+        "FuncUnlockID": "None"
+      },
+      "D011": {
+        "DateIDs": [
+          "D0111004"
+        ],
+        "WorldLocation": {
+          "X": -131272.38,
+          "Y": 154432.67,
+          "Z": 6746.4707
+        },
+        "FuncUnlockID": "None"
+      },
+      "D012": {
+        "DateIDs": [
+          "D0081071"
+        ],
+        "WorldLocation": {
+          "X": -33783.043,
+          "Y": 165381.5,
+          "Z": 2369.7732
+        },
+        "FuncUnlockID": "None"
+      },
+      "D013": {
+        "DateIDs": [
+          "D0091071"
+        ],
+        "WorldLocation": {
+          "X": -278967.16,
+          "Y": 336482.72,
+          "Z": 2462.8938
+        },
+        "FuncUnlockID": "None"
+      },
+      "D014": {
+        "DateIDs": [
+          "D0141032"
+        ],
+        "WorldLocation": {
+          "X": -278888.7,
+          "Y": 336465.25,
+          "Z": 2380.8936
+        },
+        "FuncUnlockID": "None"
+      },
+      "D015": {
+        "DateIDs": [
+          "D0151076"
+        ],
+        "WorldLocation": {
+          "X": -251375.66,
+          "Y": 369701.72,
+          "Z": 2343.7488
+        },
+        "FuncUnlockID": "None"
+      },
+      "D016": {
+        "DateIDs": [
+          "D0161076"
+        ],
+        "WorldLocation": {
+          "X": -149693.44,
+          "Y": 226680.33,
+          "Z": 11633.529
+        },
+        "FuncUnlockID": "None"
+      },
+      "D017": {
+        "DateIDs": [
+          "D0171075"
+        ],
+        "WorldLocation": {
+          "X": -21496.195,
+          "Y": 39957.254,
+          "Z": 7741.5
+        },
+        "FuncUnlockID": "None"
+      },
+      "D018": {
+        "DateIDs": [
+          "D0181075"
+        ],
+        "WorldLocation": {
+          "X": 26800.0,
+          "Y": 43370.0,
+          "Z": 52637.0
+        },
+        "FuncUnlockID": "None"
+      },
+      "D019": {
+        "DateIDs": [
+          "D0191036"
+        ],
+        "WorldLocation": {
+          "X": 40801.094,
+          "Y": -12926.495,
+          "Z": 8077.664
+        },
+        "FuncUnlockID": "None"
+      },
+      "D020": {
+        "DateIDs": [
+          "D0201072"
+        ],
+        "WorldLocation": {
+          "X": -258941.2,
+          "Y": 134239.0,
+          "Z": 2459.0
+        },
+        "FuncUnlockID": "None"
+      },
+      "D024": {
+        "DateIDs": [
+          "D0241042"
+        ],
+        "WorldLocation": {
+          "X": 66674.75,
+          "Y": 194064.48,
+          "Z": 3472.1023
+        },
+        "FuncUnlockID": "None"
+      },
+      "D025": {
+        "DateIDs": [
+          "D0251042"
+        ],
+        "WorldLocation": {
+          "X": 119141.5,
+          "Y": 173629.4,
+          "Z": 3811.998
+        },
+        "FuncUnlockID": "None"
+      },
+      "D026": {
+        "DateIDs": [
+          "D0261042"
+        ],
+        "WorldLocation": {
+          "X": 57966.344,
+          "Y": 171619.67,
+          "Z": 3621.367
+        },
+        "FuncUnlockID": "None"
+      },
+      "D023": {
+        "DateIDs": [
+          "D0231042"
+        ],
+        "WorldLocation": {
+          "X": -258941.2,
+          "Y": 134239.0,
+          "Z": 2459.0
+        },
+        "FuncUnlockID": "None"
+      }
+    }
+  }
+]

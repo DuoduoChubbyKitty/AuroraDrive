@@ -1,0 +1,1073 @@
+{
+ "removed_selfloop": [
+  {
+   "idx": 129,
+   "node": 86,
+   "len_m": 1.2
+  },
+  {
+   "idx": 599,
+   "node": 417,
+   "len_m": 1.2
+  },
+  {
+   "idx": 653,
+   "node": 461,
+   "len_m": 1.2
+  },
+  {
+   "idx": 685,
+   "node": 484,
+   "len_m": 1.5
+  },
+  {
+   "idx": 720,
+   "node": 514,
+   "len_m": 1.2
+  },
+  {
+   "idx": 794,
+   "node": 580,
+   "len_m": 1.2
+  },
+  {
+   "idx": 816,
+   "node": 597,
+   "len_m": 1.5
+  }
+ ],
+ "removed_short": [],
+ "adsorbed": [
+  {
+   "round": 1,
+   "node": 23,
+   "dist_m": 19.38610327012626,
+   "to_edge": 40,
+   "mode": "vertex",
+   "hub": 612
+  },
+  {
+   "round": 1,
+   "node": 26,
+   "dist_m": 0.2926742496512462,
+   "to_edge": 13,
+   "mode": "split",
+   "new_node": 613
+  },
+  {
+   "round": 1,
+   "node": 58,
+   "dist_m": 1.7289769805349338,
+   "to_edge": 86,
+   "mode": "split",
+   "new_node": 614
+  },
+  {
+   "round": 1,
+   "node": 69,
+   "dist_m": 17.08,
+   "to_edge": 97,
+   "mode": "vertex",
+   "hub": 615
+  },
+  {
+   "round": 1,
+   "node": 82,
+   "dist_m": 16.424752661760238,
+   "to_edge": 86,
+   "mode": "vertex",
+   "hub": 616
+  },
+  {
+   "round": 1,
+   "node": 97,
+   "dist_m": 11.509456981109055,
+   "to_edge": 131,
+   "mode": "vertex",
+   "hub": 617
+  },
+  {
+   "round": 1,
+   "node": 99,
+   "dist_m": 17.60566102138741,
+   "to_edge": 148,
+   "mode": "vertex",
+   "hub": 618
+  },
+  {
+   "round": 1,
+   "node": 101,
+   "dist_m": 18.441784078553788,
+   "to_edge": 149,
+   "mode": "vertex",
+   "hub": 619
+  },
+  {
+   "round": 1,
+   "node": 102,
+   "dist_m": 0.591243752027805,
+   "to_edge": 32,
+   "mode": "split",
+   "new_node": 620
+  },
+  {
+   "round": 1,
+   "node": 103,
+   "dist_m": 0.16141605320378838,
+   "to_edge": 836,
+   "mode": "split",
+   "new_node": 621
+  },
+  {
+   "round": 1,
+   "node": 140,
+   "dist_m": 10.060377726507092,
+   "to_edge": 215,
+   "mode": "vertex",
+   "hub": 622
+  },
+  {
+   "round": 1,
+   "node": 162,
+   "dist_m": 22.533728964783585,
+   "to_edge": 241,
+   "mode": "split",
+   "new_node": 623
+  },
+  {
+   "round": 1,
+   "node": 163,
+   "dist_m": 23.768704631225333,
+   "to_edge": 251,
+   "mode": "split",
+   "new_node": 624
+  },
+  {
+   "round": 1,
+   "node": 167,
+   "dist_m": 13.475047543709811,
+   "to_edge": 243,
+   "mode": "vertex",
+   "hub": 625
+  },
+  {
+   "round": 1,
+   "node": 180,
+   "dist_m": 7.3453726930633,
+   "to_edge": 250,
+   "mode": "vertex",
+   "hub": 626
+  },
+  {
+   "round": 1,
+   "node": 181,
+   "dist_m": 10.53023266599556,
+   "to_edge": 261,
+   "mode": "vertex",
+   "hub": 627
+  },
+  {
+   "round": 1,
+   "node": 192,
+   "dist_m": 16.920638650144856,
+   "to_edge": 293,
+   "mode": "split",
+   "new_node": 628
+  },
+  {
+   "round": 1,
+   "node": 193,
+   "dist_m": 8.65643981531935,
+   "to_edge": 284,
+   "mode": "split",
+   "new_node": 629
+  },
+  {
+   "round": 1,
+   "node": 209,
+   "dist_m": 17.20058205198347,
+   "to_edge": 203,
+   "mode": "split",
+   "new_node": 630
+  },
+  {
+   "round": 1,
+   "node": 218,
+   "dist_m": 11.733584277619519,
+   "to_edge": 271,
+   "mode": "vertex",
+   "hub": 631
+  },
+  {
+   "round": 1,
+   "node": 255,
+   "dist_m": 13.322601097383348,
+   "to_edge": 373,
+   "mode": "vertex",
+   "hub": 632
+  },
+  {
+   "round": 1,
+   "node": 258,
+   "dist_m": 22.463458979585898,
+   "to_edge": 342,
+   "mode": "split",
+   "new_node": 633
+  },
+  {
+   "round": 1,
+   "node": 275,
+   "dist_m": 26.657935257543883,
+   "to_edge": 355,
+   "mode": "split",
+   "new_node": 634
+  },
+  {
+   "round": 1,
+   "node": 281,
+   "dist_m": 14.841940573927655,
+   "to_edge": 394,
+   "mode": "vertex",
+   "hub": 635
+  },
+  {
+   "round": 1,
+   "node": 284,
+   "dist_m": 15.86379045990675,
+   "to_edge": 385,
+   "mode": "split",
+   "new_node": 636
+  },
+  {
+   "round": 1,
+   "node": 311,
+   "dist_m": 24.03412607253594,
+   "to_edge": 441,
+   "mode": "split",
+   "new_node": 637
+  },
+  {
+   "round": 1,
+   "node": 331,
+   "dist_m": 10.729978710262206,
+   "to_edge": 467,
+   "mode": "split",
+   "new_node": 638
+  },
+  {
+   "round": 1,
+   "node": 354,
+   "dist_m": 19.36882082110293,
+   "to_edge": 486,
+   "mode": "split",
+   "new_node": 639
+  },
+  {
+   "round": 1,
+   "node": 356,
+   "dist_m": 7.429424683426074,
+   "to_edge": 505,
+   "mode": "split",
+   "new_node": 640
+  },
+  {
+   "round": 1,
+   "node": 374,
+   "dist_m": 19.369880725248176,
+   "to_edge": 524,
+   "mode": "split",
+   "new_node": 641
+  },
+  {
+   "round": 1,
+   "node": 379,
+   "dist_m": 14.753931679386344,
+   "to_edge": 537,
+   "mode": "vertex",
+   "hub": 642
+  },
+  {
+   "round": 1,
+   "node": 391,
+   "dist_m": 15.906853868694464,
+   "to_edge": 538,
+   "mode": "vertex",
+   "hub": 643
+  },
+  {
+   "round": 1,
+   "node": 394,
+   "dist_m": 0.7017729647955354,
+   "to_edge": 875,
+   "mode": "split",
+   "new_node": 644
+  },
+  {
+   "round": 1,
+   "node": 423,
+   "dist_m": 27.305039330921915,
+   "to_edge": 424,
+   "mode": "split",
+   "new_node": 645
+  },
+  {
+   "round": 1,
+   "node": 425,
+   "dist_m": 27.61892467131912,
+   "to_edge": 606,
+   "mode": "vertex",
+   "hub": 646
+  },
+  {
+   "round": 1,
+   "node": 444,
+   "dist_m": 19.671908905848458,
+   "to_edge": 628,
+   "mode": "vertex",
+   "hub": 647
+  },
+  {
+   "round": 1,
+   "node": 449,
+   "dist_m": 13.703868347744132,
+   "to_edge": 638,
+   "mode": "split",
+   "new_node": 648
+  },
+  {
+   "round": 1,
+   "node": 482,
+   "dist_m": 25.904973191032518,
+   "to_edge": 636,
+   "mode": "split",
+   "new_node": 649
+  },
+  {
+   "round": 1,
+   "node": 503,
+   "dist_m": 17.70051411682723,
+   "to_edge": 658,
+   "mode": "vertex",
+   "hub": 650
+  },
+  {
+   "round": 1,
+   "node": 513,
+   "dist_m": 12.351558606103117,
+   "to_edge": 704,
+   "mode": "vertex",
+   "hub": 651
+  },
+  {
+   "round": 1,
+   "node": 525,
+   "dist_m": 14.460988901178231,
+   "to_edge": 596,
+   "mode": "vertex",
+   "hub": 652
+  },
+  {
+   "round": 1,
+   "node": 530,
+   "dist_m": 27.524454581335487,
+   "to_edge": 723,
+   "mode": "vertex",
+   "hub": 653
+  },
+  {
+   "round": 1,
+   "node": 534,
+   "dist_m": 15.528064914856582,
+   "to_edge": 733,
+   "mode": "vertex",
+   "hub": 654
+  },
+  {
+   "round": 1,
+   "node": 537,
+   "dist_m": 17.606052297290947,
+   "to_edge": 733,
+   "mode": "split",
+   "new_node": 655
+  },
+  {
+   "round": 1,
+   "node": 554,
+   "dist_m": 15.25,
+   "to_edge": 753,
+   "mode": "vertex",
+   "hub": 656
+  },
+  {
+   "round": 1,
+   "node": 562,
+   "dist_m": 24.69928473167582,
+   "to_edge": 768,
+   "mode": "split",
+   "new_node": 657
+  },
+  {
+   "round": 1,
+   "node": 564,
+   "dist_m": 10.996931390165168,
+   "to_edge": 768,
+   "mode": "vertex",
+   "hub": 658
+  },
+  {
+   "round": 1,
+   "node": 570,
+   "dist_m": 19.9162898151237,
+   "to_edge": 772,
+   "mode": "vertex",
+   "hub": 659
+  },
+  {
+   "round": 1,
+   "node": 572,
+   "dist_m": 11.733584277619519,
+   "to_edge": 770,
+   "mode": "vertex",
+   "hub": 660
+  },
+  {
+   "round": 1,
+   "node": 579,
+   "dist_m": 27.820280372418964,
+   "to_edge": 898,
+   "mode": "vertex",
+   "hub": 572
+  },
+  {
+   "round": 1,
+   "node": 582,
+   "dist_m": 9.596298891131665,
+   "to_edge": 786,
+   "mode": "split",
+   "new_node": 661
+  },
+  {
+   "round": 1,
+   "node": 593,
+   "dist_m": 16.104462114581782,
+   "to_edge": 804,
+   "mode": "vertex",
+   "hub": 662
+  },
+  {
+   "round": 1,
+   "node": 595,
+   "dist_m": 1.22,
+   "to_edge": 796,
+   "mode": "vertex",
+   "hub": 662
+  },
+  {
+   "round": 1,
+   "node": 596,
+   "dist_m": 9.62945959485783,
+   "to_edge": 801,
+   "mode": "split",
+   "new_node": 663
+  },
+  {
+   "round": 2,
+   "node": 612,
+   "dist_m": 0.0,
+   "to_edge": 13,
+   "mode": "vertex",
+   "hub": 612
+  },
+  {
+   "round": 2,
+   "node": 615,
+   "dist_m": 0.0,
+   "to_edge": 97,
+   "mode": "vertex",
+   "hub": 615
+  },
+  {
+   "round": 2,
+   "node": 616,
+   "dist_m": 0.0,
+   "to_edge": 86,
+   "mode": "vertex",
+   "hub": 616
+  },
+  {
+   "round": 2,
+   "node": 617,
+   "dist_m": 0.0,
+   "to_edge": 131,
+   "mode": "vertex",
+   "hub": 617
+  },
+  {
+   "round": 2,
+   "node": 618,
+   "dist_m": 0.0,
+   "to_edge": 32,
+   "mode": "vertex",
+   "hub": 618
+  },
+  {
+   "round": 2,
+   "node": 619,
+   "dist_m": 0.0,
+   "to_edge": 142,
+   "mode": "vertex",
+   "hub": 619
+  },
+  {
+   "round": 2,
+   "node": 622,
+   "dist_m": 0.0,
+   "to_edge": 206,
+   "mode": "vertex",
+   "hub": 622
+  },
+  {
+   "round": 2,
+   "node": 625,
+   "dist_m": 0.0,
+   "to_edge": 243,
+   "mode": "vertex",
+   "hub": 625
+  },
+  {
+   "round": 2,
+   "node": 626,
+   "dist_m": 0.0,
+   "to_edge": 250,
+   "mode": "vertex",
+   "hub": 626
+  },
+  {
+   "round": 2,
+   "node": 627,
+   "dist_m": 0.0,
+   "to_edge": 261,
+   "mode": "vertex",
+   "hub": 627
+  },
+  {
+   "round": 2,
+   "node": 631,
+   "dist_m": 0.0,
+   "to_edge": 271,
+   "mode": "vertex",
+   "hub": 631
+  },
+  {
+   "round": 2,
+   "node": 632,
+   "dist_m": 0.0,
+   "to_edge": 370,
+   "mode": "vertex",
+   "hub": 632
+  },
+  {
+   "round": 2,
+   "node": 635,
+   "dist_m": 0.0,
+   "to_edge": 394,
+   "mode": "vertex",
+   "hub": 635
+  },
+  {
+   "round": 2,
+   "node": 642,
+   "dist_m": 0.0,
+   "to_edge": 536,
+   "mode": "vertex",
+   "hub": 642
+  },
+  {
+   "round": 2,
+   "node": 643,
+   "dist_m": 0.0,
+   "to_edge": 546,
+   "mode": "vertex",
+   "hub": 643
+  },
+  {
+   "round": 2,
+   "node": 646,
+   "dist_m": 0.0,
+   "to_edge": 461,
+   "mode": "vertex",
+   "hub": 646
+  },
+  {
+   "round": 2,
+   "node": 647,
+   "dist_m": 0.0,
+   "to_edge": 626,
+   "mode": "vertex",
+   "hub": 647
+  },
+  {
+   "round": 2,
+   "node": 650,
+   "dist_m": 0.0,
+   "to_edge": 658,
+   "mode": "vertex",
+   "hub": 650
+  },
+  {
+   "round": 2,
+   "node": 651,
+   "dist_m": 0.0,
+   "to_edge": 704,
+   "mode": "vertex",
+   "hub": 651
+  },
+  {
+   "round": 2,
+   "node": 652,
+   "dist_m": 0.0,
+   "to_edge": 596,
+   "mode": "vertex",
+   "hub": 652
+  },
+  {
+   "round": 2,
+   "node": 653,
+   "dist_m": 0.0,
+   "to_edge": 723,
+   "mode": "vertex",
+   "hub": 653
+  },
+  {
+   "round": 2,
+   "node": 654,
+   "dist_m": 0.0,
+   "to_edge": 734,
+   "mode": "vertex",
+   "hub": 654
+  },
+  {
+   "round": 2,
+   "node": 656,
+   "dist_m": 0.0,
+   "to_edge": 753,
+   "mode": "vertex",
+   "hub": 656
+  },
+  {
+   "round": 2,
+   "node": 658,
+   "dist_m": 0.0,
+   "to_edge": 767,
+   "mode": "vertex",
+   "hub": 658
+  },
+  {
+   "round": 2,
+   "node": 659,
+   "dist_m": 0.0,
+   "to_edge": 772,
+   "mode": "vertex",
+   "hub": 659
+  },
+  {
+   "round": 2,
+   "node": 660,
+   "dist_m": 0.0,
+   "to_edge": 770,
+   "mode": "vertex",
+   "hub": 660
+  }
+ ],
+ "merged_fork": [
+  {
+   "hub": 49,
+   "leaf1": 46,
+   "leaf2": 47,
+   "dist_m": 22.371287401488544,
+   "new_len_m": 28.168320250727973
+  },
+  {
+   "hub": 135,
+   "leaf1": 129,
+   "leaf2": 144,
+   "dist_m": 19.981574012074223,
+   "new_len_m": 26.20840079752646
+  },
+  {
+   "hub": 83,
+   "leaf1": 80,
+   "leaf2": 81,
+   "dist_m": 10.996931390165168,
+   "new_len_m": 12.746146354064392
+  },
+  {
+   "hub": 160,
+   "leaf1": 159,
+   "leaf2": 161,
+   "dist_m": 18.91,
+   "new_len_m": 16.47
+  },
+  {
+   "hub": 280,
+   "leaf1": 270,
+   "leaf2": 282,
+   "dist_m": 19.64351546948763,
+   "new_len_m": 24.149408394350136
+  },
+  {
+   "hub": 366,
+   "leaf1": 360,
+   "leaf2": 369,
+   "dist_m": 11.214713549618644,
+   "new_len_m": 16.880113505532364
+  },
+  {
+   "hub": 448,
+   "leaf1": 443,
+   "leaf2": 451,
+   "dist_m": 11.573936236216268,
+   "new_len_m": 14.092145955670146
+  },
+  {
+   "hub": 474,
+   "leaf1": 468,
+   "leaf2": 479,
+   "dist_m": 22.962266874156825,
+   "new_len_m": 28.190784401838126
+  },
+  {
+   "hub": 494,
+   "leaf1": 490,
+   "leaf2": 498,
+   "dist_m": 22.668703094795696,
+   "new_len_m": 29.332943584350538
+  },
+  {
+   "hub": 506,
+   "leaf1": 507,
+   "leaf2": 510,
+   "dist_m": 11.19811144791835,
+   "new_len_m": 12.763789064487632
+  },
+  {
+   "hub": 487,
+   "leaf1": 485,
+   "leaf2": 488,
+   "dist_m": 23.091541741512195,
+   "new_len_m": 27.83364908303574
+  },
+  {
+   "hub": 516,
+   "leaf1": 515,
+   "leaf2": 519,
+   "dist_m": 18.52231626984055,
+   "new_len_m": 23.491940062336894
+  },
+  {
+   "hub": 522,
+   "leaf1": 518,
+   "leaf2": 520,
+   "dist_m": 17.090889385868717,
+   "new_len_m": 21.43097502975715
+  },
+  {
+   "hub": 573,
+   "leaf1": 574,
+   "leaf2": 575,
+   "dist_m": 12.351558606103117,
+   "new_len_m": 14.365290626254676
+  }
+ ],
+ "removed_dup": [
+  {
+   "idx": 128,
+   "a": 96,
+   "b": 86,
+   "len_m": 36.2,
+   "kept_len_m": 41.7
+  },
+  {
+   "idx": 207,
+   "a": 157,
+   "b": 139,
+   "len_m": 118.6,
+   "kept_len_m": 119.5
+  },
+  {
+   "idx": 350,
+   "a": 238,
+   "b": 241,
+   "len_m": 81.3,
+   "kept_len_m": 91.9
+  },
+  {
+   "idx": 359,
+   "a": 247,
+   "b": 244,
+   "len_m": 57.6,
+   "kept_len_m": 67.6
+  },
+  {
+   "idx": 756,
+   "a": 550,
+   "b": 549,
+   "len_m": 38.0,
+   "kept_len_m": 41.0
+  }
+ ],
+ "kept_far": [
+  {
+   "node": 62,
+   "x": 6914,
+   "y": 5410,
+   "dist_m": 35.490259227004806,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 184,
+   "x": 5624,
+   "y": 6002,
+   "dist_m": 31.133912378626622,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 187,
+   "x": 6682,
+   "y": 6055,
+   "dist_m": 37.08479841503995,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 278,
+   "x": 5394,
+   "y": 6309,
+   "dist_m": 32.283002170671466,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 323,
+   "x": 5912,
+   "y": 6659,
+   "dist_m": 40.27848060689479,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 326,
+   "x": 7340,
+   "y": 6687,
+   "dist_m": 75.84334917595079,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 336,
+   "x": 4901,
+   "y": 6776,
+   "dist_m": 70.36869306534349,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 340,
+   "x": 7083,
+   "y": 6813,
+   "dist_m": 62.91287331818466,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 368,
+   "x": 4671,
+   "y": 6923,
+   "dist_m": 30.340985481687966,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 389,
+   "x": 3801,
+   "y": 7067,
+   "dist_m": 33.594334343755044,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 400,
+   "x": 7274,
+   "y": 7087,
+   "dist_m": 85.8627818091168,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 426,
+   "x": 4987,
+   "y": 7256,
+   "dist_m": 39.59375266690415,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 459,
+   "x": 5210,
+   "y": 7364,
+   "dist_m": 33.88109354787711,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 466,
+   "x": 4034,
+   "y": 7392,
+   "dist_m": 30.131777245957462,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 480,
+   "x": 4860,
+   "y": 7448,
+   "dist_m": 70.8151939911203,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 489,
+   "x": 4546,
+   "y": 7508,
+   "dist_m": 56.743116763181064,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 491,
+   "x": 3738,
+   "y": 7511,
+   "dist_m": 33.688351102421144,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 504,
+   "x": 4505,
+   "y": 7590,
+   "dist_m": 55.94069180837863,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 505,
+   "x": 4352,
+   "y": 7594,
+   "dist_m": 40.56840199522728,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 529,
+   "x": 5062,
+   "y": 7729,
+   "dist_m": 36.09249706608426,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 552,
+   "x": 4904,
+   "y": 7917,
+   "dist_m": 39.343817811696915,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 558,
+   "x": 5083,
+   "y": 8025,
+   "dist_m": 36.10200502555234,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 561,
+   "x": 4412,
+   "y": 8089,
+   "dist_m": 50.90485634986116,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 565,
+   "x": 5330,
+   "y": 8127,
+   "dist_m": 90.13803532259377,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 583,
+   "x": 4537,
+   "y": 8285,
+   "dist_m": 42.7021785158556,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 584,
+   "x": 3966,
+   "y": 8301,
+   "dist_m": 90.47967782878096,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 598,
+   "x": 4332,
+   "y": 8609,
+   "dist_m": 83.001741022005,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 599,
+   "x": 3334,
+   "y": 8646,
+   "dist_m": 51.60542316462486,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 600,
+   "x": 3902,
+   "y": 8674,
+   "dist_m": 120.59197893453847,
+   "reason": "远端(之后的地图)"
+  },
+  {
+   "node": 601,
+   "x": 4465,
+   "y": 8679,
+   "dist_m": 57.51061231370078,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 602,
+   "x": 3198,
+   "y": 8709,
+   "dist_m": 50.915595952366736,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 604,
+   "x": 4192,
+   "y": 8899,
+   "dist_m": 67.72099009908229,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 605,
+   "x": 4088,
+   "y": 8932,
+   "dist_m": 58.56,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 606,
+   "x": 3302,
+   "y": 8939,
+   "dist_m": 93.32999999999954,
+   "reason": ">吸附阈值"
+  },
+  {
+   "node": 609,
+   "x": 6168,
+   "y": 9615,
+   "dist_m": 219.71265166120955,
+   "reason": "远端(之后的地图)"
+  },
+  {
+   "node": 611,
+   "x": 4706,
+   "y": 13053,
+   "dist_m": 2141.5698743678663,
+   "reason": "远端(之后的地图)"
+  }
+ ]
+}

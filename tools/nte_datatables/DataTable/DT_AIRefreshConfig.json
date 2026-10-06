@@ -1,0 +1,552 @@
+[
+  {
+    "Type": "DataTable",
+    "Name": "DT_AIRefreshConfig",
+    "Flags": "RF_Public | RF_Standalone | RF_Transactional | RF_WasLoaded | RF_LoadCompleted",
+    "Class": "UScriptClass'DataTable'",
+    "Package": "/Game/DataTable/DT_AIRefreshConfig",
+    "Properties": {
+      "RowStruct": {
+        "ObjectName": "Class'AIRefreshConfig'",
+        "ObjectPath": "/Script/HTGame"
+      }
+    },
+    "Rows": {
+      "NPC_S044_607": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": []
+      },
+      "Buodoli_Night": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": []
+      },
+      "Buodoli_Morning": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": []
+      },
+      "Buodoli_MidNight": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": []
+      },
+      "Buodoli_Afternoon": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": []
+      },
+      "WorkTime_State": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06002000.1"
+          }
+        ]
+      },
+      "NIghtworkTime_State": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_18002400_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_18002400.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          }
+        ]
+      },
+      "MobyDisk_Midnight": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": []
+      },
+      "Shegu_WorkTime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_DayTime_Common_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_DayTime_Common.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          }
+        ]
+      },
+      "Banjiaojie_DayTime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06002000.1"
+          }
+        ]
+      },
+      "Banjiaojie_Night": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_Night_Common_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_Night_Common.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          }
+        ]
+      },
+      "Common_weatherdefault": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          }
+        ]
+      },
+      "NPC_001_A": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06002000.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Yahaha_NPC_001_A_yahaha_step1_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Yahaha/NPC_001_A_yahaha/AIRC_Yahaha_NPC_001_A_yahaha_step1.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_NPCO_Anomaly_001_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/NPCOccupation/AIRC_NPCO_Anomaly_001.1"
+          }
+        ]
+      },
+      "NPC_001_A_night": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_20000600_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_20000600.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Yahaha_NPC_001_A_yahaha_step1_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Yahaha/NPC_001_A_yahaha/AIRC_Yahaha_NPC_001_A_yahaha_step1.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_NPCO_Anomaly_001_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/NPCOccupation/AIRC_NPCO_Anomaly_001.1"
+          }
+        ]
+      },
+      "School_MorningStudent_late": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_07300755_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_07300755.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'L110401-L110448_destroy_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/L110401-L110448_destroy.0"
+          }
+        ]
+      },
+      "School_MorningStudent": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06000800_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06000800.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'L110401-L110448_destroy_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/L110401-L110448_destroy.0"
+          }
+        ]
+      },
+      "School_Studyingstudent": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_08001500_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_08001500.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'L110401-L110448_destroy_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/L110401-L110448_destroy.0"
+          }
+        ]
+      },
+      "School_Clubstudent": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_17002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_17002000.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'L110401-L110448_destroy_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/L110401-L110448_destroy.0"
+          }
+        ]
+      },
+      "School_Lunchstudent": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_12001300_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_12001300.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'L110401-L110448_destroy_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/L110401-L110448_destroy.0"
+          }
+        ]
+      },
+      "School_Outsidestudent": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_08001500_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_08001500.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'L110401-L110448_destroy_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/L110401-L110448_destroy.0"
+          }
+        ]
+      },
+      "School_Clubstudentsunny": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_18002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_18002000.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'L110401-L110448_destroy_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/L110401-L110448_destroy.0"
+          }
+        ]
+      },
+      "WorkTime_State_alltime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06002000.1"
+          }
+        ]
+      },
+      "huikong_DayTime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06002300_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06002300.1"
+          }
+        ]
+      },
+      "School_MorningTeacher": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_07000800_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_07000800.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Default_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Default.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'L110401-L110448_destroy_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/L110401-L110448_destroy.0"
+          }
+        ]
+      },
+      "livehouse_opentime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_16000200__C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_16000200_.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_NotInDrumPlayState_C'",
+            "ObjectPath": "/Game/Blueprints/Character/NPC/NPC_Sub/NPC_Sub_fm/NPC_Sub_fm_Simple/AIRC_NotInDrumPlayState.1"
+          }
+        ]
+      },
+      "livehouse_musictime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_20000200_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_20000200.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_NotInDrumPlayState_C'",
+            "ObjectPath": "/Game/Blueprints/Character/NPC/NPC_Sub/NPC_Sub_fm/NPC_Sub_fm_Simple/AIRC_NotInDrumPlayState.1"
+          }
+        ]
+      },
+      "livehouse_nomusictime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_16002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_16002000.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_NotInDrumPlayState_C'",
+            "ObjectPath": "/Game/Blueprints/Character/NPC/NPC_Sub/NPC_Sub_fm/NPC_Sub_fm_Simple/AIRC_NotInDrumPlayState.1"
+          }
+        ]
+      },
+      "XMKK_Com_M_S_6-20": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06002000.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          }
+        ]
+      },
+      "XMKK_Com_M_R_6-20": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06002000.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Rain_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Rain.1"
+          }
+        ]
+      },
+      "XMKK_Com_N_S_18-24": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_18002400_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_18002400.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          }
+        ]
+      },
+      "XMKK_Com_N_R_18-24": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_18002400_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_18002400.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Rain_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Rain.1"
+          }
+        ]
+      },
+      "XMKK_Com_M_S_6-8": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06000800_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06000800.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          }
+        ]
+      },
+      "XMKK_Com_M_S_13-17": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_13001700_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_13001700.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          }
+        ]
+      },
+      "XMKK_Com_M_Q_6-20": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06002000.1"
+          }
+        ]
+      },
+      "XMKK_Com_N_Q_18-24": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_18002400_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_18002400.1"
+          }
+        ]
+      },
+      "XMKK_Com_S": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          }
+        ]
+      },
+      "WorldBoss_007_Unlock": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Yahaha_WorldBoss_07_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Yahaha/AIRC_Yahaha_WorldBoss_07.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_NotInClone_AdvVision_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/InClone/AIRC_NotInClone_AdvVision.1"
+          }
+        ]
+      },
+      "WorldBoss_013_Unlock": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_VIsion_MotoBoss_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/VIsion/AIRC_VIsion_MotoBoss.1"
+          }
+        ]
+      },
+      "XMKK_Com_M_S_6-20_q110394": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_06002000_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_06002000.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'Q110394_Reverse_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/Q110394_Reverse.0"
+          }
+        ]
+      },
+      "School_MythNightShift": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_20000600_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_20000600.1"
+          }
+        ]
+      },
+      "WorldBoss_009_Unlock": {
+        "RefreshOperation": "ESpawnResultsOperation::OR",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'S110935_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Quest/S110935.0"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Yahaha_WorldBoss_09_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Yahaha/AIRC_Yahaha_WorldBoss_09.1"
+          }
+        ]
+      },
+      "Pukaland_DayTime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          }
+        ]
+      },
+      "Pukaland_DayTime_alltime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": []
+      },
+      "Pukaland_NightTime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_18002400_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_18002400.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          }
+        ]
+      },
+      "Pukaland_NightTime_alltime": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_18002400_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_18002400.1"
+          }
+        ]
+      },
+      "Pukaland_DayTime_beforenight": {
+        "RefreshOperation": "ESpawnResultsOperation::AND",
+        "AIRefreshConditionEntriesOverride": [
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Wea_Sunny_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Weather/AIRC_Wea_Sunny.1"
+          },
+          {
+            "ObjectName": "BlueprintGeneratedClass'AIRC_Time_08001800_C'",
+            "ObjectPath": "/Game/Blueprints/AI/AIRefreshCondition/Time/AIRC_Time_08001800.1"
+          }
+        ]
+      }
+    }
+  }
+]
