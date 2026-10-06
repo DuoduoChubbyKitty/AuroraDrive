@@ -1414,7 +1414,7 @@ func runProtoSelfTest() {
 
     print("═══ 新协议解码（protobuf 移动包 → 世界坐标）═══")
 
-    let root = "/Users/dupi/Desktop/自动驾驶系统/tools/reverse/samples"
+    let root = AuroraPaths.projectRoot().appendingPathComponent("tools/reverse/samples").path
     let samples: [(String, String)] = [
         ("移动样本", "\(root)/move_burst.pcap"),
         ("静止样本", "\(root)/idle.pcap"),
@@ -4402,8 +4402,8 @@ final class DriveState {
         let candidates = [
             "\(execDir)/models/bigworldmap-13056.jpg",
             "\(execDir)/models/bigworldmapSecond.png",
-            "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmap-13056.jpg",
-            "/Users/dupi/Desktop/自动驾驶系统/models/bigworldmapSecond.png",
+            AuroraPaths.projectRoot().appendingPathComponent("models/bigworldmap-13056.jpg").path,
+            AuroraPaths.projectRoot().appendingPathComponent("models/bigworldmapSecond.png").path,
         ]
         for path in candidates {
             if FileManager.default.fileExists(atPath: path) { return path }
@@ -6075,10 +6075,10 @@ final class DriveState {
         proc.executableURL = URL(fileURLWithPath: "/usr/local/bin/python3.11")
         // 只训控制模型；YOLO 检测已由 YoloEngine 实时运行，视角分类器已移除。
         proc.arguments = ["src/train_game_assist.py", "--skip_view", "--skip_yolo"]
-        proc.currentDirectoryURL = URL(fileURLWithPath: "/Users/dupi/Desktop/自动驾驶系统")
+        proc.currentDirectoryURL = AuroraPaths.projectRoot()
 
         // 输出重定向到日志文件，避免管道缓冲区满导致训练进程挂起
-        let logURL = URL(fileURLWithPath: "/Users/dupi/Desktop/自动驾驶系统/train.log")
+        let logURL = AuroraPaths.projectRoot().appendingPathComponent("train.log")
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
         proc.standardOutput = FileHandle(forWritingAtPath: logURL.path)
         proc.standardError  = proc.standardOutput

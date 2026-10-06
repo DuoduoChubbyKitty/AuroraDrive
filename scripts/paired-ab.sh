@@ -45,8 +45,14 @@
 #    最小复现：bash -c 'set -u; X=1; echo "${X}）"'  → bash: X?: unbound variable
 # ============================================================================
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT" || exit 2
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# 自调用一律走绝对路径：本脚本内部要**递归调用自己**（方向表自测 / 量具闸自测）。
+# 写成 `bash "$0"` 时，若调用方传的是相对路径（如从项目根的上一级执行
+# `bash 自动驾驶系统/scripts/paired-ab.sh --selftest`），子进程会以 ROOT 为 cwd
+# 再次解析同一个相对路径 → 找不到文件，全部自测用例 127 假失败。
+SELF="${SCRIPT_DIR}/paired-ab.sh"
+cd "${ROOT}" || exit 2
 
 if [ "${1:-}" = "--selftest" ]; then
     # 方向表负向对照：证明「改善」不会被判成「劣化」
@@ -59,7 +65,7 @@ if [ "${1:-}" = "--selftest" ]; then
             printf '%s=%s\n' "$key" "$va" > "$T/r${i}_A.txt"
             printf '%s=%s\n' "$key" "$vb" > "$T/r${i}_B.txt"
         done
-        PAIRED_RAW="$T" AURORA_SKIP_BUILD_LOCK=1 bash "$0" /bin/echo /bin/echo 5 >/dev/null 2>&1
+        PAIRED_RAW="$T" AURORA_SKIP_BUILD_LOCK=1 bash "${SELF}" /bin/echo /bin/echo 5 >/dev/null 2>&1
         local got=$?
         rm -rf "$T"
         if [ "$got" = "$want" ]; then echo "  ✅ ${name}（退出码 ${got}）"
@@ -103,7 +109,7 @@ if [ "${1:-}" = "--selftest" ]; then
     chmod +x "$GAUGE_TMP/old" "$GAUGE_TMP/new"
     gauge_case() {  # gauge_case <名称> <A> <B> <metric> <期望退出码>
         local name="$1" a="$2" b="$3" m="$4" want="$5"
-        AURORA_SKIP_BUILD_LOCK=1 bash "$0" "$a" "$b" 2 --load 0 --metric "$m" >/dev/null 2>&1
+        AURORA_SKIP_BUILD_LOCK=1 bash "${SELF}" "$a" "$b" 2 --load 0 --metric "$m" >/dev/null 2>&1
         local got=$?
         if [ "$got" = "$want" ]; then echo "  ✅ ${name}（退出码 ${got}）"
         else echo "  ❌ ${name}：期望 ${want}，实得 ${got}"; RC=1; fi

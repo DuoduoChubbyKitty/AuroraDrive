@@ -90,7 +90,7 @@ trap 'bash scripts/build-lock.sh release' EXIT
    由 10Hz 定时器驱动（`:4754` 注释实测确认）
 4. **抓包线程**（`com.aurora.coordinate-capture`）：`pcap_next_ex` 阻塞循环
 
-App Nap 六重对抗（禁自动终止 / beginActivity / nice -20 / CGEventTap / 768MB mlock / 主线程实时约束）保证全屏下 tick 不掉帧。四档降级（e2e/yolo/recover/rule）由 `DegradeStateMachine` 驱动。
+App Nap 六重对抗（禁自动终止 / beginActivity / nice -20 / CGEventTap / 768MB mlock / 主线程实时约束）保证全屏下 tick 不掉帧。**三档**降级（e2e/yolo/rule）由 `DegradeStateMachine` 驱动 —— ⚠️ 2026-10-07 订正：旧文写「四档（含 recover 脱困档）」，而 `.recover` 已于 2026-09-30 整体删除（`DegradeStateMachine.swift:5-9` 明示）。
 
 > ⚠️ **阈值实测订正**：旧文写「降级 0.65 / 恢复 0.80（滞回 0.15）/ 卡住 3km/h×3s / 脱困超时 30s」。
 > 实测 `Agent/DegradeStateMachine.swift`：`degradeHealth` 默认 **0.65**（`:31`）；

@@ -25,8 +25,17 @@ cd "$ROOT" || exit 2
 BIN="${1:-}"
 OUT="${2:-}"
 LABEL="${3:-未标注}"
-PY="/Users/dupi/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3"
-[ -x "$PY" ] || PY="python3"
+# 解释器不再硬编码某个用户的 DSH runtime 绝对路径（换机器/换用户必挂）。
+# 优先级：AURORA_PYTHON > PATH 上的 python3。本脚本只需标准库 + 可选 Pillow
+# （Pillow 缺失只会让 image_quality 少几个字段，走 try/except 降级，不致命）。
+PY="${AURORA_PYTHON:-}"
+if [ -z "${PY}" ] || [ ! -x "${PY}" ]; then
+    PY="$(command -v python3 2>/dev/null || true)"
+fi
+if [ -z "${PY}" ] || [ ! -x "${PY}" ]; then
+    echo "✗ 找不到可用的 python3 —— 请安装 python3，或用 AURORA_PYTHON=/path/to/python3 指定" >&2
+    exit 2
+fi
 
 if [ -z "$BIN" ] || [ -z "$OUT" ]; then
     echo "用法: bash scripts/perf-snapshot.sh <二进制> <输出.json> [标签]"

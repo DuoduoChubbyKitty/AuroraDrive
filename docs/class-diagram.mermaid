@@ -6,7 +6,7 @@ classDiagram
     %% FilteredObstacles / FusedDriveState / SensorFusion / SpeedPlanner /
     %% FusionController / RuleLaneController / VisionLaneDetector / MiniMapReader /
     %% SignDetector / SelfCarFilter）已不在 Sources/ 中，本图按现码替换为
-    %% YOLO+E2E+规则+四档降级架构。
+    %% YOLO+E2E+规则+三档降级架构（四档中的 recover 已删）。
     %% CaptureEngine.onFrame 签名已改为 (NSImage, CGImage)。
 
     class DriveState {
@@ -80,9 +80,10 @@ classDiagram
         <<enum>>
         e2e
         yolo
-        recover
         rule
     }
+    %% 2026-10-07 订正：.recover（脱困档）已于 2026-09-30 整体删除，
+    %% 降级梯子现为三档 e2e → yolo → rule（DegradeStateMachine.swift:5-9）
 
     class ControlEngine {
         +press(action:duration:) void
