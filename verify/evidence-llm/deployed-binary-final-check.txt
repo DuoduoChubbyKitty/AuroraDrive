@@ -27,3 +27,13 @@
 >>> EXIT=0
 
 ───── ����─────
+═══ A3 · 端到端工具调用闭环（--tool-call-demo「领奖励」）═══
+═══ A3 端到端闭环：PASS（9 通过 / 0 失败）═══
+═══ A3 端到端：PASS（9 通过 / 0 失败）═══
+>>> EXIT=0
+
+───── 4 回归 ─────
+  --quest-selftest → EXIT=0
+  --route-selftest → EXIT=0
+  --taxonomy-selftest → EXIT=0
+  --wire-selftest → EXIT=0
