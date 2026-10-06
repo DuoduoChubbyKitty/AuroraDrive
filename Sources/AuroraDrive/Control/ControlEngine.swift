@@ -1,6 +1,16 @@
 // SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 【出处标注 · 品牌澄清】2026-10-04
+//   本文件的**游戏键位表**（`GameKey` 枚举，:408 附近）取自上游开源项目
+//   **MaaNTE** 实际使用的键集合。下文注释里的「MaaNTE」是**上游项目名**，
+//   用于交代键位清单的来源 —— **它不是本产品的品牌**。
+//   本产品品牌：`AuroraDrive`（见 `App/AuroraBrand.swift`）。
+//   保留出处的理由：键位表是"游戏输入层实测结论"的集合（哪些键游戏认、
+//   哪些层能投递），抹掉出处就无法复核某个键为什么在表里。
+//   故：出处保留；品牌层（用户可见字符串 / 标识符）不得出现上游名。
+// ═══════════════════════════════════════════════════════════════════════════
 // ============================================================================
 //  ControlEngine.swift — 按键注入引擎（CGEvent）
 //  通过 CGEvent 向系统注入键盘事件，控制游戏（WASD + 空格 + Shift）
@@ -68,6 +78,52 @@ final class ControlEngine: @unchecked Sendable {
     /// 累计成功注入的键盘事件总数（诊断用：判断事件流是否持续产生）
     /// 标记 @ObservationIgnored：此值每帧递增，不应触发 SwiftUI 重绘。
     @ObservationIgnored private(set) var postedEventCount: Int = 0
+
+    // MARK: - 按住键重发节流（可选，默认关闭）
+
+    /// 按住键重发的目标频率（Hz）。**0 = 关闭节流 = 每个控制周期都重发**
+    /// （即改动前的行为，30Hz）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════════
+    /// ⚠️ 为什么做成「默认关闭的开关」而不是直接改默认值
+    /// ══════════════════════════════════════════════════════════════════════════
+    ///
+    /// 【背景】`refreshHeldKeys` 每控制周期（30Hz）对每个按住键重发一次 keyDown。
+    ///   实测（`/tmp/aurora_tickprobe.log`，节流前）事件速率约 **185 次/秒**；
+    ///   当前稳态（1 转向键 + 1 油门/刹车键）理论值约 **60 次/秒**。
+    ///   特征：keyDown 流、**无对应 keyUp**、autorepeat=false、间隔**严格 33.3ms**。
+    ///   时间维度上是完美周期信号，与真人键盘（首次延迟 ~500ms → 系统生成带
+    ///   autorepeat 的重复 → 频繁变键）差异明显。
+    ///
+    /// 【为什么不当默认值】两条硬约束打架：
+    ///   · 用户硬要求「确保**没有降任何频率**」—— 节流本身就是在降注入频率；
+    ///   · 本项目纪律「所有改动都带 `AURORA_*` 开关，否则做不了 ABBA 对比」
+    ///     （见 `releaseAllIfNeeded` 的注释）。
+    ///   而且**降低注入频率是否会让游戏丢键，只能在真机上验证** —— 代码里
+    ///   `refreshHeldKeys` 的注释明确记录过历史事故：重发不足会表现为
+    ///   「UI 显示 W 已按住，游戏纹丝不动」。**本机当前没有游戏**，无法验证。
+    ///
+    /// 【因此】默认 0（行为与改动前**逐帧一致**）。要启用：
+    ///   `AURORA_KEY_REFRESH_HZ=20 ./AuroraDriveUI`
+    ///   启用后**必须真机验证车还能动**，尤其 E2E 直道恒定油门档。
+    ///
+    /// 【抖动】节流启用时，阈值取 `周期 × random(0.75…1.25)` —— 打破严格周期，
+    ///   但不额外减少事件数（平均频率仍 ≈ 目标频率）。**抖动本身不降频**，
+    ///   它只是把事件时刻从「33.3ms 网格」上挪开。
+    ///
+    /// 【未改动】`autorepeat` 仍恒为 false（`:305-308` 注释：带 autorepeat 标记的
+    ///   keyDown 会被目标游戏忽略，改了会直接导致车不动）。
+    // A17 迁移（2026-10-04，lead 授权只改这一行）：
+    //   原来在这里现读 `ProcessInfo.processInfo.environment["AURORA_KEY_REFRESH_HZ"]`
+    //   并做 `>0 && <=60` 校验 —— 该校验**已逐字搬进** `AuroraFlags.keyRefreshHz`
+    //   （非法输入一律回退 0），故这里只做单位换算：**Hz → 间隔**。
+    //   ⚠️ 单位陷阱：`AuroraFlags.keyRefreshHz` 是频率（Hz），本常量要的是间隔（秒）。
+    private static let keyRefreshInterval: Double =
+        AuroraFlags.keyRefreshHz > 0 ? 1.0 / AuroraFlags.keyRefreshHz : 0
+
+    /// 上次重发按住键的时刻（`CACurrentMediaTime`）。0 = 本会话还没重发过。
+    /// 仅在主线程访问（`refreshHeldKeys` 由 tick 调用），无需加锁。
+    @ObservationIgnored private var lastKeyRefreshAt: CFAbsoluteTime = 0
 
     /// CGEventSource（HID 系统状态层，注入的键对游戏「等同于真实物理按键」）
     private let eventSource: CGEventSource? = {
@@ -296,8 +352,24 @@ final class ControlEngine: @unchecked Sendable {
     /// 带 autorepeat 标记的事件会被该游戏的输入层忽略（它只认新按下），
     /// 导致稳定输出档位（如 M9）下只有 auto-repeat 事件流、游戏完全不动。
     /// 已验证方案（V1）同样是每次都发新按下，此处与之对齐。
+    ///
+    /// ── 可选节流 + 抖动 ──
+    /// `Self.keyRefreshInterval == 0`（默认）时本函数**与改动前逐帧一致**：
+    /// 每个控制周期对每个按住键重发一次。
+    /// 设为非 0（`AURORA_KEY_REFRESH_HZ`）后启用节流，阈值带 ±25% 抖动 ——
+    /// 打破「严格 33.3ms 周期」这一机器特征。理由与风险见
+    /// `keyRefreshInterval` 的文档注释（**默认关闭**，需真机验证）。
     func refreshHeldKeys() {
         guard hasAccessibilityPermission, !heldKeys.isEmpty else { return }
+
+        if Self.keyRefreshInterval > 0 {
+            let now = CACurrentMediaTime()
+            // 抖动：把事件时刻从固定网格上挪开，但不额外减少事件数
+            let threshold = Self.keyRefreshInterval * Double.random(in: 0.75...1.25)
+            if lastKeyRefreshAt > 0, now - lastKeyRefreshAt < threshold { return }
+            lastKeyRefreshAt = now
+        }
+
         for keyCode in heldKeys {
             postKeyEvent(keyCode: keyCode, keyDown: true)
         }

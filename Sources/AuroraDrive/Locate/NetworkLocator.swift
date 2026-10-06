@@ -1,10 +1,26 @@
 // SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
 // SPDX-License-Identifier: GPL-3.0-or-later
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// 【出处标注 · 品牌澄清】2026-10-04
+//   本文件的**位姿协议语义**参考/移植自上游开源项目 **MaaNTE**
+//   （`agent/custom/action/Navi/` 系列，AGPL-3.0）。下文注释里出现的
+//   「MaaNTE」一律是**上游项目名**，用于交代算法来源与对齐依据 ——
+//   **它不是本产品的品牌，也不是本产品的名字**。
+//   本产品品牌：`AuroraDrive`（见 `App/AuroraBrand.swift`）。
+//   保留上游出处的理由：协议逆向结论必须可追溯到原始出处，抹掉出处等于
+//   让后人无法复核「这个 30031 端口 / 这组标定常量到底怎么来的」。
+//   故：出处保留，品牌层（标识符 / 用户可见字符串）不得出现上游名。
+// ═══════════════════════════════════════════════════════════════════════════
 
 import Foundation
 import Network
 
-private let kMaaNTEServerURL = "ws://127.0.0.1:9004"
+// ⚠️ 原名 `kMaaNTEServerURL`（品牌层，已按 2026-10-04 品牌清理改名）。
+//    这里指向的是**本机回环上的位姿桥接 WebSocket**，不是任何外部服务；
+//    名字改为描述"它是什么"，而不是"它从哪来"。
+//    端口 9004 一字未改（改端口会直接打断定位链路）。
+private let kLocalPoseBridgeURL = "ws://127.0.0.1:9004"
 private let kAPIVersion = "1.3.0"
 private let kCoordinateSampleMaxAge: Double = 1.0
 private let kCalibrationAxes: (Int, Int) = (0, 1)
@@ -366,7 +382,9 @@ enum DecodeError: Error {
     case fullPrecisionUnsupported
 }
 
-private final class MaaNTESocketClient: @unchecked Sendable {
+// ⚠️ 原名 `MaaNTESocketClient`（品牌层，已按 2026-10-04 品牌清理改名）。
+//    职责是"连本机位姿桥接 + 解 UE5 位流"，与上游项目名无关。
+private final class LocalPoseSocketClient: @unchecked Sendable {
     private let decoder = UE5PacketDecoder()
     private var sampleLock: os_unfair_lock_s = os_unfair_lock_s()
     private var sample: RawPose?
@@ -390,7 +408,7 @@ private final class MaaNTESocketClient: @unchecked Sendable {
     @available(macOS 13.0, *)
     private func startWithURLSession() {
         let config = URLSession(configuration: URLSessionConfiguration.default)
-        task = config.webSocketTask(with: URL(string: kMaaNTEServerURL)!)
+        task = config.webSocketTask(with: URL(string: kLocalPoseBridgeURL)!)
         task?.resume()
         isConnected = true
         readLoop(task: task!)
@@ -508,14 +526,14 @@ private final class MaaNTESocketClient: @unchecked Sendable {
 final class NetworkLocator {
     var ready: Bool = false
     private var isConnected = false
-    private var socketClient: MaaNTESocketClient?
+    private var socketClient: LocalPoseSocketClient?
     private var lastLocPos: (x: Double, y: Double)?
     private var lastResult: NetworkLocationResult?
 
     // MARK: - 初始化
 
     func prepare() -> Bool {
-        socketClient = MaaNTESocketClient()
+        socketClient = LocalPoseSocketClient()
         socketClient?.start()
         ready = true
         isConnected = true
@@ -591,66 +609,4 @@ final class NetworkLocator {
         socketClient = nil
         isConnected = false
     }
-}
-
-// MARK: - 双模定位器
-
-final class DualModeLocator {
-    private let networkLocator: NetworkLocator
-    private weak var visualLocator: VisualLocator?
-    var mode: String = "network"
-    // MARK: - 初始化
-
-    init(networkEnabled: Bool = true, visualLocator: VisualLocator? = nil) {
-        self.networkLocator = NetworkLocator()
-        self.visualLocator = visualLocator
-
-        if networkEnabled {
-            mode = "network"
-        } else if visualLocator != nil {
-            mode = "visual"
-        } else {
-            mode = "fallback"
-        }
-    }
-
-    // MARK: - 定位
-
-    func locate() -> NetworkLocationResult {
-        switch mode {
-        case "network":
-            return networkLocator.locate()
-        case "visual":
-            if let visual = visualLocator, visual.isReady {
-                return NetworkLocationResult(found: false, point: nil, rawCoordinate: nil, score: 0, mode: "visual_arch_skip", cameraPitch: nil, cameraHeading: nil)
-            }
-            return NetworkLocationResult(found: false, point: nil, rawCoordinate: nil, score: 0, mode: "visual_missing", cameraPitch: nil, cameraHeading: nil)
-        default:
-            return NetworkLocationResult(found: false, point: nil, rawCoordinate: nil, score: 0, mode: "fallback", cameraPitch: nil, cameraHeading: nil)
-        }
-    }
-
-    // MARK: - 初始化
-
-    func prepare() -> Bool {
-        let netOk = networkLocator.prepare()
-        let visOk = visualLocator?.isReady == true
-        return netOk || visOk
-    }
-
-    // MARK: - 状态查询
-
-    var isReady: Bool {
-        return networkLocator.ready || visualLocator != nil
-    }
-
-    func stats() -> [String: Any] {
-        var result: [String: Any] = ["mode": mode]
-        result.merge(networkLocator.stats()) { _, network in network }
-        return result
-    }
-
-    // MARK: - 关闭
-
-    func close() { networkLocator.close() }
 }

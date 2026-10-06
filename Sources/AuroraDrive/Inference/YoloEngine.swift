@@ -183,7 +183,8 @@ final class YoloEngine {
             isLoaded = true
             errorMessage = nil
             // 环3：加载成功后后台跑一次 dummy prediction 预热 ANE（不阻塞主线程）
-            Self.warmUp(model: mlModel, queue: inferenceQueue)
+            // A21：label 传**实际加载的文件名**，不再硬编码（见 warmUp 注释）
+            Self.warmUp(model: mlModel, label: modelURL.lastPathComponent, queue: inferenceQueue)
         } catch {
             errorMessage = "YOLO 模型加载失败: \(error.localizedDescription)"
             isLoaded = false
@@ -192,21 +193,25 @@ final class YoloEngine {
 
     /// 模型预热（环3）：后台队列跑一次 dummy prediction（640×640 零缓冲），
     /// 把 ANE 计算图编译/内存分配提前做完，避免首帧真实检测冷启动尖峰。
-    private nonisolated static func warmUp(model: MLModel, queue: DispatchQueue) {
+    ///
+    /// A21（2026-10-04）：`label` 由调用方传入**实际加载的文件名**。
+    /// 改前硬编码 `"yolo26s"`，一旦候选表换模型（或回退到 `.mlpackage`），
+    /// 日志会打出与实际不符的名字，误导性能排查。
+    private nonisolated static func warmUp(model: MLModel, label: String, queue: DispatchQueue) {
         queue.async {
             let size = inputSize
             guard let pb = makePixelBuffer(size: size),
                   let provider = try? MLDictionaryFeatureProvider(dictionary: [
                       "image": MLFeatureValue(pixelBuffer: pb)
                   ]) else {
-                print("[warmup] yolo26s: 预热输入构造失败")
+                print("[warmup] \(label): 预热输入构造失败")
                 return
             }
             let start = Date()
             do {
                 _ = try model.prediction(from: provider)
                 let ms = Date().timeIntervalSince(start) * 1000
-                print("[warmup] yolo26s 预热完成: \(String(format: "%.1f", ms))ms  computeUnits=all(自动选 ANE/GPU/CPU)")
+                print("[warmup] \(label) 预热完成: \(String(format: "%.1f", ms))ms  computeUnits=all(自动选 ANE/GPU/CPU)")
             } catch {
                 print("[warmup] yolo26s 预热失败: \(error.localizedDescription)")
             }
@@ -384,6 +389,9 @@ final class YoloEngine {
             detections = smoothed
             lastLatencyMs = latency
             inferenceCount += 1
+            // A20（2026-10-04）：真实推理耗时汇进 PerfBus（对照 submit.yolo26s
+            // 只测 DispatchQueue.async 的提交开销 p50 ≈ 0.012ms）。
+            PerfBus.shared.record("infer.yolo26s", ms: latency)
             errorMessage = nil
 
             // 锁定追踪：用平滑后的检测喂给锁定匹配

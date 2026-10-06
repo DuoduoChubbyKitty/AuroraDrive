@@ -243,22 +243,110 @@ final class PrivilegePill {
         return (task.terminationStatus, text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
+    /// 子进程执行队列：**所有 Process 的启动与等待都在这里**，不在主线程。
+    ///
+    /// 为什么单开一条串行队列而不是 `.global()`：`run` 会被 `selfHeal()` 连续调两次，
+    /// 串行队列保证两次 `launchctl kickstart` 严格有序（并行会让第二次 kickstart
+    /// 撞上第一次的启动窗口，`launchctl` 对同一 service 并发 kickstart 的行为未定义）。
+    private static let processQueue = DispatchQueue(label: "aurora.privilege.process",
+                                                    qos: .utility)
+
+    /// 执行一个子进程并等它结束。**事件驱动，不忙等。**
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-10-04 重写（P-4）：原实现是**忙等轮询**
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 【原实现】
+    ///     let deadline = Date().addingTimeInterval(timeout)
+    ///     while task.isRunning && Date() < deadline { usleep(50_000) }
+    ///     if task.isRunning { task.terminate() }
+    ///
+    /// 【它错在哪】（不是"慢"，是"形态错"）
+    ///   ① **自旋**：50ms 一轮地唤醒 CPU 只为问一句"还在跑吗"。子进程活多久就烧多久，
+    ///      而这段时间**什么都不干**。
+    ///   ② **无事件语义**：进程结束是一个**事件**，`Process` 为此提供了
+    ///      `terminationHandler`。轮询是把事件当状态来问，天然丢精度也天然浪费。
+    ///   ③ **最坏 16 秒**：`selfHeal()` 连调两次、每次 `timeout: 8` → 最坏 16s。
+    ///      而 `selfHeal()` 由 `MissionConsole` 的 `Task { @MainActor in ... }` 调用
+    ///      → **这 16 秒是主线程**（用户直接感知为"卡死"）。
+    ///
+    /// 【现在】`terminationHandler` + `DispatchGroup.wait(timeout:)`
+    ///   · 进程结束 → handler 触发 → `group.leave()`；等待线程在内核里睡着，**零 CPU**；
+    ///   · 超时用 `asyncAfter` 投递一个"到点强杀"的 `DispatchWorkItem`，
+    ///     **不占线程、不占 CPU**（原来是 160 次 `usleep` 唤醒）；
+    ///   · 全部在 `processQueue`（`.utility`）上执行，**主线程不再自旋**。
+    ///
+    /// 【仍然存在的边界（如实说明）】本方法**仍是同步的** —— 调用方要拿返回码就必须等。
+    ///   若调用方在主线程调它（`MissionConsole.swift:5110` 当前就是），主线程仍会等，
+    ///   只是**从"自旋等待"变成"睡眠等待"**（CPU 从满转降到 0）。
+    ///   要把"等待"本身也挪走，调用方需改用 `selfHealAsync()` —— 见其注释。
+    ///
+    /// - Returns: 退出码；启动失败或超时返回 `-1`
     private func run(_ path: String, _ args: [String], timeout: TimeInterval) -> Int32 {
+        // ⚠️ 实现只有一份 —— `runOnQueue`。这里只负责"切到 processQueue"。
+        //    不在这里复制一份子进程逻辑：那样 `selfHeal()`（同步路径）与
+        //    `selfHealAsync()`（异步路径）会各有一份，迟早分叉 ——
+        //    这正是本文件 P-4 审计里点名的"同一逻辑多处各写一遍"。
+        Self.processQueue.sync {
+            runOnQueue(path, args, timeout: timeout)
+        }
+    }
+
+    /// `selfHeal()` 的**异步版**：把"等待子进程"整段挪出主线程。
+    ///
+    /// 【为什么需要它】`selfHeal()` 本身是同步的，调用方要拿返回值就必须等。
+    ///   `MissionConsole.swift:5110` 目前在 `Task { @MainActor in ... }` 里调它
+    ///   → 即使 `run` 已改成睡眠等待，**主线程仍会被占住**（最坏 16s）。
+    ///   本方法把两次 launchctl kickstart 放 `processQueue` 上跑，
+    ///   完成后回主线程读一次 `isFullyAuthorized`（那是 MainActor 属性）。
+    ///
+    /// 【为什么保留同步版】`selfHeal()` 有既有调用方与自检，不破坏它们；
+    ///   两者共用同一份 `runOnQueue`，行为必然一致。
+    func selfHealAsync() async -> Bool {
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            Self.processQueue.async { [self] in
+                _ = runOnQueue("/bin/launchctl",
+                               ["kickstart", "-k", "system/com.aurora.bpf-setup"], timeout: 8)
+                _ = runOnQueue("/bin/launchctl",
+                               ["kickstart", "-k", "system/com.aurora.priority"], timeout: 8)
+                cont.resume()
+            }
+        }
+        return isFullyAuthorized
+    }
+
+    /// **唯一的**子进程执行体（调用方必须已在 `processQueue` 上，或接受在当前线程等待）。
+    ///
+    /// 为什么不自己 `processQueue.sync`：`selfHealAsync` 已经在队列上，
+    /// 再 `sync` 一次就是**同队列重入 → 死锁**。故把"切队列"的责任交给调用方
+    /// （`run` 负责切，`selfHealAsync` 已经在了）。
+    private func runOnQueue(_ path: String, _ args: [String], timeout: TimeInterval) -> Int32 {
         let task = Process()
         task.launchPath = path
         task.arguments = args
         task.standardOutput = Pipe()
         task.standardError = Pipe()
+
+        let done = DispatchGroup()
+        done.enter()
+        task.terminationHandler = { _ in done.leave() }
         do {
             try task.run()
         } catch {
+            done.leave()
             return -1
         }
-        let deadline = Date().addingTimeInterval(timeout)
-        while task.isRunning && Date() < deadline {
-            usleep(50_000)
+        let killer = DispatchWorkItem { [weak task] in
+            guard let task, task.isRunning else { return }
+            task.terminate()
         }
-        if task.isRunning { task.terminate() }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: killer)
+        let outcome = done.wait(timeout: .now() + timeout + 1.0)
+        killer.cancel()
+        if outcome == .timedOut {
+            if task.isRunning { task.terminate() }
+            return -1
+        }
         return task.terminationStatus
     }
 

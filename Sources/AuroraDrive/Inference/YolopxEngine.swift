@@ -644,7 +644,15 @@ final class YolopxEngine {
     private nonisolated static let yolopxCandidates: [String] = [
         "yolopx3_pal8_detfp.mlmodelc",   // ← 精度冠军（det 100%），首位；结构完整免编译
         "yolopx3_pal8_detfp.mlpackage",  // ← 同上，包形态（需编译）
-        "yolopx3_w8a16.mlmodelc",        // ← det 85%；**当前结构残缺，会被跳过**（留档待 C1 修复）
+        // ⚠️ A22（2026-10-04）：`yolopx3_w8a16.mlmodelc` 已从本表**移除**。
+        //    实测（`ls -la models/yolopx/yolopx3_w8a16.mlmodelc/`）该目录下
+        //    **只有 `weights/`**，缺 `model.mil` / `coremldata.bin` / `metadata.json`
+        //    （对比健康的 `yolopx3_pal8_detfp.mlmodelc/` 四个条目齐全），
+        //    属半成品。`MLModel(contentsOf:)` 必然抛错 → 每次加载都要白跑一轮
+        //    「存在性检查 → 尝试加载 → 失败 → 记日志 → 换下一个」。
+        //    注意 `models/` 下的模型文件本轮不许改，故选择"移除"而非"修好"。
+        //    若日后重新导出该产物，把下面这行放回 `pal8_detfp` 之后即可：
+        //      "yolopx3_w8a16.mlmodelc",     // ← det 85%（结构完整时才可上台）
         "yolopx3_w8a16.mlpackage",       // ← det 85%
         "yolopx3_int8.mlpackage",        // ← ll recall 3.98%（架构性失败），靠后
         "yolopx3_fp16.mlpackage",        // ⚠️ 兜底：违反「只用 8 位」，会告警
@@ -789,26 +797,30 @@ final class YolopxEngine {
             errorMessage = warn
             print(warn)
         }
-        Self.warmUp(model: hit.model, queue: inferenceQueue)
+        // A21：label 传**实际命中的候选文件名**（hit.name），不再硬编码 modelBaseName。
+        // 改前日志恒打 "[warmup] yolopx3 预热完成"，而实际加载的可能是
+        // ayolom_n_int8.mlmodelc / yolopx3_pal8_detfp.mlmodelc / fp16 兜底 ——
+        // 同一标签出现 6.8ms 与 24.3ms 两个数字，性能排查时会被严重误导。
+        Self.warmUp(model: hit.model, label: hit.name, queue: inferenceQueue)
     }
 
     /// 后台预热：把 ANE 计算图编译与内存分配提前做完，避免首帧冷启动尖峰。
-    private nonisolated static func warmUp(model: MLModel, queue: DispatchQueue) {
+    private nonisolated static func warmUp(model: MLModel, label: String, queue: DispatchQueue) {
         queue.async {
             guard let pb = makePixelBuffer(size: inputSize),
                   let provider = try? MLDictionaryFeatureProvider(dictionary: [
                       "image": MLFeatureValue(pixelBuffer: pb)
                   ]) else {
-                print("[warmup] yolopx3: 预热输入构造失败")
+                print("[warmup] \(label): 预热输入构造失败")
                 return
             }
             let start = Date()
             do {
                 _ = try model.prediction(from: provider)
                 let ms = Date().timeIntervalSince(start) * 1000
-                print("[warmup] yolopx3 预热完成: \(String(format: "%.1f", ms))ms")
+                print("[warmup] \(label) 预热完成: \(String(format: "%.1f", ms))ms")
             } catch {
-                print("[warmup] yolopx3 预热失败: \(error.localizedDescription)")
+                print("[warmup] \(label) 预热失败: \(error.localizedDescription)")
             }
         }
     }
@@ -1049,6 +1061,10 @@ final class YolopxEngine {
         drivableRatio = daSm > 0 ? daSm : daRatio
         laneRatio = llSm > 0 ? llSm : llRatio
         inferenceCount += 1
+        // A20（2026-10-04）：真实推理耗时汇进 PerfBus（对照 submit.yolopx
+        // 只测 DispatchQueue.async 的提交开销 p50 ≈ 0.026ms）。
+        // 这是后续所有 YOLOPX 优化的唯一裁判指标。
+        PerfBus.shared.record("infer.yolopx", ms: latency)
         errorMessage = nil
 
         // ── 降级判定：车道线塌陷优先（细目标最先被量化/异常摧毁）──

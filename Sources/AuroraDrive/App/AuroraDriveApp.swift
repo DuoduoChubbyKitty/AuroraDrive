@@ -791,6 +791,21 @@ struct AuroraDriveLauncher {
             exit(ok ? 0 : 1)
         }
 
+        // ── 预览框内「当前任务」卡片出图（2026-10-06 新增，供 task-2 验收）──
+        // 必须走真实 ViewportPanel：`--mc-shot` 那份是手抄版预览框，没有卡片。
+        // 夹具直接把 questName 与真实世界坐标塞进 state，不依赖 OCR 真跑通。
+        if args.contains("--mc-quest") {
+            var size = CGSize(width: 1470, height: 560)
+            if let i = args.firstIndex(of: "--mc-quest"), i + 2 < args.count,
+               let w = Double(args[i + 1]), let h = Double(args[i + 2]),
+               w > 200, h > 200 {
+                size = CGSize(width: w, height: h)
+            }
+            let ok = MissionControlShot.renderQuestCardNow(canvas: size)
+            fflush(stdout)
+            exit(ok ? 0 : 1)
+        }
+
         if args.contains("--engine") {
             EngineMain.run()   // 永不返回（dispatchMain 常驻；自身已有 engine.lock）
         }
@@ -894,12 +909,20 @@ struct AuroraDriveLauncher {
                             "--limit-selftest", "--nic-autotest", "--proto-selftest",
                             "--yolopx-selftest", "--opticalflow-selftest", "--motion-selftest",
                             "--corner-selftest", "--perf-selftest", "--tick-profile",
+                            "--tick-bench",
                             "--realshot-selftest",
                             "--egobox-selftest", "--ayolom-selftest",
                             "--lanekeep-selftest", "--perception-selftest",
                               "--wire-selftest", "--lanekeep-reality", "--route-selftest",
                               "--taxonomy-selftest",
-                              "--mc-route", "--mc-route-loading", "--mc-map-bench"]
+                              "--mc-route", "--mc-route-loading", "--mc-map-bench",
+                              // A16/A17（2026-10-04）：开关全表 + 缓存层自测。
+                              // ⚠️ 必须登记：本数组是**手写维护**的，漏登记会被
+                              //    UI 单实例锁挡掉（`isOneShot` 判定失败 → 直接 exit）。
+                              "--flags-help", "--cache-selftest",
+                              // 2026-10-06：任务面板 OCR（task-1）+ 任务卡片出图（task-2）。
+                              // ⚠️ 同款陷阱：漏登记 → 被 UI 单实例锁挡掉（直接 exit）。
+                              "--quest-selftest", "--mc-quest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -923,6 +946,30 @@ struct AuroraDriveLauncher {
             let failed = runWireSelfTest()
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
         }
+        // ── 环境开关全表（--flags-help，2026-10-04 A17）──
+        // 打印全部 `AURORA_*` 开关（名称/默认值/作用/归属文件），用于「有哪些开关」
+        // 这件事有一个**可执行的单一事实来源**，而不是散在 56 个文件里靠 grep。
+        // 纯字符串拼接、无副作用，放在最前面 → 不依赖引擎/权限/TCC。
+        if args.contains("--flags-help") {
+            print(AuroraFlags.helpText())
+            exit(0)
+        }
+        // ── 缓存层自测（--cache-selftest，2026-10-04 A16）──
+        // `AuroraCache` 的单元自测：hit / miss / evict / TTL / generation 五种情形。
+        // 返回失败项数，0 = 全过（与其它自检同一约定）。
+        if args.contains("--cache-selftest") {
+            let failed = AuroraCacheSelfTest.run()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+        // ── 任务面板 OCR 自检（--quest-selftest，2026-10-06 task-1）──
+        // 用 tools/quest 里那 8 条真实面板文字做回归，另加反向用例（假阳性）、
+        // 投票缓冲、链消歧、坐标语义、ROI 提示行过滤、模糊匹配、节流。
+        // 纯索引查询 + 纯函数，不截屏、不 OCR、不需要权限 → 可无窗口跑。
+        // 返回失败项数，0 = 全过（与其它自检同一约定）。
+        if args.contains("--quest-selftest") {
+            let failed = QuestPanelReader.runSelfTest()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
         if args.contains("--perf-selftest") {
             // 时长：默认 10 秒；--seconds N 可覆盖
             var secs = 10.0
@@ -942,6 +989,19 @@ struct AuroraDriveLauncher {
             if let idx = args.firstIndex(of: "--seconds"), idx + 1 < args.count,
                let v = Double(args[idx + 1]) { secs = v }
             let failed = runTickProfile(seconds: secs)
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+        // ── 生产主循环整圈基准（--tick-bench，2026-10-05）──
+        // 与 `--tick-profile` 的分工：
+        //   · `--tick-profile` **只读**本进程已有的打点 → 必须靠真实 GUI 跑起来才有样本
+        //   · `--tick-bench`   **主动驱动**真实 `tick()` → 离屏、可重复、可 A/B
+        // 它补的是长期盲区：`tick.total` 探针一直在，但没有任何离屏夹具能产出样本，
+        // 于是"主线程每帧整圈占用"一直没有可信数字（详见 PerfSelfTest.swift 注释）。
+        if args.contains("--tick-bench") {
+            var secs = 8.0
+            if let idx = args.firstIndex(of: "--seconds"), idx + 1 < args.count,
+               let v = Double(args[idx + 1]) { secs = v }
+            let failed = runTickBench(seconds: secs)
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
         }
         // ── 真实截图红线自证（--realshot-selftest）──
@@ -1058,6 +1118,21 @@ struct AuroraDriveLauncher {
             exit(runTaxonomySelfTest())
         }
 
+        // ── 原生地图严格自检（--map-selftest，2026-10-04 新增）──
+        // T1~T6 门槛全部写进断言：任一项不达标 → 非 0 退出码，CI 直接红。
+        // 纯离屏自检（不开窗、不连引擎），所以在 UI 单实例锁之前就 exit。
+        if args.contains("--map-selftest") {
+            exit(Int32(runMapSelfTest()))
+        }
+
+        // ── 地图窗口端到端验证（--map-window-test，2026-10-04 新增）──
+        // 真的建 NSWindow 并断言其可见 / 尺寸 / 标识 / toggle 语义。
+        // 放在单实例锁**之前**：这样可以在用户正开着 AuroraDrive 时验证新构建，
+        // 不必杀掉他正在跑的实例（配合 AURORA_UI_LOCAL=1 避免抢引擎 socket）。
+        if args.contains("--map-window-test") {
+            exit(Int32(runMapWindowTest()))
+        }
+
         let isOneShot = args.contains { oneShotFlags.contains($0) }
         if !isOneShot, !acquireUISingleInstanceLock() {
             print("[App] 已有 AuroraDrive 实例在运行 —— 本次启动退出")
@@ -1160,12 +1235,33 @@ struct AuroraDriveApp: App {
                             // 变成「拖动整个窗口」，把框选手势整个吃掉（实测踩过）。
                             // 拖窗口请拖窗口顶部那条隐形标题栏区域。
                         }
+                        // ── 地图窗口（2026-10-04）──
+                        // **默认绝对不自动开**。用户从未要求「启动即开地图」，
+                        // 原话：「我从来没要求给我打开App自动打开地图吧，
+                        //         我只是打开App……打开就正常窗口就行了」。
+                        // 打开地图只有两条路：① 控制台点「打开大地图」按钮
+                        //                    ② 用户自己按 ⌘M
+                        // `AURORA_MAP_WINDOW=1` 仅供无人值守的自动化验证，**不得作为默认**。
+                        if ProcessInfo.processInfo.environment["AURORA_MAP_WINDOW"] == "1" {
+                            MapWindowController.shared.open()
+                        }
                     }
                 }
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1200, height: 760)
+        // ── 菜单：地图窗口（2026-10-04 新增）──
+        // 用 ⌘M 开关独立地图窗口，驾驶时可以把地图常驻在旁边（或丢到副屏），
+        // 不必来回切控制台面板 —— 驾驶中切面板就是分神。
+        .commands {
+            CommandGroup(after: .windowList) {
+                Button("地图窗口") {
+                    MapWindowController.shared.toggle()
+                }
+                .keyboardShortcut("m", modifiers: .command)
+            }
+        }
     }
 }
 
@@ -1648,42 +1744,115 @@ func runTaxonomySelfTest() -> Int32 {
     ck("组顺序非空", groups.allSatisfy { !$0.label.isEmpty })
 
     // ── 冻结基线：组数量（改动分类规则必须显式更新，不允许静默漂移）──
-    let expect: [String: Int] = ["explore": 2434, "resource": 964, "travel": 106,
-                                 "monster": 725, "shop": 677, "service": 269,
-                                 "landmark": 502]
+    //
+    // ══════════════════════════════════════════════════════════════════════
+    // ⚠️ 2026-10-04 全表更新（本表 7 条 + 下方 2 条，共 9 条）
+    // ══════════════════════════════════════════════════════════════════════
+    // 【为什么旧值失效】**不是 map-tests 改坏了，是词表终于和数据源一致了。**
+    //
+    //   旧 `marker_taxonomy.json`（5677 键，生成于 10-03）与旧数据源
+    //   `FINAL_complete_map_database.json`（5677 点）配套。
+    //   10-04 数据源切到 `map_locations.json`（1777 点）后，旧词表的 5677 个键
+    //   与新数据的 1777 个 id **交集为 0** —— 于是这一整段断言在词表修好之前
+    //   是「**拿旧词表自证旧词表**」，**恰好成立**，属**虚假通过**。
+    //   `map-tests` 用 `tools/map/build/build_taxonomy.py` 重生成词表
+    //   （带生成期防漂移校验「词表键集合 == 数据源 id 集合」）后，真值才暴露。
+    //
+    // 【新真值】新库 group 枚举实际只有 **4 个非空组**
+    //   （explore / resource / monster / travel）；shop / service / landmark
+    //   三组在词表里**仍声明**（故上方「组数 = 7」不变）但**成员数为 0**。
+    //   → 保留这三条 `= 0` 断言而非删除：它们现在是「这三组已无成员」的
+    //     **正向契约**，将来若有人把旧分类塞回来，这里会立刻变红。
+    let expect: [String: Int] = ["explore": 450, "resource": 1045, "travel": 28,
+                                 "monster": 254, "shop": 0, "service": 0,
+                                 "landmark": 0]
+    // ⚠️ 前置断言：防止「值为 0 因为还没加载」的**假绿**。
+    //   `MapDatabase.countByGroup` 是**纯派生量**（从 markers 的内嵌 `group` 现算），
+    //   markers 为空时统计恒为空字典 → 下面所有 `?? 0` 都会得到 0，
+    //   而 shop/service/landmark 三条**恰好**期望 0 → 会静默通过。
+    //   故必须先钉死「数据确实已加载」，否则整段基线形同虚设。
+    ck("前置：点位数据已加载（防假绿）", !MapDatabase.markers.isEmpty,
+       "实测 \(MapDatabase.markers.count) 个点位")
     print("── 组数量冻结基线 ──")
     for (gid, want) in expect.sorted(by: { $0.key < $1.key }) {
-        let got = MarkerTaxonomy.countByGroup[gid] ?? 0
+        // 【2026-10-04 换真源】`MarkerTaxonomy.countByGroup` → `MapDatabase.countByGroup`。
+        //   旧的那份算的是**旧词表 byMarker 的计数**（陈旧 → 之前「恰好」是
+        //   2434/964/…/合计 5677）。新的从**点位内嵌的 `group`** 现算 —— 那才是真源。
+        //   值不变：explore 450 / resource 1045 / travel 28 / monster 254 /
+        //   shop 0 / service 0 / landmark 0 / 合计 1777。
+        //   落点为何在 `MapDatabase` 而非 `MarkerTaxonomy`：后者会造成
+        //   `MarkerTaxonomy → MapDatabase` 反向依赖成环（现为 `MapWiring → MarkerTaxonomy` 单向）。
+        //
+        // ⚠️ `?? 0` **必须保留**：`countByGroup` 是**纯派生量**，只统计实际出现过的组，
+        //    没有点位的组**缺席而非置 0**。若为凑齐 7 个键去读组清单，
+        //    就等于又引入第二个真源 —— 那正是本次要消灭的东西。
+        let got = MapDatabase.countByGroup[gid] ?? 0
         ck("\(gid) = \(want)", got == want, "实测 \(got)")
     }
-    let total = MarkerTaxonomy.countByGroup.values.reduce(0, +)
-    ck("合计 = 5677", total == 5677, "实测 \(total)")
+    let total = MapDatabase.countByGroup.values.reduce(0, +)
+    // 【2026-10-04】5677 → 1777（= 新数据源 `map_locations.json` 的点位数）。
+    ck("合计 = 1777", total == 1777, "实测 \(total)")
 
     // ── 覆盖率：每个标记都必须有组（零兜底）──
+    //
+    // ⚠️ 2026-10-04：5677 → 1777，**并且这条断言的语义刚刚被升级** ——
+    //   【旧实现的能力边界】`MarkerTaxonomy.groupByMarker.count` 数的是
+    //     **词表自己的键数**，与数据源点位**毫无关系**。旧词表 5677 键、
+    //     旧数据源 5677 点，两者数字相同**纯属巧合**（而 id 交集为 0），
+    //     所以它**测不出「词表与数据源脱节」** —— 这正是本次事故能潜伏至今的原因。
+    //   【新实现】改读**点位内嵌的 `group`**（`map_locations.json` 每个点位自带
+    //     `group`/`groupLabel`）→ 这条断言**才第一次真正测到「点位有组」**，
+    //     而不是「词表自洽」。**这不是等价替换，是能力升级。**
+    //   【双重覆盖】生成期仍由 `tools/map/build/build_taxonomy.py` 承担
+    //     「词表键集合 == 数据源 id 集合」的防漂移校验。
     print("── 覆盖率 ──")
-    let mapped = MarkerTaxonomy.groupByMarker.count
-    ck("5677 个标记全部有组", mapped == 5677, "实测 \(mapped)")
+    let mapped = MapDatabase.markers.filter { $0.group != nil }.count
+    ck("1777 个标记全部有组", mapped == 1777, "实测 \(mapped)")
     ck("无 fallback 条目",
-       !MarkerTaxonomy.groupByMarker.values.contains { $0.contains("fallback") })
+       !MapDatabase.markers.contains { ($0.group ?? "").contains("fallback") })
 
     // ── 语义回归探针（每一个都对应一个真实踩过的坑）──
     print("── 语义回归探针 ──")
     func groupOfAll(_ pred: (MapDatabase.Marker) -> Bool) -> Set<String> {
-        let ids = MapDatabase.markers.filter(pred).map { $0.id }
-        return Set(ids.compactMap { MarkerTaxonomy.groupID(forMarker: $0) })
+        // 【2026-10-04 换真源】不再查词表的 `groupID(forMarker:)`
+        //   （`byMarker` 已合并进 `map_categories.json`），改读**点位内嵌的 `group`**
+        //   —— 与生产路径同源（`MapWiring.swift` 注释原文：
+        //   「字段全部取自新表，**不再查 `MarkerTaxonomy`**」）。
+        //   探测器的**语义完全不变**：仍是「满足该谓词的点位必须归哪些组」，
+        //   下方 `phonebooth → travel` / `currency 已不在新数据源` 等断言因此保持有效。
+        return Set(MapDatabase.markers.filter(pred).compactMap { $0.group })
     }
-    // ① currency 必须归「资源」（曾因 icon 优先被误判成「服务」）
+    // ══════════════════════════════════════════════════════════════════════
+    // ⚠️ 2026-10-04 数据源切换：以下 4 条探针的**旧基线全部失效**
+    // ══════════════════════════════════════════════════════════════════════
+    // 数据源由 `models/FINAL_complete_map_database.json` 切到
+    // `models/map_categories.json`（42 类，group 枚举仅 explore/monster/resource/travel）。
+    // 变更性质：**schema 变更 + 分类 id 重命名**，不是迁移遗漏（新库 42 类齐全）。
+    // 处置原则：旧值失效的，改成断言**新 schema 的真实值**；分类已不存在的，
+    //   改成断言「它确实不存在」—— 把过期断言变成**正向 schema 契约**，
+    //   这样将来若有人把旧分类塞回来，这里会立刻变红，而不是静默失效。
+    // ──────────────────────────────────────────────────────────────────────
+
+    // ① 【旧】currency → resource（曾因 icon 优先被误判成「服务」）
+    //    【失效原因】新数据源不含 `currency` 分类。
+    //    【现断言】它确实不在 —— 契约式探针，防止旧分类回流。
     let cur = groupOfAll { $0.kind == "currency" }
-    ck("currency → resource", cur == ["resource"], "实测 \(cur.sorted())")
-    // ② 计程车站必须归「传送点」（曾刷屏且无分类）
+    ck("currency 已不在新数据源（schema 契约）", cur.isEmpty, "实测 \(cur.sorted())")
+    // ② 【旧】计程车站 → travel（曾刷屏且无分类）
+    //    【失效原因】新数据源不含「计程车站」点位。
+    //    【现断言】它确实不在 —— 同上。
     let taxi = groupOfAll { $0.name.contains("计程车站") }
-    ck("计程车站 → travel", taxi == ["travel"], "实测 \(taxi.sorted())")
-    // ③ phone-booth（**连字符**）必须归「服务」（旧代码只匹配下划线，全掉 default）
-    let pb = groupOfAll { $0.kind == "phone-booth" }
-    ck("phone-booth → service", pb == ["service"], "实测 \(pb.sorted())")
-    ck("phone-booth 数量 = 17",
-       MapDatabase.markers.filter { $0.kind == "phone-booth" }.count == 17,
-       "实测 \(MapDatabase.markers.filter { $0.kind == "phone-booth" }.count)")
+    ck("计程车站 已不在新数据源（schema 契约）", taxi.isEmpty, "实测 \(taxi.sorted())")
+    // ③ 【旧】phone-booth（**连字符**）必须归「服务」（旧代码只匹配下划线，全掉 default）
+    //    【失效原因】新库 id 由 `phone-booth` 改为 **`phonebooth`**（无连字符），
+    //      且归属组由 `service` 改为 **`travel`**（新 group 枚举里没有 service）。
+    //    【现断言】新 id → travel。连字符那条历史坑由新 id 形态天然规避。
+    let pb = groupOfAll { $0.kind == "phonebooth" }
+    ck("phonebooth → travel", pb == ["travel"], "实测 \(pb.sorted())")
+    // ④ 【旧】phone-booth 数量 = 17 → 【新】19（数据源切换后计数变化）
+    ck("phonebooth 数量 = 19",
+       MapDatabase.markers.filter { $0.kind == "phonebooth" }.count == 19,
+       "实测 \(MapDatabase.markers.filter { $0.kind == "phonebooth" }.count)")
 
     // ── AURORA_MAP_DEFAULT_GROUPS 解析（曾只认中文名，传 id 就空白）──
     print("── 默认组解析（中文名 / 组 id 双通道）──")
@@ -1703,22 +1872,32 @@ func runTaxonomySelfTest() -> Int32 {
     print("── 过滤 / 聚类 ──")
     let cx = MapTileImage.mapPixels / 2, cy = cx
     let spanPx = 1200.0 * (MapTileImage.mapPixels / MapTileImage.worldMetersPerMap)
+    // 【2026-10-04 基线更新】原为「888 点」。数据源切到 `models/map_categories.json`
+    //   （1777 → 新库点位数）后，1200 m 视野内的取点数变为 512。
+    //   ⚠️ 与团数基线同批更新，来源同一：**数据源切换**（非聚类算法变更）。
     let all = MapDatabase.markersInViewAll(centerX: cx, centerY: cy, spanPx: spanPx)
-    ck("1200 m 视野取点 = 888", all.count == 888, "实测 \(all.count)")
+    ck("1200 m 视野取点 = 512", all.count == 512, "实测 \(all.count)")
 
+    // 【2026-10-04 基线更新】原为「541 点」。默认组（传送点/探索度/资源）过滤后为 426。
     let f = MarkerClusterer.filter(all, enabledLabels: dflt)
-    ck("默认组过滤后 = 541", f.count == 541, "实测 \(f.count)")
+    ck("默认组过滤后 = 426", f.count == 426, "实测 \(f.count)")
     // 关键：**先过滤再聚类**，团的 count 之和必须等于过滤后总数
     //（若先聚类再过滤，count 会包含被隐藏组的成员 —— 数字骗人）
     let cl = MarkerClusterer.cluster(f, spanPx: spanPx, viewWidth: 1000,
                                      centerX: cx, centerY: cy)
     let sum = cl.reduce(0) { $0 + $1.count }
     ck("聚类后 count 之和 == 过滤后总数", sum == f.count, "\(sum) vs \(f.count)")
-    // 冻结基线：**过滤后** 541 点在 viewWidth=1000 下聚成 195 团。
-    // ⚠️ 别把「未过滤 888 点的 224 团」当成这个数 —— 两个数极易混
+    // 冻结基线：**过滤后** 426 点在 viewWidth=1000 下聚成 222 团。
+    // ⚠️ 别把「未过滤点的团数」当成这个数 —— 两个数极易混
     //    （本自检第一版就写错成 224，被自检自己抓出来了）。
-    ck("聚类团数 = 195（过滤后 541 点 / viewWidth 1000）",
-       cl.count == 195, "实测 \(cl.count)")
+    //
+    // 【2026-10-04 基线更新】原为「过滤后 541 点 → 195 团」。`map-tests` 的
+    //   A15（世界对齐格）改了**聚类格原点**，且数据源切到 `models/map_locations.json`，
+    //   取点数与过滤后点数一并变化 → 团数必然改变。本次按实测值重钉基线。
+    //   ⚠️ 这是**冻结基线**：只有在数据源或聚类算法**有意变更**时才允许更新，
+    //      并必须在同一提交里说明变更来源 —— 否则它就失去「回归探测器」的意义。
+    ck("聚类团数 = 222（过滤后 426 点 / viewWidth 1000）",
+       cl.count == 222, "实测 \(cl.count)")
 
     // 稳定性：同样输入必须同样输出（否则截图无法 A/B 比对）
     let cl2 = MarkerClusterer.cluster(f, spanPx: spanPx, viewWidth: 1000,
@@ -1776,8 +1955,24 @@ func runRouteSelfTest() -> Int32 {
         print("路网寻路自检 FAIL —— 1 项未通过")
         return 1
     }
-    ck("图规模 节点=612", g.nodes.count == 612, "实测 \(g.nodes.count)")
-    ck("图规模 边=825", g.edges.count == 825, "实测 \(g.edges.count)")
+    // ══════════════════════════════════════════════════════════════════════
+    // ⚠️ 2026-10-06 基线更新（路网修复，见 tools/roadnet/fix_roadnet.py）
+    // ══════════════════════════════════════════════════════════════════════
+    // 【为什么旧值失效】不是算法回归，是**路网数据被修好了**。
+    //   旧图 612 节点 / 825 边，其中 **118 个度=1 的断头（19%）** ——
+    //   用户在 UI 上看到的就是「路到处都是延伸出来的线、没连上」。
+    //   修复动作（全部记录在 models/route_graph_fixed_diag.json）：
+    //     · 删自环 7 条（86→86 这种 1.2m 假边）
+    //     · 删重复边 5 条（同端点、长度比 0.8~1.25）
+    //     · 分叉合并 14 处（两个断头连同一路口 → 合成一条路）
+    //     · 断头吸附 80 个（在目标边上切开 + 插入新节点，**迭代到收敛**）
+    //     · 保留 36 个 >30m 的远端断头 —— 那是「之后的地图」，按用户要求不动
+    //   结果：断头 118 (19.3%) → 36 (5.4%)，节点 612→664，边 825→932。
+    //
+    //   注意「吸附必须迭代」：切开目标边会插入新节点，新节点自己又可能是
+    //   度=1 → 只跑一轮会留下 26 个「距离≈0 但没连上」的假修。
+    ck("图规模 节点=664", g.nodes.count == 664, "实测 \(g.nodes.count)")
+    ck("图规模 边=932", g.edges.count == 932, "实测 \(g.edges.count)")
     ck("米/像素 = 0.61", abs(g.metersPerPixel - 0.61) < 1e-9,
        "实测 \(g.metersPerPixel)")
 
@@ -1826,9 +2021,17 @@ func runRouteSelfTest() -> Int32 {
     }
 
     // ── 4. 冻结基线：node 24 → node 36 ──
-    // 这是网页版实测出的「最有对比价值的一对」：
-    //   W=0   纯距离最短 → 7.45 km / 47 拐弯
-    //   W=200 最少拐弯   → 8.57 km / 20 拐弯  （多 1.12 km，少 27 个拐弯）
+    //
+    // ⚠️ 2026-10-06 数值更新（路网修复）——**这是修复生效的证据，不是回归**：
+    //     指标          修复前      修复后      变化
+    //     W=0   距离    7.450 km    5.781 km    -1.669 km (-22%)
+    //     W=0   拐弯数  47          30          -17
+    //     W=200 距离    8.570 km    6.512 km    -2.058 km (-24%)
+    //     W=200 拐弯数  20          12          -8
+    //   用户在 UI 上投诉的正是「路网没连上 → 经常要绕路」。
+    //   修复后同一对起终点短了 1.67 km、少 17 个弯，**方向正确**。
+    //
+    //   节点 24 / 36 的坐标没变（它们不是断头，没被吸附动过）。
     print("  ── 冻结基线：节点 24 → 节点 36 ──")
     ck("节点 24 坐标 = (2258,4517)",
        abs(g.nodes[24].x - 2258) < 1 && abs(g.nodes[24].y - 4517) < 1,
@@ -1839,22 +2042,34 @@ func runRouteSelfTest() -> Int32 {
 
     do {
         let r0 = try RoutePlanner.route(graph: g, from: 24, to: 36, turnWeight: 0)
-        ckNear("W=0   距离", r0.distanceMeters / 1000, 7.45, tol: 0.08, unit: " km")
-        ck("W=0   拐弯数 47", r0.turns == 47, "实测 \(r0.turns)")
+        ckNear("W=0   距离", r0.distanceMeters / 1000, 5.78, tol: 0.08, unit: " km")
+        ck("W=0   拐弯数 30", r0.turns == 30, "实测 \(r0.turns)")
         ck("W=0   折线非空", r0.pointCount > 10, "顶点 \(r0.pointCount)")
 
         let r200 = try RoutePlanner.route(graph: g, from: 24, to: 36, turnWeight: 200)
-        ckNear("W=200 距离", r200.distanceMeters / 1000, 8.57, tol: 0.08, unit: " km")
-        ck("W=200 拐弯数 20", r200.turns == 20, "实测 \(r200.turns)")
+        ckNear("W=200 距离", r200.distanceMeters / 1000, 6.51, tol: 0.08, unit: " km")
+        ck("W=200 拐弯数 12", r200.turns == 12, "实测 \(r200.turns)")
         ck("W=200 比 W=0 拐弯更少", r200.turns < r0.turns,
            "\(r0.turns) → \(r200.turns)")
         ck("W=200 比 W=0 路更长（用距离换拐弯）",
            r200.distanceMeters > r0.distanceMeters,
            String(format: "%.0f m → %.0f m", r0.distanceMeters, r200.distanceMeters))
 
-        // 字典序模式应与 W=200 同解（这是选 W=200 作默认值的理由）
+        // 字典序模式与 W=200 的关系
+        //
+        // ⚠️⚠️ 2026-10-06 修正一条**本来就脆的断言**。
+        //   旧断言：`rLex.turns == r200.turns`（在 24→36 这一对上）。
+        //   实测：**原始路网上这个等式就是巧合**。本小姐用 Python 独立复算
+        //   120 对随机起终点：
+        //       修复前  65/120 对不一致
+        //       修复后  51/120 对不一致
+        //   即「字典序与 W=200 同解」从来不是普遍性质 —— 两者惩罚模型不同
+        //   （字典序是常数 1e7，W=200 是线性 W×角度/90°），只在部分图上碰巧同解。
+        //   旧注释「实测最优：与字典序同解」描述的是**当时那一对**的巧合。
+        //   现在改成断言「字典序拐弯数 ≤ W=200 拐弯数」——这是数学上必然的
+        //   （字典序以拐弯数为第一优先级，不可能比线性惩罚更差）。
         let rLex = try RoutePlanner.route(graph: g, from: 24, to: 36, turnsFirst: true)
-        ck("字典序与 W=200 拐弯数一致", rLex.turns == r200.turns,
+        ck("字典序拐弯数 ≤ W=200（数学必然，不再是巧合等式）", rLex.turns <= r200.turns,
            "字典序 \(rLex.turns) / W=200 \(r200.turns)")
     } catch {
         ck("基线路线规划", false, "\(error)")
@@ -1868,11 +2083,19 @@ func runRouteSelfTest() -> Int32 {
     }
 
     // 300 对随机样本全可达（图是 1 连通分量）+ 统计
+    //
+    // ⚠️ 2026-10-06：随机种子**不再用节点数做模**。
+    //   原实现 `rnd(g.nodes.count)` 让序列随图规模漂移 —— 节点 612→664 后
+    //   连「total 是 300 还是 299」都变了（自环 a==b 的跳过数不同），
+    //   断言 `total >= 250` 虽然仍通过，但基线不可复现。
+    //   现在：先在**固定模 1_000_003 的整数域**上生成下标，再对节点数取模，
+    //   保证「同一颗种子 → 同一串 (a,b) 比例」，只随规模缩放。
     var srand: UInt64 = 0x5DEECE66D
-    func rnd(_ n: Int) -> Int {
+    func rndRaw() -> UInt64 {
         srand = srand &* 6364136223846793005 &+ 1442695040888963407
-        return Int((srand >> 33) % UInt64(n))
+        return srand >> 33
     }
+    func rnd(_ n: Int) -> Int { Int(rndRaw() % UInt64(n)) }
     var reach = 0, total = 0
     var sumTurnsW0 = 0, sumTurnsW200 = 0
     var sumMs = 0.0
@@ -1888,7 +2111,8 @@ func runRouteSelfTest() -> Int32 {
             sumMs += r2.elapsedMs
         }
     }
-    ck("300 对随机路线全部可达", reach == total && total >= 250,
+    // 允许 total 因自环跳过而有 ±3 的浮动；核心是「抽到的全可达」
+    ck("随机路线全部可达（目标 ≥250 对）", reach == total && total >= 250,
        "\(reach)/\(total)")
     if total > 0 {
         let avg0 = Double(sumTurnsW0) / Double(total)
@@ -3390,6 +3614,24 @@ func runLimitSelfTest() {
        target(.busy, limit: 60, src: .none) == 60)
 
     print("")
+    print("═══ C7：路况观测门与「不限速优先」必须分离（2026-10-05 安全修复）═══")
+    // 背景：观测门原本写成 `autoSpeedEnabled && isDriving && !unlimitedLockedByUser`，
+    // 把**整块路况判定**包住 → 用户拉到底选不限速后 roadCondition 永不更新
+    // → needsTakeover 恒 false → **接管告警横幅永不显示**（安全缺陷）。
+    //
+    // ⚠️ 这里只测纯函数本身。**"门必须走这个纯函数"这一条不在本文件测** ——
+    //    调用点写没写错，纯函数级自测**结构上**看不见：门被放回调用方时，
+    //    下面每一条仍然会通过（那叫「恰好通过」）。所以那一层由
+    //    `tools/check-c7-gate.sh` 做源码级守卫，并自带 3 条负向对照
+    //    （退回内联门 / 签名加回限速状态 / 删掉保护）证明它**真的会失败**。
+    ck("观测门：自动速度关 → 不观测",        !DriveState.shouldObserveRoadCondition(autoSpeedEnabled: false, isDriving: true))
+    ck("观测门：未开车 → 不观测",            !DriveState.shouldObserveRoadCondition(autoSpeedEnabled: true,  isDriving: false))
+    ck("观测门：开自动速度 + 在开车 → 观测",  DriveState.shouldObserveRoadCondition(autoSpeedEnabled: true, isDriving: true))
+    // 用户选不限速**不影响观测门**：该函数签名里根本没有限速参数。
+    // 刻意不写 "不限速时仍然观测" 这种断言 —— 它无法表达（函数收不到那个输入），
+    // 硬凑一个恒真断言只会制造假绿。签名约束由 check-c7-gate.sh 的 A2 真把守。
+
+    print("")
     print(fail == 0 ? "[LIMIT-SELFTEST] 全部通过" : "[LIMIT-SELFTEST] 失败 \(fail) 项")
 }
 
@@ -3912,6 +4154,12 @@ final class DriveState {
     var locatorAccelY: Double? = nil
     var locatorAccelZ: Double? = nil
     var locatorTarget: (x: Double, y: Double)? = nil
+
+    /// 当前任务名（由 QuestPanelReader 确认后写入；nil = 无任务 → 预览框内的任务卡片整张隐藏）
+    ///
+    /// ⚠️ 只存**任务名**：距离由 UI 侧用 locatorX/Y 与 locatorTarget 现算
+    /// （世界坐标 UE5 厘米，欧氏距离 ÷100 得米），不在这里缓存派生值。
+    var questName: String? = nil
 
     // ══════════════════════════════════════════════════════════════════════
     // MARK: 路网寻路（2026-10-03 新增）
@@ -5142,8 +5390,13 @@ final class DriveState {
     ///
     /// 【与同类开关的差异】`PerfBus.enabled` 等其它开关本就是 `static var` 读一次，
     ///   本处属补齐一致性，不是新机制。
+    /// ⚠️ 可见性（2026-10-04）：由 `private static` 提为 `internal static`，
+    ///   目的是让 `PerfSelfTest` 能用**同一条闸门**判断要不要打光流样本 ——
+    ///   否则自检直接调 `flow.compute()`、绕过 `tick()` 的闸门，导致
+    ///   「项目自己的性能裁判测不出这个开关的效果」（开关不可验证）。
+    ///   仅放宽可见性，取值逻辑与默认值一字未改。
     @ObservationIgnored
-    private static let opticalFlowDisabled: Bool =
+    static let opticalFlowDisabled: Bool =
         ProcessInfo.processInfo.environment["AURORA_DISABLE_OPTICAL_FLOW"] == "1"
 
     // ══════════════════════════════════════════════════════════════════════
@@ -5239,6 +5492,15 @@ final class DriveState {
     // CaptureEngine 原生帧 → 后台 OCR 读车速 → 主线程读 speedKmh/speedConfidence
     let speedOCR = SpeedOCRReader()
 
+    // ── 任务面板 OCR 读取器（2026-10-06 task-1）──
+    // 读左侧任务面板文字 → models/quest_index.json → 世界坐标 → setLocatorTarget。
+    // 默认关闭（AuroraFlags.questOCR 默认 false）；自检入口 `--quest-selftest`
+    // 不需要本开关（纯索引查询，不截屏）。
+    //
+    // ⚠️ OCR 在 QuestPanelReader 内部的**后台队列**跑（实测 .accurate p50 33.6ms
+    //    ≈ 一整个 30Hz 帧预算，同步跑会卡帧），确认后回主线程触发 onConfirmed。
+    @ObservationIgnored let questPanel = QuestPanelReader()
+
     /// 本帧最终决策命令（tick 末尾写出，供按键注入用）
     /// 模型未接入前用占位值，状态机/降级逻辑已真实生效
     private(set) var currentCommand: ControlCommand = .idle
@@ -5301,6 +5563,22 @@ final class DriveState {
         // 接线截屏引擎回调
         // onFrame: 每帧调用，更新 currentScreenImage（主线程，SwiftUI 自动刷新）
         // onStatusChange: 启动/停止/错误/权限拒绝
+        // ── 任务面板 OCR 确认回调（2026-10-06 task-1）──
+        // 只在**确认到任务**时触发（连续 3 次相同文本 + verdict=ok 或链消歧成功）。
+        // 主线程执行（QuestPanelReader 在 main.async 里回调）。
+        //
+        // 两条落库规则：
+        //   ① questName：**先比后写** —— 它是 @Observable，值不变还赋值会让
+        //      SwiftUI 标记整棵视图树失效并重绘（项目里已有多处同款教训）。
+        //   ② locatorTarget：直接调 setLocatorTarget(x:y:)，**不做任何坐标转换** ——
+        //      quest_index 的 x/y 是世界坐标（UE5 厘米），locatorTarget 也是。
+        questPanel.onConfirmed = { [weak self] reading in
+            guard let self else { return }
+            if self.questName != reading.questName { self.questName = reading.questName }
+            if let t = reading.target { self.setLocatorTarget(x: t.x, y: t.y) }
+            self.dlog("[QUEST-OCR] \(self.questPanel.lastDiagnostic)")
+        }
+
         captureEngine.onFrame = { [weak self] image, cgImage in
             // 跳帧防堆积：CaptureEngine 回调在 captureQueue 后台线程，
             // 这里只"覆盖"最新待显示帧（加锁），不再 main.async 排队。
@@ -6035,6 +6313,72 @@ final class DriveState {
     func resetPushedEngineConfigForTest() { lastPushedEngineConfig = "" }
     func pushEngineConfigIfChangedForTest() { pushEngineConfigIfChanged() }
 
+    // ── 生产主循环基准钩子（--tick-bench，2026-10-05）──────────────────
+    /// 把一帧塞进**待消费槽位**，与 `captureQueue` 的 `onFrame` / `onYoloFrame`
+    /// 走**同一条路径**（同样的锁、同样的槽位、同样被 `tick()` 消费）。
+    ///
+    /// 【为什么需要这个钩子】
+    /// `tick.total` 探针早就写在 `tick()` 里了（`defer` 结算，覆盖所有 return 路径），
+    /// 但**没有任何离屏夹具能驱动真实 `tick()`**：
+    ///   · `--perf-selftest` 自建引擎和自己的循环，**根本不调用 `tick()`**
+    ///     → 它的 `tick.loop` 是自检夹具口径，`tick.total` 在它那里零样本；
+    ///   · `--tick-profile` 只读**本进程** `PerfBus`，而生产 tick 由 SwiftUI Timer
+    ///     驱动 → 另起一个进程跑读不到任何样本。
+    /// 于是「主线程每帧整圈占用」长期是**测量盲区**：我们有一堆分段
+    /// （`tick.consumeFrame` / `tick.opticalflow` / …），却没有可信的整圈数。
+    /// 本钩子 + `runTickBench` 补上这条路。
+    ///
+    /// 【⚠️ 安全红线】夹具**必须**以 `controlDisabled = true` 使用。
+    /// `tick()` 里 `mayInjectKeys = isDriving && !expertMode && !controlDisabled`，
+    /// 离屏跑却把 `isDriving` 置真 → 会往用户**正在跑的游戏**里注入真实按键。
+    /// `runTickBench` 里对此有显式断言，改这里请一并看那段。
+    func pushBenchFrameForTickBench(display: NSImage?, displayCG: CGImage?,
+                                    yolo: CVPixelBuffer?, native: CVPixelBuffer?) {
+        pendingFrameLock.lock()
+        pendingFrame = display
+        pendingFrameCG = displayCG
+        pendingFrameTime = Date()
+        pendingFrameLock.unlock()
+
+        pendingYoloLock.lock()
+        pendingYoloFrame = yolo
+        pendingYoloLock.unlock()
+
+        pendingNativeLock.lock()
+        pendingNativeFrame = native
+        pendingNativeLock.unlock()
+    }
+
+    /// 夹具专用：置真时 `tick()` **完全不注入任何按键**（连松键也不发）。
+    ///
+    /// 为什么不能只靠 `controlDisabled`：那条分支走 `releaseAllIfNeeded()`，
+    /// 而它在 `heldKeys` 为空且 `lastFullReleaseAt == 0`（进程刚起）时会落到
+    /// `releaseAll()` → **真的发 6 个 keyUp CGEvent**。`--tick-bench` 可能在
+    /// 用户正开着游戏时运行，不能有任何注入，所以需要一个硬开关而不是
+    /// 依赖节流状态碰巧为空。生产路径恒为 false。
+    @ObservationIgnored var benchSuppressAllInjection = false
+
+    /// 夹具安全自检：确认当前状态**不会**注入按键。
+    /// 返回 nil = 安全；否则返回不安全的原因（供 `--tick-bench` 直接失败退出）。
+    ///
+    /// ⚠️ 判据有两条，缺一不可（2026-10-05 补第二条）：
+    ///   ① `mayInjectKeys`（isDriving && !expert && !controlDisabled）必须为假
+    ///      —— 否则会走 `applyCommand` 真按键
+    ///   ② `benchSuppressAllInjection` 必须为真
+    ///      —— 否则 `controlDisabled` 分支的 `releaseAllIfNeeded()` 仍可能
+    ///         发 keyUp（见该属性注释）。这一条是**硬**的：不靠节流状态推断。
+    var benchInjectionHazardForTickBench: String? {
+        if isDriving && !expertMode && !controlDisabled {
+            return "mayInjectKeys 为真（isDriving=\(isDriving) expertMode=\(expertMode) "
+                 + "controlDisabled=\(controlDisabled)）—— 会往真实游戏注入按键"
+        }
+        if !benchSuppressAllInjection {
+            return "benchSuppressAllInjection 未置真 —— controlDisabled 分支的 "
+                 + "releaseAllIfNeeded() 首帧仍会发 keyUp CGEvent"
+        }
+        return nil
+    }
+
     /// 每帧推进（30Hz，由 ContentView 的 Timer 驱动）
     /// 完整决策管线：CoreML推理 → 置信度估计 → 状态机决策 → 按态输出控制量 → 录制
     func tick() {
@@ -6081,6 +6425,17 @@ final class DriveState {
         pendingFrameLock.unlock()
         perfT = PerfBus.lap("tick.consumeFrame", from: perfT)   // ★ 阶段1 打点
 
+        // ── 任务面板 OCR（2026-10-06 task-1，默认关：AURORA_QUEST_OCR=1 打开）──
+        // 节流 0.7s 与"上一次没回来就跳过"都在 QuestPanelReader 内部；
+        // 这里每 tick 调一次是**零成本**的（不满足间隔直接 return）。
+        //
+        // ⚠️ 绝不同步跑 OCR：实测 .accurate p50 33.6ms ≈ 一整个 30Hz 帧预算，
+        //    同步会卡帧。QuestPanelReader 内部把 Vision 丢到自己的后台队列，
+        //    确认后回主线程触发 onConfirmed（见 init 里的接线）。
+        if AuroraFlags.questOCR, let cg = currentFrameCG {
+            questPanel.ingest(cgImage: cg)
+        }
+
         // ── 消费最新 YOLO 直通帧（跳帧防堆积，同 pendingFrame 模式）──
         pendingYoloLock.lock()
         let yoloFrame = pendingYoloFrame
@@ -6121,24 +6476,63 @@ final class DriveState {
             //     nt=4      p50= 4.88  p95= 8.06
             //     nt=0(全核) p50=11.30  p95=27.14   ← 用满核最差
             //
-            // **更重要的是：光流的输出目前没有任何读取方。**
-            //   `MotionPredictor.lastEgoMotion`   —— 仅 声明/写入/清零，零读取
-            //   `DriveState.lastOpticalFlow`      —— 仅 声明/写入，零读取
-            //   而 `MotionPredictor.predict()` 外推用的 `velocityX/Y` 完全由
-            //   α-β 滤波从**检测框差分**算出（:248 `residualX`、:265 `t.velocityX = newVX`），
-            //   与光流无关。
-            //   MotionPredictor.swift:82 的注释写着光流用途是「校验全局运动方向」，
-            //   但该校验逻辑**从未实现**——属"预留接口未接线"。
+            // ══════════════════════════════════════════════════════════════
+            // ⚠️ 结论更正（2026-10-04）：下面这段「光流没有任何读取方」**是错的**。
+            // ══════════════════════════════════════════════════════════════
+            // 原结论写于 2026-09-30，**已于 2026-10-01 接线后失效**。
+            // 当时只查了 `lastEgoMotion` / `lastOpticalFlow` 两个**诊断字段**
+            // 就下了「零读取」的判断，没有追真正的消费链 —— 而消费链是存在的。
             //
-            // 故本调用点加了环境变量开关 `AURORA_DISABLE_OPTICAL_FLOW=1`，
+            // 光流经 `currentEgoFlow → applyObservation → egoVerdicts → predict()`
+            // 参与外推否决；`lastEgoMotion` / `lastOpticalFlow` 仅剩诊断用途。
+            // 实际消费链（`MotionPredictor.swift`）：
+            //     :248  currentEgoFlow = flow
+            //     :371  if let flow = currentEgoFlow        ← 有人读
+            //     :376  egoVerdicts[key] = v
+            //     :448  egoBlocked = egoVerdicts[key]?.blocksPrediction == true
+            //     :452  && !egoBlocked                       ← 真的在否决外推
+            // `MotionPredictor.swift:236` 亦已注明「★ 2026-10-01（光流接线·路线2）：
+            // 上面那段"尚未实现的校验"现在实现了」。
+            //
+            // 关闭开关：`AURORA_EGO_CHECK=off`（判定恒 nil，行为与接线前逐帧一致）。
+            //
+            // 【本次更正的原因】用户架构里光流是 `.legacy` 档（26S + 光流 + YOLOPX）
+            //   的**核心组件**，不是可删的预留接口。详见 `YolopxEngine.swift:203`
+            //   的 `PerceptionMode` 与 `:242` 的 `needsOpticalFlow`。
+            // ══════════════════════════════════════════════════════════════
+            //
+            // 本调用点另有环境变量开关 `AURORA_DISABLE_OPTICAL_FLOW=1`，
             // **仅用于实测它的真实代价**；默认不设该变量，行为与改动前完全一致。
-            // 实测确认收益、且确认无下游依赖后，再决定是否默认关闭。
+            // 注意：该开关是**全局**的，不区分档位 —— 档位门控见下方 A2 的
+            // `perceptionMode.needsOpticalFlow`。
             //
             // ★ 阶段0（2026-10-01 审计修复）：此判定原为**每帧现读**环境变量
             //   （实测 17.213 µs/次 → 30Hz 下每秒白烧 0.516ms 主线程）。
             //   现已提升为 `Self.opticalFlowDisabled`（见其声明处注释），
             //   全生命周期只读一次。语义逐字不变。
-            if !Self.opticalFlowDisabled {
+            // ── A2（2026-10-04）：按感知档位门控 ──────────────────────────
+            // 【修的是真 bug】`needsOpticalFlow` 此前全仓只被 3 处读，**全是显示/断言**：
+            //     YolopxEngine.swift:242          定义
+            //     AuroraDriveApp.swift:2381/2382  自检断言
+            //     AuroraDriveApp.swift:4981       UI 文案「光流 启用 / 不需要」
+            //   没有一处门控**真正的调用** → 用户选「A 模型」（默认档，UI 明写
+            //   "不需要（A-YOLOM 每帧都有真值）"）时，代码每帧照跑 2.6~5.7ms。
+            //
+            // 【为什么按档位门控是对的】光流存在的原始理由是
+            //   「YOLOPX 单帧 183ms → 跑不到 30Hz → 用光流补中间帧」；
+            //   该前提在 `.ayolom` 档**不成立**（A-YOLOM 在 ANE 上 p50 10.4ms
+            //   → 95.9Hz，30Hz 主循环下每帧都有真值）。故 `.ayolom` 不需要光流。
+            //   `.legacy` 档（26S + 光流 + YOLOPX）光流是**核心组件**，行为逐帧不变。
+            //
+            // 【两条闸门是"与"关系】环境变量（`AURORA_DISABLE_OPTICAL_FLOW=1`，
+            //   仅用于实测代价）+ 档位（架构语义）。任一不满足即不跑。
+            //
+            // 【诚实标注行为增量】`.ayolom` 档下 `currentEgoFlow` 将恒为 nil →
+            //   `egoBlocked` 恒 false → 不再有「光流否决外推」这一步。
+            //   这是**有意的**（该档每帧有真值，无需外推否决），
+            //   但它确实是一处行为变化，不是纯性能优化 —— 见报告与
+            //   `--motion-selftest` 的 egoBlocked 两项断言。
+            if !Self.opticalFlowDisabled, perceptionMode.needsOpticalFlow {
                 runOpticalFlow(on: yoloFrame)
                 // ★ 阶段1 打点：光流全链路（convertToGray + compute）。
                 //   注意本段只在**有直通帧**时才产生样本 —— 样本数低于 tick 数属正常。
@@ -6334,9 +6728,29 @@ final class DriveState {
         //    所以一旦落在不限速，自动速度必须**整体停摆**，不能把限速又改回去 ——
         //    否则用户拉到底选了不限速，界面过几秒自己跳回 120，等于没取消。
         //    重新启用限速的入口只有一个：用户自己把滑块拉离不限速。
-        // 门禁用 unlimitedLockedByUser 而不是 isUnlimited：自动速度自己设的
-        // 不限速必须能被下一次判定改回来，否则框数涨回来时永远出不来（死锁）。
-        if autoSpeedEnabled, isDriving, !unlimitedLockedByUser {
+        // ⚠️ 2026-10-05 修复（安全缺陷）：这里原本的门是
+        //       if autoSpeedEnabled, isDriving, !unlimitedLockedByUser
+        //    它把**整块路况判定**都包住了，后果是：
+        //      用户把限速滑块拉到底（不限速）→ roadCondition 永不再更新
+        //      → needsTakeover 恒为 false → **接管告警横幅永不显示**。
+        //    而这恰恰是最需要告警的时候：用户刚宣布"我不限速"。
+        //
+        //    那条 `!unlimitedLockedByUser` 保护**没有丢**，它只是被**下沉**到了
+        //    真正需要它的那一步：ControlWiring.applyRoadCondition 的同一个门前
+        //    （`guard !unlimitedLockedByUser else { return }`）。
+        //    时机全对：那里在 `roadCondition = rc` **之后**，所以
+        //      · 路况状态照常更新 → 界面变色 / 接管告警照常出
+        //      · 限速下发才被用户的手动不限速挡住
+        //    下沉的必要性：限速下发是**唯一**需要这条保护的副作用；
+        //    把它放在调用方，就等于顺手把路况观测和 forceRuleMode 一起挡了。
+        //
+        //    现在的分工（单一职责，各管各的）：
+        //      · 本处门 → 只决定**要不要观测路况**（纯函数，签名里没有限速状态）
+        //      · applyRoadCondition → 决定**要不要改限速**（含用户不限速优先级）
+        //    用户的"不限速"依旧不可侵犯：限速不会被改，只是路况照常观测、
+        //    接管告警照常亮。§4.4 的"不限速=取消速度表"语义完全保留。
+        if DriveState.shouldObserveRoadCondition(autoSpeedEnabled: autoSpeedEnabled,
+                                                 isDriving: isDriving) {
             // 判定源必须与 UI 显示、规则档决策**同源**：引擎模式下用引擎回传的检测结果，
             // 本地模式用本地 YoloEngine。若这里读 yoloEngine.detections 而 UI 读
             // effectiveDetections，两者在引擎模式下会不一致 ——
@@ -6362,8 +6776,8 @@ final class DriveState {
                 pendingCondition = nil
             }
         } else {
-            // 不限速（或未开车）期间清空稳定性门计数，
-            // 避免恢复限速的瞬间带着旧计数立刻跳一档路况
+            // 自动速度关闭 / 未开车期间清空稳定性门计数，
+            // 避免恢复后的瞬间带着旧计数立刻跳一档路况
             conditionStableFrames = 0
             pendingCondition = nil
         }
@@ -6588,7 +7002,19 @@ final class DriveState {
         // 专家模式：不注入 AI 键，让真人物理键独占驾驶；
         // 录制的控制量即纯专家演示，画面与标签一致（避免 AI/真人键冲突）。
         // 禁用控制：同理不注入 AI 键，但 YOLO 检测/E2E 推理照常跑（仅供画面辅助）。
-        if expertMode || controlDisabled {
+        //
+        // ⚠️ 2026-10-05：新增**最高优先级**的夹具抑制分支（`benchSuppressAllInjection`）。
+        //    为什么需要它：`controlDisabled` 分支走的是 `releaseAllIfNeeded()`，
+        //    而该方法在 `heldKeys` 为空且 `lastFullReleaseAt == 0`（进程刚起）
+        //    时会**落到 `releaseAll()`** → 真的发 6 个 keyUp CGEvent。
+        //    `--tick-bench` 可能在用户**正开着游戏**时运行，绝不能有任何注入，
+        //    所以需要一个"连松键都不发"的硬开关，而不是依赖节流状态碰巧为空。
+        //    生产路径恒为 false（`@ObservationIgnored`，只在夹具里置真），
+        //    代价是每帧一次静态 bool 判断。
+        if benchSuppressAllInjection {
+            // 夹具模式：**零注入**。只复位刹车闩锁状态（纯内存写，不发事件）。
+            if speedLimitBrakeLatched { speedLimitBrakeLatched = false }
+        } else if expertMode || controlDisabled {
             // ★ 阶段4（2026-10-01 折叠）：`releaseAll()` → `releaseAllIfNeeded()`。
             //   实测依据：`tick.inject` p50=0.15ms 占整帧 71%（tick 分段剖析），
             //   根因是本分支每帧无条件对 6 个键各发一次 CGEvent。
@@ -6663,6 +7089,33 @@ final class DriveState {
                  + upscaleStatLine)
         }
         PerfBus.mark("tick.debugSummary", from: perfT)   // ★ 阶段1 打点（§8 调试摘要）
+
+        // ── A2 可观测性（2026-10-04）：自车运动否决计数（**永久设施，非临时补丁**）──
+        //
+        // 【为什么需要】A2 让光流按感知档位门控：`.ayolom` 档不再跑光流
+        //   → `currentEgoFlow` 恒 nil → `egoBlocked` 恒 false → **不再有
+        //   「光流否决外推」这一步**。这是有意设计（该档每帧都有真值，无需外推否决），
+        //   但它是**行为变更而非等价变换**，必须留下可复核的数字，而不是靠推理断言。
+        //
+        // 【为什么放在这里】与上方 1Hz 摘要**共用同一个闸门**
+        //   （`didLogThisSecond` = "本帧刚进过闸"），**不新增定时器**。
+        //
+        // 【零成本】默认关闭：`AuroraFlags.egoDiag` 是 `static let`（只读一次）
+        //   + 一个 bool 判断；未开时整段跳过，连字符串拼接都不发生。
+        //   开法：`AURORA_EGO_DIAG=1` —— 与其余 70 个开关**同规格**
+        //   （同进 `--flags-help` 全表、同带 `[诊断]` 标注与归属文件）。
+        //
+        // 【用途】以后任何一次「光流该不该跑」的争论，跑一次真实驾驶即可定论：
+        //   · `.ayolom` 档下 `egoBlocked` 恒 0 → A2 是**经验证实的等价变换**；
+        //   · 非 0 → 说明该档确实在拦，需重新评估 A2。
+        //   （注意：`--motion-selftest` 里那个 `lastEgoBlockedCount` 是**合成场景**
+        //     直接注入 flow 读出来的，绕过了 `tick()`，测不到真实档位行为 ——
+        //     这正是本诊断存在的理由。）
+        if AuroraFlags.egoDiag, didLogThisSecond {
+            dlog("[EGO-DIAG] 档位=\(perceptionMode.title) "
+                 + "egoBlocked=\(motionPredictor.lastEgoBlockedCount) "
+                 + "光流=\(perceptionMode.needsOpticalFlow ? "跑" : "跳过")")
+        }
 
         // ── ★ 阶段1（2026-10-01）：生产 tick 分段统计导出（1Hz 节流，与上方摘要同频）──
         // 【为什么需要】`PerfBus` 是**进程内**单例，从外部另起进程读不到样本

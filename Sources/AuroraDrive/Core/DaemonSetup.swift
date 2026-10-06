@@ -105,10 +105,4 @@ struct DaemonSetupManager {
             return CommandResult(status: -1, output: error.localizedDescription)
         }
     }
-
-    private struct SetupError: LocalizedError {
-        let message: String
-        init(_ message: String) { self.message = message }
-        var errorDescription: String? { message }
-    }
 }

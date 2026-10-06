@@ -1,6 +1,16 @@
 // SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 【出处标注 · 品牌澄清】2026-10-04
+//   本文件的**聚类格边长取值（52 px）**对齐上游开源项目 **MaaNTE**
+//   （其 `maxClusterRadius: 52`）。下文注释里的小写「maante」= 该上游项目，
+//   用于交代这个 52 是哪来的 —— **它不是本产品的品牌**。
+//   本产品品牌：`AuroraDrive`（见 `App/AuroraBrand.swift`）。
+//   保留出处的理由：「为什么是 52 而不是 48/64」只有回到上游取值才能复核；
+//   抹掉出处会让这个数变成无法追问的魔法数字。
+//   故：出处保留；品牌层（用户可见字符串 / 标识符）不得出现上游名。
+// ═══════════════════════════════════════════════════════════════════════════
 // ============================================================================
 //  MarkerCluster.swift — 标记网格聚类（C 阶段）
 // ============================================================================
@@ -22,7 +32,7 @@
 //
 //  ── 为什么格边长要用「屏幕像素」而不是「地图像素」 ──────────────────────
 //  格边长 = (clusterPx / 视野屏幕宽度) × 视野地图像素。
-//  这样**屏幕上每个格子的视觉大小恒定**（52 px），与 maante 的
+//  这样**屏幕上每个格子的视觉大小恒定**（52 px），与上游参考项目 MaaNTE 的
 //  `maxClusterRadius: 52` 同源。若直接用固定地图像素格，放大时格子会越来越
 //  稀疏（近处该合并的没合并），缩小时又会把整片糊成一坨。
 //
@@ -56,7 +66,7 @@ struct MarkerCluster: Identifiable {
 
 enum MarkerClusterer {
 
-    /// 聚类格边长（屏幕像素）。默认 52，对齐 maante。
+    /// 聚类格边长（屏幕像素）。默认 52，对齐上游参考项目 MaaNTE 的 maxClusterRadius。
     static var clusterPx: Double { clusterPxCached }
 
     /// ══════════════════════════════════════════════════════════════════════
@@ -119,8 +129,8 @@ enum MarkerClusterer {
     /// - Parameters:
     ///   - spanPx: 视野边长（**地图像素**）
     ///   - viewWidth: 视野在屏幕上的宽度（点）。决定「屏幕格」的地图尺寸。
-    ///   - centerX/Y: 视野中心（地图像素），**格边界以视野左上角为原点**，
-    ///     这样拖动时格边界跟着视野走，屏幕上的格线是稳定的。
+    ///   - centerX/Y: 视野中心（地图像素）。**格原点与世界坐标对齐，不看视野** ——
+    ///     见下方 A15 说明（旧版以视野左上角为原点，拖动时格线跟着平移）。
     static func cluster(_ markers: [MapDatabase.PlacedMarker],
                         spanPx: Double,
                         viewWidth: Double,
@@ -129,17 +139,35 @@ enum MarkerClusterer {
         guard !markers.isEmpty, spanPx > 0, viewWidth > 1 else { return [] }
         // 52 屏幕 px 对应多少地图像素
         let cell = max(1.0, (clusterPx / viewWidth) * spanPx)
-        let left = centerX - spanPx / 2
-        let top = centerY - spanPx / 2
+
+        // ══════════════════════════════════════════════════════════════════
+        // ⚠️ 2026-10-04（A15）：格原点改为**世界坐标对齐**，不再跟着视野走
+        // ══════════════════════════════════════════════════════════════════
+        // 【旧行为】`gx = Int((m.mapX - left) / cell)`，left = 视野左上角。
+        //   后果：**视野每移动一点，格线就跟着平移** —— 同一个点的格号一直在变，
+        //   团的成员与 `+N` 数字持续重组跳动，拖起来满屏数字在闪。
+        //   （旧注释写「这样拖动时格边界跟着视野走，屏幕上的格线是稳定的」，
+        //    只说对了屏幕侧，漏了「成员不稳定」这一半。）
+        // 【新行为】格号只由世界坐标决定：`floor(mapX / cell)`。
+        //   拖动时格线**钉死在世界里**，团稳定；只有缩放（cell 变）才重划格。
+        // 【键的打包】旧写法 `(gx+4096) << 13 | (gy+4096)` 只在小范围成立
+        //   （旧语义下 gx/gy 只是「视野内第几格」，很小）。世界对齐后
+        //   gx/gy 可达 13056/cell，cell=1 时 13056+4096 = 17152 > 2¹³
+        //   → **高位字段会溢出污染低位**，两个不同的格会算出同一个键。
+        //   故改为 21 位字段 + 10⁶ 偏移（|gx|,|gy| < 10⁶ 时无碰撞）。
+        let cellBits: Int64 = 1 << 21
+        let cellBias: Int64 = 1_000_000
+        func cellKey(_ x: Double, _ y: Double) -> Int64 {
+            let gx = Int64((x / cell).rounded(.down)) + cellBias
+            let gy = Int64((y / cell).rounded(.down)) + cellBias
+            return gx &* cellBits &+ gy
+        }
 
         // 分组：格 → 成员
         var buckets: [Int64: [MapDatabase.PlacedMarker]] = [:]
         buckets.reserveCapacity(markers.count / 2 + 16)
         for m in markers {
-            let gx = Int((m.mapX - left) / cell)
-            let gy = Int((m.mapY - top) / cell)
-            // 偏移 4096 保证非负；<<13 容纳 0..8191 的 gy
-            buckets[Int64(gx &+ 4096) << 13 | Int64(gy &+ 4096), default: []].append(m)
+            buckets[cellKey(m.mapX, m.mapY), default: []].append(m)
         }
 
         // rank 表：预先算好，避免内层循环里反复做字典查找 + 读 environment

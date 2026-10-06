@@ -155,7 +155,7 @@ final class EngineClient {
 
     /// 由 AppDelegate 在 applicationDidFinishLaunching 调用（非阻塞）
     func startup() {
-        if ProcessInfo.processInfo.environment["AURORA_UI_LOCAL"] == "1" {
+        if AuroraFlags.uiLocal {
             // 强制本地模式：连"想连引擎"都不成立 → 断线重连轮询也不该启动
             wantsEngineMode = false
             engineClientLog("AURORA_UI_LOCAL=1 → 本地模式")
@@ -558,8 +558,7 @@ final class EngineClient {
     /// 各种 `--xxx-selftest` 一次性路径不会调用它 —— 若初值恒为 true，
     /// 那么「AURORA_UI_LOCAL=1 却仍可能启动重连轮询」就是个隐患。
     /// 让初值与 `startup()` 的判定同源，两边永远一致。
-    private(set) var wantsEngineMode: Bool =
-        ProcessInfo.processInfo.environment["AURORA_UI_LOCAL"] != "1"
+    private(set) var wantsEngineMode: Bool = !AuroraFlags.uiLocal
 
     /// 连接断开后的重连轮询（独立于 isActive，与启动期的轮询同节奏）
     private func startReconnectPolling() {

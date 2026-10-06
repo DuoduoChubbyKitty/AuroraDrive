@@ -74,6 +74,31 @@ enum SpeedLimitSource {
 extension DriveState {
 
     // ────────────────────────────────────────────────────────────────────
+    // ①-0 §4.4 路况观测门（纯函数，2026-10-05 从调用点抽出）
+    // ────────────────────────────────────────────────────────────────────
+    /// 决定**要不要观测路况**（即要不要跑 AutoRoadCondition 判定）。
+    ///
+    /// ⚠️ 这个函数刻意**只接受这两个参数**，它不允许依赖任何限速状态。
+    ///    历史缺陷：这里原本写的是
+    ///        `autoSpeedEnabled && isDriving && !unlimitedLockedByUser`
+    ///    于是用户把限速滑块拉到底（不限速）后，`roadCondition` 再也不更新
+    ///    → `needsTakeover` 恒为 false → **接管告警横幅永不显示**。
+    ///    而"我刚宣布不限速"恰恰是最该提醒用户留意的时刻 —— 这是安全缺陷，
+    ///    不是性能问题。
+    ///
+    /// 职责分离（谁也别顺手掐死另一个）：
+    ///   · 本函数        → 要不要**观测**路况（只看开关 + 在不在开车）
+    ///   · applyRoadCondition → 要不要**改限速**（在那里处理"用户不限速优先"）
+    ///
+    /// 📌 「不限速优先」要加/改条件，请去 `applyRoadCondition` 的
+    ///    `unlimitedLockedByUser` 门，**不要**往这里加。
+    ///    这一条由 `tools/check-c7-gate.sh` 做源码级守卫（含负向对照）。
+    static func shouldObserveRoadCondition(autoSpeedEnabled: Bool,
+                                           isDriving: Bool) -> Bool {
+        autoSpeedEnabled && isDriving
+    }
+
+    // ────────────────────────────────────────────────────────────────────
     // ① 路况切换（界面顶部 4 个按钮的真实现）
     // ────────────────────────────────────────────────────────────────────
     /// 切换路况自适应状态。
@@ -100,6 +125,20 @@ extension DriveState {
         // ① 用户手动设的不限速优先于一切自动逻辑 —— 直接不干预。
         // ② 简单档（≤10 框）的结论就是「不限速 = 取消速度表」，要主动下发。
         // ③ 其余档位下发各自限速。
+        //
+        // ⚠️ 2026-10-05：「用户手动不限速时不干预」这条门**必须留在这一层**。
+        //    它原本被放在调用方（AuroraDriveApp 的 §4.4）包住**整块路况判定**，
+        //    结果是用户把滑块拉到底之后 roadCondition 再也不更新 →
+        //    needsTakeover 恒 false → **接管告警横幅永不显示**。而"我不限速"
+        //    恰恰是最该提醒用户留意的时刻。
+        //    修法不是删掉这条保护，而是**把它下沉到真正需要它的这一步**：
+        //      · 调用方门（autoSpeedEnabled, isDriving）→ 只决定要不要**观测**路况
+        //      · 本处门（unlimitedLockedByUser）      → 决定要不要**改限速**
+        //    这样"不限速=取消速度表"（§4.4 用户明确要求）与路况观测/安全告警
+        //    彻底解耦，各管各的，谁也不会顺手掐死另一个。
+        //    语义用 unlimitedLockedByUser 而不是 isUnlimited：自动速度自己设的
+        //    不限速必须能被下一次判定改回来，否则框数涨回来时永远出不来（死锁）。
+        guard !unlimitedLockedByUser else { return }
         if let target = Self.autoSpeedTarget(for: rc,
                                              currentLimit: speedLimit,
                                              unlimitedSource: unlimitedSource,

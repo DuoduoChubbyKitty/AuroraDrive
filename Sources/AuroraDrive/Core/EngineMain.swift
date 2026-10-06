@@ -630,7 +630,8 @@ enum EngineMain {
         // ── 2. TCC 自检（fail-fast）──
         let axOK = AXIsProcessTrusted()
         let screenOK = CGPreflightScreenCaptureAccess()
-        let diagSkip = ProcessInfo.processInfo.environment["AURORA_ENGINE_DIAG_SKIP_TCC"] == "1"
+        // A17 迁移：环境开关统一走 `AuroraFlags`（进程内只读一次，不在热路径现读）
+        let diagSkip = AuroraFlags.engineDiagSkipTCC
         engineLog("[ENGINE] TCC 自检 ax=\(axOK) screen=\(screenOK)")
         // ══════════════════════════════════════════════════════════════════════
         // ⚠️ 2026-09-30：观测模式（AURORA_OBSERVE_ONLY=1）下放宽辅助功能要求
@@ -658,7 +659,7 @@ enum EngineMain {
         //     自身的第三层权限 gate，详见文档 6.23.3 的逐行审计）。
         //   · 即便真的尝试注入，`hold()` 的 `guard hasAccessibilityPermission`
         //     也会提前 return —— 权限不足时物理上注入不出去。
-        let observeOnly = ProcessInfo.processInfo.environment["AURORA_OBSERVE_ONLY"] == "1"
+        let observeOnly = AuroraFlags.observeOnly
         let tccSatisfied = observeOnly ? screenOK : (axOK && screenOK)
         if !tccSatisfied {
             if diagSkip {
@@ -770,7 +771,7 @@ enum EngineMain {
             // 诊断（仅供无按键权限的环境验证帧管道）：
             // 只启动抓屏、不注入按键，用来端到端验证「采集 → 共享内存 → UI」这条链路。
             // 生产路径不受影响（默认不设该变量）。
-            if ProcessInfo.processInfo.environment["AURORA_ENGINE_DIAG_CAPTURE_ONLY"] == "1" {
+            if AuroraFlags.engineDiagCaptureOnly {
                 EngineGlobals.state?.captureEngine.start()
                 engineLog("[ENGINE] 诊断：仅抓屏模式（不注入按键），用于验证帧管道")
             }

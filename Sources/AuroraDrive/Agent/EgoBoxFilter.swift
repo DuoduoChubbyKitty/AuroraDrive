@@ -63,20 +63,18 @@ struct EgoBoxFilter: Equatable {
     static let defaultAreaThreshold: Double = 0.04
 
     /// 环境变量名（`AURORA_EGO_AREA=0.03` 调阈值；`=0` 关闭屏蔽）
+    ///
+    /// ⚠️ 本常量**保留**：`AuroraDriveApp.swift` 的自检会断言
+    /// `EgoBoxFilter.envKey == "AURORA_EGO_AREA"`（防止有人改了键名却没同步文档）。
+    /// 它是这个开关名的**规范来源**，`AuroraFlags.egoArea` 用的是同一个字面量。
     static let envKey = "AURORA_EGO_AREA"
 
     /// 从环境变量构造（全生命周期只读一次，避免每帧读 ProcessInfo）。
     ///
-    /// 与项目既有约定一致（`AURORA_YOLOPX_LETTERBOX_MAIN` / `AURORA_STUCK_SECONDS`
-    /// 同风格）：用环境变量而不是新增 UI 控件。
-    /// 解析失败 → 用默认值（不崩、不静默关掉功能）。
-    static let configured: EgoBoxFilter = {
-        guard let raw = ProcessInfo.processInfo.environment[envKey],
-              let v = Double(raw), v.isFinite, v >= 0 else {
-            return EgoBoxFilter()
-        }
-        return EgoBoxFilter(areaThreshold: v)
-    }()
+    /// A17 迁移（2026-10-04）：解析与校验搬进 `AuroraFlags.egoArea`
+    /// （键名、默认值、`isFinite`/非负校验都收敛到那一处）。
+    /// 本行原来内联的 `Double(raw)` + 三重校验已逐字搬到那里，**行为不变**。
+    static let configured: EgoBoxFilter = EgoBoxFilter(areaThreshold: AuroraFlags.egoArea)
 
     /// 是否启用（阈值为 0 = 关闭屏蔽，供一键回滚）
     var isEnabled: Bool { areaThreshold > 0 }

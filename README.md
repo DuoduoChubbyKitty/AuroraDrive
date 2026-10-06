@@ -68,15 +68,45 @@ cd AuroraDrive
 **架构红线**：插帧/超分只作用于显示叠加层，绝不进入决策链路。
 *Frame interpolation / upscaling ONLY applies to the display overlay — never to the capture → inference → key-injection decision path.*
 
+### ⚠️ 上图为早期形态（2026-09-29 复核提示）
+
+上方架构图描述的是**单进程早期形态**。项目此后演进出**四大支柱**，本图尚未反映。
+**权威文档请以 `docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md` 为准。**
+
+| 支柱 | 说明 | 为何本图未体现 |
+|---|---|---|
+| **① 双进程 + 共享内存 v3** | UI 与引擎是两个长驻进程，经 `/aurora_frame_v1` 共享内存（72MB）传帧与检测；`EngineClient.protocolVersion = 3` | 写作时还是单进程 |
+| **② YOLOPX 三合一感知** | `YolopxEngine`：一个模型同时出 `det`（检测）/ `da`（可行驶区）/ `ll`（车道线），15Hz。**★核心资产，模型一个字节都不能换** | 写作时只有 `yolo26s` |
+| **③ 光流 + 运动预测** | OpenCV DIS 光流（`Vendor/OpenCVFlow`，≤5ms 红线）把 15Hz 检测补成 30Hz（α-β 滤波外推） | 写作后新增 |
+| **④ 掩码可视化** | 可行驶区/车道线掩码经共享内存传回 UI 叠加显示（bit-pack，160×160 网格） | 写作后新增 |
+
+> 另注：架构图中 `YOLO(yolo26s) 检测` 的表述需留意——`yolo26s` 在项目中**主要用于预测侧**，
+> 而游戏内目标检测的主路径是 **YOLOPX 的 `det` 头**。详见 `代码-14` 与 `04-vision-inference` §4.8。
+
 ## 🧹 2026-09-19 磁盘清理 / Disk cleanup
 
-为释放本地磁盘，以下路径已迁至外置硬盘 `/Volumes/代码项目/删除_20260919/自动驾驶系统清理/`（完整对照表见 `docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md` §七）：
+为释放本地磁盘，以下路径已迁至外置硬盘（**准确路径（2026-09-29 实测修正，原文少了两级目录）**：
+
+```
+/Volumes/代码项目/自动驾驶项目半成品版本1.0到10.0/删除_20260919/自动驾驶系统清理/
+```
+
+实测该归档目录 **22 GB / 9 个子目录**（与下表迁移项一一对应）：
+`web_frames` / `template_scratch` / `build_contact` / `ocr_batch` / `ocr_batch2` /
+`gray_cache` / `video_*` / `build_cache` / `ppocrv6_finetune_output`。
+
+> 📌 原文写的路径是 `/Volumes/代码项目/删除_20260919/自动驾驶系统清理/`，**该路径不存在**（`ls` 报 No such file）。
+> 实际上它嵌在「自动驾驶项目半成品版本1.0到10.0」目录内。**已按实测修正。**
+
+（完整对照表见 `docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md` §七）：
 
 - `data/web_frames`（19G）、`build/vid_*.mp4`、`build/template_scratch`、`build/contact`、`build/ocr_batch(2)`、`data/_gray_cache`
 - `tools/ppocrv6_finetune/output`（可重训再生，内容已迁外置硬盘，本地目录已删）
 - `.build`（swift build 自动重建）
 
-本地保留的相关数据：`build/new_templates`（291 条目 / 268 张 png）、`build/dig_*.json`（52 份挖掘证据）、`build/maa_pipeline_override.json`（250 节点 ROI override）、`data/mac_shots`（208 张实机截图）。
+✅ **实测确认**：上述 7 项在本地**均已不存在**（迁移已完成，非待办）。
+
+本地保留的相关数据：`build/new_templates`（**265 条目 / 264 张 png**，2026-09-29 实测；原文写 291/268，⚠️ 数字已变——另有 `_rejected/` 27 项淘汰候选）、`build/dig_*.json`（52 份挖掘证据 ✅ 实测吻合）、`build/maa_pipeline_override.json`（250 节点 ROI override ✅ 实测吻合）、`data/mac_shots`（208 张实机截图 ✅ 实测吻合）。
 
 铁律：**不降帧率、不打补丁绕过**。
 

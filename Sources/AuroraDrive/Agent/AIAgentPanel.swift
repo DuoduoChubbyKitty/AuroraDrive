@@ -1,6 +1,16 @@
 // SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 【出处标注 · 品牌澄清】2026-10-04
+//   本文件的**技能实现**大量移植/参考自上游开源项目 **MaaNTE**（AGPL-3.0）。
+//   下文注释里的「MaaNTE」一律是**上游项目名**，用于交代每个技能的来源与
+//   对齐依据 —— **它不是本产品的品牌，也不是本产品的名字**。
+//   本产品品牌：`AuroraDrive`（见 `App/AuroraBrand.swift`）。
+//   保留出处的理由：技能参数（键位、节奏、坐标、轮数）必须可追溯到原始
+//   出处，抹掉出处等于让后人无法复核「这个 0.6s 到底是怎么定的」。
+//   故：出处保留；**品牌层（用户可见字符串 / 类型名 / 变量名）不得出现上游名**。
+// ═══════════════════════════════════════════════════════════════════════════
 // ============================================================================
 //  AIAgentPanel.swift — AI 助手侧边面板 + 技能统一执行通道
 //
@@ -1240,7 +1250,7 @@ final class AgentSkillCenter: @unchecked Sendable {
             }
 
             var clicked = 0
-            for round in 1...maxRounds {
+            for _ in 1...maxRounds {
                 guard runningSkills.contains(skill.id) else {
                     logger("⏹️ 已停止（用户中断）")
                     return
@@ -1310,7 +1320,7 @@ final class AgentSkillCenter: @unchecked Sendable {
 
         let maxRounds = 12
         appendSystem("🎣 钓鱼循环启动：F 抛竿/收杆 × \(maxRounds) 轮（点击技能可停止）")
-        for round in 1...maxRounds {
+        for _ in 1...maxRounds {
             guard runningSkills.contains(skill.id) else {
                 appendSystem("⏹️ 钓鱼已停止")
                 return
@@ -1354,7 +1364,7 @@ final class AgentSkillCenter: @unchecked Sendable {
 
         let maxRounds = 20
         appendSystem("⚔️ 闪避循环启动：周期性跳+疾跑闪避 × \(maxRounds) 轮（点击技能可停止）")
-        for round in 1...maxRounds {
+        for _ in 1...maxRounds {
             guard runningSkills.contains(skill.id) else {
                 appendSystem("⏹️ 闪避已停止")
                 return
@@ -1395,7 +1405,7 @@ final class AgentSkillCenter: @unchecked Sendable {
         let mouse = makeMouse()
         let maxRounds = 15
         appendSystem("📜 自动滚动启动：F 连点 + 滚轮 × \(maxRounds) 轮（点击技能可停止）")
-        for round in 1...maxRounds {
+        for _ in 1...maxRounds {
             guard runningSkills.contains(skill.id) else {
                 appendSystem("⏹️ 滚动已停止")
                 return
@@ -1429,7 +1439,10 @@ final class AgentSkillCenter: @unchecked Sendable {
                 snapshotInfo = "已保存现场快照 \(snapshotPath)"
             }
         }
-        appendSystem("⚙️ 「\(skill.name)」：该技能依赖 MaaNTE 视觉管线（Windows），macOS 原生版开发中。\(snapshotInfo)")
+        // ⚠️ 品牌层（用户可见字符串）：此处**不得**出现上游项目名。
+        //    用户看到的是「AuroraDrive 里这个技能还没做」，而不是「我们在用谁的东西」。
+        //    诚实性不靠点名上游来体现 —— 靠"如实说没做 + 给出快照"。
+        appendSystem("⚙️ 「\(skill.name)」：该技能依赖 Windows 视觉管线，macOS 原生版开发中。\(snapshotInfo)")
         runningSkills.remove(skill.id)
     }
 
@@ -1786,17 +1799,17 @@ struct AIAgentEdgeTab: View {
         } label: {
             HStack(spacing: 0) {
                 Image(systemName: "chevron.compact.right")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: Aurora.fsTitle, weight: .bold))
                     .rotationEffect(.degrees(center.isPanelOpen ? 180 : 0))
                     .foregroundStyle(Aurora.ice)
             }
             .frame(width: 22, height: 76)
             .background(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                     .fill(.ultraThinMaterial.opacity(0.9))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                     .strokeBorder(hovering ? Aurora.ice.opacity(0.7) : Aurora.ice.opacity(0.35),
                                   lineWidth: 1.2)
             )
@@ -1817,7 +1830,7 @@ struct AIAgentEdgeTab: View {
         }
         // 箭头跟随面板位置：收起贴屏幕左缘，展开移到面板右侧边缘
         // （面板是 HStack 首元素占 348pt，箭头不能叠在面板上）
-        .padding(.leading, 2)
+        .padding(.leading, Aurora.sp1)
         .offset(x: center.isPanelOpen ? panelWidth : 0)
         .zIndex(20)
     }
@@ -1827,7 +1840,7 @@ struct AIAgentEdgeTab: View {
 struct AIAgentPanelView: View {
     @Bindable var center: AgentSkillCenter
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: Aurora.sp2), count: 3)
 
     @State private var draftText = ""
     @State private var showModelPicker = false
@@ -1841,19 +1854,19 @@ struct AIAgentPanelView: View {
     var body: some View {
         VStack(spacing: 0) {
             // ── 头部：图标 + 标题 + 状态点 ──
-            HStack(spacing: 8) {
+            HStack(spacing: Aurora.sp2) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: Aurora.radiusControl, style: .continuous)
                         .fill(LinearGradient(colors: [Aurora.ice.opacity(0.35), Aurora.ice.opacity(0.08)],
                                              startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 30, height: 30)
                     Text("🤖")
-                        .font(.system(size: 16))
+                        .font(.system(size: Aurora.fsNum))
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: Aurora.sp1) {
+                    HStack(spacing: Aurora.sp2) {
                         Text("AI AGENT")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .font(.system(size: Aurora.fsBody, weight: .bold, design: .rounded))
                             .tracking(1.6)
                             .foregroundStyle(Aurora.t1)
                         Circle()
@@ -1865,7 +1878,7 @@ struct AIAgentPanelView: View {
                     Text(center.runningSkills.isEmpty
                          ? "空闲 · \(center.aiSettings.model)"
                          : "运行中 · \(runningNames)")
-                        .font(.system(size: 9.5, weight: .medium))
+                        .font(.system(size: Aurora.fsMicro, weight: .medium))
                         .foregroundStyle(Aurora.t3)
                         .lineLimit(1)
                 }
@@ -1877,7 +1890,7 @@ struct AIAgentPanelView: View {
                     }
                 } label: {
                     Image(systemName: "gear")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: Aurora.fsTitle, weight: .bold))
                         .foregroundStyle(Aurora.t2)
                         .frame(width: 26, height: 26)
                         .background(Circle().fill(Color.white.opacity(0.06)))
@@ -1893,7 +1906,7 @@ struct AIAgentPanelView: View {
                     }
                 } label: {
                     Image(systemName: "chevron.compact.left")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: Aurora.fsTitle, weight: .bold))
                         .foregroundStyle(Aurora.t2)
                         .frame(width: 26, height: 26)
                         .background(Circle().fill(Color.white.opacity(0.06)))
@@ -1902,9 +1915,9 @@ struct AIAgentPanelView: View {
                 .buttonStyle(.plain)
                 .help("收起 AI 面板")
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
+            .padding(.horizontal, Aurora.sp4)
+            .padding(.top, Aurora.sp4)
+            .padding(.bottom, Aurora.sp3)
             .opacity(appeared ? 1 : 0)
             .offset(x: appeared ? 0 : -24)
             .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(0.03), value: appeared)
@@ -1913,36 +1926,36 @@ struct AIAgentPanelView: View {
             Button {
                 center.toggleSkill("preset_afk", source: .human)
             } label: {
-                HStack(spacing: 7) {
+                HStack(spacing: Aurora.sp2) {
                     Text(center.runningSkills.contains("preset_afk") ? "⏸️" : "⚡️")
-                        .font(.system(size: 15))
+                        .font(.system(size: Aurora.fsH1))
                     Text(center.runningSkills.contains("preset_afk")
                          ? "一键自动化运行中（点击停止）"
                          : "一键自动化挂机")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: Aurora.fsBody, weight: .bold))
                     Text(center.runningSkills.contains("preset_afk") ? "" : "领奖励·收家具·钓鱼")
-                        .font(.system(size: 9))
+                        .font(.system(size: Aurora.fsMicro))
                         .foregroundStyle(Aurora.t2)
                     Spacer()
                 }
                 .foregroundStyle(center.runningSkills.contains("preset_afk") ? Aurora.danger : Aurora.ice)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .padding(.horizontal, Aurora.sp3)
+                .padding(.vertical, Aurora.sp2)
+                .background(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                     .fill(center.runningSkills.contains("preset_afk")
                          ? Aurora.danger.opacity(0.12) : Aurora.ice.opacity(0.12)))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .overlay(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                     .strokeBorder(center.runningSkills.contains("preset_afk")
                                   ? Aurora.danger.opacity(0.5) : Aurora.ice.opacity(0.45),
                                   lineWidth: 1))
             }
             .buttonStyle(.plain)
             .help("一键挂机：依次启动 领奖励 → 收家具 → 钓鱼（同一执行通道，可整体停止）")
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
+            .padding(.horizontal, Aurora.sp3)
+            .padding(.top, Aurora.sp3)
 
             // ── 技能网格（人类点 = AI 也能调，同一通道；默认只显示已实现技能）──
-            LazyVGrid(columns: columns, spacing: 8) {
+            LazyVGrid(columns: columns, spacing: Aurora.sp2) {
                 ForEach(showUnportedSkills
                         ? AgentSkillLibrary.all
                         : AgentSkillLibrary.all.filter { $0.ported }) { skill in
@@ -1953,59 +1966,59 @@ struct AIAgentPanelView: View {
                     })
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 4)
+            .padding(.horizontal, Aurora.sp3)
+            .padding(.bottom, Aurora.sp1)
 
             // 待移植技能显示开关（默认隐藏，用户可展开）
             HStack {
                 Button(showUnportedSkills ? "收起待移植技能" : "显示待移植技能（\(AgentSkillLibrary.all.filter { !$0.ported }.count)）") {
                     showUnportedSkills.toggle()
                 }
-                .font(.system(size: 9, weight: .medium))
+                .font(.system(size: Aurora.fsMicro, weight: .medium))
                 .buttonStyle(.plain)
                 .foregroundStyle(Aurora.t3)
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 6)
+            .padding(.horizontal, Aurora.sp4)
+            .padding(.bottom, Aurora.sp2)
 
             // ── 对话区（单对话，无历史列表）──
             AgentConversationView(center: center)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, Aurora.sp3)
 
             // ── 输入区 ──
             agentInputArea
-                .padding(.horizontal, 12)
-                .padding(.bottom, 10)
+                .padding(.horizontal, Aurora.sp3)
+                .padding(.bottom, Aurora.sp3)
 
             // ── 底部：新建对话 + 状态条 ──
-            HStack(spacing: 8) {
+            HStack(spacing: Aurora.sp2) {
                 Button {
                     center.newConversation()
                 } label: {
-                    HStack(spacing: 5) {
+                    HStack(spacing: Aurora.sp1) {
                         Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 11))
+                            .font(.system(size: Aurora.fsSmall))
                         Text("新建对话")
-                            .font(.system(size: 10.5, weight: .semibold))
+                            .font(.system(size: Aurora.fsSmall, weight: .semibold))
                     }
                     .foregroundStyle(Aurora.ice)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, Aurora.sp3)
+                    .padding(.vertical, Aurora.sp1)
                     .background(Capsule().fill(Aurora.ice.opacity(0.1)))
                     .overlay(Capsule().strokeBorder(Aurora.ice.opacity(0.4), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 Spacer()
                 Text(center.messages.last?.text.prefix(28) ?? "")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: Aurora.fsMicro, weight: .medium))
                     .foregroundStyle(Aurora.t3)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 8)
+            .padding(.horizontal, Aurora.sp4)
+            .padding(.bottom, Aurora.sp2)
             .opacity(appeared ? 1 : 0)
             .animation(.easeOut(duration: 0.25).delay(0.18), value: appeared)
         }
@@ -2044,72 +2057,72 @@ struct AIAgentPanelView: View {
 
     /// 输入区：大输入框 + 模型按钮 + 思考滑块 + 发送
     private var agentInputArea: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Aurora.sp2) {
             // ── 配置状态条：未配置时醒目 CTA 直达设置（小白友好，一键配模型）；已配置显示就绪 ──
             if center.aiSettings.apiKey.isEmpty {
                 Button {
                     showSettings = true
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: Aurora.sp2) {
                         Image(systemName: "gearshape.2.fill")
-                            .font(.system(size: 11))
+                            .font(.system(size: Aurora.fsSmall))
                         Text("未配置模型 · 点我填写 API Key 启用 AI 指令")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: Aurora.fsMicro, weight: .semibold))
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: Aurora.fsMicro, weight: .bold))
                     }
                     .foregroundStyle(Aurora.amber)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .padding(.horizontal, Aurora.sp3)
+                    .padding(.vertical, Aurora.sp2)
+                    .background(RoundedRectangle(cornerRadius: Aurora.radiusControl, style: .continuous)
                         .fill(Aurora.amber.opacity(0.12)))
-                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .overlay(RoundedRectangle(cornerRadius: Aurora.radiusControl, style: .continuous)
                         .strokeBorder(Aurora.amber.opacity(0.4), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 .help("填写 API Key / Base URL / Model，启用 AI 端到端指令")
             } else {
-                HStack(spacing: 6) {
+                HStack(spacing: Aurora.sp2) {
                     Circle().fill(Aurora.ice).frame(width: 5, height: 5)
                     Text("AI 已就绪 · \(center.aiSettings.model)")
-                        .font(.system(size: 9.5, weight: .medium))
+                        .font(.system(size: Aurora.fsMicro, weight: .medium))
                         .foregroundStyle(Aurora.t3)
                     Spacer()
                     Button("配置") { showSettings = true }
-                        .font(.system(size: 9.5))
+                        .font(.system(size: Aurora.fsMicro))
                         .buttonStyle(.plain)
                         .foregroundStyle(Aurora.t2)
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, Aurora.sp1)
             }
 
             // 输入框
-            HStack(alignment: .bottom, spacing: 8) {
+            HStack(alignment: .bottom, spacing: Aurora.sp2) {
                 ZStack(alignment: .topLeading) {
                     if draftText.isEmpty {
                         Text("给 AI 下达指令，或直接输入技能名…")
-                            .font(.system(size: 12))
+                            .font(.system(size: Aurora.fsBody))
                             .foregroundStyle(Aurora.t3)
-                            .padding(.top, 9)
-                            .padding(.leading, 10)
+                            .padding(.top, Aurora.sp2)
+                            .padding(.leading, Aurora.sp3)
                     }
                     TextEditor(text: $draftText)
-                        .font(.system(size: 12))
+                        .font(.system(size: Aurora.fsBody))
                         .scrollContentBackground(.hidden)
                         .padding(6)
                         .frame(height: 62)
                 }
-                .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .background(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                     .fill(Color.white.opacity(0.05)))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .overlay(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
 
                 Button {
                     sendDraft()
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 24))
+                        .font(.system(size: Aurora.fsDisplay))
                         .foregroundStyle(draftText.isEmpty ? Aurora.t3 : Aurora.ice)
                 }
                 .buttonStyle(.plain)
@@ -2117,7 +2130,7 @@ struct AIAgentPanelView: View {
             }
 
             // 第二行：模型按钮 + 思考滑块
-            HStack(spacing: 10) {
+            HStack(spacing: Aurora.sp3) {
                 // 模型选择（真实模型清单：从 API /models 拉取，替换原硬编码假列表）
                 Menu {
                     ForEach(liveModels, id: \.self) { id in
@@ -2135,7 +2148,7 @@ struct AIAgentPanelView: View {
                     }
                     if liveModels.isEmpty {
                         Text("⚠️ 未拉到模型列表（API Key 未配置或网络不可用）")
-                            .font(.system(size: 10))
+                            .font(.system(size: Aurora.fsMicro))
                     }
                     Divider()
                     Button {
@@ -2149,18 +2162,18 @@ struct AIAgentPanelView: View {
                         Label("自定义 / 编辑配置", systemImage: "gear")
                     }
                 } label: {
-                    HStack(spacing: 5) {
+                    HStack(spacing: Aurora.sp1) {
                         Image(systemName: "cpu")
-                            .font(.system(size: 9))
+                            .font(.system(size: Aurora.fsMicro))
                         Text(center.aiSettings.model)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: Aurora.fsMicro, weight: .semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 7))
+                            .font(.system(size: Aurora.fsMicro))
                     }
                     .foregroundStyle(Aurora.ice)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, Aurora.sp2)
+                    .padding(.vertical, Aurora.sp1)
                     .background(Capsule().fill(Aurora.ice.opacity(0.1)))
                     .overlay(Capsule().strokeBorder(Aurora.ice.opacity(0.35), lineWidth: 1))
                 }
@@ -2168,9 +2181,9 @@ struct AIAgentPanelView: View {
                 .fixedSize()
 
                 // 思考深度滑块（低/中/高/Max 四档，直接驱动真实 API 的 temperature）
-                HStack(spacing: 6) {
+                HStack(spacing: Aurora.sp2) {
                     Text("思考")
-                        .font(.system(size: 9.5, weight: .medium))
+                        .font(.system(size: Aurora.fsMicro, weight: .medium))
                         .foregroundStyle(Aurora.t2)
                     Slider(value: Binding(
                         get: { Double(center.aiSettings.thinkingDepth) },
@@ -2179,7 +2192,7 @@ struct AIAgentPanelView: View {
                         .controlSize(.mini)
                         .frame(width: 84)
                     Text(["低", "中", "高", "Max"][center.aiSettings.thinkingDepth - 1])
-                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .font(.system(size: Aurora.fsMicro, weight: .bold, design: .monospaced))
                         .foregroundStyle(Aurora.ice)
                         .frame(width: 16)
                 }
@@ -2208,9 +2221,9 @@ struct AgentSettingsSheet: View {
         NavigationView {
             Form {
                 Section("API 配置（本地小本本存储）") {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: Aurora.sp2) {
                         Text("API Key — 粘贴你的 DeepSeek/OpenAI/Claude API Key")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: Aurora.fsMicro, weight: .medium))
                             .foregroundStyle(Aurora.t2)
                         TextField("sk-...", text: $center.aiSettings.apiKey,
                                   prompt: Text("sk-xxxxxxxx"))
@@ -2218,7 +2231,7 @@ struct AgentSettingsSheet: View {
                             .textContentType(.password)
                             .autocorrectionDisabled(true)
                         Text("存储在本地小本本文件（0600），不再访问钥匙串")
-                            .font(.system(size: 9))
+                            .font(.system(size: Aurora.fsMicro))
                             .foregroundStyle(Aurora.t3)
                     }
                 }
@@ -2248,7 +2261,7 @@ struct AgentSettingsSheet: View {
                     }
                     Text("说明：LLM 规划任务连续失败 3 次会自动降级为本地规则模式（零幻觉），"
                         + "降级日志见面板；点击上方按钮可随时手动恢复。")
-                        .font(.system(size: 9))
+                        .font(.system(size: Aurora.fsMicro))
                         .foregroundStyle(Aurora.t3)
                 }
 
@@ -2319,19 +2332,19 @@ private struct AgentSkillButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
+            VStack(spacing: Aurora.sp1) {
                 Text(skill.emoji)
-                    .font(.system(size: 17))
+                    .font(.system(size: Aurora.fsNum))
                     .shadow(color: hovered ? Aurora.ice.opacity(0.9) : .clear, radius: hovered ? 9 : 0)
                 Text(skill.name)
-                    .font(.system(size: 9.5, weight: .medium))
+                    .font(.system(size: Aurora.fsMicro, weight: .medium))
                     .foregroundStyle(Aurora.t1)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-                HStack(spacing: 3) {
+                HStack(spacing: Aurora.sp1) {
                     if !skill.ported {
                         Text("待移植")
-                            .font(.system(size: 7, weight: .bold))
+                            .font(.system(size: Aurora.fsMicro, weight: .bold))
                             .foregroundStyle(Aurora.t3)
                     }
                     Circle()
@@ -2344,18 +2357,18 @@ private struct AgentSkillButton: View {
             .frame(height: 62)
             .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                         .fill(active ? Aurora.ice.opacity(0.12)
                                      : (hovered ? Aurora.ice.opacity(0.08) : Color.white.opacity(0.04)))
                     if hovered || active {
                         RadialGradient(colors: [Aurora.ice.opacity(0.14), .clear],
                                        center: .center, startRadius: 0, endRadius: 80)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous))
                     }
                 }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                     .strokeBorder(hovered || active ? Aurora.ice.opacity(0.55) : Color.white.opacity(0.08),
                                   lineWidth: 1)
             )
@@ -2376,13 +2389,13 @@ private struct AgentConversationView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 8) {
+                LazyVStack(alignment: .leading, spacing: Aurora.sp2) {
                     ForEach(center.messages) { msg in
                         AgentBubble(msg: msg)
                             .id(msg.id)
                     }
                 }
-                .padding(.vertical, 6)
+                .padding(.vertical, Aurora.sp2)
             }
             .onChange(of: center.messages.count) { _, _ in
                 if let last = center.messages.last {
@@ -2403,26 +2416,26 @@ private struct AgentBubble: View {
         let isUser = msg.role == .user
         HStack {
             if isUser { Spacer(minLength: 36) }
-            VStack(alignment: isUser ? .trailing : .leading, spacing: 2) {
-                HStack(spacing: 4) {
+            VStack(alignment: isUser ? .trailing : .leading, spacing: Aurora.sp1) {
+                HStack(spacing: Aurora.sp1) {
                     Text(timeLabel)
-                        .font(.system(size: 8, weight: .medium))
+                        .font(.system(size: Aurora.fsMicro, weight: .medium))
                         .foregroundStyle(Aurora.t3)
                     Text(msg.source.rawValue)
-                        .font(.system(size: 8))
+                        .font(.system(size: Aurora.fsMicro))
                 }
                 Text(msg.text)
-                    .font(.system(size: 11.5))
+                    .font(.system(size: Aurora.fsBody))
                     .foregroundStyle(roleColor)
                     .textSelection(.enabled)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, Aurora.sp3)
+                    .padding(.vertical, Aurora.sp2)
                     .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                             .fill(bubbleFill)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: Aurora.radiusCard, style: .continuous)
                             .strokeBorder(bubbleBorder, lineWidth: 1)
                     )
             }
@@ -2545,18 +2558,18 @@ enum AgentUIShot {
         // 主 UI 占位（简化：色块标注区域，真实 ContentView 无法无头渲染 DriveState）
         let mainPlaceholder = ZStack {
             Rectangle().fill(Color(red: 0.1, green: 0.13, blue: 0.16))
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Aurora.sp1) {
                 Text("GAME VIEWPORT（主 UI，右移后保持可见）")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: Aurora.fsSmall, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.75))
                 Text("↖ 网络地图/小地图在这里，永不遮挡")
-                    .font(.system(size: 9))
+                    .font(.system(size: Aurora.fsMicro))
                     .foregroundStyle(Aurora.ice)
             }
         }
         let sidebarPlaceholder = ZStack {
             Rectangle().fill(Color(red: 0.08, green: 0.09, blue: 0.11))
-            Text("SIDEBAR 360pt").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
+            Text("SIDEBAR 360pt").font(.system(size: Aurora.fsMicro)).foregroundStyle(.white.opacity(0.5))
         }
 
         let frameW: CGFloat = 1100
@@ -2596,13 +2609,13 @@ enum AgentUIShot {
         center.isPanelOpen = true   // 让面板内箭头旋转状态正确
 
         // 上下两帧并排渲染
-        let combo = VStack(spacing: 12) {
+        let combo = VStack(spacing: Aurora.sp3) {
             Text("折叠（主 UI 占满，箭头在左缘）")
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: Aurora.fsSmall, weight: .bold))
                 .foregroundStyle(.white.opacity(0.8))
             collapsed
             Text("展开（面板占左 348，主 UI 右移，箭头在面板右缘）")
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: Aurora.fsSmall, weight: .bold))
                 .foregroundStyle(Aurora.ice)
             expanded
         }

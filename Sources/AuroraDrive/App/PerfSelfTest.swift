@@ -38,6 +38,7 @@
 import Foundation
 import CoreGraphics
 import QuartzCore
+import AppKit
 
 // MARK: - 轻量计时统计
 
@@ -334,9 +335,18 @@ func runPerfSelfTest(seconds: Double) -> Int {
         submitted["assist", default: 0] += 1
 
         // 光流：compute 要求 CVPixelBuffer（workingSize²）
-        PerfBus.shared.measure("opticalflow") {
-            if let g = PerfSelfTestImage.sharedGrayBuffer {
-                _ = flow.compute(gray: g)
+        //
+        // ⚠️ A3（2026-10-04）：必须与 `DriveState.tick()` 用**同一条闸门**。
+        //   此前自检直接调 `flow.compute()`、**绕过了 tick() 的判定**，导致
+        //   `AURORA_DISABLE_OPTICAL_FLOW=1` 下自检照样有样本 ——
+        //   项目自己的性能裁判**测不出这个开关的效果**（开关不可验证）。
+        //   现在：开关打开时这里也不测量，`opticalflow` 样本数归零，
+        //   于是「开关是否真的生效」变成一条可断言的事实。
+        if !DriveState.opticalFlowDisabled {
+            PerfBus.shared.measure("opticalflow") {
+                if let g = PerfSelfTestImage.sharedGrayBuffer {
+                    _ = flow.compute(gray: g)
+                }
             }
         }
 
@@ -384,7 +394,12 @@ func runPerfSelfTest(seconds: Double) -> Int {
     print("")
 
     print("  ── 各子系统单次耗时（ms）──")
+    // A20（2026-10-04）：新增 infer.* 通道 —— 这四个才是**真正干活的推理耗时**
+    // （由各引擎在 finishInference 里用 lastLatencyMs 打点）。
+    // 原来的 submit.* 只是 DispatchQueue.async 的**提交开销**（p50 ≈ 0.005~0.026ms），
+    // 两者相差约三个数量级，混在一起看会严重低估模型成本。
     for ch in ["submit.yolopx", "submit.m9", "submit.assist", "submit.yolo26s",
+               "infer.yolopx", "infer.m9", "infer.assist", "infer.yolo26s",
                "opticalflow", "tick.loop"] {
         let st = PerfBus.shared.stats(ch)
         print("    \(ch.padding(toLength: 16, withPad: " ", startingAt: 0)) \(st.summary)")
@@ -749,5 +764,221 @@ func runTickProfile(seconds: Double) -> Int {
     print("     量化对拍脚本见文档 §6.44。")
     print("")
     print("═══ tick 剖析：PASS ═══")
+    return 0
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MARK: - 生产主循环整圈基准（--tick-bench，2026-10-05）
+// ══════════════════════════════════════════════════════════════════════════
+//
+// 【它补的是什么盲区】
+// `tick.total` 探针早在 `tick()` 里（`defer` 结算，覆盖所有 return 路径），
+// 但**没有任何离屏夹具能驱动真实 `tick()`**：
+//   · `--perf-selftest` 自建引擎和自己的循环，**不调用 `tick()`**
+//     → 它的 `tick.loop` 是自检夹具口径（含自检自己的合成提交），
+//       而 `tick.total` 在它那里**零样本**；
+//   · `--tick-profile` 只读**本进程** `PerfBus`，生产 tick 由 SwiftUI Timer
+//     驱动 → 另起进程跑读不到样本。
+// 结果：我们有一堆分段，却**没有一个可信的主线程整圈数**。
+// 本函数用生产同一条 `tick()` 补上它，并做两档对照。
+//
+// 【判读要点】
+//   1. 看 p95/p99，不只看 p50 —— 卡顿是长尾问题。
+//   2. 本夹具 `isDriving=false`：决策/按键输出那半段不会执行，
+//      所以这是主循环成本的**下界**，不是全部。但它**逐帧同构**，
+//      因此做 A/B 归因是有效的（这正是本夹具的用途）。
+//   3. 与 `tick.loop`（自检口径）**不可直接比**，见上。
+
+/// 合成一帧 640×640 BGRA 直通帧（光流 + `inferFast` 的真实输入尺寸/格式）。
+///
+/// 刻意填**非均匀**内容：纯色会让 DIS 退化成平凡解，测不出真实代价。
+/// 内容本身不影响量级（DIS 成本由金字塔层数与迭代次数决定），
+/// 故只造一帧、每轮复用，避免"造图"本身污染测量。
+private func makeTickBenchPixelBuffer(size: Int) -> CVPixelBuffer? {
+    var pb: CVPixelBuffer?
+    let attrs: [CFString: Any] = [
+        kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary,
+        kCVPixelBufferCGImageCompatibilityKey: true,
+        kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+    ]
+    guard CVPixelBufferCreate(kCFAllocatorDefault, size, size,
+                              kCVPixelFormatType_32BGRA,
+                              attrs as CFDictionary, &pb) == kCVReturnSuccess,
+          let buf = pb else { return nil }
+    CVPixelBufferLockBaseAddress(buf, [])
+    defer { CVPixelBufferUnlockBaseAddress(buf, []) }
+    guard let base = CVPixelBufferGetBaseAddress(buf) else { return buf }
+    let bpr = CVPixelBufferGetBytesPerRow(buf)
+    let p = base.assumingMemoryBound(to: UInt8.self)
+    for y in 0..<size {
+        for x in 0..<size {
+            let o = y * bpr + x * 4
+            p[o + 0] = UInt8(truncatingIfNeeded: x &* 7)
+            p[o + 1] = UInt8(truncatingIfNeeded: y &* 5)
+            p[o + 2] = UInt8(truncatingIfNeeded: (x ^ y) &* 3)
+            p[o + 3] = 255
+        }
+    }
+    return buf
+}
+
+/// 合成显示帧（BGRA → CGImage）。
+private func makeTickBenchCGImage(size: Int) -> CGImage? {
+    guard let ctx = CGContext(data: nil, width: size, height: size,
+                              bitsPerComponent: 8, bytesPerRow: size * 4,
+                              space: CGColorSpaceCreateDeviceRGB(),
+                              bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)
+    else { return nil }
+    ctx.setFillColor(CGColor(red: 0.08, green: 0.16, blue: 0.24, alpha: 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
+    ctx.setFillColor(CGColor(red: 0.55, green: 0.75, blue: 0.95, alpha: 1))
+    ctx.fill(CGRect(x: 40, y: 40, width: size - 80, height: 60))
+    return ctx.makeImage()
+}
+
+/// 单档测量结果。
+private struct TickBenchPhase {
+    var label: String
+    var total: PerfStats
+    var opticalflow: PerfStats
+    var yoloFast: PerfStats
+    var consume: PerfStats
+    var engineMode: PerfStats
+    var frames: Int
+    var seconds: Double
+}
+
+@MainActor
+func runTickBench(seconds: Double) -> Int {
+    let secs = max(2.0, seconds)
+    print("═══ 生产主循环整圈基准（--tick-bench）═══")
+    print("  驱动对象：**真实 `tick()`**（不是自检夹具）")
+    print("  探针：生产里已有的 `tick.total`（defer 结算，覆盖所有 return 路径）")
+    print(String(format: "  每档时长：%.0fs   驱动：30Hz RunLoop（与生产同构）", secs))
+    print("")
+    print("  ⚠️ 读数须知（2026-10-05 实测教训）：")
+    print("     · **绝对数不可跨时段比**。同一份二进制、同一台机器，实测在数小时重负载")
+    print("       前后相差 **2~2.5 倍**（opticalflow p50 2.53ms → 6.4ms；")
+    print("       infer.yolopx 16.4ms → 22.6ms），与代码无关，是热/争用状态。")
+    print("     · 因此本夹具**只用于同一会话内的 A/B 归因** —— 下面的")
+    print("       `.ayolom` vs `.legacy` 就是这种对照：同进程、背靠背、唯一变量是感知档位。")
+    print("     · 跨二进制对比请用 `scripts/paired-ab.sh --metric tick`（逐轮交替配对）。")
+    print("")
+
+    // 打点必须开 —— `tick.total` 的 defer 结算在 enabled=false 时短路。
+    PerfBus.enabled = true
+
+    let state = DriveState()
+
+    // ⚠️⚠️ 安全红线（不可协商）⚠️⚠️
+    //   tick() 有**两条**注入路径，必须两条都堵死：
+    //     ① `applyCommand`（真按键）—— 由 `mayInjectKeys` 把守，
+    //        即 `isDriving && !expertMode && !controlDisabled`。故强制 controlDisabled=true。
+    //     ② `releaseAllIfNeeded()`（松键）—— `controlDisabled` 分支里**仍会**发 keyUp，
+    //        且进程刚起时 `lastFullReleaseAt == 0` → 首帧必走 `releaseAll()`。
+    //        故必须再置 `benchSuppressAllInjection = true`（硬开关，不靠节流状态推断）。
+    //   下面断言两条同时成立，否则**不测量、直接退出**。
+    state.controlDisabled = true
+    state.benchSuppressAllInjection = true
+    if let hazard = state.benchInjectionHazardForTickBench {
+        print("  ✗ 夹具安全断言失败：\(hazard)")
+        print("     拒绝继续 —— 离屏基准绝不允许注入真实按键。")
+        return 1
+    }
+    print("  ✅ 安全断言通过（两条注入路径全堵死）：")
+    print("     · mayInjectKeys=false（controlDisabled=true）→ 不发 AI 按键")
+    print("     · benchSuppressAllInjection=true → 连 releaseAll 的 keyUp 也不发")
+
+    guard let yoloBuf = makeTickBenchPixelBuffer(size: OpticalFlowBridge.workingSize) else {
+        print("  ✗ 合成 640×640 BGRA 直通帧失败"); return 1
+    }
+    guard let cg = makeTickBenchCGImage(size: 640) else {
+        print("  ✗ 合成显示帧失败"); return 1
+    }
+    let img = NSImage(cgImage: cg, size: NSSize(width: 640, height: 640))
+    print("")
+
+    func runPhase(_ mode: PerceptionMode, _ label: String) -> TickBenchPhase {
+        // 档位是 A2 门控的**唯一**输入（.ayolom → 不跑光流；.legacy → 跑）。
+        state.selectPerceptionMode(mode)
+        PerfBus.shared.reset()
+        var frames = 0
+        let t0 = CACurrentMediaTime()
+        let budget = 1.0 / 30.0
+        while CACurrentMediaTime() - t0 < secs {
+            let f0 = CACurrentMediaTime()
+            state.pushBenchFrameForTickBench(display: img, displayCG: cg,
+                                             yolo: yoloBuf, native: nil)
+            state.tick()
+            frames += 1
+            // 与生产一致：让出主线程 RunLoop（tick 里的 main.async 回写靠它转起来）。
+            // 不用 Thread.sleep —— 那会把 tick 一起睡死（项目里踩过）。
+            let spent = CACurrentMediaTime() - f0
+            if spent < budget {
+                RunLoop.current.run(until: Date().addingTimeInterval(budget - spent))
+            }
+        }
+        let wall = CACurrentMediaTime() - t0
+        return TickBenchPhase(label: label,
+                              total: PerfBus.shared.stats("tick.total"),
+                              opticalflow: PerfBus.shared.stats("tick.opticalflow"),
+                              yoloFast: PerfBus.shared.stats("tick.yoloFast"),
+                              consume: PerfBus.shared.stats("tick.consumeFrame"),
+                              engineMode: PerfBus.shared.stats("tick.engineMode"),
+                              frames: frames, seconds: wall)
+    }
+
+    func show(_ p: TickBenchPhase) {
+        let hz = p.seconds > 0 ? Double(p.frames) / p.seconds : 0
+        print("  ── \(p.label) ──")
+        print(String(format: "     tick.total        %@   ← 主线程每帧整圈", p.total.summary))
+        print(String(format: "     tick.consumeFrame %@", p.consume.summary))
+        print(String(format: "     tick.yoloFast     %@", p.yoloFast.summary))
+        print(String(format: "     tick.opticalflow  %@", p.opticalflow.summary))
+        print(String(format: "     驱动帧数 %d  实际 %.1f Hz", p.frames, hz))
+        print("")
+    }
+
+    let ayolom = runPhase(.ayolom, "默认档 .ayolom（生产默认；A2 门控**关闭**光流）")
+    show(ayolom)
+    let legacy = runPhase(.legacy, "对照档 .legacy（A2 门控**打开**光流，即优化前行为）")
+    show(legacy)
+
+    // 引擎模式早退的告警：若 tick.engineMode 有样本，说明本进程连上了引擎，
+    // tick() 走的是"只拉显示数据"的短路径 —— 那样的数字不代表本地全流程。
+    if !ayolom.engineMode.isEmpty || !legacy.engineMode.isEmpty {
+        print("  ⚠️ 检测到 `tick.engineMode` 有样本 —— 本进程连上了引擎，")
+        print("     tick() 走的是引擎短路径，上面的数字**不代表本地全流程**。")
+        print("     请确认用 AURORA_UI_LOCAL=1 且没有正在运行的 AuroraDrive 实例。")
+        print("")
+    }
+
+    // ── A2 的主线程收益（同二进制、同负载、同一份 tick()）────────────────
+    let saved = legacy.total.median - ayolom.total.median
+    print("  ── A2 主线程收益（同二进制对照，唯一变量=感知档位）──")
+    if legacy.total.median > 0 {
+        print(String(format: "     .legacy p50=%.3fms  →  .ayolom p50=%.3fms  省 %.3fms/帧 (%.1f%%)",
+                     legacy.total.median, ayolom.total.median, saved,
+                     legacy.total.median > 0 ? saved / legacy.total.median * 100 : 0))
+        print(String(format: "     .legacy p95=%.3fms  →  .ayolom p95=%.3fms  省 %.3fms (%.1f%%)",
+                     legacy.total.p95, ayolom.total.p95,
+                     legacy.total.p95 - ayolom.total.p95,
+                     legacy.total.p95 > 0 ? (legacy.total.p95 - ayolom.total.p95) / legacy.total.p95 * 100 : 0))
+    } else {
+        print("     ✗ 对照档无样本，无法给出收益 —— 检查夹具是否真的驱动了 tick()")
+    }
+    print("")
+
+    // ── 机器可读输出（供 paired-ab.sh --metric tick 直接吃）──────────────
+    // 格式与 paired-ab 的解析器一致：`key=value`，每行一个。
+    print("  ── 机器可读（默认档 = 生产默认）──")
+    print("tick.total.p50=\(String(format: "%.4f", ayolom.total.median))")
+    print("tick.total.p95=\(String(format: "%.4f", ayolom.total.p95))")
+    print("tick.total.p99=\(String(format: "%.4f", ayolom.total.p99))")
+    print("tick.opticalflow.p50=\(String(format: "%.4f", ayolom.opticalflow.median))")
+    print("tick.consumeFrame.p50=\(String(format: "%.4f", ayolom.consume.median))")
+    print("tick_hz=\(String(format: "%.2f", ayolom.seconds > 0 ? Double(ayolom.frames) / ayolom.seconds : 0))")
+    print("")
+    print("═══ tick 整圈基准：完成 ═══")
     return 0
 }

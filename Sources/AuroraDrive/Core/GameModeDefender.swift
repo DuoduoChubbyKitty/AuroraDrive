@@ -35,6 +35,19 @@ final class GameModeDefender {
     // MARK: - 状态
 
     private let logPath = "/tmp/aurora_defender.log"
+
+    // ── 日志上限与轮转（2026-10-04 A4）────────────────────────────────────
+    // 与 `CoordinateCapture.pcapLog` 同一策略、同一理由：24/7 挂机场景下
+    // 「纯追加 + 无上限」会无限增长，而它是排障入口，不能删也不能不写。
+    // 此处独立实现而非抽公共工具：两者分属 Capture / Core 两个子系统，
+    // 为一个 8 行工具新建共享文件会引入跨子系统耦合，得不偿失；
+    // 策略常量与备份命名保持一字不差，便于对照维护。
+    private static let logMaxBytes: UInt64 = 8 * 1024 * 1024
+
+    /// 上次「稳态」观测快照 —— 把稳态日志从「每分钟一行」改为「仅状态变化时写」。
+    /// 空串表示尚未写过任何稳态行（首行必写，保证日志开头有基线）。
+    private var lastSteadySnapshot = ""
+
     private var audioQueue: AudioQueueRef?
     private var audioBuffers: [AudioQueueBufferRef] = []
     private var timer: DispatchSourceTimer?
@@ -48,6 +61,15 @@ final class GameModeDefender {
     }
 
     private func log(_ msg: String) {
+        // 上限轮转：超限则「当前 → `.1`（覆盖旧备份）」并重建空文件。
+        // 每次写前检查 —— 本类写入频率极低（仅状态变化 / 重新主张），
+        // stat 成本可忽略，故无需像 pcapLog 那样节流。
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: logPath),
+           let size = attrs[.size] as? UInt64, size >= Self.logMaxBytes {
+            let backup = logPath + ".1"
+            try? FileManager.default.removeItem(atPath: backup)
+            try? FileManager.default.moveItem(atPath: logPath, toPath: backup)
+        }
         let line = "[\(role)] [\(Self.ts())] \(msg)\n"
         if let fh = FileHandle(forWritingAtPath: logPath) {
             fh.seekToEndOfFile()
@@ -171,8 +193,25 @@ final class GameModeDefender {
         reassertCount += 1
         if !fixes.isEmpty {
             log("⚔ 重新主张：\(fixes.joined(separator: " / "))（第 \(reassertCount) 次复查）")
-        } else if reassertCount % 20 == 1 {   // 每分钟记一次"稳态"
-            log("稳态：nice=\(current) audio=\(audioActive) 复查第 \(reassertCount) 次")
+        } else {
+            // 稳态：**仅在观测状态变化时写**。
+            //
+            // 【改前】`reassertCount % 20 == 1` —— 每 20 次复查（= 每分钟）写一行，
+            //   且内容恒为同一串（nice 稳定、audio 稳定时）。24/7 运行下
+            //   **每天固定 1440 行完全相同的日志**，对排障零贡献，只是把
+            //   `/tmp/aurora_defender.log` 顶到上限。
+            //
+            // 【为什么不能直接删掉】稳态行是「本组件还活着」的存活信号；
+            //   首行必写（`lastSteadySnapshot` 初值为空串，与任何快照都不等），
+            //   之后只在快照真的变了才追加 —— 既保留存活基线，又不再刷屏。
+            //
+            // 【覆盖范围】`fixes` 已捕获「重新主张」类事件；本快照再兜一层
+            //   观测项（nice / 静音音频 / activity token），确保任何一项变化都留痕。
+            let snapshot = "nice=\(current) audio=\(audioActive) token=\(napToken != nil)"
+            if snapshot != lastSteadySnapshot {
+                lastSteadySnapshot = snapshot
+                log("稳态：\(snapshot) 复查第 \(reassertCount) 次")
+            }
         }
     }
 }

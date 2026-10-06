@@ -153,14 +153,27 @@ final class EgoMotionModel {
     /// 【与 `PerfBus.enabled` 等 `static var` 的差异】那些是"进程级单例配置"，
     ///   本类不是单例（可被测试创建多个实例），故配置应绑在实例上。
 
+    /// ★ 2026-10-04（性能优化阶段A · A5）：**单一来源**。
+    ///
+    /// 改动前这里是**三个独立字面量**：`centerX = 320.0`、`centerY = 320.0`、
+    /// `workingSize = 640.0`，注释只写「与 OpticalFlowBridge.workingSize 一致」
+    /// —— 靠人肉保持一致。一旦有人只改 `OpticalFlowBridge.workingSize`
+    /// （例如按 P1-9 降分辨率），这里会**静默错算**：消失点仍按 640 算、
+    /// 归一化仍除 640，而光流实际跑在别的分辨率上，`lateralRate` / 残差比
+    /// 全部偏掉，且**没有任何编译期或运行期报错**。
+    ///
+    /// 现在三个值全部从 `OpticalFlowBridge.workingSize` 派生。
+    /// **数值一字未变**（640 → 640.0、320 → 320.0），行为完全等价。
+    static let flowSize: Double = Double(OpticalFlowBridge.workingSize)
+
+    /// 光流工作分辨率（像素）。
+    let workingSize: Double = EgoMotionModel.flowSize
+
     /// 画面中心 x（消失点）。非等比拉伸不改变中心，故恒为半宽。
-    let centerX: Double = 320.0
+    let centerX: Double = EgoMotionModel.flowSize / 2.0
 
     /// 画面中心 y（消失点）。
-    let centerY: Double = 320.0
-
-    /// 光流工作分辨率（与 OpticalFlowBridge.workingSize 一致）。
-    let workingSize: Double = 640.0
+    let centerY: Double = EgoMotionModel.flowSize / 2.0
 
     /// 前向率上限。超过即认为光流输出不可信（转场/整屏变化）。
     ///
@@ -188,15 +201,23 @@ final class EgoMotionModel {
     let enabled: Bool
 
     init() {
-        // ★ 每次 init 读一次（不是 static 缓存）—— 见上方注释：
-        //   本类可被测试多次实例化，且开关必须能在运行时验证可回退。
-        //   生产路径只有一个实例（MotionPredictor 持有），故无额外开销。
-        let e = ProcessInfo.processInfo.environment
-        maxForwardRate = e["AURORA_EGO_MAX_FWD"].flatMap(Double.init) ?? 0.5
-        maxFlowPixels = e["AURORA_EGO_MAX_FLOW_PX"].flatMap(Double.init) ?? 80.0
-        residualRatioThreshold = e["AURORA_EGO_RESIDUAL_RATIO"].flatMap(Double.init) ?? 0.6
-        minConfidence = e["AURORA_EGO_MIN_CONF"].flatMap(Double.init) ?? 0.35
-        enabled = e["AURORA_EGO_CHECK"] != "off"
+        // A17 迁移（2026-10-04）：4 个阈值改走 `AuroraFlags`（进程内只读一次）。
+        //
+        // 【为什么这 4 个可以缓存、而 `AURORA_EGO_CHECK` 不行】
+        //   全仓 `grep setenv` 只有一处：`AuroraDriveApp.swift:3257` 在自检里
+        //   `setenv("AURORA_EGO_CHECK","off",1)`，用来验证"关掉判定后行为回退"。
+        //   只有那个开关需要在**运行时**变；这 4 个阈值没有运行时切换的需求。
+        //   故：4 个走 `static let`（省掉每次 init 的 4 次环境变量读取），
+        //   `egoCheck` 保持现读（`AuroraFlags.egoCheck` 是计算属性）。
+        //
+        // 【原来为什么全现读】见原注释：「本类可被测试多次实例化，且开关必须能在
+        //   运行时验证可回退」—— 那条理由**只对 EGO_CHECK 成立**，其余 4 个是
+        //   顺手一起现读了。现在按"是否真的需要运行时可变"拆开，各归其位。
+        maxForwardRate = AuroraFlags.egoMaxFwd
+        maxFlowPixels = AuroraFlags.egoMaxFlowPx
+        residualRatioThreshold = AuroraFlags.egoResidualRatio
+        minConfidence = AuroraFlags.egoMinConf
+        enabled = AuroraFlags.egoCheck != "off"
     }
 
     // MARK: 估计

@@ -604,6 +604,41 @@ struct ViewportPanel: View {
                         laneDegraded: state.displayLaneDegraded,
                         drivableDegraded: state.displayDrivableDegraded)
 
+            // ── 当前任务卡片（2026-10-06 新增，用户点名要求）──
+            //
+            // 【位置 v3 —— 2026-10-06 用户实测反馈：挪到左上】
+            //   用户原话：「你干脆把那个任务不要放在这正中间了，你干脆放在那个
+            //             LIVE……的最下面，然后弄大一点……左手边弄大一点」
+            //   → `.overlay(alignment: .topLeading)` = 左上角；
+            //     `.padding(.top, 44)` 让卡片落在 LIVE / THIRD-PERSON / 分辨率
+            //     那排标签（高 ~21pt + padding 14pt）**下方**，不遮标签；
+            //     `.padding(.leading, 14)` 与标签同一条左基线。
+            //   用户提到的「480 乘 312」即左上信息区的大致范围，卡片放在其底部。
+            //
+            // 【为什么写在这里、以及为什么不进下面那两个 VStack】
+            //   两个标签各自在带 `.padding(14)` 的 VStack 里定位，把卡片插进
+            //   任一 VStack 都会推挤布局。`.overlay` 不参与布局流，标签坐标不变。
+            //
+            // 【顺序】ObstacleOverlay → MaskOverlay → **本卡片** → 左上/右上标签。
+            //
+            // 【数据】全部只读 state，无定时器、无控制量写入：
+            //   · 任务名   → state.questName（由 QuestPanelReader 确认后写入，task-1 提供）
+            //   · 直线距离 → locatorX/Y 与 locatorTarget 同属世界坐标（UE5 厘米），÷100 得米
+            //   · 弯道距离 → state.routePlan.distanceMeters（**已经是米**，RoutePlanner
+            //               内部已乘 metersPerPixel；不要再除 100，也不要碰 pxPerMeter）
+            //   · 拿不到 → QuestCard 内部一律显示「--」，绝不编数字
+            .overlay(alignment: .topLeading) {
+                QuestCard(
+                    questName: state.questName,
+                    egoWorld: state.locatorFound ? (x: state.locatorX, y: state.locatorY) : nil,
+                    targetWorld: state.locatorTarget.map { (x: Double($0.x), y: Double($0.y)) },
+                    routeMeters: state.routePlan?.distanceMeters)
+                    // 44pt = 标签行 padding(14) + 标签高(~21) + 呼吸(~9)，
+                    // 卡片顶边正好落在 LIVE 标签排的下沿之下
+                    .padding(.top, 44)
+                    .padding(.leading, 14)
+            }
+
             // 左上标签（网页 .vp-tag）
             VStack {
                 HStack {
@@ -628,21 +663,26 @@ struct ViewportPanel: View {
             }
             .padding(14)
 
-            // 极度复杂：顶部接管告警（网页 .rc-warn）
-            if state.roadCondition.needsTakeover {
-                VStack {
-                    RCWarn()
-                        .padding(.top, 52)
-                    Spacer()
-                }
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
             // 卡死（连续 30s 零速）→ 请求人工介入横幅（2026-10-02 新增）
             //
             // 优先级高于路况告警：车都停死 30 秒了，比"路况复杂"紧急。
-            // 因此放在上面、且两者同时出现时**取代**路况横幅（见下条 if 的 else）。
+            // 因此两者同时出现时**取代**路况横幅（见下面的 else if）。
             // 只显示、不发声、不驱动任何控制量。
+            //
+            // ══════════════════════════════════════════════════════════════════
+            // ⚠️ 2026-10-04 修复：这里原本还有**第二个同级 `if`** 也画 `RCWarn()`
+            // ══════════════════════════════════════════════════════════════════
+            // 原代码是两个并列的 `if`（不是 else-if）：
+            //     if needsTakeover { RCWarn() }                 ← 第一份
+            //     if needsManualIntervention { StuckWarn() }
+            //     else if needsTakeover { RCWarn() }            ← 第二份
+            // 于是 `needsTakeover && !needsManualIntervention` 时**两份同时命中**，
+            // 两个一模一样的胶囊叠在同一坐标。
+            // 后果不止"多画一遍"：`RCWarn` 内部各有独立的 `repeatForever` 脉冲
+            // （1.1s，描边 0.42↔0.85），两份相位不同 → **互相拍频**，
+            // 观感是持续抖动；而且第一份没有卡死优先级，会在卡死时照样画出来，
+            // 把「卡死横幅取代路况横幅」的语义破坏掉。
+            // ⟹ 删掉第一份，只保留下面这个带优先级的 `if / else if`。
             if state.needsManualIntervention {
                 VStack {
                     StuckWarn(heldSeconds: state.stuckZeroHeldSeconds)
@@ -692,6 +732,33 @@ struct ViewportPanel: View {
                     .init(color: Color(hex: 0x04070C), location: 1),
                 ],
                 startPoint: .topLeading, endPoint: .bottomTrailing)
+            // ══════════════════════════════════════════════════════════════
+            // ⚠️ 2026-10-06 修复：投影从「整块 ViewportPanel」挪进「背景层」
+            // ══════════════════════════════════════════════════════════════
+            //
+            // 【为什么挪】验证方（verifier）实测发现：任务卡片下方 5~25px
+            //   仍被压暗 **-27.05**（变亮 0 / 变暗 7040），而上/左/右分别是
+            //   +17.54 / +9.69 / +9.79（纯变亮）。
+            //   变暗区几何与卡片完全吻合（y=250 变暗 x1275..1666，卡片 x1294..1646，
+            //   中心同为 1470），且方向性极强（|上-下|=28.6，|左-右|=0.15）
+            //   → 是**带 y 偏移的黑色投影**，不是对称辉光。
+            //
+            //   来源就是这一行：`.shadow(black 0.78, r17, y14)` 原先挂在
+            //   ViewportPanel 修饰符链**末端**，作用范围覆盖整个 ZStack ——
+            //   包括用 `.overlay(alignment: .top)`（:631）挂上去的任务卡片。
+            //   所以卡片被连带投了黑色投影，与「发光」诉求直接冲突。
+            //
+            // 【为什么挪进 background 就能解决】
+            //   `.background { ... }` 的内容**不参与**外层 `.overlay` 的合成范围。
+            //   把 shadow 施加在 background 内部的渐变矩形上，投影只跟随视口底图，
+            //   overlay 里的卡片/标签/检测框都不再被投影。
+            //
+            // 【保留了什么】视口本身的立体感（原设计意图）一字未减 ——
+            //   投影仍然存在，只是不再误伤叠加层。这是验证方建议的 (a) 方案。
+            //
+            // 【连带收益】左上/右上的 TagChip（LIVE / THIRD-PERSON / 分辨率）
+            //   同样曾被这层投影压暗，现在一并解除。
+            .shadow(color: .black.opacity(0.78), radius: 17, y: 14)
         }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
@@ -701,7 +768,6 @@ struct ViewportPanel: View {
                         ? Aurora.danger.opacity(0.75) : Aurora.hair1,
                     lineWidth: state.roadCondition.needsTakeover ? 1.5 : 1)
         }
-        .shadow(color: .black.opacity(0.78), radius: 17, y: 14)
     }
 }
 
@@ -733,6 +799,258 @@ struct TagChip: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
+}
+
+// ============================================================================
+// MARK: - 预览框内「当前任务」卡片（2026-10-06 新增，用户点名要求）
+// ============================================================================
+//
+// 【用户原话】（规格就这一句，逐字遵守，不要再自己发挥）
+//   「那个当前任务，我们可以放在路况自适应下方就是预览框的上方的中间，
+//     最预览框内，就是在那个游戏画面的预览框内，然后放在预览框的最顶顶上，
+//     然后建一个小小的方框，然后方框会发一层银白色的辉光，
+//     然后中间放下任务名和距离任务多少米，直线距离和弯道距离。」
+//
+// 逐条落到代码（验收就按这 6 条逐项核）：
+//   · **预览框内**   → 由 `ViewportPanel` 的 ZStack 直接承载，与 ObstacleOverlay /
+//                      MaskOverlay / TagChip 同层；**不进任何 VStack 布局流**
+//   · **水平居中**   → `.overlay(alignment: .top)`（.top = 水平居中 + 贴顶）
+//   · **贴顶**       → `.padding(.top, 10)`，留 10pt 呼吸位（贴死 0 会啃上边框）
+//   · **小小的方框** → 定宽 176pt × 实测高 60pt，高度由内容撑开
+//   · **银白色辉光** → `AuroraSilver`：淡银填充 + 近/远两层 shadow + 0.62 描边
+//   · **任务名 + 直线距离 + 弯道距离** → 两行居中（第一行任务名，第二行两个距离）
+//
+// 【定宽为什么是 176 而不是更小的 150 —— 实测数据，不是拍的】
+//   首版写 150，出图后肉眼可见 **距离被折成两行**（数值一行、单位"米/公里"掉到
+//   下一行），卡片被撑成 78pt 高、两行字挤在一起。
+//   量出来的原因：第二行是「直线 + 数值 + 竖线 + 弯道 + 数值」五个元素，
+//   11pt 等宽数字下光数值就 ~47pt，两个标签 ~44pt，加间距/内边距 ≥ 170pt。
+//   ⟹ 176pt 是"能装下最坏情况（五位数米数 + 双标签）"的最小整宽；
+//      同时只占预览框宽度的 12.2%（1444pt 实测），够"小"。
+//   且所有文本行都加了 `lineLimit(1)` + `minimumScaleFactor`：
+//   万一任务名/数值更长，是**等比缩一点**而不是折行把卡片撑变形。
+//
+// 【单位口径】两个距离**一律显示「米」**，不做公里换算 ——
+//   用户原话是「距离任务**多少米**」。首版自作主张 ≥1000m 转公里，属于改规格，已撤。
+//
+// 【为什么用 overlay 而不插进 VStack —— 这是"不挤动现有 TagChip"的关键】
+//   左上/右上标签各自在 `.padding(14)` 的 VStack 里定位。若把本卡片塞进那个
+//   VStack，两排标签会被整体往下推（用户明确禁止）。用 `overlay(alignment:)`
+//   挂在**与标签同层**的 ZStack 上则完全不参与布局流，标签坐标逐像素不变。
+//
+// 【为什么任务为空必须整张卡消失】`questName` 为 nil / 空白 → 返回 EmptyView，
+//   连背景都不画。用户明确要求「不留空框」—— 留空框会被当成 UI 坏了。
+//
+// 【距离口径 —— 两套坐标一个字都不许混用】
+//   · 直线距离：**世界坐标**（UE5 厘米）欧氏距离 ÷ 100 = 米。
+//     `locatorTarget` 与 `locatorX/Y` 同为世界坐标（DriveState:4084 起，
+//     既有算法见 `NavGuidance.derive` 的 `(t.x - locatorX)/100`）。
+//   · 弯道距离：`RoutePlan.distanceMeters` —— RoutePlanner 在**像素空间**算完
+//     之后已乘过 `metersPerPixel`，**它本身就是米，不要再除 100**。
+//   · ⚠️ `pxPerMeter = kCalibA*100` 是地图像素那一套，本卡片**一次都不用**。
+//   · 拿不到就显示「--」，**绝不编数字**（用户对假数据零容忍）。
+//
+// 【性能】无定时器、无动画、无 onAppear 副作用；纯读 4 个字段，
+//   随 `@Observable` 已有的 tick 重算。与 AuroraLightField 的性能教训一致
+//   （见 AuroraTheme 中 `durFast` 附近关于 repeatForever 的记录）。
+struct QuestCard: View {
+
+    // ── 输入（全部来自 DriveState，本视图**只读**，不写任何控制量）──
+
+    /// 确认后的任务名。nil / 全空白 → 整张卡隐藏。
+    let questName: String?
+    /// 自车世界坐标（UE5 厘米）。未定位时传 nil。
+    let egoWorld: (x: Double, y: Double)?
+    /// 任务目标世界坐标（UE5 厘米）。与 `egoWorld` **同坐标系**。
+    let targetWorld: (x: Double, y: Double)?
+    /// 弯道距离（**米**）。直接来自 `RoutePlan.distanceMeters`，已含单位换算。
+    let routeMeters: Double?
+
+    /// 直线距离（米） = 世界坐标欧氏距离 ÷ 100。
+    private var straightMeters: Double? {
+        guard let e = egoWorld, let t = targetWorld else { return nil }
+        let dx = t.x - e.x
+        let dy = t.y - e.y
+        let m = (dx * dx + dy * dy).squareRoot() / 100.0
+        return m.isFinite ? m : nil
+    }
+
+    /// 米 → 显示串。**拿不到一律「--」**，不猜、不编。
+    ///
+    /// ⚠️ 2026-10-06 修正：**一律用「米」，不做公里换算**。
+    ///   用户原话是「距离任务**多少米**，直线距离和弯道距离」——
+    ///   首版自作主张在 ≥1000 m 时显示「2.53 公里」，虽然更好读，但那是
+    ///   改用户的规格。规格就是规格，两个距离都用米。
+    private static func metersText(_ m: Double?) -> String {
+        guard let m, m.isFinite, m >= 0 else { return "--" }
+        return String(format: "%.0f 米", m)
+    }
+
+    /// 卡片定宽（pt）。
+    ///
+    /// 【宽度的演变 —— 全部实测驱动】
+    ///   v1 150pt：「2.53 公里」折行 → 撑坏卡片（ui 首版踩坑）
+    ///   v2 176pt：装下「直线 12345 米 ｜ 弯道 12345 米」的最小整宽
+    ///   v3 260pt：⚠️ 2026-10-06 用户实测反馈「卡片有点小了，任务名称真的放得下吗」
+    ///            + 距离标签改全称「任务直线距离」/「任务弯道距离」
+    ///            + 位置挪到左上（用户原话：「放在那个 LIVE……的最下面，弄大一点，
+    ///              左手边弄大一点」）
+    ///   全称标签比「直线/弯道」宽 4 字 ≈ 44pt；任务名行也要更大字号（12.5pt），
+    ///   两行全称并排（不再挤一行）→ 260pt 是容纳最坏情况的宽度。
+    ///   占预览框宽度 260/1444 ≈ 18%，左上角放置不遮挡中央视野。
+    static let cardWidth: CGFloat = 260
+
+    private var hasName: Bool {
+        guard let n = questName else { return false }
+        return !n.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        // ══════════════════════════════════════════════════════════════════
+        // ⚠️ 2026-10-06 规格修正（用户实测反馈）：**卡片常驻，不隐藏**
+        // ══════════════════════════════════════════════════════════════════
+        // 用户原话：「我要默认开，然后会显示暂前无任务」
+        //
+        // 【为什么原实现是错的】原版「questName 为 nil → EmptyView」来自
+        //   task 描述里本小姐写的「不留空框」——那是过度发挥。用户真正要的
+        //   是一个**常驻状态位**：有任务看任务，没任务看到「暂无任务」才知道
+        //   这块区域是干嘛的。卡片闪没闪现，用户根本注意不到（实测后说
+        //   「我真的没看见」）。原任务描述里那条「空任务必须隐藏」作废。
+        //
+        // 【行为】
+        //   · questName 有值   → 任务名 + 距离（银白字）
+        //   · questName 为 nil → 「暂无任务」+ 距离「--」（暗银字）
+        //   卡片本体（银白辉光框）**永远渲染**，只切换内容。
+        VStack(spacing: 5) {
+            // ① 任务名 —— 银白，一行；超长截断（不许被长任务名撑大卡片）
+            //    v3：字号 12.5（原 11），用户反馈卡片要大一点
+            Text(hasName ? (questName ?? "") : "暂无任务")
+                .font(Aurora.sans(12.5, hasName ? .semibold : .medium))
+                .tracking(0.3)
+                .foregroundStyle(hasName ? AnyShapeStyle(AuroraSilver.textName)
+                                         : AnyShapeStyle(AuroraSilver.textDim))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .truncationMode(.tail)
+                .shadow(color: AuroraSilver.glowFar, radius: 4)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            // ② 任务直线距离（一行）—— v3：标签写全称，独占一行
+            //    用户原话：「我想要的是那个任务直线距离和任务弯道距离这么写，
+            //              而不是直线弯道那样子」
+            HStack(spacing: 5) {
+                Text("任务直线距离")
+                    .font(Aurora.label(10.5))
+                    .foregroundStyle(AuroraSilver.textDim)
+                    .lineLimit(1)
+                    .fixedSize()
+                Text(Self.metersText(straightMeters))
+                    .font(Aurora.metric(11.5, .semibold))
+                    .foregroundStyle(AuroraSilver.textName)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize()
+                Spacer(minLength: 0)
+            }
+
+            // ③ 任务弯道距离（一行）—— 与②同构，两行对齐更好读
+            HStack(spacing: 5) {
+                Text("任务弯道距离")
+                    .font(Aurora.label(10.5))
+                    .foregroundStyle(AuroraSilver.textDim)
+                    .lineLimit(1)
+                    .fixedSize()
+                Text(Self.metersText(routeMeters))
+                    .font(Aurora.metric(11.5, .semibold))
+                    .foregroundStyle(AuroraSilver.textName)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize()
+                Spacer(minLength: 0)
+            }
+        }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(width: Self.cardWidth)          // 定宽 260pt，高度自适应
+            .background {
+                RoundedRectangle(cornerRadius: AuroraSilver.radius, style: .continuous)
+                    // 深色玻璃底（**不是**白玻璃）—— 实测理由见 AuroraSilver 头注释：
+                    // 白色填充在亮游戏画面上对比度只有 1.57:1，任务名根本读不出来。
+                    // 银白只出现在描边与外侧辉光上 —— 那才是"发一层银白色辉光"。
+                    .fill(LinearGradient(
+                        colors: [AuroraSilver.scrimHi, AuroraSilver.scrim],
+                        startPoint: .top, endPoint: .bottom))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: AuroraSilver.radius, style: .continuous)
+                    .strokeBorder(AuroraSilver.stroke, lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: AuroraSilver.radius, style: .continuous))
+            // ══════════════════════════════════════════════════════════════
+            // 银白辉光 —— 2026-10-06 修正：从「单层 .shadow」改为「加法发光 + 柔和投影」
+            // ══════════════════════════════════════════════════════════════
+            //
+            // 【为什么必须改】验证方（verifier）用 on/off 两图相减实测：
+            //     辉光环带 Δ亮度: min=-67.7  max=+0.7  均值=-15.3
+            //     变亮(Δ>2)像素: 0      变暗(Δ<-2)像素: 57376
+            //   即**辉光在亮背景上是「压暗」而不是「发光」**。
+            //
+            // 【根因 —— 不是颜色错，是混合模型错】
+            //   SwiftUI 的 `.shadow(color:radius:)` 语义是「在内容下方画一个模糊副本，
+            //   再做 alpha 混合」。它**只做 lerp，不做加法**：
+            //       out = bg*(1-a) + C*a
+            //   深色底 bg≈(20,20,25) → C=(242,244,248) 叠上去变亮 → 像发光 ✅
+            //   亮黄底 bg=(241,195,15) → 混出 a≈0.5 时 C≈(97,98,95) → 比背景**暗** ❌
+            //   验证方反解出的 C≈RGB(97,98,95) 正是这个混合值。
+            //   → 无论把 glowNear 调多白，在亮背景上都会压暗。颜色不是问题。
+            //
+            // 【修法】发光必须用**加法混合**：`.blendMode(.plusLighter)`。
+            //   加法混合下 out = bg + C*a（饱和截断），任何背景都只会更亮。
+            //   保留原 `.shadow` 作柔和投影，两者叠加 = 「外亮 + 内柔」双向光晕：
+            //     · 亮背景（雪地/白天/黄底）→ 加法层负责「发光」
+            //     · 深背景（夜晚）        → 投影层负责「托起来」的层次
+            //   两层都用同一族银白，色相不变（B−R 仍为个位数，中性无彩）。
+            .background {
+                // 加法发光层：圆角矩形放大 1.5pt 再模糊，模拟光晕外扩
+                RoundedRectangle(cornerRadius: AuroraSilver.radius + 1.5, style: .continuous)
+                    .fill(AuroraSilver.glowNear)
+                    .blur(radius: 9)
+                    .blendMode(.plusLighter)
+                    .padding(-1.5)
+            }
+            .background {
+                RoundedRectangle(cornerRadius: AuroraSilver.radius + 3, style: .continuous)
+                    .fill(AuroraSilver.glowFar)
+                    .blur(radius: 20)
+                    .blendMode(.plusLighter)
+                    .padding(-3)
+            }
+            // ══════════════════════════════════════════════════════════════
+            // ⚠️ 2026-10-06 三调（实测驱动）：**删掉投影**
+            // ══════════════════════════════════════════════════════════════
+            // 二调后实测（on/off 相减，卡片四周 30px 取样）：
+            //     正上方 +8.39（变亮 5844）✅
+            //     左侧   +1.05（变亮 2211）✅
+            //     右侧   +1.11（变亮 2255）✅
+            //     正下方 -25.36（变亮 0，变暗 11296）❌ ← 投影把下方压暗
+            // 三面亮、一面暗 = 观感仍是「带阴影的卡片」而不是「发光的卡片」。
+            //
+            // 【为什么直接删】用户原话是「方框会发一层银白色的辉光」——
+            //   **辉光本身就是需求，投影从来不是**。原实现的 `.shadow` 是
+            //   照抄 App 里其他玻璃面板（CardHead 等）的写法带来的，
+            //   对「发光」这个诉求是**反作用**（亮背景压暗，见上方根因分析）。
+            //   删掉后四周只剩加法发光层，光晕天然对称。
+            //
+            // 【深色背景会不会没层次】不会。加法层在深底上表现为银白亮晕，
+            //   本身就是层次；且卡片自身有 scrim 深玻璃底 + 1px 银白描边，
+            //   与背景的分离度由描边负责（对比度实测 8.52:1，见 verify 报告 3.6）。
+            .allowsHitTesting(false)               // 不吃预览框的手势
+        // ⚠️ 2026-10-06：此处原有一个 `}` 是「if hasName {}」块的闭合；
+        //   改为常驻卡片后 if 已删除，该闭合随之移除（否则 extraneous '}'）。
+    }
+
+    // ⚠️ 2026-10-06 v3：distRow 已删 —— 距离标签改为全称「任务直线距离/任务弯道距离」
+    //    并各自独占一行（见 body 内②③），原「直线｜弯道」单行结构不再使用。
 }
 
 /// 接管告警（网页 .rc-warn）
@@ -1055,8 +1373,10 @@ struct MidColumn: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 13) {
                 MiniMapCard(state: state, onOpen: {
-                    print("[UI] 点击「打开大地图」")
-                    showMap = true
+                    // 2026-10-04：按钮改为打开**新版三栏地图窗口**
+                    // （左驾驶面板 / 中地图 / 右标签分类），已获用户确认。
+                    print("[UI] 点击「打开大地图」→ 新版三栏地图窗口")
+                    MapWindowController.shared.open()
                 })
                 HardwareBank(state: state)
                 RunLogCard(state: state)
@@ -1212,6 +1532,244 @@ struct MiniMapCanvas: View {
 // （kCalibA/B/TX/TY）把世界坐标转成地图像素。这里按自车地图像素为中心裁一块，
 // 换算成视口内的相对位置 —— 小地图与大地图共用同一套映射，全程真实数据。
 
+// ============================================================================
+// MARK: - 视野窗口（B1：把「每步全图解码」变成「换窗时才解码」）
+// ============================================================================
+
+/// 视野窗口的尺寸与换窗策略。
+///
+/// ══════════════════════════════════════════════════════════════════════════
+/// 【为什么需要视野窗口】
+/// ══════════════════════════════════════════════════════════════════════════
+/// `NSImage(contentsOfFile:)` + `cgImage(forProposedRect:)` 返回的是**懒解码**
+/// CGImage（内部挂着完整的 JPEG 数据源）。`cropping` 只做子矩形引用，真正的
+/// 解码推迟到 `ctx.draw`，而 CoreGraphics 的懒解码粒度是**整图**（13056²）。
+///
+/// 实测（本机，`/tmp/aurora_perf_audit/jpegscan.swift`）：
+///   裁剪区在 8%/23%/42%/50%/61%/80%/92% 高度 → 76.5/74.8/73.2/72.9/72.8/71.7/74.3 ms
+///   x = 983 / 6528 / 12073              → 73.2 / 76.3 / 73.7 ms
+///   **492px 的小区域**（面积只有 1/16）  → 63.8–65.8 ms
+/// ⟹ 耗时**与裁剪区的位置和大小完全无关**，即"每次 draw 都在解全图"。
+///   基准实测（击穿 4px 量化的真实拖动）：**每步 91.68 ms**。
+///
+/// 【做法】把视野周围 `side²` 的一块源图**一次性解码**成独立位图，
+/// 窗口内的拖动只从这块位图 `cropping` + `draw` —— 不再触碰源图解码。
+/// 只有中心偏离窗口中心超过 `recenterDistance` 时才换窗，
+/// 换窗成本（~74ms）被摊销到几百像素的拖动上（≈0.4ms/帧）。
+///
+/// 【零画质损失】窗口位图是源图区域的**逐像素 1:1 拷贝**（同尺寸 blit +
+/// `interpolationQuality = .none`，无任何重采样）。窗口内 `cropping` 出的子图
+/// 与直接从源图 `cropping` 得到的**逐位相同**，后续缩放到 `outSize` 的运算
+/// 也完全相同 ⟹ 最终输出与优化前**逐像素一致**。
+/// 验收方式：`--mc-map` 前后出图逐像素比对，差异必须为 0。
+enum ViewportWindowMetrics {
+
+    /// 窗口边长（源图像素）。
+    ///
+    /// 取值依据（三条都要满足）：
+    ///   · **内存** = side² × 4B：3072² → **36MB**（单份常驻，可接受）
+    ///   · **覆盖常规视野**：默认 1200m 档 spanPx = 1967 ✓；300m 档 = 492 ✓
+    ///   · **摊销**：配合 `recenterFraction = 1/4` → 每拖 768px 才换一次窗
+    static let side: Double = 3072
+
+    /// 换窗阈值里预留的**安全余量**（源图像素）。
+    ///
+    /// 为什么需要余量而不是取满：视口中心与窗口位置都是浮点，且视口中心按 4px
+    /// 量化（±2px），再加上 `rounded()` 的舍入 —— 取满时边界用例会偶尔越界。
+    /// 168px 远大于这些误差之和，代价只是换窗稍微勤一点。
+    static let margin: Double = 168
+
+    /// 换窗触发距离（源图像素）—— **由 `spanPx` 派生**。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-10-04 修正：固定比例会越界，导致**底图与标记错位**
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 第一版取 `side × 0.25 = 768`，**与视口大小无关**。数学上：
+    ///   视口完全落在窗口内的最大偏移 = `(side − spanPx) / 2`
+    ///   1200m 默认档 spanPx = 1968 → (3072 − 1968) / 2 = **552**
+    ///   而阈值 768 ⟹ 768 + 984(视口半宽) = 1752 > 1536(窗口半宽)，**越界 216px**
+    /// 越界后 `cropping` 返回 nil → 走夹边兜底 → **底图整体平移/重复**，
+    /// 而标记与路网仍按真实视口绘制 ⟹ **错位**（本项目最怕的那类）。
+    /// `map-tests` 逐像素实测：偏移 0/200/400/500/551 → max|Δ|=0；
+    ///   **553 → 34（22.98% 不同）；768 → 89（50.14% 不同）**。
+    /// 1200m 是**默认档**，所以这条每个用户都会遇到。
+    ///
+    /// ⚠️ 不许改回固定比例（如 0.125）—— 那只是把 768 换成 384：
+    ///    300m 档白白浪费余量，4000m 档仍可能越界。**必须由 spanPx 派生**。
+    static func recenterDistance(spanPx: Double) -> Double {
+        max(minOffset, (side - spanPx) / 2 - margin)
+    }
+
+    /// 换窗距离的下限（源图像素）。
+    ///
+    /// 视口接近窗口边长时 `(side − spanPx)/2 − margin` 会趋近甚至小于 0；
+    /// 取 0 会导致"每次调用都换窗"的病态抖动。8 倍量化粒度（32px）是
+    /// 「绝不抖动」与「绝不越界」之间的安全点 —— 该档位窗口本就帮不上忙，
+    /// 频繁换窗只是浪费，不会出错。
+    static let minOffset: Double = 32
+
+    /// 视野窗口总开关。`AURORA_MAP_TILE_WINDOW=0` → 走**优化前**的「源图直裁」路径。
+    ///
+    /// 【为什么必须有一个开关】B1 的验收判据是「与优化前**逐像素一致**」，
+    /// 而那需要**在同一台机器上分别录 B1 前 / B1 后**的图才能比对。
+    /// 没有开关就只能"改代码→出图→改回来→再出图"，流程上做不了，也容易漏改。
+    /// 它同时是性能 A/B 的入口：`=0` 复现优化前，`=1`（默认）用窗口。
+    /// 运行期覆写（配对 A/B 用）。
+    ///
+    /// 【为什么不能只靠环境变量】验收要求「**同负载配对 A/B**」：先跑一遍 `=1`
+    /// 再跑一遍 `=0`，在负载波动下完全不可比（实测同一条命令在 load 4.58~6.89
+    /// 之间 p50 从 101ms 跳到 240ms）。所以必须能在**同一进程内逐轮交替**，
+    /// 取配对差值 —— 那才是这条路径的真实收益。
+    /// 夹具逐轮写这个值即可（`nil` = 回到环境变量）。
+    nonisolated(unsafe) static var runtimeOverride: Bool?
+
+    /// 环境变量名。
+    ///
+    /// ⚠️ **不能叫 `AURORA_MAP_WINDOW`** —— 那个名字已经被
+    /// `AuroraFlags.mapWindow`（`AuroraFlags.swift:329`）占用，语义是
+    /// 「**启动即打开独立地图窗口**」，与 B1 的"视野窗口"毫无关系。
+    /// 名字撞车会让验证脚本切到一个不相干的开关上（`map-tests` 实测踩到）。
+    /// 本开关专指 B1 的**底图视野窗口**。
+    static let envKey = "AURORA_MAP_TILE_WINDOW"
+
+    static var enabled: Bool {
+        if let o = runtimeOverride { return o }
+        return ProcessInfo.processInfo.environment[envKey] != "0"
+    }
+
+    /// 覆盖 `spanPx` 所需的窗口边长；`nil` = 没有任何档位能覆盖。
+    ///
+    /// 当前只有一档 3072：视口比它还大时（spanMeters ≳ 1874m）**窗口物理上装不下
+    /// 视口**，只能回源图直裁。这不是"特判"—— 窗口的全部意义是"窗口内拖动不再
+    /// 解码"，而窗口裁不出完整视口时这个前提不成立。
+    /// （该档位要真正提速需要**离线瓦片金字塔**，属另一件事，不在本轮范围。）
+    static func side(covering spanPx: Double) -> Double? {
+        spanPx <= side ? side : nil
+    }
+}
+
+/// 已解码的视野窗口。
+private struct ViewportWindow {
+    /// 窗口左上角在**源图坐标系**里的位置（源图像素）
+    let originX: Double
+    let originY: Double
+    /// 窗口边长（源图像素）
+    let side: Double
+    /// 已解码位图（源图区域的 1:1 拷贝）
+    let image: CGImage
+
+    var centerX: Double { originX + side / 2 }
+    var centerY: Double { originY + side / 2 }
+}
+
+/// 一次取图的**解码源**：统一描述「从哪张位图的哪个原点开始裁」。
+///
+/// 有了它，`tile()` 的裁切/夹边逻辑对「整张源图」与「视野窗口」**只有一份实现**
+/// —— 否则两条路径各写一遍 crop+clamp，迟早分叉（本项目的量化规则就是这么分叉的）。
+private struct DecodeSource {
+    let image: CGImage
+    /// 位图左上角在源图坐标系里的位置
+    let originX: Double
+    let originY: Double
+    /// 位图覆盖的源图边长
+    let pixels: Double
+}
+
+// ============================================================================
+// MARK: - 离线瓦片仓库
+// ============================================================================
+
+/// 底图瓦片的运行时仓库（`models/map_tiles/{x}_{y}.png`）。
+///
+/// ══════════════════════════════════════════════════════════════════════════
+/// 【它解决的是什么】
+/// ══════════════════════════════════════════════════════════════════════════
+/// 直接从 13056² 的**懒解码 JPEG** 上裁任何区域，都会触发**整图解码**
+/// （实测 ~74ms，且与裁剪区位置/大小无关）。这导致：
+///   · 拖动时每换一次视野就重付一次全图解码；
+///   · 建一次 36MB 视野窗口也要付一次 —— 实测 60 个视口 RSS **+562MB**。
+///
+/// 换成**离线切好的 544² 无损 PNG 瓦片**后，运行时只解码视口覆盖到的那几张
+/// （单张 544² 解码 ~1–3ms，LRU 命中后为 0），全图解码彻底消失。
+///
+/// 【为什么瓦片必须由 CoreGraphics 生成】
+/// 验收判据是「瓦片路径与源图直裁**逐像素一致**（max|Δ| == 0）」。
+/// 不同 JPEG 解码器（libjpeg-turbo / Pillow vs CoreGraphics）的 IDCT 与色彩
+/// 管理不同，同一张图会解出 ±1 差异 —— 所以切片工具（`tools/map/build/build_tiles.swift`）
+/// 复用了运行时同一套解码，而不是换语言/换库去解。
+///
+/// 【瓦片缺失时怎么办】`isReady == false` → 调用方回落到源图直裁。
+/// 那是**能力降级**（慢但正确），不是特判：瓦片是可选加速层。
+@MainActor
+final class MapTileStore {
+
+    static let shared = MapTileStore()
+
+    /// 瓦片边长（源图像素）。
+    ///
+    /// **必须与 `tools/map/build/build_tiles.swift` 的 `tileSide` 一致** ——
+    /// 不一致会直接表现为地图错位（每张瓦片都会被摆到错误的位置）。
+    /// 取 544 是因为 `13056 / 544 = 24` **整除**；512 会得到 25.5，
+    /// 最后一列/行是不满的碎瓦片，拼接时要额外处理边界。
+    static let tileSide: Double = 544
+
+    /// 瓦片 LRU。
+    ///
+    /// 容量依据：一个 3072² 视野窗口横跨 `ceil(3072/544) = 6` 列 × 6 行 = **36 张**。
+    /// 留 48 张让「当前窗口 + 相邻视野」的工作集全部命中，
+    /// 又不至于把 576 张（≈680MB）全缓存下来。
+    private let cache = AuroraCache<Int, CGImage?>(
+        name: "map.tiles",
+        capacity: 48,
+        costLimit: 96 << 20,
+        cost: { ($0?.width ?? 0) * ($0?.height ?? 0) * 4 })
+
+    private var directory: URL?
+    private var configured = false
+
+    private init() {}
+
+    /// 瓦片目录是否可用（不可用则调用方回落源图路径）。
+    var isReady: Bool {
+        ensureConfigured()
+        return directory != nil
+    }
+
+    /// 懒解析瓦片目录（只做一次）。
+    private func ensureConfigured() {
+        guard !configured else { return }
+        configured = true
+        let dir = AuroraPaths.projectRoot().appendingPathComponent("models/map_tiles")
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue {
+            directory = dir
+        }
+    }
+
+    /// 取一张瓦片。同一张只解码一次（进程级 LRU），缺失返回 `nil`（**负缓存**，
+    /// 避免每帧重试一次失败的读盘）。
+    func image(tileX: Int, tileY: Int) -> CGImage? {
+        ensureConfigured()
+        guard let directory else { return nil }
+        // 网格 24×24 < 65536，`y << 16 | x` 不会撞键
+        let key = (tileY << 16) | tileX
+        return cache.value(for: key) {
+            let url = directory.appendingPathComponent("\(tileX)_\(tileY).png")
+            guard let img = NSImage(contentsOf: url),
+                  let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            else { return nil }
+            return cg
+        }
+    }
+
+    /// 自检/诊断用的一行摘要。
+    var metricsLine: String {
+        let m = cache.metrics
+        return "底图瓦片：命中 \(m.hits) · 未命中 \(m.misses) · 淘汰 \(m.evictions)"
+             + " · 在缓存 \(m.count) 张 / \(m.bytes / 1_048_576) MB"
+    }
+}
+
 /// 大地图切片缓存。
 ///
 /// 为什么需要：bigworldmap-13056.jpg 解码后是 650MB 位图（13056²×4 字节）。
@@ -1223,6 +1781,10 @@ final class MapTileCache {
     static let shared = MapTileCache()
     private var key: String = ""
     private var cached: CGImage?
+    /// 已解码的视野窗口（单份；中心随拖动迁移，见 `ViewportWindowMetrics`）。
+    ///
+    /// 它把「每步都解全图」变成「换窗时才解全图」—— 这是拖动性能的关键。
+    private var viewportWindow: ViewportWindow?
     /// 缓存上限：只留最近一张，避免多尺寸并存把内存吃爆
     private init() {}
 
@@ -1246,36 +1808,242 @@ final class MapTileCache {
 
     /// 裁出以 (centerX, centerY) 为中心、边长 spanPx 的正方形区域，
     /// 缩放到 outSize×outSize 返回。同参数二次调用直接命中缓存。
+    /// - Parameter viewport: 视野（地图像素）。**必须与路网/标记/路线用同一个**
+    ///   —— 量化规则只在 `MapLayerViewport.quantized` 里有一份实现，
+    ///   本方法不再自己除以 4（那正是「底图按 4px 跳、标记连续滑」的成因）。
     func tile(from image: NSImage,
+              viewport: MapLayerViewport,
               mapPixels: Double,
-              centerX: Double, centerY: Double,
-              spanPx: Double,
               outSize: CGFloat) -> CGImage? {
-        // 视野量化到 4px 网格再进缓存键：轻微抖动不造成每帧重算
-        let qx = (centerX / 4).rounded() * 4
-        let qy = (centerY / 4).rounded() * 4
-        let qs = (spanPx / 4).rounded() * 4
-        let k = "\(Int(qx))|\(Int(qy))|\(Int(qs))|\(Int(outSize))"
-        if k == key, let c = cached { return c }
+        let vp = viewport.quantized
+        let qx = vp.centerX, qy = vp.centerY, qs = vp.spanPx
 
         let src = cachedCGImage(from: image)
         guard let src else { return nil }
-        // 源图坐标：中心 ± 半跨度，裁成正方形
+
+        // ══════════════════════════════════════════════════════════════════
+        // 【为什么这里没有金字塔】2026-10-04 试过、实测零收益，已整条删除
+        // ══════════════════════════════════════════════════════════════════
+        // 曾建 1/2 + 1/4 两级预降采样（共 202MB 常驻内存），指望把「拖动每帧
+        // 22ms」降到 3.4ms。**端到端实测零收益**：
+        //   · 1200m 默认档：金字塔不启用（会被放大）→ 13.98ms，与优化前一致
+        //   · 4000m 远景  ：ON 69.82ms vs OFF 68.87ms —— **无差异**
+        // 原因：那 22ms 是**微基准（只测 crop+draw）**的数字，不是端到端帧耗时。
+        //   真帧的瓶颈不在底图裁剪，而在 SwiftUI 对整幅视图的光栅化与合成。
+        // ⟹ 不拿 202MB 换零收益。`levels` / `preparePyramid` / `pickLevel` /
+        //   `pyramidTick` / 诊断计数全部删除（要复现实验请查 git 历史）。
+        //
+        // 另外记一笔**差点踩的坑**：第一版规则是「need ≥ 1.25 就走金字塔」，
+        // 在 1200m 视野下（spanPx 1968 / out 1320，need=1.49）没有档位满足
+        // 「裁剪后仍 ≥ 输出尺寸」，于是退到最细档 L=2 → 把 984² **放大**到 1320²，
+        // 实测 p50 27.87ms，比原图 13.14ms **慢一倍**（`.high` 上采样比下采样贵）。
+        // 教训：任何"降采样"优化，必须显式保证是**缩小**而非放大。
+        let k = vp.tileCacheKey(outSize: outSize)
+        if k == key, let c = cached { return c }
+
+        // ══════════════════════════════════════════════════════════════════
+        // ⚠️ 2026-10-04 修复：**视口比整张地图还大**时必须整图缩放居中
+        // ══════════════════════════════════════════════════════════════════
+        // 缩放上限 12000m → spanPx = 19674，而地图只有 13056。
+        // 此时 `cropping` 的矩形越界，CoreGraphics 会**把结果裁到图内**
+        // （只返回 13056 宽），而 `draw` 仍把它**拉伸铺满**整个视口 ——
+        // 底图被放大 19674/13056 = 1.51 倍，路网却是正确比例，
+        // 于是「缩到最小时路网套不到地图上」。
+        //
+        // 正确做法：整图按 scaleOut 缩放，按视口中心居中摆放。
+        if qs >= mapPixels {
+            let scaleOut = Double(outSize) / qs                 // 地图像素 → 输出像素
+            let mapSide = mapPixels * scaleOut                  // 整图在输出里的边长
+            // ══════════════════════════════════════════════════════════════
+            // ⚠️ 2026-10-04 二次修复：**居中公式错了，导致底图与路网反向错位**
+            // ══════════════════════════════════════════════════════════════
+            // 【症状】缩到最小时拖动，路网与底图**朝相反方向跑**（用户实测）。
+            // 【根因】视口中心 (qx,qy) 必须映射到输出中心 side/2，即
+            //         mapX → side/2 + (mapX − qx)·s
+            //   于是整图（mapX∈[0,mapPixels]）的左边界应落在
+            //         oxOut = side/2 − qx·s
+            //   而第一版写的是
+            //         oxOut = (side − mapSide)/2 + (qx − mapPixels/2)·s
+            //               = side/2 + qx·s − mapPixels·s        ← 多了 2·qx·s
+            //   两者只在 qx == mapPixels/2（地图正中）时相等，偏一点就差 2·qx·s。
+            //   实测视角 3816（偏离正中 6528 达 2712px）→ 水平错位数千像素。
+            //
+            // 【Y 轴】底图走 `ctx.draw(cg, in:)`，图像第 0 行（mapY=0）落在
+            //   rect 的 **maxY**；而路网叠加层的 ctxY = side/2 − (mapY−qy)·s。
+            //   令 mapY=qy 处两者都等于 side/2，解得：
+            //         oyOut = side/2 − mapSide + qy·s
+            let oxOut = Double(outSize) / 2 - qx * scaleOut
+            let oyOut = Double(outSize) / 2 - mapSide + qy * scaleOut
+            return draw(src, size: Int(outSize), key: k,
+                        in: CGRect(x: oxOut, y: oyOut, width: mapSide, height: mapSide))
+        }
+
+        // ── 取解码源：视野窗口优先（窗口内拖动不再触碰源图解码）──
+        let source = decodeSource(for: src, viewport: vp, mapPixels: mapPixels)
+
+        // 源图坐标 → 解码源位图坐标。**两种解码源共用这一份裁切逻辑** ——
+        // 分开写两份 crop+clamp，迟早分叉（本项目的 4px 量化就是这么分叉的）。
         let half = qs / 2
-        let ox = (qx - half).rounded()
-        let oy = (qy - half).rounded()
+        let ox = (qx - half - source.originX).rounded()
+        let oy = (qy - half - source.originY).rounded()
         let rect = CGRect(x: ox, y: oy, width: qs, height: qs)
         // 超界时给一点余量（CGImage.cropping 越界会返回 nil）
-        guard let cropped = src.cropping(to: rect) else {
-            // 越界兜底：夹到图内再裁一次，宁可边缘重复也不黑屏
-            let clampedX = min(max(ox, 0), mapPixels - qs)
-            let clampedY = min(max(oy, 0), mapPixels - qs)
+        guard let cropped = source.image.cropping(to: rect) else {
+            // 越界兜底：夹到位图内再裁一次，宁可边缘重复也不黑屏
+            let clampedX = min(max(ox, 0), source.pixels - qs)
+            let clampedY = min(max(oy, 0), source.pixels - qs)
             guard clampedX >= 0, clampedY >= 0,
-                  let c2 = src.cropping(to: CGRect(x: clampedX, y: clampedY,
-                                                   width: qs, height: qs)) else { return nil }
+                  let c2 = source.image.cropping(to: CGRect(x: clampedX, y: clampedY,
+                                                            width: qs, height: qs)) else { return nil }
             return draw(c2, size: Int(outSize), key: k)
         }
         return draw(cropped, size: Int(outSize), key: k)
+    }
+
+    /// 便捷重载：直接给「中心 + 跨度」。
+    ///
+    /// 内部只是把参数包成 `MapLayerViewport` —— **量化仍然只有
+    /// `MapLayerViewport.quantized` 那一份实现**，所以这不是第二条路径。
+    /// 保留它是因为既有调用点（`--map-selftest` 的 T6 冷 tile 门禁）按老签名调用；
+    /// 让它继续可用，比为了"签名整齐"去改别人的文件更稳。
+    func tile(from image: NSImage, mapPixels: Double,
+              centerX: Double, centerY: Double, spanPx: Double,
+              outSize: CGFloat) -> CGImage? {
+        tile(from: image,
+             viewport: MapLayerViewport(centerX: centerX, centerY: centerY, spanPx: spanPx),
+             mapPixels: mapPixels, outSize: outSize)
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // MARK: 视野窗口（B1）
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// 取解码源：优先复用已就绪的视野窗口，否则重建一个。
+    ///
+    /// 回落到整张源图的唯一情形是「窗口装不下视口」
+    /// （见 `ViewportWindowMetrics.side(covering:)`）—— 那是前提不成立，
+    /// 不是特判：窗口的全部意义是"窗口内拖动不再解码"。
+    private func decodeSource(for src: CGImage, viewport vp: MapLayerViewport,
+                              mapPixels: Double) -> DecodeSource {
+        let wholeMap = DecodeSource(image: src, originX: 0, originY: 0, pixels: mapPixels)
+        // A/B 开关：`AURORA_MAP_TILE_WINDOW=0` → 走优化前的源图直裁路径
+        guard ViewportWindowMetrics.enabled,
+              let side = ViewportWindowMetrics.side(covering: vp.spanPx),
+              side <= mapPixels else { return wholeMap }
+
+        // 命中条件：窗口尺寸一致 + 中心没偏出**由 spanPx 派生的**换窗距离
+        // （固定比例会越界 → 底图与标记错位，见 `recenterDistance(spanPx:)`）
+        let tolerance = ViewportWindowMetrics.recenterDistance(spanPx: vp.spanPx)
+        if let w = viewportWindow, w.side == side,
+           abs(vp.centerX - w.centerX) <= tolerance,
+           abs(vp.centerY - w.centerY) <= tolerance {
+            return DecodeSource(image: w.image, originX: w.originX,
+                                originY: w.originY, pixels: w.side)
+        }
+
+        guard let built = buildWindow(from: src, centerX: vp.centerX, centerY: vp.centerY,
+                                      side: side, mapPixels: mapPixels) else { return wholeMap }
+        viewportWindow = built
+        return DecodeSource(image: built.image, originX: built.originX,
+                            originY: built.originY, pixels: built.side)
+    }
+
+    /// 从源图 **1:1** 拷出一块 `side × side` 的窗口位图。
+    ///
+    /// 【零画质损失的关键】同尺寸 blit + `interpolationQuality = .none`
+    /// ⟹ 不做任何重采样，窗口位图**逐像素等于**源图对应区域。
+    /// 窗口位置被夹进源图内（否则 `cropping` 会返回 nil），
+    /// 保证窗口永远是一块**完整**的源图区域 —— 这样窗口内任何裁剪都不会越界。
+    private func buildWindow(from src: CGImage, centerX: Double, centerY: Double,
+                             side: Double, mapPixels: Double) -> ViewportWindow? {
+        let half = side / 2
+        let ox = min(max(centerX - half, 0), mapPixels - side).rounded()
+        let oy = min(max(centerY - half, 0), mapPixels - side).rounded()
+        let pixels = Int(side)
+
+        // ── 复用窗口上下文 ──
+        // 每换一次窗都新建 36MB 上下文，RSS 会随换窗次数单调上涨
+        // （实测：60 个随机视口 +562MB）。复用同一个上下文把"重新分配"
+        // 变成"清零 + 重画"，与 `RoadOverlayCache.obtainContext` 同一套做法。
+        guard let ctx = obtainWindowContext(side: pixels) else { return nil }
+        ctx.clear(CGRect(x: 0, y: 0, width: pixels, height: pixels))
+        ctx.interpolationQuality = .none
+
+        // ── 拼窗口：优先用离线瓦片；瓦片缺失时回落到源图 ──
+        // 两者都是 **1:1 blit**（无插值），窗口位图逐像素等于源图对应区域。
+        if !stitchFromTiles(into: ctx, originX: ox, originY: oy, side: side) {
+            guard let region = src.cropping(to: CGRect(x: ox, y: oy, width: side, height: side))
+            else { return nil }
+            ctx.draw(region, in: CGRect(x: 0, y: 0, width: side, height: side))
+        }
+
+        guard let image = ctx.makeImage() else { return nil }
+        return ViewportWindow(originX: ox, originY: oy, side: side, image: image)
+    }
+
+    /// 窗口上下文（尺寸不变就复用）。
+    private var windowContext: CGContext?
+    private var windowContextSide: Int = 0
+
+    /// 窗口上下文（尺寸不变就复用）。
+    ///
+    /// ⚠️ **必须用 sRGB，不能用 `CGColorSpaceCreateDeviceRGB()`**。
+    ///
+    /// 瓦片 PNG 由 `tools/map/build/build_tiles.swift` 生成，那条链路全程 sRGB
+    /// （源 JPEG 本身就是 sRGB ⟹ 画进 sRGB 上下文是**恒等变换**）。
+    /// 若这里用 deviceRGB，PNG 上的 sRGB 标签会在解码时触发**第二次**
+    /// sRGB→deviceRGB 转换，而"源图直裁"路径只转一次 ⟹ `C(C(x)) ≠ C(x)`。
+    /// 实测症状：开关两侧两张 `--mc-map` 出图
+    /// **23.26% 像素不同、max|Δ|=3**（且差异全部集中在底图区域）。
+    /// 统一 sRGB 后逐像素一致（max|Δ|=0）。
+    private func obtainWindowContext(side pixels: Int) -> CGContext? {
+        if let c = windowContext, windowContextSide == pixels { return c }
+        guard let c = CGContext(data: nil, width: pixels, height: pixels,
+                                bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                                          | CGBitmapInfo.byteOrder32Little.rawValue)
+        else { return nil }
+        windowContext = c
+        windowContextSide = pixels
+        return c
+    }
+
+    /// 把 `[ox, ox+side) × [oy, oy+side)` 这块**源图区域**按瓦片 1:1 拼进 `ctx`。
+    ///
+    /// 【坐标约定】`cropping` 的 y 以**图像顶边**为原点，而 `ctx.draw` 把图像
+    /// 第 0 行放在目标矩形的 **maxY**（CG 上下文原点在左下）。两者互相抵消，
+    /// 所以窗口位图与"整块直接 draw"的写法**逐像素一致**。
+    /// 分块时必须显式做这个翻转：`destY = side − (源内偏移) − 高`。
+    ///
+    /// - Returns: 是否至少拼上了一块。`false` = 瓦片不可用，调用方回落源图。
+    private func stitchFromTiles(into ctx: CGContext, originX: Double,
+                                 originY: Double, side: Double) -> Bool {
+        let store = MapTileStore.shared
+        guard store.isReady else { return false }
+        let ts = MapTileStore.tileSide
+        let x0 = Int(originX / ts), x1 = Int((originX + side - 1) / ts)
+        let y0 = Int(originY / ts), y1 = Int((originY + side - 1) / ts)
+        let winRect = CGRect(x: originX, y: originY, width: side, height: side)
+        var stitched = 0
+        for ty in y0...y1 {
+            for tx in x0...x1 {
+                guard let tile = store.image(tileX: tx, tileY: ty) else { continue }
+                let tileRect = CGRect(x: Double(tx) * ts, y: Double(ty) * ts,
+                                      width: ts, height: ts)
+                let inter = tileRect.intersection(winRect)
+                guard !inter.isNull, inter.width >= 1, inter.height >= 1 else { continue }
+                let sub = CGRect(x: inter.minX - tileRect.minX, y: inter.minY - tileRect.minY,
+                                 width: inter.width, height: inter.height)
+                guard let piece = tile.cropping(to: sub) else { continue }
+                let dx = inter.minX - originX
+                let dy = inter.minY - originY
+                ctx.draw(piece, in: CGRect(x: dx, y: side - dy - inter.height,
+                                           width: inter.width, height: inter.height))
+                stitched += 1
+            }
+        }
+        return stitched > 0
     }
 
     /// NSImage → CGImage 的**带缓存转换**（★ E2 性能优化）。
@@ -1298,7 +2066,53 @@ final class MapTileCache {
         srcImageID = id
         srcImageSize = sz
         srcCGImage = cg
+        // 换源图 ⟹ 一切派生位图全部作废。
+        // 这一条**同时修掉一个潜在陈旧缓存**：瓦片缓存的键只含视野与输出尺寸，
+        // 不含源图身份；若换了图而视野没变，旧实现会一直返回上一张图的瓦片。
+        viewportWindow = nil
+        key = ""
+        cached = nil
         return cg
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 【已删除：预降采样金字塔】2026-10-04 试过、端到端实测零收益
+    // ══════════════════════════════════════════════════════════════════════
+    // 曾建 1/2 + 1/4 两级降采样位图（共 202MB 常驻），指望把「拖动每帧 22ms」
+    // 降到 3.4ms。**实测零收益**：
+    //   · 1200m 默认档：金字塔不启用（会被放大）→ 13.98ms，与优化前一致
+    //   · 4000m 远景  ：ON 69.82ms vs OFF 68.87ms —— **无差异**
+    // 原因：那 22ms 是**微基准（只测 crop+draw）**的数字，不是端到端帧耗时。
+    //   真帧瓶颈不在底图裁剪，而在 SwiftUI 对整幅视图的光栅化与合成。
+    // ⟹ 不拿 202MB 换零收益。`levels` / `preparePyramid` / `pickLevel` /
+    //   `pyramidTick` / `levelUseLogs` 全部删除；要复现实验请查 git 历史。
+    //
+    // 【差点踩的坑，留档】第一版规则是「need ≥ 1.25 就用金字塔」，在 1200m
+    //   视野下（spanPx 1968 / out 1320，need=1.49）没有档位满足「裁剪后仍
+    //   ≥ 输出尺寸」，于是退到最细档 L=2 → 把 984² **放大**到 1320²，
+    //   实测 p50 27.87ms，比原图 13.14ms **慢一倍**（`.high` 上采样比下采样贵）。
+    //   教训：任何"降采样"优化必须显式保证是**缩小**而非放大。
+    //
+    // 另注：`draw(_:size:key:in:)`（下面那个带 rect 的重载）**不是金字塔的**，
+    //   它修的是「视口比整张地图还大时整图缩放居中」，必须保留。
+
+    /// 把 `cg` 画到输出位图的**指定矩形**里（不拉伸铺满）。
+    ///
+    /// 用于「视口比整张地图还大」的情形：那时必须整图缩放后居中，
+    /// 而不是把裁出来的部分拉满整个视口。
+    private func draw(_ cg: CGImage, size: Int, key k: String, in rect: CGRect) -> CGImage? {
+        guard size > 0, let ctx = CGContext(
+            data: nil, width: size, height: size,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                      | CGBitmapInfo.byteOrder32Little.rawValue) else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(cg, in: rect)
+        guard let out = ctx.makeImage() else { return nil }
+        self.key = k
+        self.cached = out
+        return out
     }
 
     private func draw(_ cg: CGImage, size: Int, key k: String) -> CGImage? {
@@ -1317,6 +2131,90 @@ final class MapTileCache {
     }
 }
 
+// ============================================================================
+// MARK: - 底图源图提供者（进程级唯一）
+// ============================================================================
+
+/// 底图源图的**进程级唯一**提供者：同一路径只读盘解码一次。
+///
+/// ══════════════════════════════════════════════════════════════════════════
+/// 【它解决的是什么问题】—— 不是"省几毫秒加载"
+/// ══════════════════════════════════════════════════════════════════════════
+/// `MapTileImage` 的 `@State image` 会在**视图身份变化**时被重置：
+///   · `ContentView` 的 `if showMap { MapOverlay(...) }` 关闭再打开
+///   · 小地图 `if state.locatorFound { MapTileImage(...) }` 的分支切换
+///   · 任何重建 `LargeMapCanvas` 的路径（如"重置视野"换 `.id`）
+///   · `--mc-map-bench` 夹具每轮新建视图
+/// 于是同一个 7.7MB JPEG 被反复 `NSImage(contentsOfFile:)`。
+/// 实测 `--mc-map-bench --iters 200`：`[MAP] 已加载真实地图` 打印 **923 次**
+/// （≈6 次/轮），`iters=20` 时 120 次（6 次/轮）—— **零跨轮缓存**。
+///
+/// 【真正的代价在下游，不在那几毫秒】
+/// `MapTileCache` 的一切缓存都以**源图身份**（`ObjectIdentifier`）为失效依据 ——
+/// 包括 `srcCGImage` 与 B1 的 **36MB 视野窗口**。每换一个 `NSImage` 实例，
+/// 窗口就被判为失效并重建。实测：`--mc-map-bench --iters 200` 的 RSS 涨到
+/// **2.3GB**；而对照实验（`AURORA_BENCH_DRAG_PX=0`，视口完全不动）**同样涨到
+/// 2.3GB** ⟹ 与拖动无关，纯粹是源图身份抖动。
+/// 源图身份稳定之后，窗口只在视野真的移动时才换。
+///
+/// 【为什么按「路径 + mtime」做键】只按路径的话，用户在运行期替换了地图文件
+/// 会永远拿到旧图。mtime 变则重新读盘 —— 一次 `stat` 换正确性，值得。
+///
+/// 【为什么是独立类型而不是 `load()` 里的 static 字典】
+/// 它有两个真实职责：**缓存**与**可观测的加载计数**（自检要断言
+/// "N 轮基准里只应读盘 1 次"）。把计数与缓存一起封起来，
+/// 调用方拿不到内部状态，也就不会有人绕过去自己 `NSImage(contentsOfFile:)`。
+@MainActor
+final class MapBaseImageProvider {
+
+    static let shared = MapBaseImageProvider()
+
+    /// 一次「取源图」的结果。
+    struct Source {
+        let image: NSImage
+        /// 本次是否命中缓存（`false` = 真的读盘并解码了）
+        let fromCache: Bool
+        /// 实际命中的文件路径
+        let path: String
+    }
+
+    private struct Entry {
+        let modifiedAt: Date?
+        let image: NSImage
+    }
+
+    private var cache: [String: Entry] = [:]
+
+    /// 真实读盘次数（自检断言用）
+    private(set) var diskLoadCount = 0
+    /// 缓存命中次数（自检断言用）
+    private(set) var cacheHitCount = 0
+
+    private init() {}
+
+    /// 按候选路径顺序取第一个存在的源图。全部不存在返回 `nil`。
+    func source(candidates: [String]) -> Source? {
+        let fm = FileManager.default
+        for path in candidates where fm.fileExists(atPath: path) {
+            let modifiedAt = (try? fm.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+            if let hit = cache[path], hit.modifiedAt == modifiedAt {
+                cacheHitCount += 1
+                return Source(image: hit.image, fromCache: true, path: path)
+            }
+            guard let img = NSImage(contentsOfFile: path) else { continue }
+            cache[path] = Entry(modifiedAt: modifiedAt, image: img)
+            diskLoadCount += 1
+            return Source(image: img, fromCache: false, path: path)
+        }
+        return nil
+    }
+
+    /// 诊断/自检用的一行摘要。
+    var metricsLine: String {
+        "底图源图：读盘 \(diskLoadCount) 次 · 缓存命中 \(cacheHitCount) 次 · 缓存条目 \(cache.count)"
+    }
+}
+
 struct MapTileImage: View {
     let centerMapX: Double
     let centerMapY: Double
@@ -1324,6 +2222,59 @@ struct MapTileImage: View {
 
     /// 大地图边长（像素）。13056×13056，官方地图导出尺寸。
     static let mapPixels: Double = 13056
+
+    // ── 底图调色参数（2026-10-05）──────────────────────────────────────
+    /// 底图亮度偏移。与 `baseMapContrast` 合起来近似 **gamma 0.70**。
+    ///
+    /// 为什么是这一对而不是别的：`bigworldmap-13056.jpg` 实测
+    /// 均值 11.4/255、88.8% 像素 < 20，而画布背景亮度 ≈ 7.8 —— 图底同值，
+    /// 地图读起来像空白。离线比对三条曲线后选定 gamma 0.70：
+    ///   · 纯提亮（brightness +0.10）会把海一起抬到 37 → 水陆区分消失 ✗
+    ///   · gamma 0.70 让海留在暗部（=水）、陆地抬到可读，保住图底关系 ✓
+    ///
+    /// 数值来源：gamma 0.70 在暗部按 in=0.06 / in=0.20 两点线性拟合，
+    /// 得 `out = (in + 0.16 − 0.5) × 1.286 + 0.5`。
+    /// ⚠️ 改这两个值请**重新出图比对**（`AURORA_MAP_SPAN_M` + `--mc-map`），
+    ///    不要凭感觉调 —— 判据是"海陆是否分得开"，不是"看起来亮不亮"。
+    static let baseMapBrightness: Double = 0.16
+
+    /// 底图对比度。与 `baseMapBrightness` 成对使用，见上。
+    static let baseMapContrast: Double = 1.286
+
+    /// 底图调色总开关。`AURORA_BASEMAP_GRADE=0` → 关掉调色（回到原始暗底图）。
+    ///
+    /// 为什么必须留开关：本项目纪律是「任何影响渲染/行为的改动都要能回退、
+    /// 能对拍」—— 否则"这次改动值不值、有没有拖慢帧率"就只能靠嘴说。
+    /// 与 `DriveState.opticalFlowDisabled` 同一套做法：**全生命周期只读一次**
+    /// 环境变量，不在渲染路径里每帧 `ProcessInfo`（单次 ~17µs，
+    /// 30Hz 下每秒白烧 0.5ms —— 阶段0 审计已踩过这个坑）。
+    ///
+    /// 用法（ABBA 对拍）：
+    ///   AURORA_BASEMAP_GRADE=0 ./AuroraDrive --mc-map-bench --iters 200
+    ///   AURORA_BASEMAP_GRADE=1 ./AuroraDrive --mc-map-bench --iters 200
+    ///
+    /// ⚠️ 走 `AuroraFlags` 而不是裸读环境变量：`tools/check-flags.sh` 对
+    ///    「用了但没登记」和「登记了没人用」做**双向差集对拍**，裸读会让方向 A 变红。
+    ///    登记处：`Core/AuroraFlags.swift` 的 `baseMapGrade` + 开关表项。
+    static var baseMapGradeEnabled: Bool { AuroraFlags.baseMapGrade }
+
+    /// 底图调色的视图修饰符。
+    ///
+    /// 刻意做成"关掉时**不挂任何滤镜**"（而不是挂 `brightness(0).contrast(1)`
+    /// 这种空操作）—— 空操作依然会走一遍 GPU 合成滤镜，那样 A/B 测出来的是
+    /// "两个滤镜的成本"而不是"调色的成本"，对拍就失真了。
+    struct BaseMapGrade: ViewModifier {
+        let enabled: Bool
+        func body(content: Content) -> some View {
+            if enabled {
+                content
+                    .brightness(MapTileImage.baseMapBrightness)
+                    .contrast(MapTileImage.baseMapContrast)
+            } else {
+                content
+            }
+        }
+    }
 
     /// 地图尺寸标签（取自实际加载图片的像素尺寸，非写死字符串）
     @MainActor private static var loadedPixelLabel: String?
@@ -1357,15 +2308,51 @@ struct MapTileImage: View {
                 //    改为预裁切：只从原图取出「当前视野 + 余量」那一小块，
                 //    缩放到目标尺寸后交给 SwiftUI —— 每帧处理的像素量从
                 //    1.7 亿降到几万，且裁切结果按视野缓存，视野不变就不重算。
+                //
+                // 视野用 `MapLayerViewport` 表达：**量化规则只有那一份实现**，
+                // 底图 / 路网 / 标记 / 路线共用同一个视口值 —— 各层自拼键
+                // 正是「底图按 4px 跳、标记连续滑」的成因。
+                let viewport = MapLayerViewport(centerX: centerMapX,
+                                                centerY: centerMapY,
+                                                spanPx: spanPx)
                 if let tile = MapTileCache.shared.tile(
                         from: img,
+                        viewport: viewport,
                         mapPixels: Self.mapPixels,
-                        centerX: centerMapX, centerY: centerMapY,
-                        spanPx: spanPx,
                         outSize: side) {
                     Image(decorative: tile, scale: 1)
                         .resizable()
                         .interpolation(.high)
+                        // ── 底图调色（2026-10-05）─────────────────────────────
+                        // 【修的是什么】`bigworldmap-13056.jpg` 本体极暗：
+                        //   实测 均值 **11.4/255**、中位 16、**88.8% 的像素 < 20**。
+                        //   而画布背景 `Color(hex: 0x05080E)` 亮度 ≈ 7.8 —— 两者
+                        //   **几乎同值**，于是"图底关系"彻底消失：陆地、海岸线、
+                        //   城区网格全部读不出来，整块画布看起来像"什么都没有"。
+                        //   这才是地图"像 demo"的根因；不是没数据、也不是渲染 bug
+                        //   （截图里那口"黑洞"是地图自己的湖）。
+                        //
+                        // 【为什么是 gamma 而不是单纯提亮】离线实测三条曲线：
+                        //     原始             均值 11.4   <20 占 88.0%  ← 海陆不分
+                        //     brightness +0.10 均值 36.9   <20 占  0.0%  ← 连海一起提亮，
+                        //                                                   水陆区分也没了
+                        //     gamma 0.70       均值 ~29    <20 占 ~47%   ← **海保持暗（=水），
+                        //                                                   陆地抬到可读** ✓
+                        //   要的是**抬中间调**的曲线，不是整体加常量。
+                        //
+                        // 【怎么用 SwiftUI 近似 gamma】gamma 0.70 在暗部等价于
+                        //   `out = (in + 0.16 − 0.5) × 1.286 + 0.5`（按 in=0.06/0.20 两点拟合）：
+                        //     输入 10 → 29（海，仍暗）    输入 20 → 42（陆，可见）
+                        //     输入 51 → 88                输入 230 → 255（白路本就接近纯白）
+                        //   高光被压到裁剪，但底图 >60 的像素只占 2.2%（就是那些白路），
+                        //   裁到纯白反而更清楚，不影响判读。
+                        //
+                        // 【成本】两个 GPU 合成修饰符，作用在**已裁好的小图**上
+                        //   （视野窗口，不是 13056² 原图）—— 每帧开销可忽略。
+                        //   ⚠️ 与 `MapTileCache` 的"逐像素一致"约定**无关**：
+                        //      调色发生在**缓存之后**的显示层，缓存产物本身没被改，
+                        //      T6 冷 tile 门禁与 `--mc-map` 出图口径都不受影响。
+                        .modifier(BaseMapGrade(enabled: Self.baseMapGradeEnabled))
                         .frame(width: side, height: side)
                         .offset(x: (g.size.width - side) / 2,
                                 y: (g.size.height - side) / 2)
@@ -1415,23 +2402,23 @@ struct MapTileImage: View {
 
     private func load() {
         guard image == nil else { return }
-        // 同上：一律用 projectRoot()，不依赖 cwd
+        // 一律用 projectRoot()，不依赖 cwd
         let root = AuroraPaths.projectRoot()
         let cands = [
             root.appendingPathComponent("models/bigworldmap-13056.jpg").path,
             Bundle.main.resourceURL?.appendingPathComponent("bigworldmap-13056.jpg").path
         ].compactMap { $0 }
-        for c in cands where FileManager.default.fileExists(atPath: c) {
-            if let img = NSImage(contentsOfFile: c) {
-                image = img
-                if let rep = img.representations.first {
-                    Self.loadedPixelLabel = "\(rep.pixelsWide) × \(rep.pixelsHigh)"
-                }
-                print("[MAP] 已加载真实地图: \(c) 尺寸=\(Int(img.size.width))x\(Int(img.size.height))")
-                return
-            }
+        guard let src = MapBaseImageProvider.shared.source(candidates: cands) else {
+            print("[MAP] ✗ 未找到 bigworldmap-13056.jpg（小地图将只显示定位点）")
+            return
         }
-        print("[MAP] ✗ 未找到 bigworldmap-13056.jpg（小地图将只显示定位点）")
+        image = src.image
+        if let rep = src.image.representations.first {
+            Self.loadedPixelLabel = "\(rep.pixelsWide) × \(rep.pixelsHigh)"
+        }
+        print(src.fromCache
+              ? "[MAP] 复用已加载的真实地图: \(src.path)"
+              : "[MAP] 已加载真实地图: \(src.path) 尺寸=\(Int(src.image.size.width))x\(Int(src.image.size.height))")
     }
 }
 
@@ -2469,7 +3456,32 @@ final class MapViewport {
     /// 用户是否手动动过视角（动过就不再自动跟随自车，尊重用户意图）
     var userMoved = false
 
-    static let spanRange: ClosedRange<Double> = 120...12000
+    /// 视野范围（米）。上限 = **地图的实际世界边长**，不是拍脑袋的 12000。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-10-05 修复：上限 12000 > 地图实际 7963.6m，必然留黑边
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 地图是 13056×13056 像素，`worldMetersPerMap = 13056/(kCalibA×100)`
+    /// = **7963.6 米**。原上限 12000m 比它大 1.51 倍，于是缩到最远时
+    /// 整图只占视口的 7963.6/12000 = **66.4%**，左右各留 16.8% 的空白。
+    ///
+    /// 这个缺陷**原本几乎看不见**：画布背景 `0x05080E`（亮度 7.8）和底图海洋
+    /// （亮度 ~10）同值，黑边与"海"糊在一起，分不出来。
+    /// 而 2026-10-05 给底图加了调色（gamma 0.70，见 `MapTileImage.baseMapBrightness`）
+    /// 之后，海洋被抬到 ~37，**黑边立刻变成一条肉眼可见的矩形边界**
+    /// （实测台阶 17.4 亮度）—— 修一个瑕疵反而暴露了另一个，所以必须一起收掉。
+    ///
+    /// 【为什么收上限而不是改背景色】收上限后缩到最远时底图**正好铺满**视口
+    /// （spanPx == mapPixels ⟹ `qs >= mapPixels` 分支算出 mapSide == outSize），
+    /// 用户依然能看到**整张地图**，只是不能再缩到图外的虚无 —— 这正是
+    /// Google Maps 这类产品的标准行为（缩不到世界之外）。
+    /// 改背景色则会让"图外"和"海"永远同色，把地图边界藏起来，是另一种误导。
+    ///
+    /// ⚠️ 出图夹具的 `spanOverride` 仍允许到 12000（诊断用，见 `:3260` 附近），
+    ///    故意不跟着收 —— 保留"视口比地图大"这条路径的可复现性，
+    ///    免得把 `qs >= mapPixels` 那段 2026-10-04 的居中修复变成死代码。
+    static let spanRange: ClosedRange<Double> =
+        120...MapTileImage.worldMetersPerMap
     /// 缩放档位（供按钮步进用）
     static let zoomStep: Double = 1.35
 
@@ -2506,6 +3518,74 @@ final class MapViewport {
     }
 }
 
+/// 聚类结果缓存的宿主。
+///
+/// ══════════════════════════════════════════════════════════════════════════
+/// 【它修的是什么】原实现是 `@State private var clusterCache: (key:clusters:)`，
+/// 却在 `clusterList()` 里赋值 —— 而 `clusterList` 由 `body` 求值路径调用。
+/// **在视图更新期间写 `@State`** 会让 SwiftUI 多跑一个渲染周期
+/// （并可能打印 `Modifying state during view update`）。
+/// 这不是"缓存慢"，是结构性反模式。
+///
+/// 【为什么宿主不是 `@Observable`】聚类缓存是「**已观察输入的派生记忆**」：
+/// 输入（视口 / 分类过滤 / 数据）变了 → body 重算 → 缓存 miss → 重算 → 写回。
+/// **写缓存本身不该触发重渲染** —— 该触发重渲染的是输入。
+/// 若宿主是 `@Observable`/`@Published`，写缓存又引发一轮渲染，
+/// 等于换个地方犯同一个错。故这里用普通引用类型 + `ObservableObject`，
+/// 只为拿到 SwiftUI 的生命周期管理（`@StateObject`），**不发布任何属性**。
+/// ══════════════════════════════════════════════════════════════════════════
+@MainActor
+final class ClusterCacheStore {
+
+    /// **进程级单例**。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-10-04 修正：曾用 `@StateObject` 每视图一份 —— 那是**性能陷阱**
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 视图身份一变（`if showMap` 开关、小地图分支切换、基准夹具每轮新建
+    /// `LargeMapCanvas`）就会**新建一个 store**，而 `AuroraCache.init` 会
+    /// `installMemoryPressureSource()` + `installMetricsTimerIfNeeded()`
+    /// —— **每次构造都装两个 dispatch source**。
+    /// 基准每轮新建 6 个视图 ⟹ 每轮 12 个 source、200 轮就是 2400 个。
+    /// 实测后果：`Canvas+聚类` 路径 p50 **11.51 → 15.96ms（+40.8%）**，
+    /// 进程线程数 **7 → 12**。
+    ///
+    /// 改成单例后：source 全进程只装一次，缓存也不再随视图生命周期蒸发
+    /// （与 `MapTileCache.shared` / `RoadOverlayCache.shared` 同一套约定）。
+    ///
+    /// 【为什么宿主不是 @Observable】聚类缓存是「**已观察输入的派生记忆**」：
+    /// 输入（视口 / 分类过滤 / 数据）变了 → body 重算 → 缓存 miss → 重算 → 写回。
+    /// **写缓存本身不该触发重渲染** —— 该触发重渲染的是输入。
+    /// 若宿主是 `@Observable`，写缓存又引发一轮渲染，等于换个地方犯同一个错。
+    static let shared = ClusterCacheStore()
+
+    /// 聚类缓存键。
+    ///
+    /// 从"手拼字符串"改成值类型：可 `Hashable`、字段有名字、
+    /// 不会因为分隔符写错而两个不同视野撞成同一个键。
+    struct Key: Hashable {
+        /// 量化后的中心 X / Y（4px 网格）
+        let qx: Int
+        let qy: Int
+        /// 量化后的视野（log(spanPx)/log(1.02)，相对分档）
+        let qs: Int
+        /// 分类/分组过滤掩码（`C:` 前缀表示走分类过滤）
+        let mask: String
+        /// 视图宽度（决定聚类格边长）
+        let width: Int
+    }
+
+    /// 容量 8：同一时刻地图只有 1 个视野，留 8 条是为了**来回拖动**能命中
+    /// —— 原实现只留 1 条，拖回去必 miss。字节上限 4MB 兜底。
+    let cache = AuroraCache<Key, [MarkerCluster]>(
+        name: "map.cluster",
+        capacity: 8,
+        costLimit: 4 << 20,
+        cost: { $0.count * 64 })
+
+    private init() {}
+}
+
 struct LargeMapCanvas: View {
     @Bindable var state: DriveState
     /// 标记图层渲染模式。
@@ -2526,6 +3606,24 @@ struct LargeMapCanvas: View {
 
     /// 视野缩放档位（基准用；nil = 不干预，走 MapViewport 默认 1200 m）
     var benchSpanMeters: Double? = nil
+
+    /// 基准夹具专用：把**视口中心**平移这么多地图像素（0 = 不动）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-10-04 A10：为什么必须平移**视口**，而不是给视图加 `.offset`
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 旧夹具用 `.offset(x: Double(i) * 0.5)` 想让"每轮内容不同"以避开
+    /// `ImageRenderer` 自身缓存。但它**只改渲染位置，不改 `vp.centerX/Y`** ——
+    /// 而 `MapTileCache.tile` 的缓存键是 `(量化后的 centerX, centerY, spanPx,
+    /// outSize)`，量化粒度 **4px**（见 `tile()` 开头）。
+    /// ⟹ 每轮 centerX 完全没变 → **每轮都命中缓存** → 测出来的 15.5ms
+    ///    根本不是"底图成本"，而是"缓存命中后的 SwiftUI 光栅化 + 合成"。
+    ///    真实冷路径另有实测：T6 冷 tile 120.7ms、独立基准每拖 4px 107.56ms。
+    ///
+    /// 所以夹具必须真正移动视口。步长默认 8px（> 4px 量化粒度，保证每轮
+    /// 必然换 key → 必然 miss），由 `AURORA_BENCH_DRAG_PX` 覆写。
+    /// 保留 `.offset` 是为了**同时**避开 ImageRenderer 自身的缓存，两者互补。
+    var benchDragPx: Double = 0
 
     /// 视野覆写（`AURORA_MAP_SPAN_M`）—— 仅用于出图核对，
     /// 因为标签门槛（400 m）决定了"近景才标名字"，不换个视野就验不到标签。
@@ -2557,6 +3655,20 @@ struct LargeMapCanvas: View {
         }
     }
 
+    // ── 路网叠加层（2026-10-04 新增）──
+    //
+    // 把「我们自己的路网」叠到底图上。实现见 MapLayers.swift：
+    // 加载时展平 + 每帧只做视口剔除 + 渲染成**单张 CGImage** 并按视野缓存，
+    // 所以每帧成本 = 1 次图片绘制，与折线数量（1517+825）无关。
+    //
+    // 图层位：1=路网 2=骨架 4=POI。默认只开 1|2；
+    // `AURORA_MAP_LAYERS` 可覆盖（基准/A-B 用），传 0 即完全关闭。
+    static var layerFlagsDefault: Int {
+        if let s = ProcessInfo.processInfo.environment["AURORA_MAP_LAYERS"],
+           let v = Int(s), v >= 0, v <= 7 { return v }
+        return 1 | 2
+    }
+
     /// 是否走「自车→目标」直线导航（旧行为）。
     /// 默认关：改用沿路网折线的真实路线。设 `AURORA_ROUTE_STRAIGHT=1` 可切回，
     /// 用于 A/B 对照「沿路走」与「直线穿」。
@@ -2573,6 +3685,36 @@ struct LargeMapCanvas: View {
     /// 是否在图上显示分类筛选条 + 图例
     static var showFilterBar: Bool {
         ProcessInfo.processInfo.environment["AURORA_MAP_FILTER_BAR"] != "0"
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  按组统计（**从实际加载的标记现算**，不查旧词表）
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // 【为什么不用 `MarkerTaxonomy.countByGroup`】
+    // 那份统计是按**旧库**（`FINAL_complete_map_database.json`，5677 个、
+    // 坐标实测错约 1500 米）的 id 建的词表；而地图现在画的是新库
+    // （`models/map_locations.json`，1777 个，与 poi.json 中位差 0.04px）。
+    //
+    // 实测后果：**同一屏里两个面板在说两套数**
+    //   中栏图例（本文件）：探索度 2,434 / 传送点 106 … 合计 **5,677**
+    //   右栏分类（CategoryPanel）：探索度 450 / 传送点 28 … 合计 **1,777**
+    // 用户一眼就看出来。直接从 `MapDatabase.markers` 现算，就永远不会再分家
+    // —— 因为**画的和数的用的是同一份数据**。
+    //
+    // 缓存：按 `markerCount` 记忆化，避免每次 body 求值都重扫 1777 条。
+    private static var liveGroupCountsCache: [String: Int] = [:]
+    private static var liveGroupCountsFor: Int = -1
+    static var liveGroupCounts: [String: Int] {
+        if liveGroupCountsFor == MapDatabase.markerCount { return liveGroupCountsCache }
+        var d: [String: Int] = [:]
+        for m in MapDatabase.markers {
+            guard let g = m.group else { continue }
+            d[g, default: 0] += 1
+        }
+        liveGroupCountsCache = d
+        liveGroupCountsFor = MapDatabase.markerCount
+        return d
     }
 
     /// 是否**完全跳过标记图层**（`AURORA_MAP_NO_MARKERS=1`）。
@@ -2632,13 +3774,29 @@ struct LargeMapCanvas: View {
     /// 当前开启的组（按**中文名**存，因为 UI 上显示的是中文名；
     /// 词表缺失时会自动回落成「全开」语义，见下方 enabledGroups 计算）
     @State private var enabledGroups: Set<String>? = nil
-    /// 聚类缓存：避免同一视野下每帧重算（拖动时中心连续变化，
-    /// 用 4px/1档 量化做命中判断）
-    @State private var clusterCache: (key: String, clusters: [MarkerCluster])? = nil
+
+    /// 外部（右栏 `CategoryPanel`）驱动的**分类级**过滤。nil = 不受外部控制。
+    ///
+    /// ⚠️ 2026-10-04 新增。此前右栏与地图**完全没有任何连接**：
+    ///   `CategoryPanel` 自己存 `enabled: Set<String>`（分类 id）到 UserDefaults，
+    ///   而地图只认自己的 `enabledGroups`（组标签）——
+    ///   用户点右栏勾选，地图根本收不到，那栏纯属摆设。
+    ///
+    /// 语义：非 nil 时**只按分类过滤，忽略组过滤**（分类比组更精确，
+    /// 两者同时生效只会互相打架），并隐藏中栏那条重复的组筛选条。
+    var categoryFilter: Set<String>? = nil
+    // 聚类缓存宿主是**进程级单例**（`ClusterCacheStore.shared`），
+    // 不是 `@State`/`@StateObject` —— 理由见该类型的说明：
+    //   · `@State`：缓存在 body 求值路径上被写 → "视图更新期间改状态"；
+    //   · `@StateObject`：视图身份一变就新建 store → `AuroraCache.init` 每次
+    //     装两个 dispatch source → 实测 `Canvas+聚类` +40.8%、线程 7→12。
     /// 悬停的聚团 id（悬停团始终显示名字，无视标签白名单）
     @State private var hoveredClusterID: String? = nil
     /// 选中的聚团（点击弹出成员列表；选中项始终显示名字）
     @State private var selectedCluster: MarkerCluster? = nil
+
+    /// 路网叠加层开关（默认 1|2 = 路网+骨架，见 `layerFlagsDefault`）
+    @State private var layerFlags: Int = LargeMapCanvas.layerFlagsDefault
 
     /// 词表是否可用。不可用时所有组相关 UI 都不显示，回到"一个色"的旧观感
     /// —— 不崩、不空白，这是硬性要求。
@@ -2653,10 +3811,29 @@ struct LargeMapCanvas: View {
     var body: some View {
         GeometryReader { g in
             let w = g.size.width, h = g.size.height
-            let cx = vp.centerX, cy = vp.centerY
-            let spanMeters = benchSpanMeters ?? Self.spanOverride ?? vp.spanMeters
             let pxPerMeter = MapTileImage.mapPixels / MapTileImage.worldMetersPerMap
-            let spanPx = spanMeters * pxPerMeter
+
+            // ══════════════════════════════════════════════════════════════════
+            // ⚠️ 2026-10-04：**所有图层共用同一个量化视口**
+            // ══════════════════════════════════════════════════════════════════
+            // 【问题】底图 `MapTileCache.tile` 把视口**量化到 4px 网格**再进缓存键
+            //   （不量化的话视野每变 0.1px 就要重裁一次，拖动时纯浪费）。
+            //   但标记/路线此前用**原始** cx/cy —— 于是拖动时：
+            //     底图按 4px 一档一档地"跳"，标记连续平滑地滑
+            //   两者**相对抖动**，看上去就是「资源点会动」。
+            //
+            // 【修法】在**这一层**就量化，然后底图 / 路网 / 标记 / 路线 / 命中测试
+            //   全部用同一组 qcx/qcy/qspanPx。任何一层自己再量化都不会产生偏差
+            //   （量化幂等），但**只要有一层不量化就会抖**。
+            //
+            // 代价：视野移动小于 2px 时画面不动 —— 这正是量化的目的，
+            //   而且 2px 在 1200m 视野下是 1.2 米，肉眼无感。
+            let rawSpanMeters = benchSpanMeters ?? Self.spanOverride ?? vp.spanMeters
+            let rawSpanPx = rawSpanMeters * pxPerMeter
+            let cx = (vp.centerX / 4).rounded() * 4
+            let cy = (vp.centerY / 4).rounded() * 4
+            let spanPx = max((rawSpanPx / 4).rounded() * 4, 4)
+            let spanMeters = spanPx / pxPerMeter
 
             // ── 聚类（每帧求值，但内部有量化缓存）──
             // 顺序**必须**是「先按组过滤 → 再聚类」：若先聚类再过滤，
@@ -2670,6 +3847,14 @@ struct LargeMapCanvas: View {
                 // ── 真实地图底图：13056×13056 大地图按自车位置裁切 ──
                 MapTileImage(centerMapX: cx, centerMapY: cy,
                              spanMeters: spanMeters)
+
+                // ── 我们自己的路网叠加层（2026-10-04 新增）──
+                // 必须夹在底图与标记之间：路网是"地面"，标记要压在路网上面。
+                // 几何与 MapTileImage 完全同参（同一个 cx/cy/spanPx 来源），
+                // 所以两者天然对齐 —— 历史上出过"底图与标记各算一套比例"的事故。
+                RoadOverlayLayer(centerX: cx, centerY: cy,
+                                 spanPx: spanPx,
+                                 flags: layerFlags)
 
                 // ── 真实标记点：5677 条，聚类后绘制 ──
                 //
@@ -2708,7 +3893,7 @@ struct LargeMapCanvas: View {
                                     .offset(y: 10)
                             }
                         }
-                        .position(x: w * nx, y: h * ny)
+                        .position(Self.mapToView(nx, ny, w, h))
                     }
                 } else {
                     Canvas { ctx, size in
@@ -2732,7 +3917,8 @@ struct LargeMapCanvas: View {
                         for pt in plan.points {
                             let nx = (pt.0 - cx) / spanPx + 0.5
                             let ny = (pt.1 - cy) / spanPx + 0.5
-                            let x = w * nx, y = h * ny
+                            let vp2 = Self.mapToView(nx, ny, w, h)
+                            let x = vp2.x, y = vp2.y
                             if first { p.move(to: .init(x: x, y: y)); first = false }
                             else { p.addLine(to: .init(x: x, y: y)) }
                         }
@@ -2746,7 +3932,8 @@ struct LargeMapCanvas: View {
                         for pt in plan.points {
                             let nx = (pt.0 - cx) / spanPx + 0.5
                             let ny = (pt.1 - cy) / spanPx + 0.5
-                            let x = w * nx, y = h * ny
+                            let vp2 = Self.mapToView(nx, ny, w, h)
+                            let x = vp2.x, y = vp2.y
                             if first { p.move(to: .init(x: x, y: y)); first = false }
                             else { p.addLine(to: .init(x: x, y: y)) }
                         }
@@ -2763,7 +3950,7 @@ struct LargeMapCanvas: View {
                             Circle().fill(Aurora.ok).frame(width: 9, height: 9)
                                 .shadow(color: Aurora.ok, radius: 6)
                         }
-                        .position(x: w * nx, y: h * ny)
+                        .position(Self.mapToView(nx, ny, w, h))
                     }
                     if let ep = state.routeEndPx {
                         let nx = (ep.x - cx) / spanPx + 0.5
@@ -2773,7 +3960,7 @@ struct LargeMapCanvas: View {
                             Circle().fill(Aurora.danger).frame(width: 9, height: 9)
                                 .shadow(color: Aurora.danger, radius: 6)
                         }
-                        .position(x: w * nx, y: h * ny)
+                        .position(Self.mapToView(nx, ny, w, h))
                     }
                 }
 
@@ -2883,6 +4070,31 @@ struct LargeMapCanvas: View {
                 }
                 .padding(14)
 
+                // ── 数据源加载失败提示（2026-10-04 新增）──
+                // 「静默失败是最坏的失败」：`models/map_locations.json` 缺失时地图
+                // 是**空的**，用户看到空图只会以为「这游戏没数据」，而不是「文件没装」，
+                // 两者的处置完全不同。故这里把 `MapDatabase.loadError` 直接画出来，
+                // 并带上修复命令。成功时 loadError == nil，本层完全不占位。
+                if let dbErr = MapDatabase.loadError {
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 9))
+                            Text("地图数据未加载：\(dbErr)")
+                                .font(.system(size: 9, weight: .semibold))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .foregroundStyle(Aurora.danger)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Aurora.danger.opacity(0.14), in: Capsule())
+                        .overlay(Capsule().stroke(Aurora.danger.opacity(0.45), lineWidth: 1))
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 40)
+                    }
+                }
+
                 // ── 滚轮缩放层（透明，只吃滚轮事件，不抢点击）──
                 // 放在 ZStack 内部：若放在外层用 if 包起来会切断后面的
                 // .contentShape/.gesture 修饰链（编译报 contentShape on type 'View'）。
@@ -2904,7 +4116,7 @@ struct LargeMapCanvas: View {
                 // 注意这里**不判 `interactive`**：筛选条是纯 SwiftUI 绘制，
                 // 离屏 ImageRenderer 能正常渲染（与 MapScrollZoom 那种
                 // NSViewRepresentable 不同）。不判它，截图夹具才验得到筛选条。
-                if Self.showFilterBar, taxonomyReady {
+                if Self.showFilterBar, taxonomyReady, categoryFilter == nil {
                     VStack {
                         HStack {
                             MarkerFilterBar(
@@ -2913,7 +4125,7 @@ struct LargeMapCanvas: View {
                                     set: { enabledGroups = $0 }
                                 ),
                                 groups: MarkerTaxonomy.groups,
-                                counts: MarkerTaxonomy.countByGroup,
+                                counts: Self.liveGroupCounts,
                                 visibleCount: clusters.reduce(0) { $0 + $1.count },
                                 onReset: { enabledGroups = MarkerTaxonomy.defaultOnGroups },
                                 onAll: { enabledGroups = Set(MarkerTaxonomy.groups.map { $0.label }) },
@@ -2931,7 +4143,8 @@ struct LargeMapCanvas: View {
                     let nx = (hc.centerX - cx) / spanPx + 0.5
                     let ny = (hc.centerY - cy) / spanPx + 0.5
                     ClusterTooltip(cluster: hc)
-                        .position(x: w * nx, y: h * ny - 30)
+                        .position(x: Self.mapToView(nx, ny, w, h).x,
+                                  y: Self.mapToView(nx, ny, w, h).y - 30)
                         .allowsHitTesting(false)
                 }
             }
@@ -2965,9 +4178,17 @@ struct LargeMapCanvas: View {
             )
             // 首次拿到定位 → 自动归位到自车（仅当用户还没手动动过视角）
             .onAppear {
+                // 路网图层：后台解析一次，就绪后自动刷新（见 MapLayerStore）
+                MapLayerStore.shared.ensureLoaded()
                 if !vp.userMoved, state.locatorFound {
                     vp.recenter(egoX: DriveState.worldToMapPixelX(state.locatorX, state.locatorY),
                                 egoY: DriveState.worldToMapPixelY(state.locatorX, state.locatorY))
+                }
+                // ── 基准夹具：真正平移视口以击穿 4px 量化缓存（A10）──
+                // 必须放在 recenter **之后**：recenter 只在 !userMoved 时生效，
+                // 顺序反了会被它覆盖回自车位置，夹具又变回"每轮命中缓存"。
+                if benchDragPx != 0 {
+                    vp.pan(toMapX: vp.centerX + benchDragPx, mapY: vp.centerY)
                 }
             }
             .onChange(of: state.locatorFound) { _, found in
@@ -3069,35 +4290,61 @@ struct LargeMapCanvas: View {
     /// ── 为什么要缓存 ──────────────────────────────────────────────────────
     /// 拖动地图时中心每帧都在变，若每帧都跑一遍「遍历 5677 点 + 分桶 + 排序」，
     /// 就是纯浪费 —— 4 像素的位移在屏幕上根本看不出团的变化。
-    /// 故把 (中心x, 中心y, 视野, 组掩码, 屏幕宽) **量化**成缓存键：
-    /// 中心按 4px、视野按 ×1.02 分档，命中就直接返回上次结果。
-    /// 实测拖动一帧的位移通常 < 4px，绝大多数帧都能命中。
+    /// 故把 (中心x, 中心y, 视野, 过滤掩码, 屏幕宽) **量化**成缓存键，
+    /// 交给 `ClusterCacheStore`（容量 8，来回拖动也能命中）。
+    ///
+    /// ⚠️ 本方法**在 `body` 求值路径上被调用**（见 `body` 里的 `let clusters = ...`），
+    ///   所以它**绝不能写 `@State`** —— 缓存写进 `ClusterCacheStore`
+    ///   （非 `@Observable`，写它不会触发重渲染）。
     private func clusterList(centerX cx: Double, centerY cy: Double,
                              spanPx: Double, viewWidth w: Double) -> [MarkerCluster] {
         guard !Self.legacyMarkers, w > 1, spanPx > 0 else { return [] }
 
-        // 量化
-        let qx = (cx / 4).rounded() * 4
-        let qy = (cy / 4).rounded() * 4
-        let qs = (log(spanPx) / log(1.02)).rounded()
-        let mask = effectiveGroups.sorted().joined(separator: ",")
-        let key = "\(qx)|\(qy)|\(qs)|\(mask)|\(Int(w))"
+        // 量化：中心按 4px 网格；视野按 ×1.02 分档
+        // （同一档内团的变化肉眼不可辨，拖动一帧的位移通常 < 4px）
+        let key = ClusterCacheStore.Key(
+            qx: Int((cx / 4).rounded() * 4),
+            qy: Int((cy / 4).rounded() * 4),
+            qs: Int((log(spanPx) / log(1.02)).rounded()),
+            // ⚠️ 键**必须含分类过滤** —— 否则右栏改了勾选，地图仍命中旧缓存，
+            //    表现为「点了没反应」，跟没接上一样。
+            mask: categoryFilter.map { "C:" + $0.sorted().joined(separator: ",") }
+                  ?? effectiveGroups.sorted().joined(separator: ","),
+            width: Int(w))
 
-        if let c = clusterCache, c.key == key { return c.clusters }
+        // `AuroraCache.value(for:compute:)` 的 compute **在锁外执行** ——
+        // 下面那段耗时计算不会把其它查找一起堵死。
+        return ClusterCacheStore.shared.cache.value(for: key) {
+            computeClusters(centerX: cx, centerY: cy, spanPx: spanPx, viewWidth: w)
+        }
+    }
 
+    /// 真正算聚类（缓存未命中时调用）。
+    ///
+    /// 从 `clusterList` 抽出来，是为了让「查缓存」与「算聚类」各自只有一件事：
+    /// 原先两者揉在一个函数里、`clusterCache = ...` 夹在中间，
+    /// 很难看出它其实在**写视图状态**（那正是 A18 那个反模式）。
+    private func computeClusters(centerX cx: Double, centerY cy: Double,
+                                 spanPx: Double, viewWidth w: Double) -> [MarkerCluster] {
         // 分段计时（仅 AURORA_MAP_CLUSTER_TRACE=1 时打印）——
         // 排障用：光知道"总共慢"没用，要知道慢在哪一段。
-        let trace = ProcessInfo.processInfo.environment["AURORA_MAP_CLUSTER_TRACE"] == "1"
+        let trace = AuroraFlags.mapClusterTrace
         let t0 = DispatchTime.now()
 
         // 1) 取视野内全部标记（**不截断** —— 截断会让团计数算错）
         let all = MapDatabase.markersInViewAll(centerX: cx, centerY: cy, spanPx: spanPx)
         let t1 = DispatchTime.now()
 
-        // 2) 按组过滤（**用 MarkerClusterer 里唯一那份实现** ——
+        // 2) 过滤（**用 MarkerClusterer 里唯一那份实现** ——
         //    两处各写一遍过滤逻辑迟早会分叉）
         let filtered: [MapDatabase.PlacedMarker]
-        if taxonomyReady {
+        if let cf = categoryFilter {
+            // 右栏分类过滤优先：分类比组精确，两者不叠加
+            filtered = all.filter { m in
+                guard let c = m.category else { return false }
+                return cf.contains(c)
+            }
+        } else if taxonomyReady {
             filtered = MarkerClusterer.filter(all, enabledLabels: effectiveGroups)
         } else {
             filtered = all   // 词表缺失：不过滤，保持旧观感
@@ -3118,15 +4365,30 @@ struct LargeMapCanvas: View {
                          ms(t0, t1), ms(t1, t1b), ms(t1b, t2),
                          all.count, filtered.count, out.count))
         }
-
-        // 缓存（只留最近一条 —— 地图只有一个视野）
-        clusterCache = (key, out)
         return out
     }
 
     // ══════════════════════════════════════════════════════════════════════
     // MARK: 绘制（单个 Canvas 画完全部团）
     // ══════════════════════════════════════════════════════════════════════
+
+    // ── Canvas 绘制常量（2026-10-04 A5：从闭包内提为 static）──
+    //
+    // 【为什么要提】这些值原先**内联在 `Canvas { }` 的绘制闭包里**，
+    // 于是「每个聚团都会新建一次」：实测 1200m 视野 271 个团
+    // → `Color(hex:)` 271 次 + `Font.system(...)` 271 次 = 542 次/帧，
+    // 30fps 下 **16,260 次/秒** 的纯分配。
+    // `Aurora.*` 那 29 个色值本来就是 `static let`（只读一次），
+    // **唯独 Canvas 里这 4 处是内联的** —— 属于漏网。
+    //
+    // 【为什么可以安全共享】`Color` / `Font` 都是不可变值类型，
+    // `static let` 只求值一次且线程安全（`swift_once`）。
+    // 绘制语义完全等价，只是不再重复分配。
+    private static let clusterStrokeIdle = Color(hex: 0xFFFFFF, alpha: 0.35)
+    private static let clusterCountFontBig = Font.system(size: 9, weight: .semibold)
+    private static let clusterCountFontSmall = Font.system(size: 7.5, weight: .semibold)
+    private static let labelFontHover = Font.system(size: 9, weight: .semibold)
+    private static let labelFontIdle = Font.system(size: 7.5)
 
     /// 把一个聚团画成图。
     ///
@@ -3136,6 +4398,32 @@ struct LargeMapCanvas: View {
     ///     圆半径随数量的对数增长（4 → 13 px），既表达"这里很多"
     ///     又不会因为某个团有 300 个点就把地图糊死
     @MainActor
+    /// 地图像素 → 视图坐标（**必须与底图 `MapTileImage` 用同一套映射**）
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-10-04 修复：标记/路线/POI 与底图错位的根因
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 底图用的是「**cover**」：`side = max(w, h)`，把 `side×side` 的正方形
+    /// **居中**摆在视图里（见 `MapTileImage`）。所以视口归一化坐标 (nx, ny)
+    /// 到视图坐标的换算是：
+    ///     x = (w - side)/2 + side * nx
+    ///     y = (h - side)/2 + side * ny
+    ///
+    /// 而标记/路线此前一律写成 `x = w*nx, y = h*ny` —— 那是「拉伸铺满整个矩形」。
+    /// 两者只在 `w == h` 时相等；**只要视图不是正方形就必然错位**，
+    /// 而且视图越扁错得越多。用户实测原话：
+    ///   「路网已经不动了，然后现在那些资源点啊，都会动」——
+    ///   路网（`RoadOverlayLayer`）已经改用 side 正方形映射，所以对了；
+    ///   标记还在用拉伸映射，所以还错。
+    ///
+    /// 统一到这一个函数，杜绝再有人各写一套。
+    @inline(__always)
+    static func mapToView(_ nx: Double, _ ny: Double, _ w: Double, _ h: Double) -> CGPoint {
+        let side = max(w, h)
+        return CGPoint(x: (w - side) / 2 + side * nx,
+                       y: (h - side) / 2 + side * ny)
+    }
+
     static func drawClusters(ctx: GraphicsContext, size: CGSize,
                              clusters: [MarkerCluster],
                              centerX cx: Double, centerY cy: Double,
@@ -3150,7 +4438,7 @@ struct LargeMapCanvas: View {
             let ny = (c.centerY - cy) / spanPx + 0.5
             // 视野外跳过（聚类边界可能带进来一点）
             guard nx > -0.02, nx < 1.02, ny > -0.02, ny < 1.02 else { continue }
-            let p = CGPoint(x: w * nx, y: h * ny)
+            let p = Self.mapToView(nx, ny, w, h)
             let col = c.representative.color
             let r = CGRect(x: p.x - 2, y: p.y - 2, width: 4, height: 4)
             ctx.fill(Path(ellipseIn: r), with: .color(col))
@@ -3161,7 +4449,7 @@ struct LargeMapCanvas: View {
             let nx = (c.centerX - cx) / spanPx + 0.5
             let ny = (c.centerY - cy) / spanPx + 0.5
             guard nx > -0.05, nx < 1.05, ny > -0.05, ny < 1.05 else { continue }
-            let p = CGPoint(x: w * nx, y: h * ny)
+            let p = Self.mapToView(nx, ny, w, h)
             let col = c.representative.color
 
             // 半径：4 + 2.2 × ln(count)，封顶 13
@@ -3182,14 +4470,14 @@ struct LargeMapCanvas: View {
             // 描边（悬停时白色）
             ctx.stroke(Path(ellipseIn: CGRect(x: p.x - rad, y: p.y - rad,
                                               width: rad * 2, height: rad * 2)),
-                       with: .color(isHover ? .white : Color(hex: 0xFFFFFF, alpha: 0.35)),
+                       with: .color(isHover ? .white : Self.clusterStrokeIdle),
                        lineWidth: isHover ? 1.6 : 1.0)
 
             // 数量文字：`+N`（与 maante 的 `<b>+N</b>` 同构）
             // 半径太小时不画字（会糊成一坨黑点），改为靠大小表达
             if rad >= 7 {
                 let t = Text("+\(c.count)")
-                    .font(.system(size: rad >= 11 ? 9 : 7.5, weight: .semibold))
+                    .font(rad >= 11 ? Self.clusterCountFontBig : Self.clusterCountFontSmall)
                     .foregroundStyle(.white)
                 ctx.draw(t, at: p)
             }
@@ -3269,17 +4557,17 @@ struct LargeMapCanvas: View {
             let m = c.representative
             let nx = (m.mapX - cx) / spanPx + 0.5
             let ny = (m.mapY - cy) / spanPx + 0.5
-            let p = CGPoint(x: w * nx, y: h * ny)
+            let p = Self.mapToView(nx, ny, w, h)
             let isHover = (c.id == hoveredID)
             // 悬停时额外画一个底衬，让文字在杂乱底图上仍可读
             if isHover {
                 let tag = Text(m.name.isEmpty ? "未命名" : m.name)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(Self.labelFontHover)
                     .foregroundStyle(Aurora.t1)
                 ctx.draw(tag, at: CGPoint(x: p.x, y: p.y + 15))
             } else {
                 let tag = Text(m.name.isEmpty ? "未命名" : m.name)
-                    .font(.system(size: 7.5))
+                    .font(Self.labelFontIdle)
                     .foregroundStyle(Aurora.t3)
                 ctx.draw(tag, at: CGPoint(x: p.x, y: p.y + 10))
             }
@@ -4296,9 +5584,15 @@ struct ContentView: View {
 
         // 不需要密码的自愈：守护装过但当前没生效（典型场景是重启后
         // 内核新建了 bpf 设备没被 chmod 到），先尝试直接拉起。
+        //
+        // ⚠️ 必须用 `selfHealAsync()` 而不是 `selfHeal()`：
+        //   同步版内部是两次 `launchctl kickstart`（各 8s 超时），**最坏占住
+        //   主线程 16 秒** —— 即使 `perf-core` 把自旋等待改成 `terminationHandler`
+        //   睡眠等待，**降的只是 CPU，墙钟一秒没少**，用户照样卡死。
+        //   异步版把整段放到 `.utility` 队列，完成后回主线程读结果 ⟹ 主线程零阻塞。
         if !state.privilegeReady && BPFSetupManager.isLaunchDaemonInstalled() {
             Task { @MainActor in
-                _ = PrivilegePill.shared.selfHeal()
+                _ = await PrivilegePill.shared.selfHealAsync()
                 state.privilegeReady = PrivilegePill.shared.isFullyAuthorized
                 state.privilegeStatusDetail = PrivilegePill.shared.statusDetail
                 state.bpfAuthorized = BPFSetupManager.isBPFAvailable()
@@ -4430,6 +5724,11 @@ enum MissionControlShot {
 
     @MainActor
     private static func renderMap(state: DriveState, canvas: CGSize, tag: String) -> Bool {
+        // 路网图层：离屏夹具走**同步**加载。
+        // ImageRenderer 不触发 onAppear，若只依赖异步加载，出图那一刻
+        // roads 还是 nil → 图里没有路网，夹具就白出了。
+        // 与 MapDatabase.ensureLoadedSyncLegacy() 同一个理由。
+        MapLayerStore.shared.ensureLoadedSync()
         let view = ZStack {
             Color.black
             VStack(spacing: 0) {
@@ -4582,6 +5881,18 @@ enum MissionControlShot {
         return renderMap(state: state, canvas: canvas, tag: "route_loading")
     }
 
+    /// 基准夹具每轮的**视口平移步长**（地图像素）。
+    ///
+    /// 默认 8：必须 **> 4px 量化粒度**（`MapTileCache.tile` 开头把 centerX/Y/spanPx
+    /// 都量化到 4px 网格），否则每轮都命中同一缓存键 —— 测出来的是"缓存命中后的
+    /// SwiftUI 光栅化"，不是底图成本（A10 修正的正是这个）。
+    /// `AURORA_BENCH_DRAG_PX` 可覆写（设 0 复现旧口径、设 64 测大跨度拖动）。
+    static var benchDragPx: Double {
+        if let s = ProcessInfo.processInfo.environment["AURORA_BENCH_DRAG_PX"],
+           let v = Double(s), v >= 0, v <= 4096 { return v }
+        return 8
+    }
+
     /// 地图渲染性能基准夹具（`--mc-map-bench`）。
     ///
     /// ══════════════════════════════════════════════════════════════════════
@@ -4602,7 +5913,7 @@ enum MissionControlShot {
     ///
     /// 为了让内容每帧真的变化（否则 ImageRenderer 直接命中缓存，
     /// 测出 0.000 ms 这种假数 —— 本小姐第一版就踩了这个坑），
-    /// 每轮把视口中心平移 1 像素。
+    /// 每轮把**视口中心**平移 `benchDragPx`（默认 8 像素，见该常量说明）。
     @MainActor
     static func benchMapNow(iters: Int = 12) -> Bool {
         let state = DriveState()
@@ -4631,27 +5942,61 @@ enum MissionControlShot {
         /// 跑一种模式
         func run(_ mode: LargeMapCanvas.MarkerRenderMode, _ label: String,
                  span: Double?) -> Double {
+            // ══════════════════════════════════════════════════════════════
+            // ⚠️ 2026-10-04 修复：p95 公式退化成 max，把冷启动样本当成"毛刺"
+            // ══════════════════════════════════════════════════════════════
+            // 旧写法：`times[min(count-1, Int(Double(count) * 0.95))]`
+            //   iters=2/3/5/12/20 时下标 = 1/2/4/11/19 —— **全部等于最大下标**
+            //   （浮点 20×0.95 恰好舍入成 19.0），于是"p95"实际就是 max。
+            //   后果：20 轮里唯一那个冷样本（每轮新建 LargeMapCanvas → @State image
+            //   重置 → 重载 7.7MB JPEG）被当成"每帧都有 245ms 毛刺"，
+            //   实测 iters=20 → p95 245.94，iters=200 → p95 19.45，差 12.6 倍。
+            //   算术闭合：(245.94 + 19×15.62)/20 = 27.12 ≈ 实测平均 27.20。
+            //
+            // 修法（两处）：
+            //   ① p95 用 ceil(n×0.95)-1（真分位数），并额外打印 max 与首轮
+            //   ② **前 3 轮预热不计入统计** —— 冷启动成本单独报，不混进稳态
+            // 为什么要预热：夹具每轮新建视图，第 1 轮必然付冷解码；把它算进
+            // "每帧成本"会让人去优化一个不存在的稳态问题（本小姐踩过这个坑）。
+            let warmup = min(3, max(0, iters - 1))
+            var coldMs: Double? = nil
             var times: [Double] = []
-            times.reserveCapacity(iters)
+            // ══════════════════════════════════════════════════════════════
+            // ⚠️ 2026-10-04 A10：**每轮真正平移视口**，否则测的不是底图成本
+            // ══════════════════════════════════════════════════════════════
+            // 旧写法只加 `.offset(x: i*0.5)` —— 那是**视觉位移，不改视口**，
+            // 而 tile 缓存键量化粒度是 4px（`tile()` 开头），0.5px 击不穿量化
+            // ⟹ 每轮都命中缓存 ⟹ 测出来的是"缓存命中后的 SwiftUI 光栅化"，
+            //   不是底图成本。（真实冷路径：T6 冷 tile 120.7ms / 每拖 4px 107.56ms）
+            // 现在每轮把视口平移 `i × dragPx`，dragPx 默认 8（> 4px 量化粒度，
+            // 保证每轮换 key、必然 miss）；`AURORA_BENCH_DRAG_PX` 可覆写。
+            // `.offset` 保留：它避开的是 ImageRenderer **自身**的缓存，两者互补。
+            let dragPx = Self.benchDragPx
             for i in 0..<iters {
-                // 每轮平移 0.5px，强制重新渲染（否则 ImageRenderer 命中缓存，
-                // 测出 0.000 ms 这种假数 —— 第一版就踩过）
                 let shot = LargeMapCanvas(state: state, markerMode: mode,
-                                          benchSpanMeters: span, interactive: false)
+                                          benchSpanMeters: span,
+                                          benchDragPx: Double(i) * dragPx,
+                                          interactive: false)
                     .frame(width: 1320, height: 860)
                     .offset(x: Double(i) * 0.5)
                 let r = ImageRenderer(content: shot)
                 r.scale = 1.0
                 let t0 = DispatchTime.now()
                 _ = r.nsImage
-                times.append(Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds) / 1_000_000)
+                let ms = Double(DispatchTime.now().uptimeNanoseconds - t0.uptimeNanoseconds) / 1_000_000
+                if i < warmup { if coldMs == nil { coldMs = ms } } else { times.append(ms) }
             }
+            guard !times.isEmpty else { return 0 }
             times.sort()
             let avg = times.reduce(0, +) / Double(times.count)
             let p50 = times[times.count / 2]
-            let p95 = times[min(times.count - 1, Int(Double(times.count) * 0.95))]
-            print(String(format: "[MC-BENCH] %-22@ 平均 %7.2f ms · p50 %7.2f · p95 %7.2f",
-                         label as NSString, avg, p50, p95))
+            // 真 p95：ceil(n×0.95)-1，钳到 [0, n-1]
+            let p95Idx = min(times.count - 1, max(0, Int(ceil(Double(times.count) * 0.95)) - 1))
+            let p95 = times[p95Idx]
+            let maxV = times[times.count - 1]
+            print(String(format: "[MC-BENCH] %-22@ 【稳态】平均 %7.2f ms · p50 %7.2f · p95 %7.2f · max %7.2f   ｜【冷启】首轮 %@（前 %d 轮不计入稳态）",
+                         label as NSString, avg, p50, p95, maxV,
+                         coldMs.map { String(format: "%.2f ms", $0) } ?? "—" as NSString, warmup))
             return avg
         }
 
@@ -4692,6 +6037,24 @@ enum MissionControlShot {
                      canvas < budget ? "✓" : "✗", canvasN < budget ? "✓" : "✗"))
         print("[MC-BENCH] ⚠️ 离屏 ImageRenderer ≠ 真机合成器耗时，此表用于**相对对比**，"
               + "不宣称真机绝对 60fps")
+
+        // ══════════════════════════════════════════════════════════════════
+        // 门禁：源图只应读盘 1 次
+        // ══════════════════════════════════════════════════════════════════
+        // 夹具每轮新建 6 个 `LargeMapCanvas`，每个都会走 `MapTileImage.load()`。
+        // 若源图没有跨实例复用，就是**每轮重解码 6 次 13056² JPEG** ——
+        // 实测 iters=200 时 `已加载真实地图` 打印 923 次，且 RSS 涨到 2.3GB。
+        // 更要命的是：源图身份一变，B1 的 36MB 视野窗口就被判失效并重建。
+        // 正确实现下**整个基准只应读盘 1 次**（其余全部命中缓存）。
+        let provider = MapBaseImageProvider.shared
+        print()
+        print("[MC-BENCH] \(provider.metricsLine)")
+        if provider.diskLoadCount > 1 {
+            print("[MC-BENCH] ❌ 源图被重复读盘 \(provider.diskLoadCount) 次（正确实现应为 1 次）"
+                  + " —— 下游 36MB 视野窗口会随之反复重建")
+        } else {
+            print("[MC-BENCH] ✅ 源图只读盘 1 次（跨视图实例复用生效）")
+        }
         return true
     }
 
@@ -4870,6 +6233,165 @@ enum MissionControlShot {
             return true
         } catch {
             print("[MC-SHOT] 写盘失败: \(error)")
+            return false
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // MARK: 预览框内「当前任务」卡片出图夹具（--mc-quest，2026-10-06 新增）
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // 【为什么必须单独出图】`--mc-shot` 走的是**手抄版**预览框（见 render(to:) 里
+    //   那段 ZStack，:5993 起），它只画了 TagChip + AutoSpeedPill + DualGauge，
+    //   **根本没有** ViewportPanel，所以任务卡片在那里永远渲染不出来 ——
+    //   拿它验收会得出"卡片没画"的错误结论。
+    //
+    // 【本夹具的做法】与 renderMapNow 同一个套路：**复用真实视图** `ViewportPanel`，
+    //   只把 state 喂成确定值。这样出的是真卡片（真字体/真辉光/真圆角），
+    //   位置也是真的 —— 预览框内的实际坐标，不是另画一份。
+    //
+    // 【出三张图，验三件事】
+    //   · quest_card_on.png     → 有任务 + 有弯道：卡片可见、贴顶、居中、银白辉光
+    //   · quest_card_off.png    → 任务为 nil：卡片必须**整张消失**（不留空框）
+    //   · quest_card_noroute.png→ 有任务 + **无弯道路线**：弯道必须显示「--」
+    //   前两张尺寸完全一致，可直接 diff 出卡片的像素外接框。
+    //
+    // ⚠️ 2026-10-06 补第三张的原因（wiring 指出）：原夹具的 off 分支
+    //   `questName = nil` → 整卡不画，于是「拿不到弯道距离就显示 --」这条
+    //   **永远不会被渲染出来**，等于没验。第三张图把"有任务但没有路线"这个
+    //   真实场景（用户刚接任务、还没规划路线）固化下来，`--` 分支才真正可见。
+    //
+    // 【夹具数据是真实的，不是编的】
+    //   任务名与目标点直接取 `models/quest_index.json` 里的一条真实记录
+    //   （q110001_0「迎接的熏风」/「向眼前之人对话」，世界坐标 3920, 272093）。
+    //   自车坐标取既有夹具同款世界坐标（-77000, 31865）→ 直线距离量级合理。
+    //   弯道距离走**真实 RoutePlanner**（自车吸附路网 → 就近节点），拿不到就 nil
+    //   → 卡片显示「--」，正好把"不编数字"这条分支也一并验了。
+    @MainActor
+    static func renderQuestCardNow(canvas: CGSize = CGSize(width: 1470, height: 560)) -> Bool {
+        var allOK = true
+
+        // ① 有任务
+        let on = DriveState()
+        on.isDriving = true
+        on.speedValid = true
+        on.screenSize = CGSize(width: 2560, height: 1664)
+        MapDatabase.ensureLoadedSyncLegacy()
+        on.refreshRegionCache()
+        on.questName = "迎接的熏风"
+        on.locatorFound = true
+        on.locatorX = -77000
+        on.locatorY = 31865
+        on.locatorTarget = (x: 3920.0, y: 272093.0)   // quest_index 真实记录
+        on.routePlan = questFixtureRoutePlan(state: on)
+
+        // 直线距离必须与卡片显示一致 —— 打印出来供核对（世界坐标 ÷ 100）
+        let dx = on.locatorTarget!.x - on.locatorX
+        let dy = on.locatorTarget!.y - on.locatorY
+        let straight = (dx * dx + dy * dy).squareRoot() / 100.0
+        print(String(format: "[MC-QUEST] 直线距离 %.1f m（世界坐标 (%.0f,%.0f) → (%.0f,%.0f)，÷100）",
+                     straight, on.locatorX, on.locatorY, on.locatorTarget!.x, on.locatorTarget!.y))
+        if let rp = on.routePlan {
+            print(String(format: "[MC-QUEST] 弯道距离 %.1f m（RoutePlan.distanceMeters，已是米）",
+                         rp.distanceMeters))
+        } else {
+            print("[MC-QUEST] 弯道距离 -- （路网未命中，卡片应显示「--」而不是编数字）")
+        }
+        allOK = renderQuestCard(state: on, tag: "on", canvas: canvas) && allOK
+
+        // ② 无任务（questName = nil）→ 整张卡必须消失
+        let off = DriveState()
+        off.isDriving = true
+        off.speedValid = true
+        off.screenSize = CGSize(width: 2560, height: 1664)
+        MapDatabase.ensureLoadedSyncLegacy()
+        off.refreshRegionCache()
+        off.questName = nil                            // ← 关键：无任务
+        off.locatorFound = true
+        off.locatorX = -77000
+        off.locatorY = 31865
+        off.locatorTarget = (x: 3920.0, y: 272093.0)
+        allOK = renderQuestCard(state: off, tag: "off", canvas: canvas) && allOK
+
+        // ③ 有任务、但**没有路线** → 弯道那一格必须是「--」（不编数字）
+        //
+        // 这是真机上很常见的一档：刚接到任务、用户还没在地图上规划路线。
+        // 原夹具缺这一张，于是「--」分支从来没被渲染过（wiring 指出）。
+        let noRoute = DriveState()
+        noRoute.isDriving = true
+        noRoute.speedValid = true
+        noRoute.screenSize = CGSize(width: 2560, height: 1664)
+        MapDatabase.ensureLoadedSyncLegacy()
+        noRoute.refreshRegionCache()
+        noRoute.questName = "与薄荷对话"
+        noRoute.locatorFound = true
+        noRoute.locatorX = -77000
+        noRoute.locatorY = 31865
+        noRoute.locatorTarget = (x: 3920.0, y: 272093.0)
+        noRoute.routePlan = nil                        // ← 关键：无路线
+        print("[MC-QUEST] 夹具③ 有任务 + 无路线 → 卡片弯道格应显示「--」")
+        allOK = renderQuestCard(state: noRoute, tag: "noroute", canvas: canvas) && allOK
+
+        return allOK
+    }
+
+    /// 夹具用：走**真实** RoutePlanner 给一个弯道距离；拿不到返回 nil（卡片会显示「--」）。
+    @MainActor
+    private static func questFixtureRoutePlan(state: DriveState) -> RoutePlan? {
+        guard RouteGraph.ensureLoadedSync(), let g = RouteGraph.shared else {
+            print("[MC-QUEST] 路网未加载 → 弯道距离留空")
+            return nil
+        }
+        let egoX = DriveState.worldToMapPixelX(state.locatorX, state.locatorY)
+        let egoY = DriveState.worldToMapPixelY(state.locatorX, state.locatorY)
+        guard let s = g.nearestNode(x: egoX, y: egoY) else { return nil }
+        var target: Int? = nil
+        var best = Double.infinity
+        for (i, n) in g.nodes.enumerated() where i != s {
+            let d = hypot(n.x - g.nodes[s].x, n.y - g.nodes[s].y)
+            guard d > 400, d < 900 else { continue }
+            if abs(d - 650) < best { best = abs(d - 650); target = i }
+        }
+        guard let t = target else { return nil }
+        return try? RoutePlanner.route(graph: g, from: s, to: t,
+                                       turnWeight: RoutePlanner.defaultTurnWeight)
+    }
+
+    /// 用**真实** `ViewportPanel` 出一张图（不是另画一份，位置/字体/辉光全是真的）。
+    ///
+    /// 【为什么只画 ViewportPanel 一个，不连整台控制台】
+    ///   卡片贴顶 + 居中这两条要靠**像素测量**验收。若把 TopBar/RCBar/中栏右栏一起
+    ///   画进去，探针就得先猜"哪条边是预览框的上边"，容易量错。这里只画真实
+    ///   预览框本体（外加一条同宽的 RCBar 保持上下文），让测量无歧义：
+    ///   图里唯一一个圆角面板就是预览框。
+    @MainActor
+    private static func renderQuestCard(state: DriveState, tag: String, canvas: CGSize) -> Bool {
+        let view = VStack(spacing: 0) {
+            RCBar(condition: .constant(state.roadCondition), autoSpeedOn: true)
+                .padding(.horizontal, 13).padding(.top, 11).padding(.bottom, 2)
+            ViewportPanel(state: state)
+                .frame(height: canvas.height - 90)
+                .padding(13)
+        }
+        .frame(width: canvas.width)
+        .background(Aurora.void)
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        guard let img = renderer.nsImage,
+              let tiff = img.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else {
+            print("[MC-QUEST] ✗ 渲染失败 tag=\(tag)")
+            return false
+        }
+        let path = "/tmp/aurora_mc_quest_card_\(tag).png"
+        do {
+            try png.write(to: URL(fileURLWithPath: path))
+            print("[MC-QUEST] saved=true tag=\(tag) path=\(path) 任务=\(state.questName ?? "<nil>") 画布=\(Int(canvas.width))x\(Int(canvas.height))")
+            return true
+        } catch {
+            print("[MC-QUEST] ✗ 写盘失败 tag=\(tag) \(error)")
             return false
         }
     }

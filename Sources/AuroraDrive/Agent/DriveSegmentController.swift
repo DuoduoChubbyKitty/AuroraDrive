@@ -102,13 +102,14 @@ final class DriveSegmentController {
     private(set) var handoverProgress = "—"
 
     init() {
-        let env = ProcessInfo.processInfo.environment
-        straightenTriggerDeg = env["AURORA_SEG_STRAIGHTEN_DEG"].flatMap(Double.init) ?? 15.0
-        straightenDoneDeg = env["AURORA_SEG_STRAIGHTEN_DONE_DEG"].flatMap(Double.init) ?? 8.0
-        handoverMinDistanceM = env["AURORA_SEG_HANDOVER_M"].flatMap(Double.init) ?? 15.0
-        handoverMinFrames = env["AURORA_SEG_HANDOVER_FRAMES"].flatMap(Int.init) ?? 10
-        corridorToleranceM = env["AURORA_SEG_CORRIDOR_M"].flatMap(Double.init) ?? 8.0
-        mapTurnTimeoutS = env["AURORA_SEG_MAP_TIMEOUT_S"].flatMap(Double.init) ?? 20.0
+        // A17 迁移：6 个开关统一走 `AuroraFlags`（原来在这里 `let env = ...` 现读 6 次，
+        // 每次 17–32 µs）。默认值逐字不变，对照表见 AuroraFlags 里各 static let 的注释。
+        straightenTriggerDeg = AuroraFlags.segStraightenDeg
+        straightenDoneDeg = AuroraFlags.segStraightenDoneDeg
+        handoverMinDistanceM = AuroraFlags.segHandoverM
+        handoverMinFrames = AuroraFlags.segHandoverFrames
+        corridorToleranceM = AuroraFlags.segCorridorM
+        mapTurnTimeoutS = AuroraFlags.segMapTimeoutS
     }
 
     // MARK: - 主更新

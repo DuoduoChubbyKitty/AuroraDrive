@@ -136,10 +136,14 @@ extension DriveState {
 }
 
 // ============================================================================
-// MARK: - 地图数据库（FINAL_complete_map_database.json）
+// MARK: - 地图数据库（models/map_locations.json）
 // ============================================================================
-// 真实的离线地图数据库：5677 个标记点 + 100 个传送点 + 服务点等。
-// 只读一次、常驻内存，供顶栏计数与地图标记使用。
+// 真实的离线地图数据库：1777 个点位（像素坐标 + 分类 + 组 + 图标）。
+// 由 tools/map/build/build_locations.py 生成；只读一次、常驻内存，
+// 供顶栏计数与地图标记使用。
+//
+// 2026-10-04 换源：原 `FINAL_complete_map_database.json`（5677 点，0~100 百分比）
+// 坐标实测中位差 2463px（≈1500 米）——「传送点不在图层上」的真凶。详见 loadFromDisk()。
 
 enum MapDatabase {
     struct Marker {
@@ -165,6 +169,12 @@ enum MapDatabase {
         let groupLabel: String?
         /// 原始 icon basename（不含目录与扩展名），用于取 `models/map_icons/<name>.webp`
         let iconName: String?
+        /// 细分分类 id（如 `oracle-stone` / `teleport-tower`）。
+        ///
+        /// ⚠️ 2026-10-04 新增：右栏 `CategoryPanel` 是按**分类**（42 个）勾选的，
+        /// 地图必须能按分类过滤。只到「组」粒度的话，同组内 25 个分类互相牵连，
+        /// 右栏那些勾选框点了等于没点 —— 用户原话「右边那层侧边栏完全没有任何用处」。
+        let category: String?
 
         /// 组是否有效（词表命中）
         var hasGroup: Bool { group != nil }
@@ -174,8 +184,51 @@ enum MapDatabase {
     private(set) static var markers: [Marker] = []
     private static var didLoad = false
 
+    /// 按组统计点位数量。
+    ///
+    /// 【真源】从**点位内嵌的 `group`** 现算 —— 真源是 `models/map_locations.json`
+    /// （每个点位自带 `group` / `groupLabel`，由 `tools/map/build/build_locations.py`
+    /// 从 `map_categories.json` 写入），**不是任何词表副本**。
+    ///
+    /// 【为什么不用 `MarkerTaxonomy.countByGroup`】
+    /// 那个算的是「旧词表 `byMarker` 的组计数」。而旧词表是按**旧库 id**
+    /// （`imapp-phone-booth-17180` 之类）键控的，与数据源新 id（`phonebooth-001`）
+    /// **交集为 0** —— 它之所以一度"看起来对"，纯属旧词表键数（5677）与旧库点数
+    /// （也是 5677）相同的**巧合**。这正是「假绿」：断言绿着，但绿得毫无意义。
+    /// 换成从点位内嵌字段现算后，它才第一次真正测到「点位有组」。
+    ///
+    /// 【实测值】2026-10-04，数据源 1777 点（`map_locations.json`）：
+    /// ```
+    ///   探索度 explore  = 450      商店 shop     = 0
+    ///   资源   resource = 1045     服务 service  = 0
+    ///   传送点 travel   = 28       地标 landmark = 0
+    ///   怪物   monster  = 254      合计          = 1777
+    /// ```
+    /// ⚠️ 这三个 0 是**真的 0**（本数据集 42 类里没有商店/服务/地标），不是缺数据：
+    /// `map_categories.json` 里这三组 `count=0` 且带 `emptyReason` 字段。
+    ///
+    /// 【性能】O(1777) 一次字典累加，实测 < 0.1ms；调用点（自检/图例）都是低频路径，
+    /// 故**不做缓存** —— 缓存会引入「数据换了统计没换」的新一类漂移。
+    static var countByGroup: [String: Int] {
+        var out: [String: Int] = [:]
+        out.reserveCapacity(8)
+        for m in markers {
+            guard let g = m.group else { continue }
+            out[g, default: 0] += 1
+        }
+        return out
+    }
+
     /// 地图数据库加载完成后置为 true，供 UI 重新求值（静态存储不触发 SwiftUI 更新）。
     private(set) static var loaded = false
+
+    /// 最近一次加载失败原因（nil = 成功）。
+    ///
+    /// 「静默失败是最坏的失败」：新库缺失时地图会是空的，用户看到空图只会以为
+    /// 「这游戏没数据」，而不是「文件没装 / 生成脚本没跑」—— 两者的处置完全不同。
+    /// 所以失败必须同时走两条路：① 日志（`[MAPDB] ✗ …`）② 界面可见提示
+    /// （`LargeMapCanvas` 底部红条直接读本字段）。
+    private(set) static var loadError: String?
 
     /// 幂等加载。找不到文件时计数为 0（UI 如实显示 0，不编造）。
     ///
@@ -223,13 +276,14 @@ enum MapDatabase {
             let result = loadFromDisk()
             DispatchQueue.main.async {
                 // 主线程一次性落状态（静态存储不触发 SwiftUI 更新，靠 `loaded` 标志）
-                if let r = result {
-                    markers = r.markers
-                    markerCount = r.markers.count
-                    loaded = true
-                    print("[MAPDB] 已加载 \(r.path) markers=\(r.markers.count)")
+                markers = result.markers
+                markerCount = result.markers.count
+                loadError = result.error
+                loaded = true
+                if let e = result.error {
+                    print("[MAPDB] ✗ \(e)（计数显示 0，地图将为空）")
                 } else {
-                    print("[MAPDB] ✗ 未找到地图数据库（计数显示 0）")
+                    print("[MAPDB] 已加载 \(result.path ?? "?") markers=\(result.markers.count)")
                 }
                 didLoad = true
                 isLoading = false
@@ -241,48 +295,83 @@ enum MapDatabase {
     private static var isLoading = false
 
     /// 后台线程：纯 I/O + 解析，不触碰任何 UI 状态。
-    /// 返回 nil 表示所有候选路径都不存在或解析失败。
-    private static func loadFromDisk() -> (path: String, markers: [Marker])? {
+    ///
+    /// 返回 `(命中的文件路径, 标记数组, 失败原因)`；失败原因非 nil 时标记为空数组。
+    /// **不再返回 Optional**：失败必须带原因上浮，不能只给一个 nil 让调用方
+    /// 自己猜「是没文件还是解析坏了」—— 静默失败是最坏的失败（见 `loadError`）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ⚠️ 2026-10-04 换数据源：`FINAL_complete_map_database.json` → `map_locations.json`
+    /// ══════════════════════════════════════════════════════════════════════
+    ///
+    /// 【为什么要换】旧库 5677 点的 x/y 是 **0~100 百分比**，实测它与正确数据在
+    ///   71 个同名点上**中位差 2463px（≈1500 米）**、0/71 落在 30px 内 —— 这正是
+    ///   用户一直反馈的「传送点完全不在图层上」的真凶。坐标错在**数据本身**，
+    ///   不是渲染也不是标定，所以只能在数据源这一层修。
+    ///
+    /// 【新库】`models/map_locations.json`（1777 点）由
+    ///   `tools/map/build/build_locations.py` 从上游 `map-data.json` 的**世界坐标**
+    ///   加我们自己的标定（kCalibA/B/TX/TY，与 CoordinateCapture.swift 逐位相同）
+    ///   换算而来，**存的直接就是 13056 像素**，与 `worldToMapPixel` 输出同系 ——
+    ///   不再有「百分比 / 像素」的换算余地（上一版就是在这里少乘一次 mapPixels）。
+    ///   实测与 `tools/roadnet/web/poi.json` 的 1621 个同名点**中位差 0.04px**。
+    ///
+    /// 【为什么不回落旧库】旧库文件仍在仓库里（只读保留，供历史夹具与
+    ///   `--taxonomy-selftest` 使用），但**不做运行时兜底**：它已知错 1500 米，
+    ///   画出来是「看着有点、其实全错」—— 比空地图难查得多。新库缺失时如实报错、
+    ///   计数为 0，并在日志里给出重新生成的命令。
+    private static func loadFromDisk() -> (path: String?, markers: [Marker], error: String?) {
         // 用 AuroraPaths.projectRoot() 定位：双击 .app 启动时 cwd 是 "/"，
         // 依赖 cwd 会找不到数据库（界面标记数显示 0）。
         let root = AuroraPaths.projectRoot()
         let cands = [
-            root.appendingPathComponent("models/FINAL_complete_map_database.json").path,
-            Bundle.main.resourceURL?.appendingPathComponent("FINAL_complete_map_database.json").path
+            root.appendingPathComponent("models/map_locations.json").path,
+            Bundle.main.resourceURL?.appendingPathComponent("map_locations.json").path
         ].compactMap { $0 }
 
         for path in cands where FileManager.default.fileExists(atPath: path) {
             guard let data = FileManager.default.contents(atPath: path),
-                  let rootObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { continue }
-            guard let all = rootObj["markers_all"] as? [[String: Any]] else {
-                return (path, [])
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else {
+                return (path, [], "map_locations.json 读取或 JSON 解析失败：\(path)")
             }
-            let parsed = all.compactMap { m -> Marker? in
-                guard let x = (m["x"] as? NSNumber)?.doubleValue,
-                      let y = (m["y"] as? NSNumber)?.doubleValue else { return nil }
-                // 数据库的 x/y 是**归一化百分比（0~100）**，对应整张 13056×13056 地图。
-                // 直接换算成地图像素，与自车（worldToMapPixel 输出）处于同一坐标系。
-                let mx = x / 100.0 * MapTileImage.mapPixels
-                let my = y / 100.0 * MapTileImage.mapPixels
-                let kind = (m["type"] as? String) ?? (m["kind"] as? String) ?? "landmark"
-                let mid = (m["id"] as? String) ?? Self.syntheticID(name: (m["name"] as? String) ?? "",
-                                                                  kind: kind, mx: mx, my: my)
-                let g = MarkerTaxonomy.group(forMarker: mid)
-                return Marker(name: (m["name"] as? String) ?? "",
-                              mapX: mx, mapY: my,
-                              kind: kind,
-                              region: (m["_region_key"] as? String)
-                                      ?? (m["region"] as? String) ?? "",
-                              worldX: x, worldY: y,
-                              id: mid,
-                              group: g?.id,
-                              groupLabel: g?.label,
-                              iconName: Self.iconBase(m["icon"] as? String))
+            guard let all = obj["locations"] as? [[String: Any]] else {
+                return (path, [], "map_locations.json 结构非法（缺 locations 数组）：\(path)")
             }
-            return (path, parsed)
+            let parsed = all.compactMap { parseLocation($0) }
+            if parsed.isEmpty {
+                return (path, [], "map_locations.json 里 0 条有效点位（字段名对不上？）：\(path)")
+            }
+            return (path, parsed, nil)
         }
-        return nil
+        return (nil, [], "未找到 models/map_locations.json"
+                + " —— 先跑：python3 tools/map/build/build_locations.py")
+    }
+
+    /// 单条 location（`models/map_locations.json`）→ `Marker`。
+    ///
+    /// 字段全部取自新表，**不再查 `MarkerTaxonomy`**：词表的 `byMarker` 是按
+    /// **旧库 id**（`zlv2-fast-travel-…`）键控的，新 id（`oracle-stone-001`）在里面
+    /// 一条都查不到。若沿用旧查表，1777 个点的 `group` 会全是 nil、整张图回落成
+    /// 一片同色 —— 正是「数据对了但没生效」那类最难查的错。
+    /// 分组由 `map_categories.json` 与点位表同源生成，已写进每个点位。
+    private static func parseLocation(_ m: [String: Any]) -> Marker? {
+        guard let mx = (m["mapX"] as? NSNumber)?.doubleValue,
+              let my = (m["mapY"] as? NSNumber)?.doubleValue else { return nil }
+        let name = (m["name"] as? String) ?? ""
+        let kind = (m["category"] as? String) ?? "landmark"
+        let mid = (m["id"] as? String) ?? syntheticID(name: name, kind: kind, mx: mx, my: my)
+        return Marker(name: name,
+                      mapX: mx, mapY: my,        // ← 已是地图像素，不再 ×mapPixels
+                      kind: kind,
+                      region: (m["district"] as? String) ?? "",
+                      worldX: (m["worldX"] as? NSNumber)?.doubleValue ?? 0,
+                      worldY: (m["worldY"] as? NSNumber)?.doubleValue ?? 0,
+                      id: mid,
+                      group: m["group"] as? String,
+                      groupLabel: m["groupLabel"] as? String,
+                      iconName: iconBase(m["iconName"] as? String),
+                      category: m["category"] as? String)
     }
 
     /// icon 路径 → basename（去目录、去扩展名）。
@@ -316,51 +405,22 @@ enum MapDatabase {
     static func ensureLoadedSyncLegacy() {
         guard !didLoad else { return }
         didLoad = true
-        // ⚠️ 词表必须先就绪 —— 理由同 `ensureLoaded()`：标记的 group 字段
-        //    在解析时一次性写入，词表晚到就会让整张图回落成一片同色。
+        // ⚠️ 词表必须先就绪 —— 理由同 `ensureLoaded()`：UI 的组色与筛选按
+        //    `MarkerTaxonomy.groups` 取，标记自带的 group id 与它同一套。
         MarkerTaxonomy.ensureLoadedSync()
-        // 用 AuroraPaths.projectRoot() 定位：双击 .app 启动时 cwd 是 "/"，
-        // 依赖 cwd 会找不到数据库（界面标记数显示 0）。
-        let root = AuroraPaths.projectRoot()
-        let cands = [
-            root.appendingPathComponent("models/FINAL_complete_map_database.json").path,
-            Bundle.main.resourceURL?.appendingPathComponent("FINAL_complete_map_database.json").path
-        ].compactMap { $0 }
-
-        for path in cands where FileManager.default.fileExists(atPath: path) {
-            guard let data = FileManager.default.contents(atPath: path),
-                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { continue }
-            if let all = root["markers_all"] as? [[String: Any]] {
-                markers = all.compactMap { m in
-                    guard let x = (m["x"] as? NSNumber)?.doubleValue,
-                          let y = (m["y"] as? NSNumber)?.doubleValue else { return nil }
-                    // 数据库的 x/y 是**归一化百分比（0~100）**，对应整张 13056×13056 地图。
-                    // 直接换算成地图像素，与自车（worldToMapPixel 输出）处于同一坐标系。
-                    let mx = x / 100.0 * MapTileImage.mapPixels
-                    let my = y / 100.0 * MapTileImage.mapPixels
-                    let kind = (m["type"] as? String) ?? (m["kind"] as? String) ?? "landmark"
-                    let mid = (m["id"] as? String) ?? syntheticID(name: (m["name"] as? String) ?? "",
-                                                                  kind: kind, mx: mx, my: my)
-                    let g = MarkerTaxonomy.group(forMarker: mid)
-                    return Marker(name: (m["name"] as? String) ?? "",
-                                  mapX: mx, mapY: my,
-                                  kind: kind,
-                                  region: (m["_region_key"] as? String)
-                                          ?? (m["region"] as? String) ?? "",
-                                  worldX: x, worldY: y,
-                                  id: mid,
-                                  group: g?.id,
-                                  groupLabel: g?.label,
-                                  iconName: iconBase(m["icon"] as? String))
-                }
-                markerCount = markers.count
-            }
-            loaded = true
-            print("[MAPDB] 已加载 \(path) markers=\(markerCount)")
-            return
+        // 与异步路径**共用同一个 `loadFromDisk()`**：这两条路径历史上各写了一份
+        // 解析逻辑，换数据源时极易只改一条 → 真机对、离屏夹具错（或反之），
+        // 而且两边都不报错。合并成一份是唯一能长期防住这种分家的做法。
+        let r = loadFromDisk()
+        markers = r.markers
+        markerCount = r.markers.count
+        loadError = r.error
+        loaded = true
+        if let e = r.error {
+            print("[MAPDB] ✗ \(e)（计数显示 0，地图将为空）")
+        } else {
+            print("[MAPDB] 已加载 \(r.path ?? "?") markers=\(r.markers.count)")
         }
-        print("[MAPDB] ✗ 未找到地图数据库（计数显示 0）")
     }
 }
 
@@ -386,12 +446,15 @@ extension MapDatabase {
         let group: String?
         let groupLabel: String?
         let iconName: String?
+        /// 细分分类 id（右栏按分类过滤用，见 `Marker.category`）
+        let category: String?
         // 存储属性（init 里算一次）：四项输入全是 let，创建后不变。
         // 原计算属性在 ForEach 身份求解时每次重绘都重建字符串。
         let stableID: String
 
         init(name: String, kind: String, mapX: Double, mapY: Double,
-             id: String, group: String?, groupLabel: String?, iconName: String?) {
+             id: String, group: String?, groupLabel: String?, iconName: String?,
+             category: String? = nil) {
             self.name = name
             self.kind = kind
             self.mapX = mapX
@@ -400,6 +463,7 @@ extension MapDatabase {
             self.group = group
             self.groupLabel = groupLabel
             self.iconName = iconName
+            self.category = category
             self.stableID = id
         }
 
@@ -430,7 +494,8 @@ extension MapDatabase {
                 hit.append((dx * dx + dy * dy,
                             PlacedMarker(name: m.name, kind: m.kind, mapX: mx, mapY: my,
                                          id: m.id, group: m.group,
-                                         groupLabel: m.groupLabel, iconName: m.iconName)))
+                                         groupLabel: m.groupLabel, iconName: m.iconName,
+                                         category: m.category)))
             }
         }
         hit.sort { $0.0 < $1.0 }
@@ -453,7 +518,9 @@ extension MapDatabase {
             if abs(mx - centerX) <= half, abs(my - centerY) <= half {
                 out.append(PlacedMarker(name: m.name, kind: m.kind, mapX: mx, mapY: my,
                                         id: m.id, group: m.group,
-                                        groupLabel: m.groupLabel, iconName: m.iconName))
+                                        groupLabel: m.groupLabel,
+                                        iconName: m.iconName,
+                                        category: m.category))
             }
         }
         return out

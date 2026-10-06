@@ -63,6 +63,14 @@ final class InferenceEngine {
     /// 是否已加载模型（启动时 lazy 加载）
     private(set) var isLoaded = false
 
+    /// A19（2026-10-04）：是否有一次**后台加载在途**。
+    ///
+    /// 为什么需要它：兜底加载从"同步"改成"后台异步"后，30Hz 的 `infer()`
+    /// 每帧都会走到兜底分支 —— 没有这个门就会排队 30 次加载。
+    /// `lastLoadAttempt` 的 5s 冷却门只能挡住"失败的重复尝试"，
+    /// 挡不住"第一次加载还在途中时的重复提交"。
+    private var isLoadingModel = false
+
     /// 是否正在推理中（防止重叠推理）
     private(set) var isInferencing = false
 
@@ -114,6 +122,13 @@ final class InferenceEngine {
     /// 本引擎加载的模型文件名（不带扩展名）
     private let modelFileName: String
 
+    /// A20（2026-10-04）：PerfBus 通道名。
+    /// 同一份代码承载两套模型（M9 端到端主驾 / game_assist_control 第二司机），
+    /// 报告里必须分开统计，否则看不出"到底哪套模型贵"。
+    private var perfChannel: String {
+        modelFileName == "game_assist_control" ? "infer.assist" : "infer.m9"
+    }
+
     /// 初始化
     /// - Parameter modelFileName: 模型文件名（默认 "m9_mono" 端到端主驾；
     ///   "game_assist_control" 为第二套驾驶模型，YOLO接管档的司机）
@@ -156,6 +171,56 @@ final class InferenceEngine {
         } catch {
             errorMessage = "模型加载失败: \(error.localizedDescription)"
             isLoaded = false
+        }
+    }
+
+    /// A19（2026-10-04）：**后台**兜底加载。由 `infer()` 在"模型尚未加载"时调用。
+    ///
+    /// 与 `loadIfNeeded()` 的分工：
+    ///   · `loadIfNeeded()` —— 保持**同步、MainActor**，供启动路径显式预热用
+    ///     （那里本来就在等，同步语义更简单）。
+    ///   · 本方法 —— 热路径兜底，**绝不阻塞主线程**。
+    ///
+    /// 三重门（缺一不可）：
+    ///   ① `isLoadingModel` —— 一次只允许一个在途加载（30Hz 每帧都会进来）
+    ///   ② `loadRetryCooldown` —— 失败后 5s 内不重试（与 `loadIfNeeded` 同源，
+    ///      避免"模型文件损坏 → 每帧重试 → 每秒 30 次 CoreML 报错"的风暴）
+    ///   ③ `generation` 比对 —— 加载期间若发生 `reloadModel()`/`reset()`，
+    ///      回来的结果必须丢弃（否则"热替换成新模型"会被这次迟到的旧加载覆盖）
+    private func scheduleBackgroundLoadIfNeeded() {
+        guard !isLoadingModel else { return }
+        guard Date().timeIntervalSince(lastLoadAttempt) >= loadRetryCooldown else { return }
+        lastLoadAttempt = Date()
+        isLoadingModel = true
+
+        // 全部用值捕获：`modelURL` 是计算属性（内部走 AuroraPaths 缓存），
+        // 在进后台队列**之前**求值，避免后台线程碰 MainActor 状态。
+        let url = modelURL
+        let fileName = modelFileName
+        let gen = generation
+        let queue = inferenceQueue
+
+        queue.async { [weak self] in
+            // ── 真正耗时的部分：磁盘 I/O + CoreML 图编译，**在后台** ──
+            let config = MLModelConfiguration()
+            config.computeUnits = .all
+            let loaded = try? MLModel(contentsOf: url, configuration: config)
+
+            // ── 只把赋值这一小步回主线程 ──
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.isLoadingModel = false
+                guard self.generation == gen else { return }   // 门③：期间被作废
+                if let loaded {
+                    self.model = loaded
+                    self.isLoaded = true
+                    self.errorMessage = nil
+                    Self.warmUp(model: loaded, label: fileName, queue: queue)
+                } else {
+                    self.errorMessage = "模型加载失败（后台兜底加载）: \(url.lastPathComponent)"
+                    self.isLoaded = false
+                }
+            }
         }
     }
 
@@ -209,8 +274,28 @@ final class InferenceEngine {
     ///   - speedLimitKmh: 当前限速 km/h（vehicle_state 的 speed_limit_norm 用）
     /// - 注意：在后台队列执行，结果写 lastResult（@MainActor 保证主线程）
     func infer(image: CGImage, speedKmh: Double, speedLimitKmh: Double) {
+        // ══════════════════════════════════════════════════════════════════════
+        // A19（2026-10-04）：兜底加载**不再同步**
+        // ══════════════════════════════════════════════════════════════════════
+        // 【改前】`guard isLoaded, let modelRef = model else { loadIfNeeded(); return }`
+        //   —— `loadIfNeeded()` 里是同步 `MLModel(contentsOf:)`，实测单模型
+        //   **冷态 250–1330ms / 热态 16–62ms**，而本方法由 `tick()` 在**主线程**
+        //   每帧调用。后果：模型没加载时，第一帧就把主线程冻住数百毫秒到 1.3 秒。
+        //   最坏情形（`EngineClient` 心跳误判断线 → UI 回落本地分支）会**连续
+        //   触发 4 个模型**（M9/assist/YOLO/YOLOPX），实测合计 **2876ms 单帧冻结**。
+        //
+        // 【为什么不能照搬 `inferenceQueue.async { self.loadIfNeeded() }`】
+        //   本类是 `@MainActor`（:49），`loadIfNeeded()` 是 **MainActor 隔离**的。
+        //   从后台队列直接调它是跨 actor 违规（Swift 6 下是 error）。
+        //   而 `Task { @MainActor in loadIfNeeded() }` 仍然跑在主线程上 ——
+        //   冻结一秒不少。**换线程不是目的，把重活挪出主线程才是。**
+        //
+        // 【本实现】在后台队列做 `MLModel(contentsOf:)`（真正耗时的部分），
+        //   只把结果赋值这一小步回主线程。`model` 已是 `nonisolated(unsafe)`，
+        //   但为了让 `isLoaded` / `errorMessage` 的写仍然满足 MainActor 约束，
+        //   统一在 `Task { @MainActor }` 里落值。
         guard isLoaded, let modelRef = model else {
-            loadIfNeeded()
+            scheduleBackgroundLoadIfNeeded()
             return
         }
         guard !isInferencing else { return }   // 防重叠：上一帧还没跑完就跳过
@@ -299,6 +384,11 @@ final class InferenceEngine {
             lastResult = result
             lastResultTime = Date()
             inferenceCount += 1
+            // A20（2026-10-04）：把**真实推理耗时**汇进 PerfBus。
+            // 注意区分：--perf-selftest 原有的 submit.m9 / submit.assist 通道
+            // 测的是 DispatchQueue.async 的**提交开销**（p50 ≈ 0.008ms），
+            // 与真正干活的推理耗时（本行）差三个数量级。
+            PerfBus.shared.record(perfChannel, ms: result.latencyMs)
         }
         if let error = error {
             errorMessage = error

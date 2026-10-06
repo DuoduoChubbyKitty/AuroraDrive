@@ -1,5 +1,18 @@
 // SPDX-FileCopyrightText: 2026 AuroraDrive
 // SPDX-License-Identifier: GPL-3.0-or-later
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// 【出处标注 · 品牌澄清】2026-10-04
+//   本文件**整体移植自上游开源项目 MaaNTE 的 `nte_coordinate_api.py`**
+//   （AGPL-3.0）。下文注释里的「MaaNTE」一律是**上游项目名**，用于交代
+//   协议逆向结论、过滤器口径、标定常量的来源 —— **它不是本产品的品牌**。
+//   本产品品牌：`AuroraDrive`（见 `App/AuroraBrand.swift`）。
+//   保留出处的理由（这条尤其硬）：
+//     · AGPL-3.0 的**署名义务**要求保留出处，抹掉等于违反许可证；
+//     · 30031 端口、`tcp port 30031 or udp` 过滤器、kCalibA/B/TX/TY 标定
+//       常量全部是"上游实测 + 我们复测"的结论，抹掉出处就没法复核。
+//   故：出处保留；品牌层（用户可见字符串 / 标识符）不得出现上游名。
+// ═══════════════════════════════════════════════════════════════════════════
 // 从 MaaNTE nte_coordinate_api.py 移植（AGPL-3.0）
 // 自包含网络定位：libpcap抓包 → UE5移动包解析 → 世界坐标+朝向
 
@@ -577,10 +590,51 @@ private let pcapLogCandidates: [String] = {
 /// 本进程选定并已验证可写的日志路径（首次调用时探测一次并缓存）。
 private var pcapLogResolvedPath: String?
 
+// ── 日志上限与轮转（2026-10-04 A4）────────────────────────────────────────
+//
+// 【为什么必须加】`pcapLog` 原来是**纯追加、无轮转、无上限**：
+//   实测 2026-10-04 同日 `/tmp/aurora_pcap.log` 从 240 KB 涨到 632 KB。
+//   而用户是 24/7 挂机场景 —— 按此速率长期运行会无限增长；
+//   但它是定位子系统的**唯一排障入口**，既不能删、也不能因为怕涨就不写。
+//
+// 【策略】8 MB 上限 + **单备份**轮转（`<path>.1`，覆盖式）：
+//   · 路径一字不改（`/tmp/aurora_pcap.log` 仍是排障入口，`tail -f` 习惯不变）；
+//   · 峰值占用 = 8 MB（当前）+ 8 MB（备份）= **16 MB 封顶**，可预测；
+//   · 单备份而非多份：排障看的是「最近发生了什么」，两份足够；
+//     多份会让磁盘占用不可预测 —— 那正是本改动要消灭的问题本身。
+//
+// 【为什么节流】轮转检查要 `stat` 一次（约 2~5 µs）。pcapLog 在突发流量下
+//   每秒可被调用上百次，逐次 stat 属白烧。故每 64 次写入才检查一次 ——
+//   最坏情况文件超出上限 64 条日志（≈6 KB），相对 8 MB 上限可忽略。
+private let pcapLogMaxBytes: UInt64 = 8 * 1024 * 1024
+private let pcapLogCheckEvery: UInt64 = 64
+private var pcapLogWriteCount: UInt64 = 0
+
+/// 超过上限则把当前日志改名为 `<path>.1`（覆盖旧备份）并重建空文件。
+/// 返回 true 表示发生了轮转。**只改名、不删日志、不改路径。**
+private func pcapLogRotateIfNeeded(path: String) -> Bool {
+    let fm = FileManager.default
+    guard let attrs = try? fm.attributesOfItem(atPath: path),
+          let size = attrs[.size] as? UInt64,
+          size >= pcapLogMaxBytes else { return false }
+    let backup = path + ".1"
+    try? fm.removeItem(atPath: backup)               // 单备份：旧 .1 直接覆盖
+    try? fm.moveItem(atPath: path, toPath: backup)   // 当前 → .1
+    fm.createFile(atPath: path, contents: nil)       // 重建空文件
+    return true
+}
+
 func pcapLog(_ msg: String) {
     let ts = ISO8601DateFormatter().string(from: Date())
     let line = ts + " " + msg + "\n"
     guard let data = line.data(using: .utf8) else { return }
+
+    // 轮转检查（节流：每 64 次写入 stat 一次）。**放在写之前**，
+    // 这样本轮就落到新文件里，不留「已超限却还在写旧文件」的窗口。
+    pcapLogWriteCount &+= 1
+    if pcapLogWriteCount % pcapLogCheckEvery == 0, let path = pcapLogResolvedPath {
+        _ = pcapLogRotateIfNeeded(path: path)
+    }
 
     // 已有可用路径 → 直接追加（热路径，不重复探测）
     if let path = pcapLogResolvedPath {

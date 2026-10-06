@@ -47,10 +47,6 @@ enum MarkerTaxonomy {
 
     /// 已加载的词表
     private(set) static var groups: [Group] = []
-    /// marker.id → group.id
-    private(set) static var groupByMarker: [String: String] = [:]
-    /// group.id → 该组成员数
-    private(set) static var countByGroup: [String: Int] = [:]
     /// 词表是否已就绪（UI 据此重新求值）
     private(set) static var loaded = false
     /// 最近一次加载失败原因（如实显示，不编造）
@@ -59,12 +55,23 @@ enum MarkerTaxonomy {
     private static var isLoading = false
     private static var didLoad = false
 
-    /// 词表文件路径。`AURORA_MARKER_TAXONOMY` 可覆写（便于 A/B）。
+    /// 7 组定义的文件路径 —— **真源是 `map_categories.json`**（2026-10-04 合并真源）。
+    ///
+    /// 【语义变更】本字段原指向 `marker_taxonomy.json` —— 那是从**旧数据源**派生的
+    /// 词表副本。实测它与新数据源 `map_locations.json` 的 **id 交集为 0**
+    /// （旧 id `imapp-phone-booth-17180` vs 新 id `phonebooth-001`），
+    /// 于是 `groupID(forMarker:)` 全查不到 → 所有点位 group 为 nil → 分类筛选/配色
+    /// 全部失去依据。根因是**两个各自演化的真源**，不是"忘了跑脚本"。
+    /// 合并后 `groups` 直读分类表（`map_categories.json` 的 `groups` 字段与
+    /// `Group` 所需字段完全兼容：id/label/order/defaultOn/color，无缺字段）。
+    ///
+    /// `AURORA_MARKER_TAXONOMY` **保留原名**（`AuroraFlags.swift:464` 已登记，
+    /// 改名要动别人的文件），语义改为「覆盖 `map_categories.json` 路径」。
     static var url: URL {
         if let p = ProcessInfo.processInfo.environment["AURORA_MARKER_TAXONOMY"], !p.isEmpty {
             return URL(fileURLWithPath: p)
         }
-        return AuroraPaths.modelsDir().appendingPathComponent("marker_taxonomy.json")
+        return AuroraPaths.modelsDir().appendingPathComponent("map_categories.json")
     }
 
     /// 默认开启的组（`AURORA_MAP_DEFAULT_GROUPS` 可覆写，逗号分隔中文名或 id）
@@ -111,15 +118,6 @@ enum MarkerTaxonomy {
 
     // MARK: 查询
 
-    /// 取某标记的组（词表未加载或该标记无记录时 nil）
-    static func group(forMarker id: String) -> Group? {
-        guard let gid = groupByMarker[id] else { return nil }
-        return groups.first { $0.id == gid }
-    }
-
-    /// 取某标记的组 id
-    static func groupID(forMarker id: String) -> String? { groupByMarker[id] }
-
     // MARK: 加载
 
     /// 幂等异步加载（真机 UI 走这条）
@@ -143,23 +141,19 @@ enum MarkerTaxonomy {
         didLoad = true
     }
 
-    private static func apply(_ r: Result<([Group], [String: String], [String: Int]), TaxonomyFailure>) {
+    private static func apply(_ r: Result<[Group], TaxonomyFailure>) {
         switch r {
-        case .success(let (g, map, cnt)):
+        case .success(let g):
             groups = g
-            groupByMarker = map
-            countByGroup = cnt
             loaded = true
             loadError = nil
-            let summary = g.map { "\($0.label)=\(cnt[$0.id] ?? 0)" }.joined(separator: " ")
-            print("[TAXONOMY] 已加载 \(g.count) 组 / \(map.count) 标记映射  \(summary)")
+            let summary = g.map { "\($0.label)" }.joined(separator: " ")
+            print("[TAXONOMY] 已加载 \(g.count) 组（真源 map_categories.json）  \(summary)")
         case .failure(let why):
             // 关键：失败时保持 groups 为空 → 调用方回落旧配色。
             // 不抛错、不崩、不涂默认色假装成功。
             loadError = why.description
             groups = []
-            groupByMarker = [:]
-            countByGroup = [:]
             loaded = false
             print("[TAXONOMY] ✗ \(why) —— 地图将回落旧配色")
         }
@@ -173,20 +167,22 @@ enum MarkerTaxonomy {
         var description: String { msg }
     }
 
-    private static func loadFromDisk()
-    -> Result<([Group], [String: String], [String: Int]), TaxonomyFailure> {
+    /// 只产出 7 组定义。**不再产出 `byMarker`** —— 合并真源后，
+    /// 点位的组由 `map_locations.json` 内嵌的 `group` 字段承载，
+    /// 运行时不需要按 id 反查任何词表副本（那正是「两个真源」的来源）。
+    private static func loadFromDisk() -> Result<[Group], TaxonomyFailure> {
         let u = url
         guard let data = FileManager.default.contents(atPath: u.path) else {
-            return .failure(TaxonomyFailure("词表文件不存在：\(u.path)"))
+            return .failure(TaxonomyFailure("分类表不存在：\(u.path)"))
         }
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .failure(TaxonomyFailure("词表 JSON 解析失败：\(u.lastPathComponent)"))
+            return .failure(TaxonomyFailure("分类表 JSON 解析失败：\(u.lastPathComponent)"))
         }
-        guard let rawGroups = root["groups"] as? [[String: Any]],
-              let rawBy = root["byMarker"] as? [String: Any] else {
-            return .failure(TaxonomyFailure("词表结构非法：缺 groups / byMarker"))
+        guard let rawGroups = root["groups"] as? [[String: Any]] else {
+            return .failure(TaxonomyFailure("分类表结构非法：缺 groups"))
         }
 
+        // ── ① 7 组定义：真源 = map_categories.json ──
         var gs: [Group] = []
         for g in rawGroups {
             guard let id = g["id"] as? String,
@@ -197,21 +193,9 @@ enum MarkerTaxonomy {
                             defaultOn: (g["defaultOn"] as? NSNumber)?.boolValue ?? false,
                             colorHex: (g["color"] as? String) ?? "4CC9FF"))
         }
-        guard !gs.isEmpty else { return .failure(TaxonomyFailure("词表 groups 为空")) }
+        guard !gs.isEmpty else { return .failure(TaxonomyFailure("分类表 groups 为空")) }
         gs.sort { $0.order < $1.order }
 
-        var map: [String: String] = [:]
-        map.reserveCapacity(rawBy.count)
-        var cnt: [String: Int] = [:]
-        for (mid, v) in rawBy {
-            guard let cat = v as? String else { continue }
-            // category id 形如 "travel:type:waypoint" → 取组前缀
-            let gid = String(cat.split(separator: ":").first ?? "")
-            guard gs.contains(where: { $0.id == gid }) else { continue }
-            map[mid] = gid
-            cnt[gid, default: 0] += 1
-        }
-        guard !map.isEmpty else { return .failure(TaxonomyFailure("词表 byMarker 无有效条目")) }
-        return .success((gs, map, cnt))
+        return .success(gs)
     }
 }

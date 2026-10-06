@@ -78,59 +78,95 @@ let package = Package(
             name: "AuroraDrive",
             dependencies: ["AuroraDriveShared", "OpenCVFlow"],
             path: ".",
+            // ── 目录级白名单（2026-10-04 P5-A7）──
+            // 原来这里是 62 条 exclude + 62 条逐文件 sources 的手工清单，
+            // 每加一个文件都要改两处，漏一处就报 cannot find ... in scope
+            // 或刷 "found N file(s) which are unhandled"。
+            // 现在 sources 只列两个目录，exclude 只留「非源码但必须留在原地」的两个文件：
+            //   ① Shaders.metal —— 运行时由 GooseEngine.swift:456 按路径加载，不参与编译
+            //   ② CaptureEngine.swift.bak-* —— 历史备份，非源码（待人工清理）
+            // ── 仓库根卫生清单（2026-10-04 P5-A7 机器生成）──
+            // ⚠️ 本清单**不是**源码登记表 —— 源码登记在下面的 sources（目录级，自动纳入）。
+            //    它只是告诉 SwiftPM「这些不是本 target 的输入」，避免 path="." 把整个仓库
+            //    （含 .build/ 59 万个条目）当 unhandled 文件报出来。
+            //    新增顶层目录/文件后请跑 `bash scripts/check-package-sources.sh` 校验完整性。
             exclude: [
+                ".DS_Store",
+                ".agent-teams",
                 ".build",
-                "build",
-                "MaaNTE",
-                "scripts",
-                "docs",
-                "tools",
-                "checkpoints",
-                "data",
-                "diag_area",
-                "diag_steps",
-                "graphflow-out",
-                "models",
-                "recordings",
-                "BidKing_PR434",
-                "yolo26s.pt",
-                "train.log",
-                "photorec.log",
-                "photorec.ses",
-                // ── OpenCV 光流（2026-09-27 新增）──
-                // 主 target 的 path="." 会扫到整个仓库根，这两个目录必须排除：
-                //   Vendor/opencv       —— 纯头文件 + 静态库，不是 Swift 源码
-                //   Vendor/OpenCVFlow   —— 已由独立的 OpenCVFlow target 编译，
-                //                          不排除会被主 target 当源码再编一次（冲突）
-                "Vendor/opencv",
-                "Vendor/OpenCVFlow",
-                "run.sh",
-                "test-minimal-plugin.js",
-                "README.md",
-                "README.en.md",
-                "NOTICE",
+                ".dsh-computer-use",
+                ".dsh-edit-review-archive.json",
+                ".dsh-edit-review.json",
+                ".dsh-vision-router",
+                ".dsh-workspace-notes",
+                ".git",
+                ".gitignore",
+                ".last-build.log",
+                ".llm-key-notebook.md",
+                ".run-deploy.log",
+                ".swiftpm",
+                ".trae",
+                ".ui-shot.log",
+                ".venv-yolo26",
+                ".vscode",
+                ".workbuddy",
+                "AuroraDrive-交接文案.md",
+                "AuroraDrive-项目介绍",
+                "AuroraDrive-项目介绍-2",
                 "AuroraDriveUI",
                 "AuroraDriveUI.app",
-                ".workbuddy",
-                ".venv-yolo26",
-                ".trae",
-                ".vscode",
-                ".agent-teams",
-                ".dsh-computer-use",
-                ".dsh-vision-router",
-                ".dsh-edit-review.json",
-                ".dsh-edit-review-archive.json",
-                ".last-build.log",
-                ".run-deploy.log",
-                ".ui-shot.log",
-                ".llm-key-notebook.md",
+                "AuroraDriveUI.bak-20260929-2317",
+                "AuroraDriveUI.bak-before-egoflow-1001-1503",
+                "AuroraDriveUI.bak-before-flowtest-0148",
+                "AuroraDriveUI.bak-before-norecover-1002-1755",
+                "AuroraDriveUI.bak-before-stage5-1001-1415",
+                "AuroraDriveUI.bak_20260927_125623",
+                "AuroraDriveUI.bak_before_ayolom_20261002_215450",
+                "AuroraDriveUI.bak_before_picker_20261002_221158",
+                "AuroraDriveUI.bak_before_wirefix_20261002_224341",
+                "AuroraDriveUI.bak_v2_20260927_140721",
+                "AuroraDriveUI.bak_v3_20260927_235219",
+                "BidKing_PR434",
+                "MaaNTE",
+                "NOTICE",
                 "Plugins",
-                "src",
+                "README.en.md",
+                "README.md",
+                "Resources",
+                "YOLO家族三合一模型清单_2026-09-26.html",
+                "__pycache__",
+                "_bak_binaries",
+                "attachments-import",
+                "build",
+                "checkpoints",
+                "data",
+                "default.metallib",
+                "desktop-out",
+                "diag_area",
+                "diag_steps",
+                "docs",
+                "graphflow-out",
+                "iwY1tpok53eCTKn5-grok-workspace",
                 "legacy",
-                // ── 另两个 target 的源码（主 target path="." 会扫到，须排除；不影响各自 target 编译）──
+                "models",
+                "photorec.log",
+                "photorec.ses",
+                "ppt",
+                "print",
+                "recordings",
+                "run.sh",
+                "scripts",
+                "src",
+                "test-minimal-plugin.js",
+                "tools",
+                "train.log",
+                "yolo26s.pt",
+                "交接文档-异环外置盘.md",
+                "目标模式文档-自动驾驶修复.md",
                 "Sources/AuroraDriveShared",
                 "Sources/AuroraDriveUserAgent",
-                // ── Vendor/MetalGoose 根层：刻意不编译（仅 Engine/ 下 5 文件进白名单）──
+                "Vendor/OpenCVFlow",
+                "Vendor/opencv",
                 "Vendor/MetalGoose/AutoUpdater.swift",
                 "Vendor/MetalGoose/CaptureSettings.swift",
                 "Vendor/MetalGoose/ContentView.swift",
@@ -146,84 +182,22 @@ let package = Package(
                 "Vendor/MetalGoose/README.md",
                 "Vendor/MetalGoose/Shaders.metal",
                 "Vendor/MetalGoose/WindowCaptureManager.swift",
-                // ⚠️ Engine/Shaders.metal 不参与编译，但运行时由 GooseEngine.swift:456 按路径加载，
-                //    故仅 exclude（不进白名单），文件本体必须保留在原地。
                 "Vendor/MetalGoose/Engine/Shaders.metal",
-                // ── Python 字节码缓存 ──
-                "__pycache__"
+                "Sources/AuroraDrive/Capture/CaptureEngine.swift.bak-20260930",
             ],
+            // 目录级白名单：新增 .swift 自动纳入，不必再登记。
             sources: [
-                "Sources/AuroraDrive/App/AuroraTheme.swift",
-                "Sources/AuroraDrive/App/ControlWiring.swift",
-                "Sources/AuroraDrive/App/LocateRuntime.swift",
-                "Sources/AuroraDrive/App/MapWiring.swift",
-                // 路网寻路（2026-10-03 新增）：V5 路网图 + A*(拐弯惩罚)。
-                // 本 target 是显式 sources 白名单，新文件不登记就
-                // `cannot find 'RouteGraph' in scope`（本文件 :164 已记过这条教训）。
-                "Sources/AuroraDrive/App/RouteGraph.swift",
-                // 标记分类词表 + 网格聚类（2026-10-03 新增）：
-                // 7 组语义分类（词表由 tools/roadnet/build_taxonomy.py 生成）
-                // 与 52px 屏幕格聚类，解决「一片同色点 + 计程车站刷屏 + 卡」。
-                "Sources/AuroraDrive/App/MarkerTaxonomy.swift",
-                "Sources/AuroraDrive/App/MarkerCluster.swift",
-                "Sources/AuroraDrive/App/MissionConsole.swift",
-                "Sources/AuroraDrive/App/AuroraDriveApp.swift",
-                "Sources/AuroraDrive/App/PerfSelfTest.swift",
-                // 阶段2（2026-10-01）：真实截图红线自证（--realshot-selftest）。
-                // 为什么必须单列：本 target 用**显式 sources 白名单**（不是目录 glob），
-                // 新增文件不登记就会 `cannot find type in scope`（已踩过多次）。
-                "Sources/AuroraDrive/App/RealShotSelfTest.swift",
-                "Sources/AuroraDrive/App/GameHUDWindow.swift",
-                "Sources/AuroraDrive/Agent/AIAgentPanel.swift",
-                "Sources/AuroraDrive/Agent/AgentLoop.swift",
-                "Sources/AuroraDrive/Agent/DegradeStateMachine.swift",
-                "Sources/AuroraDrive/Agent/FallbackGuard.swift",
-                "Sources/AuroraDrive/Agent/LoginAssistant.swift",
-                "Sources/AuroraDrive/Agent/RuleController.swift",
-                // 自车框屏蔽（2026-10-02 新增）：第三视角下模型会把玩家自己的车
-                // 标成障碍框，这个框进决策层会造成实际危害（见 AuroraDriveApp §5.5）。
-                // 按面积判、只作用于决策层；UI 画框走 displayDetections 不受影响。
-                "Sources/AuroraDrive/Agent/EgoBoxFilter.swift",
-                "Sources/AuroraDrive/Core/WireSelfTest.swift",
-                "Sources/AuroraDrive/Inference/LaneKeepRealityTest.swift",
-                "Sources/AuroraDrive/Agent/DriveSegmentController.swift",
-                "Sources/AuroraDrive/Capture/CaptureEngine.swift",
-                "Sources/AuroraDrive/Capture/CoordinateCapture.swift",
-                "Sources/AuroraDrive/Capture/RecordEngine.swift",
-                "Sources/AuroraDrive/Core/AuroraPaths.swift",
-                "Sources/AuroraDrive/Core/BPFSetup.swift",
-                "Sources/AuroraDrive/Core/DaemonSetup.swift",
-                "Sources/AuroraDrive/Core/EngineClient.swift",
-                "Sources/AuroraDrive/Core/EngineMain.swift",
-                "Sources/AuroraDrive/Core/GameModeDefender.swift",
-                "Sources/AuroraDrive/Core/PrioritySetup.swift",
-                "Sources/AuroraDrive/Core/PrivilegePill.swift",
-                "Sources/AuroraDrive/Control/ControlEngine.swift",
-                "Sources/AuroraDrive/Control/EscapeController.swift",
-                "Sources/AuroraDrive/Control/KeyboardMonitor.swift",
-                "Sources/AuroraDrive/Control/MouseController.swift",
-                "Sources/AuroraDrive/Inference/ConfidenceEstimator.swift",
-                "Sources/AuroraDrive/Inference/InferenceEngine.swift",
-                "Sources/AuroraDrive/Inference/LaneFallback.swift",
-                "Sources/AuroraDrive/Inference/RoadMapPrior.swift",
-                "Sources/AuroraDrive/Inference/RoadCornerGuide.swift",
-                // 光流接线·路线2（2026-10-01）：自车运动径向模型。
-                // 把 `OpticalFlowBridge` 早已算出但零读取方的光流真正接进消费端。
-                "Sources/AuroraDrive/Inference/EgoMotionModel.swift",
-                "Sources/AuroraDrive/Inference/OpticalFlowBridge.swift",
-                "Sources/AuroraDrive/Inference/MotionPredictor.swift",
-                "Sources/AuroraDrive/Inference/SpeedOCRReader.swift",
-                "Sources/AuroraDrive/Inference/YoloEngine.swift",
-                "Sources/AuroraDrive/Inference/YolopxEngine.swift",
-                "Sources/AuroraDrive/Locate/MinimapTileCache.swift",
-                "Sources/AuroraDrive/Locate/NetworkLocator.swift",
-                "Sources/AuroraDrive/Locate/VisualLocator.swift",
-                "Vendor/MetalGoose/Engine/GooseEngine.swift",
-                "Vendor/MetalGoose/Engine/GooseUpscaler.swift",
-                "Vendor/MetalGoose/Engine/Stubs.swift",
-                "Vendor/MetalGoose/Engine/WindowCaptureManager.swift",
-                "Vendor/MetalGoose/Engine/CaptureSettings.swift"
+                "Sources/AuroraDrive",
+                "Vendor/MetalGoose/Engine",
             ],
+            // ⚠️ 必须保留（2026-10-04 事故记录）：
+            //    文件头是 swift-tools-version:6.2，**不显式指定语言模式时默认就是
+            //    Swift 6 严格并发模式**。本仓尚未迁移到 Swift 6 并发模型，
+            //    去掉这个块会让全仓 56 个文件的 `static let shared` 全部报
+            //    #MutableGlobalVariable / "main actor-isolated default value"，
+            //    一次构建 500+ error、全队构建红。
+            //    我在 P5-A7 改目录白名单时曾用脚本替换 `sources:` 块，正则的
+            //    收尾匹配误吞了本块 —— 恢复时请连注释一起保留。
             swiftSettings: [
                 .swiftLanguageMode(.v5)
             ],

@@ -133,3 +133,38 @@ tools/roadnet/web/gaps.png
 tools/roadnet/web/user_patch.png
 tools/roadnet/web/palette/
 tools/roadnet/web/versions/
+
+# ===== 本地工作区/临时目录（2026-10-06 用户指定：只 ignore 不删）=====
+attachments-import/
+desktop-out/
+iwY1tpok53eCTKn5-grok-workspace/
+.dsh-workspace-notes/
+ppt/
+print/
+Resources/
+AuroraDrive-项目介绍/
+AuroraDrive-项目介绍-2/
+AuroraDrive-交接文档.md
+交接文档-异环外置盘.md
+目标模式文档-自动驾驶修复.md
+vendor-local/
+node_modules/
+
+# ===== 第三方源码与构建依赖（版权/体积，不入库）=====
+Vendor/
+tools/mapweb/MaaNTE-*/
+tools/mapweb/_pristine/
+
+# ===== 大数据目录（本地保留，脚本可重生成/来源可再下载）=====
+tools/mapweb/MapSource/
+
+# ===== 大素材（2026-10-06：1.3GB 游戏截图语料，本地自备不入库）=====
+docs/图片游戏/
+docs/文档库/探索文档/Lumine中文版源文件-2026-10-01/
+docs/文档库/自动驾驶与功能/自行车屏蔽验证-10000帧/
+
+# ===== AI 协作会话产物（非项目文件）=====
+.agent-teams/
+
+# ===== 视频素材（同 docs/**/*.mp4 口径，分段的也不入库）=====
+docs/文档库/神秘乱七八糟的文档/异环开车素材-分段/

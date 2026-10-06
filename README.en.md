@@ -2,7 +2,11 @@
 
 # AuroraDrive
 
-**Third-party autonomous driving system for Where Winds Meet (NTE) on macOS**
+**Third-party autonomous driving system for Neverness to Everness (NTE) on macOS**
+
+> 📌 **Correction (2026-09-29)**: The game name was previously written as "Where Winds Meet"
+> (which is a *different* game, 《燕云十六声》). The correct title is **Neverness to Everness**,
+> whose Chinese name is 《异环》 and whose abbreviation **NTE** is used throughout this repo.
 
 Screen capture → CoreML inference → key injection, with packet-capture localization, speed recognition (fine-tuned PP-OCRv6 int8), and MetalFX display enhancement
 
@@ -66,7 +70,7 @@ cd AuroraDrive
 
 ## 🧹 2026-09-19 Disk cleanup
 
-To free local disk space, the following paths were moved to the external drive `/Volumes/代码项目/删除_20260919/自动驾驶系统清理/` (full mapping table: `docs/文档库/英文版/DEVELOPER_GUIDE.en.md` §7):
+To free local disk space, the following paths were moved to the external drive `/Volumes/代码项目/自动驾驶项目半成品版本1.0到10.0/删除_20260919/自动驾驶系统清理/（⚠️ 2026-09-29 路径订正：实际在「自动驾驶项目半成品版本1.0到10.0」目录内，原文少两级）` (full mapping table: `docs/文档库/英文版/DEVELOPER_GUIDE.en.md` §7):
 
 - `data/web_frames` (19G), `build/vid_*.mp4`, `build/template_scratch`, `build/contact`, `build/ocr_batch(2)`, `data/_gray_cache`
 - `tools/ppocrv6_finetune/output` (retrainable/regenerable; contents moved to the external drive, local directory removed)

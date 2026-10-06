@@ -207,20 +207,25 @@ final class RoadCornerGuide {
     private(set) var lastHit: CornerHit?
 
     private init() {
-        let env = ProcessInfo.processInfo.environment
-        lookaheadM = env["AURORA_CORNER_LOOKAHEAD_M"].flatMap(Double.init) ?? 40.0
-        headingMatchTolDeg = env["AURORA_CORNER_HEADING_TOL_DEG"].flatMap(Double.init) ?? 60.0
-        steerDeadbandDeg = env["AURORA_CORNER_DEADBAND_DEG"].flatMap(Double.init) ?? 8.0
-        steerSaturationDeg = env["AURORA_CORNER_SAT_DEG"].flatMap(Double.init) ?? 35.0
-        passedMarginM = env["AURORA_CORNER_PASSED_M"].flatMap(Double.init) ?? 15.0
-        aheadConeDeg = env["AURORA_CORNER_CONE_DEG"].flatMap(Double.init) ?? 75.0
-        junctionLookaheadM = env["AURORA_JUNC_LOOKAHEAD_M"].flatMap(Double.init) ?? 45.0
-        junctionApproachM = env["AURORA_JUNC_APPROACH_M"].flatMap(Double.init) ?? 25.0
-        excludeInDeg = env["AURORA_JUNC_EXCLUDE_DEG"].flatMap(Double.init) ?? 35.0
-        forkTolDeg = env["AURORA_JUNC_FORK_TOL_DEG"].flatMap(Double.init) ?? 25.0
-        reachRatio = env["AURORA_JUNC_REACH_RATIO"].flatMap(Double.init) ?? 1.2
-        tightRadiusM = env["AURORA_CORNER_TIGHT_R_M"].flatMap(Double.init) ?? 80.0
-        tightRadiusSpeedKmh = env["AURORA_CORNER_TIGHT_SPEED"].flatMap(Double.init) ?? 40.0
+        // A17 迁移（2026-10-04）：13 个开关统一走 `AuroraFlags`。
+        // 原来在这里 `let env = ProcessInfo.processInfo.environment` 然后逐个
+        // `env["X"].flatMap(Double.init) ?? 默认值` —— 默认值散在 13 行里，
+        // 想知道"不设变量会怎样"必须逐行读。现在默认值与说明都在 AuroraFlags。
+        // `RoadCornerGuide` 是单例（`static let shared`），本 init 只跑一次，
+        // 故语义与"现读一次"完全等价，默认值逐字未变。
+        lookaheadM = AuroraFlags.cornerLookaheadM
+        headingMatchTolDeg = AuroraFlags.cornerHeadingTolDeg
+        steerDeadbandDeg = AuroraFlags.cornerDeadbandDeg
+        steerSaturationDeg = AuroraFlags.cornerSatDeg
+        passedMarginM = AuroraFlags.cornerPassedM
+        aheadConeDeg = AuroraFlags.cornerConeDeg
+        junctionLookaheadM = AuroraFlags.juncLookaheadM
+        junctionApproachM = AuroraFlags.juncApproachM
+        excludeInDeg = AuroraFlags.juncExcludeDeg
+        forkTolDeg = AuroraFlags.juncForkTolDeg
+        reachRatio = AuroraFlags.juncReachRatio
+        tightRadiusM = AuroraFlags.cornerTightRM
+        tightRadiusSpeedKmh = AuroraFlags.cornerTightSpeed
     }
 
     // MARK: - 加载

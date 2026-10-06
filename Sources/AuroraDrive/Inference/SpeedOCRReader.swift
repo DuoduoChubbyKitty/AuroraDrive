@@ -291,7 +291,7 @@ final class SpeedOCRReader {
         // 诊断开关：AURORA_SKIP_MODEL_LOAD=1 时完全不加载（用于隔离验证归因）。
         // 此时 modelsLoadFinished 保持 false，首次推理会走 ensureModelsLoaded() 再加载，
         // 因此该开关不影响功能，只影响加载时机。
-        if ProcessInfo.processInfo.environment["AURORA_SKIP_MODEL_LOAD"] == "1" {
+        if AuroraFlags.skipModelLoad {
             modelsLoading = false
             errorMessage = "AURORA_SKIP_MODEL_LOAD=1（诊断）：速度模型延迟到首次推理前加载"
             return
@@ -378,14 +378,26 @@ final class SpeedOCRReader {
     }
 
     /// 生成候选路径：已编译优先，绝对路径优先；`.mlpackage` 保底（行为可回退）。
+    ///
+    /// ⚠️ P-2（2026-10-04）：这里原有两条**硬编码绝对路径**
+    ///   `"/Users/dupi/Desktop/自动驾驶系统/\(relative).mlmodelc"`（及 `.mlpackage`）。
+    ///   它们**与第一候选完全重复** —— `AuroraPaths.projectRoot()` 的首选就是
+    ///   本文件编译期路径上溯 4 级，在本机展开后逐字等于那个绝对路径。
+    ///   删掉是**纯去重，功能零损失**（第一候选会命中同一个文件）。
+    ///
+    ///   为什么必须删而不是留着"多一条路"：
+    ///     · 它把开发者个人路径写进了产品源码（隐私 + 换机器必失效）；
+    ///     · 它**重复了已有的抽象** —— `AuroraPaths` 存在的意义就是"不要再手写路径"。
+    ///       留着它，下一个加模型的人会照着再抄一条。
+    ///
+    ///   保留的第三条（相对路径 `"\(relative).mlmodelc"`）**不是冗余**：
+    ///   它相对 **cwd** 解析，覆盖"从项目根手动启动"的场景，与绝对路径互补。
     private static func modelCandidates(name: String, relative: String) -> [String] {
         let root = AuroraPaths.projectRoot()
         return [
             root.appendingPathComponent("\(relative).mlmodelc").path,
-            "/Users/dupi/Desktop/自动驾驶系统/\(relative).mlmodelc",
-            "\(relative).mlmodelc",
+            "\(relative).mlmodelc",          // 相对 cwd（从项目根启动时命中）
             root.appendingPathComponent("\(relative).mlpackage").path,
-            "/Users/dupi/Desktop/自动驾驶系统/\(relative).mlpackage",
             "\(relative).mlpackage",
         ]
     }
@@ -867,6 +879,67 @@ final class SpeedOCRReader {
     @ObservationIgnored
     nonisolated(unsafe) private static var lastFrameResult: RecognitionResult?
 
+    // ══════════════════════════════════════════════════════════════════════
+    // A9（2026-10-04）：复用推理输入缓冲
+    // ══════════════════════════════════════════════════════════════════════
+    // 改前：每次推理都新建 MLMultiArray。
+    //   · PP-OCR 主路径 [1,3,48,136] fp16 ≈ 39 KB
+    //   · 模板匹配路径 [1,1,90,50] fp32 ≈ 18 KB，且**每槽一次**（3 槽 = 3 次分配）
+    // 本引擎已限流 5Hz，量不大（约 195 KB/s），但这是四个推理引擎里
+    // **唯一**没做输入缓冲复用的（对照 InferenceEngine.swift:110 的
+    // reusableImageBuffer / YoloEngine.swift:304 的 yoloInputBuffer /
+    // YolopxEngine.swift:914 的 inputBuffer），属于顺手补齐的一致性修复。
+    //
+    // 线程安全：与上面 lastFrameHash / lastFrameResult 同一前提 ——
+    //   recognizePPOCR / recognizeCNN 只在 ocrQueue 上串行执行，
+    //   且入口有 `isInferencing` 防重叠闸门，故 nonisolated(unsafe) 成立。
+    //
+    // 正确性前提：两条路径都**逐元素写满**整个缓冲后才推理
+    //   （PP-OCR 写 p[i] / p[plane+i] / p[2*plane+i]，i ∈ [0,plane)，
+    //    覆盖全部 3×plane 个元素；CNN 写 ptr[i]，i ∈ [0,H*W)，覆盖全部元素），
+    //   因此复用不会残留上一帧数据。
+    @ObservationIgnored
+    nonisolated(unsafe) private static var reusablePPOCRInput: MLMultiArray?
+    @ObservationIgnored
+    nonisolated(unsafe) private static var reusablePPOCRInputKey: String = ""
+    @ObservationIgnored
+    nonisolated(unsafe) private static var reusableCNNInput: MLMultiArray?
+    @ObservationIgnored
+    nonisolated(unsafe) private static var reusableCNNInputKey: String = ""
+
+    /// 取 PP-OCR 输入缓冲：形状与 dtype 都不变时复用，否则重建。
+    /// key 里带 dtype —— 本模型以 compute_precision=FLOAT16 转换，
+    /// 引擎切换（ppocr ↔ cnn 再切回）或模型换导出档位时 dtype 可能变，
+    /// 喂错 dtype 会被按错误精度解读成垃圾（见下方 :918 附近长注释）。
+    nonisolated private static func ppocrInputBuffer(dataType: MLMultiArrayDataType) -> MLMultiArray? {
+        let key = "\(ppocrInputHeight)x\(ppocrInputWidth):\(dataType.rawValue)"
+        if reusablePPOCRInputKey == key, let existing = reusablePPOCRInput {
+            return existing
+        }
+        let shape: [NSNumber] = [1, 3,
+                                 NSNumber(value: ppocrInputHeight),
+                                 NSNumber(value: ppocrInputWidth)]
+        guard let fresh = try? MLMultiArray(shape: shape, dataType: dataType) else { return nil }
+        reusablePPOCRInput = fresh
+        reusablePPOCRInputKey = key
+        return fresh
+    }
+
+    /// 取模板匹配 CNN 输入缓冲（[1,1,templateHeight,templateWidth] fp32）。
+    nonisolated private static func cnnInputBuffer() -> MLMultiArray? {
+        let key = "\(templateHeight)x\(templateWidth):float32"
+        if reusableCNNInputKey == key, let existing = reusableCNNInput {
+            return existing
+        }
+        let shape: [NSNumber] = [1, 1,
+                                 NSNumber(value: templateHeight),
+                                 NSNumber(value: templateWidth)]
+        guard let fresh = try? MLMultiArray(shape: shape, dataType: .float32) else { return nil }
+        reusableCNNInput = fresh
+        reusableCNNInputKey = key
+        return fresh
+    }
+
     /// 16×6 块均值下采样 hash：单像素噪声不改变块均值，对捕捉抖动鲁棒
     nonisolated private static func frameHash(gray: [UInt8], w: Int, h: Int) -> [UInt8] {
         let bw = 16, bh = 6
@@ -914,17 +987,14 @@ final class SpeedOCRReader {
         // （自检实测：300/300 失败，raw 为乱码、置信度 0.000）
         let inputDataType = model.modelDescription
             .inputDescriptionsByName["image"]?.multiArrayConstraint?.dataType ?? .float32
-        if ProcessInfo.processInfo.environment["AURORA_OCR_DEBUG"] == "1" {
+        if AuroraFlags.ocrDebug {
             let desc = model.modelDescription
             print("[DBG] 模型输入名=\(desc.inputDescriptionsByName.keys.sorted()) 输出名=\(desc.outputDescriptionsByName.keys.sorted())")
             print("[DBG] inputDataType rawValue=\(inputDataType.rawValue) (65568=fp32 65552=fp16)")
             print("[DBG] gray=\(gray.count) (期望 \(grayW*grayH))")
         }
-        guard let inputArray = try? MLMultiArray(
-            shape: [1, 3,
-                    NSNumber(value: ppocrInputHeight),
-                    NSNumber(value: ppocrInputWidth)],
-            dataType: inputDataType) else {
+        // A9：复用输入缓冲（形状/dtype 不变即命中，避免每次新建 ~39KB）
+        guard let inputArray = Self.ppocrInputBuffer(dataType: inputDataType) else {
             return RecognitionResult(error: "PP-OCR: MLMultiArray 创建失败")
         }
         let plane = ppocrInputHeight * ppocrInputWidth
@@ -964,7 +1034,7 @@ final class SpeedOCRReader {
                 unknownSlots: [0],
                 diag: "PP-OCR: 置信度 \(String(format: "%.3f", conf)) < 0.30 raw=\(text)")
         }
-        if ProcessInfo.processInfo.environment["AURORA_OCR_DEBUG"] == "1" {
+        if AuroraFlags.ocrDebug {
             print("[DBG] raw=\(text.debugDescription) conf=\(conf) digits=\(text.filter { $0 >= "0" && $0 <= "9" })")
         }
         let digits = text.filter { $0 >= "0" && $0 <= "9" }
@@ -1006,7 +1076,7 @@ final class SpeedOCRReader {
         guard strides.count == 3, shape.count == 3 else { return nil }
         let rowStride = strides[1]   // 时间步 t 的步长
         let colStride = strides[2]   // 类别 c 的步长
-        if ProcessInfo.processInfo.environment["AURORA_OCR_DEBUG"] == "1" {
+        if AuroraFlags.ocrDebug {
             print("[DBG] logits shape=\(shape) strides=\(strides)（紧凑应为 [\(shape[1]*classes), \(classes), 1]）")
         }
 
@@ -1122,8 +1192,8 @@ final class SpeedOCRReader {
                 floatPixels[i] = Float(gray[i]) / 255.0
             }
 
-            // 构造MLMultiArray (1, 1, 45, 25)
-            guard let inputArray = try? MLMultiArray(shape: [1, 1, NSNumber(value: templateHeight), NSNumber(value: templateWidth)], dataType: .float32) else {
+            // A9：复用输入缓冲 [1,1,90,50] fp32（本路径每帧按槽调用，改前每槽新建一次）
+            guard let inputArray = Self.cnnInputBuffer() else {
                 return RecognitionResult(error: "MLMultiArray创建失败")
             }
             let ptr = inputArray.dataPointer.assumingMemoryBound(to: Float.self)
@@ -1328,6 +1398,25 @@ final class SpeedOCRReader {
         if images.isEmpty {
             return "✗ 目录里没有 PNG/JPG: \(dirPath)"
         }
+        // ══════════════════════════════════════════════════════════════════
+        // 2026-10-04 修复（site-main，P6 侦察连带发现）：自检前必须等模型加载完
+        // ══════════════════════════════════════════════════════════════════
+        // 症状：`--speed-selftest <目录>` **必然**报
+        //   「✗ PP-OCRv6 与 CNN 模型均未加载（检查 models/ 目录）」
+        // 即使 `models/ppocrv6_tiny_ft_int8.mlmodelc` 与
+        // `models/speed_digit_cnn_v4.mlmodelc` 都在、都健康。
+        //
+        // 根因：模型加载是**异步**的（`ensureModelsLoaded()` → `modelLoadQueue` 后台），
+        //   而本方法直接读 `ppocrModel` / `cnnModel` 实例属性，**从不等待加载完成**。
+        //   CLI 一次性自检路径尤其必现：进程起来就调本方法，后台那轮 I/O 还没回来。
+        //
+        // 对照：`infer(nativePixelBuffer:)` 的「闸 0」**有**这一步兜底
+        //   （见本文件 :530 附近「模型可能还在后台加载 —— 首次推理前兜底等一次」），
+        //   本方法漏了。属"闸门只装在热路径、漏了自检路径"。
+        //
+        // 修复：与闸 0 同款 —— `ensureModelsLoaded()` 幂等，已加载则立即返回；
+        //   未加载则 `modelLoadQueue.sync {}` 等一轮 I/O，异常时主线程补一次。
+        ensureModelsLoaded()
         // 双引擎自检：PP-OCR 可用则走主路径，否则 CNN 备用；两者皆无 → 拒绝自检
         let usePPOCR = ppocrModel != nil
         guard usePPOCR || cnnModel != nil else {
