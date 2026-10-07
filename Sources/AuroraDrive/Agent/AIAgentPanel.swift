@@ -2137,7 +2137,14 @@ struct AIAgentPanelView: View {
             .opacity(appeared ? 1 : 0)
             .animation(.easeOut(duration: 0.25).delay(0.18), value: appeared)
         }
-        .frame(width: 348)
+        // 【2026-10-07 修复：面板无限变大】用户反馈「AI 那个窗口会无限变大」。
+        //   根因：原来只限了 width:348，**没限 height** —— 内部 VStack 内容
+        //   多了（消息/技能网格展开）面板就跟着无限长。
+        //   修法：给面板**固定高度**。内部对话区有 ScrollView，消息再多也
+        //   在面板内部滚，面板外框尺寸不变。
+        //   · 880 与截图渲染(:3091)用的固定高一致
+        //   · 若后续要适配不同屏幕，可改成 .frame(width:348, maxHeight:880)
+        .frame(width: 348, height: 880)
         .background(
             ZStack {
                 Color.black.opacity(0.92)
