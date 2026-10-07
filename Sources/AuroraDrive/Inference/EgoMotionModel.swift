@@ -305,6 +305,43 @@ final class EgoMotionModel {
         return ((duPx + duLateralPx) / workingSize, dvPx / workingSize)
     }
 
+    /// 预测「纯自车运动」会让**整张 MaskGrid**（车道线掩码）整体平移多少格。
+    ///
+    /// 这是 `predictedImageShift(for:ego:)` 的「整图」版本：前者把**框中心**当
+    /// 代表点，这里把**网格中心（= 消失点）**当代表点，输出要在整张掩码上
+    /// 施加的平移量，供车道线外推器（LaneExtrapolator）对齐上一帧掩码。
+    ///
+    /// 关键换算（下表是证据链，别拍脑袋改）：
+    ///   · MaskGrid 是 letterbox 640 坐标系按 stride 下采样的格子：
+    ///       inputSize    = 640  （YolopxEngine.swift:261）
+    ///       maskGridSize = 160  （YolopxEngine.swift:263）→ stride = 640/160 = 4
+    ///     故「像素位移 → 格位移」要 **÷ stride**。
+    ///   · ego 的运动量（EgoMotionEstimate 定义见本文件 63-90 行）：
+    ///       - `lateralRate`（归一化/秒）→ 均匀像素平移 = lateralRate·dt·640，
+    ///         与 `predictedImageShift`（本文件 ~303 行 duLateralPx）同式。
+    ///       - `forwardRate`（/帧 径向扩张）在消失点处 rx=ry=0 → 贡献为 0；
+    ///         它是**位置相关的缩放**，不是平移，单个 (dx,dy) 表达不了，故不出现在
+    ///         平移量里（前进导致的掩码收缩是缩放运算，不属本方法语义）。
+    ///       - ego 模型没有竖向平移量（dy 只有径向项），故代表点处 dy = 0。
+    ///
+    /// - Parameters:
+    ///   - grid: 目标掩码网格（用 grid.width 推 stride，兼容 80×80 等测试尺寸）
+    ///   - ego: 自车运动估计
+    /// - Returns: (dxCells, dyCells) **网格单位 / 帧**；dx 沿 x 正 = 画面内容向右
+    ///           （掩码格子坐标 +x 方向），与 `predictedImageShift` 符号一致。
+    func maskShift(for grid: MaskGrid, ego: EgoMotionEstimate) -> (dxCells: Double, dyCells: Double) {
+        // stride = 640 像素 / 格子数（生产 160 格 → 4 像素/格）；max(…,1) 防 0 除
+        let gridSize = Double(max(grid.width, 1))
+        let stride = workingSize / gridSize
+
+        // 代表点 = 网格中心 = 消失点 → 前向径向扩张 rx=ry=0，不贡献平移。
+        // 横向平移（均匀），与 predictedImageShift 的 duLateralPx 同式。
+        let lateralPx = ego.lateralRate * ego.dt * workingSize
+
+        // 像素 → 格
+        return (lateralPx / stride, 0.0)
+    }
+
     // MARK: 校验
 
     /// 判定一个跟踪目标的观测位移能否被自车运动解释。

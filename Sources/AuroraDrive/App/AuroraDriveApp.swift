@@ -957,7 +957,9 @@ struct AuroraDriveLauncher {
                               //   挡掉却仍 exit 0（**假绿**）。同款陷阱第 3 次出现。
                               //   · --agent-selftest  AI 技能链路 + 指令解析自检（AIAgentPanel 内）
                               //   · --map-selftest    原生地图严格自检（MapSelfTest.swift）
-                              "--agent-selftest", "--map-selftest"]
+                              //   · --lane-extrapolator-selftest  车道线光流外推自检（Perception/LaneExtrapolatorSelfTest.swift）
+                              "--agent-selftest", "--map-selftest",
+                              "--lane-extrapolator-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -1251,6 +1253,14 @@ struct AuroraDriveLauncher {
         // 纯离屏自检（不开窗、不连引擎），所以在 UI 单实例锁之前就 exit。
         if args.contains("--map-selftest") {
             exit(Int32(runMapSelfTest()))
+        }
+
+        // ── 车道线光流外推自检（--lane-extrapolator-selftest，2026-10-07 新增）──
+        // 纯合成数据、同步计算，无 MainActor / runloop 依赖，不联网不碰权限。
+        if args.contains("--lane-extrapolator-selftest") {
+            let ledger = SelfTestLedger()
+            let n = LaneExtrapolatorSelfTest.run(ledger: ledger)
+            exit(Int32(min(n, 127)))
         }
 
         // ── 地图窗口端到端验证（--map-window-test，2026-10-04 新增）──
@@ -5533,6 +5543,14 @@ final class DriveState {
     /// 光流最近一次读数（诊断/UI 用）
     @ObservationIgnored private(set) var lastOpticalFlow: OpticalFlowReading?
 
+    /// 车道线外推桥（E5 LaneBridge）：把 yolopx 低频 ll 真值在降频空档帧用光流
+    /// 平移到 30Hz，喂给 laneFallback。见 Perception/LaneBridge.swift。
+    @ObservationIgnored private var laneBridge = LaneBridge()
+
+    /// 本帧车道线（经 LaneBridge 外推后的 30Hz 结果）。laneFallback 消费这个，
+    /// 而不是直接读 `yolopxEngine.laneMask`（奇数帧是冻结旧值）。
+    @ObservationIgnored private(set) var extrapolatedLaneMask: MaskGrid = .empty
+
     /// ★ 阶段0（2026-10-01 审计修复）：光流总开关，**惰性读一次**。
     ///
     /// 【为什么加】原写法在 tick 内**每帧现读**：
@@ -6417,6 +6435,21 @@ final class DriveState {
         // 读取方只读这个缓存，不自己调 predict（否则帧计数被推进多次）。
         predictorDetections = targets.map(\.detection)
 
+        // ── e) 车道线外推（E5 LaneBridge 接线）：喂给 laneFallback 的 30Hz ll ──
+        //
+        // 【为什么在这里】检测框 det 与车道线 ll 是 yolopx **同一次 infer 一起产出**
+        //   （三合一：det/da/ll），故「yolopxEngine.detections 为空」≈「本帧 ll 是旧的」。
+        //   yolopx 有 det → 本帧有新真值 → 传 laneMask；否则传 .empty 让 LaneBridge
+        //   走光流外推（把上一帧 ll 平移到本帧），而非让 laneFallback 读冻结旧掩码。
+        //
+        // 【真值判断依据】复用上面 `observed` 的判定：yolopx 有 detections 就是真值帧。
+        //   （注意：yolo26s 的 detections 不算——yolo26s 不出 ll，只有 yolopx 出车道线。）
+        let hasYolopxGroundTruth = yolopxEngine.isLoaded && !yolopxEngine.detections.isEmpty
+        extrapolatedLaneMask = laneBridge.updateLane(dt: dt,
+                              rawLaneMask: hasYolopxGroundTruth ? yolopxEngine.laneMask : .empty,
+                              flow: lastOpticalFlow,
+                              detections: predictorDetections)
+
         // ── d) 【已删除 · 2026-10-02】双结构几何兜底评估 ──
         //
         // 🚨 不再调用 `fallbackGuard.evaluate`。取证与理由见 §5.5 施加点处的长注释：
@@ -6568,11 +6601,29 @@ final class DriveState {
         let perfStart = perfT
         defer { PerfBus.mark("tick.total", from: perfStart) }
 
-        // ── P1 · 自适应降频相位（每 tick 稳定推进；检测网低频真值门）──
+        // ── P1 · 偶奇帧错开相位（每 tick 稳定推进；检测网真值门）──
         // 放在 tick 最前，这样**直通 inferFast（待机/驾驶都跑）与驾驶分支的
         // yolopx+慢路径**共享同一枚相位计数器，保证两处同频同相位。
+        //
+        // 【偶奇错开语义】detectGateA = yolopx 旧三件套（三合一 det/da/ll）偶数帧跑；
+        //   detectGateB = yolo26s（仅检测框）奇数帧跑。两者同帧同停会产生"真空帧"，
+        //   错开后每帧至少一网出真值，检测框 30Hz 连续。
+        //
+        // 【2026-10-07 按用户决策修正：ayolom 族不降频】
+        //   E4 原实现无条件门控 `yolopxEngine.infer`，把**默认的 ayolom 小模型**也
+        //   一起降成 15Hz —— 但 ayolom 在 ANE 上 p50 10.4ms → 95.9Hz（30Hz 只占 31%
+        //   预算，YolopxEngine.swift:620），根本跑不满预算，无需降频、不该降频。
+        //   用户拍板：**ayolom 每帧跑（detectGateA 对 ayolom 恒真），错开只作用于
+        //   legacy 档的 yolopx + yolo26s**。
+        //
+        // [回退开关] AURORA_DETECT_DECIMATE=1 → 两门恒真，恢复每帧都跑（含 legacy）。
         adaptiveFrameCounter &+= 1
-        let decimationOn = adaptiveFrameCounter % Self.detectDecimate == 0
+        let parityEven = adaptiveFrameCounter % 2 == 0
+        let decimateFallback = Self.detectDecimate == 1
+        // ayolom（默认小模型）每帧跑，不做错开降频。
+        let isAyolom = (yolopxEngine.family == .ayolom)
+        let detectGateA = decimateFallback || isAyolom || parityEven    // yolopx：ayolom 恒跑 / legacy 偶数帧
+        let detectGateB = decimateFallback || !parityEven               // yolo26s：奇数帧
 
         // ── 引擎模式：只拉取显示数据，本地抓屏/推理/按键全部不跑 ──
         if EngineClient.shared.isActive {
@@ -6620,14 +6671,14 @@ final class DriveState {
         pendingYoloFrame = nil
         pendingYoloLock.unlock()
         if let yoloFrame {
-            // ── P1 · 检测网降频：直通 yolo26s 也 2 帧 1 次（30Hz→15Hz 提交）──
-            // 【为什么】这里与驾驶分支的慢路径 yolo26s/yolopx 共享同一相位门
-            //   `decimationOn`。直通 inferFast 是 yolo26s 的**每帧主力**（待机与
-            //   驾驶都跑、且不依赖 currentFrameCG），降频到 15Hz 才能把
-            //   `infer.yolo26s` 的真实提交砍掉一半；否则慢路径那处门形同虚设。
+            // ── P1 · 检测网偶奇错开：直通 yolo26s 走奇数帧门（detectGateB）──
+            // 【为什么】这里与驾驶分支的慢路径 yolo26s 共享同一相位门、保持同频。
+            //   直通 inferFast 是 yolo26s 的**每帧主力**（待机与驾驶都跑、且不依赖
+            //   currentFrameCG）。yolo26s 只出检测框，归入奇数帧门后，偶数帧由
+            //   yolopx 的检测框补真值，每帧至少一网出框、检测框 30Hz 连续。
             // 【为什么光流不降】光流是帧间差分，必须连续两帧都喂，降了会断流；
-            //   下方 `runOpticalFlow(on:)` 仍每帧执行，不受 decimationOn 影响。
-            if decimationOn {
+            //   下方 `runOpticalFlow(on:)` 仍每帧执行，不受 detectGateB 影响。
+            if detectGateB {
                 yoloEngine.inferFast(pixelBuffer: yoloFrame)
                 perfT = PerfBus.lap("tick.yoloFast", from: perfT)   // ★ 阶段1 打点
             }
@@ -6773,34 +6824,42 @@ final class DriveState {
             }
             assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
 
-            // ── P1 · 检测网降频（2 帧 1 次，30Hz tick → 15Hz 真值）──
-            // 【为什么能降】车道保持走 LaneFallback 的 EMA/时序平滑 + 稳定性门，
+            // ── P1 · 检测网偶奇错开（yolopx 偶数帧 / yolo26s 奇数帧）──
+            // 【为什么错开】两者原来同相位（同帧同停、同帧同跑），每个停帧都产生
+            //   "真空帧"（该帧无任何检测真值）。错开后每帧至少有一网出检测框，
+            //   检测框真值 30Hz 连续（yolopx 偶数帧、yolo26s 奇数帧）。
+            // 【为什么能错开】车道保持走 LaneFallback 的 EMA/时序平滑 + 稳定性门，
             //   路况判定走 stabilityFrames（15 帧 ~0.5s），检测框显示层走
             //   displayDetections→predictorDetections 光流外推，三者都是"吃低频真值"
-            //   的消费者。真值 15Hz 已满足它们全部需求。
+            //   的消费者。每网各自 15Hz 真值仍满足它们全部需求。
             // 【为什么不动】M9 / assist 两个驾驶模型**不降频** —— 它们是"每帧出一个
             //   控制量的主司机"，降频会直接改变驾驶行为与 R1 出结果频率红线。
             //   光流也不动（`needsOpticalFlow` 档位门管，A2 已定）。
             // 【为什么 yolopx 与 yolo26s 都保留而非砍一个】两者语义不同：yolopx 是
             //   三合一（检测+车道线+可行驶区，A-YOLOM 档的帧真值来源），yolo26s 是
             //   YOLO 接管档/规则档的检测网与直通帧的后备；都砍会静默降品（掩码/框
-            //   任一来源断供）。降频成 15Hz 已经把它们最重的重复提交砍掉一半，
-            //   且不破坏任何一档的语义。这是**减冗余**（去重复提交）而非**删功能**。
-            //   （`decimationOn` 相位门已在 tick 开头统一计算，此处直接复用。）
+            //   任一来源断供）。错开成偶数/奇数帧后每网各自 15Hz，既不重复提交也不
+            //   破坏任何一档语义。这是**减冗余**（去同帧重复）而非**删功能**。
+            // 【注意】ll（车道线）+ da（可行驶区）只有 yolopx 偶数帧才刷新 → 15Hz，
+            //   这正是 E2/E5 "车道线外推"要解决的场景。
+            //   （两个 `detectGateA/B` 相位门已在 tick 开头统一计算，此处直接复用。）
 
             // YOLO 检测：优先走 CaptureEngine 直通（源头 GPU 缩放好的缓冲）；
             // 直通未活跃（如尚未接入）时回退到 tick 内转换。
             // fastPathActive 是粘性标志（只在 reset() 清），CaptureEngine 一旦停止
             // 直通它不会自动回落；这里用 lastFastPathTime 做超时判活，超过 1 秒没有
             // 新的直通推理就认为直通已失效，回退慢路径，避免 YOLO 静默停摆。
-            // P1：直通帧仍每帧喂光流（后面 yoloFrame 分支），但检测网提交降到 15Hz。
-            if decimationOn {
+            // P1：直通帧仍每帧喂光流（后面 yoloFrame 分支），但检测网提交偶奇错开。
+            if detectGateB {
                 let fastPathStale = Date().timeIntervalSince(yoloEngine.lastFastPathTime) > 1.0
                 if !yoloEngine.fastPathActive || fastPathStale {
                     yoloEngine.infer(image: cg)
                 }
-                // YOLOPX 三合一：独立推理（自己的 letterbox 输入，不复用 YoloEngine 的拉伸直通）。
-                // 与 yolo26s 并行跑，互不干扰；停用 yolopxEngine.enabled 即完全退出。
+            }
+            // YOLOPX 三合一：独立推理（自己的 letterbox 输入，不复用 YoloEngine 的拉伸直通）。
+            // 偶数帧门（detectGateA）；与 yolo26s 奇数帧错开，互不干扰。
+            // 停用 yolopxEngine.enabled 即完全退出。
+            if detectGateA {
                 yolopxEngine.infer(image: cg)
             }
         }
@@ -7149,7 +7208,7 @@ final class DriveState {
                 }
             }
             if !segmentUsed,
-               let advice = laneFallback.evaluate(laneMask: yolopxEngine.laneMask,
+               let advice = laneFallback.evaluate(laneMask: extrapolatedLaneMask,
                                                   drivableMask: yolopxEngine.drivableMask,
                                                   isDegraded: yolopxEngine.isDegraded,
                                                   metrics: yolopxEngine.metrics) {
