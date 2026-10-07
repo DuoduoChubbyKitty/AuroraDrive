@@ -5551,6 +5551,11 @@ final class DriveState {
     /// 而不是直接读 `yolopxEngine.laneMask`（奇数帧是冻结旧值）。
     @ObservationIgnored private(set) var extrapolatedLaneMask: MaskGrid = .empty
 
+    /// 上一 tick 见到的 yolopx `inferenceCount`，用于判断「本帧是否真出了新真值」。
+    /// （缺陷 B 修复：不能用持久 `detections.isEmpty` —— 奇数帧会残留偶数帧旧数组，
+    ///   恒判 true，导致 legacy 档车道线外推永不触发。）
+    @ObservationIgnored private var lastYolopxInferenceCount: Int = -1
+
     /// ★ 阶段0（2026-10-01 审计修复）：光流总开关，**惰性读一次**。
     ///
     /// 【为什么加】原写法在 tick 内**每帧现读**：
@@ -6437,14 +6442,16 @@ final class DriveState {
 
         // ── e) 车道线外推（E5 LaneBridge 接线）：喂给 laneFallback 的 30Hz ll ──
         //
-        // 【为什么在这里】检测框 det 与车道线 ll 是 yolopx **同一次 infer 一起产出**
-        //   （三合一：det/da/ll），故「yolopxEngine.detections 为空」≈「本帧 ll 是旧的」。
-        //   yolopx 有 det → 本帧有新真值 → 传 laneMask；否则传 .empty 让 LaneBridge
-        //   走光流外推（把上一帧 ll 平移到本帧），而非让 laneFallback 读冻结旧掩码。
-        //
-        // 【真值判断依据】复用上面 `observed` 的判定：yolopx 有 detections 就是真值帧。
-        //   （注意：yolo26s 的 detections 不算——yolo26s 不出 ll，只有 yolopx 出车道线。）
-        let hasYolopxGroundTruth = yolopxEngine.isLoaded && !yolopxEngine.detections.isEmpty
+        // 【真值判断依据（缺陷 B 修复，2026-10-07，E7 抓出）】
+        //   不能用持久 `!detections.isEmpty`：detections 只在 infer 完成时覆盖、reset 才清空，
+        //   legacy 档奇数帧 detectGateA=false 不调 infer → detections 残留偶数帧旧数组 →
+        //   !isEmpty 恒 true → 奇数帧被误判"有新真值"，跳过了光流外推。
+        //   正确判据：`inferenceCount` 帧间增量 —— 每次 infer 完成 +1，只在
+        //   "本帧真的跑完推理并写了新结果"时递增。
+        let currentYolopxCount = yolopxEngine.inferenceCount
+        let hasYolopxGroundTruth = yolopxEngine.isLoaded
+            && (currentYolopxCount != lastYolopxInferenceCount)
+        lastYolopxInferenceCount = currentYolopxCount
         extrapolatedLaneMask = laneBridge.updateLane(dt: dt,
                               rawLaneMask: hasYolopxGroundTruth ? yolopxEngine.laneMask : .empty,
                               flow: lastOpticalFlow,
