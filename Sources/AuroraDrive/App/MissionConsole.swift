@@ -5678,13 +5678,27 @@ struct ContentView: View {
             }
         }
 
-        // ── 网络定位定时器 10Hz ──
+        // ── 网络定位定时器（空闲降频：10Hz → 2Hz）──
+        // 坐标包固定 15.01s 一个（见 CoordinateCapture 注释），10Hz 是 10× 过采样。
+        // 参照 tick 定时器的 idleSkip 范式：空闲态降到 2Hz（10Hz / 5），
+        // 只在开车/录制时才保持 10Hz 实时性。runNetworkLocateStep 内部虽已
+        // 「状态不变就不投递主线程」，但 10Hz 的 async 本身仍会每秒唤醒主线程
+        // 10 次 —— 空闲时这些唤醒是纯浪费。
         let nlQueue = DispatchQueue(label: "com.aurora.netlocate", qos: .userInteractive)
         let nlTimer = DispatchSource.makeTimerSource(queue: nlQueue)
         nlTimer.schedule(deadline: .now(), repeating: 1.0 / 10.0, leeway: .nanoseconds(0))
-        nlTimer.setEventHandler { DispatchQueue.main.async {
-            state.runNetworkLocateStep()
-        } }
+        var nlIdleSkip = 0
+        nlTimer.setEventHandler {
+            let busy = state.isDriving || state.isRecording
+            if !busy {
+                nlIdleSkip += 1
+                if nlIdleSkip < 5 { return }   // 10Hz / 5 ≈ 2Hz 空闲轮询
+                nlIdleSkip = 0
+            } else {
+                nlIdleSkip = 0
+            }
+            DispatchQueue.main.async { state.runNetworkLocateStep() }
+        }
         nlTimer.resume()
         netLocDispatchSource = nlTimer
 

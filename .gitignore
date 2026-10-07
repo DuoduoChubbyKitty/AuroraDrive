@@ -154,6 +154,14 @@ node_modules/
 
 # ===== 第三方源码与构建依赖（版权/体积，不入库）=====
 Vendor/
+# ⚠️ 例外：OpenCVFlow 是**自研 C 桥接源码**（Package.swift 的 OpenCVFlow target
+#   直接依赖它），不是第三方库本体（第三方是 OpenCV 系统库，通过头文件链接）。
+#   若不入库，clone 下来会因缺 flow_bridge.cpp 编译失败。2026-10-07 补。
+!Vendor/OpenCVFlow/
+!Vendor/OpenCVFlow/flow_bridge.cpp
+!Vendor/OpenCVFlow/flow_bridge.h
+!Vendor/OpenCVFlow/README.md
+!Vendor/OpenCVFlow/include/
 tools/mapweb/MaaNTE-*/
 tools/mapweb/_pristine/
 

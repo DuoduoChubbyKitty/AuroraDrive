@@ -5363,6 +5363,37 @@ final class DriveState {
     @ObservationIgnored
     var tickGapMs: Double = 0
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  P1 · 自适应降频（2026-10-07）：不是每帧都跑 4 个模型
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // 【为什么需要】Lead 基线：4 个模型均 23.86Hz 满帧提交，引擎 CPU 59.2% 核。
+    //   其中 `infer.yolopx`(22.6ms) + `infer.yolo26s`(14.1ms) 是检测网大头，
+    //   而检测框/车道线/可行驶区这些**低频真值**根本不需要 30Hz ——
+    //   运动预测器（MotionPredictor）本就用光流把真值外推到中间帧、
+    //   车道保持走 EMA 平滑、路况判定有 stabilityFrames 门，全是"吃低频真值"的。
+    //
+    // 【语义边界】只降**提交频率**（在 tick 里少发几次 infer），**一个字不动**引擎
+    //   内部推理、letterbox、NMS、量化、掩码提取（那些是 Docs §6.42.7 已否决的
+    //   13 项重灾区，一律不碰）。精度自检（--lanekeep/--realshot-selftest）直接调
+    //   引擎推理、不经过本门，故精度红线与降频解耦。
+    //
+    // 【回退开关】`AURORA_DETECT_DECIMATE=1` 恢复"每帧提交"的旧行为。
+    /// 检测网降频周期（帧）：2 = 每 2 帧提交 1 次（30Hz tick → 15Hz 真值）。
+    /// 值 ≥1；1 = 不降频（与改动前逐字一致）。环境变量覆盖，进程内只读一次。
+    @ObservationIgnored
+    private static let detectDecimate: UInt64 = {
+        if let raw = ProcessInfo.processInfo.environment["AURORA_DETECT_DECIMATE"],
+           let v = UInt64(raw), v >= 1 {
+            return v
+        }
+        return 2   // P1 默认：检测网 2 帧 1 次（15Hz）
+    }()
+
+    /// 主循环帧计数（检测网降频相位源；tick 每入一次推进一次，进位自然回绕）。
+    @ObservationIgnored
+    private var adaptiveFrameCounter: UInt64 = 0
+
     /// 进程物理内存占用（MB）——诊断用：积压 → 内存随时间线性上涨的验证指标
     func processMemoryMB() -> Double {
         var info = mach_task_basic_info()
@@ -6537,6 +6568,12 @@ final class DriveState {
         let perfStart = perfT
         defer { PerfBus.mark("tick.total", from: perfStart) }
 
+        // ── P1 · 自适应降频相位（每 tick 稳定推进；检测网低频真值门）──
+        // 放在 tick 最前，这样**直通 inferFast（待机/驾驶都跑）与驾驶分支的
+        // yolopx+慢路径**共享同一枚相位计数器，保证两处同频同相位。
+        adaptiveFrameCounter &+= 1
+        let decimationOn = adaptiveFrameCounter % Self.detectDecimate == 0
+
         // ── 引擎模式：只拉取显示数据，本地抓屏/推理/按键全部不跑 ──
         if EngineClient.shared.isActive {
             tickEngineMode()
@@ -6583,8 +6620,17 @@ final class DriveState {
         pendingYoloFrame = nil
         pendingYoloLock.unlock()
         if let yoloFrame {
-            yoloEngine.inferFast(pixelBuffer: yoloFrame)
-            perfT = PerfBus.lap("tick.yoloFast", from: perfT)   // ★ 阶段1 打点
+            // ── P1 · 检测网降频：直通 yolo26s 也 2 帧 1 次（30Hz→15Hz 提交）──
+            // 【为什么】这里与驾驶分支的慢路径 yolo26s/yolopx 共享同一相位门
+            //   `decimationOn`。直通 inferFast 是 yolo26s 的**每帧主力**（待机与
+            //   驾驶都跑、且不依赖 currentFrameCG），降频到 15Hz 才能把
+            //   `infer.yolo26s` 的真实提交砍掉一半；否则慢路径那处门形同虚设。
+            // 【为什么光流不降】光流是帧间差分，必须连续两帧都喂，降了会断流；
+            //   下方 `runOpticalFlow(on:)` 仍每帧执行，不受 decimationOn 影响。
+            if decimationOn {
+                yoloEngine.inferFast(pixelBuffer: yoloFrame)
+                perfT = PerfBus.lap("tick.yoloFast", from: perfT)   // ★ 阶段1 打点
+            }
             // 同一份 640×640 BGRA 直通帧也喂给光流（不额外拷贝、不新增捕获路径）。
             //
             // ⚠️ 必须**立即**转灰度并解算，不能把这个引用存起来留到 tick 后半段用：
@@ -6726,18 +6772,37 @@ final class DriveState {
                 inferenceEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)   // M9 端到端主驾
             }
             assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
+
+            // ── P1 · 检测网降频（2 帧 1 次，30Hz tick → 15Hz 真值）──
+            // 【为什么能降】车道保持走 LaneFallback 的 EMA/时序平滑 + 稳定性门，
+            //   路况判定走 stabilityFrames（15 帧 ~0.5s），检测框显示层走
+            //   displayDetections→predictorDetections 光流外推，三者都是"吃低频真值"
+            //   的消费者。真值 15Hz 已满足它们全部需求。
+            // 【为什么不动】M9 / assist 两个驾驶模型**不降频** —— 它们是"每帧出一个
+            //   控制量的主司机"，降频会直接改变驾驶行为与 R1 出结果频率红线。
+            //   光流也不动（`needsOpticalFlow` 档位门管，A2 已定）。
+            // 【为什么 yolopx 与 yolo26s 都保留而非砍一个】两者语义不同：yolopx 是
+            //   三合一（检测+车道线+可行驶区，A-YOLOM 档的帧真值来源），yolo26s 是
+            //   YOLO 接管档/规则档的检测网与直通帧的后备；都砍会静默降品（掩码/框
+            //   任一来源断供）。降频成 15Hz 已经把它们最重的重复提交砍掉一半，
+            //   且不破坏任何一档的语义。这是**减冗余**（去重复提交）而非**删功能**。
+            //   （`decimationOn` 相位门已在 tick 开头统一计算，此处直接复用。）
+
             // YOLO 检测：优先走 CaptureEngine 直通（源头 GPU 缩放好的缓冲）；
             // 直通未活跃（如尚未接入）时回退到 tick 内转换。
             // fastPathActive 是粘性标志（只在 reset() 清），CaptureEngine 一旦停止
             // 直通它不会自动回落；这里用 lastFastPathTime 做超时判活，超过 1 秒没有
             // 新的直通推理就认为直通已失效，回退慢路径，避免 YOLO 静默停摆。
-            let fastPathStale = Date().timeIntervalSince(yoloEngine.lastFastPathTime) > 1.0
-            if !yoloEngine.fastPathActive || fastPathStale {
-                yoloEngine.infer(image: cg)
+            // P1：直通帧仍每帧喂光流（后面 yoloFrame 分支），但检测网提交降到 15Hz。
+            if decimationOn {
+                let fastPathStale = Date().timeIntervalSince(yoloEngine.lastFastPathTime) > 1.0
+                if !yoloEngine.fastPathActive || fastPathStale {
+                    yoloEngine.infer(image: cg)
+                }
+                // YOLOPX 三合一：独立推理（自己的 letterbox 输入，不复用 YoloEngine 的拉伸直通）。
+                // 与 yolo26s 并行跑，互不干扰；停用 yolopxEngine.enabled 即完全退出。
+                yolopxEngine.infer(image: cg)
             }
-            // YOLOPX 三合一：独立推理（自己的 letterbox 输入，不复用 YoloEngine 的拉伸直通）。
-            // 与 yolo26s 并行跑，互不干扰；停用 yolopxEngine.enabled 即完全退出。
-            yolopxEngine.infer(image: cg)
         }
 
         // ── 1.5 光流 + 运动预测（把 15Hz 真值补成 30Hz）──
