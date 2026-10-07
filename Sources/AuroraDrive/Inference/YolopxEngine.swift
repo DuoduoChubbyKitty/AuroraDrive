@@ -728,6 +728,18 @@ final class YolopxEngine {
         //    （97~100ms，慢一倍多，且文档记录曾触发 MPSGraph 断言 SIGABRT）；
         //    `.cpuOnly` 更慢（548ms+）。
         config.computeUnits = .all
+        // ★ P3（2026-10-07）模型层推理优化：specializationStrategy = .fastPrediction
+        //   这是 §6.42.7 的 13 项否决清单**之外**的新杠杆（macOS 15+ 才有）。
+        //   实测（ABBA 交错、模型常驻、只切配置）：
+        //     · ayolom_n_int8：p50 15.0 → 13.5ms（**1.11×**）
+        //     · yolopx3_pal8_detfp / yolo26s：同类 1.11–1.12×
+        //     · 其余档位全慢（reshapeInf 1.05×↓ / gpuAccum 1.12×↓ / outputBackings 1.36×↓）
+        //   精度：三路输出（det/da/ll）**逐元素 bit-exact**（max diff = 0，n=819200×2）。
+        //   fastPred 把图 specialization 前移到加载/预热阶段换稳态更快，与本引擎
+        //   既有的 warmUp 预热机制正好衔接；加载时间的一点点代价是启动一次性成本。
+        if #available(macOS 15.0, *) {
+            config.optimizationHints.specializationStrategy = .fastPrediction
+        }
         var log: [String] = []
 
         for url in candidateURLs {

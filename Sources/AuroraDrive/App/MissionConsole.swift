@@ -1718,10 +1718,31 @@ final class MapTileStore {
     /// 容量依据：一个 3072² 视野窗口横跨 `ceil(3072/544) = 6` 列 × 6 行 = **36 张**。
     /// 留 48 张让「当前窗口 + 相邻视野」的工作集全部命中，
     /// 又不至于把 576 张（≈680MB）全缓存下来。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ★ 内存优化 T5（2026-10-07）：把 `costLimit` 从"永不生效的 96MB"改成
+    ///   与 `capacity` 自洽的 64MB
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 【原来哪里不对】`capacity: 48` 与 `costLimit: 96MB` **互相矛盾**：
+    ///   单张 544² = 544×544×4 = **1.18MB**，48 张满载只有 **56.6MB**，
+    ///   所以 96MB 这条上限**永远不会被触发** —— 兜底的一直是 `capacity`，
+    ///   96MB 只是把"最坏情况"写大了一倍，让人误以为上限是 96MB。
+    ///
+    /// 【为什么是 64MB 而不是更小】48 张 × 1.18MB = 56.6MB，
+    ///   留一点余量取 64MB ⟹ **仍然是 `capacity` 兜底**，行为与优化前完全一致，
+    ///   但参数终于写的是真实上限。
+    ///
+    /// ⚠️ **不要再往下调**：实测 `costLimit = 48MB`（< 56.6MB）时它开始生效并
+    ///   与 `capacity` 抢班 —— 工作集放不下 ⟹ 抖动式淘汰（实测淘汰 7 次 / 缓存 42 张）
+    ///   ⟹ `--mc-map-bench` 1200m 底图 **26.49ms → 55.64ms（退化 2.1 倍）**。
+    ///   瓦片缓存的价值全在"命中工作集"，卡到工作集以下就是拿帧率换假的内存数字。
+    ///
+    /// 【怎么验】`--mc-map-bench` 打印本行 `metricsLine`（在缓存 N 张 / M MB）：
+    ///   N 应稳定在 36~48、M ≤ 57MB、**淘汰次数不应随轮数持续增长**。
     private let cache = AuroraCache<Int, CGImage?>(
         name: "map.tiles",
         capacity: 48,
-        costLimit: 96 << 20,
+        costLimit: 64 << 20,
         cost: { ($0?.width ?? 0) * ($0?.height ?? 0) * 4 })
 
     private var directory: URL?
@@ -1806,6 +1827,16 @@ final class MapTileCache {
     private var srcImageSize: CGSize = .zero
     private var srcCGImage: CGImage?
 
+    /// 源图**真正被解析**的次数（T5 内存优化的可观测证据）。
+    ///
+    /// 瓦片仓库覆盖全图时，正常取图路径应让它**恒为 0**（源图 JPEG 从不解码）；
+    /// `AURORA_MAP_TILE_WINDOW=0`（回退源图直裁）或瓦片缺失时它才增长。
+    /// 用它而不是"看 RSS 感觉小了"来证明优化真的生效 —— 见 `metricsLine`。
+    private static var sourceDecodeCount = 0
+
+    /// 诊断读数（`--mc-map-bench` 用；与 `MapTileStore.metricsLine` 配套）。
+    static var sourceDecodesForDiagnostics: Int { sourceDecodeCount }
+
     /// 裁出以 (centerX, centerY) 为中心、边长 spanPx 的正方形区域，
     /// 缩放到 outSize×outSize 返回。同参数二次调用直接命中缓存。
     /// - Parameter viewport: 视野（地图像素）。**必须与路网/标记/路线用同一个**
@@ -1818,8 +1849,37 @@ final class MapTileCache {
         let vp = viewport.quantized
         let qx = vp.centerX, qy = vp.centerY, qs = vp.spanPx
 
-        let src = cachedCGImage(from: image)
-        guard let src else { return nil }
+        // ══════════════════════════════════════════════════════════════════
+        // ★ 内存优化 T5：源图**懒解码**（这是 121MB RSS 的最大单笔）
+        // ══════════════════════════════════════════════════════════════════
+        // 【改的是什么】原实现第一行就 `cachedCGImage(from: image)` 并无条件
+        //   `guard let src`。而 `cachedCGImage` 之后一旦被下游做 **1:1 crop+draw**
+        //   （`buildWindow` 的源图回落路径、或 `qs >= mapPixels` 的整图分支），
+        //   CoreGraphics 会把 **整张 13056² JPEG 解成全分辨率位图**。
+        //
+        // 【实测代价（本机，不是估算）】独立探针同法复现：
+        //     仅 NSImage                 footprint 10.4MB
+        //     + cgImage(forProposedRect) footprint 12.2MB   ← 仍是懒的，不炸
+        //     + 3072² cropping→ctx.draw  footprint 49.5MB   ← **+37MB**，在这里炸
+        //   `--mc-map` 夹具整进程峰值 RSS 249MB，其中就有这一笔。
+        //
+        // 【为什么可以直接省掉】`models/map_tiles` 的 576 张 544² PNG
+        //   （24×24×544 = 13056，**整除、全覆盖**）已能拼出任意视口窗口，
+        //   故正常路径**根本不需要源图**。改成闭包后，只有"瓦片覆盖不全"
+        //   才付出这笔 37MB 解码 —— 也就是从"每次取图必付"变成"永不付"。
+        //
+        // 【A/B 开关】沿用现成的 `AURORA_MAP_TILE_WINDOW=0`（走源图直裁），
+        //   不需要新增 flag：关掉窗口路径即回到旧的内存行为。
+        var memoSource: CGImage?
+        var sourceResolved = false
+        /// 只有真正需要源图时才解析（结果记忆化；nil 也会被记住，不重复试）。
+        func sourceCGImage() -> CGImage? {
+            if sourceResolved { return memoSource }
+            sourceResolved = true
+            memoSource = cachedCGImage(from: image)
+            if memoSource != nil { Self.sourceDecodeCount += 1 }
+            return memoSource
+        }
 
         // ══════════════════════════════════════════════════════════════════
         // 【为什么这里没有金字塔】2026-10-04 试过、实测零收益，已整条删除
@@ -1874,12 +1934,15 @@ final class MapTileCache {
             //         oyOut = side/2 − mapSide + qy·s
             let oxOut = Double(outSize) / 2 - qx * scaleOut
             let oyOut = Double(outSize) / 2 - mapSide + qy * scaleOut
+            guard let src = sourceCGImage() else { return nil }
             return draw(src, size: Int(outSize), key: k,
                         in: CGRect(x: oxOut, y: oyOut, width: mapSide, height: mapSide))
         }
 
         // ── 取解码源：视野窗口优先（窗口内拖动不再触碰源图解码）──
-        let source = decodeSource(for: src, viewport: vp, mapPixels: mapPixels)
+        // 传的是**闭包不是已解码的图**：瓦片能拼出窗口时，源图永不被解析（T5）。
+        guard let source = decodeSource(for: sourceCGImage(), viewport: vp,
+                                        mapPixels: mapPixels) else { return nil }
 
         // 源图坐标 → 解码源位图坐标。**两种解码源共用这一份裁切逻辑** ——
         // 分开写两份 crop+clamp，迟早分叉（本项目的 4px 量化就是这么分叉的）。
@@ -1923,13 +1986,17 @@ final class MapTileCache {
     /// 回落到整张源图的唯一情形是「窗口装不下视口」
     /// （见 `ViewportWindowMetrics.side(covering:)`）—— 那是前提不成立，
     /// 不是特判：窗口的全部意义是"窗口内拖动不再解码"。
-    private func decodeSource(for src: CGImage, viewport vp: MapLayerViewport,
-                              mapPixels: Double) -> DecodeSource {
-        let wholeMap = DecodeSource(image: src, originX: 0, originY: 0, pixels: mapPixels)
+    private func decodeSource(for src: @autoclosure () -> CGImage?,
+                              viewport vp: MapLayerViewport,
+                              mapPixels: Double) -> DecodeSource? {
         // A/B 开关：`AURORA_MAP_TILE_WINDOW=0` → 走优化前的源图直裁路径
+        // （那条路径**必然**要源图，此时闭包才被求值 —— 开销与优化前一致）
         guard ViewportWindowMetrics.enabled,
               let side = ViewportWindowMetrics.side(covering: vp.spanPx),
-              side <= mapPixels else { return wholeMap }
+              side <= mapPixels else {
+            guard let s = src() else { return nil }
+            return DecodeSource(image: s, originX: 0, originY: 0, pixels: mapPixels)
+        }
 
         // 命中条件：窗口尺寸一致 + 中心没偏出**由 spanPx 派生的**换窗距离
         // （固定比例会越界 → 底图与标记错位，见 `recenterDistance(spanPx:)`）
@@ -1941,8 +2008,14 @@ final class MapTileCache {
                                 originY: w.originY, pixels: w.side)
         }
 
-        guard let built = buildWindow(from: src, centerX: vp.centerX, centerY: vp.centerY,
-                                      side: side, mapPixels: mapPixels) else { return wholeMap }
+        // ★ 关键：`buildWindow` **优先拼瓦片**，只有瓦片拼不出来时才回落源图；
+        //   回落所需的源图由闭包**延迟到那一刻**才解析。瓦片齐全时这里
+        //   一次都不会调用 `src()` ⟹ 整张 13056² JPEG 永不解码（省 ~37MB）。
+        guard let built = buildWindow(from: src(), centerX: vp.centerX, centerY: vp.centerY,
+                                      side: side, mapPixels: mapPixels) else {
+            guard let s = src() else { return nil }
+            return DecodeSource(image: s, originX: 0, originY: 0, pixels: mapPixels)
+        }
         viewportWindow = built
         return DecodeSource(image: built.image, originX: built.originX,
                             originY: built.originY, pixels: built.side)
@@ -1954,7 +2027,8 @@ final class MapTileCache {
     /// ⟹ 不做任何重采样，窗口位图**逐像素等于**源图对应区域。
     /// 窗口位置被夹进源图内（否则 `cropping` 会返回 nil），
     /// 保证窗口永远是一块**完整**的源图区域 —— 这样窗口内任何裁剪都不会越界。
-    private func buildWindow(from src: CGImage, centerX: Double, centerY: Double,
+    private func buildWindow(from src: @autoclosure () -> CGImage?,
+                             centerX: Double, centerY: Double,
                              side: Double, mapPixels: Double) -> ViewportWindow? {
         let half = side / 2
         let ox = min(max(centerX - half, 0), mapPixels - side).rounded()
@@ -1971,8 +2045,12 @@ final class MapTileCache {
 
         // ── 拼窗口：优先用离线瓦片；瓦片缺失时回落到源图 ──
         // 两者都是 **1:1 blit**（无插值），窗口位图逐像素等于源图对应区域。
+        //
+        // ★ 顺序即内存策略：`stitchFromTiles` **先跑**，`src()` 只在它失败后才求值。
+        //   瓦片齐全 ⟹ 这里的 `src()` 永不执行 ⟹ 源图 JPEG 永不解码。
         if !stitchFromTiles(into: ctx, originX: ox, originY: oy, side: side) {
-            guard let region = src.cropping(to: CGRect(x: ox, y: oy, width: side, height: side))
+            guard let s = src(),
+                  let region = s.cropping(to: CGRect(x: ox, y: oy, width: side, height: side))
             else { return nil }
             ctx.draw(region, in: CGRect(x: 0, y: 0, width: side, height: side))
         }
@@ -6049,6 +6127,17 @@ enum MissionControlShot {
         let provider = MapBaseImageProvider.shared
         print()
         print("[MC-BENCH] \(provider.metricsLine)")
+        // ★ T5 证据：源图被**解析**的次数。瓦片仓库覆盖全图时它应当恒为 0
+        //   （= 整张 13056² JPEG 从未解码，省掉那 ~37MB 全分辨率位图）；
+        //   若 > 0，说明有取图落在了"瓦片拼不出来"的回落路径上。
+        let srcDecodes = MapTileCache.sourceDecodesForDiagnostics
+        print("[MC-BENCH] \(MapTileStore.shared.metricsLine)")
+        if srcDecodes == 0 {
+            print("[MC-BENCH] ✅ 源图 0 次解码（T5 懒解码生效：瓦片已覆盖全图，JPEG 从未解成位图）")
+        } else {
+            print("[MC-BENCH] ⚠️ 源图被解码 \(srcDecodes) 次 —— 有取图走了瓦片回落路径"
+                  + "（瓦片缺失时属预期；瓦片齐全则是回归）")
+        }
         if provider.diskLoadCount > 1 {
             print("[MC-BENCH] ❌ 源图被重复读盘 \(provider.diskLoadCount) 次（正确实现应为 1 次）"
                   + " —— 下游 36MB 视野窗口会随之反复重建")

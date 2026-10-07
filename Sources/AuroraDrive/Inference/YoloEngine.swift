@@ -178,6 +178,12 @@ final class YoloEngine {
         do {
             let config = MLModelConfiguration()
             config.computeUnits = .all
+            // ★ P3（2026-10-07）模型层推理优化：fastPrediction（macOS 15+）。
+            //   实测 1.12×（p50 9.98 → 8.90ms），输出 bit-exact（max diff=0，n=1800）。
+            //   详见 YolopxEngine.loadFirstUsableModel 同款注释。
+            if #available(macOS 15.0, *) {
+                config.optimizationHints.specializationStrategy = .fastPrediction
+            }
             let mlModel = try MLModel(contentsOf: modelURL, configuration: config)
             model = mlModel
             isLoaded = true
