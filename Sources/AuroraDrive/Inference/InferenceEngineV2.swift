@@ -1440,11 +1440,16 @@ final class InferenceEngineV2 {
                detections: [Detection],
                laneMask: MaskGrid?) {
         guard isLoaded, let modelRef = model else {
+            print("[V2-diag] infer 早退：isLoaded=\(isLoaded) model=\(model != nil)")
             scheduleBackgroundLoadIfNeeded()
             return
         }
-        guard !isInferencing else { return }
+        guard !isInferencing else {
+            print("[V2-diag] infer 早退：isInferencing 尚未释放")
+            return
+        }
         isInferencing = true
+        print("[V2-diag] infer 进入，gen=\(generation)")
 
         // 跨线程只传值类型（MaskGrid 在这里转成 Sendable 快照）
         let snapshot = laneMask.flatMap { LaneMaskSnapshot(mask: $0) }
@@ -1535,6 +1540,7 @@ final class InferenceEngineV2 {
             //   第一次调用：推入后 filled=1 < 2 → 跳过（调用方用旧引擎）
             //   第二次调用：filled=2 → 正常推理
             let filledNow = self.frameBufferFilled()
+            print("[V2-diag] 推帧后 filledNow=\(filledNow)")
             self.noteTimelineFrames(filledNow)
             if filledNow < Self.minFramesForTimeline {
                 let reason = "时序冷启动：有效帧 \(filledNow)/\(V2InputContract.historyFrames)"
@@ -2359,7 +2365,229 @@ enum SyntheticLane {
 //   不是标定值。真实像素↔米比例未知（随分辨率/视野变化）。等真实数据回来
 //   应重新拟合，并核对 heading/curvature 的分布是否落在模型训练分布内。
 //
-// TODO(v2-wiring): 接线（DriveState 侧开关切换新旧引擎）**尚未做** ——
-//   按 Lead 指示等 T2 的 INT8 模型产出后统一安排，避免与 T3 的录制改动撞车。
-//   切换点预计在 `DriveState.tick()` 里按开关选 `inferenceEngine` 或
-//   `inferenceEngineV2`，并保证两者**互斥**（不并行推理，省算力）。
+// TODO(v2-wiring): 接线已完成（2026-10-08，见 docs/V2接入驾驶室-2026-10-08.md）——
+//   `DriveState.tick()` 按 `isLoaded && timelineReady` 在 V2 与旧 M9 间切换，
+//   两者**互斥**（每帧只触发一个）。此处保留本条历史记录。
+
+// MARK: - 引擎链路自检（--v2-selftest）
+
+/// V2 **引擎完整链路**自检：用合成画面驱动真实的 `infer() → finish()`，
+/// 覆盖"CoreML 模型能加载 → 环形缓冲攒帧 → 6 输出接收 → 冷启动门控"。
+///
+/// ══════════════════════════════════════════════════════════════════════════
+/// 【为什么需要它 —— 与 `selfCheck()` 的分工】
+/// ══════════════════════════════════════════════════════════════════════════
+/// `selfCheck()` 是**纯逻辑**自检（环形缓冲算法、compass 转换、dets 编码…），
+/// **不碰 CoreML、不跑 infer**。
+/// 而本函数跑**完整引擎链路**——它补上了此前"从未实跑过"的空白：
+///   · 无游戏画面时 `infer()` 不被触发（`有帧=false`）
+///   · 之前的验证是绕过引擎直接 `MLModel.prediction`（只证模型可加载，
+///     不证引擎的输入装配/输出解析/状态流转正确）
+///
+/// ══════════════════════════════════════════════════════════════════════════
+/// 【断言口径 · 按 w8 的防假绿要求】
+/// ══════════════════════════════════════════════════════════════════════════
+///   ① **断言具体值**，不是"不报错"：
+///      `timelineFrames` 逐帧增长到 8、`timelineReady` 在 filled≥2 翻真、
+///      `lastConfidence != 0.9`（**关键**：0.9 是 fallback 占位，
+///      不断言它区分不出"真模型输出"vs"没读到"）
+///   ② **6 输出断言 finite + shape**
+///   ③ **冷启动阶段**（filled<2）拒绝推理 + 记原因
+///   ④ 反证：`modelURL == nil`（模型缺失）时 `isLoaded == false` 且不崩
+///   ⑤ **显式打印"链路通 ≠ 能开车"**（权重随机，见下方警告）
+///
+/// ⚠️⚠️ 【适用边界 · 必读】
+///   当前 `models/m9_v2.mlmodelc` 是 **65.74% 随机初始化**的链路验证版
+///   （缺 refiner/experts/temporal/heads 权重，见 w8 独立复现）。
+///   ⟹ 本自检**只能证明"链路通"**（能加载/能装配/能读到 6 输出/不崩不 NaN），
+///      **不能证明"输出有意义"或"能开车"**。
+///      steer/throttle/brake 当前是随机值，**绝不可上车**。
+///   ⟹ 自检输出里**显式打印**这行警告，避免被误读。
+///   等完整 checkpoint 训练出来换掉模型文件后，本自检同样适用，
+///   届时可另行加"输出分布合理性"断言（当前加了必然失败，故不加）。
+@MainActor
+enum V2EngineLinkSelfTest {
+
+    /// 合成画面尺寸（与模型契约一致，CoreML 内部会缩放到 180×320）。
+    private static let syntheticWidth = 640
+    private static let syntheticHeight = 360
+
+    /// 生成合成 CGImage（确定性图案，不依赖随机种子 → 可复现）。
+    ///
+    /// 【为什么不用纯随机像素】可复现性：自检要能"同样的输入给同样的结论"。
+    /// 用确定性渐变 + 几条竖线（模拟车道线），既不依赖随机种子，
+    /// 又能让车道线估计器有东西可算（不至于全零 → 几何失效）。
+    static func makeSyntheticImage(frameIndex: Int) -> CGImage? {
+        let w = syntheticWidth, h = syntheticHeight
+        let bytesPerRow = w * 4
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
+        for y in 0..<h {
+            for x in 0..<w {
+                let i = (y * w + x) * 4
+                // 确定性渐变：随时间轻微变化（模拟车辆前进导致画面变化）
+                let base = UInt8((x * 255 / max(1, w - 1)))
+                let shift = UInt8((frameIndex * 8 + y / 4) % 64)
+                pixels[i]     = base &+ shift          // R
+                pixels[i + 1] = UInt8((y * 255 / max(1, h - 1)))  // G
+                pixels[i + 2] = UInt8(128)             // B
+                pixels[i + 3] = 255                    // A
+            }
+        }
+        // 画两条"车道线"（竖向，位置随时间轻微摆动）
+        let offset = (frameIndex % 5) - 2
+        for laneX in [w / 3 + offset, (w * 2) / 3 + offset] {
+            guard laneX >= 0, laneX < w else { continue }
+            for y in (h / 2)..<h {
+                let i = (y * w + laneX) * 4
+                pixels[i] = 255; pixels[i + 1] = 255; pixels[i + 2] = 255; pixels[i + 3] = 255
+            }
+        }
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData) else { return nil }
+        return CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32,
+                       bytesPerRow: bytesPerRow, space: colorSpace,
+                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                       provider: provider, decode: nil, shouldInterpolate: false,
+                       intent: .defaultIntent)
+    }
+
+    /// 跑引擎链路自检。
+    /// - Parameters:
+    ///   - ledger: 复用的自检台账（`SelfTestLedger`）。
+    ///   - modelFileName: 模型名（默认 m9_v2；反证用例传一个不存在的名字）。
+    /// - Returns: 建议的进程退出码（0 = 全通过）。
+    static func run(ledger: SelfTestLedger, modelFileName: String = "m9_v2") -> Int32 {
+        print("═══ V2 引擎链路自检（--v2-selftest）═══")
+        ledger.section("① 模型加载")
+
+        let engine = InferenceEngineV2(modelFileName: modelFileName)
+        print("  模型文件: models/\(modelFileName).mlmodelc")
+
+        // ⚠️ 显式打印适用边界（Lead/w8 要求，避免被误读为"能开车"）
+        print("  ⚠️⚠️ 权重警告：当前 m9_v2.mlmodelc 约 65% 参数为随机初始化（链路验证版）")
+        print("      ⟹ 本自检只证明「链路通」，**不证明「输出有意义」或「能开车」**")
+        print("      ⟹ steer/throttle/brake 当前是随机值，**绝不可上车**")
+
+        engine.loadIfNeeded()
+        ledger.check("模型加载成功（isLoaded == true）", engine.isLoaded,
+                     engine.isLoaded ? "已加载" : (engine.errorMessage ?? "未知原因"))
+
+        guard engine.isLoaded else {
+            ledger.note("模型未就绪 → 跳过链路验证（这是**降级路径**，不是失败；"
+                        + "先跑 tools/export_m9_v2_coreml.py 导出模型）")
+            // 反证用例：模型不存在时必须"不崩 + isLoaded=false"
+            ledger.check("模型缺失时 isLoaded == false（优雅降级）", !engine.isLoaded,
+                         "errorMessage=\(engine.errorMessage ?? "-")")
+            return Int32(ledger.summary("V2 引擎链路自检"))
+        }
+
+        // ── ② 冷启动门控：第一次 infer 后 filled=1 < 2 → 必须拒绝推理 ──
+        ledger.section("② 冷启动门控（timelineFrames < 2 拒绝推理）")
+        engine.reset()
+        ledger.equals("reset 后 timelineFrames == 0", engine.timelineFrames, 0)
+
+        guard let img0 = makeSyntheticImage(frameIndex: 0) else {
+            ledger.check("合成画面构造", false, "CGImage 构造失败")
+            return Int32(ledger.summary("V2 引擎链路自检"))
+        }
+        var k = V2Kinematics()
+        k.speedKmh = 60; k.speedValid = true; k.speedLimitKmh = 120
+
+        engine.infer(image: img0, kinematics: k, detections: [], laneMask: nil)
+        pumpRunLoop(0.3)
+        // 第 1 帧推入后 filled=1 < 2 → 本轮拒绝推理（不产 lastResult）
+        ledger.equals("第 1 帧后 timelineFrames == 1（环形缓冲已推入）",
+                      engine.timelineFrames, 1)
+        ledger.check("冷启动拒绝原因已记录（不静默跳过）",
+                     engine.coldStartSkipReason != nil,
+                     engine.coldStartSkipReason ?? "（无）")
+
+        // ── ③ 攒满 8 帧：逐帧断言 timelineFrames 增长 ──
+        ledger.section("③ 环形缓冲攒帧（timelineFrames 逐个增长到 8）")
+        var frameLog: [Int] = [engine.timelineFrames]
+        for i in 1..<V2InputContract.historyFrames {
+            guard let img = makeSyntheticImage(frameIndex: i) else { break }
+            // 每帧之间等待，避免 isInferencing 防重叠门把提交挡掉
+            var waited = 0.0
+            while engine.isInferencing && waited < 1.0 {
+                pumpRunLoop(0.02); waited += 0.02
+            }
+            engine.infer(image: img, kinematics: k, detections: [], laneMask: nil)
+            pumpRunLoop(0.3)
+            frameLog.append(engine.timelineFrames)
+        }
+        print("  timelineFrames 轨迹: \(frameLog)")
+        ledger.equals("8 帧后 timelineFrames == 8（环形缓冲满）",
+                      engine.timelineFrames, V2InputContract.historyFrames)
+        // 单调递增（每帧至少不降）
+        let monotonic = zip(frameLog, frameLog.dropFirst()).allSatisfy { $0 <= $1 }
+        ledger.check("timelineFrames 单调不回退", monotonic, "轨迹=\(frameLog)")
+        ledger.check("timelineReady == true（>=2）", engine.timelineReady,
+                     "timelineFrames=\(engine.timelineFrames)")
+
+        // ── ④ 6 输出接收（断言 finite + 具体值）──
+        ledger.section("④ 6 输出接收（lastResult + 3 辅助输出）")
+        guard let result = engine.lastResult else {
+            ledger.check("lastResult 非空（推理真的跑完了）", false,
+                         "errorMessage=\(engine.errorMessage ?? "-")")
+            return Int32(ledger.summary("V2 引擎链路自检"))
+        }
+        ledger.check("lastResult 非空", true,
+                     String(format: "steer=%.4f throttle=%.4f brake=%.4f latency=%.1fms",
+                            result.steer, result.throttle, result.brake, result.latencyMs))
+        ledger.check("steer finite", result.steer.isFinite, "\(result.steer)")
+        ledger.check("throttle finite", result.throttle.isFinite, "\(result.throttle)")
+        ledger.check("brake finite", result.brake.isFinite, "\(result.brake)")
+        // 值域断言（tanh/sigmoid 的数学上界，与权重无关，随机权重也必须满足）
+        ledger.check("steer ∈ [-1,1]（tanh 值域，与权重无关）",
+                     result.steer >= -1.0001 && result.steer <= 1.0001, "\(result.steer)")
+        ledger.check("throttle ∈ [0,1]（sigmoid 值域，与权重无关）",
+                     result.throttle >= -0.0001 && result.throttle <= 1.0001, "\(result.throttle)")
+        ledger.check("brake ∈ [0,1]（sigmoid 值域，与权重无关）",
+                     result.brake >= -0.0001 && result.brake <= 1.0001, "\(result.brake)")
+
+        // 三个辅助输出：**断言"真的读到了"，且 confidence 不是 fallback 0.9**
+        let aux = engine.lastAuxOutputs
+        print("  辅助输出: \(aux.debugSummary)")
+        ledger.check("confidence 读到真值（非 nil）", aux.confidence != nil,
+                     aux.confidence.map { String(format: "%.4f", $0) } ?? "nil（旧模型无此输出）")
+        if let c = aux.confidence {
+            // ★ w8 要求的关键断言：0.9 是 ControlCommand 的 fallback 占位值。
+            //   若读到恰好 0.9，无法区分"模型真输出 0.9"vs"没读到用了 fallback"。
+            //   （随机权重下几乎不可能恰好 0.9，若出现则说明解析路径可疑。）
+            ledger.check("confidence != 0.9（区分真值 vs fallback 占位）",
+                         abs(c - 0.9) > 1e-6,
+                         String(format: "confidence=%.6f", c))
+            ledger.check("confidence ∈ [0,1]", c >= -0.0001 && c <= 1.0001, "\(c)")
+        }
+        ledger.check("risk 读到（非 nil）", aux.risk != nil,
+                     aux.risk.map { String(format: "%.4f", $0) } ?? "nil")
+        ledger.check("car_heading 读到（非 nil）", aux.carHeadingRad != nil,
+                     aux.carHeadingRad.map { String(format: "%.4f rad", $0) } ?? "nil")
+        if let h = aux.carHeadingRad {
+            ledger.check("car_heading ∈ [-π,π]（atan2 值域）",
+                         h >= -Double.pi - 0.001 && h <= Double.pi + 0.001, "\(h)")
+        }
+        ledger.check("推理未报错", engine.errorMessage == nil,
+                     engine.errorMessage ?? "-")
+
+        // ── ⑤ 反证：模型不存在时必须优雅降级 ──
+        ledger.section("⑤ 反证：模型缺失 → 优雅降级（不崩）")
+        let missing = InferenceEngineV2(modelFileName: "definitely_not_exist_v2_model")
+        missing.loadIfNeeded()
+        ledger.check("缺失模型 → isLoaded == false", !missing.isLoaded, "isLoaded=\(missing.isLoaded)")
+        ledger.check("缺失模型 → 给出明确 errorMessage（不静默）",
+                     (missing.errorMessage?.contains("不存在") ?? false)
+                     || (missing.errorMessage?.contains("未就绪") ?? false),
+                     missing.errorMessage ?? "（无）")
+        // 缺失模型时 infer 不得崩（走 scheduleBackgroundLoadIfNeeded 分支）
+        if let img = makeSyntheticImage(frameIndex: 0) {
+            missing.infer(image: img, kinematics: k, detections: [], laneMask: nil)
+            pumpRunLoop(0.2)
+            ledger.check("缺失模型时 infer 不崩（无 lastResult 但进程存活）",
+                         missing.lastResult == nil, "lastResult=\(String(describing: missing.lastResult))")
+        }
+
+        return Int32(ledger.summary("V2 引擎链路自检"))
+    }
+}

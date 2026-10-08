@@ -1010,8 +1010,14 @@ class IterationRefiner(nn.Module):
         self.shared = shared
         self.enable_moe = enable_moe
         self.num_experts = num_experts
-        self.lane_offset_step = lane_offset_step   # 第 8 步额外出 lane_offset
-        self.ttc_step = ttc_step                   # 第 16 步额外出 ttc
+        # 辅助任务的落点步骤。**钳制到 [1, num_steps]**（T12 导出配置支持）：
+        #   · num_steps=24（账面对）：lane_offset@8、ttc@16 —— 原设计
+        #   · num_steps=8（ANE 友好）：ttc 原设计在 step16 **超出范围会丢失**，
+        #     钳到最后一步（step8）；lane_offset 本来就在 step8 不受影响
+        #   · 更短（如 num_steps=2）：都落到最后一步，保证两个辅助监督信号不丢
+        # 这样任何 N 都保住 lane_offset + ttc 两路监督，只是落点步不同。
+        self.lane_offset_step = max(1, min(lane_offset_step, num_steps))
+        self.ttc_step = max(1, min(ttc_step, num_steps))
 
         # 残差投影：把 GRU 隐状态投回 feat_dim 维，作为每步的增量修正。
         # 零初始化 → 起步修正 = 0 → refined = fused（不破坏旧行为）。
@@ -1176,7 +1182,25 @@ class M2Model(nn.Module):
                  heading_unit: str = "compass",
                  enable_refiner: bool = True,
                  refiner_steps: int = 24,
-                 refiner_shared: bool = True):
+                 refiner_shared: bool = True,
+                 num_steps: Optional[int] = None):
+        """M2Model 构造。
+
+        ⚠️ `num_steps` 与 `refiner_steps` 是**同一参数的两个名字**（别名）：
+           · `refiner_steps` —— M2Model 的主名（与 IterationRefiner 的 num_steps 区分）
+           · `num_steps`     —— 兼容别名（导出脚本/Lead 习惯写 build_model(num_steps=N)）
+           实测踩坑：仅支持 refiner_steps 时，`build_model(num_steps=8)` 会被
+           **静默当成未知 kwarg 忽略**（仍构建 24 步）→ 导出错误的模型却不报错。
+           这里显式收下 num_steps 并覆盖 refiner_steps，消除这个静默陷阱。
+           （两者同时传且不一致时以 num_steps 为准并打 warning。）
+        """
+        if num_steps is not None:
+            if num_steps != refiner_steps and refiner_steps != 24:
+                import warnings
+                warnings.warn(
+                    f"M2Model: num_steps={num_steps} 与 refiner_steps={refiner_steps} 不一致，"
+                    f"以 num_steps 为准。", stacklevel=2)
+            refiner_steps = num_steps
         super().__init__()
         self.deploy = deploy
         self.img_feat_dim = img_feat_dim

@@ -951,6 +951,11 @@ struct AuroraDriveLauncher {
                               "--llm-selftest", "--llm-probe", "--llm-vision-selftest",
                               "--control-selftest", "--tool-selftest", "--tool-call-demo",
                               "--llm-perf-selftest", "--websearch-selftest",
+                              // 2026-10-08（V2 接入驾驶室）：V2 引擎**完整链路**自检。
+                              //   补上 w8 报告的「未验证 #1/#2」：infer()→finish() 实跑。
+                              //   ⚠️ 与 --llm-selftest 同理：**登记与分发必须同时存在**，
+                              //      只登记不分发 → 走到正常 UI 启动 → 假绿 exit 0。
+                              "--v2-selftest",
                               // 2026-10-07（S5 全量测试发现漏登记）：
                               //   这两个自检**早就有分发代码**，但从未登记进本数组
                               //   —— 一旦 UI 进程在跑（持 ui.lock），它们会被单实例锁
@@ -1088,6 +1093,18 @@ struct AuroraDriveLauncher {
             exit(runBlockingSelfTest("A3 端到端") {
                 await LLMSelfTest.runToolCallDemo(ledger: ledger, task: task, live: live)
                 return ledger.summary("A3 端到端")
+            })
+        }
+        // ── V2 引擎完整链路自检（2026-10-08，V2 接入驾驶室）──
+        // 补 w8 报告的「未验证 #1/#2」：infer()→finish() 完整引擎链路实跑。
+        // 必须 @MainActor（InferenceEngineV2 是 MainActor 隔离的）。
+        if args.contains("--v2-selftest") {
+            let ledger = SelfTestLedger()
+            exit(runBlockingSelfTest("V2 引擎链路") {
+                let rc: Int32 = await MainActor.run {
+                    V2EngineLinkSelfTest.run(ledger: ledger)
+                }
+                return Int(rc)
             })
         }
         if args.contains("--llm-perf-selftest") {
