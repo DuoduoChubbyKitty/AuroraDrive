@@ -999,10 +999,25 @@ class IterationRefiner(nn.Module):
     """
 
     def __init__(self, feat_dim: int = FUSION_IN_DIM, hidden: int = FUSION_IN_DIM,
-                 num_steps: int = 24, shared: bool = True,
+                 num_steps: int = 12, shared: bool = True,
                  num_experts: int = 6, enable_moe: bool = True,
                  step_head: bool = True,
-                 lane_offset_step: int = 8, ttc_step: int = 16):
+                 lane_offset_step: int = 8, ttc_step: int = 16,
+                 moe_steps: Optional[List[int]] = None):
+        """迭代精修 + MoE 专家。
+
+        ★ 用户拍板（2026-10-09 最高依据）：
+            「12 步，然后给 4 步给专家，剩下 8 步给自己」
+          → num_steps 默认 **12**；第 1~8 步纯自己精修，第 9~12 步调 MoE 专家。
+
+        Args:
+            num_steps: 总迭代步数（默认 12 = 用户拍板值；24 为备用配置）
+            moe_steps: **哪些步启用 MoE 专家**（可配）。
+                None（默认）→ 自动取**最后 4 步**（12 步时 = [9,10,11,12]）。
+                传 [] → 全程不用专家（等价 enable_moe=False）。
+                传 [9,10,11,12] → 显式指定。
+                越界步号会被过滤（并打印提示），保证不越界访问。
+        """
         super().__init__()
         self.feat_dim = feat_dim
         self.hidden = hidden
@@ -1011,13 +1026,24 @@ class IterationRefiner(nn.Module):
         self.enable_moe = enable_moe
         self.num_experts = num_experts
         # 辅助任务的落点步骤。**钳制到 [1, num_steps]**（T12 导出配置支持）：
-        #   · num_steps=24（账面对）：lane_offset@8、ttc@16 —— 原设计
-        #   · num_steps=8（ANE 友好）：ttc 原设计在 step16 **超出范围会丢失**，
-        #     钳到最后一步（step8）；lane_offset 本来就在 step8 不受影响
+        #   · num_steps=12（用户拍板）：lane_offset@8（自己精修完成）、ttc@12（专家介入后）
+        #   · num_steps=24（备用）：lane_offset@8、ttc@16 —— 原设计
         #   · 更短（如 num_steps=2）：都落到最后一步，保证两个辅助监督信号不丢
         # 这样任何 N 都保住 lane_offset + ttc 两路监督，只是落点步不同。
         self.lane_offset_step = max(1, min(lane_offset_step, num_steps))
         self.ttc_step = max(1, min(ttc_step, num_steps))
+
+        # ── MoE 生效步（用户拍板：12 步中「4 步给专家，8 步给自己」）──
+        # 默认 = 最后 4 步（num_steps=12 → [9,10,11,12]）。
+        # 前 num_steps-4 步纯 GRU 精修，不调专家 → 计算量比"每步都调"少很多。
+        if moe_steps is None:
+            n_moe = min(4, max(0, num_steps - 1))   # 至少留 1 步给自己
+            self.moe_steps: List[int] = list(range(num_steps - n_moe + 1, num_steps + 1))
+        else:
+            self.moe_steps = sorted({s for s in moe_steps if 1 <= s <= num_steps})
+            dropped = sorted(set(moe_steps) - set(self.moe_steps))
+            if dropped:
+                print(f"[IterationRefiner] ⚠ moe_steps 中 {dropped} 超出 [1,{num_steps}]，已忽略")
 
         # 残差投影：把 GRU 隐状态投回 feat_dim 维，作为每步的增量修正。
         # 零初始化 → 起步修正 = 0 → refined = fused（不破坏旧行为）。
@@ -1090,15 +1116,20 @@ class IterationRefiner(nn.Module):
             delta = self.refiner_proj(h)                   # [B, feat_dim]
             refined = fused + delta                        # [B, feat_dim]
 
-            # ② MoE（用户新需求）：6 个场景专家 + 路由器，每步**软路由**（softmax 加权）
-            # ★ Lead 裁决（2026-10-08，w5 预验）：必须用 softmax 软路由，**不用 argmax**：
+            # ② MoE（用户拍板）：**只在 moe_steps 指定的步**调 6 个场景专家 + 路由器，
+            #    软路由（softmax 加权）。
+            # ★ 用户原话：「12 步，然后给 4 步给专家，剩下 8 步给自己」
+            #   → 默认 num_steps=12、moe_steps=[9,10,11,12]：
+            #     第 1~8 步纯 GRU 精修（不调专家），第 9~12 步 GRU + 专家辅助。
+            #   ★ Lead 裁决（2026-10-08，w5 预验）：必须用 softmax 软路由，**不用 argmax**：
             #   1. **可微** —— argmax 不可微，训练梯度传不过去，硬路由根本训不了（决定性）
             #   2. 更快（p50 3.68ms vs 4.27ms）
             #   3. 图更小（少 216 算子）
             #   且 coremltools 会把硬路由的 argmax/gather 降级成 select 算子，
             #   分支照样全算（relu=144 两种路由一样）→ 硬路由**省不了计算**还不可微。
             expert_weights = None
-            if self.experts is not None:
+            route_logits = None
+            if self.experts is not None and step in self.moe_steps:
                 route_logits = self.router(refined)                  # [B, num_experts]
                 expert_weights = torch.softmax(route_logits, dim=-1)  # [B,E] 可微权重
                 # 6 专家各自输出 → 按软权重加权求和（全算，但可微且 CoreML 友好）
@@ -1181,10 +1212,14 @@ class M2Model(nn.Module):
                  stage2_blocks: int = 3,
                  heading_unit: str = "compass",
                  enable_refiner: bool = True,
-                 refiner_steps: int = 24,
+                 refiner_steps: int = 12,
                  refiner_shared: bool = True,
+                 moe_steps: Optional[List[int]] = None,
                  num_steps: Optional[int] = None):
         """M2Model 构造。
+
+        ★ 用户拍板（2026-10-09）：「12 步，然后给 4 步给专家，剩下 8 步给自己」
+          → refiner_steps 默认 **12**；MoE 默认只在最后 4 步（[9,10,11,12]）生效。
 
         ⚠️ `num_steps` 与 `refiner_steps` 是**同一参数的两个名字**（别名）：
            · `refiner_steps` —— M2Model 的主名（与 IterationRefiner 的 num_steps 区分）
@@ -1195,7 +1230,7 @@ class M2Model(nn.Module):
            （两者同时传且不一致时以 num_steps 为准并打 warning。）
         """
         if num_steps is not None:
-            if num_steps != refiner_steps and refiner_steps != 24:
+            if num_steps != refiner_steps and refiner_steps != 12:
                 import warnings
                 warnings.warn(
                     f"M2Model: num_steps={num_steps} 与 refiner_steps={refiner_steps} 不一致，"
@@ -1283,15 +1318,17 @@ class M2Model(nn.Module):
                 # 兼容 RiskHead 构造签名差异（无参 / 不同 kwarg）
                 self.risk_head = RiskHead()
 
-        # ---- 迭代精修头（24 步向量版思维链，2026-10-08）----
-        # fused → GRUCell×24 → refined → FusionHead
+        # ---- 迭代精修头（向量版思维链）----
+        # fused → 严格GRU×N → refined → FusionHead
         # 零初始化残差 → 起步 refined = fused（不破坏旧行为，旧 checkpoint 兼容）
         # refiner_steps=1 退化为单步（≈无迭代，逐位一致）
+        # ★ 用户拍板（2026-10-09）：12 步 = 8 步自己精修 + 4 步专家（moe_steps 默认最后 4 步）
         self.refiner = None
         if enable_refiner:
             self.refiner = IterationRefiner(
                 feat_dim=fusion_in, hidden=fusion_in,
-                num_steps=refiner_steps, shared=refiner_shared)
+                num_steps=refiner_steps, shared=refiner_shared,
+                moe_steps=moe_steps)
 
         # ---- 记录契约常量，供 Swift/导出脚本读取 ----
         self.img_h = IMG_H
