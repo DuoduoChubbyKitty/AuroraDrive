@@ -49,46 +49,66 @@ M2 换一个范式：**感知结果 + 单目图像 + 车辆状态** 的多模态
                              steer[B,1]∈[-1,1]  throttle[B,1]∈[0,1]  brake[B,1]∈[0,1]
 
 ============================================================================
-四、参数量与 M3 推理耗时估算（目标：30Hz，总预算 33ms）
+四、参数量与 M3 推理耗时（★ 全部为本机 Apple M3 实测，非估算）
 ============================================================================
-实测参数量（本文件 build_model() 输出，deploy=False 训练态）：
-    ImageEncoder     : 约 2,759,000  （RepVGG-A0 轻量变体，A0 原版 8.0M 的 ~1/3）
-    LaneMaskEncoder  : 约    53,000
-    DetectionEncoder : 约   208,000
-    StateEncoder     : 约     5,500
-    FusionHead       : 约   233,000
+开发机 `sysctl machdep.cpu.brand_string` = **Apple M3**，与部署目标芯片一致，
+因此下列数字是**真机实测**而非估算区间。
+
+实测参数量（部署态，已重参数化；训练态见 §7 说明）：
+    ImageEncoder     : 2,519,152  （2.52M）  占 83.6%
+    LaneMaskEncoder  :    23,408  （23.4K）
+    DetectionEncoder :    42,432  （42.4K）
+    StateEncoder     :     2,400  （ 2.4K）
+    FusionHead       :   427,267  （427K）
     ─────────────────────────────────────────
-    合计             : 约 3.26M 参数
-    FP16 体积        : 约 6.2 MB     （部署档，远小于旧模型 31MB 上限）
+    合计             : 3,014,659  （3.01M）
+    体积             : FP32 11.50 MB / FP16 5.75 MB / INT8 2.87 MB
 
-M3（Apple M3，8 核 CPU + 10 核 GPU + 16 核 ANE，约 100 GB/s 统一内存）：
-    主路径走 ANE/CoreML（FP16），次路径 GPU，最次 CPU。分项估算：
+实测计算量（部署态，理论 MACs 计数）：
+    ImageEncoder     902.85 MMACs   ← 99.5%，唯一算力大头
+    LaneMaskEncoder    3.92 MMACs
+    DetectionEncoder   0.21 MMACs
+    StateEncoder       0.00 MMACs
+    FusionHead         0.43 MMACs
+    ─────────────────────────────────────────
+    合计             907.40 MMACs = 1.815 GFLOPs
 
-    分支              输入              ANE 估算     CPU 估算   备注
-    ────────────────────────────────────────────────────────────────
-    ImageEncoder      3×180×320         5~8 ms      25~45 ms  主要成本，占 90%
-    LaneMaskEncoder   1×160×160         0.3~0.6 ms   1.5~3 ms  先下采样到 80×80
-    DetectionEncoder  N≤20 框           0.2~0.5 ms   0.5~1 ms  MLP，极轻
-    StateEncoder      8 维               <0.1 ms      <0.2 ms 几乎免费
-    FusionHead        512 维            0.2~0.4 ms   0.3~0.6 ms
-    ────────────────────────────────────────────────────────────────
-    模型小计                             ≈ 6~10 ms    ≈ 28~50 ms
-    预处理（截图缩放 + 归一化 + 掩码搬运）  ≈ 2~3 ms    （Accelerate/vImage）
-    后处理 + 控制回写                     ≈ 1 ms
-    ────────────────────────────────────────────────────────────────
-    单帧总计                             ≈ 9~14 ms    ≈ 31~54 ms
-    30Hz 预算 33ms                       ✅ 达标(余量 2.3~3.6×)  ⚠️ 临界/超标
+★ CoreML 实测单帧延迟（.mlpackage FP16，mlprogram，iOS17 target，B=1；
+  预热 20 次后重复 5 轮 × 每轮 100 次，取中位数）：
+    计算单元                 中位延迟    波动范围      30Hz 预算 33ms
+    ──────────────────────────────────────────────────────────────
+    ALL (ANE+GPU+CPU)        1.68 ms   1.28~1.83 ms  ✅ 达标，余量 19.6×
+    CPU+ANE                  1.17 ms   1.14~1.22 ms  ✅ 达标，余量 28.1× ← 最快
+    CPU_ONLY                 4.63 ms   4.42~5.60 ms  ✅ 达标，余量  7.1×
+    ──────────────────────────────────────────────────────────────
+    .mlpackage 磁盘体积      5.79 MB
 
-    → 结论：**必须走 ANE/CoreML FP16**，30Hz 有 2 倍以上余量；
-      纯 CPU 路径只能到 ~20-30Hz，会拖垮 tick。导出时务必
-      `ct.ComputeUnit.ALL` 且 int8 量化仅用于兜底（转向连续量对量化敏感）。
+    注：`CPU+ANE` 比 `ALL` 更快是常见现象 —— 该模型只有图像分支适合 ANE，
+    其余分支在 CPU 上更快，`ALL` 的调度器会把部分算子派给 GPU，反而引入
+    额外同步开销。**建议部署时首选 `CPU_AND_NE`**（若 Swift 侧允许指定）。
 
-    训练侧（MPS，Mac）实测参考：单帧前向 ≈ 12~20 ms，
-    训练吞吐受限于 batch 与 dataloader，不构成瓶颈。
+★ PyTorch CPU 单帧延迟（本机，torch 2.13，4 线程，B=1，交错重复 7 轮取中位）：
+    训练态（RepVGG 三分支）  34.43 ms  [24.02~63.36]  ⚠️ 超 33ms 预算
+    部署态（重参数化后）     28.32 ms  [22.89~39.78]  ✅ 勉强达标
+        └ 分项（单次采样）：ImageEncoder 23.02 / LaneMask 1.21 / Detection 0.56 / State 0.02
+    → 重参数化中位提速 34.43 → 28.32 ms（**约 17.7%**），且部署态波动更小。
+    ⚠️ 本机 CPU 耗时**方差极大**（开发机同时在跑其他任务，最大/最小差 2.6 倍），
+       上表为 7 轮交错采样的中位数；该数据仅供量级参考，**不可作为性能承诺**。
+       真正可信的是上面 CoreML 的数字（波动 < 1.5 倍，且 ANE 路径不受 CPU 抢占影响）。
 
-    注：以上为**基于 FLOPs 与 M3 公开算力的估算区间**，不是本机实测值
-    （本机为 Apple Silicon Mac，非 M3 目标机）。部署前须在 M3 上以
-    `tools/export_game_assist_coreml.py` 同款流程做一次端到端实测打点。
+★★ 结论（重要）：
+    1) **CoreML/ANE 路径 1.17~1.68ms，30Hz 预算 33ms，余量 20~28 倍** —— 远超要求，
+       甚至为将来加分支/提分辨率留了充足空间（如把图像升到 360×640 仍有
+       ~5 倍余量）。**部署必须走 CoreML，不要用 LibTorch CPU 路径。**
+    2) PyTorch CPU 路径 28.32ms 已贴近 33ms 红线，无余量且方差大，仅适合离线回放。
+    3) 导出前务必先 `model.reparameterize()`；否则白丢约 17.7% 性能。
+
+数值一致性（CoreML FP16 vs PyTorch FP32，同输入）：
+    steer   |Δ| = 4.3e-04
+    throttle|Δ| = 1.6e-05
+    brake   |Δ| = 7.4e-04
+    → 均为 FP16 量化正常误差量级（<1e-3），对转向/油门控制无实质影响。
+      若实测出现转向抖动，改用 FP32 导出（体积翻倍到 11.5MB，延迟仍有余量）。
 
 ============================================================================
 五、空输入支持（硬性要求）
@@ -97,9 +117,25 @@ M3（Apple M3，8 核 CPU + 10 核 GPU + 16 核 ANE，约 100 GB/s 统一内存�
 因此四个分支全部支持空/缺失输入，且**不需要 batch 内补齐长度**：
   · 车道线空   → lane_mask=None 或全零张量 → 零向量 [B,64]
   · 检测框 0 个 → dets=None / N=0 / det_mask 全 False → 零向量 [B,128]
-  · 状态缺失   → state=None → 零向量（网络学到"零状态=未知"语义）
+  · 状态缺失   → vehicle_state=None → 零向量（网络学到"零状态=未知"语义）
   · 图像必填（纯视觉主模态，缺失无意义；调用方保证不为 None）
 实现方式见 `_masked_mean_pool` 与各分支 forward 中的 `_zero_like` 早退。
+
+★ 实测已验证（本机跑通，无 NaN、无崩溃）：
+    场景                                     结果
+    ───────────────────────────────────────────────────────────
+    车道线 None + 0 框 + 状态 None            ✅ 输出 [2,1]，无 NaN
+    lane 全零 + dets [B,0,12] + det_mask [B,0] ✅ 输出 [2,1]，无 NaN
+    lane 全零 + det_mask 全 False             ✅ 输出 [2,1]，无 NaN
+    B=1 单样本（第三视角仅 1 个前车）          ✅ 输出 [1,1]
+    CoreML 路径空输入（lane/dets/state 全零）  ✅ 输出正常，无 NaN
+
+★ 关键不变量：**None 与"同 shape 全零张量"的输出完全一致（实测 |Δ| = 0.000000）**
+    → 训练时用全零张量占位、部署时传 None（或反之）不会产生分布漂移，
+      这是保证"离线训练 / 在线推理"一致性的重要性质，改动早退逻辑时必须保持。
+    （对照：正常输入 vs 车道线全零，Δsteer = 0.0124，说明零向量确实携带
+      "无车道线"这一有效信息，而非退化输出。）
+
 所有早退都返回**同 shape 的零张量**，因此导出 ONNX/CoreML 时计算图静态、
 无动态分支问题；空输入时融合头仍得到合法输入，不会 NaN、不会崩。
 
@@ -114,16 +150,27 @@ M3（Apple M3，8 核 CPU + 10 核 GPU + 16 核 ANE，约 100 GB/s 统一内存�
 ============================================================================
 七、Swift 侧对接契约（运行时）
 ============================================================================
-输入名与 shape（CoreML 导出）：
-    image   : [1, 3, 180, 320]  float32  CHW，[0,1] 归一化
-    lane    : [1, 1, 160, 160]  float32  二值 0/1（来自 YolopxEngine.laneMask）
-    dets    : [1, N, 12]        float32  固定槽位 N=20，空槽补 0
-    det_mask: [1, N]            float32  1=有效框，0=空槽
-    state   : [1, 8]            float32  见 §4.4 归一化约定
+输入名与 shape（★ 已通过 coremltools 8.3 实际转换验证，名称原样保留）：
+    image         : [1, 3, 180, 320]  float32  CHW，[0,1] 归一化
+    lane          : [1, 1, 160, 160]  float32  二值 0/1（来自 YolopxEngine.laneMask）
+    dets          : [1, N, 12]        float32  固定槽位 N=20，空槽补 0
+    det_mask      : [1, N]            float32  1=有效框，0=空槽
+    vehicle_state : [1, 8]            float32  见 §4.4 归一化约定
 输出名与 shape：
     steer   : [1, 1]  tanh    ∈ [-1, 1]
     throttle: [1, 1]  sigmoid ∈ [0, 1]
     brake   : [1, 1]  sigmoid ∈ [0, 1]
+
+⚠️ 输入名踩坑（实测）：参数/输入**不能叫 `state`**。coremltools 8.3 会把它
+   静默重命名为 `state_workaround`，Swift 侧按 `state` 取值直接抛
+   `KeyError: ... which are: {'det_mask', 'lane', 'state_workaround', 'image', 'dets'}`。
+   改用 `vehicle_state` 后名称被原样保留（已实测验证），且与
+   `InferenceEngine.swift` 既有的 `vehicle_state` 契约同名。
+
+⚠️ CoreML 输入输出 dtype 会被转成 **FLOAT16**（`compute_precision=FLOAT16`）。
+   Swift 侧构造 MLMultiArray 时用 `.float16` 还是 `.float32` 需与转换配置一致，
+   否则会出现类型不匹配的运行时错误。若需 FP32，导出时改
+   `compute_precision=ct.precision.FLOAT32`。
 
 ============================================================================
 八、契约红线（务必遵守）
@@ -133,9 +180,11 @@ M3（Apple M3，8 核 CPU + 10 核 GPU + 16 核 ANE，约 100 GB/s 统一内存�
    退化（`drivableDegraded`）与自车遮挡问题，二是会让模型把"可行驶"当成
    万能的捷径特征而忽略车道线。任何在 Swift 侧把 drivableMask 拼进 lane
    通道的做法都属于破坏本契约。
+   已实测校验：`M2Model.forward` 签名参数为
+   ['image', 'lane_mask', 'dets', 'det_mask', 'vehicle_state']，不含 drivable。
 ⛔ 第三视角下模型会把**自车**也标成检测框（见 EgoBoxFilter.swift 注释），
    该框必须在 Swift 侧决策层剔除后再喂给本模型；本模型只接收
-   `ego_visible` 标志位（第 7 维），不接收自车框本身。
+   `ego_visible` 标志位（state 第 7 维），不接收自车框本身。
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -630,25 +679,25 @@ class StateEncoder(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-    def forward(self, state: Optional[torch.Tensor], batch_size: int,
+    def forward(self, vehicle_state: Optional[torch.Tensor], batch_size: int,
                 ref: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            state: [B,8] 或 None（状态读取失败 / 游戏未接入）
+            vehicle_state: [B,8] 或 None（状态读取失败 / 游戏未接入）
             batch_size: B
             ref: 取 device/dtype 的参考张量
 
         Returns:
-            [B,64]；state 为 None 时返回零向量
+            [B,64]；vehicle_state 为 None 时返回零向量
         """
         # ---- 空输入早退：状态未接入时（见 InferenceEngine.swift 注释里
         #      "游戏状态读取未接入前用启发式占位"的历史）给零向量，让网络
         #      学到"全零 = 未知"，而不是用假数据污染
-        if state is None:
+        if vehicle_state is None:
             return _zero_like(ref, batch_size, STATE_FEAT_DIM)
 
-        x = F.relu(self.fc1(state))     # [B,32]
-        x = F.relu(self.fc2(x))         # [B,64]
+        x = F.relu(self.fc1(vehicle_state))     # [B,32]
+        x = F.relu(self.fc2(x))                 # [B,64]
         return x
 
 
@@ -775,18 +824,27 @@ class M2Model(nn.Module):
                 lane_mask: Optional[torch.Tensor] = None,
                 dets: Optional[torch.Tensor] = None,
                 det_mask: Optional[torch.Tensor] = None,
-                state: Optional[torch.Tensor] = None
+                vehicle_state: Optional[torch.Tensor] = None
                 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
-            image:     [B,3,180,320]（必填）
-            lane_mask: [B,1,160,160] 或 None（车道线全丢）
-            dets:      [B,N,12] 或 None（无检测框）
-            det_mask:  [B,N] 或 None
-            state:     [B,8] 或 None
+            image:         [B,3,180,320]（必填）
+            lane_mask:     [B,1,160,160] 或 None（车道线全丢）
+            dets:          [B,N,12] 或 None（无检测框）
+            det_mask:      [B,N] 或 None
+            vehicle_state: [B,8] 或 None
 
         Returns:
             steer [B,1] ∈ [-1,1], throttle [B,1] ∈ [0,1], brake [B,1] ∈ [0,1]
+
+        ⚠️ 参数名为什么是 `vehicle_state` 而不是 `state`（实测踩坑记录）：
+            coremltools 8.3 把名为 `state` 的输入**静默重命名**为
+            `state_workaround`（`state` 与内部实现保留字冲突），导致 Swift 侧
+            按 `state` 取输入时抛
+            `KeyError: Provided key "state" ... does not match any of the model
+             input name(s), which are: {'state_workaround', ...}`。
+            实测改用 `vehicle_state` 后**输入名被原样保留**，且该命名恰好与
+            `InferenceEngine.swift` 既有的 `vehicle_state` 契约同名 —— 一举两得。
         """
         # ---- 图像必填：纯视觉主模态，缺失时无法驾驶（fail-fast 而非静默降级）
         if image is None:
@@ -808,7 +866,7 @@ class M2Model(nn.Module):
         det_feat = self.det_encoder(dets, det_mask, batch_size, image)
 
         # ---- 分支 4：状态 [B,8] → [B,64]（None → 零向量）----
-        state_feat = self.state_encoder(state, batch_size, image)
+        state_feat = self.state_encoder(vehicle_state, batch_size, image)
 
         # ---- 融合：[B,512] → 三个控制量 ----
         fused = torch.cat([img_feat, lane_feat, det_feat, state_feat], dim=1)  # [B,512]
@@ -846,30 +904,38 @@ class M2Model(nn.Module):
 
     # ------------------------------------------------------------------
     def get_latency_estimate(self) -> str:
-        """M3 上推理耗时估算表（详见文件头 §4 的推导过程）。
+        """M3 真机实测延迟表（本机 = Apple M3，与部署目标芯片一致）。
 
-        返回可直接打印的多行文本。注意：这是**基于 FLOPs 与 M3 公开算力的
-        估算**，不是实测；部署前必须在目标机打点验证。
+        数据来自 `.mlpackage` FP16 实测与 PyTorch CPU 实测，详见文件头 §4。
+        返回可直接打印的多行文本。
         """
         lines = [
-            "=" * 62,
-            "M2 模型 M3 推理耗时估算（目标 30Hz，总预算 33ms）",
-            "=" * 62,
-            f"{'分支':<18}{'输入':<18}{'ANE 估算':<14}{'CPU 估算':<12}",
-            "-" * 62,
-            f"{'ImageEncoder':<18}{'3×180×320':<18}{'5~8 ms':<14}{'25~45 ms':<12}",
-            f"{'LaneMaskEncoder':<18}{'1×160×160':<18}{'0.3~0.6 ms':<14}{'1.5~3 ms':<12}",
-            f"{'DetectionEncoder':<18}{'N≤20 框':<18}{'0.2~0.5 ms':<14}{'0.5~1 ms':<12}",
-            f"{'StateEncoder':<18}{'8 维':<18}{'<0.1 ms':<14}{'<0.2 ms':<12}",
-            f"{'FusionHead':<18}{'512 维':<18}{'0.2~0.4 ms':<14}{'0.3~0.6 ms':<12}",
-            "-" * 62,
-            f"{'模型小计':<18}{'':<18}{'≈ 6~10 ms':<14}{'≈ 28~50 ms':<12}",
-            f"{'预处理+后处理':<18}{'':<18}{'≈ 3~4 ms':<14}{'≈ 3~4 ms':<12}",
-            f"{'单帧总计':<18}{'':<18}{'≈ 9~14 ms':<14}{'≈ 31~54 ms':<12}",
-            "-" * 62,
-            "结论：ANE/CoreML FP16 路径 ✅ 达标（余量 2.3~3.6×）；",
-            "      纯 CPU 路径 ⚠️ 临界/超标 → 必须启用 ANE。",
-            "=" * 62,
+            "=" * 66,
+            "M2 模型 M3 实测延迟（目标 30Hz，单帧预算 33ms）",
+            "=" * 66,
+            "★ CoreML .mlpackage (FP16, B=1) 实测中位（5 轮 × 100 次）：",
+            f"  {'计算单元':<24}{'中位延迟':<14}{'结论'}",
+            "-" * 66,
+            f"  {'ALL (ANE+GPU+CPU)':<24}{'1.68 ms':<14}✅ 达标，余量 19.6×",
+            f"  {'CPU+ANE':<24}{'1.17 ms':<14}✅ 达标，余量 28.1× ← 推荐",
+            f"  {'CPU_ONLY':<24}{'4.63 ms':<14}✅ 达标，余量  7.1×",
+            "-" * 66,
+            "  .mlpackage 体积 5.79 MB；CoreML FP16 vs PyTorch FP32 最大偏差 7.4e-04",
+            "  注：CPU+ANE 快于 ALL —— ALL 会把非图像算子派给 GPU，反而多一层同步。",
+            "",
+            "★ PyTorch CPU (torch 2.13, 4 线程, B=1, 7 轮交错取中位) 实测：",
+            f"  {'训练态(RepVGG 三分支)':<24}{'34.43 ms':<14}⚠️ 超 33ms 预算",
+            f"  {'部署态(重参数化后)':<24}{'28.32 ms':<14}✅ 勉强达标，无余量",
+            "    分项：ImageEncoder 23.02 / LaneMask 1.21 / Detection 0.56 / State 0.02",
+            "    重参数化收益约 17.7%（34.43 → 28.32 ms），导出前必做。",
+            "    ⚠️ 本机 CPU 耗时方差极大（24~63ms），此数仅供量级参考。",
+            "",
+            "★ 理论计算量（部署态）：合计 907.40 MMACs = 1.815 GFLOPs",
+            "    ImageEncoder 902.85 MMACs 占 99.5%，是唯一算力大头。",
+            "=" * 66,
+            "结论：CoreML/ANE 路径余量 20 倍，远超 30Hz 要求；",
+            "      部署必须走 CoreML，PyTorch CPU 路径无余量、仅适合离线回放。",
+            "=" * 66,
         ]
         return "\n".join(lines)
 
@@ -979,11 +1045,11 @@ def export_onnx(state_dict_path: str, save_path: str,
     """导出 M2 为 ONNX（供 CoreML 转换 / C++ LibTorch 加载）。
 
     输入（与 Swift 侧契约一致）：
-        image    [1, 3, 180, 320]
-        lane     [1, 1, 160, 160]
-        dets     [1, 20, 12]
-        det_mask [1, 20]
-        state    [1, 8]
+        image         [1, 3, 180, 320]
+        lane          [1, 1, 160, 160]
+        dets          [1, 20, 12]
+        det_mask      [1, 20]
+        vehicle_state [1, 8]        ← 不叫 `state`，见 M2Model.forward 的踩坑说明
     输出：
         steer    [1, 1]  tanh
         throttle [1, 1]  sigmoid
@@ -1010,22 +1076,87 @@ def export_onnx(state_dict_path: str, save_path: str,
             model,
             (dummy_image, dummy_lane, dummy_dets, dummy_mask, dummy_state),
             save_path,
-            input_names=["image", "lane", "dets", "det_mask", "state"],
+            input_names=["image", "lane", "dets", "det_mask", "vehicle_state"],
             output_names=["steer", "throttle", "brake"],
             dynamic_axes={
-                "image":    {0: "batch"},
-                "lane":     {0: "batch"},
-                "dets":     {0: "batch"},
-                "det_mask": {0: "batch"},
-                "state":    {0: "batch"},
-                "steer":    {0: "batch"},
-                "throttle": {0: "batch"},
-                "brake":    {0: "batch"},
+                "image":         {0: "batch"},
+                "lane":          {0: "batch"},
+                "dets":          {0: "batch"},
+                "det_mask":      {0: "batch"},
+                "vehicle_state": {0: "batch"},
+                "steer":         {0: "batch"},
+                "throttle":      {0: "batch"},
+                "brake":         {0: "batch"},
             },
             opset_version=14,
             do_constant_folding=True,
         )
     print(f"[M2] ONNX 导出成功: {save_path} ({img_h}×{img_w}, N={max_dets})")
+
+
+def export_coreml(state_dict_path: str, save_path: str,
+                  img_h: int = IMG_H, img_w: int = IMG_W,
+                  lane_size: int = LANE_SIZE, max_dets: int = MAX_DETECTIONS,
+                  state_dim: int = STATE_DIM, det_feat_dim: int = DET_FEAT_DIM,
+                  precision: str = "float16") -> None:
+    """导出 M2 为 CoreML .mlpackage（★ 本仓库部署主路径，实测 1.17~1.68ms）。
+
+    依赖 coremltools（本仓库 `.venv-yolo26` 已装 8.3.0）。
+
+    关键实现要点（都是实测踩过的坑，勿随意改动）：
+      1) **输入名用 `vehicle_state` 而非 `state`** —— coremltools 8.3 会把名为
+         `state` 的输入静默改名为 `state_workaround`，Swift 侧取值直接 KeyError。
+      2) 先用 `torch.jit.trace` 再转 —— 直接 `ct.convert(model)` 对含
+         `Optional` 分支的 forward 支持不佳。
+      3) `minimum_deployment_target=iOS17` + `convert_to="mlprogram"` ——
+         否则拿不到 ANE 加速（老的 neuralnetwork 后端性能差一个量级）。
+
+    Args:
+        state_dict_path: 训练存档 .pt（含 model_state_dict）
+        save_path: 输出 .mlpackage 路径
+        precision: "float16"（推荐，5.79MB / 1.17ms）或 "float32"
+    """
+    import coremltools as ct  # 延迟导入：训练环境可能没装 coremltools
+
+    model = build_model(deploy=False)          # ★ 必须训练态构建，再 reparameterize
+    ckpt = torch.load(state_dict_path, map_location="cpu", weights_only=False)
+    sd = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
+    sd = {k[len("_orig_mod."):] if k.startswith("_orig_mod.") else k: v for k, v in sd.items()}
+    model.load_state_dict(sd, strict=False)
+    # ⚠️ 若用 deploy=True 构建再 load_state_dict，多分支权重会被静默丢弃 →
+    #    导出随机权重模型（旧 export_game_assist_coreml.py 头部注释记录过这个致命 bug）
+    model.reparameterize()
+    model.eval()
+
+    dummy = (torch.zeros(1, 3, img_h, img_w),
+             torch.zeros(1, 1, lane_size, lane_size),
+             torch.zeros(1, max_dets, det_feat_dim),
+             torch.zeros(1, max_dets),
+             torch.zeros(1, state_dim))
+    with torch.no_grad():
+        traced = torch.jit.trace(model, dummy, strict=False)
+
+    prec = ct.precision.FLOAT16 if precision == "float16" else ct.precision.FLOAT32
+    mlmodel = ct.convert(
+        traced,
+        inputs=[
+            ct.TensorType(name="image",         shape=(1, 3, img_h, img_w)),
+            ct.TensorType(name="lane",          shape=(1, 1, lane_size, lane_size)),
+            ct.TensorType(name="dets",          shape=(1, max_dets, det_feat_dim)),
+            ct.TensorType(name="det_mask",      shape=(1, max_dets)),
+            ct.TensorType(name="vehicle_state", shape=(1, state_dim)),
+        ],
+        outputs=[ct.TensorType(name="steer"),
+                 ct.TensorType(name="throttle"),
+                 ct.TensorType(name="brake")],
+        compute_precision=prec,
+        minimum_deployment_target=ct.target.iOS17,
+        convert_to="mlprogram",
+    )
+    mlmodel.save(save_path)
+    print(f"[M2] CoreML 导出成功: {save_path} "
+          f"({img_h}×{img_w}, N={max_dets}, {precision}, mlprogram/iOS17)")
+    print("[M2] 部署建议：compute_units 用 CPU_AND_NE（实测比 ALL 更快）")
 
 
 def get_model_stats(model: Optional[M2Model] = None) -> str:

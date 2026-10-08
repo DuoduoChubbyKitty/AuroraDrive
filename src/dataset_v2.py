@@ -231,6 +231,15 @@ def _detect_format(header: Sequence[str], clip_dir: Path) -> str:
     return "v1_old"
 
 
+def _read_header(csv_path: Path) -> List[str]:
+    """安全读取 controls.csv 表头（不泄漏文件句柄）。"""
+    try:
+        with open(csv_path, "r", newline="", encoding="utf-8") as f:
+            return [c.strip() for c in (next(csv.reader(f), []) or [])]
+    except (OSError, StopIteration, csv.Error):
+        return []
+
+
 def _frame_path(clip_dir: Path, fmt: str, frame_no: int) -> Optional[Path]:
     """构造单帧图像路径。找不到返回 None。
 
@@ -543,6 +552,13 @@ def _load_detections(clip_dir: Path, frame_no: int, n_slots: int
                 raw = None
 
     if raw is None or len(raw) == 0:
+        return boxes, scores, classes, mask, False
+
+    # 丢弃退化框（宽或高 <= 0，例如 y1==y2==0 的零面积框）。
+    # 实测 yolopx det 头在低置信度下会吐出这类框，直接喂给模型会污染回归目标。
+    wh = raw[:, 2:4] - raw[:, 0:2]
+    raw = raw[(wh[:, 0] > 0) & (wh[:, 1] > 0)]
+    if len(raw) == 0:
         return boxes, scores, classes, mask, False
 
     # 按 score 降序，超出槽位数截断
@@ -917,8 +933,7 @@ def backfill_lane_masks(
     net, letterbox_rgb, imgsz = _load_yolopx(imgsz)
     stats = {"clips": 0, "frames": 0, "skipped": 0}
     for clip in _list_clips(Path(clips_dir)):
-        fmt = _detect_format(
-            next(csv.reader(open(clip / "controls.csv", encoding="utf-8")), []), clip)
+        fmt = _detect_format(_read_header(clip / "controls.csv"), clip)
         out_dir = clip / _LANE_CACHE_DIR
         out_dir.mkdir(exist_ok=True)
         n_done = 0
@@ -970,8 +985,7 @@ def backfill_detections(
     net, letterbox_rgb, imgsz = _load_yolopx(imgsz)
     stats = {"clips": 0, "frames": 0, "boxes": 0, "skipped": 0}
     for clip in _list_clips(Path(clips_dir)):
-        fmt = _detect_format(
-            next(csv.reader(open(clip / "controls.csv", encoding="utf-8")), []), clip)
+        fmt = _detect_format(_read_header(clip / "controls.csv"), clip)
         out_dir = clip / _DET_CACHE_DIR
         out_dir.mkdir(exist_ok=True)
         n_done = 0
@@ -1016,6 +1030,10 @@ def backfill_detections(
                     xyxy[:, [1, 3]] = np.clip(xyxy[:, [1, 3]], 0, H)
                     k = _nms_numpy(xyxy, scores, iou_thres)[:max_det]
                     xyxy, scores, cls = xyxy[k], scores[k], cls[k]
+                    # 再丢一次退化框：裁剪到图像边界后可能出现零面积框
+                    wh = xyxy[:, 2:4] - xyxy[:, 0:2]
+                    good = (wh[:, 0] > 1.0) & (wh[:, 1] > 1.0)
+                    xyxy, scores, cls = xyxy[good], scores[good], cls[good]
                 else:
                     xyxy = np.zeros((0, 4), dtype=np.float32)
             else:
@@ -1041,15 +1059,155 @@ def backfill_detections(
 
 
 # ==================================================================================
+# 数据质量审计（如实报告「到底有什么」）
+# ==================================================================================
+def audit_clips(clips_dir: str | Path, hash_frames: bool = True) -> Dict[str, Any]:
+    """逐 clip 审计数据现状，返回结构化报告（不抛异常）。
+
+    ⚠️ 2026-10-08 实测发现（本函数会自动报出来）：
+       现有 5 个 clip 的 frames/*.jpg **是整屏桌面截图**，不是游戏前向画面——
+       帧里含 macOS 菜单栏、Dock、其他应用窗口。根因见
+       Sources/AuroraDrive/App/AuroraDriveApp.swift:7438
+         `if isRecording, let image = currentScreenImage {`
+       `currentScreenImage` 来自 CaptureEngine 的整屏捕获（非游戏窗口裁剪）。
+       → 这类帧**不能直接用于训练**：图像与 steer 标签无因果对应关系。
+       必须在录制端改为「游戏窗口区域裁剪」后重录，或对现有帧做窗口 ROI 裁剪。
+
+    另外会报告：控制标签全零帧占比、重复帧、dt 分布（异常高频）、
+    以及 lane/det 缓存是否存在。
+    """
+    import hashlib
+
+    clips = _list_clips(Path(clips_dir))
+    report: Dict[str, Any] = {"clips": [], "totals": {}}
+    tot_frames = tot_zero = tot_dup = 0
+
+    for clip in clips:
+        header = _read_header(clip / "controls.csv")
+        fmt = _detect_format(header, clip)
+        rows, _fmt, diag = _load_controls_csv(
+            clip / "controls.csv", clip, "auto", DEFAULT_FPS)
+
+        frames_dir = clip / "frames"
+        frames = sorted(p for p in frames_dir.iterdir()
+                        if p.suffix.lower() in (".jpg", ".jpeg", ".png")) \
+            if frames_dir.is_dir() else []
+
+        zero_rows = sum(1 for r in rows if r["steer"] == 0.0
+                        and r["throttle"] == 0.0 and r["brake"] == 0.0)
+
+        dup = 0
+        if hash_frames and frames:
+            hs = [hashlib.md5(p.read_bytes()).hexdigest() for p in frames]
+            dup = len(hs) - len(set(hs))
+
+        dts: List[float] = []
+        ts = [r["t_sec"] for r in rows if r["t_sec"] is not None]
+        for a, b in zip(ts[:-1], ts[1:]):
+            dts.append(b - a)
+        dt_med = float(np.median(dts)) if dts else None
+
+        meta: Dict[str, Any] = {}
+        mp = clip / "meta.json"
+        if mp.exists():
+            try:
+                meta = json.loads(mp.read_text())
+            except (json.JSONDecodeError, OSError):
+                meta = {}
+
+        with Image.open(frames[0]) as _im0:
+            frame_size = _im0.size
+        report["clips"].append({
+            "name": clip.name,
+            "format": fmt,
+            "header": header,
+            "frames_on_disk": len(frames),
+            "csv_rows": len(rows),
+            "frame_size": frame_size if frames else None,
+            "view": _clip_view(clip),
+            "meta_resolution": (meta.get("target_w"), meta.get("target_h")),
+            "zero_label_rows": zero_rows,
+            "zero_label_ratio": (zero_rows / len(rows)) if rows else None,
+            "duplicate_frames": dup,
+            "dt_median_sec": dt_med,
+            "implied_fps": (1.0 / dt_med) if dt_med else None,
+            "has_speed_kmh": diag["has_speed"],
+            "has_heading": diag["has_heading"],
+            "has_curvature": diag["has_curvature"],
+            "has_lane_cache": (clip / _LANE_CACHE_DIR).exists()
+                              or (clip / "lane_masks.npz").exists()
+                              or (clip / "lanes.json").exists(),
+            "has_det_cache": (clip / _DET_CACHE_DIR).exists()
+                             or (clip / "detections.npz").exists(),
+        })
+        tot_frames += len(frames)
+        tot_zero += zero_rows
+        tot_dup += dup
+
+    report["totals"] = {
+        "n_clips": len(clips),
+        "frames_on_disk": tot_frames,
+        "zero_label_rows": tot_zero,
+        "duplicate_frames": tot_dup,
+        "clips_with_lane_cache": sum(1 for c in report["clips"] if c["has_lane_cache"]),
+        "clips_with_det_cache": sum(1 for c in report["clips"] if c["has_det_cache"]),
+        "clips_with_speed": sum(1 for c in report["clips"] if c["has_speed_kmh"]),
+        "clips_with_heading": sum(1 for c in report["clips"] if c["has_heading"]),
+        "clips_with_curvature": sum(1 for c in report["clips"] if c["has_curvature"]),
+        "formats": sorted({c["format"] for c in report["clips"]}),
+    }
+    return report
+
+
+def print_audit(clips_dir: str | Path) -> None:
+    """人类可读的数据现状报告。"""
+    rep = audit_clips(clips_dir)
+    print("=" * 88)
+    print(f"数据审计 — {clips_dir}")
+    print("=" * 88)
+    for c in rep["clips"]:
+        ratio = 0.0 if c["zero_label_ratio"] is None else c["zero_label_ratio"] * 100
+        fps = c["implied_fps"]
+        print(f"\n■ {c['name']}  [{c['format']}]  view={c['view']}")
+        print(f"   帧文件 {c['frames_on_disk']} / CSV 行 {c['csv_rows']}"
+              f" / 尺寸 {c['frame_size']} / meta {c['meta_resolution']}")
+        print(f"   表头: {c['header']}")
+        print(f"   全零控制帧 {c['zero_label_rows']}（{ratio:.0f}%）"
+              f" / 重复帧 {c['duplicate_frames']}")
+        print(f"   dt 中位 {c['dt_median_sec']}"
+              f"{'' if fps is None else f' → {fps:.1f} Hz'}")
+        print(f"   speed={c['has_speed_kmh']} heading={c['has_heading']} "
+              f"curvature={c['has_curvature']} "
+              f"lane缓存={c['has_lane_cache']} det缓存={c['has_det_cache']}")
+    t = rep["totals"]
+    print("\n" + "-" * 88)
+    print(f"合计: {t['n_clips']} clip / {t['frames_on_disk']} 帧 / "
+          f"全零控制帧 {t['zero_label_rows']} / 重复帧 {t['duplicate_frames']}")
+    print(f"      speed={t['clips_with_speed']}/{t['n_clips']} "
+          f"heading={t['clips_with_heading']}/{t['n_clips']} "
+          f"curvature={t['clips_with_curvature']}/{t['n_clips']} "
+          f"lane缓存={t['clips_with_lane_cache']}/{t['n_clips']} "
+          f"det缓存={t['clips_with_det_cache']}/{t['n_clips']}")
+    print("-" * 88)
+    print("⚠️  已知问题：现有帧为整屏桌面截图（含菜单栏/Dock/其他窗口），")
+    print("    非游戏前向画面 → 图像与 steer 无因果对应，不宜直接训练。")
+    print("    详见 dataset_v2.audit_clips() docstring。")
+    print("=" * 88)
+
+
+# ==================================================================================
 # 自检：python src/dataset_v2.py
 # ==================================================================================
 if __name__ == "__main__":
     import sys
+
     root = Path(__file__).resolve().parent.parent
     clips = root / "data" / "raw_clips"
     print("=" * 78)
     print("dataset_v2 自检 —", clips)
     print("=" * 78)
+
+    print_audit(clips)
 
     ds = MultiTaskClipsDataset(clips, allow_empty=True)
     print(f"\n样本数: {len(ds)}")
