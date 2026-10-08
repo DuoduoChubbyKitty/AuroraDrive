@@ -111,8 +111,16 @@ import torch  # noqa: E402
 # 契约常量 —— 单一事实源是 src/model_v2.py，这里只做"读取"不硬编码尺寸
 # ============================================================================
 
+#: CoreML 输入名 —— **与 export_m9_v2_coreml.py（M2 权威脚本）逐字一致**。
+# ★ 方案 A（Lead 2026-10-08 拍板）：image 的 batch 维 = 时序窗口 [8,3,180,320]，
+#   模型内部 batch 跑 ImageEncoder → 8×256 特征 → 当作 N=8 序列喂 GRU。
+#   ⚠️ 本文件曾落后于 M2 脚本（仍写 5 输入 3 输出）—— 契约漂移会让 int8 产物
+#   与 Swift 侧 / fp16 产物**不兼容**，故此处必须同步（t1 验证抓出的假绿同款问题）。
 INPUT_NAMES: Tuple[str, ...] = ("image", "lane", "dets", "det_mask", "vehicle_state")
-OUTPUT_NAMES: Tuple[str, ...] = ("steer", "throttle", "brake")
+
+#: CoreML 输出名（含 M4 三个新头，与 M2 脚本同序）
+OUTPUT_NAMES: Tuple[str, ...] = ("steer", "throttle", "brake",
+                                 "confidence", "risk", "car_heading")
 
 #: 训练期探针前缀（导出前必须剥离，见 M2 脚本 坑 5）
 _TRAINING_PROBE_PREFIX = "lane_steer_probe."
@@ -178,7 +186,7 @@ def _build_and_load(sd: Optional[Dict[str, torch.Tensor]]):
 
 
 def _contract_from_model(model) -> Dict[str, int]:
-    return {
+    c = {
         "img_h": int(getattr(model, "img_h", 180)),
         "img_w": int(getattr(model, "img_w", 320)),
         "lane_size": int(getattr(model, "lane_size", 160)),
@@ -186,15 +194,23 @@ def _contract_from_model(model) -> Dict[str, int]:
         "det_feat_dim": int(getattr(model, "det_in_dim", 12)),
         "state_dim": int(getattr(model, "state_dim", 8)),
     }
+    # ★ 方案 A：时序窗口 N（= image 的 batch 维度），与 M2 脚本同源读取
+    n_frames = 8
+    te = getattr(model, "temporal_encoder", None)
+    if te is not None:
+        n_frames = int(getattr(te, "num_frames", 8))
+    c["num_frames"] = n_frames
+    return c
 
 
 def _shapes(c: Dict[str, int]) -> List[Tuple[int, ...]]:
+    """与 export_m9_v2_coreml.py 逐字一致：image batch = 时序窗口。"""
     return [
-        (1, 3, c["img_h"], c["img_w"]),
-        (1, 1, c["lane_size"], c["lane_size"]),
-        (1, c["num_dets"], c["det_feat_dim"]),
-        (1, c["num_dets"]),
-        (1, c["state_dim"]),
+        (c["num_frames"], 3, c["img_h"], c["img_w"]),   # image ← batch=8 = 时序窗口
+        (1, 1, c["lane_size"], c["lane_size"]),         # lane
+        (1, c["num_dets"], c["det_feat_dim"]),          # dets
+        (1, c["num_dets"]),                             # det_mask
+        (1, c["state_dim"]),                            # vehicle_state
     ]
 
 
@@ -204,9 +220,12 @@ def _shapes(c: Dict[str, int]) -> List[Tuple[int, ...]]:
 
 
 def _make_inputs(c: Dict[str, int], seed: int = 0) -> List[torch.Tensor]:
-    """训练分布内的确定性输入。lane 用高阈值伯努利逼近真实稀疏度（1~2%）。"""
+    """训练分布内的确定性输入。lane 用高阈值伯努利逼近真实稀疏度（1~2%）。
+
+    ★ 方案 A：image 是 [num_frames, 3, H, W]（batch=时序窗口），与 M2 脚本一致。
+    """
     g = torch.Generator().manual_seed(seed)
-    img = torch.rand(1, 3, c["img_h"], c["img_w"], generator=g)
+    img = torch.rand(c["num_frames"], 3, c["img_h"], c["img_w"], generator=g)
     lane = (torch.rand(1, 1, c["lane_size"], c["lane_size"], generator=g) > 0.985).float()
     dets = torch.rand(1, c["num_dets"], c["det_feat_dim"], generator=g)
     det_mask = (torch.rand(1, c["num_dets"], generator=g) > 0.35).float()
@@ -432,9 +451,47 @@ def _to_feed(inputs: Sequence[torch.Tensor]) -> Dict[str, np.ndarray]:
 
 
 def _torch_forward(model, inputs: Sequence[torch.Tensor]) -> List[float]:
+    """PyTorch 参考输出（6 个标量）。model 可能是 _ExportWrapper 或裸 M2Model。"""
     with torch.no_grad():
         out = model(*inputs)
+    if isinstance(out, tuple) and len(out) == 4 and isinstance(out[-1], dict):
+        # 裸 M2Model(return_aux=True)：aux 是 dict，需手工摊平（顺序与 OUTPUT_NAMES 一致）
+        steer, throttle, brake, aux = out
+        def _v(x):
+            return 0.0 if x is None else float(x.flatten()[0])
+        return [float(steer.flatten()[0]), float(throttle.flatten()[0]),
+                float(brake.flatten()[0]), _v(aux.get("confidence")),
+                _v(aux.get("risk")), _v(aux.get("car_heading"))]
     return [float(o.flatten()[0]) for o in out]
+
+
+class _ExportWrapper(torch.nn.Module):
+    """把 `M2Model` 摊平成 6 张量（与 export_m9_v2_coreml.py 的同名类**逐字一致**）。
+
+    为什么必需：`M2Model(return_aux=True)` 返回 `(steer, throttle, brake, aux: Dict)`，
+    `jit.trace` 无法输出 dict，`ct.convert(outputs=...)` 也要求扁平张量列表。
+    辅助头为 None 时用零张量占位 —— 保证 6 输出契约恒定，Swift 侧不必分支。
+    """
+
+    def __init__(self, model: torch.nn.Module):
+        super().__init__()
+        self.model = model
+
+    def forward(self, image, lane, dets, det_mask, vehicle_state):
+        steer, throttle, brake, aux = self.model(
+            image, lane, dets, det_mask, vehicle_state,
+            camera_heading=None, return_aux=True)
+
+        def _or_zero(v, width: int = 1):
+            if v is None:
+                return torch.zeros(1, width, dtype=steer.dtype, device=steer.device)
+            if v.dim() == 1:
+                return v.view(-1, width)
+            return v
+
+        return (steer, throttle, brake,
+                _or_zero(aux.get("confidence")), _or_zero(aux.get("risk")),
+                _or_zero(aux.get("car_heading")))
 
 
 def _coreml_forward(mlmodel, inputs: Sequence[torch.Tensor]) -> List[float]:
@@ -482,7 +539,7 @@ def _export_one(model, c: Dict[str, int], base_inputs, out: Path, scheme: str,
     res: Dict = {"scheme": scheme, "group_size": group_size, "preserve": preserve}
 
     with torch.no_grad():
-        traced = torch.jit.trace(model, tuple(base_inputs), strict=False)
+        traced = torch.jit.trace(_ExportWrapper(model).eval(), tuple(base_inputs), strict=False)
 
     t0 = time.time()
     mlmodel = _convert_fp16(traced, c, target)
@@ -511,7 +568,7 @@ def _export_one(model, c: Dict[str, int], base_inputs, out: Path, scheme: str,
     cases = _edge_cases(c, base_inputs)
     res["edge"] = {}
     for name, ins in cases.items():
-        rv = _torch_forward(model, ins)
+        rv = _torch_forward(export_model, ins)
         cv = _coreml_forward(mlmodel, ins)
         res["edge"][name] = {"pt": rv, "cm": cv,
                              "maxdiff": max(abs(a - b) for a, b in zip(rv, cv))}
@@ -519,7 +576,7 @@ def _export_one(model, c: Dict[str, int], base_inputs, out: Path, scheme: str,
     # lane 专项
     res["lane"] = {}
     for name, ins in _lane_sweep(c, base_inputs).items():
-        rv = _torch_forward(model, ins)
+        rv = _torch_forward(export_model, ins)
         cv = _coreml_forward(mlmodel, ins)
         res["lane"][name] = {"pt": rv, "cm": cv,
                              "maxdiff": max(abs(a - b) for a, b in zip(rv, cv))}
