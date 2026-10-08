@@ -374,39 +374,60 @@ def audit_checkpoint(ckpt_path: Path, model):
 # ============================================================================
 
 def verdict(results: dict, noise_floor: float = 1e-3) -> dict:
-    """给一个可读结论：模型是否真的在用车道线（基于实测数字，不拍脑袋）。"""
+    """给一个可读结论：模型是否真的在用车道线（基于实测数字，不拍脑袋）。
+
+    关键区分三层（三者缺一不可，任一缺失都会导致"不会跟线"）：
+      层 1 · 梯度可达：steer 损失能否回流传到 lane_encoder（架构上有没有一条路）
+      层 2 · 位置敏感：车道线的**位置**变化能否改变输出（GAP 可能把这层抹掉）
+      层 3 · 语义学会：权重是否真的在训练里被 carlen 监督过
+    """
     abl_deltas = [r["abs_delta"] for r in results["ablation"]]
     perturb_deltas = [abs(r["delta"]) for r in results["perturb"] if r["kind"] == "shift"]
     flip_deltas = [abs(r["delta"]) for r in results["perturb"] if r["kind"] == "flip"]
     grad = results["gradient"][0] if results["gradient"] else {}
     gli = grad.get("grad_lane_encoder", 0.0)
     gim = grad.get("grad_image_encoder", 0.0)
+    pos = results.get("position", {})
 
     max_abl = max(abl_deltas) if abl_deltas else 0.0
     mean_perturb = float(np.mean(perturb_deltas)) if perturb_deltas else 0.0
     mean_flip = float(np.mean(flip_deltas)) if flip_deltas else 0.0
+    spread = pos.get("steer_spread", 0.0)
 
-    # 三信号一致才下结论
     signals = {
-        "ablation_sensitive": max_abl > noise_floor,
-        "perturb_sensitive": mean_perturb > noise_floor,
-        "flip_sensitive": mean_flip > noise_floor,
-        "gradient_flows": gli > noise_floor,
+        "梯度可达（层1）": gli > noise_floor,
+        "消融敏感（层2 佐证）": max_abl > noise_floor,
+        "扰动敏感（层2 佐证）": mean_perturb > noise_floor,
+        "位置敏感（层2 核心）": spread > noise_floor,
     }
-    using_lane = sum(signals.values()) >= 3  # 至少 3/4 信号为真才判"在用"
+
+    # 层 3（语义学会）取决于 checkpoint 事实，不在这里判（由 audit 事实给出）
+    # 判定：层1 与 层2 都过才算"在用"；层2 挂掉（位置不敏感）= GAP 抹掉位置，必然不会跟线
+    layer1_ok = signals["梯度可达（层1）"]
+    layer2_ok = signals["位置敏感（层2 核心）"]
+    using_lane = layer1_ok and layer2_ok
+
+    if not layer1_ok:
+        conclusion = ("❌ 层1 失败：steer 梯度不流经车道分支（车道线是装饰性旁支）"
+                      "—— 模型内部无路可走，自然"不会跟线"")
+    elif not layer2_ok:
+        conclusion = ("⚠️ 层1 通过（梯度可达）但 层2 失败（位置不敏感，spread≈0）："
+                      "车道线位置信息被 GAP 全局平均池化抹掉——模型"看得见"车道线却"
+                      "「分不清左右」，这正是"会开出车道线"的架构根源")
+    else:
+        conclusion = ("✅ 层1 + 层2 均通过：车道线既进得去 steer 梯度，又保留位置语义。"
+                      "（层3 语义是否学会，另看 checkpoint 的 has_lane 事实）")
 
     return {
         "signals": signals,
+        "layer1_grad_reaches": layer1_ok,
+        "layer2_position_sensitive": layer2_ok,
         "max_ablation_delta": max_abl,
         "mean_perturb_delta": mean_perturb,
         "mean_flip_delta": mean_flip,
+        "position_spread": spread,
         "grad_lane_vs_image": (gli / gim) if gim > 1e-12 else None,
-        "conclusion": (
-            "✅ 模型在用车道线（消融/扰动/梯度三信号一致）"
-            if using_lane else
-            "❌ 模型对车道线不敏感（车道分支是装饰性旁支）—— 这正是用户痛点"
-            "『不会跟车道线』的模型内部证据"
-        ),
+        "conclusion": conclusion,
     }
 
 
