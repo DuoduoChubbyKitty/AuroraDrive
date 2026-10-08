@@ -1,10 +1,13 @@
 {
   "model": "M2 / m9_v2",
   "source": "src/model_v2.py",
-  "checkpoint": "/Users/dupi/Desktop/自动驾驶系统/checkpoints/m9_v2/best_model.pt",
+  "checkpoint": "checkpoints/m9_v2/best_model.pt",
   "precision": "float16",
   "target": "macOS13",
   "random_init": false,
+  "missing_param_ratio": 65.74035456323047,
+  "random_init_ratio_is_partial": true,
+  "deployable": false,
   "compute_units_policy": ".all（运行时由 Swift 侧设置，项目已实测最快，勿改）",
   "inputs": [
     {
