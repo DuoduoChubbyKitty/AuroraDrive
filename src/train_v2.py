@@ -1531,6 +1531,7 @@ def train_v2(
     select_metric: str = "control",
     iter_weight: float = 0.5,
     iter_random_depth: bool = True,
+    refiner_steps: Optional[int] = None,
     limit_batches: int = 0,
     resume: Optional[str] = None, force_reference_model: bool = False,
 ) -> Path:
@@ -1632,8 +1633,10 @@ def train_v2(
                             num_workers=num_workers, pin_memory=pin, drop_last=False)
 
     # ---------- 4. 模型 + 车道探针 ----------
-    model, model_source, lane_module = build_v2_model(lane_size or M2_LANE_SIZE,
-                                                      force_reference=force_reference_model)
+    model, model_source, lane_module = build_v2_model(
+        lane_size or M2_LANE_SIZE,
+        force_reference=force_reference_model,
+        num_steps=refiner_steps)
     model.to(device)
     n_param = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"[模型] 来源={model_source} | 可训练参数={n_param:,} ({n_param/1e6:.2f}M)")
@@ -1706,8 +1709,13 @@ def train_v2(
             print(f"[迭代精修] ✓ 检测到 IterationRefiner（{_n_iter_steps} 步）"
                   f"→ 启用逐步递减监督+中间步辅助+随机深度"
                   f"（iter_weight={iter_weight}, random_depth={iter_random_depth}）")
+            # ★ 显示实际落点步（w7 会把 aux 步钳制到 [1, N]，N=8 时 ttc 落在 8）
+            _lo = int(getattr(_refiner, "lane_offset_step",
+                              min(ITER_AUX_STEPS["lane_offset"], _n_iter_steps)))
+            _tt = int(getattr(_refiner, "ttc_step",
+                              min(ITER_AUX_STEPS["ttc"], _n_iter_steps)))
             print(f"[迭代精修]   步权重 {sorted(ITER_STEP_WEIGHTS.items())}，"
-                  f"辅助任务 {ITER_AUX_STEPS}")
+                  f"辅助任务落点 lane_offset@step{_lo} / ttc@step{_tt}")
         else:
             print("[迭代精修] ⚠ 模型无 iter_refiner 属性 → 训练信号自动跳过"
                   "（IterationRefiner 尚未落盘时属正常，不影响现有训练）")
@@ -1970,6 +1978,11 @@ def parse_args():
                         "模型无 iter_refiner 时自动跳过；0=关闭")
     p.add_argument("--no_iter_random_depth", action="store_true",
                    help="禁用随机深度（§3.3），用全部 24 步监督")
+    p.add_argument("--refiner_steps", type=int, default=None,
+                   help="★IterationRefiner 迭代步数（默认模型自带，通常 24）。"
+                        "⚠️ ANE 实测：24 步 ANE 编译失败退化 CPU；"
+                        "8 步 ANE=1.58ms / 12 步 2.13ms / 14~16 步是 cutoff。"
+                        "要上 ANE 建议 ≤8。")
     p.add_argument("--lane_seg_weight", type=float, default=0.3,
                    help="车道分割辅助损失权重（需模型有 lane_logits，当前 M2 无 → 自动跳过）")
     p.add_argument("--lane_steer_weight", type=float, default=0.5,
@@ -2026,6 +2039,7 @@ def main():
         select_metric=a.select_metric,
         iter_weight=a.iter_weight,
         iter_random_depth=not a.no_iter_random_depth,
+        refiner_steps=a.refiner_steps,
         limit_batches=a.limit_batches, resume=a.resume,
         force_reference_model=a.force_reference_model,
     )
