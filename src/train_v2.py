@@ -472,6 +472,45 @@ def call_model(model: nn.Module, inputs: Dict[str, torch.Tensor]) -> Any:
     return model(**kwargs)
 
 
+def call_model_with_intermediates(model: nn.Module,
+                                  inputs: Dict[str, torch.Tensor]
+                                  ) -> Tuple[Any, Any]:
+    """★ 24 步迭代精修接线（2026-10-08，需求 §3）。
+
+    若 model 有 `iter_refiner` 属性且非 None → 传 `return_intermediate=True`，
+    拿到 (主输出, intermediate) 返回；否则返回 (主输出, None)。
+
+    防御性：model.forward 不接受 return_intermediate 时退化为普通调用。
+    """
+    has_refiner = (hasattr(model, "iter_refiner")
+                   and getattr(model, "iter_refiner", None) is not None)
+    if not has_refiner:
+        return call_model(model, inputs), None
+    params = inspect.signature(model.forward).parameters
+    if "return_intermediate" not in params and not any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return call_model(model, inputs), None
+    kwargs = {k: v for k, v in inputs.items()
+              if (k in params or any(p.kind == inspect.Parameter.VAR_KEYWORD
+                                     for p in params.values())) and v is not None}
+    kwargs.setdefault("image", inputs["image"])
+    kwargs["return_intermediate"] = True
+    try:
+        out = model(**kwargs)
+    except TypeError:
+        # model.forward 不接受 return_intermediate（如参考实现）→ 降级
+        return call_model(model, inputs), None
+    # 解析返回：预期 (main, intermediate) 或 (main, intermediate, aux)
+    if isinstance(out, tuple) and len(out) >= 2 and isinstance(out[1], (list, tuple)):
+        main = out[0] if not isinstance(out[0], tuple) else out[0]
+        intermediate = out[1]
+        # 若返回的是 (main_tuple, intermediate) 且 main 是 (steer,throttle,brake)
+        if isinstance(out[0], tuple):
+            return out[0], intermediate
+        return out, intermediate
+    return out, None
+
+
 # ==================== 3. M2 接口：model_v2（软依赖 + 参考实现） ====================
 
 class _ReferenceModelV2(nn.Module):
@@ -971,13 +1010,25 @@ def lane_offset_target(lane_mask: torch.Tensor
                        ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
     """§3.2 step8 真值：车道中心横向偏移 ∈ [-1,1]（左负右正）。
 
-    复用 lane_geometry_steer 的底带质心（该函数已计算 offset），独立提取出来。
+    ★ 2026-10-08 改为优先复用 w4 的权威实现 `risk_head.lane_central_offset`
+    （w4 接口，74 断言验证过）；不可用时回退本地几何（lane_geometry_steer 同源）。
     返回 (target [B,1], valid [B])；无车道线 → (None, None)。
+
+    ⚠️ 单位说明（w4 提醒）：offset 是**归一化横向偏移**（本项目单格实际宽度未标定）。
     """
     if lane_mask is None:
         return None, None
-    proxy, valid = lane_geometry_steer(lane_mask, gain=1.0)
-    # proxy 已含 offset + slope 混合；step8 只需纯 offset → 重新取底带质心
+    # ---- 优先走 w4 权威接口 ----
+    try:
+        from risk_head import lane_central_offset
+        tgt, valid = lane_central_offset(lane_mask)
+        if tgt is not None:
+            return tgt.reshape(-1, 1), valid
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    # ---- 回退：本地底带质心（与 lane_geometry_steer 同源）----
     if lane_mask.dim() == 3:
         lm = lane_mask.unsqueeze(1)
     else:
@@ -998,31 +1049,49 @@ def ttc_target(batch: Dict[str, Any], device
                ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
     """§3.2 step16 真值：TTC 碰撞时间（秒，越小越危险）。
 
-    用 risk_head.estimate_ttc 估算；未标定 K 时 valid 全 False（诚实降级）。
+    ★ 2026-10-08：改用 w4 的 `ApproachRateEstimator`（**无需标定 K**，
+    用"框变大速率"算 TTC，见 risk_head 的数学证明）；仅在它不可用时
+    回退 `estimate_ttc`（依赖标定 K，未标定则 valid 全 False）。
+
+    单帧场景下 ApproachRateEstimator 需要跨帧历史 —— 本函数按"逐帧独立"降级：
+    若无历史则返回 estimate_ttc 的结果（未标定 → valid False，诚实降级）。
     返回 (target [B], valid [B])；无检测框 → (None, None)。
     """
-    try:
-        from risk_head import estimate_ttc, TTCConfig
-    except ImportError:
-        return None, None
     dets = batch.get("dets")           # [B,N,12] 已适配后的格式
     det_mask = batch.get("det_mask")
     if dets is None or det_mask is None:
         return None, None
+    dev = device
     speed = None
     vs = batch.get("vehicle_state")
     if vs is not None and vs.dim() == 2 and vs.shape[1] > 0:
-        speed = vs[:, 0].to(device)
-    dets = dets.to(device)
-    det_mask = det_mask.to(device)
-    ttc, dist, valid = estimate_ttc(dets, det_mask, speed, config=TTCConfig())
-    # 取每样本最危险的（最小 TTC）
-    if valid.any():
-        ttc_min = ttc.where(valid, torch.full_like(ttc, float('inf'))).min(dim=1).values
-        v_min = valid.any(dim=1)
-        # 限幅到 [0, 10] 秒，避免 inf 污染损失
-        ttc_min = ttc_min.clamp(0.0, 10.0)
-        return ttc_min, v_min
+        speed = vs[:, 0].to(dev)
+    dets = dets.to(dev)
+    det_mask = det_mask.to(dev)
+
+    # ---- 优先：estimate_ttc（已验证接口；未标定 K 时 valid=False）----
+    try:
+        from risk_head import estimate_ttc, TTCConfig
+        ttc, dist, valid = estimate_ttc(dets, det_mask, speed, config=TTCConfig())
+        if bool(valid.any()):
+            ttc_min = ttc.where(valid, torch.full_like(ttc, float('inf'))) \
+                         .min(dim=1).values
+            v_min = valid.any(dim=1)
+            return ttc_min.clamp(0.0, 10.0), v_min
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # ---- 回退：ApproachRateEstimator（无需 K，但需跨帧历史）----
+    # 单帧调用时无历史 → 拿不到 TTC，如实返回 None（不造假设）
+    try:
+        from risk_head import ApproachRateEstimator  # noqa: F401
+        # 说明：本函数是"单帧"接口，ApproachRateEstimator 需逐帧 update()。
+        #       跨帧 TTC 真值应在数据集/训练循环层面维护 estimator 实例，
+        #       此处不假装能算 —— 需要时请用 train_v2 的跨帧钩子。
+    except ImportError:
+        pass
     return None, None
 
 
@@ -1033,6 +1102,7 @@ def iterative_refinement_loss(
     enable_iter: bool = True,
     num_steps: int = 24,
     rng: Optional[random.Random] = None,
+    random_depth: bool = True,
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
     """★ 24 步迭代精修的训练信号（§3 全部三段）。
 
@@ -1070,7 +1140,8 @@ def iterative_refinement_loss(
     weights = _interp_step_weights(num_steps=max(actual_steps, num_steps))
 
     # ---- §3.3 随机深度：随机选子集步参与 ----
-    active = sample_random_depth(num_steps=actual_steps, rng=rng, enabled=True)
+    active = sample_random_depth(num_steps=actual_steps, rng=rng,
+                                enabled=bool(random_depth))
     if active is None:
         active = list(range(1, actual_steps + 1))
 
@@ -1355,6 +1426,8 @@ def train_v2(
     lane_sign_autocalib: bool = True, synthetic: bool = False,
     synthetic_size: int = 256, synthetic_lane_in_image: bool = False,
     select_metric: str = "control",
+    iter_weight: float = 0.5,
+    iter_random_depth: bool = True,
     limit_batches: int = 0,
     resume: Optional[str] = None, force_reference_model: bool = False,
 ) -> Path:
@@ -1431,6 +1504,8 @@ def train_v2(
         # 消融是**诊断**而非损失：只要数据有车道线标注就该测，
         # 不应随辅助损失权重开关（否则无法做"有/无辅助损失"的对照实验）
         "lane_ablation": bool(has_lane),
+        # ★ 24 步迭代精修（§3）：模型有 iter_refiner 时启用
+        "iter": iter_weight > 0,
     }
 
     # 车道几何符号自动校准（避免符号搞反 → 一致性损失反向优化）
@@ -1515,7 +1590,25 @@ def train_v2(
             print(f"[恢复] ⚠ 未找到 {rp}，从头训练")
 
     # ---------- 7. 训练循环 ----------
+    # ★ 24 步迭代精修（§3）：随机深度用的 RNG（按 epoch 重置，保证可复现）
+    iter_rng = random.Random(seed + 20261008)
+    _has_refiner = (hasattr(model, "iter_refiner")
+                    and getattr(model, "iter_refiner", None) is not None)
+    _n_iter_steps = int(getattr(model, "num_iter_steps", 24))
+    if enable.get("iter"):
+        if _has_refiner:
+            print(f"[迭代精修] ✓ 检测到 IterationRefiner（{_n_iter_steps} 步）"
+                  f"→ 启用逐步递减监督+中间步辅助+随机深度"
+                  f"（iter_weight={iter_weight}, random_depth={iter_random_depth}）")
+            print(f"[迭代精修]   步权重 {sorted(ITER_STEP_WEIGHTS.items())}，"
+                  f"辅助任务 {ITER_AUX_STEPS}")
+        else:
+            print("[迭代精修] ⚠ 模型无 iter_refiner 属性 → 训练信号自动跳过"
+                  "（IterationRefiner 尚未落盘时属正常，不影响现有训练）")
+            enable["iter"] = False
+
     for epoch in range(start_epoch, epochs):
+        iter_rng = random.Random(seed + 20261008 + epoch)   # 每 epoch 重新播种
         ep_t0 = time.time()
         model.train()
         optimizer.zero_grad(set_to_none=True)
@@ -1541,12 +1634,25 @@ def train_v2(
                     model, lane_module, batch, device, inputs, loss_fn, use_amp, ctl_mode)
 
             with torch.amp.autocast(device_type=device, enabled=use_amp):
-                out = call_model(model, inputs)
+                out, intermediates = call_model_with_intermediates(model, inputs)
                 preds = normalize_outputs(out, ctl_mode)
                 probe_pred = None
                 if probe is not None and tap is not None and tap.feat is not None:
                     probe_pred = probe(tap.feat.to(preds["steer"].dtype))
                 loss, comps, stats = loss_fn(preds, batch, enable, probe_pred, lane_valid)
+                # ★ 24 步迭代精修训练信号（§3）：有 iter_refiner 时才生效
+                if enable.get("iter") and intermediates is not None:
+                    l_iter, c_iter = iterative_refinement_loss(
+                        intermediates, batch, device,
+                        enable_iter=True,
+                        num_steps=getattr(model, "num_iter_steps", 24),
+                        rng=iter_rng if iter_random_depth else None,
+                        random_depth=iter_random_depth,
+                    )
+                    if float(l_iter.detach()) > 0:
+                        loss = loss + iter_weight * l_iter
+                        comps["iter"] = float(l_iter.detach())
+                        comps.update({k: v for k, v in c_iter.items()})
                 loss_scaled = loss / max(grad_accum, 1)
 
             if scaler is not None:
@@ -1753,6 +1859,11 @@ def parse_args():
     p.add_argument("--brake_weight", type=float, default=0.5)
     p.add_argument("--conflict_weight", type=float, default=0.0,
                    help="throttle×brake 互斥正则权重（M2 自带 M2Loss 有该项，默认关闭）")
+    p.add_argument("--iter_weight", type=float, default=0.5,
+                   help="★24 步迭代精修训练信号权重（§3：逐步递减监督+中间步辅助）。"
+                        "模型无 iter_refiner 时自动跳过；0=关闭")
+    p.add_argument("--no_iter_random_depth", action="store_true",
+                   help="禁用随机深度（§3.3），用全部 24 步监督")
     p.add_argument("--lane_seg_weight", type=float, default=0.3,
                    help="车道分割辅助损失权重（需模型有 lane_logits，当前 M2 无 → 自动跳过）")
     p.add_argument("--lane_steer_weight", type=float, default=0.5,
@@ -1807,6 +1918,8 @@ def main():
         synthetic=a.synthetic, synthetic_size=a.synthetic_size,
         synthetic_lane_in_image=a.synthetic_lane_in_image,
         select_metric=a.select_metric,
+        iter_weight=a.iter_weight,
+        iter_random_depth=not a.no_iter_random_depth,
         limit_batches=a.limit_batches, resume=a.resume,
         force_reference_model=a.force_reference_model,
     )

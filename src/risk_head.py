@@ -117,9 +117,11 @@ class RiskHeadConfig:
         det_pool: 检测框特征的池化方式，"max_mean" 或 "max"。
             "max_mean" 与 model_v2 的 DetectionEncoder 同款（max 抓最危险单框、
             mean 抓整体密度），但这里输入已是**编码后**的 [B,128]，故直接池化。
-        step_feat_dim: 24 步迭代中间步特征的维度（IterationRefiner 的 hidden）。
-            默认 128（与 model_v2 TEMPORAL_HIDDEN 一致，w5 默认值）。
-            **w7 的 IterationRefiner 落地后请按其实际 hidden 对齐**。
+        step_feat_dim: 24 步迭代中间步特征的维度（IterationRefiner 的 refined 特征）。
+            **默认 512**（2026-10-08 w7 实测纠正：`IterationRefiner.feat_dim = 512`，
+            即每步 refined = [B,512]，与喂给 FusionHead 的是同一路特征）。
+            ⚠️ 曾误设为 128 —— 那是 w7 `step_head.fc` 的**内部隐层宽度**，
+            不是 step 特征维度。维度不符时 forward_step 会明确报错。
         lateral_offset_range: 车道中心偏移的输出范围（米）。
             offset = tanh(logit) * range，默认 2.0（±2 米覆盖大多数车道宽度）。
             改这个只缩放输出，不改真值口径（真值口径见 `lane_central_offset`）。
@@ -133,7 +135,8 @@ class RiskHeadConfig:
     dropout: float = 0.1
     det_pool: str = "max_mean"
     # ── 24 步迭代中间步辅助（M3 扩展）──
-    step_feat_dim: int = 128
+    #: 默认 512 = w7 IterationRefiner.feat_dim（每步 refined 特征维度，2026-10-08 实测）
+    step_feat_dim: int = 512
     lateral_offset_range: float = 2.0
     use_step_offset: bool = True
 
@@ -1187,6 +1190,105 @@ def risk_target_from_ttc(
 
 
 # ============================================================================
+# 4b. 车道中心偏移真值（step8 辅助任务的监督信号）
+# ============================================================================
+
+@dataclass
+class LaneOffsetConfig:
+    """车道中心偏移真值计算的配置。
+
+    几何口径与 `src/lane_geometry.py` 一致：lane_mask 是 160×160 二值网格，
+    内容行范围约 [35, 125)（letterbox 640×360→640×640→160 网格）。
+    灰边行（0..35, 125..160）**不是道路**，计算质心时必须排除，否则会把
+    letterbox 灰边当成"车道线"导致系统性偏移。
+
+    Attributes:
+        grid: lane_mask 的边长（默认 160，与 lane_geometry.LANE_GRID 一致）
+        content_row_start/end: 有效内容行范围（默认 35/125，见 lane_geometry:319）
+        center_col: 网格中心列（默认 80，即 grid/2）
+        offset_scale: 输出尺度因子。默认 1.0：偏移以"网格格数"为单位。
+            要换算成米需知道单格对应的实际宽度——本项目未标定，保持网格单位。
+    """
+
+    grid: int = 160
+    content_row_start: int = 35
+    content_row_end: int = 125
+    center_col: float = 80.0
+    offset_scale: float = 1.0
+
+
+def lane_central_offset(
+    lane_mask: torch.Tensor,
+    config: Optional[LaneOffsetConfig] = None,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """从车道线掩码算"自车相对车道中心的横向偏移"真值（step8 辅助监督）。
+
+    方法：在内容行范围内，对每行取车道线像素的**水平质心**，再对各行质心
+    求均值 → 车道中心列；偏移 = (质心列 − 网格中心列) × scale。
+
+    为什么按行取质心再求均值（而非全图质心）：
+        · 全图质心会被远处行（近顶部，车道线窄、像素少）和近处行
+          （近底部，车道线宽、像素多）不等权，偏向像素多的近处；
+        · 按行取质心再求均值，每行等权，更接近"车道中心线"的几何。
+        · 这也是 `EgoBoxFilter` / `LaneMaskEncoder` 一贯的"行扫描"口径。
+
+    Args:
+        lane_mask: [B, 1, H, W] 或 [B, H, W] 或 [H, W] 二值掩码（0/1）
+        config: LaneOffsetConfig
+
+    Returns:
+        (offset [B], valid [B] bool)
+        offset: 横向偏移，左负右正（与 steer 约定一致）；无效帧为 0
+        valid: 该帧是否有可用的车道线（全 0 掩码 → False）
+
+    ⚠️ 诚实声明：这是**几何代理真值**，不是物理测量。它假设"车道线质心
+        ≈ 车道中心"，在双实线/单虚线/无标线时各有偏差。作为 step8 辅助
+        监督足够（教模型"我偏左/偏右了"），作为精确定位不够。
+    """
+    if config is None:
+        config = LaneOffsetConfig()
+
+    m = lane_mask
+    if m.dim() == 2:
+        m = m.unsqueeze(0).unsqueeze(0)
+    elif m.dim() == 3:
+        m = m.unsqueeze(1)
+    if m.dim() != 4:
+        raise ValueError(f"lane_central_offset: 期望 [B,1,H,W]，实际 {tuple(m.shape)}")
+    # 去 channel 维
+    m = m.squeeze(1)                                   # [B,H,W]
+    b, h, w = m.shape
+
+    rs, re = config.content_row_start, config.content_row_end
+    rs = max(0, min(rs, h))
+    re = max(rs, min(re, h))
+    if re <= rs:
+        return (torch.zeros(b, device=m.device, dtype=m.dtype),
+                torch.zeros(b, dtype=torch.bool, device=m.device))
+
+    sub = m[:, rs:re, :]                               # [B, R, W]
+    # 每行的有效像素数
+    row_counts = sub.sum(dim=2)                         # [B, R]
+    has_any = row_counts.sum(dim=1) > 0                # [B]
+    # 列坐标矩阵 [1, 1, W]
+    cols = torch.arange(w, device=m.device, dtype=sub.dtype).unsqueeze(0).unsqueeze(0)
+    # 每行质心 = Σ(col * mask) / Σ(mask)
+    row_sums = (sub * cols).sum(dim=2)                  # [B, R]
+    safe_counts = row_counts.clamp_min(1e-6)
+    row_centroids = row_sums / safe_counts             # [B, R]
+    # 只保留有内容的行（mask 该行全 0 时质心无意义）
+    valid_rows = row_counts > 0                        # [B, R]
+    row_centroids = torch.where(valid_rows, row_centroids,
+                                  torch.full_like(row_centroids, config.center_col))
+    n_valid = valid_rows.float().sum(dim=1).clamp_min(1e-6)
+    lane_center = (row_centroids * valid_rows.float()).sum(dim=1) / n_valid  # [B]
+
+    offset = (lane_center - config.center_col) * config.offset_scale
+    offset = torch.where(has_any, offset, torch.zeros_like(offset))
+    return offset, has_any
+
+
+# ============================================================================
 # 5. 自检（import + 前向跑通，含无检测框退化）
 # ============================================================================
 
@@ -1455,10 +1557,148 @@ def _self_test() -> int:
           [s.active for s in states] == [False, True, True],
           f"{[s.active for s in states]}")
 
+    # ── 24 步迭代中间步辅助（M3 扩展）──
+    print("\n== 15. forward_with_offset（融合特征 + 车道偏移）==")
+    head_off = RiskHead()
+    fused = torch.randn(4, DEFAULT_FUSED_DIM)
+    conf_o, risk_o, off_o = head_off.forward_with_offset(fused)
+    check("forward_with_offset 返回三元组",
+          tuple(conf_o.shape) == (4,) and tuple(risk_o.shape) == (4,) and tuple(off_o.shape) == (4,))
+    check("offset ∈ [-range, +range]",
+          bool((off_o.abs() <= head_off.config.lateral_offset_range).all()),
+          f"max_abs={off_o.abs().max():.4f} range={head_off.config.lateral_offset_range}")
+    # ⚠️ 必须在 eval 态比对：训练态 Dropout 每次调用随机抽 mask，
+    #    两次前向的 conf/risk 本就会不同（这是 dropout 的正常行为，不是 bug）。
+    #    曾因此写出假红断言，已改为 eval 态验证"骨架确实共享"。
+    head_off.eval()
+    with torch.no_grad():
+        conf_plain = head_off(fused)[0]
+        conf_wrapped, _, _ = head_off.forward_with_offset(fused)
+    check("eval 态下 forward 与 forward_with_offset 的 conf/risk 完全一致（共享骨架）",
+          torch.allclose(conf_plain, conf_wrapped, atol=1e-6),
+          f"max_diff={(conf_plain - conf_wrapped).abs().max():.2e}")
+    head_off.train()
+    # offset 头是独立参数 → 与 conf/risk 不恒等（不是复制）
+    check("offset 是独立输出（不等于 conf 或 risk）",
+          not torch.allclose(off_o, conf_o) and not torch.allclose(off_o, risk_o))
+    # 同样补"非常数"断言（恒零 offset 头在 fused 路径上也会漏网）
+    check("fused offset 非常数（恒零头会被抓出）",
+          float(off_o.std()) > 1e-6,
+          f"std={float(off_o.std()):.2e}")
+
+    print("\n== 16. forward_step（中间步辅助，step8/step16）==")
+    # ⚠️ 契约钉死：step_feat_dim 默认必须 = 512（w7 IterationRefiner.feat_dim 实测值）。
+    #    曾误设 128（那是 w7 step_head.fc 的内部隐层宽度），已纠正并加断言防回退。
+    check("RiskHeadConfig().step_feat_dim 默认 = 512（w7 实测契约）",
+          RiskHeadConfig().step_feat_dim == 512,
+          f"实际 {RiskHeadConfig().step_feat_dim}")
+    # 用 w7 实测契约：IterationRefiner.feat_dim = 512（每步 refined 特征）
+    head_step = RiskHead(step_feat_dim=512)
+    step_feat = torch.randn(4, 512)
+    cs, rs, os_ = head_step.forward_step(step_feat, step_index=8)
+    check("forward_step 返回 (conf, risk, offset) 三元组",
+          tuple(cs.shape) == (4,) and tuple(rs.shape) == (4,) and tuple(os_.shape) == (4,))
+    check("step conf/risk ∈ [0,1]", bool((cs >= 0).all() and (cs <= 1).all())
+          and bool((rs >= 0).all() and (rs <= 1).all()))
+    check("step offset ∈ [-range, +range]",
+          bool((os_.abs() <= head_step.config.lateral_offset_range).all()))
+    # ⚠️ 只查"|offset| ≤ range"抓不到"offset 恒为 0"这种退化（0 也满足上界）。
+    #    必须额外断言 offset **确实随输入变化**（非常数），否则一个恒零的
+    #    offset 头会一路绿到底 —— 这正是本文件自检曾漏掉的盲区，已补。
+    check("step offset 非常数（恒零头会被抓出）",
+          float(os_.std()) > 1e-6,
+          f"std={float(os_.std()):.2e} values={[round(v,3) for v in os_.tolist()]}")
+    # 换一组明显不同的输入，offset 应随之改变
+    step_big = torch.full((4, 512), 3.0)
+    step_small = torch.full((4, 512), -3.0)
+    _, _, os_big = head_step.forward_step(step_big, step_index=8)
+    _, _, os_small = head_step.forward_step(step_small, step_index=8)
+    check("step offset 随输入改变（非死头）",
+          not torch.allclose(os_big, os_small),
+          f"big={[round(v,3) for v in os_big.tolist()]} "
+          f"small={[round(v,3) for v in os_small.tolist()]}")
+    # step8 与 step16 用同一组参数 → 不同输入应给不同输出
+    step16 = torch.randn(4, 512)
+    cs16, rs16, os16 = head_step.forward_step(step16, step_index=16)
+    check("不同输入 → 不同输出（非常数头）",
+          not torch.allclose(cs, cs16) or not torch.allclose(os_, os16))
+    # 1D 输入自动升维
+    cs1, rs1, os1 = head_step.forward_step(torch.randn(512), step_index=8)
+    check("1D step_feat 自动升维", tuple(cs1.shape) == (1,))
+
+    print("\n== 17. step 头维度校验（不静默）==")
+    try:
+        head_step.forward_step(torch.randn(4, 999), step_index=8)
+        check("step_feat 维度不符应报错", False)
+    except ValueError:
+        check("step_feat 维度不符应报错", True)
+    try:
+        head_step.forward_step(torch.randn(4, 512, 5), step_index=8)
+        check("step_feat 非 2 维应报错", False)
+    except ValueError:
+        check("step_feat 非 2 维应报错", True)
+
+    print("\n== 18. use_step_offset=False 退化 ==")
+    head_nooff = RiskHead(use_step_offset=False)
+    # forward_with_offset 应报错（未启用）
+    try:
+        head_nooff.forward_with_offset(fused)
+        check("use_step_offset=False 调 forward_with_offset 应报错", False)
+    except RuntimeError:
+        check("use_step_offset=False 调 forward_with_offset 应报错", True)
+    # forward_step 应返回全零（退化兼容，不崩）
+    zc, zr, zo = head_nooff.forward_step(torch.randn(2, 512), step_index=8)
+    check("use_step_offset=False → forward_step 返回全零",
+          bool((zc == 0).all() and (zr == 0).all() and (zo == 0).all()),
+          f"zc={zc.tolist()} zo={zo.tolist()}")
+    # 原 forward 仍正常
+    cf, rf = head_nooff(fused)
+    check("use_step_offset=False → 原 forward 仍正常", tuple(cf.shape) == (4,))
+
+    print("\n== 19. lane_central_offset 真值（step8 监督信号）==")
+    # 全 0 掩码 → valid=False, offset=0
+    empty = torch.zeros(1, 1, 160, 160)
+    off_e, val_e = lane_central_offset(empty)
+    check("空掩码 → valid=False", not bool(val_e[0]))
+    check("空掩码 → offset=0", bool((off_e == 0).all()))
+    # 对称双线（左右各一条）→ offset≈0（居中）
+    sym = torch.zeros(1, 1, 160, 160)
+    sym[0, 0, 40:120, 40:45] = 1.0     # 左线
+    sym[0, 0, 40:120, 115:120] = 1.0  # 右线
+    off_s, val_s = lane_central_offset(sym)
+    check("对称双线 → offset≈0（居中）", val_s[0] and abs(off_s[0].item()) < 2.0,
+          f"off={off_s[0].item():.3f}")
+    # 只有左线 → offset<0（偏左）
+    left = torch.zeros(1, 1, 160, 160)
+    left[0, 0, 40:120, 40:45] = 1.0
+    off_l, val_l = lane_central_offset(left)
+    check("只有左线 → offset<0（偏左）", val_l[0] and off_l[0].item() < -10.0,
+          f"off={off_l[0].item():.3f}")
+    # 只有右线 → offset>0（偏右）
+    right = torch.zeros(1, 1, 160, 160)
+    right[0, 0, 40:120, 115:120] = 1.0
+    off_r, val_r = lane_central_offset(right)
+    check("只有右线 → offset>0（偏右）", val_r[0] and off_r[0].item() > 10.0,
+          f"off={off_r[0].item():.3f}")
+    # 灰边行（35 行以上）不参与计算：在灰边画线不影响 offset
+    grayedge = torch.zeros(1, 1, 160, 160)
+    grayedge[0, 0, 0:35, 10:15] = 1.0   # 灰边里的"车道线"
+    off_g, val_g = lane_central_offset(grayedge)
+    check("灰边行不参与计算（valid=False）", not bool(val_g[0]),
+          f"off={off_g[0].item():.3f}")
+    # 单偏移方向单调性：左线越靠右 → offset 越大（越居中）
+    offs_mono = []
+    for lx in [20, 40, 60]:
+        m = torch.zeros(1, 1, 160, 160)
+        m[0, 0, 40:120, lx:lx+5] = 1.0
+        offs_mono.append(lane_central_offset(m)[0].item())
+    check("左线右移 → offset 单调增大",
+          offs_mono[0] < offs_mono[1] < offs_mono[2],
+          f"{offs_mono}")
+
     print(f"\n[M3 risk_head 自检] {'PASS' if failures == 0 else 'FAIL'} "
           f"（失败 {failures} 项）")
     return failures
-
 
 if __name__ == "__main__":
     raise SystemExit(_self_test())

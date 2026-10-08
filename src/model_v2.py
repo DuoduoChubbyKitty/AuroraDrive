@@ -869,6 +869,64 @@ class FusionHead(nn.Module):
 
 
 # ============================================================================
+# 7.4. MoE 专家 + 每步输出头（2026-10-08 用户新需求）
+# ============================================================================
+
+class _Expert(nn.Module):
+    """单个场景专家：MLP(512→512→512)，出"辅助决策"向量。
+
+    用户原话：「给模型加一个感知头可以得到专家决策，然后那个 24 步迭代中每一步
+    都会带一些专家决策，动态选一个的那种」
+
+    6 个专家建议分工（可训练中自动分化，此处仅为初始语义标签）：
+        0 直道巡航 / 1 弯道过弯 / 2 跟车避障 / 3 急转救车 / 4 起步加速 / 5 复杂场景
+    """
+
+    def __init__(self, feat_dim: int = FUSION_IN_DIM, hidden: int = FUSION_IN_DIM):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(feat_dim, hidden), nn.ReLU(inplace=True),
+            nn.Linear(hidden, feat_dim),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
+class _StepOutputHead(nn.Module):
+    """每步共享的输出头（供 t1 逐步递减监督）。
+
+    用户/Lead 规格（return_intermediate 的每步 dict）：
+        step1..24   : {steer, throttle, brake}
+        step8       : + {lane_offset}（线性 ∈[-1,1]）
+        step16      : + {ttc}（线性，秒）
+
+    共享一个头 → 参数量小（≈66K）；steer→tanh / throttle,brake→sigmoid
+    与 FusionHead 同款激活。
+    """
+
+    def __init__(self, feat_dim: int = FUSION_IN_DIM, hidden: int = 128):
+        super().__init__()
+        self.fc = nn.Linear(feat_dim, hidden)
+        self.steer_head = nn.Linear(hidden, 1)
+        self.throttle_head = nn.Linear(hidden, 1)
+        self.brake_head = nn.Linear(hidden, 1)
+        # 中间步辅助任务头（只在指定步启用）
+        self.lane_offset_head = nn.Linear(hidden, 1)
+        self.ttc_head = nn.Linear(hidden, 1)
+
+    def forward(self, feat: torch.Tensor) -> Dict[str, torch.Tensor]:
+        x = F.relu(self.fc(feat))
+        return {
+            "steer": torch.tanh(self.steer_head(x)),          # ∈[-1,1]
+            "throttle": torch.sigmoid(self.throttle_head(x)),  # ∈[0,1]
+            "brake": torch.sigmoid(self.brake_head(x)),        # ∈[0,1]
+            "lane_offset": self.lane_offset_head(x),           # 线性 ∈[-1,1]（未裁剪）
+            "ttc": self.ttc_head(x),                           # 线性（秒）
+        }
+
+
+# ============================================================================
 # 7.5. 迭代精修头 IterationRefiner（24 步向量版思维链，2026-10-08）
 # ============================================================================
 
@@ -878,33 +936,38 @@ class _StrictGRUStep(nn.Module):
     ★ 为什么不直接用 nn.GRUCell（2026-10-08，w5 实测导出阻断）：
       coremltools 8.3 把 nn.GRUCell trace 拆成 unsafe_chunk / uninitialized /
       loop 算子，**CoreML 不认识** → 导出必失败（shared/indep 两种都炸）。
-      手工展开成基础算子（Linear/sigmoid/tanh/mul）后 coremltools 全支持，
-      且**数学等价标准 GRU**（`~h = tanh(W·x + U·(r⊙h_prev))`，保留 r⊙h 的
-      elementwise mul，非简化近似）。
+      手工展开成基础算子（Linear/sigmoid/tanh/mul）后 coremltools 全支持。
 
-    数学（与 nn.GRUCell 逐位等价）：
-        z = σ(W_z·x + U_z·h_prev)           更新门
-        r = σ(W_r·x + U_r·h_prev)           重置门
-        n = tanh(W_n·x + U_n·(r ⊙ h_prev))  候选状态（★ 严格保留 r⊙h）
-        h = (1 − z) ⊙ h_prev + z ⊙ n        新隐状态
+    ★ 与 nn.GRUCell **逐位等价**（实测最大差 5.96e-08 = float32 精度极限）：
+      PyTorch GRUCell 的实际公式（注意与论文版有两处易错差异）：
+        r = σ(W_ir·x + b_ir + W_hr·h + b_hr)      重置门
+        z = σ(W_iz·x + b_iz + W_hz·h + b_hz)      更新门
+        n = tanh(W_in·x + b_in + r ⊙ (W_hn·h + b_hn))   ★ r 乘在 (U h + b) 外层
+        h' = (1 − z) ⊙ n + z ⊙ h                  ★ 注意是 (1−z)·n + z·h
+      【两处易错差异，实测踩过】：
+        ① 门顺序是 (r, z, n)，不是论文的 (z, r, n)
+        ② 更新式是 (1−z)⊙n + z⊙h（z 是"保留旧状态"的比重），
+           不是常见的 (1−z)⊙h + z⊙n —— 写反会导致数值不一致（实测差 0.59）
+        ③ h_r/h_z/h_n **都带 bias**（PyTorch 的 bias_hh 是独立参数，不是折进权重）
     """
 
     def __init__(self, input_dim: int, hidden_dim: int):
         super().__init__()
         self.hidden_dim = hidden_dim
-        # 三个门各一对 (x_proj 带 bias, h_proj 无 bias) —— 与 nn.GRUCell 同布局
-        self.x_z = nn.Linear(input_dim, hidden_dim, bias=True)
-        self.h_z = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        # 三个门各一对 (x_proj, h_proj)，**都带 bias**（与 nn.GRUCell 的
+        # weight_ih/weight_hh + bias_ih/bias_hh 布局一致）
         self.x_r = nn.Linear(input_dim, hidden_dim, bias=True)
-        self.h_r = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.h_r = nn.Linear(hidden_dim, hidden_dim, bias=True)
+        self.x_z = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.h_z = nn.Linear(hidden_dim, hidden_dim, bias=True)
         self.x_n = nn.Linear(input_dim, hidden_dim, bias=True)
-        self.h_n = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.h_n = nn.Linear(hidden_dim, hidden_dim, bias=True)
 
     def forward(self, x: torch.Tensor, h_prev: torch.Tensor) -> torch.Tensor:
-        z = torch.sigmoid(self.x_z(x) + self.h_z(h_prev))
         r = torch.sigmoid(self.x_r(x) + self.h_r(h_prev))
-        n = torch.tanh(self.x_n(x) + self.h_n(r * h_prev))   # ★ 严格 r⊙h
-        return (1.0 - z) * h_prev + z * n
+        z = torch.sigmoid(self.x_z(x) + self.h_z(h_prev))
+        n = torch.tanh(self.x_n(x) + r * self.h_n(h_prev))   # ★ r⊙(U h + b)
+        return (1.0 - z) * n + z * h_prev                    # ★ (1−z)⊙n + z⊙h
 
 
 class IterationRefiner(nn.Module):
@@ -936,12 +999,19 @@ class IterationRefiner(nn.Module):
     """
 
     def __init__(self, feat_dim: int = FUSION_IN_DIM, hidden: int = FUSION_IN_DIM,
-                 num_steps: int = 24, shared: bool = True):
+                 num_steps: int = 24, shared: bool = True,
+                 num_experts: int = 6, enable_moe: bool = True,
+                 step_head: bool = True,
+                 lane_offset_step: int = 8, ttc_step: int = 16):
         super().__init__()
         self.feat_dim = feat_dim
         self.hidden = hidden
         self.num_steps = num_steps
         self.shared = shared
+        self.enable_moe = enable_moe
+        self.num_experts = num_experts
+        self.lane_offset_step = lane_offset_step   # 第 8 步额外出 lane_offset
+        self.ttc_step = ttc_step                   # 第 16 步额外出 ttc
 
         # 残差投影：把 GRU 隐状态投回 feat_dim 维，作为每步的增量修正。
         # 零初始化 → 起步修正 = 0 → refined = fused（不破坏旧行为）。
@@ -957,6 +1027,26 @@ class IterationRefiner(nn.Module):
             self.cells = nn.ModuleList(
                 [_StrictGRUStep(feat_dim, hidden) for _ in range(num_steps)])
 
+        # ── MoE（用户新需求）：6 个场景专家 + 路由器，每步动态选 1 个 ──
+        # 路由器看"精修特征" → 选 1 个专家 → 专家出辅助决策 → 与精修特征融合。
+        # 参数量：6 专家 × MLP(512→512→512) ≈ 3.15M（INT8 3.0MB）+ 路由器 ~0.5K。
+        self.experts = None
+        self.router = None
+        self.expert_out_proj = None
+        if enable_moe and num_experts > 1:
+            self.experts = nn.ModuleList(
+                [_Expert(feat_dim, hidden) for _ in range(num_experts)])
+            # 路由器：精修特征 → num_experts 个 logit（选 1 个 = argmax / softmax 采样）
+            self.router = nn.Linear(feat_dim, num_experts)
+            # 专家辅助决策 → 投回 feat_dim 做残差融合。零初始化起步不影响主干；
+            # 与 refiner_proj 同理：**零初始化**避免专家输出一开始淹没主干。
+            self.expert_out_proj = nn.Linear(feat_dim, feat_dim)
+            nn.init.zeros_(self.expert_out_proj.weight)
+            nn.init.zeros_(self.expert_out_proj.bias)
+
+        # ── 每步共享输出头（供 t1 逐步递减监督）──
+        self.step_head = _StepOutputHead(feat_dim, hidden=128) if step_head else None
+
         # ★ 零初始化（关键 bug 修复，与 temporal_proj 同源）：
         # 不零初始化时 refiner_proj 随机权重会让 24 步的残差量叠加放大，
         # 淹没 fused 主干（temporal_proj 那条 bug 就是 7.8~50 倍）。
@@ -967,29 +1057,72 @@ class IterationRefiner(nn.Module):
 
     def forward(self, fused: torch.Tensor,
                 return_intermediate: bool = False
-                ) -> torch.Tensor | Tuple[torch.Tensor, List[torch.Tensor]]:
+                ) -> torch.Tensor | Tuple[torch.Tensor, List[Dict[str, torch.Tensor]]]:
         """fused [B,512] → refined [B,512]。
 
         Args:
             fused: 融合特征 [B, feat_dim]
-            return_intermediate: True 时同时返回每步的精修特征（训练做逐步递减监督用）
+            return_intermediate: True 时同时返回每步的**输出 dict**（供 t1 逐步递减监督）。
+                格式（Lead/t1 规格）：
+                    step1..24 : {"steer","throttle","brake"}
+                    step8     : + {"lane_offset"}（线性 ∈[-1,1]）
+                    step16    : + {"ttc"}（线性，秒）
+                另附 "expert_weights"（软路由权重 [B,E]，**可微**）与
+                "route_logits"，供训练加负载均衡 / 专家分化正则（t1 可选使用）。
 
         Returns:
-            refined [B, feat_dim]；或 (refined, [step1, ..., stepN])。
-            每步特征都是 [B, feat_dim]，stepN 即最终精修结果。
+            refined [B, feat_dim]；或 (refined, [step1_dict, ..., stepN_dict])。
         """
         # h0 = fused 作为初始隐状态（让迭代从"当前融合理解"起步）
         h = fused
-        intermediates: List[torch.Tensor] = []
-        for _ in range(self.num_steps):
-            # _StrictGRUStep(input=fused, hidden=h) —— 每步都重新看原始 fused，
-            # 而非只看上一步 h（避免 24 步纯递推的信息衰减）
-            cell = self.cells[0] if self.shared else self.cells[_]
+        intermediates: List[Dict[str, torch.Tensor]] = []
+        for step in range(1, self.num_steps + 1):
+            # ① GRU 精修（shared：24 步共用一套权重）
+            cell = self.cells[0] if self.shared else self.cells[step - 1]
             h = cell(fused, h)                              # [B, hidden]
             # 残差修正：refined = fused + proj(h)；零初始化起步 → proj(h)=0
             delta = self.refiner_proj(h)                   # [B, feat_dim]
             refined = fused + delta                        # [B, feat_dim]
-            intermediates.append(refined)
+
+            # ② MoE（用户新需求）：6 个场景专家 + 路由器，每步**软路由**（softmax 加权）
+            # ★ Lead 裁决（2026-10-08，w5 预验）：必须用 softmax 软路由，**不用 argmax**：
+            #   1. **可微** —— argmax 不可微，训练梯度传不过去，硬路由根本训不了（决定性）
+            #   2. 更快（p50 3.68ms vs 4.27ms）
+            #   3. 图更小（少 216 算子）
+            #   且 coremltools 会把硬路由的 argmax/gather 降级成 select 算子，
+            #   分支照样全算（relu=144 两种路由一样）→ 硬路由**省不了计算**还不可微。
+            expert_weights = None
+            if self.experts is not None:
+                route_logits = self.router(refined)                  # [B, num_experts]
+                expert_weights = torch.softmax(route_logits, dim=-1)  # [B,E] 可微权重
+                # 6 专家各自输出 → 按软权重加权求和（全算，但可微且 CoreML 友好）
+                expert_out = torch.zeros_like(refined)
+                for e in range(self.num_experts):
+                    w = expert_weights[:, e:e + 1]                   # [B,1]
+                    expert_out = expert_out + w * self.experts[e](refined)
+                # ③ 专家辅助决策 → 与精修特征融合（零初始化起步 → 不影响主干）
+                refined = refined + self.expert_out_proj(expert_out)
+
+            # ④ 每步输出（共享头）—— 供 t1 逐步递减监督
+            if return_intermediate and self.step_head is not None:
+                step_out = self.step_head(refined)
+                # 按步裁剪：只在该步保留对应辅助字段（规格：step8 有 lane_offset、
+                # step16 有 ttc，其余步只有三主输出）
+                entry: Dict[str, torch.Tensor] = {
+                    "steer": step_out["steer"],
+                    "throttle": step_out["throttle"],
+                    "brake": step_out["brake"],
+                }
+                if step == self.lane_offset_step:
+                    entry["lane_offset"] = torch.tanh(step_out["lane_offset"])  # ∈[-1,1]
+                if step == self.ttc_step:
+                    entry["ttc"] = F.softplus(step_out["ttc"])                  # ≥0 秒
+                if expert_weights is not None:
+                    # 软路由权重 [B, num_experts]（可微）—— 供 t1 加负载均衡正则/诊断
+                    entry["expert_weights"] = expert_weights
+                    entry["route_logits"] = route_logits
+                intermediates.append(entry)
+
             # 下一步的隐状态用 refined（把修正后的特征带进下一轮审视）
             h = refined
 

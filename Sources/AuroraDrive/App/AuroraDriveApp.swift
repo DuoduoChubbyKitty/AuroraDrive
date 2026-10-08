@@ -6164,7 +6164,8 @@ final class DriveState {
         keyboardMonitor.start()   // 启动物理键盘监听（KeyboardBar 显示用 + 录制用）
         captureEngine.start()
         // networkLocator.start()  // 旧网络抓包定位已移除    // 启动网络抓包定位
-        inferenceEngine.loadIfNeeded()   // 首次启动加载 M9 驾驶模型
+        inferenceEngine.loadIfNeeded()   // 首次启动加载 M9 驾驶模型（V2 冷启动/缺失时的回退）
+        inferenceEngineV2.loadIfNeeded() // 首次启动加载 V2 新一代驾驶模型（缺失时优雅降级、自动回退 M9）
         assistEngine.loadIfNeeded()      // 首次启动加载第二套驾驶模型（YOLO接管档）
         yoloEngine.loadIfNeeded()        // 首次启动加载 YOLO 检测模型
         yolopxEngine.loadIfNeeded()      // 首次启动加载 YOLOPX 三合一感知模型
@@ -6196,6 +6197,7 @@ final class DriveState {
         lastDecided = .e2e
         confidenceEst.reset()
         inferenceEngine.reset()
+        inferenceEngineV2.reset()   // V2 也要重置（清时序环形缓冲 + 冷启动门控）
         assistEngine.reset()
         yoloEngine.reset()
         speedOCR.reset()
@@ -6362,9 +6364,11 @@ final class DriveState {
             if EngineClient.shared.isActive {
                 EngineClient.shared.sendCommand("reloadmodel")
                 inferenceEngine.reloadModel()
+                inferenceEngineV2.reloadModel()   // V2 同步热替换（新导出的 m9_v2）
                 trainingLog = "已应用新模型（引擎侧已通知重载）: \(src.lastPathComponent)"
             } else {
                 inferenceEngine.reloadModel()
+                inferenceEngineV2.reloadModel()
                 assistEngine.reloadModel()
                 yoloEngine.reloadModel()
                 trainingLog = "已应用新模型: \(src.lastPathComponent)"
@@ -6993,11 +6997,23 @@ final class DriveState {
                     k2.speedLimitKmh = speedLimit
                     k2.steerAngle = currentCommand.steer   // 上一帧决策（state[6]）
                     k2.egoBoxFiltered = true               // effectiveDetections 已过 EgoBoxFilter
-                    // camera_heading：抓包 compass 度（NetworkLocator.cameraHeading）
-                    // ⚠️ 单位是度 [0,360)，V2FeatureBuilder 内部转 rad
-                    if let cam = networkLocator.lastResult?.cameraHeading,
-                       networkLocator.engineConnected {
-                        k2.cameraHeadingDeg = cam
+                    // camera_heading：抓包 compass 度 [0,360)
+                    //
+                    // 【权威出处 · 已逐层核对】
+                    //   DriveState.locatorHeading（:4316）← 抓包回调写入（:4721 `hdg`）
+                    //   ← `worldToMapPixel(pose).heading` = `pose.4`
+                    //   ← `typealias Pose = (x,y,z,pitch,heading)`，
+                    //      CoordinateCapture.swift:214 注释原文「**compass_heading**」
+                    //   ⟹ **compass 度 [0,360)**，与 `V2FeatureBuilder.buildCameraHeadingRad`
+                    //      的期望口径完全一致（内部转 rad）。
+                    //   ⚠️ 早期草稿曾引用 `networkLocator.lastResult?.cameraHeading`，
+                    //      但 `networkLocator` 已随"旧网络抓包定位移除"（:6166 注释）
+                    //      而**不存在**——改用现存的 `locatorHeading`。
+                    //
+                    // 有效性判据：`locatorFound`（定位成功）且 score 达门槛
+                    //   （scoreForTier：只有 live 档给可驾驶分，陈旧/降级档低于门槛）。
+                    if locatorFound && locatorScore >= 0.4 {
+                        k2.cameraHeadingDeg = locatorHeading
                         k2.cameraHeadingValid = true
                     }
                     inferenceEngineV2.infer(image: cg,
@@ -7066,9 +7082,29 @@ final class DriveState {
             return ControlCommand(steer: result.steer,
                                   throttle: result.throttle,
                                   brake: result.brake,
-                                  confidence: 0.9)   // 占位，置信度估计器会覆盖
+                                  confidence: 0.9)   // 旧引擎无置信度输出 → 占位（估计器会覆盖）
         }
-        let m9Command = commandOf(inferenceEngine)
+
+        // ── 主驾命令：V2 优先，冷启动/缺失回退旧 M9（2026-10-08 接入驾驶室）──
+        //
+        // 【V2 路径 vs 旧路径的选择必须与推理触发处（infer 那段）一致】——
+        //   否则会出现"推的是 V2、读的是旧结果"的错位。
+        //   两处判据相同：`inferenceEngineV2.isLoaded && timelineReady`。
+        //
+        // 【confidence 终于有真值了】V2 的 confidence 头输出 ∈ [0,1]，
+        //   直接填进 `ControlCommand.confidence` —— 这个字段在旧链路里
+        //   一直硬编码 0.9 占位（见上方 commandOf），V2 是第一个给它真值的。
+        //   未拿到时（旧模型无此输出）保留 0.9 占位，不谎报高置信度。
+        func v2CommandOf(_ engine: InferenceEngineV2) -> ControlCommand? {
+            guard engine.isLoaded, engine.timelineReady,
+                  let result = engine.lastResult else { return nil }
+            return ControlCommand(steer: result.steer,
+                                  throttle: result.throttle,
+                                  brake: result.brake,
+                                  confidence: engine.lastConfidence ?? 0.9)
+        }
+        let v2Active = inferenceEngineV2.isLoaded && inferenceEngineV2.timelineReady
+        let m9Command = v2CommandOf(inferenceEngineV2) ?? commandOf(inferenceEngine)
         let assistCommand = commandOf(assistEngine)
 
         // 模型链路存活：加载成功 && 有结果 && 结果 1s 内新鲜
@@ -7076,7 +7112,17 @@ final class DriveState {
             engine.isLoaded && engine.lastResult != nil
                 && (engine.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
         }
-        let m9Live = isAlive(inferenceEngine)
+        // ── 主驾链路存活：必须跟随"本帧实际在跑哪个引擎" ──
+        // V2 活跃 → 判 V2 的存活；否则判旧 M9。
+        // 【为什么不能无脑判旧引擎】V2 跑起来后旧引擎是**停推**的
+        //   （互斥推理，见 infer 那段），它的 lastResultTime 会一直变旧
+        //   → 若 UI 仍读 `isAlive(inferenceEngine)` 会显示"M9失联"告警，
+        //   而实际主驾活得很好（V2 在跑）。故这里按 v2Active 分派。
+        func isAliveV2(_ engine: InferenceEngineV2) -> Bool {
+            engine.isLoaded && engine.lastResult != nil
+                && (engine.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
+        }
+        let m9Live = v2Active ? isAliveV2(inferenceEngineV2) : isAlive(inferenceEngine)
         let assistLive = isAlive(assistEngine)
 
         // YOLO 检测结果（异步推理，读最新一帧；未出结果时为空数组 → 规则态走安全直行）
