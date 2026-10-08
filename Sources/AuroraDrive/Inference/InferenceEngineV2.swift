@@ -1120,6 +1120,36 @@ struct ImageFrameRingBuffer {
 ///   · 重活（预处理/推理）在 `inferenceQueue` 后台串行队列
 ///   · `nonisolated static` 纯函数无 self 捕获，可安全后台执行
 ///   · `isInferencing` 防重叠，`generation` 防过期结果写回
+///
+/// ══════════════════════════════════════════════════════════════════════════
+/// ⚠️⚠️ 【调用方必读】推理门的释放依赖 MainActor 调度 —— 不要同步占着主线程等结果
+/// ══════════════════════════════════════════════════════════════════════════
+/// `infer()` 完成后，下面两件事都是通过 `Task { @MainActor }` 回到主线程做的：
+///   · 释放 `isInferencing`（防重叠门）
+///   · 写入 `timelineFrames` / `lastResult` / `lastAuxOutputs` 等 `@Observable` 状态
+///
+/// **实测证据（2026-10-09，`--v2-selftest` 首跑就抓到的真 bug）**：
+///   自检原先用**同步 `pumpRunLoop`** 等待 → 它占着 MainActor 不放手 →
+///   那些 `Task { @MainActor }` **永远排不上** → `isInferencing` 不释放 →
+///   后续 7 帧全被防重叠门丢弃（实测日志：`infer 早退：isInferencing 尚未释放` ×7）。
+///   改成 `await Task.sleep`（真正让出 MainActor）后立刻全绿。
+///
+/// **定量结论（本机对照实验，10 帧）**：
+///   · **真实 30Hz tick 模式**（帧间让出 MainActor）：**10/10 帧全部成功提交** →
+///     **本项目真实驾驶路径安全**（`tick()` 是 fire-and-forget，不 await 推理结果）。
+///   · **主线程被同步忙占 200ms（不让出）**：门**延迟释放**（`busy` 保持 true），
+///     **让出后立即恢复** → 是**短暂延迟，不是死锁**。
+///
+/// **⟹ 对调用方的约束（约束所有调用方，不只是自检）**：
+///   1. **绝不要**"同步占着 MainActor 等一帧推理结果"（例如
+///      `while engine.lastResult == nil { }` 或同步 `pumpRunLoop`）——
+///      那会把 `isInferencing` 卡住，引擎从此拒绝后续帧。
+///   2. 想等结果请用 **`async` + `await`**（让出 MainActor），或干脆 fire-and-forget
+///      并在下一帧读 `lastResult`（**真实驾驶路径就是这么做的**）。
+///   3. 若主线程被 >33ms 的长任务占住，推理门会延迟释放 —— 表现为
+///      "推理帧率掉一档"，**不会死锁**，但应避免在主线程做长同步工作。
+///
+/// 参考实现：`V2EngineLinkSelfTest`（用 `await settle()` 而非同步等待）。
 @Observable
 @MainActor
 final class InferenceEngineV2 {
