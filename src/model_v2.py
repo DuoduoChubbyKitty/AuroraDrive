@@ -487,7 +487,19 @@ class LaneMaskEncoder(nn.Module):
         # [B,32,20,20] → [B,64,10,10]
         self.conv3 = nn.Conv2d(32, out_dim, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn3 = nn.BatchNorm2d(out_dim)
-        self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
+        # ── T7 修复（2026-10-08）：GAP(1,1) → GAP(2,2) + 投影 ──
+        # 原 `AdaptiveAvgPool2d((1,1))` 是全局平均池化，对空间求平均 → 平移不变，
+        # 抹掉车道线「横向位置」信息：单条车道线从图左移到图右，池化后向量差严格
+        # = 0.0（见 verify_lane_usage.py 实验 4，以及 Lead 独立复现「左 vs 右差 0」）。
+        # 这就是「模型看得见车道线、却分不清左右、会开出车道线」的架构根源。
+        #
+        # 修复：GAP(2,2) 保留 2×2 位置块（左上/右上/左下/右下），flatten 后再用
+        # FC 投影回 out_dim。左右位置信息进入 4 个空间块的相对强度，得以传给 steer。
+        # 输出维度不变（[B, out_dim]），FusionHead 的 512 契约 / _zero_like(64)
+        # / LaneSteerProbe(in_dim=64) 全部保持兼容；仅新增的 spatial_proj 随机初始化，
+        # 旧 checkpoint 的卷积权重仍可加载（strict=False），需重新训练才让投影生效。
+        self.global_pool = nn.AdaptiveAvgPool2d((2, 2))
+        self.spatial_proj = nn.Linear(out_dim * 4, out_dim)
 
     def forward(self, lane_mask: Optional[torch.Tensor], batch_size: int,
                 ref: torch.Tensor) -> torch.Tensor:
@@ -508,8 +520,10 @@ class LaneMaskEncoder(nn.Module):
         x = F.relu(self.bn1(self.conv1(x)))                     # [B,16,40,40]
         x = F.relu(self.bn2(self.conv2(x)))                     # [B,32,20,20]
         x = F.relu(self.bn3(self.conv3(x)))                     # [B,64,10,10]
-        x = self.global_pool(x)                                 # [B,64,1,1]
-        return x.flatten(1)                                     # [B,64]
+        x = self.global_pool(x)                                 # [B,64,2,2]
+        x = x.flatten(1)                                        # [B,256]
+        x = self.spatial_proj(x)                                # [B,64]
+        return x
 
 
 # ============================================================================

@@ -183,7 +183,10 @@ def load_checkpoint(ckpt_path: Path):
     sd = {k: v for k, v in sd.items() if "lane_steer_probe" not in k}
 
     model = build_model(deploy=False)
-    model.load_state_dict(sd, strict=True)
+    # strict=False：T7 修复后 LaneMaskEncoder 新增了 spatial_proj 层，
+    # 旧 checkpoint 没有该层 → 纳入 missing（随机初始化），其余卷积权重照常加载。
+    # 这样验证能复现「改架构后旧权重 + 随机投影」的真实训练起点。
+    missing, unexpected = model.load_state_dict(sd, strict=False)
     model.eval()
     meta = {
         "epoch": ck.get("epoch"),
@@ -191,6 +194,8 @@ def load_checkpoint(ckpt_path: Path):
         "degradation": ck.get("degradation"),
         "has_training_probe": ck.get("has_training_probe"),
         "interface_version": ck.get("interface_version"),
+        "loading_missing_keys": missing,
+        "loading_unexpected_keys": unexpected,
     }
     return model, meta
 
@@ -362,6 +367,14 @@ def experiment_position_invariance(model, image, x_fracs=(0.1, 0.3, 0.5, 0.7, 0.
     # 位置是否被保留：GAP 后差异远小于 GAP 前（比如 < 1%）即判定被抹平
     erased = gap_after_mean < gap_before_mean * 0.01 and gap_before_mean > 1e-3
 
+    # ---- C. ★「左 vs 右」精确断言（Lead 指定的修复判据） ----
+    # 直接测完整编码器输出（含 spatial_proj）在「线在左」与「线在右」时的差。
+    # GAP(1,1) 时代该值严格 = 0.000000；修复后应显著 > 0。
+    with torch.no_grad():
+        f_left = enc(lane_mask_at(int(0.30 * g)), 1, torch.zeros(1))
+        f_right = enc(lane_mask_at(int(0.70 * g)), 1, torch.zeros(1))
+        left_right_diff = float((f_left - f_right).abs().mean())
+
     return {
         "scan": [{"x_frac": xf, "x_px": x, "steer": s} for xf, x, s in zip(x_fracs, xs, outs)],
         "steer_spread": spread,
@@ -369,7 +382,10 @@ def experiment_position_invariance(model, image, x_fracs=(0.1, 0.3, 0.5, 0.7, 0.
         "gap_before_mean_diff": gap_before_mean,
         "gap_after_mean_diff": gap_after_mean,
         "gap_erased_position": erased,
+        "left_vs_right_diff": left_right_diff,
+        "left_vs_right_ok": left_right_diff > 1e-3,
         "note": (f"GAP 前特征图差异={gap_before_mean:.6f} → GAP 后向量差异={gap_after_mean:.6f}；"
+                 f"左 vs 右差={left_right_diff:.6f}；"
                  f"{'位置被 GAP 抹平（铁证）' if erased else '位置保留（GAP 未抹平）'}"),
     }
 
