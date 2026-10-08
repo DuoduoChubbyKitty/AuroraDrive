@@ -1236,6 +1236,7 @@ class LaneOffsetConfig:
 def lane_central_offset(
     lane_mask: torch.Tensor,
     config: Optional[LaneOffsetConfig] = None,
+    normalize: Optional[bool] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """从车道线掩码算"自车相对车道中心的横向偏移"真值（step8 辅助监督）。
 
@@ -1250,11 +1251,19 @@ def lane_central_offset(
 
     Args:
         lane_mask: [B, 1, H, W] 或 [B, H, W] 或 [H, W] 二值掩码（0/1）
-        config: LaneOffsetConfig
+        config: LaneOffsetConfig（几何口径；一般不用传）
+        normalize: **是否归一化到 [-1,1]**（Lead 裁决：真值归一化在真值侧做，
+            t1 不必知道"÷80"这个魔数）。
+              · None（默认）：跟随 `config.normalize`（默认 False → 网格格数）
+              · False：返回网格格数（±80），兼容旧调用
+              · True：返回 (质心列 − 中心列) / (grid/2)，∈[-1,1]，
+                与 w7 `step8["lane_offset"]` 的 tanh 预测**同口径**，
+                t1 可直接监督，无需手算缩放。
+            ⚠️ normalize=True 时忽略 `offset_scale`（避免双重缩放歧义）。
 
     Returns:
         (offset [B], valid [B] bool)
-        offset: 横向偏移，左负右正（与 steer 约定一致）；无效帧为 0
+        offset: 横向偏移，**左负右正**（与 steer 约定一致）；无效帧为 0
         valid: 该帧是否有可用的车道线（全 0 掩码 → False）
 
     ⚠️ 诚实声明：这是**几何代理真值**，不是物理测量。它假设"车道线质心
@@ -1263,6 +1272,8 @@ def lane_central_offset(
     """
     if config is None:
         config = LaneOffsetConfig()
+    if normalize is None:
+        normalize = config.normalize
 
     m = lane_mask
     if m.dim() == 2:
@@ -1299,7 +1310,13 @@ def lane_central_offset(
     n_valid = valid_rows.float().sum(dim=1).clamp_min(1e-6)
     lane_center = (row_centroids * valid_rows.float()).sum(dim=1) / n_valid  # [B]
 
-    offset = (lane_center - config.center_col) * config.offset_scale
+    if config.normalize:
+        # 归一化到 [-1,1]：按"半幅网格宽"归一，直接对齐 w7 的 tanh 预测口径。
+        # 注意：此处**忽略 offset_scale**（避免"先缩放再归一"的双重缩放歧义）。
+        half = max(1.0, config.grid / 2.0)
+        offset = (lane_center - config.center_col) / half
+    else:
+        offset = (lane_center - config.center_col) * config.offset_scale
     offset = torch.where(has_any, offset, torch.zeros_like(offset))
     return offset, has_any
 
@@ -1574,8 +1591,28 @@ def _self_test() -> int:
           f"{[s.active for s in states]}")
 
     # ── 24 步迭代中间步辅助（M3 扩展）──
-    print("\n== 15. forward_with_offset（融合特征 + 车道偏移）==")
-    head_off = RiskHead()
+    print("\n== 15. 默认 use_step_offset=False（Lead 裁决：offset 预测归 w7 refiner）==")
+    head_default = RiskHead()
+    check("RiskHeadConfig().use_step_offset 默认 = False（Lead 裁决）",
+          RiskHeadConfig().use_step_offset is False,
+          f"实际 {RiskHeadConfig().use_step_offset}")
+    # 默认关 → forward_with_offset 应明确报错（未启用就不该调）
+    try:
+        head_default.forward_with_offset(torch.randn(2, DEFAULT_FUSED_DIM))
+        check("默认关闭时调 forward_with_offset 应报错", False)
+    except RuntimeError:
+        check("默认关闭时调 forward_with_offset 应报错", True)
+    # 默认关 → forward_step 只出 conf/risk，offset 全零（不崩）
+    cd, rd, od = head_default.forward_step(torch.randn(3, 512), step_index=8)
+    check("默认关闭 → forward_step 的 offset 全零（只出 conf/risk）",
+          tuple(cd.shape) == (3,) and tuple(rd.shape) == (3,) and bool((od == 0).all()),
+          f"conf_std={float(cd.std()):.3f} offset_all_zero={bool((od==0).all())}")
+    check("默认关闭 → forward_step 的 conf/risk 仍非常数（真在出 conf/risk）",
+          float(cd.std()) > 1e-6 and float(rd.std()) > 1e-6,
+          f"conf_std={float(cd.std()):.3e} risk_std={float(rd.std()):.3e}")
+
+    print("\n== 15b. 显式 use_step_offset=True（兼容旧调用/研究用）==")
+    head_off = RiskHead(use_step_offset=True)
     fused = torch.randn(4, DEFAULT_FUSED_DIM)
     conf_o, risk_o, off_o = head_off.forward_with_offset(fused)
     check("forward_with_offset 返回三元组",

@@ -1041,17 +1041,29 @@ def lane_offset_target(lane_mask: torch.Tensor
     """
     if lane_mask is None:
         return None, None
-    # ---- 优先走 w4 权威接口 ----
+    # ---- 优先走 w4 权威接口（★ normalize=True 与 w7 的 tanh 输出对齐）----
+    # ⚠️ 量纲坑（2026-10-08 实测）：lane_central_offset 默认输出"网格格数"（±80），
+    #    而 w7 的 step_head.lane_offset 是 tanh ∈[-1,1] —— **量程差约 48 倍**，
+    #    直接 L1 会互相拉扯（实测 loss=40）。w4 已提供 normalize=True 选项对齐。
     try:
-        from risk_head import lane_central_offset
-        tgt, valid = lane_central_offset(lane_mask)
+        from risk_head import lane_central_offset, LaneOffsetConfig
+        # 先看接口是否支持 normalize（避免旧版无该字段）
+        try:
+            cfg = LaneOffsetConfig(normalize=True)
+            tgt, valid = lane_central_offset(lane_mask, cfg)
+        except TypeError:
+            tgt, valid = lane_central_offset(lane_mask)
+            # 旧版无 normalize → 手动归一化（÷半幅网格宽）
+            if tgt is not None:
+                W = lane_mask.shape[-1]
+                tgt = tgt / max(W / 2.0, 1.0)
         if tgt is not None:
             return tgt.reshape(-1, 1), valid
     except ImportError:
         pass
     except Exception:
         pass
-    # ---- 回退：本地底带质心（与 lane_geometry_steer 同源）----
+    # ---- 回退：本地底带质心（与 lane_geometry_steer 同源，天然归一化）----
     if lane_mask.dim() == 3:
         lm = lane_mask.unsqueeze(1)
     else:
