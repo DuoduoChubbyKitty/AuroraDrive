@@ -5576,6 +5576,21 @@ final class DriveState {
     // 推理约 24Hz，tick 30Hz，未完成推理时沿用上一帧结果
     let inferenceEngine = InferenceEngine()
 
+    // ── V2 新一代驾驶引擎（M9-V2：8 帧时序 + 5 路输入 + 6 输出）──
+    //
+    // 【接线策略（2026-10-08 接入驾驶室）】
+    //   · V2 就绪（isLoaded && timelineReady>=2）→ 用 V2 的 lastResult
+    //   · V2 冷启动 / 模型缺失 → 回退旧 inferenceEngine（m9_mono，真实单帧路径）
+    //   · 两者**互斥推理**（不并行，省算力）：每帧只触发其中一个的 infer()
+    //
+    // 【为什么 V2 用"上一帧的检测/车道线"】V2 infer 需要 detections + laneMask，
+    //   但 tick 里检测推理（yolopx.infer）在驾驶推理之后。
+    //   V2 用上一帧的 effectiveDetections / yolopxEngine.laneMask —— 这与
+    //   V2 本身的"异步推理 + 读 lastResult"语义一致（本就有 1 帧延迟）。
+    //
+    // 【模型文件】默认 "m9_v2"（export 脚本产出名）；不存在时优雅降级。
+    let inferenceEngineV2 = InferenceEngineV2(modelFileName: "m9_v2")
+
     // ── 第二套驾驶模型（game_assist_control，YOLO接管档的司机）──
     // 与 M9 同架构（画面+车辆状态→steer/throttle/brake），独立权重文件。
     // 档2 YOLO接管 用它的输出开车；当前与 M9 同权重，后续可换训练权重。
@@ -6957,9 +6972,43 @@ final class DriveState {
         // ── 1. 感知层：双驾驶模型推理 + YOLO 检测 ──
         // 异步触发推理（不阻塞 tick），读 lastResult 作为本帧输出
         if let cg = currentFrameCG {
-            // 紧急切纯规则时 M9 停推理（省资源；纯规则决策不依赖 M9 输出）
+            // 紧急切纯规则时主驾停推理（省资源；纯规则决策不依赖模型输出）
             if !forceRuleMode {
-                inferenceEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)   // M9 端到端主驾
+                // ════════════════════════════════════════════════════════════════
+                // V2 接入驾驶室（2026-10-08）：优先用 V2，冷启动/缺失时回退旧 M9
+                // ════════════════════════════════════════════════════════════════
+                // · V2 就绪（isLoaded && timelineReady>=2）→ 推 V2（8 帧时序）
+                // · V2 冷启动（timelineReady<2）→ 推旧 M9（真实单帧路径，不是"8帧塞零"）
+                // · V2 模型缺失 → 推旧 M9
+                // 两者**互斥**：每帧只触发一个，省算力。V2 预热由 loadIfNeeded 负责。
+                //
+                // 【为什么 V2 用上一帧的检测/车道线】见 inferenceEngineV2 声明处注释：
+                //   检测推理在本行之后，V2 用上一帧结果（与异步语义一致）。
+                inferenceEngineV2.loadIfNeeded()   // V2 lazy 加载（模型缺失时 isLoaded=false）
+                if inferenceEngineV2.isLoaded && inferenceEngineV2.timelineReady {
+                    // ── V2 路径：构造 5 路输入 ──
+                    var k2 = V2Kinematics()
+                    k2.speedKmh = speedKmh
+                    k2.speedValid = speedValid
+                    k2.speedLimitKmh = speedLimit
+                    k2.steerAngle = currentCommand.steer   // 上一帧决策（state[6]）
+                    k2.egoBoxFiltered = true               // effectiveDetections 已过 EgoBoxFilter
+                    // camera_heading：抓包 compass 度（NetworkLocator.cameraHeading）
+                    // ⚠️ 单位是度 [0,360)，V2FeatureBuilder 内部转 rad
+                    if let cam = networkLocator.lastResult?.cameraHeading,
+                       networkLocator.engineConnected {
+                        k2.cameraHeadingDeg = cam
+                        k2.cameraHeadingValid = true
+                    }
+                    inferenceEngineV2.infer(image: cg,
+                                            kinematics: k2,
+                                            detections: effectiveDetections,
+                                            laneMask: yolopxEngine.laneMask)
+                    inferenceEngineV2.noteSteerCommand(currentCommand.steer)
+                } else {
+                    // ── 回退旧 M9（冷启动 / V2 缺失）──
+                    inferenceEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)
+                }
             }
             assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
 

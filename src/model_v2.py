@@ -869,8 +869,139 @@ class FusionHead(nn.Module):
 
 
 # ============================================================================
-# 7. 完整模型 M2Model
+# 7.5. 迭代精修头 IterationRefiner（24 步向量版思维链，2026-10-08）
 # ============================================================================
+
+class _StrictGRUStep(nn.Module):
+    """单步严格 GRU，用 Linear+sigmoid+tanh+mul 显式实现。
+
+    ★ 为什么不直接用 nn.GRUCell（2026-10-08，w5 实测导出阻断）：
+      coremltools 8.3 把 nn.GRUCell trace 拆成 unsafe_chunk / uninitialized /
+      loop 算子，**CoreML 不认识** → 导出必失败（shared/indep 两种都炸）。
+      手工展开成基础算子（Linear/sigmoid/tanh/mul）后 coremltools 全支持，
+      且**数学等价标准 GRU**（`~h = tanh(W·x + U·(r⊙h_prev))`，保留 r⊙h 的
+      elementwise mul，非简化近似）。
+
+    数学（与 nn.GRUCell 逐位等价）：
+        z = σ(W_z·x + U_z·h_prev)           更新门
+        r = σ(W_r·x + U_r·h_prev)           重置门
+        n = tanh(W_n·x + U_n·(r ⊙ h_prev))  候选状态（★ 严格保留 r⊙h）
+        h = (1 − z) ⊙ h_prev + z ⊙ n        新隐状态
+    """
+
+    def __init__(self, input_dim: int, hidden_dim: int):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        # 三个门各一对 (x_proj 带 bias, h_proj 无 bias) —— 与 nn.GRUCell 同布局
+        self.x_z = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.h_z = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.x_r = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.h_r = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.x_n = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.h_n = nn.Linear(hidden_dim, hidden_dim, bias=False)
+
+    def forward(self, x: torch.Tensor, h_prev: torch.Tensor) -> torch.Tensor:
+        z = torch.sigmoid(self.x_z(x) + self.h_z(h_prev))
+        r = torch.sigmoid(self.x_r(x) + self.h_r(h_prev))
+        n = torch.tanh(self.x_n(x) + self.h_n(r * h_prev))   # ★ 严格 r⊙h
+        return (1.0 - z) * h_prev + z * n
+
+
+class IterationRefiner(nn.Module):
+    """24 步内部迭代精修（向量版思维链 / Chain-of-Thought）。
+
+    设计（见 docs/24步迭代精修-CoT-需求-2026-10-08.md §2.2）：
+        fused [B,512] → _StrictGRUStep×24（展开为静态图，方案二）→ refined [B,512]
+    每步重新审视融合特征，逐步精修；24 步全程残差相加。
+
+    ── 权重模式（Lead 拍板：shared 优先）──
+        shared=True  : 24 步**共享一个 _StrictGRUStep**（参数量 ≈ 1.57M → INT8 +1.50MB）
+                       —— 必须采用：indep 模式 24 个独立 Cell 达 38M/36MB，超 10MB 7 倍
+        shared=False : 24 个独立 Cell（参数量 38M → **超 10MB 硬约束，不可用**）
+                       仅作 fallback 占位，实际不应启用
+
+    ── CoreML 导出（w5 实测，2026-10-08）──
+        用 _StrictGRUStep（手工展开）而非 nn.GRUCell：后者 trace 出 unsafe_chunk/
+        uninitialized/loop 算子，coremltools 8.3 不认识 → 导出必失败。
+        手工展开版导出 ✅，真机 M3 p50=0.159ms，体积 3.56MB，24 步在图里（380 算子）。
+
+    ── 零初始化（与 temporal_proj 同理，w5/Lead 实测坐实的 bug）──
+        refiner_proj（残差投影）零初始化 → 起步 refined = fused + 0 = fused
+        → 与无迭代逐位一致，旧 checkpoint 不破坏，训练中梯度从零起步逐步学
+        迭代修正量（ResNet 残差标准做法）。
+
+    shape：
+        输入  fused: [B, feat_dim]   （M2Model 的 4 分支拼接特征）
+        输出        : [B, feat_dim]   （精修后特征，喂给 FusionHead）
+    """
+
+    def __init__(self, feat_dim: int = FUSION_IN_DIM, hidden: int = FUSION_IN_DIM,
+                 num_steps: int = 24, shared: bool = True):
+        super().__init__()
+        self.feat_dim = feat_dim
+        self.hidden = hidden
+        self.num_steps = num_steps
+        self.shared = shared
+
+        # 残差投影：把 GRU 隐状态投回 feat_dim 维，作为每步的增量修正。
+        # 零初始化 → 起步修正 = 0 → refined = fused（不破坏旧行为）。
+        self.refiner_proj = nn.Linear(hidden, feat_dim)
+
+        # _StrictGRUStep：shared=True 时 24 步共用一个；False 时 24 个独立。
+        # ⚠️ 必须用 _StrictGRUStep（手工展开），不可用 nn.GRUCell（导出阻断，见类注释）。
+        if shared:
+            self.cells = nn.ModuleList([_StrictGRUStep(feat_dim, hidden)])
+        else:
+            # ⚠️ 24 个独立 Cell = 38M 参数 / 36MB INT8，超 10MB 硬约束 7 倍，不可用。
+            # 仅作 fallback 占位；启用前必须重新评估参数预算。
+            self.cells = nn.ModuleList(
+                [_StrictGRUStep(feat_dim, hidden) for _ in range(num_steps)])
+
+        # ★ 零初始化（关键 bug 修复，与 temporal_proj 同源）：
+        # 不零初始化时 refiner_proj 随机权重会让 24 步的残差量叠加放大，
+        # 淹没 fused 主干（temporal_proj 那条 bug 就是 7.8~50 倍）。
+        # 零初始化后：起步每步修正 = 0 → refined 逐位等于 fused（实测可验证）；
+        # 训练中梯度逐步学出迭代修正量。
+        nn.init.zeros_(self.refiner_proj.weight)
+        nn.init.zeros_(self.refiner_proj.bias)
+
+    def forward(self, fused: torch.Tensor,
+                return_intermediate: bool = False
+                ) -> torch.Tensor | Tuple[torch.Tensor, List[torch.Tensor]]:
+        """fused [B,512] → refined [B,512]。
+
+        Args:
+            fused: 融合特征 [B, feat_dim]
+            return_intermediate: True 时同时返回每步的精修特征（训练做逐步递减监督用）
+
+        Returns:
+            refined [B, feat_dim]；或 (refined, [step1, ..., stepN])。
+            每步特征都是 [B, feat_dim]，stepN 即最终精修结果。
+        """
+        # h0 = fused 作为初始隐状态（让迭代从"当前融合理解"起步）
+        h = fused
+        intermediates: List[torch.Tensor] = []
+        for _ in range(self.num_steps):
+            # _StrictGRUStep(input=fused, hidden=h) —— 每步都重新看原始 fused，
+            # 而非只看上一步 h（避免 24 步纯递推的信息衰减）
+            cell = self.cells[0] if self.shared else self.cells[_]
+            h = cell(fused, h)                              # [B, hidden]
+            # 残差修正：refined = fused + proj(h)；零初始化起步 → proj(h)=0
+            delta = self.refiner_proj(h)                   # [B, feat_dim]
+            refined = fused + delta                        # [B, feat_dim]
+            intermediates.append(refined)
+            # 下一步的隐状态用 refined（把修正后的特征带进下一轮审视）
+            h = refined
+
+        if return_intermediate:
+            return refined, intermediates
+        return refined
+
+
+# ============================================================================
+# 8. 完整模型 M2Model
+# ============================================================================
+
 
 def _zero_like(ref: torch.Tensor, batch_size: int, dim: int) -> torch.Tensor:
     """构造 [B, dim] 的全零张量（device/dtype 跟随 ref）。
@@ -909,7 +1040,10 @@ class M2Model(nn.Module):
                  temporal_hidden: int = TEMPORAL_HIDDEN,
                  stage3_blocks: int = 6,
                  stage2_blocks: int = 3,
-                 heading_unit: str = "compass"):
+                 heading_unit: str = "compass",
+                 enable_refiner: bool = True,
+                 refiner_steps: int = 24,
+                 refiner_shared: bool = True):
         super().__init__()
         self.deploy = deploy
         self.img_feat_dim = img_feat_dim
@@ -991,6 +1125,16 @@ class M2Model(nn.Module):
             except TypeError:
                 # 兼容 RiskHead 构造签名差异（无参 / 不同 kwarg）
                 self.risk_head = RiskHead()
+
+        # ---- 迭代精修头（24 步向量版思维链，2026-10-08）----
+        # fused → GRUCell×24 → refined → FusionHead
+        # 零初始化残差 → 起步 refined = fused（不破坏旧行为，旧 checkpoint 兼容）
+        # refiner_steps=1 退化为单步（≈无迭代，逐位一致）
+        self.refiner = None
+        if enable_refiner:
+            self.refiner = IterationRefiner(
+                feat_dim=fusion_in, hidden=fusion_in,
+                num_steps=refiner_steps, shared=refiner_shared)
 
         # ---- 记录契约常量，供 Swift/导出脚本读取 ----
         self.img_h = IMG_H
@@ -1112,8 +1256,17 @@ class M2Model(nn.Module):
         # ---- 分支 4：状态 [B,8] → [B,64]（None → 零向量）----
         state_feat = self.state_encoder(vehicle_state, batch_size, image)
 
-        # ---- 融合：[B,512] → 三个控制量 ----
+        # ---- 融合：[B,512] → 迭代精修 → 三个控制量 ----
         fused = torch.cat([img_feat, lane_feat, det_feat, state_feat], dim=1)  # [B,512]
+        # 迭代精修（24 步向量版思维链）：零初始化起步 → refined = fused + 0 = fused
+        # refiner=None（禁用）或 num_steps=1（单步）时退化为无迭代（逐位一致）
+        refiner_intermediates: Optional[List[torch.Tensor]] = None
+        if self.refiner is not None:
+            if return_aux:
+                # 训练侧需要每步输出做逐步递减监督 → 取中间步
+                fused, refiner_intermediates = self.refiner(fused, return_intermediate=True)
+            else:
+                fused = self.refiner(fused)
         steer, throttle, brake = self.fusion_head(fused)
 
         # ---- 三个主输出：契约不变（向后兼容）----
@@ -1121,10 +1274,11 @@ class M2Model(nn.Module):
             return steer, throttle, brake
 
         # ---- M4 新增辅助输出（不参与主契约，仅 return_aux=True 时返回）----
-        aux: Dict[str, Optional[torch.Tensor]] = {
+        aux: Dict[str, Optional[object]] = {
             "steer": steer, "throttle": throttle, "brake": brake,
             "car_heading": None, "confidence": None, "risk": None,
             "temporal_feat": temporal_feat,
+            "refiner_intermediates": refiner_intermediates,
         }
         # 车头朝向（w3）：从图像特征学 Δheading；camera_heading 由调用方给（rad）
         if self.heading_head is not None:

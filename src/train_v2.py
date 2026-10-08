@@ -891,6 +891,271 @@ def lane_grad_norm(lane_module: Optional[nn.Module]) -> float:
     return math.sqrt(sq)
 
 
+# ============================================================================
+# ★ 24 步迭代精修训练信号（CoT，2026-10-08，需求 §3）
+# ============================================================================
+# 逼模型"真的用 24 步"而不是偷懒只依赖第 1 步：
+#   ① 逐步递减监督（§3.1）：step1=1.0/step8=0.5/step16=0.3/step24=1.0
+#   ② 中间步辅助任务（§3.2）：step8=车道中心偏移 / step16=TTC / step24=控制量
+#   ③ 随机深度（§3.3）：训练时随机跳过部分步，防过拟合
+#
+# ★ 防御性设计：IterationRefiner 尚未在 model_v2 落盘时（w7 进行中），
+#   本模块全部优雅降级为 no-op（不影响现有训练）；存在时自动接入。
+
+#: 逐步递减监督权重（§3.1）。关键点：step1 与 step24 都给 1.0，
+#: 中间递减 → 强制"早期粗略、后期精细"，不让模型偷懒只依赖第 1 步。
+#: 其余步用线性插值填充。
+ITER_STEP_WEIGHTS: Dict[int, float] = {1: 1.0, 8: 0.5, 16: 0.3, 24: 1.0}
+
+#: 辅助任务步位（§3.2）
+ITER_AUX_STEPS: Dict[str, int] = {
+    "lane_offset": 8,    # step8 预测车道中心偏移
+    "ttc": 16,           # step16 预测 TTC
+    "control": 24,       # step24 预测最终 steer/throttle/brake
+}
+
+#: 随机深度的步数范围（§3.3）：训练时随机只用 [min,max] 步
+ITER_RANDOM_DEPTH_RANGE: Tuple[int, int] = (12, 24)
+
+
+def _interp_step_weights(num_steps: int = 24) -> Dict[int, float]:
+    """把 ITER_STEP_WEIGHTS 的关键点线性插值成 num_steps 步的完整权重表。
+
+    step1 与 step24 都为 1.0（早期粗略 + 后期精细），中间递减。
+    """
+    if num_steps <= 0:
+        return {}
+    anchors = sorted(ITER_STEP_WEIGHTS.items())
+    if num_steps == 1:
+        return {1: anchors[-1][1]}
+    weights = {}
+    # 把关键点对齐到 num_steps 的比例位置
+    scaled = [(max(1, round(k * num_steps / max(anchors[-1][0], 1))), v)
+              for k, v in anchors]
+    # 确保首尾
+    scaled[0] = (1, scaled[0][1])
+    scaled[-1] = (num_steps, scaled[-1][1])
+    for i, (s0, v0) in enumerate(scaled[:-1]):
+        s1, v1 = scaled[i + 1]
+        if s1 == s0:
+            weights[s0] = v0
+            continue
+        for s in range(s0, s1 + 1):
+            t = (s - s0) / (s1 - s0)
+            weights[s] = v0 + (v1 - v0) * t
+    weights[num_steps] = scaled[-1][1]
+    return weights
+
+
+def sample_random_depth(num_steps: int = 24, rng: Optional[random.Random] = None,
+                        enabled: bool = True) -> Optional[List[int]]:
+    """§3.3 随机深度：随机选 [12,24] 步中的若干步参与训练。
+
+    Returns:
+        参与的步序号列表（升序）；enabled=False 或 num_steps<2 → None（用全部步）。
+    """
+    if not enabled or num_steps < 2:
+        return None
+    r = rng if rng is not None else random.Random()
+    lo, hi = ITER_RANDOM_DEPTH_RANGE
+    k = r.randint(max(2, min(lo, num_steps)), min(hi, num_steps))
+    # 始终保留第 1 步与最后一步（早期粗略 + 最终输出）
+    must = {1, num_steps}
+    pool = [s for s in range(1, num_steps + 1) if s not in must]
+    r.shuffle(pool)
+    chosen = sorted(must | set(pool[:max(0, k - len(must))]))
+    return chosen
+
+
+def lane_offset_target(lane_mask: torch.Tensor
+                       ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+    """§3.2 step8 真值：车道中心横向偏移 ∈ [-1,1]（左负右正）。
+
+    复用 lane_geometry_steer 的底带质心（该函数已计算 offset），独立提取出来。
+    返回 (target [B,1], valid [B])；无车道线 → (None, None)。
+    """
+    if lane_mask is None:
+        return None, None
+    proxy, valid = lane_geometry_steer(lane_mask, gain=1.0)
+    # proxy 已含 offset + slope 混合；step8 只需纯 offset → 重新取底带质心
+    if lane_mask.dim() == 3:
+        lm = lane_mask.unsqueeze(1)
+    else:
+        lm = lane_mask
+    H, W = lm.shape[-2:]
+    m = (lm > 0.5).to(torch.float32)
+    y0, y1 = int(H * 0.75), max(int(H * 1.0), int(H * 0.75) + 1)
+    band = m[:, :, y0:y1, :]
+    cnt = band.sum(dim=(2, 3))
+    xs = torch.arange(W, device=m.device, dtype=m.dtype).view(1, 1, 1, W)
+    cx = (band * xs).sum(dim=(2, 3)) / cnt.clamp(min=1.0)
+    offset = (cx / max(W - 1, 1)) * 2.0 - 1.0          # [-1,1]
+    v = cnt.squeeze(1) > 8
+    return offset.reshape(-1, 1), v
+
+
+def ttc_target(batch: Dict[str, Any], device
+               ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+    """§3.2 step16 真值：TTC 碰撞时间（秒，越小越危险）。
+
+    用 risk_head.estimate_ttc 估算；未标定 K 时 valid 全 False（诚实降级）。
+    返回 (target [B], valid [B])；无检测框 → (None, None)。
+    """
+    try:
+        from risk_head import estimate_ttc, TTCConfig
+    except ImportError:
+        return None, None
+    dets = batch.get("dets")           # [B,N,12] 已适配后的格式
+    det_mask = batch.get("det_mask")
+    if dets is None or det_mask is None:
+        return None, None
+    speed = None
+    vs = batch.get("vehicle_state")
+    if vs is not None and vs.dim() == 2 and vs.shape[1] > 0:
+        speed = vs[:, 0].to(device)
+    dets = dets.to(device)
+    det_mask = det_mask.to(device)
+    ttc, dist, valid = estimate_ttc(dets, det_mask, speed, config=TTCConfig())
+    # 取每样本最危险的（最小 TTC）
+    if valid.any():
+        ttc_min = ttc.where(valid, torch.full_like(ttc, float('inf'))).min(dim=1).values
+        v_min = valid.any(dim=1)
+        # 限幅到 [0, 10] 秒，避免 inf 污染损失
+        ttc_min = ttc_min.clamp(0.0, 10.0)
+        return ttc_min, v_min
+    return None, None
+
+
+def iterative_refinement_loss(
+    intermediate: Any,
+    batch: Dict[str, Any],
+    device,
+    enable_iter: bool = True,
+    num_steps: int = 24,
+    rng: Optional[random.Random] = None,
+) -> Tuple[torch.Tensor, Dict[str, float]]:
+    """★ 24 步迭代精修的训练信号（§3 全部三段）。
+
+    Args:
+        intermediate: model_v2 在 return_intermediate=True 时返回的逐步输出。
+                      预期格式：list/tuple of dict，每个 dict 含
+                      steer/throttle/brake（每步都有，§3.1 要求共享 output head）。
+                      **格式不符时优雅返回 0（不破坏现有训练）**。
+        batch:        数据 batch（用于真值）
+        enable_iter:  False → 直接返回 0（IterationRefiner 未启用时）
+        num_steps:    迭代步数（默认 24）
+        rng:          随机深度用
+
+    Returns:
+        (loss, comps_dict)
+    """
+    zero = torch.zeros((), device=device)
+    comps: Dict[str, float] = {}
+    if not enable_iter or intermediate is None:
+        return zero, comps
+
+    # ---- 解析 intermediate 格式（防御性：格式不符则降级）----
+    steps = None
+    # 格式 A：model_v2 返回 (refined, [step1, step2, ...])
+    if isinstance(intermediate, tuple) and len(intermediate) == 2 \
+            and isinstance(intermediate[1], (list, tuple)):
+        steps = intermediate[1]
+    # 格式 B：直接是 list of dict
+    elif isinstance(intermediate, (list, tuple)):
+        steps = intermediate
+    if not steps or len(steps) == 0:
+        return zero, comps
+
+    actual_steps = len(steps)
+    weights = _interp_step_weights(num_steps=max(actual_steps, num_steps))
+
+    # ---- §3.3 随机深度：随机选子集步参与 ----
+    active = sample_random_depth(num_steps=actual_steps, rng=rng, enabled=True)
+    if active is None:
+        active = list(range(1, actual_steps + 1))
+
+    # ---- §3.1 逐步递减监督：每步的 steer/throttle/brake 对真值 ----
+    gt_s = batch["steer"].to(device).reshape(-1, 1)
+    gt_t = batch["throttle"].to(device).reshape(-1, 1)
+    gt_b = batch["brake"].to(device).reshape(-1, 1)
+
+    total = zero
+    n_supervised = 0
+    for idx_0, step_out in enumerate(steps):
+        s = idx_0 + 1
+        if s not in active:
+            continue
+        w = weights.get(s, 0.3)
+        # step_out 可能是 dict 或 tuple
+        if isinstance(step_out, dict):
+            ps = step_out.get("steer")
+            pt = step_out.get("throttle_logit", step_out.get("throttle"))
+            pb = step_out.get("brake_logit", step_out.get("brake"))
+        elif isinstance(step_out, (tuple, list)) and len(step_out) >= 3:
+            ps, pt, pb = step_out[0], step_out[1], step_out[2]
+        else:
+            continue
+        if ps is None:
+            continue
+        ps = ps.to(device)
+        l_s = F.l1_loss(ps.reshape(-1, 1), gt_s)
+        # throttle/brake：若给的是 logit 用 BCE，给的是 prob 也用 L1（鲁棒）
+        if pt is not None:
+            pt = pt.to(device)
+            if pt.min() < -0.5 or pt.max() > 1.5:    # 疑似 logit
+                l_t = F.binary_cross_entropy_with_logits(pt.reshape(-1, 1), gt_t)
+            else:
+                l_t = F.l1_loss(pt.reshape(-1, 1).clamp(0, 1), gt_t)
+        else:
+            l_t = zero
+        if pb is not None:
+            pb = pb.to(device)
+            if pb.min() < -0.5 or pb.max() > 1.5:
+                l_b = F.binary_cross_entropy_with_logits(pb.reshape(-1, 1), gt_b)
+            else:
+                l_b = F.l1_loss(pb.reshape(-1, 1).clamp(0, 1), gt_b)
+        else:
+            l_b = zero
+        total = total + w * (l_s + l_t + l_b)
+        n_supervised += 1
+        comps[f"step{s}_steer"] = float(l_s.detach())
+
+    if n_supervised == 0:
+        return zero, comps
+
+    # ---- §3.2 中间步辅助任务 ----
+    # step8：车道中心偏移（需要模型在 step8 输出 offset 预测；若无该字段则跳过）
+    aux_step_lane = ITER_AUX_STEPS["lane_offset"]
+    if aux_step_lane <= actual_steps:
+        lane_mask = batch.get("lane_mask")
+        if lane_mask is not None:
+            tgt, valid = lane_offset_target(lane_mask.to(device))
+            step_out = steps[aux_step_lane - 1]
+            pred_off = (step_out.get("lane_offset") if isinstance(step_out, dict)
+                        else None)
+            if tgt is not None and pred_off is not None and bool(valid.any()):
+                pred_off = pred_off.to(device).reshape(-1, 1)
+                l_lo = F.l1_loss(pred_off[valid], tgt[valid])
+                total = total + 0.3 * l_lo
+                comps["step8_lane_offset"] = float(l_lo.detach())
+
+    # step16：TTC（需要模型在 step16 输出 ttc 预测；若无该字段则跳过）
+    aux_step_ttc = ITER_AUX_STEPS["ttc"]
+    if aux_step_ttc <= actual_steps:
+        tgt, valid = ttc_target(batch, device)
+        step_out = steps[aux_step_ttc - 1]
+        pred_ttc = (step_out.get("ttc") if isinstance(step_out, dict) else None)
+        if tgt is not None and pred_ttc is not None and bool(valid.any()):
+            pred_ttc = pred_ttc.to(device).reshape(-1)
+            l_ttc = F.l1_loss(pred_ttc[valid], tgt[valid])
+            total = total + 0.3 * l_ttc
+            comps["step16_ttc"] = float(l_ttc.detach())
+
+    comps["iter_n_supervised"] = float(n_supervised)
+    comps["iter_active_steps"] = float(len(active))
+    return total, comps
+
+
 def diagnose_lane_coupling(model, lane_module, batch, device, inputs, loss_fn,
                            use_amp, ctl_mode) -> Optional[float]:
     """校验 A：单独对 steer 损失反传，测车道编码器参数梯度范数。

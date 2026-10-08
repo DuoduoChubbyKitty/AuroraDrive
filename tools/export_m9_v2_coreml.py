@@ -878,6 +878,28 @@ def main() -> int:
             print(f"[导出] ✗ 辅助头输出缺失：{missing_aux}", file=sys.stderr)
             return 10
         print("[导出] ✓ 三个辅助头（confidence/risk/car_heading）都在输出契约里")
+
+        # ---- 5c. ★ 24 步迭代精修在图里吗？（CoT 假绿防线，同 t1 同款）----
+        # w7 加 IterationRefiner 后，这里有 24 步手工展开的 GRU（Linear+sigmoid+tanh）。
+        # ⚠️ 它不是原生 gru 算子、也不是 while_loop（故意展开成静态图给 ANE 友好），
+        #    所以判据是「linear 算子数显著多于无迭代基线」+「sigmoid/tanh 各 ≥24」。
+        #    （24 步 shared 严格版实测：linear≈76 sigmoid≈48 tanh≈24 mul≈72 总≈380；
+        #     无迭代基线 fused→proj 是 linear≈1，差距 ~70×，可靠区分。）
+        #    **这条是软警告**（不阻断导出）——因为 w7 可能还没落地 IterationRefiner，
+        #    此时图里不该有 24 步算子；落地后才该有。标 "未检测到" 让人知道要核对。
+        n_linear = ops.get("linear", 0)
+        n_sigmoid = ops.get("sigmoid", 0)
+        n_tanh = ops.get("tanh", 0)
+        n_mul = ops.get("mul", 0)
+        # 24 步手工 GRU 的指纹：sigmoid≥24 且 tanh≥24（每步 2 个门 + 1 个候选）
+        has_24step = (n_sigmoid >= 24 and n_tanh >= 24)
+        if has_24step:
+            print(f"[导出] ✓ 检测到 24 步迭代精修算子（sigmoid×{n_sigmoid} tanh×{n_tanh} "
+                  f"linear×{n_linear} mul×{n_mul}）—— CoT 在图里")
+        else:
+            # 不阻断：w7 可能尚未加 IterationRefiner；若已加却没检测到才该警告
+            print(f"[导出] ⚠ 未检测到 24 步迭代指纹（sigmoid×{n_sigmoid} tanh×{n_tanh}）。"
+                  f"若 model_v2 已加 IterationRefiner 但此处未检出，检查是否被 coremltools 优化掉。")
     except SystemExit:
         raise
     except Exception as exc:

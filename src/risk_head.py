@@ -80,6 +80,8 @@ __all__ = [
     "confidence_target_from_error",
     "confidence_target_from_temporal_change",
     "risk_target_from_ttc",
+    "lane_central_offset",
+    "LaneOffsetConfig",
 ]
 
 # ----------------------------------------------------------------------------
@@ -115,6 +117,13 @@ class RiskHeadConfig:
         det_pool: 检测框特征的池化方式，"max_mean" 或 "max"。
             "max_mean" 与 model_v2 的 DetectionEncoder 同款（max 抓最危险单框、
             mean 抓整体密度），但这里输入已是**编码后**的 [B,128]，故直接池化。
+        step_feat_dim: 24 步迭代中间步特征的维度（IterationRefiner 的 hidden）。
+            默认 128（与 model_v2 TEMPORAL_HIDDEN 一致，w5 默认值）。
+            **w7 的 IterationRefiner 落地后请按其实际 hidden 对齐**。
+        lateral_offset_range: 车道中心偏移的输出范围（米）。
+            offset = tanh(logit) * range，默认 2.0（±2 米覆盖大多数车道宽度）。
+            改这个只缩放输出，不改真值口径（真值口径见 `lane_central_offset`）。
+        use_step_offset: 是否启用车道中心偏移头（step8 辅助任务）。
     """
 
     fused_dim: int = DEFAULT_FUSED_DIM
@@ -123,6 +132,10 @@ class RiskHeadConfig:
     use_speed: bool = True
     dropout: float = 0.1
     det_pool: str = "max_mean"
+    # ── 24 步迭代中间步辅助（M3 扩展）──
+    step_feat_dim: int = 128
+    lateral_offset_range: float = 2.0
+    use_step_offset: bool = True
 
 
 class RiskHead(nn.Module):
@@ -182,6 +195,28 @@ class RiskHead(nn.Module):
         with torch.no_grad():
             self.risk_head.bias.fill_(math.log(0.1 / 0.9))        # ≈ 0.1
             self.confidence_head.bias.fill_(math.log(0.6 / 0.4))  # ≈ 0.6
+
+        # ── 24 步迭代中间步辅助支路（M3 扩展）──────────────────────────
+        # step_feat（IterationRefiner 第 N 步的 hidden）→ 中间步 conf/risk/offset
+        # 独立参数：中间步特征语义与最终融合特征不同（它是"迭代过程中的状态"，
+        # 不是四分支拼接），共参数会让两种梯度互相拉扯（与 HeadingHead
+        # Δ/绝对双分支独立参数同理）。
+        if config.use_step_offset:
+            self.step_fc1 = nn.Linear(config.step_feat_dim, config.hidden)
+            self.step_fc2 = nn.Linear(config.hidden, config.hidden)
+            self.step_confidence_head = nn.Linear(config.hidden, 1)
+            self.step_risk_head = nn.Linear(config.hidden, 1)
+            self.step_offset_head = nn.Linear(config.hidden, 1)
+            # step 头也用 fan_in + 零 bias；risk 偏低、offset 初值≈0
+            for m in [self.step_fc1, self.step_fc2, self.step_confidence_head,
+                      self.step_risk_head, self.step_offset_head]:
+                nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="relu")
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            with torch.no_grad():
+                self.step_risk_head.bias.fill_(math.log(0.1 / 0.9))
+                self.step_confidence_head.bias.fill_(math.log(0.6 / 0.4))
+        self._has_step = config.use_step_offset
 
     def _init_weights(self) -> None:
         for m in self.modules():
@@ -251,43 +286,136 @@ class RiskHead(nn.Module):
         Returns:
             (confidence [B], risk [B])，均 ∈ [0,1]
         """
+        return self._forward_shared(fused_feat, det_feat, det_mask, speed)
+
+    # ------------------------------------------------------------------
+    def forward_with_offset(
+        self,
+        fused_feat: torch.Tensor,
+        det_feat: Optional[torch.Tensor] = None,
+        det_mask: Optional[torch.Tensor] = None,
+        speed: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """前向 + 车道中心偏移预测（step8 辅助任务）。
+
+        与 `forward` 共享 fused 支路，额外用 step_offset_head 从 fused 特征
+        预测 lateral_offset。这是给"最终步/融合特征"用的偏移估计；
+        **中间步**（IterationRefiner 第 N 步）请用 `forward_step`。
+
+        Returns:
+            (confidence [B], risk [B], lateral_offset [B])
+            lateral_offset ∈ [-range, +range]（米），左负右正
+        """
+        confidence, risk, x = self._forward_shared(
+            fused_feat, det_feat, det_mask, speed, return_feat=True
+        )
+        if not self._has_step:
+            raise RuntimeError(
+                "forward_with_offset: use_step_offset=False，未启用车道中心偏移头"
+            )
+        # 用 fused 支路的隐藏特征 x [B,hidden] 预测偏移
+        offset = torch.tanh(self.step_offset_head(x)).squeeze(-1) \
+            * self.config.lateral_offset_range
+        return confidence, risk, offset
+
+    # ------------------------------------------------------------------
+    def forward_step(
+        self,
+        step_feat: torch.Tensor,
+        step_index: Optional[int] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """24 步迭代中间步辅助：从第 N 步的特征预测 conf/risk/offset。
+
+        这是 §3.2 的核心：中间步有活干（防偷懒）。
+        step8 的 offset 会被 t1 做辅助监督（lane_central_offset 真值），
+        step16 的 risk 会被 TTC 真值监督。
+
+        Args:
+            step_feat: [B, step_feat_dim] IterationRefiner 第 N 步的 hidden
+            step_index: 步号（0..23），仅用于日志/诊断，不影响前向
+
+        Returns:
+            (confidence [B] ∈ [0,1], risk [B] ∈ [0,1],
+             lateral_offset [B] ∈ [-range, +range])
+            未启用 use_step_offset 时 offset 全 0（不报错，退化兼容）。
+
+        ⚠️ 与 `forward` 的参数完全不同：这里**不吃 det_feat/speed**，
+            只吃迭代状态特征。中间步的信息已由 IterationRefiner 融合进 hidden。
+        """
+        if not self._has_step:
+            b = step_feat.shape[0] if step_feat.dim() >= 2 else 1
+            dev = step_feat.device
+            z = torch.zeros(b, device=dev, dtype=step_feat.dtype)
+            return z, z, z
+        if step_feat is None:
+            raise ValueError("forward_step: step_feat 为必填")
+        if step_feat.dim() == 1:
+            step_feat = step_feat.unsqueeze(0)
+        if step_feat.dim() != 2:
+            raise ValueError(
+                f"forward_step: step_feat 期望 [B, step_feat_dim={self.config.step_feat_dim}]，"
+                f"实际 {tuple(step_feat.shape)}"
+            )
+        if step_feat.shape[1] != self.config.step_feat_dim:
+            raise ValueError(
+                f"forward_step: step_feat 末维 {step_feat.shape[1]} "
+                f"≠ 配置 step_feat_dim={self.config.step_feat_dim}"
+                f"（w7 的 IterationRefiner hidden 与本配置不一致，请对齐）"
+            )
+        h = F.relu(self.step_fc1(step_feat))
+        h = F.relu(self.step_fc2(h))
+        conf = torch.sigmoid(self.step_confidence_head(h)).squeeze(-1)    # [B]
+        risk = torch.sigmoid(self.step_risk_head(h)).squeeze(-1)          # [B]
+        offset = torch.tanh(self.step_offset_head(h)).squeeze(-1) \
+            * self.config.lateral_offset_range                              # [B]
+        return conf, risk, offset
+
+    # ------------------------------------------------------------------
+    def _forward_shared(
+        self,
+        fused_feat: torch.Tensor,
+        det_feat: Optional[torch.Tensor],
+        det_mask: Optional[torch.Tensor],
+        speed: Optional[torch.Tensor],
+        return_feat: bool = False,
+    ):
+        """forward / forward_with_offset 共用的前向骨架。
+
+        return_feat=True 时额外返回隐藏特征 x（供 offset 头复用）。
+        """
         if fused_feat is None:
-            raise ValueError("RiskHead.forward: fused_feat 为必填")
+            raise ValueError("RiskHead: fused_feat 为必填")
         if fused_feat.dim() == 1:
             fused_feat = fused_feat.unsqueeze(0)
         if fused_feat.dim() != 2:
             raise ValueError(
-                f"RiskHead.forward: fused_feat 期望 [B,C]，实际 {tuple(fused_feat.shape)}"
+                f"RiskHead: fused_feat 期望 [B,C]，实际 {tuple(fused_feat.shape)}"
             )
         b = fused_feat.shape[0]
 
         parts: List[torch.Tensor] = [fused_feat]
 
-        # ---- 检测支路（None → 零向量退化，不报错）----
         if self.config.det_feat_dim > 0:
             if det_feat is None:
-                parts.append(
-                    torch.zeros(b, self.det_proj_dim, device=fused_feat.device,
-                                dtype=fused_feat.dtype)
-                )
+                parts.append(torch.zeros(b, self.det_proj_dim,
+                                          device=fused_feat.device,
+                                          dtype=fused_feat.dtype))
             else:
                 if det_feat.dim() >= 2 and det_feat.shape[0] != b:
                     raise ValueError(
-                        f"RiskHead.forward: det_feat 的 batch={det_feat.shape[0]} "
-                        f"与 fused_feat 的 batch={b} 不一致"
+                        f"RiskHead: det_feat batch={det_feat.shape[0]} 与 {b} 不一致"
                     )
                 pooled = self._pool_det(det_feat, det_mask)
                 if pooled.shape[1] != self.det_proj_dim:
                     raise ValueError(
-                        f"RiskHead.forward: det 支路维度 {pooled.shape[1]} "
-                        f"≠ 配置 {self.det_proj_dim}"
+                        f"RiskHead: det 支路维度 {pooled.shape[1]} ≠ {self.det_proj_dim}"
                     )
                 parts.append(pooled)
 
-        # ---- 速度（None → 0）----
         if self.config.use_speed:
             if speed is None:
-                speed_col = torch.zeros(b, 1, device=fused_feat.device, dtype=fused_feat.dtype)
+                speed_col = torch.zeros(b, 1, device=fused_feat.device,
+                                        dtype=fused_feat.dtype)
             else:
                 s = speed
                 if s.dim() == 0:
@@ -296,28 +424,24 @@ class RiskHead(nn.Module):
                     s = s.unsqueeze(1)
                 if s.shape[0] != b:
                     raise ValueError(
-                        f"RiskHead.forward: speed 的 batch={s.shape[0]} 与 {b} 不一致"
+                        f"RiskHead: speed batch={s.shape[0]} 与 {b} 不一致"
                     )
-                speed_col = s.to(device=fused_feat.device, dtype=fused_feat.dtype)
-                # 速度量纲差异大 → 做温和的尺度归一（tanh 压缩，不改变单调性）
-                # 说明：真实量纲由调用方保证；这里只防止大数值把特征淹掉。
-                speed_col = torch.tanh(speed_col / 30.0)
+                speed_col = torch.tanh(s.to(device=fused_feat.device,
+                                            dtype=fused_feat.dtype) / 30.0)
             parts.append(speed_col)
 
         x = torch.cat(parts, dim=1)
         if x.shape[1] != self.fused_dim_in:
             raise ValueError(
-                f"RiskHead.forward: 拼接后维度 {x.shape[1]} ≠ 期望 {self.fused_dim_in}"
-                f"（fused_dim={self.config.fused_dim}, det={self.det_proj_dim}, "
-                f"use_speed={self.config.use_speed}）"
+                f"RiskHead: 拼接维度 {x.shape[1]} ≠ 期望 {self.fused_dim_in}"
             )
-
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = F.relu(self.fc2(x))
-
-        confidence = torch.sigmoid(self.confidence_head(x)).squeeze(-1)   # [B]
-        risk = torch.sigmoid(self.risk_head(x)).squeeze(-1)               # [B]
+        confidence = torch.sigmoid(self.confidence_head(x)).squeeze(-1)
+        risk = torch.sigmoid(self.risk_head(x)).squeeze(-1)
+        if return_feat:
+            return confidence, risk, x
         return confidence, risk
 
 
