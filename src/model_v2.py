@@ -197,18 +197,58 @@ import torch.nn.functional as F
 # 延迟导入写在 try 里：这三个模块由 w3/w4/w5 并行产出，若某个尚未落盘，
 # 缺失的头自动置 None（build_model 的 enable_* 开关会跳过它），
 # **不让 model_v2 因缺模块而整个 import 失败**（向后兼容旧环境）。
-try:
-    from src.heading_head import HeadingHead           # noqa: F401 (w3)
-except ImportError:  # pragma: no cover - 环境缺模块时降级
-    HeadingHead = None
-try:
-    from src.temporal import TemporalEncoder           # noqa: F401 (w5)
-except ImportError:  # pragma: no cover
-    TemporalEncoder = None
-try:
-    from src.risk_head import RiskHead, RiskHeadConfig  # noqa: F401 (w4)
-except ImportError:  # pragma: no cover
-    RiskHead, RiskHeadConfig = None, None
+#
+# ★ 2026-10-08（T1 独立验证修复）：**双路径导入 + 降级必须告警**
+# ----------------------------------------------------------------
+# 原实现只有 `from src.xxx import ...`，且 `except ImportError: XXX = None`
+# **完全静默**。实测存在一个极具误导性的陷阱：
+#
+#     python3 -c "import model_v2"      → cwd 在 sys.path → `src.xxx` 可解析 → 三头挂载 ✅
+#     python3 src/train_v2.py           → sys.path[0] = src/，repo root **不在** path
+#                                        → ModuleNotFoundError: No module named 'src'
+#                                        → 被 except 吞掉 → **三头全变 None，无任何告警** 🔴
+#
+# 后果：任何以「脚本方式」运行的下游（python3 src/xxx.py）都会**静默丢掉三个头**，
+# 产生假红（误判"没集成"）或假绿（误判"集成好了"）。T1 验证脚本首次运行即被坑到，
+# 报了 15 个 FAIL，实际只是导入环境问题。
+#
+# 修法：① 双路径回退（`src.xxx` 失败 → 回退顶层 `xxx`）
+#       ② 两条路径都失败时**必须发 RuntimeWarning**，绝不静默
+import warnings as _warnings
+
+
+def _import_head(mod_name: str, attrs: str):
+    """双路径导入一个感知头模块。
+
+    Args:
+        mod_name: 模块名（如 "heading_head"）
+        attrs:    逗号分隔的属性名（如 "HeadingHead"）
+
+    Returns:
+        tuple：按 attrs 顺序的属性元组；全失败则返回 (None,) * len(attrs)
+    """
+    names = [a.strip() for a in attrs.split(",") if a.strip()]
+    for path in (f"src.{mod_name}", mod_name):     # ① 包内路径 ② 脚本运行回退
+        try:
+            import importlib
+            mod = importlib.import_module(path)
+            if all(hasattr(mod, n) for n in names):
+                return tuple(getattr(mod, n) for n in names)
+        except ImportError:
+            continue
+    # ② 两条路径都失败 → 必须告警（不静默！）
+    _warnings.warn(
+        f"[model_v2] ⚠ 无法导入 {mod_name}（{names}）—— 该感知头将被禁用"
+        f"（enable_{mod_name.replace('_head', '')}=True 也不会生效）。"
+        f"请检查 sys.path 是否包含 repo root 或 src 目录；"
+        f"脚本方式运行（python3 src/xxx.py）会导致 'from src.xxx' 解析失败。",
+        RuntimeWarning, stacklevel=2)
+    return (None,) * len(names)
+
+
+HeadingHead, = _import_head("heading_head", "HeadingHead")
+TemporalEncoder, = _import_head("temporal", "TemporalEncoder")
+RiskHead, RiskHeadConfig = _import_head("risk_head", "RiskHead, RiskHeadConfig")
 
 
 # ============================================================================
@@ -885,6 +925,19 @@ class M2Model(nn.Module):
             # 时序特征 → 拼回融合输入。用一个小投影把它并进 fusion 维度，
             # 保持 FusionHead 的既有 512 契约（不改变其 in_dim）。
             self.temporal_proj = nn.Linear(temporal_hidden, img_feat_dim)
+            # ★ T7 修复（2026-10-08，w5 发现 + Lead 复现）：temporal_proj 必须
+            # **零初始化**。原随机初始化（kaiming）下 temporal_proj.weight 范数
+            # ≈ 9.22，时序修正范数 ≈ 9.28，而图像特征范数仅 ≈ 1.19 ——
+            # **修正/基础 ≈ 7.8 倍（w5 测 50.1 倍，同量级）**，所谓"残差增量修正"
+            # 实际是"主导项覆盖"：
+            #   1. 旧 checkpoint 无 temporal_proj 权重 → 加载时随机初始化 →
+            #      一上来 img_feat 就被放大数倍 → **旧模型行为立刻被破坏**
+            #   2. 训练时残差项比主干大数倍 → 梯度被时序分支支配
+            #   3. 违背 ResNet 残差标准做法（残差层最后一层应零初始化）
+            # 零初始化后：时序修正范数 = 0.0 → img_feat = base + 0 = base，
+            # **与旧单帧模型逐位一致**；训练中梯度从零起步逐步学到时序修正量。
+            nn.init.zeros_(self.temporal_proj.weight)
+            nn.init.zeros_(self.temporal_proj.bias)
         else:
             self.temporal_proj = None
 
@@ -918,14 +971,20 @@ class M2Model(nn.Module):
                 dets: Optional[torch.Tensor] = None,
                 det_mask: Optional[torch.Tensor] = None,
                 vehicle_state: Optional[torch.Tensor] = None,
+                camera_heading: Optional[torch.Tensor] = None,
+                return_aux: bool = False,
+                # ↓ 方案 A 后已废弃（时序改为模型内部消化）；保留仅向后兼容
                 history_feats: Optional[torch.Tensor] = None,
                 frame_mask: Optional[torch.Tensor] = None,
-                camera_heading: Optional[torch.Tensor] = None,
-                return_aux: bool = False
-                ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                **kwargs):
         """
         Args:
-            image:         [B,3,180,320]（必填）
+            image:         [B,3,180,320]（必填）。
+                           ⚠️ M4 方案 A（2026-10-08）：**dim0 语义自动判定**——
+                           推理时传 [8,3,180,320]（8 帧时序窗口）而其他分支为单帧
+                           → 进入时序模式（内部消化，无需外部 history_feats）；
+                           训练时传 [B,3,180,320] 且其他分支 batch 一致 → 单帧模式
+                           （旧行为，逐位兼容）。
             lane_mask:     [B,1,160,160] 或 None（车道线全丢）
             dets:          [B,N,12] 或 None（无检测框）
             det_mask:      [B,N] 或 None
@@ -933,6 +992,10 @@ class M2Model(nn.Module):
 
         Returns:
             steer [B,1] ∈ [-1,1], throttle [B,1] ∈ [0,1], brake [B,1] ∈ [0,1]
+
+        ⚠️ 方案 A 废弃参数：`history_feats` / `frame_mask` 已不再需要（时序改为
+           模型内部消化：image batch 维度即时序窗口）。保留参数仅向后兼容——
+           旧调用传入时不崩，打一次 warning 后忽略。
 
         ⚠️ 参数名为什么是 `vehicle_state` 而不是 `state`（实测踩坑记录）：
             coremltools 8.3 把名为 `state` 的输入**静默重命名**为
@@ -943,6 +1006,14 @@ class M2Model(nn.Module):
             实测改用 `vehicle_state` 后**输入名被原样保留**，且该命名恰好与
             `InferenceEngine.swift` 既有的 `vehicle_state` 契约同名 —— 一举两得。
         """
+        # ---- 方案 A：废弃参数兼容（打 warning 后忽略，旧调用不崩）----
+        if history_feats is not None or frame_mask is not None or kwargs:
+            import warnings
+            warnings.warn(
+                "M2Model.forward: history_feats/frame_mask 已废弃（方案 A：时序改为"
+                "模型内部消化，image batch 维度即时序窗口）。本次调用忽略这些参数。",
+                DeprecationWarning, stacklevel=2)
+
         # ---- 图像必填：纯视觉主模态，缺失时无法驾驶（fail-fast 而非静默降级）
         if image is None:
             raise ValueError("M2Model.forward: image 为必填输入（纯视觉主模态），不可为 None")
@@ -956,16 +1027,45 @@ class M2Model(nn.Module):
         # ---- 分支 1：图像 [B,3,180,320] → [B,256] ----
         img_feat = self.image_encoder(image)
 
-        # ---- M4 时序（w5）：有历史帧特征序列时融合时序信息 ----
-        # history_feats: [B,N,C] 前 N 帧的**图像特征**（不是原始图，省重复编码）。
-        # None / N=1 → 完全跳过，行为与旧单帧模型逐位一致（向后兼容）。
+        # ---- M4 方案 A（Lead 拍板，2026-10-08）：batch 维度即时序窗口 ----
+        # image = [8,3,180,320] 的 dim0 是**时序窗口**（w5 实测 batch=8
+        # ImageEncoder 1.62ms，预算 5.1%）：8 帧原图一次 batch 跑完 → [8,256] 特征
+        # → 视作 [1,8,256] 序列喂 TemporalEncoder → [1,128] → 投影残差回 img_feat。
+        #
+        # 【自动判定 dim0 是"时序窗口"还是"训练 batch"】
+        #   · 推理：image[8] 而 其他分支 batch=1（lane/det/state 只有一帧）→ 时序模式
+        #   · 训练：lane/det/state 的 batch 与 image 一致（>1）→ 单帧模式（旧行为）
+        #   规则：其他分支的有效 batch（取 lane_mask 的 dim0；None 时用 image 的）
+        #   ≠ image.shape[0] 且 image.shape[0] > 1 → 判定时序窗口。
+        #   这让**训练脚本完全不用改**（[B,3,H,W] 照旧走单帧），而推理侧只需
+        #   把 8 帧叠在 batch 维传入。
+        seq_len = image.shape[0]
+        lane_batch = lane_mask.shape[0] if lane_mask is not None else batch_size
+        det_batch = dets.shape[0] if dets is not None else batch_size
+        state_batch = vehicle_state.shape[0] if vehicle_state is not None else batch_size
+        other_batch = lane_batch if lane_mask is not None else (
+            det_batch if dets is not None else state_batch)
+        # 时序窗口判定：image 的 dim0 与其他分支不一致（其他分支是 1，image 是 8）
+        # → dim0 是时序窗口；一致 → dim0 是训练 batch（旧单帧行为，逐位兼容）。
+        seq_mode = (other_batch != seq_len and seq_len > 1
+                    and self.temporal_encoder is not None)
+
         temporal_feat = None
-        if (self.temporal_encoder is not None and history_feats is not None
-                and history_feats.dim() == 3 and history_feats.shape[1] > 1):
-            temporal_feat = self.temporal_encoder(history_feats, frame_mask)
-            # 投影回图像特征维度后**残差相加**（而非拼接）：这样 FusionHead 的
-            # in_dim 契约不变（512），旧 checkpoint 完全兼容，且时序只做"增量修正"。
-            img_feat = img_feat + self.temporal_proj(temporal_feat)
+        if seq_mode:
+            # [8,256] → [1,8,256] → TemporalEncoder → [1,128] → 投影 → [1,256]
+            temporal_feat = self.temporal_encoder(
+                img_feat.unsqueeze(0), None)            # [1, hidden]
+            projected = self.temporal_proj(temporal_feat)  # [1,256]
+            # 残差相加。其他分支此时 batch=1，融合特征也应是 [1,...]：
+            # 把时序修正从 [1,256] 广播/对齐到 img_feat 的实际 batch。
+            if img_feat.shape[0] != projected.shape[0]:
+                if projected.shape[0] == 1:
+                    projected = projected.expand(img_feat.shape[0], -1)
+                else:
+                    raise ValueError(
+                        f"时序特征 batch {projected.shape[0]} 与图像特征 "
+                        f"{img_feat.shape[0]} 不一致（时序窗口模式下应为 1）")
+            img_feat = img_feat + projected
 
         # ---- 分支 2：车道线 [B,1,160,160] → [B,64]（None → 零向量）----
         lane_feat = self.lane_encoder(lane_mask, batch_size, image)

@@ -40,8 +40,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 _ROOT = Path(__file__).resolve().parent.parent
-if str(_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(_ROOT / "src"))
+# ★ 必须同时把 repo root 与 src 放进 sys.path：
+#   · repo root → 让 model_v2.py 里的 `from src.heading_head import ...` 能成功
+#   · src       → 让本脚本的 `import model_v2` 能成功
+#   ⚠️ 只放 src 会让三头**静默变 None**（见下方 verify_import_context 的实测）。
+for _p in (str(_ROOT), str(_ROOT / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 
 class Report:
@@ -492,6 +497,75 @@ def verify_reachability() -> None:
 # ============================================================================
 # G. 静默降级审计
 # ============================================================================
+def verify_import_context() -> None:
+    hdr("G0. ★ 导入上下文陷阱（model_v2 软依赖会静默失效）")
+    import os
+    import model_v2
+    root_in = os.path.abspath(str(_ROOT)) in [os.path.abspath(p) for p in sys.path]
+    print(f"  repo root 在 sys.path: {root_in}")
+    print(f"  HeadingHead     = {model_v2.HeadingHead}")
+    print(f"  TemporalEncoder = {model_v2.TemporalEncoder}")
+    print(f"  RiskHead        = {model_v2.RiskHead}")
+    all_loaded = all(x is not None for x in
+                     (model_v2.HeadingHead, model_v2.TemporalEncoder, model_v2.RiskHead))
+    R.add("G0", "★ model_v2 软依赖成功加载（repo root 必须在 sys.path）", all_loaded,
+          "若为 None：`from src.xxx import` 失败被 except ImportError 静默吞掉"
+          "→ 三头全变 None、不报错（实测：python3 src/xxx.py 的环境必触发）",
+          warn=all_loaded)
+
+    # 直接复现：只放 src 不放 root 的环境 —— 修复后应「三头仍挂载」（双路径回退生效）
+    import subprocess
+    code = (
+        "import os, sys, warnings\n"
+        "sys.path.insert(0, os.path.abspath('src'))\n"
+        "sys.path = [p for p in sys.path if os.path.abspath(p) != os.path.abspath('.')]\n"
+        "with warnings.catch_warnings(record=True) as ws:\n"
+        "    warnings.simplefilter('always')\n"
+        "    import model_v2\n"
+        "print('LOADED', model_v2.HeadingHead is not None,\n"
+        "      model_v2.TemporalEncoder is not None, model_v2.RiskHead is not None)\n"
+        "print('WARN', len(ws))\n"
+    )
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                       cwd=str(_ROOT))
+    out = r.stdout.strip()
+    if "LOADED True True True" in out:
+        R.add("G0", "★ 陷阱已修复：脚本方式（path[0]=src）三头仍挂载", True,
+              "双路径回退生效（`from src.xxx` 失败 → 回退 `from xxx`）")
+    elif "LOADED False False False" in out and "WARN" in out:
+        R.add("G0", "★ 陷阱未修复：三头仍全 None", False,
+              "（但有告警，不再静默）—— 双路径回退未生效")
+    else:
+        R.add("G0", "★ 陷阱复现实验", False,
+              f"stdout={out[:120]!r} stderr={r.stderr.strip()[:120]!r}")
+
+    # 降级必须告警：模块真的不存在时，应发 RuntimeWarning（不静默）
+    import shutil
+    import tempfile
+    td = tempfile.mkdtemp()
+    try:
+        shutil.copy(str(_ROOT / "src" / "model_v2.py"), td)
+        code2 = (
+            "import sys, warnings\n"
+            f"sys.path.insert(0, {td!r})\n"
+            "with warnings.catch_warnings(record=True) as ws:\n"
+            "    warnings.simplefilter('always')\n"
+            "    import model_v2\n"
+            "print('NWARN', len(ws))\n"
+        )
+        r2 = subprocess.run([sys.executable, "-c", code2], capture_output=True,
+                            text=True, cwd=td)   # ★ cwd 必须切到隔离目录，
+                                                 #   否则 repo root 仍在 path、src.xxx 能解析
+        nw = 0
+        for line in r2.stdout.splitlines():
+            if line.startswith("NWARN"):
+                nw = int(line.split()[1])
+        R.add("G0", "★ 降级时必发 RuntimeWarning（不静默）", nw >= 3,
+              f"模块缺失环境下发出 {nw} 条告警")
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+
+
 def verify_silent_swallow() -> None:
     hdr("G. ★ 静默降级审计（try/except pass 吞掉哪些异常）")
     import re
@@ -537,6 +611,7 @@ def main() -> int:
     verify_risk()
     params = verify_params()
     verify_reachability()
+    verify_import_context()
     verify_silent_swallow()
 
     p, w, f = R.counts()

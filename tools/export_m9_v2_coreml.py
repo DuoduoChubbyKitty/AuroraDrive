@@ -258,10 +258,18 @@ import coremltools as ct  # noqa: E402
 # ============================================================================
 
 #: CoreML 输入名（顺序 = trace 实参顺序 = convert inputs 顺序，三者必须一致）
+# ★ 方案 A（Lead 2026-10-08 拍板）：image 的 batch=8 就是时序窗口 ——
+#   模型接收 8 帧原图 [8,3,180,320]，内部 batch 跑一次 ImageEncoder（真机实测 1.62ms，
+#   比 8 次 batch=1 快 18%），得到 8×256 特征后**当作 N=8 序列喂 GRU**（[B=1,N=8,C]）。
+#   两个维度不要搞混：图像的 batch8 变成时序的 N8。
+#   ⚠️ 不加 history_feats/frame_mask 输入（不再需要，模型内部消化）。
 INPUT_NAMES: Tuple[str, ...] = ("image", "lane", "dets", "det_mask", "vehicle_state")
 
-#: CoreML 输出名（顺序 = M2Model.forward 的返回顺序）
-OUTPUT_NAMES: Tuple[str, ...] = ("steer", "throttle", "brake")
+#: CoreML 输出名（顺序 = M2Model.forward(return_aux=True) 的返回顺序）
+# ★ M4 三个新头上车（t1 验证抓出的部署链路缺失）：
+#   confidence/risk ∈ [0,1]（w4 风险头）、car_heading 归一化 Δheading（w3 车头朝向头）
+OUTPUT_NAMES: Tuple[str, ...] = ("steer", "throttle", "brake",
+                                 "confidence", "risk", "car_heading")
 
 #: coremltools 对名为 `state` 的输入会静默改名的目标（坑 1）
 _RENAMED_STATE = "state_workaround"
@@ -334,7 +342,7 @@ def _build_and_load(sd: Optional[Dict[str, torch.Tensor]], src: Optional[Path]):
 
 def _contract_from_model(model) -> Dict[str, int]:
     """从模型实例读取契约尺寸（单一事实源，避免两侧漂移）。"""
-    return {
+    c = {
         "img_h": int(getattr(model, "img_h", 180)),
         "img_w": int(getattr(model, "img_w", 320)),
         "lane_size": int(getattr(model, "lane_size", 160)),
@@ -342,12 +350,23 @@ def _contract_from_model(model) -> Dict[str, int]:
         "det_feat_dim": int(getattr(model, "det_in_dim", 12)),
         "state_dim": int(getattr(model, "state_dim", 8)),
     }
+    # ★ 方案 A：时序窗口 N（= image 的 batch 维度）。
+    #   从模型的时序编码器读真实值（单一事实源），读不到用默认 8。
+    n_frames = 8
+    te = getattr(model, "temporal_encoder", None)
+    if te is not None:
+        n_frames = int(getattr(te, "num_frames", 8))
+    c["num_frames"] = n_frames
+    return c
 
 
 def _shapes(c: Dict[str, int]) -> List[Tuple[int, ...]]:
-    """按 INPUT_NAMES 顺序给出各输入 shape（顺序即契约，勿单独调整）。"""
+    """按 INPUT_NAMES 顺序给出各输入 shape（顺序即契约，勿单独调整）。
+
+    ★ 方案 A：image 是 [num_frames, 3, H, W]（batch=时序窗口），不是 [1,...]。
+    """
     return [
-        (1, 3, c["img_h"], c["img_w"]),                 # image
+        (c["num_frames"], 3, c["img_h"], c["img_w"]),   # image ← batch=8 = 时序窗口
         (1, 1, c["lane_size"], c["lane_size"]),         # lane
         (1, c["num_dets"], c["det_feat_dim"]),          # dets
         (1, c["num_dets"]),                             # det_mask

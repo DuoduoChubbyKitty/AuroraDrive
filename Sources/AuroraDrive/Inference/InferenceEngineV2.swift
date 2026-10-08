@@ -113,6 +113,66 @@ enum V2InputContract {
     /// 检测框类别 one-hot 顺序：car, pedestrian, sign, obstacle。
     /// 与 `Detection.Label` 的声明顺序一致（RuleController.swift:32-36）。
     static let labelCount = 4
+
+    // ══════════════════════════════════════════════════════════════════════
+    // M4 新增：时序 + 三辅助头（2026-10-08 T1-Swift 传输扩展）
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // 【契约演进记录 —— 这里变过一次，留痕以免后人困惑】
+    //   ① 最初设想：新增输入 `history_feats [1,8,256]`（**图像特征序列**）
+    //      + `frame_mask [1,8]`。
+    //   ② 实现时发现**鸡生蛋**：那 256 维是 `ImageEncoder` 的**中间层输出**，
+    //      CoreML 静态图不暴露中间层 → Swift 侧算不出来。
+    //   ③ w5 实测后 Lead 拍板走**方案 A**：
+    //      **`image` 直接改成 `[8,3,180,320]`**（8 帧原图走 batch 维度），
+    //      模型内部一次 batch 编码 8 帧再喂 GRU。
+    //      实测代价：batch=8 ImageEncoder **1.62ms p50 / 1.94ms p95**
+    //      （占 33ms 帧预算 5.1%），可接受。
+    //   ⟹ **最终契约没有 `history_feats` / `frame_mask`** —— 已被方案 A 取代。
+    //     本文件**不实现**这两个输入（曾写过的"传零 + mask 全 0"方案已废弃）。
+    //
+    // ⚠️ 方案 A 的**维度陷阱**（w5 实测提醒，务必遵守）：
+    //   `TemporalEncoder.forward(feats [B,N,C], frame_mask [B,N])` 里
+    //   **B 与 N 是两个独立维度**：
+    //     · 图像 batch=8 → 编码后 8 帧特征 [8,256]
+    //     · 这 8 帧要当**时序的 N=8**，即 reshape 成 `[1, 8, 256]`（B=1, N=8）
+    //     · **绝不能**把图像 batch8 直接当 GRU 的 B=8（那会变成
+    //       "8 条独立的 1 帧序列"，时序彻底失效）
+    //   `TemporalEncoder` 对 B 无约束（[1,8,256] 与 [8,8,256] 都能跑），
+    //   **传错不会报错，只会静默算错** —— 故这条在 Swift 侧只需保证：
+    //   我们传的是"8 个连续帧"，顺序语义正确（最老在前、最新在后）。
+
+    /// 图像输入。**方案 A：`[8, 3, 180, 320]`**（8 帧原图，batch 维=时序窗口）。
+    ///
+    /// 帧序：**最老在前、最新在后**（index 0 = 最旧，index 7 = 当前帧）。
+    /// 依据：GRU 逐帧递推，时间轴必须与训练侧一致；训练侧
+    /// `temporal.py` 的窗口就是按"过去→现在"排列的。
+    static let image = "image"
+
+    /// 时序窗口 N = 8（与 `src/temporal.py` 的 `num_frames=8` 默认值对齐）。
+    static let historyFrames = 8
+
+    /// 视角朝向 `[1]`。**compass 度 [0,360)**（抓包口径），模型侧期望 rad。
+    static let cameraHeading = "camera_heading"
+
+    // ── 三个新输出（M4 辅助头）──
+    /// 决策置信度 `[1,1]` ∈ [0,1] → 填 `ControlCommand.confidence`。
+    static let confidence = "confidence"
+    /// 风险分 `[1,1]` ∈ [0,1] → 供接管判定。
+    static let risk = "risk"
+    /// 预测车头朝向 `[1]` rad → 诊断/日志。
+    static let carHeading = "car_heading"
+
+    /// 图像输入**每帧**的形状（方案 A 下 image 的第一维是帧数）。
+    static func imageFrameShape() -> [NSNumber] {
+        [1, 3, NSNumber(value: imageHeight), NSNumber(value: imageWidth)]
+    }
+
+    /// 图像输入的完整形状 `[N, 3, H, W]`（方案 A）。
+    static func imageSequenceShape(frames: Int = historyFrames) -> [NSNumber] {
+        [NSNumber(value: frames), 3,
+         NSNumber(value: imageHeight), NSNumber(value: imageWidth)]
+    }
 }
 
 // MARK: - 可调参数
@@ -615,6 +675,22 @@ struct V2Kinematics: Sendable, Equatable {
     ///    「1=自车框已剔除」（model_v2.py:657 / export 脚本契约表）。
     ///    本文件按**注释语义**填（已剔除 → 1），并在文档里如实标注该歧义。
     var egoBoxFiltered: Bool = false
+
+    // ── M4 新增：视角朝向（喂 HeadingHead / TemporalEncoder 那一路）──
+
+    /// 视角朝向，**compass 度 [0,360)**（抓包口径）。
+    ///
+    /// 【单位铁律】抓包侧 `NetworkLocator.cameraHeading` 与
+    /// `CoordinateCapture` 的 `compass_heading` **都是罗盘度 [0,360)**，
+    /// 而模型期望 **rad**。本字段**恒为度**（不在这里转，转在纯函数层，
+    /// 见 `V2FeatureBuilder.buildCameraHeadingRad`），避免"同一字段两种单位"。
+    /// nil = 无数据（抓包未接入 / 数据陈旧）。
+    var cameraHeadingDeg: Double?
+    /// 视角朝向是否可信。
+    ///
+    /// 来源侧新鲜度判据由调用方给（例如抓包时间戳 < 0.5s）。
+    /// 本引擎只看这个 bool，不猜来源。
+    var cameraHeadingValid: Bool = false
 }
 
 // MARK: - 纯特征构造（可离线单测）
@@ -633,6 +709,56 @@ struct V2Features: Sendable, Equatable {
     var laneGeometry: LaneGeometry
     /// 本次实际填入的有效框数
     var validDetectionCount: Int
+
+    // ── M4 新增：视角朝向（喂 HeadingHead 那一路）──
+
+    /// 视角朝向 `[1]`，**rad**（已完成 compass 度→rad 转换）。
+    ///
+    /// 【为什么在这里就转成 rad】契约侧模型期望 rad；转换放在纯函数层
+    /// 便于离线断言（compass 350°→10° 应得 +20° 这类用例）。
+    /// nil = 无视角朝向数据（抓包未接入）→ 传 0，并如实标注。
+    var cameraHeadingRad: Float?
+    /// 视角朝向是否有效（false = 抓包未接入/数据陈旧）。
+    ///
+    /// 【为什么要这个 flag】`camera_heading` 无效时若传 0，
+    /// 模型会理解成"视角朝正北"这个**具体值**而非"未知"。
+    /// 但 CoreML 输入无法表达 None（固定 shape），故：
+    /// 仍传 0，但把有效性记在 Swift 侧（供诊断/降级判断），
+    /// 并**不谎报**"我们有视角数据"。语义与 vehicle_state 的
+    /// "全零=未知"惯例一致（模型会自己学会零=不可信）。
+    var cameraHeadingValid: Bool
+}
+
+// MARK: - 三个新头的输出（M4 辅助头）
+
+/// M4 辅助头输出。**全部可选** —— 模型可能是旧契约（只 3 输出），
+/// 此时三个字段为 nil，调用方按旧路径走（优雅降级纪律）。
+struct V2AuxOutputs: Sendable, Equatable {
+    /// 决策置信度 ∈ [0,1] → `ControlCommand.confidence`。
+    ///
+    /// 【为什么这个最重要】`ControlCommand.confidence` 是**一直空着**的字段
+    /// （`EscapeController.swift:28-33` 注释：「E2E 填模型置信度，Rule 填启发式分」）。
+    /// 本引擎是 E2E 路径 → 应由模型置信度填它，供状态机降级判定用。
+    var confidence: Double?
+    /// 风险分 ∈ [0,1] → 供接管判定。
+    var risk: Double?
+    /// 预测车头朝向（rad）→ 诊断/日志。
+    var carHeadingRad: Double?
+
+    /// 是否采到了任何辅助输出（全 nil = 旧契约模型）。
+    var isEmpty: Bool { confidence == nil && risk == nil && carHeadingRad == nil }
+
+    /// 诊断摘要。
+    var debugSummary: String {
+        if isEmpty { return "无（旧契约模型）" }
+        var parts: [String] = []
+        if let c = confidence { parts.append(String(format: "conf=%.3f", c)) }
+        if let r = risk { parts.append(String(format: "risk=%.3f", r)) }
+        if let h = carHeadingRad { parts.append(String(format: "carH=%.1f°", h * 180 / .pi)) }
+        return parts.joined(separator: " ")
+    }
+
+    static let empty = V2AuxOutputs()
 }
 
 /// 纯特征构造器（**无状态、无 CoreML 依赖、可离线单测**）。
@@ -811,18 +937,145 @@ enum V2FeatureBuilder {
         var k = kinematics
         k.lane = geometry
         let (dets, mask, count) = buildDetections(detections, config: config)
+        let (camRad, camValid) = buildCameraHeadingRad(kinematics)
         return V2Features(vehicleState: buildVehicleState(k, config: config),
                           dets: dets,
                           detMask: mask,
                           laneMask: buildLaneMask(laneMask),
                           laneGeometry: geometry,
-                          validDetectionCount: count)
+                          validDetectionCount: count,
+                          cameraHeadingRad: camRad,
+                          cameraHeadingValid: camValid)
+    }
+
+    // MARK: 视角朝向（compass 度 → rad）
+
+    /// compass 度 `[0,360)` → 数学弧度 `[-π,π]`。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 【单位铁律 —— 本项目最容易出错的地方之一】
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 抓包侧两个来源**都是罗盘度 [0,360)**：
+    ///   · `NetworkLocator.cameraHeading`（NetworkLocator.swift:310,560-562）：
+    ///     `(atan2(east, north) * 180/π + 360) % 360`
+    ///   · `CoordinateCapture` 的 `compass_heading`（rotation.yaw）
+    /// 而模型期望 **rad**。直接喂度数会让 90° 被当成 90 rad（差 57 倍）。
+    ///
+    /// 转换：`(d + 180) % 360 - 180` 折到 [-180,180] 再 × π/180。
+    /// 该式与 Python 侧 `heading_head.normalize_camera_heading(·,"compass")`
+    /// **逐值等价**（已实测 0/90/180/270/359.9 五个点）。
+    ///
+    /// - Returns: (rad, 是否有效)。无效时返回 `(0, false)` ——
+    ///   仍传 0（CoreML 无法表达 None），但有效性如实记录，不谎报"有数据"。
+    static func buildCameraHeadingRad(_ k: V2Kinematics) -> (Float, Bool) {
+        guard k.cameraHeadingValid, let deg = k.cameraHeadingDeg,
+              deg.isFinite else {
+            return (0, false)
+        }
+        // 先折到 [-180,180)（角差的良定义域），再转弧度
+        var wrapped = deg.truncatingRemainder(dividingBy: 360.0)
+        if wrapped > 180 { wrapped -= 360 }
+        if wrapped < -180 { wrapped += 360 }
+        let rad = wrapped * Double.pi / 180.0
+        guard rad.isFinite else { return (0, false) }
+        return (Float(max(-Double.pi, min(Double.pi, rad))), true)
     }
 
     @inline(__always)
     private static func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double {
         guard v.isFinite else { return 0 }
         return max(lo, min(hi, v))
+    }
+}
+
+// MARK: - 图像帧环形缓冲（方案 A：8 帧原图）
+
+/// 最近 N 帧图像的环形缓冲。
+///
+/// 【为什么需要】方案 A 的 `image` 输入是 `[8,3,180,320]`（8 帧时序窗口），
+/// 必须由调用方维护历史。实测代价（w5）：batch=8 ImageEncoder
+/// **1.62ms p50 / 1.94ms p75**，占 33ms 帧预算 5.1%，可接受。
+///
+/// 【内存】8 帧 × 3×180×320 × 4B(float32) ≈ **5.5MB**（常驻，不每帧分配）。
+/// 这里存的是**已预处理好的 CHW Float32 归一化张量**（不是 CGImage）：
+///   · 若存 CGImage：每帧推理时还要重做 8 次缩放+像素读取（贵）；
+///   · 存预处理结果：每帧只需预处理**当前帧一次**，其余 7 帧直接复用。
+///
+/// 【帧序契约】`snapshot()` 返回**最老在前、最新在后**
+/// （index 0 = 最旧，index N-1 = 当前帧）。依据：GRU 逐帧递推，
+/// 时间轴必须与训练侧 `temporal.py` 的"过去→现在"排列一致。
+///
+/// 【未填满时怎么办】启动头几帧不足 N 帧 → **用最新帧填充前面的空位**
+/// （即"重复最早的那帧"）。为什么不是零填充：
+///   · 零填充会让模型看到"全黑帧"，那是**虚假观测**（画面明明有内容）；
+///   · 复制首帧等于"假设这段时间画面不变"，对静止起步场景是**更诚实的近似**。
+/// ⚠️ 这与 `temporal.py` 的 frame_mask 语义（零输入=不可信）不同 ——
+///   但方案 A 下**模型侧没有 frame_mask 输入了**（Lead 拍板），
+///   所以 Swift 侧必须给出"看起来合理的 8 帧"，而不是把不确定性甩给模型。
+struct ImageFrameRingBuffer {
+    /// 帧数（= 时序窗口 N）。
+    let capacity: Int
+    /// 每帧元素数（3×H×W）。
+    let frameLength: Int
+
+    /// 环形存储：`[capacity][frameLength]`，按插入顺序的物理槽位。
+    private var storage: [[Float]]
+    /// 下一个写入槽位。
+    private var writeIndex: Int = 0
+    /// 已写入的帧数（用于判断是否填满）。
+    private(set) var filled: Int = 0
+
+    init(capacity: Int = V2InputContract.historyFrames,
+         frameLength: Int = 3 * V2InputContract.imageHeight * V2InputContract.imageWidth) {
+        self.capacity = max(1, capacity)
+        self.frameLength = max(0, frameLength)
+        self.storage = Array(repeating: [Float](repeating: 0, count: self.frameLength),
+                             count: self.capacity)
+    }
+
+    /// 写入一帧（覆盖最老的）。
+    /// - Parameter frame: 长度必须 == frameLength，否则**忽略**（不静默截断）。
+    /// - Returns: 是否写入成功。
+    @discardableResult
+    mutating func push(_ frame: [Float]) -> Bool {
+        guard frame.count == frameLength else { return false }
+        storage[writeIndex] = frame
+        writeIndex = (writeIndex + 1) % capacity
+        if filled < capacity { filled += 1 }
+        return true
+    }
+
+    /// 导出时序窗口（**最老在前、最新在后**，长度 = capacity × frameLength）。
+    ///
+    /// 未填满时：空位用**已写入的最老帧**填充（见类型注释的理由）。
+    func snapshot() -> [Float] {
+        var out = [Float](repeating: 0, count: capacity * frameLength)
+        guard frameLength > 0 else { return out }
+
+        // 逻辑顺序：index 0 = 最老
+        //   filled < capacity 时，已写入的帧按插入顺序位于 storage[0..<filled]
+        //   filled == capacity 时，最老帧在 writeIndex
+        for logical in 0..<capacity {
+            let physical: Int
+            if filled < capacity {
+                // 未填满：logical<filled 时取 storage[logical]；否则复制最老帧(storage[0])
+                physical = logical < filled ? logical : 0
+            } else {
+                physical = (writeIndex + logical) % capacity
+            }
+            let base = logical * frameLength
+            out.replaceSubrange(base..<(base + frameLength), with: storage[physical])
+        }
+        return out
+    }
+
+    /// 清空（换场景/重开一局时调用，避免上一局的 8 帧污染当前决策）。
+    mutating func reset() {
+        writeIndex = 0
+        filled = 0
+        for i in 0..<capacity {
+            for j in 0..<frameLength { storage[i][j] = 0 }
+        }
     }
 }
 
@@ -1095,17 +1348,45 @@ final class InferenceEngineV2 {
                                               laneMask: snapshot,
                                               config: cfg)
 
+        // ── 方案 A：当前帧的预处理 + 入环形缓冲，**全部在后台队列做** ──
+        // ⚠️ 【性能红线】预处理器（CGImage 缩放 + 逐像素读取 180×320×3）是重活，
+        //    **绝不能放主线程**（本文件类型注释与 task 红线都明确要求）。
+        //    故这里只把 CGImage（不可变、可安全跨线程）与已算好的纯特征送进队列，
+        //    预处理与环形缓冲写入都在 inferenceQueue 内完成。
+        //
+        // 【ringBuffer 的并发安全】它是引擎状态（MainActor 隔离），后台直接改会违规。
+        //    做法：用 nonisolated(unsafe) + "只在串行 inferenceQueue 上访问"的不变式
+        //    （`isInferencing` 防重叠保证同一时刻只有一个在途任务）。
+        //    这与旧引擎 `reusableImageBuffer` 的既有做法**完全一致**
+        //    （InferenceEngine.swift:114-120 注释说明了同一套理由）。
+
         inferenceQueue.async { [weak self] in
             guard let self else { return }
             let start = Date()
 
             // 复用缓冲
             self.ensureBuffers()
-            guard let imageBuffer = Self.preprocessImage(image,
-                                                         height: V2InputContract.imageHeight,
-                                                         width: V2InputContract.imageWidth,
-                                                         into: self.reusableImageBuffer),
+
+            // ① 预处理当前帧（后台）
+            guard let frameImage = Self.preprocessImage(image,
+                                                        height: V2InputContract.imageHeight,
+                                                        width: V2InputContract.imageWidth,
+                                                        into: self.reusableFrameScratch) else {
+                Task { @MainActor in self.finish(gen, nil, error: "V2 帧预处理失败") }
+                return
+            }
+            // ② 入环形缓冲（同一串行队列，无并发）
+            let frameLen = 3 * V2InputContract.imageHeight * V2InputContract.imageWidth
+            let framePtr = frameImage.dataPointer.assumingMemoryBound(to: Float32.self)
+            var frameArr = [Float](repeating: 0, count: frameLen)
+            for i in 0..<frameLen { frameArr[i] = framePtr[i] }
+            self.frameBufferPush(frameArr)
+            let historySnapshot = self.frameBufferSnapshot()
+
+            // ③ 组装 [8,3,H,W] 输入
+            guard let imageBuffer = self.reusableImageSequenceBuffer,
                   let provider = try? Self.makeProvider(features: features,
+                                                        historyFrames: historySnapshot,
                                                         imageBuffer: imageBuffer,
                                                         lane: self.reusableLaneBuffer,
                                                         dets: self.reusableDetsBuffer,
