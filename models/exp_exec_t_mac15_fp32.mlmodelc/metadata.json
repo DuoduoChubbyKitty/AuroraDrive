@@ -1,0 +1,184 @@
+[
+  {
+    "metadataOutputVersion" : "3.0",
+    "storagePrecision" : "Float32",
+    "outputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "steer",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "throttle",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "brake",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "confidence",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "risk",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "car_heading",
+        "type" : "MultiArray"
+      }
+    ],
+    "modelParameters" : [
+
+    ],
+    "specificationVersion" : 9,
+    "mlProgramOperationTypeHistogram" : {
+      "Ios18.tanh" : 15,
+      "Ios18.conv" : 18,
+      "Ios18.mul" : 72,
+      "Ios18.cast" : 5,
+      "Ios16.reduceMax" : 1,
+      "Ios18.layerNorm" : 2,
+      "Ios18.scatter" : 1,
+      "Ios18.equal" : 1,
+      "Ios16.reduceSum" : 3,
+      "Ios18.reshape" : 5,
+      "Ios18.maximum" : 1,
+      "Ios18.concat" : 3,
+      "Ios18.squeeze" : 4,
+      "Ios18.atan" : 1,
+      "Ios18.add" : 94,
+      "Ios18.realDiv" : 2,
+      "Ios18.greater" : 4,
+      "Ios18.relu" : 52,
+      "Ios18.maxPool" : 1,
+      "Ios18.sub" : 16,
+      "WhileLoop" : 1,
+      "Ios18.sigmoid" : 30,
+      "Ios18.expandDims" : 4,
+      "Ios18.linear" : 132,
+      "Ios16.fillLike" : 1,
+      "Ios18.avgPool" : 1,
+      "Ios18.transpose" : 4,
+      "Ios18.sliceByIndex" : 30,
+      "Ios18.gather" : 2,
+      "Ios18.softmax" : 4,
+      "Ios16.reduceMean" : 1,
+      "Select" : 2,
+      "Ios18.less" : 4,
+      "Ios18.logicalAnd" : 5,
+      "Tile" : 2
+    },
+    "computePrecision" : "Mixed (Float32, Int32)",
+    "isUpdatable" : "0",
+    "stateSchema" : [
+
+    ],
+    "availability" : {
+      "macOS" : "15.0",
+      "tvOS" : "18.0",
+      "visionOS" : "2.0",
+      "watchOS" : "11.0",
+      "iOS" : "18.0",
+      "macCatalyst" : "18.0"
+    },
+    "modelType" : {
+      "name" : "MLModelType_mlProgram"
+    },
+    "userDefinedMetadata" : {
+      "com.github.apple.coremltools.version" : "8.3.0",
+      "com.github.apple.coremltools.source" : "torch==2.13.0",
+      "com.github.apple.coremltools.source_dialect" : "TorchScript"
+    },
+    "inputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 8 × 3 × 180 × 320)",
+        "shortDescription" : "",
+        "shape" : "[8, 3, 180, 320]",
+        "name" : "image",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 1 × 160 × 160)",
+        "shortDescription" : "",
+        "shape" : "[1, 1, 160, 160]",
+        "name" : "lane",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 20 × 12)",
+        "shortDescription" : "",
+        "shape" : "[1, 20, 12]",
+        "name" : "dets",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 20)",
+        "shortDescription" : "",
+        "shape" : "[1, 20]",
+        "name" : "det_mask",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 8)",
+        "shortDescription" : "",
+        "shape" : "[1, 8]",
+        "name" : "vehicle_state",
+        "type" : "MultiArray"
+      }
+    ],
+    "generatedClassName" : "exp_exec_t_mac15_fp32",
+    "method" : "predict"
+  }
+]

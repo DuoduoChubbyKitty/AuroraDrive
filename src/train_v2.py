@@ -127,7 +127,7 @@ import random
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import torch
 import torch.nn as nn
@@ -1364,6 +1364,30 @@ def iterative_refinement_loss(
                 if aux_step_ttc != ITER_AUX_STEPS["ttc"]:
                     comps[f"step{aux_step_ttc}_ttc"] = float(l_ttc.detach())
 
+    # ---- ★ MoE 专家负载均衡正则（w7 接口：只有 moe_steps 里的步有 expert_weights）----
+    # 目的：防止路由器塌缩到少数专家（"死专家"问题）。
+    # ⚠️ w7 提醒：前 8 步**没有** expert_weights 键（不是空值），必须用 .get()。
+    if moe_balance_weight > 0 and moe_steps:
+        ew_list = []
+        for s in moe_steps:
+            if 1 <= s <= actual_steps:
+                so = steps[s - 1]
+                if isinstance(so, dict):
+                    ew = so.get("expert_weights")     # ★ .get() 而非 []
+                    if ew is not None:
+                        ew_list.append(ew)
+        if ew_list:
+            # 负载均衡：每个专家被选中的平均权重应接近均匀 (1/num_experts)
+            # loss = Σ_e (mean_b w_e,b − 1/E)²  （鼓励均匀，抑制塌缩）
+            stacked = torch.stack([e.to(device).float() for e in ew_list], dim=0)
+            mean_w = stacked.mean(dim=(0, 1))              # [E]
+            n_exp = mean_w.shape[0]
+            l_moe = ((mean_w - 1.0 / max(n_exp, 1)) ** 2).sum()
+            total = total + moe_balance_weight * l_moe
+            comps["moe_balance"] = float(l_moe.detach())
+            comps["moe_steps_used"] = float(len(ew_list))
+            comps["moe_max_share"] = float(mean_w.max().detach())
+
     comps["iter_n_supervised"] = float(n_supervised)
     comps["iter_active_steps"] = float(len(active))
     return total, comps
@@ -1571,6 +1595,7 @@ def train_v2(
     iter_weight: float = 0.5,
     iter_random_depth: bool = True,
     refiner_steps: Optional[int] = None,
+    moe_balance_weight: float = 0.01,
     limit_batches: int = 0,
     resume: Optional[str] = None, force_reference_model: bool = False,
 ) -> Path:
@@ -1743,18 +1768,28 @@ def train_v2(
         _refiner = getattr(model, "iter_refiner", None)
     _has_refiner = _refiner is not None
     _n_iter_steps = int(getattr(_refiner, "num_steps", 24) if _has_refiner else 24)
+    # ★ w7 属性：哪些步有专家（默认 [9,10,11,12] @ 12 步）。只对这些步做负载均衡。
+    _moe_steps = list(getattr(_refiner, "moe_steps", []) or []) if _has_refiner else []
     if enable.get("iter"):
         if _has_refiner:
             print(f"[迭代精修] ✓ 检测到 IterationRefiner（{_n_iter_steps} 步）"
                   f"→ 启用逐步递减监督+中间步辅助+随机深度"
                   f"（iter_weight={iter_weight}, random_depth={iter_random_depth}）")
-            # ★ 显示实际落点步（w7 会把 aux 步钳制到 [1, N]，N=8 时 ttc 落在 8）
+            # ★ 显示实际落点步（w7 会把 aux 步钳制到 [1, N]，N=12 时 ttc 落在 12）
             _lo = int(getattr(_refiner, "lane_offset_step",
                               min(ITER_AUX_STEPS["lane_offset"], _n_iter_steps)))
             _tt = int(getattr(_refiner, "ttc_step",
                               min(ITER_AUX_STEPS["ttc"], _n_iter_steps)))
-            print(f"[迭代精修]   步权重 {sorted(ITER_STEP_WEIGHTS.items())}，"
-                  f"辅助任务落点 lane_offset@step{_lo} / ttc@step{_tt}")
+            # ★ 权重表按实际步数显示（自动适配 12/24 步）
+            _w = _interp_step_weights(_n_iter_steps)
+            _wshow = " ".join(f"step{s}={_w[s]:.2f}"
+                              for s in (1, _n_iter_steps // 3,
+                                        2 * _n_iter_steps // 3, _n_iter_steps)
+                              if s in _w)
+            print(f"[迭代精修]   步权重（{_n_iter_steps} 步自适应）: {_wshow}")
+            print(f"[迭代精修]   辅助落点 lane_offset@step{_lo} / ttc@step{_tt}"
+                  + (f"；MoE 专家步 {_moe_steps}" if _moe_steps else "")
+                  + f"；负载均衡权重 {moe_balance_weight}")
         else:
             print("[迭代精修] ⚠ 模型无 iter_refiner 属性 → 训练信号自动跳过"
                   "（IterationRefiner 尚未落盘时属正常，不影响现有训练）")
@@ -1801,6 +1836,8 @@ def train_v2(
                         num_steps=_n_iter_steps,
                         rng=iter_rng if iter_random_depth else None,
                         random_depth=iter_random_depth,
+                        moe_steps=_moe_steps,              # ★ w7 属性
+                        moe_balance_weight=moe_balance_weight,
                     )
                     if float(l_iter.detach()) > 0:
                         loss = loss + iter_weight * l_iter
@@ -2018,10 +2055,12 @@ def parse_args():
     p.add_argument("--no_iter_random_depth", action="store_true",
                    help="禁用随机深度（§3.3），用全部 24 步监督")
     p.add_argument("--refiner_steps", type=int, default=None,
-                   help="★IterationRefiner 迭代步数（默认模型自带，通常 24）。"
-                        "⚠️ ANE 实测：24 步 ANE 编译失败退化 CPU；"
-                        "8 步 ANE=1.58ms / 12 步 2.13ms / 14~16 步是 cutoff。"
-                        "要上 ANE 建议 ≤8。")
+                   help="★IterationRefiner 迭代步数（默认模型自带；w7 新默认 12 步 = "
+                        "8 步自精修 + 4 步专家）。⚠️ ANE 实测：≥2 帧时序窗口时 ANE 失效，"
+                        "与步数无关（根因是 8 帧 image，见 docs/迭代精修-ANE边界实测）。")
+    p.add_argument("--moe_balance_weight", type=float, default=0.01,
+                   help="★MoE 专家负载均衡正则权重（防路由器塌缩到少数专家）。"
+                        "只对 refiner.moe_steps 里的步生效；0=关闭")
     p.add_argument("--lane_seg_weight", type=float, default=0.3,
                    help="车道分割辅助损失权重（需模型有 lane_logits，当前 M2 无 → 自动跳过）")
     p.add_argument("--lane_steer_weight", type=float, default=0.5,
@@ -2079,6 +2118,7 @@ def main():
         iter_weight=a.iter_weight,
         iter_random_depth=not a.no_iter_random_depth,
         refiner_steps=a.refiner_steps,
+        moe_balance_weight=a.moe_balance_weight,
         limit_batches=a.limit_batches, resume=a.resume,
         force_reference_model=a.force_reference_model,
     )

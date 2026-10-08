@@ -1,0 +1,27 @@
+{
+  "name": "t_mac15_fp32",
+  "out_mlmodelc": "/Users/dupi/Desktop/自动驾驶系统/models/exp_exec_t_mac15_fp32.mlmodelc",
+  "out_mlpackage": "/Users/dupi/Desktop/自动驾驶系统/models/exp_exec_t_mac15_fp32.mlpackage",
+  "precision": "float32",
+  "target": "macOS15",
+  "pipeline": "(无)",
+  "pipeline_steps": [],
+  "pipeline_notes": [],
+  "coremltools": "8.3.0",
+  "torch": "2.13.0",
+  "preserve_io_fp32": true,
+  "size_mlpackage_mb": 31.968,
+  "size_mlmodelc_mb": 31.978,
+  "maxdiff_vs_torch": 2.384185791015625e-06,
+  "ref_outputs": [
+    0.9999995231628418,
+    3.586004191209963e-15,
+    1.483760388509836e-05,
+    1.0,
+    2.341681536177642e-13,
+    2.77776837348938
+  ],
+  "random_init": false,
+  "total_params": 8799446,
+  "created": "2026-10-09 07:35:46"
+}
