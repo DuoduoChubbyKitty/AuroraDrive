@@ -209,25 +209,35 @@ class RiskHead(nn.Module):
             self.confidence_head.bias.fill_(math.log(0.6 / 0.4))  # ≈ 0.6
 
         # ── 24 步迭代中间步辅助支路（M3 扩展）──────────────────────────
-        # step_feat（IterationRefiner 第 N 步的 hidden）→ 中间步 conf/risk/offset
+        # step_feat（IterationRefiner 第 N 步的 refined 特征，[B,512]）→ 中间步 conf/risk
         # 独立参数：中间步特征语义与最终融合特征不同（它是"迭代过程中的状态"，
         # 不是四分支拼接），共参数会让两种梯度互相拉扯（与 HeadingHead
         # Δ/绝对双分支独立参数同理）。
+        #
+        # ⚠️ 2026-10-08 Lead 裁决后的语义澄清（这里曾写错，实测抓出）：
+        #   `use_step_offset` **只控制 offset 预测头**，**不影响 step 的 conf/risk**。
+        #   Lead 裁决是"中间步的 offset/ttc 预测归 w7 refiner，本模块 forward_step
+        #   退为**只出 conf/risk**"——所以 conf/risk 的 step 头**必须照常构建**，
+        #   哪怕 use_step_offset=False。
+        #   曾误把整个 step 支路（含 conf/risk）一起关掉，导致 forward_step
+        #   返回全零 conf/risk（自检 "conf/risk 仍非常数" 断言抓出）。
+        self.step_fc1 = nn.Linear(config.step_feat_dim, config.hidden)
+        self.step_fc2 = nn.Linear(config.hidden, config.hidden)
+        self.step_confidence_head = nn.Linear(config.hidden, 1)
+        self.step_risk_head = nn.Linear(config.hidden, 1)
+        step_params = [self.step_fc1, self.step_fc2,
+                       self.step_confidence_head, self.step_risk_head]
         if config.use_step_offset:
-            self.step_fc1 = nn.Linear(config.step_feat_dim, config.hidden)
-            self.step_fc2 = nn.Linear(config.hidden, config.hidden)
-            self.step_confidence_head = nn.Linear(config.hidden, 1)
-            self.step_risk_head = nn.Linear(config.hidden, 1)
             self.step_offset_head = nn.Linear(config.hidden, 1)
-            # step 头也用 fan_in + 零 bias；risk 偏低、offset 初值≈0
-            for m in [self.step_fc1, self.step_fc2, self.step_confidence_head,
-                      self.step_risk_head, self.step_offset_head]:
-                nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="relu")
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
-            with torch.no_grad():
-                self.step_risk_head.bias.fill_(math.log(0.1 / 0.9))
-                self.step_confidence_head.bias.fill_(math.log(0.6 / 0.4))
+            step_params.append(self.step_offset_head)
+        # step 头也用 fan_in + 零 bias；risk 偏低、offset 初值≈0
+        for m in step_params:
+            nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="relu")
+            if m.bias is not None:
+                nn.init.zeros_(m.bias)
+        with torch.no_grad():
+            self.step_risk_head.bias.fill_(math.log(0.1 / 0.9))
+            self.step_confidence_head.bias.fill_(math.log(0.6 / 0.4))
         self._has_step = config.use_step_offset
 
     def _init_weights(self) -> None:
