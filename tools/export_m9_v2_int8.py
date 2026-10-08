@@ -584,7 +584,7 @@ def _export_one(model, c: Dict[str, int], base_inputs, out: Path, scheme: str,
     # 时序抖动
     seq = _frame_sequence(c, base_inputs)
     cm_series = [_coreml_forward(mlmodel, ins) for ins in seq]
-    pt_series = [_torch_forward(model, ins) for ins in seq]
+    pt_series = [_torch_forward(export_model, ins) for ins in seq]
     res["jitter"] = {
         "cm_steer_std": float(np.std([s[0] for s in cm_series])),
         "pt_steer_std": float(np.std([s[0] for s in pt_series])),
@@ -676,7 +676,7 @@ def main() -> int:
         print("[INT8] ⚠⚠ 本次为随机权重：**体积与耗时有效，偏差数字不代表真实精度**")
 
     base_inputs = _make_inputs(c)
-    print(f"[INT8] PyTorch 参考输出 = {[round(v, 6) for v in _torch_forward(model, base_inputs)]}")
+    print(f"[INT8] PyTorch 参考输出 = {[round(v, 6) for v in _torch_forward(export_model, base_inputs)]}")
 
     if args.compare_all:
         plans = [("fp16", 32, False),
