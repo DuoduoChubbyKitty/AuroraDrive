@@ -1128,6 +1128,87 @@ final class InferenceEngineV2 {
 
     /// 是否已加载模型。**模型文件缺失时保持 false 并给出明确原因**（优雅降级）。
     private(set) var isLoaded = false
+
+    // MARK: 时序就绪度（冷启动保护）
+
+    /// 环形缓冲里已积累的有效帧数（0…`historyFrames`）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 【为什么必须暴露这个 —— 一个结构性的冷启动退化】
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 方案 A 下 `image` 恒为 `[8,3,180,320]`（**CoreML 静态图，dim0 固定 8** ——
+    /// 出处 `tools/export_m9_v2_coreml.py:372` 用 `c["num_frames"]` 导出；
+    /// 且 w5 实测坑 2 已证动态 shape 在 CoreML 上是死路）。
+    /// 所以**无法**在 Swift 侧"只传 1 帧走单帧模式"—— shape 不匹配会直接报错。
+    ///
+    /// 冷启动时只有 1~2 帧有效，其余是零帧。而零帧**不是中性的**：
+    /// GRU 对零输入仍会推进隐状态（`h_t=(1-z)h_{t-1}+z·tanh(Wh_{t-1}+b)`，
+    /// `b≠0` 时零输入也改变 h）→ 填 N 个零帧 = 注入 N 步"有效但内容为零"的历史。
+    ///
+    /// w5 实测（**随机权重**，仅作量级参考）：有效帧数 1 时与全零基线距离 16.9%。
+    /// ⚠️ 训练后门控会学会「零输入=不可信」（`temporal.py:53` 的设计意图），
+    ///   故这个数字**不是定论**。但"1 真帧 + 7 零帧"确实是退化输入。
+    ///
+    /// **本引擎的对策**：不假装没这回事，把它作为**可观测的就绪度**暴露出去，
+    /// 由调用方（DriveState/状态机）决定"冷启动期是否先用旧引擎兜底"。
+    /// 判据建议：`timelineReady == false` 时优先用单帧旧引擎（那是**真实**的
+    /// 单帧路径，不是"8 帧里塞 1 帧"），等本引擎攒够帧再切过来。
+    /// ⚠️ 真正的根治在**训练侧**：让有效帧数分布覆盖推理时的真实分布
+    ///   （含 1~3 帧冷启动），否则训练全用 8 帧、推理冷启动 3 帧 = 分布偏移。
+    ///   这条已同步给 w5/训练侧。
+    private(set) var timelineFrames: Int = 0
+
+    /// 时序窗口是否已攒够到"可放心使用"的程度。
+    ///
+    /// 判据 = `timelineFrames >= 2`。为什么是 2 而不是 8：
+    ///   · 要求满 8 帧才敢用 → 冷启动要等 8 帧（30Hz 下 0.27s），偏保守但安全；
+    ///   · 只要求 ≥2 帧 → 从"1 真帧 + 7 零帧"（明显退化）升到"至少有一段真实历史"。
+    /// 取 2 是**务实折中**：1 帧时退化为"8 帧里 7 个零"太极端；
+    ///   而 2 帧起 GRU 已能看到一次真实的帧间变化，比纯零历史有信息量。
+    /// 调用方可按需用更严的 `timelineFrames == historyFrames`。
+    var timelineReady: Bool { timelineFrames >= 2 }
+
+    /// 时序窗口填充比例 ∈ [0,1]（诊断/UI 用）。
+    var timelineFillRatio: Double {
+        Double(timelineFrames) / Double(max(1, V2InputContract.historyFrames))
+    }
+
+    /// 诊断摘要（日志/UI 小字用）。
+    var timelineDebugSummary: String {
+        "时序 \(timelineFrames)/\(V2InputContract.historyFrames)"
+        + (timelineReady ? " 就绪" : " 冷启动中（建议先用单帧旧引擎兜底）")
+    }
+
+    // MARK: 冷启动门控（Lead 派活 2026-10-08）
+
+    /// 因时序未就绪而**跳过推理**的次数（诊断）。
+    private(set) var coldStartSkips: Int = 0
+    /// 最近一次跳过的原因（如实展示，不静默）。
+    private(set) var coldStartSkipReason: String?
+
+    /// 时序窗口最少需要几帧才允许推理。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 【为什么是"跳过推理"而不是"退回单帧模式" —— 一个硬约束】
+    /// ══════════════════════════════════════════════════════════════════════
+    /// Lead/w5 的建议是「有效帧 < 2 时退回单帧模式」。**方向对，但本架构下
+    /// Swift 侧做不到"传 1 帧给同一个模型走单帧分支"**：
+    ///   · `tools/export_m9_v2_coreml.py:372` 用 `c["num_frames"]`（=8）**固定导出**
+    ///     image 的 dim0；
+    ///   · w5 实测坑 2 已证 **CoreML 不支持动态 shape**（RangeDim 转换期崩、
+    ///     EnumeratedShapes 编译期崩）。
+    ///   ⟹ 传 `[1,3,180,320]` 会 shape 不匹配**直接报错**，不是"走另一条分支"。
+    ///
+    /// 【本实现的对策：如实拒绝 + 让调用方回退】
+    ///   有效帧 < `minFramesForTimeline` 时，本引擎**明确不做推理**，
+    ///   记下原因（`coldStartSkipReason`），由调用方（DriveState）回退
+    ///   **旧单帧引擎**——那才是真正的单帧路径（`m9_mono`，契约就是 `[1,...]`）。
+    ///   这比"硬塞 8 帧里 7 个零"诚实得多：后者会静默产出一个基于
+    ///   "7 步零历史"的控制量，而调用方还以为它是可信的。
+    ///
+    /// 【代价】冷启动期约 `minFramesForTimeline / 30Hz` 秒走旧引擎
+    ///   （2 帧 ≈ 67ms），对驾驶无实质影响；换来的是不把退化输入当正常输入。
+    private static let minFramesForTimeline = 2
     /// 是否有一次后台加载在途（防 30Hz 重复提交）。
     private var isLoadingModel = false
     /// 是否正在推理（防重叠）。
@@ -1446,7 +1527,26 @@ final class InferenceEngineV2 {
             self.frameBufferPush(frameArr)
             let historySnapshot = self.frameBufferSnapshot()
 
-            // ③ 组装 [8,3,H,W] 输入
+            // ── ③ 冷启动门控：有效帧不足 → **如实跳过，不推理** ──
+            // 【为什么不是"退回单帧模式"】见 minFramesForTimeline 的注释：
+            //   CoreML 静态图 dim0 固定 8，Swift 传不了 1 帧走另一分支。
+            //   故这里明确拒绝 + 记原因，让调用方回退旧单帧引擎（真实单帧路径）。
+            // ⚠️ 顺序很重要：**先推帧再判断** —— 否则永远攒不满、永远跳过。
+            //   第一次调用：推入后 filled=1 < 2 → 跳过（调用方用旧引擎）
+            //   第二次调用：filled=2 → 正常推理
+            let filledNow = self.frameBufferFilled()
+            self.noteTimelineFrames(filledNow)
+            if filledNow < Self.minFramesForTimeline {
+                let reason = "时序冷启动：有效帧 \(filledNow)/\(V2InputContract.historyFrames)"
+                           + "（< \(Self.minFramesForTimeline)），本帧回退旧单帧引擎"
+                Task { @MainActor in
+                    self.noteColdStartSkip(reason: reason, frames: filledNow)
+                    self.isInferencing = false      // 释放防重叠门
+                }
+                return
+            }
+
+            // ④ 组装 [8,3,H,W] 输入
             guard let imageBuffer = self.reusableImageSequenceBuffer,
                   let provider = try? Self.makeProvider(features: features,
                                                         historyFrames: historySnapshot,
@@ -1560,6 +1660,9 @@ final class InferenceEngineV2 {
         lastConfidence = nil
         lastRisk = nil
         lastCarHeadingRad = nil
+        // 冷启动门控状态也要清（换场景后需重新攒帧）
+        timelineFrames = 0
+        coldStartSkipReason = nil
         frameBufferReset()
     }
 
@@ -1610,6 +1713,25 @@ final class InferenceEngineV2 {
     /// 清空环形缓冲（reset 时；inferenceQueue 内调用）。
     private nonisolated(unsafe) func frameBufferReset() {
         frameBuffer.reset()
+    }
+
+    /// 当前已积累的有效帧数（inferenceQueue 内调用）。
+    private nonisolated(unsafe) func frameBufferFilled() -> Int {
+        frameBuffer.filled
+    }
+
+    /// 把就绪度同步到 MainActor 状态（后台 → 主线程）。
+    private nonisolated func noteTimelineFrames(_ frames: Int) {
+        Task { @MainActor [weak self] in
+            self?.timelineFrames = frames
+        }
+    }
+
+    /// 记录一次冷启动跳过（主线程）。
+    private func noteColdStartSkip(reason: String, frames: Int) {
+        coldStartSkips += 1
+        coldStartSkipReason = reason
+        timelineFrames = frames
     }
 
     // MARK: 输入装配（nonisolated 纯函数）
@@ -2092,6 +2214,30 @@ extension InferenceEngineV2 {
         snapFull = ring.snapshot()
         expect(snapFull[0] == 2 && snapFull[3] == 3 && snapFull[6] == 4 && snapFull[9] == 5,
                "溢出：覆盖最老（2,3,4,5）—— 环形语义，末位 = 最新 5")
+
+        // ── ⑨d 冷启动门控（Lead 派活）：filled = 0/1/2/8 四态 ──
+        // 判据 = filled >= 2 才允许走时序推理（见 minFramesForTimeline 注释：
+        // CoreML 静态图 dim0 固定 8，Swift 做不到"传 1 帧走单帧分支"，
+        // 故明确跳过 + 让调用方回退旧单帧引擎）。
+        var gate = ImageFrameRingBuffer(capacity: 8, frameLength: 1)
+        expect(gate.filled == 0, "门控：初始 filled=0（未推理 → 调用方用旧引擎）")
+        var gateSnap = gate.snapshot()
+        expect(gateSnap.allSatisfy { $0 == 0 }, "门控：filled=0 时窗口全零")
+        _ = gate.push([1])   // 只为测门控语义，值用递增序号便于断言
+        expect(gate.filled == 1, "门控：filled=1（仍 <2 → 跳过，避免 1 真帧+7 零帧）")
+        gateSnap = gate.snapshot()
+        expect(gateSnap[7] == 1 && gateSnap[0] == 0,
+               "门控：filled=1 时唯一有效帧在末位、前 7 槽为零（右对齐）")
+        _ = gate.push([2])
+        expect(gate.filled == 2, "门控：filled=2（达到阈值 → 允许时序推理）")
+        gateSnap = gate.snapshot()
+        expect(gateSnap[6] == 1 && gateSnap[7] == 2,
+               "门控：filled=2 时有效帧在尾部(6,7)、前 6 槽为零（右对齐）")
+        for v in 3...8 { _ = gate.push([Float(v)]) }
+        expect(gate.filled == 8, "门控：filled=8（窗口满）")
+        gateSnap = gate.snapshot()
+        expect(gateSnap[0] == 1 && gateSnap[7] == 8,
+               "门控：filled=8 时最老在前(1)、末位当前(8)")
         // 长度不符 → 忽略（不静默截断）
         let rejected = ring.push([9])
         expect(!rejected, "帧长不符 → 拒绝写入（不静默截断）")
