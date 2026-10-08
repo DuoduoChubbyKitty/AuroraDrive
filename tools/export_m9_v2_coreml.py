@@ -1012,6 +1012,14 @@ def main() -> int:
             "precision": args.precision,
             "target": args.target,
             "random_init": bool(load_report.get("random_init")),
+            # ★ 2026-10-09（w8 独立验证 G5）：`random_init=False` 只表示「没走
+            #   --self-test 全随机路径」，**不代表权重都是训练出来的**。部分随机
+            #   必须由 missing_param_ratio 单独量化并写进契约，否则只看
+            #   `random_init: false` 会误以为权重都是真的 —— 下一个假绿的温床。
+            "missing_param_ratio": float(load_report.get("missing_param_ratio") or 0.0),
+            "random_init_ratio_is_partial": bool(
+                (load_report.get("missing_param_ratio") or 0.0) > 0.05),
+            "deployable": bool((load_report.get("missing_param_ratio") or 0.0) <= 0.05),
             "compute_units_policy": ".all（运行时由 Swift 侧设置，项目已实测最快，勿改）",
             "inputs": [
                 {"name": n, "shape": list(s), "dtype": "float32"}
