@@ -1440,16 +1440,11 @@ final class InferenceEngineV2 {
                detections: [Detection],
                laneMask: MaskGrid?) {
         guard isLoaded, let modelRef = model else {
-            print("[V2-diag] infer 早退：isLoaded=\(isLoaded) model=\(model != nil)")
             scheduleBackgroundLoadIfNeeded()
             return
         }
-        guard !isInferencing else {
-            print("[V2-diag] infer 早退：isInferencing 尚未释放")
-            return
-        }
+        guard !isInferencing else { return }
         isInferencing = true
-        print("[V2-diag] infer 进入，gen=\(generation)")
 
         // 跨线程只传值类型（MaskGrid 在这里转成 Sendable 快照）
         let snapshot = laneMask.flatMap { LaneMaskSnapshot(mask: $0) }
@@ -1540,7 +1535,6 @@ final class InferenceEngineV2 {
             //   第一次调用：推入后 filled=1 < 2 → 跳过（调用方用旧引擎）
             //   第二次调用：filled=2 → 正常推理
             let filledNow = self.frameBufferFilled()
-            print("[V2-diag] 推帧后 filledNow=\(filledNow)")
             self.noteTimelineFrames(filledNow)
             if filledNow < Self.minFramesForTimeline {
                 let reason = "时序冷启动：有效帧 \(filledNow)/\(V2InputContract.historyFrames)"
@@ -2451,12 +2445,19 @@ enum V2EngineLinkSelfTest {
                        intent: .defaultIntent)
     }
 
+    /// 异步等待：**必须让出 MainActor**（`await Task.sleep`），
+    /// 否则 `infer` 内部那些 `Task { @MainActor }`（释放 isInferencing、
+    /// 写 timelineFrames）永远排不上 —— 实测就是被这个卡住的。
+    private static func settle(_ seconds: Double) async {
+        try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+    }
+
     /// 跑引擎链路自检。
     /// - Parameters:
     ///   - ledger: 复用的自检台账（`SelfTestLedger`）。
     ///   - modelFileName: 模型名（默认 m9_v2；反证用例传一个不存在的名字）。
     /// - Returns: 建议的进程退出码（0 = 全通过）。
-    static func run(ledger: SelfTestLedger, modelFileName: String = "m9_v2") -> Int32 {
+    static func run(ledger: SelfTestLedger, modelFileName: String = "m9_v2") async -> Int32 {
         print("═══ V2 引擎链路自检（--v2-selftest）═══")
         ledger.section("① 模型加载")
 
@@ -2494,7 +2495,7 @@ enum V2EngineLinkSelfTest {
         k.speedKmh = 60; k.speedValid = true; k.speedLimitKmh = 120
 
         engine.infer(image: img0, kinematics: k, detections: [], laneMask: nil)
-        pumpRunLoop(0.3)
+        await settle(0.35)
         // 第 1 帧推入后 filled=1 < 2 → 本轮拒绝推理（不产 lastResult）
         ledger.equals("第 1 帧后 timelineFrames == 1（环形缓冲已推入）",
                       engine.timelineFrames, 1)
@@ -2510,10 +2511,10 @@ enum V2EngineLinkSelfTest {
             // 每帧之间等待，避免 isInferencing 防重叠门把提交挡掉
             var waited = 0.0
             while engine.isInferencing && waited < 1.0 {
-                pumpRunLoop(0.02); waited += 0.02
+                await Task.yield(); try? await Task.sleep(nanoseconds: 20_000_000); waited += 0.02
             }
             engine.infer(image: img, kinematics: k, detections: [], laneMask: nil)
-            pumpRunLoop(0.3)
+            await settle(0.35)
             frameLog.append(engine.timelineFrames)
         }
         print("  timelineFrames 轨迹: \(frameLog)")
@@ -2583,7 +2584,7 @@ enum V2EngineLinkSelfTest {
         // 缺失模型时 infer 不得崩（走 scheduleBackgroundLoadIfNeeded 分支）
         if let img = makeSyntheticImage(frameIndex: 0) {
             missing.infer(image: img, kinematics: k, detections: [], laneMask: nil)
-            pumpRunLoop(0.2)
+            await settle(0.25)
             ledger.check("缺失模型时 infer 不崩（无 lastResult 但进程存活）",
                          missing.lastResult == nil, "lastResult=\(String(describing: missing.lastResult))")
         }

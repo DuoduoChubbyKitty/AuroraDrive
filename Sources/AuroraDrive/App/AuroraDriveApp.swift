@@ -1101,9 +1101,7 @@ struct AuroraDriveLauncher {
         if args.contains("--v2-selftest") {
             let ledger = SelfTestLedger()
             exit(runBlockingSelfTest("V2 引擎链路") {
-                let rc: Int32 = await MainActor.run {
-                    V2EngineLinkSelfTest.run(ledger: ledger)
-                }
+                let rc = await V2EngineLinkSelfTest.run(ledger: ledger)
                 return Int(rc)
             })
         }

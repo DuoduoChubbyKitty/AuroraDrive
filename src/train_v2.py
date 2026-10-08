@@ -596,8 +596,15 @@ class _ReferenceModelV2(nn.Module):
                 torch.sigmoid(self.brake_head(fused)))
 
 
-def build_v2_model(lane_size: int, force_reference=False):
+def build_v2_model(lane_size: int, force_reference=False,
+                   num_steps: Optional[int] = None):
     """构建模型：优先 M2 的 src/model_v2.build_model()，缺失则降级到参考实现。
+
+    Args:
+        num_steps: ★ IterationRefiner 迭代步数（None=用模型默认，通常 24）。
+            w7 已把 `num_steps` 做成显式别名（原 `refiner_steps` 亦可）。
+            ⚠️ ANE 实测（2026-10-08）：24 步 ANE 编译失败退化 CPU（18ms）；
+            8 步 ANE=1.58ms，12 步 2.13ms，**14~16 步是 cutoff**。
 
     返回 (model, source_name, lane_module)
     """
@@ -608,9 +615,26 @@ def build_v2_model(lane_size: int, force_reference=False):
             if not hasattr(mod, "build_model"):
                 print("[M2接口] ⚠ model_v2 模块存在但无 build_model()")
             else:
-                # M2 的 build_model 只接受 deploy，不要多传参数
-                model = mod.build_model(deploy=False)
-                print("[M2接口] ✓ 使用 src.model_v2.build_model(deploy=False)")
+                kw = {"deploy": False}
+                if num_steps is not None:
+                    kw["num_steps"] = int(num_steps)
+                try:
+                    model = mod.build_model(**kw)
+                except TypeError:
+                    # 旧版 build_model 不接受 num_steps → 回退默认
+                    if num_steps is not None:
+                        print(f"[M2接口] ⚠ build_model 不接受 num_steps={num_steps}"
+                              f"（旧版）→ 用默认步数")
+                    model = mod.build_model(deploy=False)
+                # ★ 校验步数真的生效（防 w7 早期"静默忽略 kwarg"陷阱复发）
+                if num_steps is not None:
+                    got = getattr(getattr(model, "refiner", None), "num_steps", None)
+                    if got is not None and int(got) != int(num_steps):
+                        print(f"[M2接口] 🔴 num_steps={num_steps} 未生效！"
+                              f"refiner.num_steps={got}（静默陷阱复发，请查 w7 别名）")
+                    else:
+                        print(f"[M2接口] ✓ IterationRefiner num_steps={got}")
+                print(f"[M2接口] ✓ 使用 src.model_v2.build_model({kw})")
                 return model, "src.model_v2.build_model", _find_lane_module(model)
         except Exception as e:
             print(f"[M2接口] ⚠ 未能加载 src.model_v2（{type(e).__name__}: {e}）→ 降级")
@@ -1230,11 +1254,22 @@ def iterative_refinement_loss(
         return zero, comps
 
     # ---- §3.2 中间步辅助任务 ----
-    # 兼容两种模型输出形式（w4 接口 + 通用形式）：
-    #   A. w4 风格：step out 含 "lateral_offset" / "risk" / "confidence"（RiskHead.forward_step）
-    #   B. 通用风格：step out 含 "lane_offset" / "ttc"
-    # step8：车道中心偏移
-    aux_step_lane = ITER_AUX_STEPS["lane_offset"]
+    # ★ 落点步**自动探测**（2026-10-08 w7 提醒）：不要硬编码 8/16！
+    #   w7 已把 aux 步钳制到 [1, num_steps]：
+    #     N=24 → lane_offset@8, ttc@16
+    #     N=8  → lane_offset@8, ttc@8（钳到最后一步，不丢监督）
+    #   regime: 从实际 intermediate 的 key 里找哪个 step 带该字段，任何 N 都对。
+    def _find_step_with(key: str, aliases: Tuple[str, ...] = ()) -> Optional[int]:
+        keys = (key,) + aliases
+        for i, so in enumerate(steps):
+            if isinstance(so, dict) and any(k in so for k in keys):
+                return i + 1
+        return None
+
+    # step?：车道中心偏移
+    aux_step_lane = _find_step_with("lane_offset", ("lateral_offset",))
+    if aux_step_lane is None:
+        aux_step_lane = min(ITER_AUX_STEPS["lane_offset"], actual_steps)
     if aux_step_lane <= actual_steps:
         lane_mask = batch.get("lane_mask")
         if lane_mask is not None:
@@ -1249,10 +1284,15 @@ def iterative_refinement_loss(
                 tgt_r = tgt.reshape(-1, 1).to(pred_off.dtype)
                 l_lo = F.l1_loss(pred_off[valid.reshape(-1)], tgt_r[valid.reshape(-1)])
                 total = total + 0.5 * l_lo                 # §3.1: step8 权重 0.5
-                comps["step8_lane_offset"] = float(l_lo.detach())
+                comps["lane_offset_loss"] = float(l_lo.detach())
+                comps["lane_offset_step"] = float(aux_step_lane)
+                if aux_step_lane != ITER_AUX_STEPS["lane_offset"]:
+                    comps[f"step{aux_step_lane}_lane_offset"] = float(l_lo.detach())
 
-    # step16：TTC / risk
-    aux_step_ttc = ITER_AUX_STEPS["ttc"]
+    # step?：TTC / risk
+    aux_step_ttc = _find_step_with("risk", ("ttc",))
+    if aux_step_ttc is None:
+        aux_step_ttc = min(ITER_AUX_STEPS["ttc"], actual_steps)
     if aux_step_ttc <= actual_steps:
         step_out = steps[aux_step_ttc - 1]
         # 形式 A：模型直接输出 risk（w4 forward_step）→ 用 TTC 构造 risk 真值
@@ -1267,7 +1307,8 @@ def iterative_refinement_loss(
                     l_r = F.l1_loss(pred_risk[valid_ttc],
                                     risk_gt[valid_ttc].to(pred_risk.dtype))
                     total = total + 0.3 * l_r              # §3.1: step16 权重 0.3
-                    comps["step16_risk"] = float(l_r.detach())
+                    comps["risk_loss"] = float(l_r.detach())
+                    comps["risk_step"] = float(aux_step_ttc)
                 except ImportError:
                     pass
         else:
@@ -1279,7 +1320,10 @@ def iterative_refinement_loss(
                 pred_ttc = pred_ttc.to(device).reshape(-1)
                 l_ttc = F.l1_loss(pred_ttc[valid], tgt[valid].to(pred_ttc.dtype))
                 total = total + 0.3 * l_ttc                # §3.1: step16 权重 0.3
-                comps["step16_ttc"] = float(l_ttc.detach())
+                comps["ttc_loss"] = float(l_ttc.detach())
+                comps["ttc_step"] = float(aux_step_ttc)
+                if aux_step_ttc != ITER_AUX_STEPS["ttc"]:
+                    comps[f"step{aux_step_ttc}_ttc"] = float(l_ttc.detach())
 
     comps["iter_n_supervised"] = float(n_supervised)
     comps["iter_active_steps"] = float(len(active))
