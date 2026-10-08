@@ -125,7 +125,15 @@ class RiskHeadConfig:
         lateral_offset_range: 车道中心偏移的输出范围（米）。
             offset = tanh(logit) * range，默认 2.0（±2 米覆盖大多数车道宽度）。
             改这个只缩放输出，不改真值口径（真值口径见 `lane_central_offset`）。
-        use_step_offset: 是否启用车道中心偏移头（step8 辅助任务）。
+        use_step_offset: 是否启用**本模块的**车道中心偏移头（step 辅助任务）。
+            ⚠️ **默认 False（2026-10-08 Lead 裁决）**：中间步的 offset/ttc 预测
+            由 w7 的 `IterationRefiner.step_head` 内部输出（天然在 refiner 里、
+            随 24 步迭代精修），本模块不再旁路重复预测，避免 t1 重复监督
+            + 口径打架（实测两套量程差 ~48 倍）。
+            本模块保留该头仅为兼容旧调用；`forward_step` 在 False 时只出
+            conf/risk（offset 返回全零）。
+            **真值函数 `lane_central_offset` 继续保留**（w7 只有预测头，
+            没有几何真值；两者互补而非重复）。
     """
 
     fused_dim: int = DEFAULT_FUSED_DIM
@@ -138,7 +146,8 @@ class RiskHeadConfig:
     #: 默认 512 = w7 IterationRefiner.feat_dim（每步 refined 特征维度，2026-10-08 实测）
     step_feat_dim: int = 512
     lateral_offset_range: float = 2.0
-    use_step_offset: bool = True
+    #: 默认关闭（Lead 裁决：offset 预测归 w7 refiner 内部，本模块只保留真值函数）
+    use_step_offset: bool = False
 
 
 class RiskHead(nn.Module):
@@ -1208,6 +1217,12 @@ class LaneOffsetConfig:
         center_col: 网格中心列（默认 80，即 grid/2）
         offset_scale: 输出尺度因子。默认 1.0：偏移以"网格格数"为单位。
             要换算成米需知道单格对应的实际宽度——本项目未标定，保持网格单位。
+        normalize: **是否归一化到 [-1,1]**（2026-10-08 w7 建议采纳）。
+            True 时输出 = (质心列 − 中心列) / (grid/2)，即按"半幅网格宽"归一。
+            用途：w7 的 `step_head.lane_offset` 预测是 `tanh ∈[-1,1]`，
+            与网格格数（±80）**量程差 ~48 倍**，直接监督会互相拉扯；
+            用本选项可直接对齐，t1 不必手算 `÷80`。
+            ⚠️ normalize=True 时 `offset_scale` 被忽略（避免双重缩放歧义）。
     """
 
     grid: int = 160
@@ -1215,6 +1230,7 @@ class LaneOffsetConfig:
     content_row_end: int = 125
     center_col: float = 80.0
     offset_scale: float = 1.0
+    normalize: bool = False
 
 
 def lane_central_offset(

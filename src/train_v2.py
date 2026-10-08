@@ -477,38 +477,61 @@ def call_model_with_intermediates(model: nn.Module,
                                   ) -> Tuple[Any, Any]:
     """★ 24 步迭代精修接线（2026-10-08，需求 §3）。
 
-    若 model 有 `iter_refiner` 属性且非 None → 传 `return_intermediate=True`，
-    拿到 (主输出, intermediate) 返回；否则返回 (主输出, None)。
+    ★ 实测的 w7 契约（model_v2.py:1396-1415）：
+        · 模型属性名是 **`refiner`**（不是 iter_refiner）
+        · 用 **`return_aux=True`** 触发，24 步在 **`aux["refiner_intermediates"]`**
+        · 每步 dict 含 steer/throttle/brake（+ step8 的 lane_offset、
+          step16 的 ttc、以及 expert_weights/route_logits）
+    返回 (主输出 tuple, intermediates)；无 refiner 或格式不符 → (主输出, None)。
 
-    防御性：model.forward 不接受 return_intermediate 时退化为普通调用。
+    向后兼容：也支持 iter_refiner 属性名与 return_intermediate 关键字
+    （早期规格/其他实现）。
     """
-    has_refiner = (hasattr(model, "iter_refiner")
-                   and getattr(model, "iter_refiner", None) is not None)
-    if not has_refiner:
+    # ---- 探测 refiner（两种属性名都认）----
+    refiner = getattr(model, "refiner", None)
+    if refiner is None:
+        refiner = getattr(model, "iter_refiner", None)
+    if refiner is None:
         return call_model(model, inputs), None
+
     params = inspect.signature(model.forward).parameters
-    if "return_intermediate" not in params and not any(
-            p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
-        return call_model(model, inputs), None
-    kwargs = {k: v for k, v in inputs.items()
-              if (k in params or any(p.kind == inspect.Parameter.VAR_KEYWORD
-                                     for p in params.values())) and v is not None}
-    kwargs.setdefault("image", inputs["image"])
-    kwargs["return_intermediate"] = True
-    try:
-        out = model(**kwargs)
-    except TypeError:
-        # model.forward 不接受 return_intermediate（如参考实现）→ 降级
-        return call_model(model, inputs), None
-    # 解析返回：预期 (main, intermediate) 或 (main, intermediate, aux)
-    if isinstance(out, tuple) and len(out) >= 2 and isinstance(out[1], (list, tuple)):
-        main = out[0] if not isinstance(out[0], tuple) else out[0]
-        intermediate = out[1]
-        # 若返回的是 (main_tuple, intermediate) 且 main 是 (steer,throttle,brake)
-        if isinstance(out[0], tuple):
-            return out[0], intermediate
-        return out, intermediate
-    return out, None
+    has_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD
+                 for p in params.values())
+    accepts = lambda k: (k in params) or has_kw      # noqa: E731
+
+    # ---- 路径 A（w7 实测契约）：return_aux=True → aux["refiner_intermediates"] ----
+    if accepts("return_aux"):
+        kwargs = {k: v for k, v in inputs.items()
+                  if accepts(k) and v is not None}
+        kwargs.setdefault("image", inputs["image"])
+        kwargs["return_aux"] = True
+        try:
+            out = model(**kwargs)
+        except TypeError:
+            out = None
+        if isinstance(out, tuple) and len(out) >= 4 and isinstance(out[-1], dict):
+            aux = out[-1]
+            main = tuple(out[:3])
+            inter = aux.get("refiner_intermediates")
+            if inter:
+                return main, inter
+
+    # ---- 路径 B（早期规格）：return_intermediate=True → (..., intermediates) ----
+    if accepts("return_intermediate"):
+        kwargs = {k: v for k, v in inputs.items()
+                  if accepts(k) and v is not None}
+        kwargs.setdefault("image", inputs["image"])
+        kwargs["return_intermediate"] = True
+        try:
+            out = model(**kwargs)
+        except TypeError:
+            out = None
+        if isinstance(out, tuple) and len(out) >= 2 \
+                and isinstance(out[1], (list, tuple)):
+            main = out[0] if isinstance(out[0], tuple) else tuple(out[:3])
+            return main, out[1]
+
+    return call_model(model, inputs), None
 
 
 # ==================== 3. M2 接口：model_v2（软依赖 + 参考实现） ====================
@@ -1195,32 +1218,56 @@ def iterative_refinement_loss(
         return zero, comps
 
     # ---- §3.2 中间步辅助任务 ----
-    # step8：车道中心偏移（需要模型在 step8 输出 offset 预测；若无该字段则跳过）
+    # 兼容两种模型输出形式（w4 接口 + 通用形式）：
+    #   A. w4 风格：step out 含 "lateral_offset" / "risk" / "confidence"（RiskHead.forward_step）
+    #   B. 通用风格：step out 含 "lane_offset" / "ttc"
+    # step8：车道中心偏移
     aux_step_lane = ITER_AUX_STEPS["lane_offset"]
     if aux_step_lane <= actual_steps:
         lane_mask = batch.get("lane_mask")
         if lane_mask is not None:
             tgt, valid = lane_offset_target(lane_mask.to(device))
             step_out = steps[aux_step_lane - 1]
-            pred_off = (step_out.get("lane_offset") if isinstance(step_out, dict)
-                        else None)
+            if isinstance(step_out, dict):
+                pred_off = step_out.get("lane_offset", step_out.get("lateral_offset"))
+            else:
+                pred_off = None
             if tgt is not None and pred_off is not None and bool(valid.any()):
                 pred_off = pred_off.to(device).reshape(-1, 1)
-                l_lo = F.l1_loss(pred_off[valid], tgt[valid])
-                total = total + 0.3 * l_lo
+                tgt_r = tgt.reshape(-1, 1).to(pred_off.dtype)
+                l_lo = F.l1_loss(pred_off[valid.reshape(-1)], tgt_r[valid.reshape(-1)])
+                total = total + 0.5 * l_lo                 # §3.1: step8 权重 0.5
                 comps["step8_lane_offset"] = float(l_lo.detach())
 
-    # step16：TTC（需要模型在 step16 输出 ttc 预测；若无该字段则跳过）
+    # step16：TTC / risk
     aux_step_ttc = ITER_AUX_STEPS["ttc"]
     if aux_step_ttc <= actual_steps:
-        tgt, valid = ttc_target(batch, device)
         step_out = steps[aux_step_ttc - 1]
-        pred_ttc = (step_out.get("ttc") if isinstance(step_out, dict) else None)
-        if tgt is not None and pred_ttc is not None and bool(valid.any()):
-            pred_ttc = pred_ttc.to(device).reshape(-1)
-            l_ttc = F.l1_loss(pred_ttc[valid], tgt[valid])
-            total = total + 0.3 * l_ttc
-            comps["step16_ttc"] = float(l_ttc.detach())
+        # 形式 A：模型直接输出 risk（w4 forward_step）→ 用 TTC 构造 risk 真值
+        pred_risk = (step_out.get("risk") if isinstance(step_out, dict) else None)
+        if pred_risk is not None:
+            tgt_ttc, valid_ttc = ttc_target(batch, device)
+            if tgt_ttc is not None and valid_ttc is not None and bool(valid_ttc.any()):
+                try:
+                    from risk_head import risk_target_from_ttc
+                    risk_gt = risk_target_from_ttc(tgt_ttc, valid_ttc)
+                    pred_risk = pred_risk.to(device).reshape(-1)
+                    l_r = F.l1_loss(pred_risk[valid_ttc],
+                                    risk_gt[valid_ttc].to(pred_risk.dtype))
+                    total = total + 0.3 * l_r              # §3.1: step16 权重 0.3
+                    comps["step16_risk"] = float(l_r.detach())
+                except ImportError:
+                    pass
+        else:
+            # 形式 B：模型直接输出 ttc
+            tgt, valid = ttc_target(batch, device)
+            pred_ttc = (step_out.get("ttc") if isinstance(step_out, dict) else None)
+            if tgt is not None and pred_ttc is not None and valid is not None \
+                    and bool(valid.any()):
+                pred_ttc = pred_ttc.to(device).reshape(-1)
+                l_ttc = F.l1_loss(pred_ttc[valid], tgt[valid].to(pred_ttc.dtype))
+                total = total + 0.3 * l_ttc                # §3.1: step16 权重 0.3
+                comps["step16_ttc"] = float(l_ttc.detach())
 
     comps["iter_n_supervised"] = float(n_supervised)
     comps["iter_active_steps"] = float(len(active))
@@ -1592,9 +1639,12 @@ def train_v2(
     # ---------- 7. 训练循环 ----------
     # ★ 24 步迭代精修（§3）：随机深度用的 RNG（按 epoch 重置，保证可复现）
     iter_rng = random.Random(seed + 20261008)
-    _has_refiner = (hasattr(model, "iter_refiner")
-                    and getattr(model, "iter_refiner", None) is not None)
-    _n_iter_steps = int(getattr(model, "num_iter_steps", 24))
+    # 属性名以 w7 实测契约为准：`refiner`（兼容早期的 iter_refiner）
+    _refiner = getattr(model, "refiner", None)
+    if _refiner is None:
+        _refiner = getattr(model, "iter_refiner", None)
+    _has_refiner = _refiner is not None
+    _n_iter_steps = int(getattr(_refiner, "num_steps", 24) if _has_refiner else 24)
     if enable.get("iter"):
         if _has_refiner:
             print(f"[迭代精修] ✓ 检测到 IterationRefiner（{_n_iter_steps} 步）"
@@ -1645,7 +1695,7 @@ def train_v2(
                     l_iter, c_iter = iterative_refinement_loss(
                         intermediates, batch, device,
                         enable_iter=True,
-                        num_steps=getattr(model, "num_iter_steps", 24),
+                        num_steps=_n_iter_steps,
                         rng=iter_rng if iter_random_depth else None,
                         random_depth=iter_random_depth,
                     )
