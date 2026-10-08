@@ -988,6 +988,20 @@ class IterationRefiner(nn.Module):
         uninitialized/loop 算子，coremltools 8.3 不认识 → 导出必失败。
         手工展开版导出 ✅，真机 M3 p50=0.159ms，体积 3.56MB，24 步在图里（380 算子）。
 
+    ── 真机 M3 整模型实测（w5 导出验证，2026-10-09）──
+        配置                        总算子   p50          p95(最差)      体积(fp16)
+        12步/4步MoE（本类新默认）    891     15.7~19.3ms  20.3~29.3ms   16.08MB
+        24步/全MoE（旧默认）        2223     25.1ms       39.57ms ❌     16.29MB
+        ★ 24 步全 MoE 的 p95 = 39.57ms = 25.3Hz，**跌破 30Hz 预算**；
+          12 步/4 步 MoE 救了这条线（1.89× 提速，算子降 60%）。
+        ⚠️ 但 p95 抖动明显（20.3~29.3ms，最差 29.28ms ≈ 34.2Hz，逼近 33ms 线）：
+           这是 MacBook Air **无风扇热漂移**（测试中 p50 从 15.7 涨到 19.3ms）。
+           真机（有风扇/更大机身）可能更稳，但**余量仅 1.1~1.6×，不宽裕**。
+           若要再压余量：`moe_steps` 减到 2 步，或 `num_steps` 减到 8（未实测）。
+        ⚠️ 上述耗时/算子是**图结构真实**的，但导出产物 65.7% 随机初始化
+           （checkpoint 缺 refiner/experts/heads 权重）→ steer 输出无意义，
+           仅用于性能/图结构验证。
+
     ── 零初始化（与 temporal_proj 同理，w5/Lead 实测坐实的 bug）──
         refiner_proj（残差投影）零初始化 → 起步 refined = fused + 0 = fused
         → 与无迭代逐位一致，旧 checkpoint 不破坏，训练中梯度从零起步逐步学
@@ -1502,6 +1516,18 @@ class M2Model(nn.Module):
 
         调用后模型参数量与推理耗时均下降（BN 折进卷积，少一层访存），
         精度数学等价。
+
+        ⚠️⚠️ **加载 checkpoint 的正确顺序（T13 实测踩坑，静默失败）**：
+            ❌ 错误：`m = build_model(deploy=True); m.load_state_dict(ckpt)`
+               → 部署态 RepVGG 只有折叠后的单个 3×3（键名 `...conv.weight`），
+                 而 checkpoint 存的是**训练态多分支**（`rbr_3x3/rbr_1x1/rbr_identity`
+                 及其 BN）→ **184 个键静默失配**（`strict=False` 不报错），
+                 已训练的图像骨干被当随机权重 → 导出产物看着正常但精度全废。
+            ✅ 正确：`m = build_model(deploy=False)`      # ① 训练态构建
+                     `m.load_state_dict(ckpt, strict=False)`  # ② missing=96, unexpected=0
+                     `m.reparameterize()`                  # ③ 折叠 → 部署态
+            实测：训练态 9,086,774 参数 → 折叠后 8,799,446（差 287,328）
+            建议导出脚本**断言 `unexpected` 为空**（正常应 0），否则说明用错了 deploy 态。
         """
         if self.deploy:
             return

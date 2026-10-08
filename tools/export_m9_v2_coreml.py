@@ -323,6 +323,18 @@ def _build_and_load(sd: Optional[Dict[str, torch.Tensor]], src: Optional[Path]):
         return model, {"missing": 0, "unexpected": 0, "random_init": True}
 
     # 检测权重态：融合态（rbr_reparam）还是训练态（rbr_3x3 多分支）
+    #
+    # ⚠️⚠️ 这是本脚本**最容易静默出错**的地方（w7 2026-10-09 交叉验证时踩到）：
+    #   「deploy=True 构建的模型**不能**直接 load 训练态 checkpoint」
+    #   因为 deploy 态 RepVGG 只有折叠后的单个 3×3（键名 `...conv.weight`），
+    #   而训练态 checkpoint 存的是多分支（`rbr_3x3.*` / `rbr_1x1.*` / `rbr_identity.*`）
+    #   → 键名对不上 → **184 个键静默失配** → 已训练的图像骨干被当随机权重。
+    #   实测后果：随机占比从 65.7% 暴涨到 **94.4%**，产物"看着正常但精度全废"。
+    #   这是**静默失败**（strict=False 不报错），所以下面必须显式断言 unexpected==0。
+    #
+    # ⚠️ 另一个更隐蔽的坑：下面用 `any(...)` 判权重态 —— 只要**任意一个键**含
+    #   `rbr_reparam` 就判为融合态。若拿到**混合态** checkpoint（部分层折叠、
+    #   部分未折叠），会走错分支且 unexpected 未必为 0。故同样靠断言兜底。
     has_reparam = any("rbr_reparam" in k for k in sd)
     if has_reparam:
         print("[导出] 权重为融合态(rbr_reparam) → deploy=True 构建直接 load")
@@ -334,6 +346,20 @@ def _build_and_load(sd: Optional[Dict[str, torch.Tensor]], src: Optional[Path]):
         res = model.load_state_dict(sd, strict=False)
         model.reparameterize()
     model.eval()
+
+    # ★ 静默失配防线（w7 建议 + 本脚本实测坐实）：
+    #   正常情况下 unexpected 必须为 0 —— checkpoint 里不该有模型不认识的键。
+    #   unexpected > 0 说明**权重态判断错了**（典型：deploy 态去 load 训练态权重），
+    #   此时 missing 也会虚高（把已训练的骨干当随机）。必须**硬失败**，不能只打印。
+    if len(res.unexpected_keys) > 0:
+        raise RuntimeError(
+            f"权重加载出现 {len(res.unexpected_keys)} 个 unexpected 键 —— 权重态判断错误！\n"
+            f"  样例：{list(res.unexpected_keys)[:6]}\n"
+            f"  最常见原因：用 deploy=True（RepVGG 已折叠）去 load **训练态多分支** checkpoint。\n"
+            f"  正确流程：build_model(deploy=False) → load_state_dict → reparameterize()。\n"
+            f"  若继续导出，已训练的图像骨干会被当随机权重（实测随机占比 65.7%→94.4%），"
+            f"产物精度全废。")
+
     return model, {
         "missing": len(res.missing_keys),
         "unexpected": len(res.unexpected_keys),
@@ -787,8 +813,17 @@ def main() -> int:
             total_param = sum(p.numel() for p in model.parameters())
             ratio = missing_param / max(total_param, 1) * 100
             load_report["missing_param_ratio"] = ratio
+            # ⚠️ 口径标注（2026-10-09 与 w7 交叉核对后确认，避免后人重复对账）：
+            #   本脚本在 `load_state_dict` + `reparameterize` **之后**统计，
+            #   此时模型是**部署态**（RepVGG 多分支已折叠）→ 分母 8,799,446。
+            #   若在 `build_model(deploy=False)` 的训练态统计，分母是 9,086,774
+            #   （多 287,328 = RepVGG 的 3x3+1x1+identity 分支），同一缺失量
+            #   会算成 63.7% 而非 65.7%。**两个数都对，差别只在统计时点。**
+            #   规范：部署/导出场景用**部署态**口径；训练场景用训练态口径；
+            #   引用时必须带 deploy 态标注，不要写裸百分数。
+            load_report["missing_param_ratio_basis"] = "deploy(RepVGG folded)"
             print(f"[导出]   ⚠ 未命中参数 {missing_param:,} / {total_param:,}"
-                  f" = **{ratio:.1f}% 随机初始化**")
+                  f" = **{ratio:.1f}% 随机初始化**（口径：部署态）")
             if ratio > 5.0:
                 print(f"[导出]   🚨 **随机初始化占比 {ratio:.1f}% > 5% —— 此产物绝不可上车！**\n"
                       f"       原因：checkpoint 缺少新增模块（refiner/experts/heads）的权重。\n"
@@ -905,27 +940,62 @@ def main() -> int:
             return 10
         print("[导出] ✓ 三个辅助头（confidence/risk/car_heading）都在输出契约里")
 
-        # ---- 5c. ★ 24 步迭代精修在图里吗？（CoT 假绿防线，同 t1 同款）----
-        # w7 加 IterationRefiner 后，这里有 24 步手工展开的 GRU（Linear+sigmoid+tanh）。
-        # ⚠️ 它不是原生 gru 算子、也不是 while_loop（故意展开成静态图给 ANE 友好），
-        #    所以判据是「linear 算子数显著多于无迭代基线」+「sigmoid/tanh 各 ≥24」。
-        #    （24 步 shared 严格版实测：linear≈76 sigmoid≈48 tanh≈24 mul≈72 总≈380；
-        #     无迭代基线 fused→proj 是 linear≈1，差距 ~70×，可靠区分。）
-        #    **这条是软警告**（不阻断导出）——因为 w7 可能还没落地 IterationRefiner，
-        #    此时图里不该有 24 步算子；落地后才该有。标 "未检测到" 让人知道要核对。
-        n_linear = ops.get("linear", 0)
-        n_sigmoid = ops.get("sigmoid", 0)
-        n_tanh = ops.get("tanh", 0)
-        n_mul = ops.get("mul", 0)
-        # 24 步手工 GRU 的指纹：sigmoid≥24 且 tanh≥24（每步 2 个门 + 1 个候选）
-        has_24step = (n_sigmoid >= 24 and n_tanh >= 24)
-        if has_24step:
-            print(f"[导出] ✓ 检测到 24 步迭代精修算子（sigmoid×{n_sigmoid} tanh×{n_tanh} "
-                  f"linear×{n_linear} mul×{n_mul}）—— CoT 在图里")
-        else:
-            # 不阻断：w7 可能尚未加 IterationRefiner；若已加却没检测到才该警告
-            print(f"[导出] ⚠ 未检测到 24 步迭代指纹（sigmoid×{n_sigmoid} tanh×{n_tanh}）。"
-                  f"若 model_v2 已加 IterationRefiner 但此处未检出，检查是否被 coremltools 优化掉。")
+        # ---- 5c. ★ 迭代精修（CoT）在图里吗？（假绿防线，同 t1 同款）----
+        # w7 的 IterationRefiner 把手严格 GRU 展开成静态图（Linear+sigmoid+tanh+mul），
+        # **不是**原生 gru 算子、**也不是** while_loop（故意展开给 ANE 友好）。
+        #
+        # ⚠️⚠️ 判据必须**动态读模型实际配置**，不能硬编码步数！
+        #   2026-10-09 踩到：用户拍板改成「12 步，其中 4 步给专家」，默认从
+        #   num_steps=24 变 12、MoE 从「每步」变 moe_steps=[9,10,11,12]。
+        #   我原来的 `sigmoid>=24 and tanh>=24` 硬编码判据会**对 12 步模型误报
+        #   "未检测到"**——那会让人以为 CoT 没进图，实际是判据过期。
+        #   → 正确做法：从模型实例读 num_steps / moe_steps / num_experts，
+        #     再按实际配置算期望指纹。
+        refiner = getattr(model, "refiner", None)
+        if refiner is not None:
+            n_steps = int(getattr(refiner, "num_steps", 0))
+            moe_steps = getattr(refiner, "moe_steps", None)
+            n_experts = int(getattr(refiner, "num_experts", 0)) if getattr(refiner, "experts", None) is not None else 0
+            n_moe_active = len(moe_steps) if moe_steps else (n_steps if n_experts else 0)
+
+            n_linear = ops.get("linear", 0)
+            n_sigmoid = ops.get("sigmoid", 0)
+            n_tanh = ops.get("tanh", 0)
+            n_mul = ops.get("mul", 0)
+            n_relu = ops.get("relu", 0)
+
+            # 指纹依据（w5 实测，手工严格 GRU）：
+            #   · 每步 1 个 tanh（候选隐状态）→ 期望 tanh ≥ num_steps
+            #   · 每步 2 个 sigmoid（z/r 两个门）→ 期望 sigmoid ≥ 2×num_steps
+            #   · MoE 生效步 × 专家数 个 relu（每专家 1 个 ReLU）
+            #   ⚠️ 图里还有其它分支贡献（8帧GRU的sigmoid、image_encoder的relu），
+            #      所以用 **≥ 下界** 判定，不要求精确相等。
+            expect_tanh = n_steps
+            expect_sigmoid = 2 * n_steps
+            expect_moe_relu = n_moe_active * n_experts
+
+            ok_tanh = n_tanh >= expect_tanh
+            ok_sigmoid = n_sigmoid >= expect_sigmoid
+            print(f"[导出] CoT 配置（从模型实例读取）：num_steps={n_steps} "
+                  f"moe_steps={moe_steps} num_experts={n_experts} → MoE 生效 {n_moe_active} 步")
+            if ok_tanh and ok_sigmoid:
+                print(f"[导出] ✓ 迭代精修在图里（tanh×{n_tanh}≥{expect_tanh} "
+                      f"sigmoid×{n_sigmoid}≥{expect_sigmoid} linear×{n_linear} mul×{n_mul}）")
+            else:
+                print(f"[导出] ✗ 假绿防线触发：迭代精修算子不足！"
+                      f"tanh×{n_tanh}(期望≥{expect_tanh}) sigmoid×{n_sigmoid}(期望≥{expect_sigmoid})",
+                      file=sys.stderr)
+                return 12
+            # MoE 专家指纹（软路由，无 argmax/gather）
+            if n_experts > 0 and n_moe_active > 0:
+                # relu 计数含其它分支，故只报实际值 + 期望下界供人工核对
+                print(f"[导出]   MoE 专家：relu×{n_relu}（其中 MoE 期望 ≥{expect_moe_relu} "
+                      f"= {n_moe_active}步×{n_experts}专家；其余来自 image_encoder 等分支）")
+                if ops.get("argmax", 0) or ops.get("gather", 0):
+                    print(f"[导出]   ⚠ 检测到 argmax={ops.get('argmax',0)} "
+                          f"gather={ops.get('gather',0)} —— 应为软路由（可微），请核对")
+                else:
+                    print(f"[导出]   ✓ 软路由确认（无 argmax/gather，可微）")
     except SystemExit:
         raise
     except Exception as exc:

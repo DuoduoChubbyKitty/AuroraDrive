@@ -1,7 +1,7 @@
 {
   "model": "M2 / m9_v2",
   "source": "src/model_v2.py",
-  "checkpoint": "checkpoints/m9_v2/best_model.pt",
+  "checkpoint": "/Users/dupi/Desktop/自动驾驶系统/checkpoints/m9_v2/best_model.pt",
   "precision": "float16",
   "target": "macOS13",
   "random_init": false,
