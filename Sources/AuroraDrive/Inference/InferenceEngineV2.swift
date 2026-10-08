@@ -1007,16 +1007,25 @@ enum V2FeatureBuilder {
 ///   · 存预处理结果：每帧只需预处理**当前帧一次**，其余 7 帧直接复用。
 ///
 /// 【帧序契约】`snapshot()` 返回**最老在前、最新在后**
-/// （index 0 = 最旧，index N-1 = 当前帧）。依据：GRU 逐帧递推，
-/// 时间轴必须与训练侧 `temporal.py` 的"过去→现在"排列一致。
+/// （index 0 = 最旧，index N-1 = 当前帧）。依据：`temporal.py:231/273`
+/// 取 `out[:, -1]`（注释原文「最后一帧的因果聚合」）——
+/// **末位必须是当前帧**，否则因果聚合拿到的是错误的历史端点。
 ///
-/// 【未填满时怎么办】启动头几帧不足 N 帧 → **用最新帧填充前面的空位**
-/// （即"重复最早的那帧"）。为什么不是零填充：
-///   · 零填充会让模型看到"全黑帧"，那是**虚假观测**（画面明明有内容）；
-///   · 复制首帧等于"假设这段时间画面不变"，对静止起步场景是**更诚实的近似**。
-/// ⚠️ 这与 `temporal.py` 的 frame_mask 语义（零输入=不可信）不同 ——
-///   但方案 A 下**模型侧没有 frame_mask 输入了**（Lead 拍板），
-///   所以 Swift 侧必须给出"看起来合理的 8 帧"，而不是把不确定性甩给模型。
+/// 【未填满时怎么办】启动头几帧不足 N 帧 → **前面的空位填零、有效帧靠尾对齐**
+/// （即 `[0,0,...,0, 第1帧, 第2帧]`）。依据（两条，同一结论）：
+///   ① 训练侧 `temporal.py:46-53` 原文：「历史不足 N 帧时两种写法**数值完全等价**
+///      （实测 allclose=True）：mask 方案（无效帧清零、保留位置）/ 零填充方案。
+///      ⚠️ 为什么"清零+保留位置"而不是"丢帧"：GRU 是逐帧递推，丢帧会改变时间轴
+///      对齐，而清零保持"这段是无效历史"的语义 —— 门控会自己学会"零输入=不可信"。」
+///   ② w5 2026-10-08 实测同步：「不足 8 帧时**补零帧到 8**（前 N 帧有效、
+///      其余填零图像），而不是传 1 帧——传 1 帧会被判定为单帧模式，时序不生效」。
+///
+/// ⚠️ **早先版本的两个错误（已修，留痕以免重犯）**：
+///   ① 曾用"复制最老帧"填充空位 —— 那是**虚假观测**（假装这段时间画面没变），
+///      与训练侧的 mask/零填充语义都不符。
+///   ② 曾把有效帧**靠头对齐**（`[当前帧,0,...]`）—— 方向错了：
+///      模型取 `out[:,-1]` 会把**全零帧**当当前帧、把真当前帧当 8 帧前的旧历史。
+///      实测代码核对后修正为**靠尾对齐**。
 struct ImageFrameRingBuffer {
     /// 帧数（= 时序窗口 N）。
     let capacity: Int
@@ -1052,20 +1061,35 @@ struct ImageFrameRingBuffer {
 
     /// 导出时序窗口（**最老在前、最新在后**，长度 = capacity × frameLength）。
     ///
-    /// 未填满时：空位用**已写入的最老帧**填充（见类型注释的理由）。
+    /// 未填满时：空位填**零**，且有效帧**靠尾对齐**（见类型注释的理由）。
+    ///
+    /// ⚠️⚠️ 【靠尾对齐 —— 2026-10-08 修复的真实方向 bug】
+    ///   `temporal.py:231`（GRU 分支）与 `:273`（TCN 分支）都取 `out[:, -1]`
+    ///   —— 注释原文「**最后一帧的因果聚合**」。
+    ///   即 **index N-1 = 当前帧**，index 0 = 最老帧。
+    ///   启动时只有 1 帧有效时，**它必须落在 index N-1**：
+    ///       正确 [0,0,0,0,0,0,0, 当前帧]
+    ///       错误 [当前帧,0,0,0,0,0,0,0]   ← 早先的实现（有效帧靠头）就是这个，
+    ///              后果是模型把**全零帧**当作"当前帧"做因果聚合，
+    ///              而真正的当前帧被当成 8 帧前的旧历史 → 时序语义彻底错乱。
+    ///   修法：`filled < capacity` 时，第 i 个已写入帧放到 `capacity - filled + i`
+    ///   （右对齐），前面的槽位保持零（= "这段是无效历史"，与训练侧
+    ///   `temporal.py:46-53` 的 mask 语义一致）。
     func snapshot() -> [Float] {
         var out = [Float](repeating: 0, count: capacity * frameLength)
         guard frameLength > 0 else { return out }
 
-        // 逻辑顺序：index 0 = 最老
-        //   filled < capacity 时，已写入的帧按插入顺序位于 storage[0..<filled]
-        //   filled == capacity 时，最老帧在 writeIndex
+        // 未填满时的起始写入位置（右对齐）：capacity - filled
+        let offset = filled < capacity ? (capacity - filled) : 0
         for logical in 0..<capacity {
             let physical: Int
             if filled < capacity {
-                // 未填满：logical<filled 时取 storage[logical]；否则复制最老帧(storage[0])
-                physical = logical < filled ? logical : 0
+                // 已写入的 filled 帧位于 storage[0..<filled]，按序放到尾部
+                let src = logical - offset
+                guard src >= 0, src < filled else { continue }   // 头部槽位保持零
+                physical = src
             } else {
+                // 填满：最老帧在 writeIndex（环形读序）
                 physical = (writeIndex + logical) % capacity
             }
             let base = logical * frameLength
@@ -2046,21 +2070,28 @@ extension InferenceEngineV2 {
         // ⑨b 环形缓冲：帧序（最老在前）+ 未填满复制首帧 + 溢出覆盖
         var ring = ImageFrameRingBuffer(capacity: 4, frameLength: 3)
         expect(ring.snapshot().count == 12, "环形缓冲总长 = 容量×帧长")
-        // 帧 i 用 [i, i+1, i+2] 表示（frameLength=3）
-        _ = ring.push([1, 1, 1])
+        // 帧 i 用 [i,i,i] 表示（frameLength=3）
+        _ = ring.push([1, 1, 1])   // 只有 1 帧有效
         var snap1 = ring.snapshot()
-        expect(snap1[0] == 1 && snap1[3] == 1 && snap1[6] == 1 && snap1[9] == 1,
-               "未填满：空位复制首帧（[1,1,1] ×4）")
+        // ⚠️ 必须**靠尾对齐**：末位(index 3) = 当前帧，头部(index 0..2) = 零
+        //   依据 temporal.py:231/273 取 out[:,-1]（最后一帧的因果聚合）
+        expect(snap1[9] == 1, "未填满：唯一有效帧落在**末位**（当前帧位置）")
+        expect(snap1[0] == 0 && snap1[3] == 0 && snap1[6] == 0,
+               "未填满：头部空位**填零**（不是复制首帧 —— 那是虚假观测）")
+        // 再 push 一帧：两帧应右对齐到 index 2,3
         _ = ring.push([2, 2, 2])
+        let snap2 = ring.snapshot()
+        expect(snap2[0] == 0 && snap2[3] == 0 && snap2[6] == 1 && snap2[9] == 2,
+               "未填满(2帧)：右对齐（0,0,1,2），末位仍是当前帧")
         _ = ring.push([3, 3, 3])
         _ = ring.push([4, 4, 4])   // 填满
         var snapFull = ring.snapshot()
         expect(snapFull[0] == 1 && snapFull[3] == 2 && snapFull[6] == 3 && snapFull[9] == 4,
-               "填满：最老在前（1,2,3,4）")
+               "填满：最老在前（1,2,3,4），末位 = 当前帧 4")
         _ = ring.push([5, 5, 5])   // 覆盖最老的 1
         snapFull = ring.snapshot()
         expect(snapFull[0] == 2 && snapFull[3] == 3 && snapFull[6] == 4 && snapFull[9] == 5,
-               "溢出：覆盖最老（2,3,4,5）—— 环形语义")
+               "溢出：覆盖最老（2,3,4,5）—— 环形语义，末位 = 最新 5")
         // 长度不符 → 忽略（不静默截断）
         let rejected = ring.push([9])
         expect(!rejected, "帧长不符 → 拒绝写入（不静默截断）")
