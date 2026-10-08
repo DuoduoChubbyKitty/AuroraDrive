@@ -523,17 +523,55 @@ def save_and_compile(mlmodel, out: Path) -> Tuple[Path, Optional[Path], List[str
 
     ★ 坑 7：优先 `xcrun coremlc`；其产物**不带** Manifest.json 但真机可加载。
       编译不可用时**明确降级**为「仅 .mlpackage」，不假装成功。
+
+    ★★ 坑 9（2026-10-08 修复）：`--out` 传 `.mlpackage` 结尾会**自删产物**。
+        旧代码：
+            mlpackage = out.with_suffix(".mlpackage")   # out 已是 .mlpackage → 同一路径
+            mlmodelc  = out                             # → 也是同一路径
+            ...
+            shutil.rmtree(mlmodelc)                     # → 把刚 save 的产物删掉
+        实测症状：打印"✓ 转换完成/源模型已保存"，exit=6，**盘上无文件**（假报成功）。
+        修法三条（缺一不可）：
+          ① 路径去重：out 以 .mlpackage 结尾时，mlpackage 就是 out 本身，
+             编译产物改到 `<stem>.mlmodelc`，两者永不指向同一路径
+          ② 落盘后**断言存在**（save 完立刻检查，不存在即抛错）
+          ③ **先验证再打印**：任何"已保存/成功"字样都在断言通过之后才输出
     """
     notes: List[str] = []
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    mlpackage = out.with_suffix(".mlpackage")
+    # ---- ① 路径去重（坑 9）----
+    # 语义：out 指向**编译产物** .mlmodelc；.mlpackage 永远取同 stem。
+    # 若调用方把 out 写成 .mlpackage，则 mlpackage=out、mlmodelc=同 stem 的 .mlmodelc，
+    # 绝不出现两者同路径。
+    if out.suffix == ".mlpackage":
+        mlpackage = out
+        mlmodelc = out.with_suffix(".mlmodelc")
+    else:
+        mlpackage = out.with_suffix(".mlpackage")
+        mlmodelc = out
+    if mlpackage == mlmodelc:                      # 双保险：任何情况下都不允许同路径
+        mlmodelc = mlpackage.with_suffix(".mlmodelc")
+    assert mlpackage != mlmodelc, "内部错误：mlpackage 与 mlmodelc 指向同一路径（坑 9）"
+
     if mlpackage.exists():
         shutil.rmtree(mlpackage)
     mlmodel.save(str(mlpackage))
-    notes.append(f"源模型已保存：{mlpackage}")
 
-    mlmodelc = out
+    # ---- ② 落盘后断言（坑 9）----
+    if not mlpackage.exists():
+        raise RuntimeError(
+            f"保存 .mlpackage 失败：{mlpackage} 不存在。"
+            "拒绝继续（避免假报成功）。"
+        )
+    weight_files = [f for f in mlpackage.rglob("*") if f.is_file()]
+    if not weight_files:
+        raise RuntimeError(f"保存的 .mlpackage 是空目录：{mlpackage}（拒绝假报成功）")
+
+    # ---- ③ 先验证再打印（坑 9）----
+    notes.append(f"源模型已保存并校验存在：{mlpackage}"
+                 f"（{len(weight_files)} 个文件）")
+
     if mlmodelc.exists():
         shutil.rmtree(mlmodelc)
 
@@ -544,22 +582,53 @@ def save_and_compile(mlmodel, out: Path) -> Tuple[Path, Optional[Path], List[str
         r = None
         notes.append("xcrun 不存在（未装 Xcode CLT）→ 无法编译 .mlmodelc")
 
-    if r is not None and r.returncode == 0 and (mlmodelc / "Manifest.json").exists():
-        notes.append(f"编译成功（xcrun coremlc）：{mlmodelc}（含 Manifest.json，可直接加载）")
+    if r is not None and r.returncode == 0 and _is_compiled_ok(mlmodelc):
+        notes.append(f"编译成功（xcrun coremlc）：{mlmodelc}")
+        notes.append("  注：无 Manifest.json 属正常（coremlc 不产该文件）；"
+                     "真机 MLModel(contentsOf:) 可加载，Manifest.json 只是 coremltools 的要求")
         return mlpackage, mlmodelc, notes
 
     if r is not None and r.returncode == 0:
-        notes.append(f"⚠ xcrun 返回 0 但 {mlmodelc} 缺 Manifest.json —— 视为未编译")
+        notes.append(f"⚠ xcrun 返回 0 但 {mlmodelc} 缺 model.mil/coremldata.bin —— 视为编译失败")
     elif r is not None:
         notes.append(f"⚠ xcrun coremlc 失败（rc={r.returncode}）：{r.stderr.strip()[:160]}")
 
     if mlmodelc.exists():
         shutil.rmtree(mlmodelc, ignore_errors=True)
 
-    # 替代方案：保留 .mlpackage，由 InferenceEngine.modelURL 的
-    #   .mlmodelc → .mlpackage 回退路径兜底（该回退已存在于 InferenceEngine.swift:142-150）
-    notes.append("→ 替代方案：仅保留 .mlpackage，靠 InferenceEngine.modelURL 的 "
-                 ".mlmodelc→.mlpackage 回退加载（该回退已存在）")
+    # 替代方案：保留 .mlpackage。⚠️ MLModel(contentsOf:) **不能**直接加载 .mlpackage，
+    # 调用方必须先 MLModel.compileModel(at:)（见脚本头 坑 7）。
+    notes.append("→ 替代方案：仅保留 .mlpackage。⚠️ 加载前必须先走 "
+                 "MLModel.compileModel(at:)，否则 MLModel(contentsOf:) 会报 "
+                 "'Compile the model with Xcode'")
+    return mlpackage, None, notes
+
+    cmd = ["xcrun", "coremlc", "compile", str(mlpackage), str(mlmodelc.parent)]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True)
+    except FileNotFoundError:
+        r = None
+        notes.append("xcrun 不存在（未装 Xcode CLT）→ 无法编译 .mlmodelc")
+
+    if r is not None and r.returncode == 0 and _is_compiled_ok(mlmodelc):
+        notes.append(f"编译成功（xcrun coremlc）：{mlmodelc}")
+        notes.append("  注：无 Manifest.json 属正常（coremlc 不产该文件）；"
+                     "真机 MLModel(contentsOf:) 可加载，Manifest.json 只是 coremltools 的要求")
+        return mlpackage, mlmodelc, notes
+
+    if r is not None and r.returncode == 0:
+        notes.append(f"⚠ xcrun 返回 0 但 {mlmodelc} 缺 model.mil/coremldata.bin —— 视为编译失败")
+    elif r is not None:
+        notes.append(f"⚠ xcrun coremlc 失败（rc={r.returncode}）：{r.stderr.strip()[:160]}")
+
+    if mlmodelc.exists():
+        shutil.rmtree(mlmodelc, ignore_errors=True)
+
+    # 替代方案：保留 .mlpackage。⚠️ MLModel(contentsOf:) **不能**直接加载 .mlpackage，
+    # 调用方必须先 MLModel.compileModel(at:)（见脚本头 坑 7）。
+    notes.append("→ 替代方案：仅保留 .mlpackage。⚠️ 加载前必须先走 "
+                 "MLModel.compileModel(at:)，否则 MLModel(contentsOf:) 会报 "
+                 "'Compile the model with Xcode'")
     return mlpackage, None, notes
 
 
@@ -690,10 +759,14 @@ def main() -> int:
     tol = args.tol if args.tol is not None else (2e-2 if args.precision == "int8" else 5e-3)
     print(f"[导出] 精度校验（阈值 {tol:g}，{args.precision}）：")
 
-    # 优先用编译产物（真机路径）；缺 Manifest 时退回 .mlpackage 验证转换正确性
-    verify_path = mlmodelc if (mlmodelc and (mlmodelc / "Manifest.json").exists()) else mlpackage
-    print(f"[导出]   校验对象：{verify_path.name}"
-          f"{'（编译产物）' if verify_path == mlmodelc else '（未编译源模型，仅验证转换正确性）'}")
+    # ★ 坑 7：Python 侧 `ct.models.MLModel` 要求 Manifest.json，而 coremlc 产物没有
+    #   （真机 CoreML 能加载，Python 不能）。故 Python 精度校验**一律走 .mlpackage**，
+    #   它验证的是「转换正确性」，与编译产物同源同图，等价性成立。
+    verify_path = mlpackage
+    print(f"[导出]   校验对象：{verify_path.name}（Python 侧用 .mlpackage，见脚本头 坑 7）")
+    if mlmodelc is not None:
+        print(f"[导出]   部署产物：{mlmodelc.name}（已用 xcrun coremlc 编译；"
+              f"真机 MLModel(contentsOf:) 可加载）")
     try:
         loaded = ct.models.MLModel(str(verify_path))
     except Exception as exc:

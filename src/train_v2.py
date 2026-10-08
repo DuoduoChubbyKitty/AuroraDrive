@@ -1063,11 +1063,13 @@ def train_v2(
     if synthetic:
         train_ds = _SyntheticV2Dataset(size=synthetic_size, image_size=image_size,
                                        num_dets=num_dets, with_lane=not no_lane,
-                                       with_det=not no_det, seed=seed)
+                                       with_det=not no_det, seed=seed,
+                                       lane_in_image=synthetic_lane_in_image)
         val_ds = _SyntheticV2Dataset(size=max(32, synthetic_size // 4),
                                      image_size=image_size, num_dets=num_dets,
                                      with_lane=not no_lane, with_det=not no_det,
-                                     seed=seed + 7777)
+                                     seed=seed + 7777,
+                                     lane_in_image=synthetic_lane_in_image)
         ds_source = "合成数据 _SyntheticV2Dataset（自测用）"
         has_lane, has_det = (not no_lane), (not no_det)
         print(f"[数据] 合成数据集：train={len(train_ds)} val={len(val_ds)}")
@@ -1448,6 +1450,9 @@ def parse_args():
     p.add_argument("--force_reference_model", action="store_true")
     p.add_argument("--synthetic", action="store_true", help="合成数据自测")
     p.add_argument("--synthetic_size", type=int, default=256)
+    p.add_argument("--synthetic_lane_in_image", action="store_true",
+                   help="把车道线同时画进合成图像（默认不画；画了会掩盖车道分支价值，"
+                        "导致消融测不出差异）")
     p.add_argument("--limit_batches", type=int, default=0, help="每 epoch 最多跑 N 个 batch")
     return p.parse_args()
 
@@ -1475,6 +1480,7 @@ def main():
         lane_ablation_every=a.lane_ablation_every,
         lane_sign_autocalib=not a.no_lane_sign_autocalib,
         synthetic=a.synthetic, synthetic_size=a.synthetic_size,
+        synthetic_lane_in_image=a.synthetic_lane_in_image,
         limit_batches=a.limit_batches, resume=a.resume,
         force_reference_model=a.force_reference_model,
     )

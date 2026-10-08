@@ -768,6 +768,339 @@ struct ViewportPanel: View {
                         ? Aurora.danger.opacity(0.75) : Aurora.hair1,
                     lineWidth: state.roadCondition.needsTakeover ? 1.5 : 1)
         }
+        // ── 预览框右侧：窗口选择拉条（2026-10-08 新增，用户点名要求）──
+        //
+        // 【用户原话】「我们可以在自动驾驶的预览框右边放一个小小的拉条，然后拉出来，
+        //   就可以看到当前所有的窗口（大窗口、游戏的窗口），然后把游戏窗口可以选择是
+        //   录全屏还是只录游戏这个窗口。」
+        //
+        // 【为什么挂在 ViewportPanel 最外层的 .overlay(alignment: .trailing)】
+        //   与 QuestCard 同一个套路（见 :630 的说明）：overlay **不参与布局流**，
+        //   所以拉条既不会挤动左边的预览画面，也不会改变上面那些 TagChip 的坐标。
+        //   挂 `.trailing` 就是「贴在预览框右缘」。
+        //
+        // 【为什么在 clipShape 之后】拉条是贴着边框的控件，要在圆角裁剪之外，
+        //   否则展开时会被 16pt 圆角切掉一角。
+        .overlay(alignment: .trailing) {
+            WindowPickerRail(state: state)
+        }
+    }
+}
+
+// ============================================================================
+// MARK: - 窗口选择拉条（2026-10-08 新增，用户点名要求）
+// ============================================================================
+//
+// 【用户需求逐条落地】
+//   · 「预览框右边放一个小小的拉条」→ 收起时只有 16pt 宽的竖条，贴预览框右缘
+//   · 「拉出来」                     → 点击竖条展开成 236pt 面板
+//   · 「可以看到当前所有的窗口」      → 列出 SCShareableContent.windows（已过滤）
+//   · 「大窗口、游戏的窗口」          → 游戏窗口置顶并高亮；尺寸大的排前面
+//   · 「选择是录全屏还是只录游戏窗口」 → 面板顶部「录全屏」+ 每个窗口一项
+//
+// 【性能红线】窗口枚举是系统调用（10-60ms），**只在展开时刷新一次**，
+//   不随 30Hz tick 重算 —— 否则每帧一次 SCShareableContent.current 会拖垮 UI。
+//   列表内容在展开瞬间快照，用户点「刷新」才重取（窗口会变，但要用户主动要）。
+//
+// 【不写控制量】本视图只读 state、只调 state 上的两个 async 方法
+//   （refreshCapturableWindows / selectCaptureMode），不碰任何驾驶控制量。
+struct WindowPickerRail: View {
+    @Bindable var state: DriveState
+
+    /// 收起态竖条宽度 / 展开态面板宽度
+    private let collapsedWidth: CGFloat = 16
+    private let expandedWidth: CGFloat = 236
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if state.windowPickerExpanded {
+                expandedPanel
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+            collapsedTab
+        }
+        .animation(.easeOut(duration: 0.18), value: state.windowPickerExpanded)
+        // 贴住右缘、垂直居中；上下各留 14pt 与 TagChip 的 padding 对齐
+        .padding(.vertical, 14)
+        .frame(maxHeight: .infinity, alignment: .center)
+    }
+
+    // MARK: 收起态：一条窄竖条（点击展开/收起）
+
+    private var collapsedTab: some View {
+        Button {
+            state.windowPickerExpanded.toggle()
+            if state.windowPickerExpanded {
+                // 展开瞬间刷新一次窗口列表（异步，不阻塞展开动画）
+                Task { await state.refreshCapturableWindows() }
+            }
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: state.windowPickerExpanded ? "chevron.right" : "chevron.left")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Aurora.ice)
+                // 竖排文字：宽度只有 16pt，横排会溢出
+                Text("窗口")
+                    .font(.system(size: Aurora.fsMicro, weight: .semibold))
+                    .tracking(1.5)
+                    .foregroundStyle(Aurora.t3)
+                    .fixedSize()
+                    .rotationEffect(.degrees(90))
+                    .frame(width: 12, height: 34)
+                // 游戏窗口存在时点一个小绿点，暗示"可以切到游戏窗口"
+                if state.recommendedGameWindow != nil {
+                    Circle().fill(Aurora.ok).frame(width: 4, height: 4)
+                        .shadow(color: Aurora.ok, radius: 3)
+                }
+            }
+            .frame(width: collapsedWidth)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color.black.opacity(0.45))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .strokeBorder(Aurora.hair2, lineWidth: 1)
+        }
+        .help(state.windowPickerExpanded ? "收起窗口选择" : "展开窗口选择（选录全屏或某个窗口）")
+    }
+
+    // MARK: 展开态：窗口列表
+
+    private var expandedPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            Divider().overlay(Aurora.hair1)
+            if state.windowListLoading {
+                loadingRow
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        fullScreenRow
+                        if let game = state.recommendedGameWindow {
+                            sectionLabel("推荐（检测到游戏窗口）")
+                            windowRow(game, highlighted: true)
+                        }
+                        sectionLabel("其他窗口（\(otherWindows.count)）")
+                        if otherWindows.isEmpty {
+                            emptyRow
+                        } else {
+                            ForEach(otherWindows) { window in
+                                windowRow(window, highlighted: false)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+                .frame(maxHeight: 320)
+            }
+            if let error = state.captureModeError ?? state.windowListError {
+                errorRow(error)
+            }
+            Divider().overlay(Aurora.hair1)
+            footer
+        }
+        .frame(width: expandedWidth)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Aurora.glassSolid)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Aurora.hair2, lineWidth: 1)
+        }
+    }
+
+    /// 非游戏窗口（游戏那个已单独置顶显示，这里不重复列）
+    private var otherWindows: [CapturableWindow] {
+        state.capturableWindows.filter { !$0.isGame }
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Text("捕获源")
+                .font(.system(size: Aurora.fsSmall, weight: .semibold))
+                .foregroundStyle(Aurora.t1)
+            Spacer()
+            Button {
+                Task { await state.refreshCapturableWindows() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Aurora.ice)
+            }
+            .buttonStyle(.plain)
+            .help("刷新窗口列表（窗口会变化）")
+            Button {
+                state.windowPickerExpanded = false
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Aurora.t3)
+            }
+            .buttonStyle(.plain)
+            .help("收起")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    /// 「录全屏」选项（模式 A）
+    private var fullScreenRow: some View {
+        let selected = !state.captureMode.isWindowMode
+        return Button {
+            Task { await state.selectCaptureMode(.fullScreen) }
+        } label: {
+            HStack(spacing: 7) {
+                selectionDot(selected)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("录全屏")
+                        .font(.system(size: Aurora.fsSmall, weight: selected ? .semibold : .regular))
+                        .foregroundStyle(selected ? Aurora.t1 : Aurora.t2)
+                    // 如实说明：全屏模式会排除自家窗口（本次修复的核心）
+                    Text("整块显示器（已排除 AuroraDrive 自己的窗口）")
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.t4)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(rowBackground(selected))
+    }
+
+    /// 单个窗口选项
+    private func windowRow(_ window: CapturableWindow, highlighted: Bool) -> some View {
+        let selected = state.captureMode == .window(id: window.id)
+        return Button {
+            Task { await state.selectCaptureMode(.window(id: window.id)) }
+        } label: {
+            HStack(spacing: 7) {
+                selectionDot(selected)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        if highlighted {
+                            Image(systemName: "gamecontroller.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(Aurora.ok)
+                        }
+                        Text(window.applicationName)
+                            .font(.system(size: Aurora.fsSmall, weight: selected || highlighted ? .semibold : .regular))
+                            .foregroundStyle(highlighted ? Aurora.ok : (selected ? Aurora.t1 : Aurora.t2))
+                            .lineLimit(1)
+                    }
+                    if !window.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(window.title)
+                            .font(.system(size: Aurora.fsMicro))
+                            .foregroundStyle(Aurora.t3)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Text(window.sizeLabel)
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.t4)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(rowBackground(selected || highlighted))
+    }
+
+    private func selectionDot(_ selected: Bool) -> some View {
+        Circle()
+            .strokeBorder(selected ? Aurora.ice : Aurora.hair3, lineWidth: 1.2)
+            .background(Circle().fill(selected ? Aurora.ice : Color.clear))
+            .frame(width: 9, height: 9)
+    }
+
+    private func rowBackground(_ active: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .fill(active ? Aurora.iceWash : Color.clear)
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: Aurora.fsMicro, weight: .semibold))
+            .foregroundStyle(Aurora.t4)
+            .padding(.horizontal, 10)
+            .padding(.top, 7)
+            .padding(.bottom, 2)
+    }
+
+    private var loadingRow: some View {
+        HStack(spacing: 6) {
+            ProgressView().controlSize(.small)
+            Text("正在枚举窗口…")
+                .font(.system(size: Aurora.fsMicro))
+                .foregroundStyle(Aurora.t3)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var emptyRow: some View {
+        Text("没有其他可捕获的窗口")
+            .font(.system(size: Aurora.fsMicro))
+            .foregroundStyle(Aurora.t4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+    }
+
+    private func errorRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 5) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(Aurora.amber)
+            Text(text)
+                .font(.system(size: Aurora.fsMicro))
+                .foregroundStyle(Aurora.amber)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+    }
+
+    /// 底部：当前正在录什么 + 自家 UI 告警
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(state.isRecording ? Aurora.danger : Aurora.t4)
+                    .frame(width: 4, height: 4)
+                Text(state.captureModeDescription)
+                    .font(.system(size: Aurora.fsMicro))
+                    .foregroundStyle(Aurora.t3)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let warning = state.captureOwnUIWarning {
+                HStack(alignment: .top, spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(Aurora.danger)
+                    Text(warning)
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -5726,6 +6059,19 @@ struct ContentView: View {
         // 注入按键/截屏引擎 → 技能中心（人类 + AI 共用执行通道）
         AgentSkillCenter.shared.configure(control: state.controlEngine,
                                           capture: state.captureEngine)
+        // 2026-10-08 补齐：`drive_dataset` 技能要用的录制引擎与视角提供者。
+        //
+        // 【为什么现在才补】`AgentSkillCenter.recordEngine` 是可选注入属性，
+        //   但**全仓库从来没有一处给它赋值**（grep 确认只有声明与使用）。
+        //   于是 `drive_dataset` 技能永远走 `guard let recorder = recordEngine else`
+        //   的失败分支 → 用户点「驾驶数据采集」只会看到「录制引擎未注入」。
+        //   这里在同一个初始化时机一并注入（与 control/capture 同一套路）。
+        AgentSkillCenter.shared.recordEngine = state.recordEngine
+        // 视角提供者：让 AI 技能路径与 UI 开关用**同一个视角**，
+        // 避免「UI 选了 TPV、AI 采集仍录 FPV」的不一致。
+        AgentSkillCenter.shared.recordPerspectiveProvider = { [weak state] in
+            state?.recordPerspective ?? "first"
+        }
 
         if args.contains("--agent-selftest") {
             print("[AGENT] --agent-selftest 收到，1.2s 后开始自测")

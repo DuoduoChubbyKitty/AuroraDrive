@@ -1,0 +1,1598 @@
+// SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// ============================================================================
+//  InferenceEngineV2.swift — M9-V2 多输入端到端推理引擎（T4-Swift 集成）
+// ============================================================================
+//
+//  【为什么新建而不是改 InferenceEngine.swift】
+//    原引擎跑 m9_mono（2 输入：image + vehicle_state[6]），是当前**在车上跑**
+//    的链路。新模型是 5 输入、state 8 维，属于**结构性变更**；直接改原文件会让
+//    「回滚到旧模型」变成一次大改。故新引擎独立成文件，靠开关切换，原文件
+//    一字不动（可回滚）。
+//
+//  【契约真值来源（权威，非转述）】
+//    · src/model_v2.py          —— M2Model 的 forward 签名与各分支编码器定义
+//    · tools/export_m9_v2_coreml.py —— **实际产出 CoreML 的脚本**，含 8 个实测坑
+//    两者不一致时以 export 脚本为准（它决定落到磁盘的 .mlmodelc 长什么样）。
+//
+//  ┌───────────────┬──────────────────────┬────────┬──────────────────────────┐
+//  │ CoreML 输入名 │ shape                │ dtype  │ 含义                     │
+//  ├───────────────┼──────────────────────┼────────┼──────────────────────────┤
+//  │ image         │ [1, 3, 180, 320]     │ f32    │ 第三视角截图 CHW [0,1]   │
+//  │ lane          │ [1, 1, 160, 160]     │ f32    │ 车道线掩码 二值 0/1      │
+//  │ dets          │ [1, 20, 12]          │ f32    │ 检测框固定槽位，空槽补 0 │
+//  │ det_mask      │ [1, 20]              │ f32    │ 1=有效框，0=空槽         │
+//  │ vehicle_state │ [1, 8]               │ f32    │ 车辆状态（见下）         │
+//  ├───────────────┼──────────────────────┼────────┼──────────────────────────┤
+//  │ steer         │ [1, 1]               │ f32    │ tanh    ∈ [-1, 1]        │
+//  │ throttle      │ [1, 1]               │ f32    │ sigmoid ∈ [0, 1]         │
+//  │ brake         │ [1, 1]               │ f32    │ sigmoid ∈ [0, 1]         │
+//  └───────────────┴──────────────────────┴────────┴──────────────────────────┘
+//
+//  ⚠️⚠️ **输入名是 `lane`，不是 `lane_mask`** —— 这是最容易踩的坑：
+//    `src/model_v2.py` 的 forward **形参**叫 `lane_mask`，但导出的 CoreML
+//    **特征名**是 `lane`（见 export 脚本契约表，以及实测报错原文：
+//      KeyError: Provided key "state" ... does not match any of the model input
+//      name(s), which are: {'dets','det_mask','lane','state_workaround','image'}）
+//    按形参名去 MLFeatureProvider 里取值 → 运行时 KeyError。本文件用
+//    `V2InputContract.featureName` 单一常量表驱动，杜绝这类错位。
+//
+//  ⚠️ 输入名**绝不能叫 `state`**：coremltools 8.3 会静默改名成 `state_workaround`
+//    （`state` 与 MIL 内部保留字冲突），且报错发生在推理期而非转换期。
+//    本模型用的是 `vehicle_state`（恰好与旧引擎同名）。
+//
+//  ⛔ 契约红线（src/model_v2.py §八，用户明确要求）：
+//    1. **不接收可行驶区域（drivableMask / daGrid）**。lane 通道只放车道线。
+//       把 drivableMask 拼进 lane 属于破坏契约 —— 本文件只读 `laneMask`，
+//       从不读 `drivableMask`（有自检断言守着）。
+//    2. 第三视角下自车也会被检测成框，该框必须在 Swift 侧 `EgoBoxFilter`
+//       剔除后再喂；模型只收 `ego_visible` 标志位（vehicle_state[7]）。
+//
+//  【本文件修掉的两个既有 bug（Lead 已核实的实测结论）】
+//    bug 1 · InferenceEngine.swift:431-436 —— vehicle_state 6 维里
+//            idx1(curvature) / idx2(sin h) / idx5(reserved) **恒为 0**、
+//            idx3(cos h) **恒为 1**，等于 6 维只用了 2 维（speed_norm +
+//            speed_limit_norm）。本文件改为**真算**曲率与朝向（见 LaneGeometryEstimator）。
+//    bug 2 · SpeedOCRReader.swift:157/712 —— `speedKmh` 读不到时是 **-1**，
+//            不先判 `speedValid` 就归一化会把负速度喂进模型。本文件
+//            `buildVehicleState` 以 `speedValid` 为**硬门**：无效则填 0。
+//
+//  【性能红线】沿用原引擎的成熟做法：
+//    · 类 @MainActor（UI 可观察），重活全部在 inferenceQueue 后台
+//    · 预处理/编码是 nonisolated 静态纯函数，无 self 捕获
+//    · 复用 MLMultiArray 缓冲，避免每帧新建（image ≈691KB）
+//    · 与 captureQueue / aurora.quest.ocr 无共享资源
+// ============================================================================
+
+import Accelerate
+import AppKit
+@preconcurrency import CoreML
+import Foundation
+import Observation
+
+// MARK: - 输入契约（单一常量表，驱动全部取值）
+
+/// M9-V2 的 CoreML 输入/输出契约。
+///
+/// 【为什么集中成常量表】实测坑 4：`ct.convert(inputs:...)` 的顺序与
+/// `torch.jit.trace` 实参顺序必须一致，错位会报错但**不该依赖报错**。
+/// Swift 侧同理：特征名散落在各处字符串里，改一处漏一处就会 KeyError。
+/// 集中成一张表后，改契约只改这里。
+enum V2InputContract {
+    /// ⚠️ 是 `lane` 不是 `lane_mask`（见文件头）。
+    static let image = "image"
+    static let lane = "lane"
+    static let dets = "dets"
+    static let detMask = "det_mask"
+    static let vehicleState = "vehicle_state"
+
+    static let steer = "steer"
+    static let throttle = "throttle"
+    static let brake = "brake"
+
+    /// 图像输入尺寸（与旧引擎一致，180×320 是既定分辨率）。
+    static let imageHeight = 180
+    static let imageWidth = 320
+    /// 车道线掩码边长（对齐 `YolopxEngine.maskGridSize = 160`）。
+    static let laneSize = 160
+    /// 检测框固定槽位数。CoreML 不支持动态 N（实测坑 2），必须固定 + valid 位。
+    static let maxDetections = 20
+    /// 每框特征维度。**12 维**（不是 13）。
+    ///
+    /// ⚠️ `src/model_v2.py:210` 的常量注释把 ego_visible 也列进了 12 维里
+    ///    （列出来是 13 项），与 `DET_FEAT_DIM = 12` 及 `DetectionEncoder`
+    ///    文档（:552-560）矛盾。**以实现为准**：
+    ///      [0]x [1]y [2]w [3]h [4:8]label_onehot4 [8]conf [9]speed [10]heading [11]age
+    ///    且 DetectionEncoder 明确「第 6 维不用；自车信息通过 state 的 reserved
+    ///    位传递」。Lead 已确认按 12 维实现，并会修掉那行注释。
+    static let detFeatureDim = 12
+    /// 车辆状态维度。
+    static let stateDim = 8
+
+    /// 检测框类别 one-hot 顺序：car, pedestrian, sign, obstacle。
+    /// 与 `Detection.Label` 的声明顺序一致（RuleController.swift:32-36）。
+    static let labelCount = 4
+}
+
+// MARK: - 可调参数
+
+/// M9-V2 集成侧可调参数（集中定义，便于标定与回归）。
+struct V2Config: Sendable, Equatable {
+    /// 车道线采样带：起始行（占掩码高度的比例，0=顶部/远处）。
+    ///
+    /// 【为什么从 0.55 开始】掩码是 letterbox 640 坐标系的俯视图投影，
+    /// 最上方是远处（车道线在该处只有 1~2 格宽、极易断裂），最下方贴近自车
+    /// （可能被车头遮挡）。取中间偏下的一段既有足够像素又贴近决策关注区。
+    var bandTopRatio: Double = 0.55
+    /// 车道线采样带：结束行（0.95 = 靠近自车，留 5% 避开可能被自车遮挡的底边）。
+    var bandBottomRatio: Double = 0.95
+    /// 曲率归一化参考值（像素⁻¹）。
+    ///
+    /// 【标定状态：待实测标定（CALIBRATION-PENDING）】
+    ///   曲率的**物理量纲**取决于像素↔米的比例，而该比例随游戏分辨率/视野变化，
+    ///   在 Swift 侧不可知。故这里用一个"在 160×160 网格上算作强弯"的参考值：
+    ///   在 64 行采样带上，若车道中心呈二次弯曲、横向总偏移约 40 格，
+    ///   则 κ ≈ 2·40/64² ≈ 0.0195 ≈ 0.02。取 0.02 作参考，使强弯落在 ±1 附近。
+    ///   ⚠️ 这是**有依据的占位**，不是标定值；等真实数据回来应重新拟合。
+    var curvatureReference: Double = 0.02
+    /// 纵向加速度归一化基准（m/s²）。契约：accel / 10。
+    var accelReference: Double = 10.0
+    /// 车速归一化上限（km/h）。契约：[0] speed = 车速/速度上限。
+    /// 缺省 120 与旧引擎 `speedNorm = speedKmh / 120` 保持一致。
+    var speedReference: Double = 120.0
+    /// 有效车道线所需的最少采样行数（少于该数视为"没看见车道线"，如实置 invalid）。
+    var minLaneRows: Int = 6
+    /// **前景格数下限**（INT8 退化保护，见下方说明）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 【为什么需要这条 —— 项目既有实测，不是推测】
+    /// ══════════════════════════════════════════════════════════════════════
+    /// `tools/yolopx/export_yolopx_coreml.py:58-64` 原文实测：同一批真实行车图，
+    /// 三档量化的**车道线正像素占比**：
+    ///     fp16   1.30–1.80%   ✅
+    ///     w8a16  1.30–1.80%   ✅（与 fp16 逐位一致）
+    ///     int8   0.13–0.21%   ❌ **掉约 10×**
+    /// 根因（`export_yolopx_int8.py:42-46`）：校准集用了游戏 UI 截图
+    /// （菜单/设置/桌面）→ 激活分布严重偏斜 → 量化后车道线头塌陷。
+    ///
+    /// 而本引擎的 lane 通道来源正是 `yolopxEngine.laneMask`，**上游 yolopx
+    /// 本身就可能是 INT8 的**（`models/ayolom_n_int8.mlmodelc`）。也就是说：
+    /// 车道线可能在**进入本引擎之前就已经被量化打没了**。
+    ///
+    /// 160×160 = 25600 格，正常车道线占 1.3%~1.8% ≈ **333~461 格**；
+    /// 被 INT8 打掉 10× 后只剩 **33~54 格**，且高度碎片化。
+    /// 取 30 格作下限：低于它说明上游已经不可信，**宁可如实报"没有车道线"，
+    /// 也不用碎片硬拟合出一条假车道线** —— 后者会让模型收到错误的曲率/朝向，
+    /// 比收到 0（=未知）危险得多。
+    ///
+    /// ⚠️ 注意本阈值只挡"极端退化"。33~54 格仍在阈值之上，会进入拟合；
+    /// 此时靠 `minLaneRows`（有效行数）与双侧/单侧分级继续兜底。
+    var minLanePixels: Int = 30
+    /// 单侧车道线缺失时使用的标称半宽（占掩码宽度的比例）。
+    ///
+    /// 【为什么需要】只看到一侧车道线时（另一侧被压线/断裂），若直接放弃该行，
+    /// 有效行会骤降导致整帧 invalid。用**本帧双侧行的半宽中位数**兜底更稳；
+    /// 若本帧一行双侧都没有，才退回这个标称值。
+    var nominalHalfWidthRatio: Double = 0.22
+
+    static let `default` = V2Config()
+}
+
+// MARK: - 车道线掩码快照（Sendable 值类型，可安全跨 actor）
+
+/// `MaskGrid` 的**可跨线程值快照**。
+///
+/// 【为什么要这一层】`MaskGrid` 是 `YolopxEngine` 的类型（YolopxEngine.swift:45），
+/// 它没声明 `Sendable`。虽然成员都是值类型（Int/[UInt8]）应当可推断，
+/// 但把它塞进 `DispatchQueue.async` 的 `@Sendable` 闭包时，Swift 6 严格并发
+/// 可能报错。取一份纯值快照（一次 25KB 拷贝）既避免跨 actor 争议，
+/// 也让纯算法可以离线单测（不需要构造 MaskGrid 之外的东西）。
+struct LaneMaskSnapshot: Sendable, Equatable {
+    let width: Int
+    let height: Int
+    /// 行优先，0 = 背景，1 = 前景。
+    let cells: [UInt8]
+
+    /// 从 `MaskGrid` 构造；尺寸不符时返回 nil（由调用方如实置 invalid，不猜）。
+    init?(mask: MaskGrid) {
+        guard mask.width > 0, mask.height > 0,
+              mask.cells.count >= mask.width * mask.height else { return nil }
+        self.width = mask.width
+        self.height = mask.height
+        self.cells = Array(mask.cells.prefix(mask.width * mask.height))
+    }
+
+    /// 直接构造（自检用）。
+    init(width: Int, height: Int, cells: [UInt8]) {
+        self.width = width
+        self.height = height
+        self.cells = cells
+    }
+
+    @inline(__always)
+    func at(_ x: Int, _ y: Int) -> Bool {
+        guard x >= 0, x < width, y >= 0, y < height else { return false }
+        let idx = y * width + x
+        guard idx >= 0, idx < cells.count else { return false }
+        return cells[idx] != 0
+    }
+
+    /// 前景格数（诊断：INT8 退化时该值会异常小，见 `V2Config.minLanePixels`）。
+    var positiveCount: Int {
+        var n = 0
+        for c in cells where c != 0 { n += 1 }
+        return n
+    }
+
+    /// 空白掩码（无车道线）。
+    static func empty(size: Int = V2InputContract.laneSize) -> LaneMaskSnapshot {
+        LaneMaskSnapshot(width: size, height: size,
+                         cells: [UInt8](repeating: 0, count: size * size))
+    }
+}
+
+// MARK: - 车道线几何（曲率 / 朝向 / 横向偏移）
+
+/// 从车道线掩码估计出的几何量。**这是修 bug 1 的核心产出。**
+///
+/// 三个量的符号约定（统一为"正值 = 需要向右打方向"，与 steer 的正负号同向）：
+///   · heading > 0      车道前方相对车头**偏右**（需要右打）
+///   · curvature > 0    车道**向右弯**
+///   · lateralOffset > 0 车**偏在车道中心的右侧**
+struct LaneGeometry: Sendable, Equatable {
+    /// 路径曲率 ∈ [-1,1]。`valid == false` 时恒为 0。
+    var curvature: Double = 0
+    /// 当前朝向角 / π ∈ [-1,1]。`valid == false` 时恒为 0。
+    var heading: Double = 0
+    /// 相对车道中心横向偏移 ∈ [-1,1]。`valid == false` 时恒为 0。
+    var lateralOffset: Double = 0
+    /// **是否有可信的车道线几何**。
+    ///
+    /// 【诚实原则】没有足够车道线像素时置 false 且三个量全 0 —— 这对应
+    /// `model_v2.py` 的「全零 = 未知」语义（StateEncoder 对 None 输入返回零向量，
+    /// 让网络学到"全零 = 未知"，而不是用假数据污染）。**绝不编造几何量。**
+    var valid: Bool = false
+    /// 实际参与拟合的采样行数（诊断用）。
+    var sampledRows: Int = 0
+    /// 本次掩码的前景格数（诊断用；INT8 退化时该值会异常小）。
+    var lanePixels: Int = 0
+    /// 是否双侧都有车道线（false = 单侧拟合，此时 `lateralOffset` 不可信）。
+    var bothSides: Bool = false
+    /// 二次拟合系数（诊断用）：centerX = a·s² + b·s + c，s ∈ [-1,0]，s=0 为近端。
+    var fitA: Double = 0
+    var fitB: Double = 0
+    var fitC: Double = 0
+
+    /// 无有效几何（全零 + valid=false）。
+    static let unknown = LaneGeometry()
+
+    /// **横向偏移是否可信**。
+    ///
+    /// 【为什么要单独一个标志】单侧车道线时，中心是靠"本帧半宽中位数"或
+    /// 标称半宽**补出来的**，补出来的中心只能反映"那条线在哪"，
+    /// 无法反映"车在车道里的相对位置"—— 用它算 lateralOffset 等于拿假设
+    /// 当测量。但**朝向与曲率仍可从单条线可靠估计**（它们只依赖线的斜率/
+    /// 弯曲趋势，不依赖另一侧）。故这里做**分级降级**：
+    ///   · 双侧 → lateralOffset 可信
+    ///   · 单侧 → lateralOffset 强制 0（未知），heading/curvature 照常给
+    /// 这比"整帧作废"保留更多真实信息，又不编造测量值。
+    var lateralOffsetReliable: Bool { valid && bothSides }
+
+    /// 诊断摘要（日志/UI 用）。
+    var debugSummary: String {
+        guard valid else {
+            return "车道线几何无效（前景 \(lanePixels) 格，采样 \(sampledRows) 行）"
+        }
+        return String(format: "κ=%.3f h=%.3f off=%.3f（%@，前景 %d 格，%d 行）",
+                      curvature, heading, lateralOffset,
+                      bothSides ? "双侧" : "单侧", lanePixels, sampledRows)
+    }
+}
+
+/// 车道线几何估计器（**纯函数，无状态，可离线单测**）。
+///
+/// 算法（逐行扫描 → 左右分组 → 二次拟合）：
+///   ① 在采样带内逐行找"车道线像素的连续段"，取最左段与最右段
+///   ② 双侧都有的行 → 车道中心 = 中点；同时统计半宽
+///   ③ 只有单侧的行 → 用本帧半宽中位数补出中心（避免有效行骤降）
+///   ④ 对 (行, 中心) 做最小二乘二次拟合 centerX = a·s² + b·s + c
+///   ⑤ 由系数导出 heading / curvature / lateralOffset
+///
+/// 【为什么用二次拟合而不是"取两行算斜率"】
+///   单帧两行的斜率对噪声极敏感（车道线常有 1~2 格断裂/抖动）。二次拟合
+///   用了带内全部有效行，且**顺带给出曲率**（一阶导数=朝向，二阶=曲率），
+///   一次拟合同时喂满 state 的 [2]/[4]/[5] 三个槽位。
+enum LaneGeometryEstimator {
+
+    /// 估计几何量。
+    /// - Parameters:
+    ///   - mask: 车道线掩码快照（160×160 二值）
+    ///   - config: 可调参数
+    /// - Returns: 几何量；有效行不足时返回 `.unknown`（全零 + valid=false）
+    static func estimate(mask: LaneMaskSnapshot, config: V2Config = .default) -> LaneGeometry {
+        var result = LaneGeometry.unknown
+        guard mask.width > 1, mask.height > 1 else { return result }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 【INT8 退化保护 · 第 0 层】前景格数下限
+        // ══════════════════════════════════════════════════════════════════════
+        // 出处（项目既有实测）：tools/yolopx/export_yolopx_coreml.py:58-64 ——
+        //   int8 量化把车道线正像素占比从 1.30–1.80% 打到 0.13–0.21%（约 10×）。
+        //   本引擎的 lane 来自 yolopxEngine.laneMask，而该引擎可能就是 INT8 的。
+        // 前景太少 → 拟合出来的"车道线"其实是碎片噪声 → **宁可报未知**。
+        // 这一步必须在拟合**之前**做：碎片进拟合会产出一条看起来合理、
+        // 实际完全错误的曲线，那比全零危险得多（模型会照着假曲率打方向）。
+        var lanePixels = 0
+        for c in mask.cells where c != 0 { lanePixels += 1 }
+        result.lanePixels = lanePixels
+        guard lanePixels >= config.minLanePixels else { return result }
+
+        // ── 采样带（行号闭区间，含端点）──
+        let topRow = Int((Double(mask.height) * config.bandTopRatio).rounded())
+        let bottomRow = Int((Double(mask.height) * config.bandBottomRatio).rounded())
+        let y0 = max(0, min(mask.height - 1, topRow))
+        let y1 = max(0, min(mask.height - 1, bottomRow))
+        guard y1 > y0 else { return result }
+        let bandHeight = Double(y1 - y0)
+
+        // ── ① 逐行找连续段，取最左/最右段中心 ──
+        struct RowSides { var left: Double?; var right: Double?; var bothHalfWidth: Double? }
+        var rows: [RowSides] = []
+        rows.reserveCapacity(y1 - y0 + 1)
+
+        for y in y0...y1 {
+            var runs: [(start: Int, end: Int)] = []
+            var runStart = -1
+            for x in 0..<mask.width {
+                let on = mask.at(x, y)
+                if on, runStart < 0 {
+                    runStart = x
+                } else if !on, runStart >= 0 {
+                    runs.append((runStart, x - 1))
+                    runStart = -1
+                }
+            }
+            if runStart >= 0 { runs.append((runStart, mask.width - 1)) }
+            guard !runs.isEmpty else { rows.append(RowSides()); continue }
+
+            let mid = Double(mask.width) / 2.0
+            func center(_ r: (start: Int, end: Int)) -> Double {
+                (Double(r.start) + Double(r.end)) / 2.0
+            }
+
+            var sides = RowSides()
+            if runs.count >= 2 {
+                // 多段：最左段 = 左车道线，最右段 = 右车道线
+                let l = center(runs[0])
+                let r = center(runs[runs.count - 1])
+                // 防御：两段都在中线同侧时不算"双侧"（可能是同一条线的碎片）
+                if l < mid, r > mid, r > l {
+                    sides.left = l
+                    sides.right = r
+                    sides.bothHalfWidth = (r - l) / 2.0
+                } else {
+                    // 同侧碎片：按位置归到单侧，不做中心推断
+                    if l < mid { sides.left = l } else { sides.right = r }
+                }
+            } else {
+                // 单段：按相对中线位置归到左或右
+                let c = center(runs[0])
+                if c < mid { sides.left = c } else { sides.right = c }
+            }
+            rows.append(sides)
+        }
+
+        // ── ② 本帧半宽中位数（用于单侧行的补全）──
+        var halfWidths: [Double] = []
+        for r in rows { if let hw = r.bothHalfWidth, hw > 1 { halfWidths.append(hw) } }
+        halfWidths.sort()
+        let medianHalfWidth: Double = halfWidths.isEmpty
+            ? Double(mask.width) * config.nominalHalfWidthRatio
+            : halfWidths[halfWidths.count / 2]
+
+        // ── ③ 汇总每行的车道中心 ──
+        // s ∈ [-1, 0]：s = (y - y1)/bandHeight，近端(y1) 为 0，远端(y0) 为 -1。
+        // 用 s 而非原始行号：让二次拟合的系数与采样带高度解耦（换分辨率不重标定）。
+        var samples: [(s: Double, center: Double)] = []
+        var rowsWithBothSides = 0
+        for (offset, r) in rows.enumerated() {
+            let y = y0 + offset
+            let s = Double(y - y1) / bandHeight
+            if let l = r.left, let rr = r.right {
+                samples.append((s, (l + rr) / 2.0))
+                rowsWithBothSides += 1
+            } else if let l = r.left {
+                samples.append((s, l + medianHalfWidth))
+            } else if let rr = r.right {
+                samples.append((s, rr - medianHalfWidth))
+            }
+        }
+
+        // 有效行不足 → 如实报"没看见"，不猜
+        guard samples.count >= config.minLaneRows else {
+            result.sampledRows = samples.count
+            return result
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 【分级降级 · 第 2 层】双侧 vs 单侧
+        // ══════════════════════════════════════════════════════════════════════
+        // 单侧时中心是**补出来的**（用半宽中位数），只能反映"那条线在哪"，
+        // 不能反映"车在车道里的相对位置"。故：
+        //   · heading / curvature：只依赖线的斜率与弯曲趋势 → **单侧也给**
+        //   · lateralOffset：依赖另一侧才能定中心 → **单侧强制 0**
+        // 这样既不编造测量值，也不把可用的朝向信息一起丢掉。
+        let bothSides = rowsWithBothSides >= config.minLaneRows
+
+        // ── ④ 最小二乘二次拟合 centerX = a·s² + b·s + c ──
+        guard let fit = fitQuadratic(samples: samples) else {
+            result.sampledRows = samples.count
+            return result
+        }
+
+        // ── ⑤ 导出几何量 ──
+        // 一阶导 d(centerX)/dy = (2a·s + b)/bandHeight；近端 s=0 → b/bandHeight
+        let slopePx = fit.b / bandHeight
+        // 二阶导 d²(centerX)/dy² = 2a/bandHeight²
+        let secondPx = 2.0 * fit.a / (bandHeight * bandHeight)
+
+        // 朝向：前方 = 行号减小方向。前进 1 行 → centerX 变化 -slopePx。
+        // 车道前方偏右（centerX 增大）→ 需要右打 → heading 取正。
+        let yawRad = atan(-slopePx)
+        let headingNorm = yawRad / Double.pi
+
+        // 曲率：κ ≈ x''/(1+x'²)^1.5。符号与 heading 同向（正 = 右弯）：
+        //   a > 0 时，随前进(s 减小) heading 增大 → 右弯 → 取 +。
+        let denom = pow(1.0 + slopePx * slopePx, 1.5)
+        let kappaPx = secondPx / max(denom, 1e-9)
+        let curvatureNorm = kappaPx / config.curvatureReference
+
+        // 横向偏移：近端中心相对画面中线的偏移，映射到 [-1,1]
+        let nearCenter = fit.c            // s = 0 处的 centerX
+        let lateralNorm = (nearCenter / Double(mask.width) - 0.5) * 2.0
+
+        result.curvature = clampUnit(curvatureNorm)
+        result.heading = clampUnit(headingNorm)
+        // 单侧 → 横向偏移不可信，强制 0（见上方第 2 层说明）
+        result.lateralOffset = bothSides ? clampUnit(lateralNorm) : 0
+        result.valid = true
+        result.sampledRows = samples.count
+        result.bothSides = bothSides
+        result.fitA = fit.a
+        result.fitB = fit.b
+        result.fitC = fit.c
+        return result
+    }
+
+    /// 最小二乘二次拟合（法方程 + 3×3 高斯消元）。
+    /// - Returns: (a, b, c)；奇异或样本不足时 nil。
+    private static func fitQuadratic(samples: [(s: Double, center: Double)]) -> (a: Double, b: Double, c: Double)? {
+        let n = Double(samples.count)
+        guard samples.count >= 3 else { return nil }
+
+        var s1 = 0.0, s2 = 0.0, s3 = 0.0, s4 = 0.0
+        var t0 = 0.0, t1 = 0.0, t2 = 0.0
+        for (s, c) in samples {
+            let s2i = s * s
+            s1 += s
+            s2 += s2i
+            s3 += s2i * s
+            s4 += s2i * s2i
+            t0 += c
+            t1 += s * c
+            t2 += s2i * c
+        }
+        // 法方程：
+        //   [ s4 s3 s2 ] [a]   [t2]
+        //   [ s3 s2 s1 ] [b] = [t1]
+        //   [ s2 s1  n ] [c]   [t0]
+        let m: [[Double]] = [[s4, s3, s2, t2],
+                              [s3, s2, s1, t1],
+                              [s2, s1, n,  t0]]
+        guard let sol = solve3x3(m) else { return nil }
+        return (sol[0], sol[1], sol[2])
+    }
+
+    /// 3×3 增广矩阵高斯消元（带部分主元），返回 [a,b,c]。
+    private static func solve3x3(_ input: [[Double]]) -> [Double]? {
+        var m = input
+        for col in 0..<3 {
+            // 部分主元：选该列绝对值最大的行
+            var pivot = col
+            for r in (col + 1)..<3 where abs(m[r][col]) > abs(m[pivot][col]) { pivot = r }
+            if abs(m[pivot][col]) < 1e-12 { return nil }   // 奇异
+            if pivot != col { m.swapAt(pivot, col) }
+            let diag = m[col][col]
+            for r in (col + 1)..<3 {
+                let factor = m[r][col] / diag
+                for c in col..<4 { m[r][c] -= factor * m[col][c] }
+            }
+        }
+        var x = [Double](repeating: 0, count: 3)
+        for row in stride(from: 2, through: 0, by: -1) {
+            var sum = m[row][3]
+            for c in (row + 1)..<3 { sum -= m[row][c] * x[c] }
+            x[row] = sum / m[row][row]
+        }
+        guard x.allSatisfy({ $0.isFinite }) else { return nil }
+        return x
+    }
+
+    @inline(__always)
+    private static func clampUnit(_ v: Double) -> Double {
+        guard v.isFinite else { return 0 }
+        return max(-1.0, min(1.0, v))
+    }
+}
+
+// MARK: - 车辆运动学输入（8 维状态的原料）
+
+/// 构造 `vehicle_state[8]` 所需的全部原料。
+///
+/// 【为什么把"已算好的量"传进来而不是在这里算导数】导数需要**时间历史**
+/// （上一帧的速度/朝向），而历史属于引擎的可变状态。把求导留在引擎里、
+/// 把归一化留在纯函数里，纯函数就能离线单测（喂固定数值断言输出）。
+struct V2Kinematics: Sendable, Equatable {
+    /// 车速 km/h。**可能为 -1**（OCR 读不到，见 SpeedOCRReader.swift:157）——
+    /// 归一化前必须先看 `speedValid`。
+    var speedKmh: Double = -1
+    /// 车速是否可信（`DriveState.speedValid`：OCR 读数新鲜且 confidence > 0.3）。
+    var speedValid: Bool = false
+    /// 速度上限 km/h（`DriveState.speedLimit`）。
+    var speedLimitKmh: Double = 120
+    /// 纵向加速度 m/s²（引擎按速度历史算好；无效时传 0）。
+    var accelMps2: Double = 0
+    /// 车道线几何（曲率/朝向/横向偏移）。
+    var lane: LaneGeometry = .unknown
+    /// 朝向角变化率 rad/s（引擎按历史算好；无效时传 0）。
+    var headingRateRad: Double = 0
+    /// 当前方向盘角 / 最大角 ∈ [-1,1]（来自上一次决策输出）。
+    var steerAngle: Double = 0
+    /// **自车框是否已被 EgoBoxFilter 剔除**（1 = 已剔除）。
+    ///
+    /// ⚠️ 命名歧义提示：契约里这一位叫 `ego_visible`，但注释写明
+    ///    「1=自车框已剔除」（model_v2.py:657 / export 脚本契约表）。
+    ///    本文件按**注释语义**填（已剔除 → 1），并在文档里如实标注该歧义。
+    var egoBoxFiltered: Bool = false
+}
+
+// MARK: - 纯特征构造（可离线单测）
+
+/// 五路输入的**纯数值特征**（不含 MLMultiArray，便于离线断言）。
+struct V2Features: Sendable, Equatable {
+    /// [8]
+    var vehicleState: [Float]
+    /// [20 × 12] 行优先
+    var dets: [Float]
+    /// [20]
+    var detMask: [Float]
+    /// [160 × 160] 行优先，0/1
+    var laneMask: [Float]
+    /// 本次用到的几何量（诊断/日志用）
+    var laneGeometry: LaneGeometry
+    /// 本次实际填入的有效框数
+    var validDetectionCount: Int
+}
+
+/// 纯特征构造器（**无状态、无 CoreML 依赖、可离线单测**）。
+enum V2FeatureBuilder {
+
+    /// 构造 `vehicle_state[8]`。
+    ///
+    /// 契约（`src/model_v2.py` StateEncoder 文档 :648-657）：
+    ///   [0] speed          车速/速度上限       ∈ [0,1]
+    ///   [1] accel          纵向加速度/10 m·s⁻² ∈ [-1,1]
+    ///   [2] heading        当前角度/π          ∈ [-1,1]
+    ///   [3] heading_rate   角度变化率/π·s⁻¹    ∈ [-1,1]
+    ///   [4] curvature      路径曲率            ∈ [-1,1]
+    ///   [5] lateral_offset 相对车道中心横偏     ∈ [-1,1]
+    ///   [6] steer_angle    方向盘角/最大角      ∈ [-1,1]
+    ///   [7] reserved       ego_visible 标志
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 【bug 2 修复点 · speedValid 是硬门】
+    /// ══════════════════════════════════════════════════════════════════════
+    /// `SpeedOCRReader.speedKmh` 读不到时是 **-1**（SpeedOCRReader.swift:157）。
+    /// 旧实现直接 `speedKmh / 120` → 得到 -0.0083 的**负速度**喂进模型。
+    /// 这里以 `speedValid` 为硬门：
+    ///   · 无效 → speed 填 **0**（契约的"未知"取值），且 **accel 也填 0**
+    ///     —— 速度不可信时它的导数同样不可信，留着是二次污染；
+    ///   · 有效 → 按 `speedReference` 归一化并 clamp 到 [0,1]。
+    /// 注意：**不是**把 -1 clamp 成 0 —— 那样虽然数值相同，但语义上仍把
+    /// "读不到"当成"速度为零"，而 `speedValid=false` 时模型应学到"未知"。
+    /// 两者数值恰好都是 0，区别在于我们**知道**自己在填未知（注释与 validity 可证）。
+    static func buildVehicleState(_ k: V2Kinematics, config: V2Config = .default) -> [Float] {
+        let speedRef = max(1.0, config.speedReference)
+
+        // [0] speed：speedValid 硬门
+        var speedNorm = 0.0
+        if k.speedValid, k.speedKmh >= 0, k.speedKmh.isFinite {
+            speedNorm = clamp(k.speedKmh / speedRef, 0, 1)
+        }
+        // 注：speedLimit 是配置值（DriveState.speedLimit，缺省 120），恒可信
+        _ = k.speedLimitKmh
+
+        // [1] accel：速度不可信 → 导数不可信 → 0
+        var accelNorm = 0.0
+        if k.speedValid, k.accelMps2.isFinite {
+            accelNorm = clamp(k.accelMps2 / config.accelReference, -1, 1)
+        }
+
+        // [2] heading / [4] curvature / [5] lateral_offset：来自车道线几何。
+        //     valid=false 时 LaneGeometry 三量恒为 0（诚实原则，见其注释）。
+        let lane = k.lane.valid ? k.lane : .unknown
+        let headingNorm = clamp(lane.heading, -1, 1)
+
+        // [3] heading_rate：几何无效时导数无意义 → 0
+        var headingRateNorm = 0.0
+        if lane.valid, k.headingRateRad.isFinite {
+            headingRateNorm = clamp(k.headingRateRad / Double.pi, -1, 1)
+        }
+
+        // [6] steer_angle
+        let steerNorm = clamp(k.steerAngle, -1, 1)
+
+        // [7] reserved = ego_visible（1 = 自车框已剔除）
+        let egoFlag: Double = k.egoBoxFiltered ? 1.0 : 0.0
+
+        return [
+            Float(speedNorm),
+            Float(accelNorm),
+            Float(headingNorm),
+            Float(headingRateNorm),
+            Float(clamp(lane.curvature, -1, 1)),
+            Float(clamp(lane.lateralOffset, -1, 1)),
+            Float(steerNorm),
+            Float(egoFlag),
+        ]
+    }
+
+    /// 构造 `dets[20×12]` + `det_mask[20]`。
+    ///
+    /// 每框 12 维（**权威定义**，见 `V2InputContract.detFeatureDim` 注释）：
+    ///   [0] x  [1] y  [2] w  [3] h   归一化 [0,1]     ← Detection.x/y/width/height
+    ///   [4:8] label one-hot(car, pedestrian, sign, obstacle)
+    ///   [8] confidence [0,1]
+    ///   [9] speed     框内目标相对速度（**无则 0**）
+    ///   [10] heading  框内目标朝向（**无则 0**）
+    ///   [11] age      连续跟踪帧数归一化（**无则 0**）
+    ///
+    /// 【槽位分配策略】按 confidence **降序**填前 20 个。
+    ///   理由：`DetectionEncoder` 用 masked max pool + masked mean pool，
+    ///   对顺序不敏感（permutation invariant），但**超出 20 个时必须丢弃**，
+    ///   丢低置信度的比丢高置信度的合理（正前方近车通常高置信）。
+    ///
+    /// 【TODO · 未接跟踪器】[9]/[10]/[11] 现恒为 0（契约允许："无则 0"）。
+    ///   `MotionPredictor` 有跟踪概念（TrackedTarget.age），但接它需要改
+    ///   `updateMotionPipeline` 调用链 —— 与 T1/T7 的改动面重叠，Lead 明确
+    ///   要求**先按 0 填、留 TODO**，等模型跑通后再接。见本文件末尾 TODO 段。
+    ///
+    /// ⚠️ 空槽必须 `dets` 全 0 + `det_mask` 置 0（实测坑 2：CoreML 不支持动态 N，
+    ///    固定 N=20 + valid 位是唯一可行方案）。少喂会报 shape 错，不会静默算错。
+    static func buildDetections(_ detections: [Detection],
+                                config: V2Config = .default) -> (dets: [Float], mask: [Float], validCount: Int) {
+        let n = V2InputContract.maxDetections
+        let d = V2InputContract.detFeatureDim
+        var dets = [Float](repeating: 0, count: n * d)
+        var mask = [Float](repeating: 0, count: n)
+
+        // 置信度降序；同置信度时保持原顺序（稳定分区，不用不稳定的 sort）
+        let ordered = detections.enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.confidence != rhs.element.confidence {
+                    return lhs.element.confidence > rhs.element.confidence
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+
+        let count = min(n, ordered.count)
+        for i in 0..<count {
+            let det = ordered[i]
+            let base = i * d
+            dets[base + 0] = Float(clamp(det.x, 0, 1))
+            dets[base + 1] = Float(clamp(det.y, 0, 1))
+            dets[base + 2] = Float(clamp(det.width, 0, 1))
+            dets[base + 3] = Float(clamp(det.height, 0, 1))
+            // label one-hot
+            let onehot = labelOneHot(det.label)
+            for k in 0..<V2InputContract.labelCount {
+                dets[base + 4 + k] = onehot[k]
+            }
+            dets[base + 8] = Float(clamp(det.confidence, 0, 1))
+            // [9] speed / [10] heading / [11] age —— 契约允许"无则 0"
+            dets[base + 9] = 0
+            dets[base + 10] = 0
+            dets[base + 11] = 0
+            mask[i] = 1
+        }
+        return (dets, mask, count)
+    }
+
+    /// 类别 → one-hot（顺序：car, pedestrian, sign, obstacle）。
+    static func labelOneHot(_ label: Detection.Label) -> [Float] {
+        var v = [Float](repeating: 0, count: V2InputContract.labelCount)
+        switch label {
+        case .car:        v[0] = 1
+        case .pedestrian: v[1] = 1
+        case .sign:       v[2] = 1
+        case .obstacle:   v[3] = 1
+        }
+        return v
+    }
+
+    /// 构造 `lane[1×1×160×160]`（行优先 0/1）。
+    ///
+    /// ⛔ **只放车道线，绝不掺 drivableMask**（model_v2.py §八 契约红线，
+    ///    用户明确要求"可行驶区域不要收"）。本函数只接收 `LaneMaskSnapshot`
+    ///    这一种来源，结构上杜绝了把 drivable 拼进来的可能。
+    ///
+    /// 尺寸不符时返回**全零**（而不是缩放/裁剪）：缩放到 160×160 会引入
+    /// 插值噪声，而"掩码尺寸不对"本身说明上游契约漂移，此时给全零让模型
+    /// 走"无车道线"分支，比喂一份插值出来的假掩码安全。
+    static func buildLaneMask(_ snapshot: LaneMaskSnapshot?) -> [Float] {
+        let size = V2InputContract.laneSize
+        var out = [Float](repeating: 0, count: size * size)
+        guard let snapshot else { return out }
+        guard snapshot.width == size, snapshot.height == size else { return out }
+        for i in 0..<(size * size) {
+            out[i] = snapshot.cells[i] != 0 ? 1 : 0
+        }
+        return out
+    }
+
+    /// 一次构造全部纯特征（供引擎与自检共用）。
+    static func build(kinematics: V2Kinematics,
+                      detections: [Detection],
+                      laneMask: LaneMaskSnapshot?,
+                      config: V2Config = .default) -> V2Features {
+        let geometry = LaneGeometryEstimator.estimate(mask: laneMask ?? .empty(), config: config)
+        var k = kinematics
+        k.lane = geometry
+        let (dets, mask, count) = buildDetections(detections, config: config)
+        return V2Features(vehicleState: buildVehicleState(k, config: config),
+                          dets: dets,
+                          detMask: mask,
+                          laneMask: buildLaneMask(laneMask),
+                          laneGeometry: geometry,
+                          validDetectionCount: count)
+    }
+
+    @inline(__always)
+    private static func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double {
+        guard v.isFinite else { return 0 }
+        return max(lo, min(hi, v))
+    }
+}
+
+// MARK: - 推理引擎 V2
+
+/// M9-V2 五输入端到端推理引擎。
+///
+/// 与 `InferenceEngine` 的关系：**并列，不替代**。靠 `DriveState` 侧开关切换，
+/// 原引擎一字未改，可随时回滚。
+///
+/// 线程模型（沿用原引擎的成熟做法，见 InferenceEngine.swift:17-23）：
+///   · 类 `@MainActor`，可变状态只在主线程读写
+///   · 重活（预处理/推理）在 `inferenceQueue` 后台串行队列
+///   · `nonisolated static` 纯函数无 self 捕获，可安全后台执行
+///   · `isInferencing` 防重叠，`generation` 防过期结果写回
+@Observable
+@MainActor
+final class InferenceEngineV2 {
+
+    // MARK: 状态
+
+    /// 是否已加载模型。**模型文件缺失时保持 false 并给出明确原因**（优雅降级）。
+    private(set) var isLoaded = false
+    /// 是否有一次后台加载在途（防 30Hz 重复提交）。
+    private var isLoadingModel = false
+    /// 是否正在推理（防重叠）。
+    private(set) var isInferencing = false
+    /// 最新推理结果（与旧引擎的 `InferenceResult` 兼容）。
+    private(set) var lastResult: InferenceResult?
+    /// 最近一次成功推理时间（判新鲜度）。
+    private(set) var lastResultTime: Date?
+    /// 累计推理次数。
+    private(set) var inferenceCount: Int = 0
+    /// 加载/推理错误（UI 如实展示）。
+    private(set) var errorMessage: String?
+    /// 最近一帧的车道线几何（诊断：曲率/朝向是否真的算出来了）。
+    private(set) var lastLaneGeometry: LaneGeometry = .unknown
+    /// 最近一帧的有效框数（诊断）。
+    private(set) var lastValidDetectionCount: Int = 0
+    /// **最近一帧车道线前景格数**（诊断）。
+    ///
+    /// 【为什么单独暴露】出处 tools/yolopx/export_yolopx_coreml.py:58-64 实测：
+    /// INT8 量化会把车道线正像素占比从 1.30–1.80% 打到 0.13–0.21%（约 10×）。
+    /// 正常 160×160 应有 333~461 格；若这里长期只有几十格甚至个位数，
+    /// 说明**上游 yolopx 的车道线已被量化毁掉**，曲率/朝向拟合必然不可信。
+    /// 有了这个数字，用户/开发者能一眼判断"是算法不行还是上游模型废了"。
+    private(set) var lastLanePixelCount: Int = 0
+
+    /// 加载失败冷却（秒）。
+    private let loadRetryCooldown: TimeInterval = 5.0
+    @ObservationIgnored
+    private var lastLoadAttempt: Date = .distantPast
+    /// generation：reload/reset 时递增，在途结果比对后丢弃过期值。
+    @ObservationIgnored
+    private var generation = 0
+
+    // MARK: 资源
+
+    @ObservationIgnored
+    private nonisolated(unsafe) var model: MLModel?
+    @ObservationIgnored
+    private let inferenceQueue = DispatchQueue(label: "com.aurora.inference.v2",
+                                               qos: .userInteractive)
+    /// 复用缓冲：image ≈691KB / lane 25KB / dets 960B / mask 80B / state 32B。
+    @ObservationIgnored
+    private nonisolated(unsafe) var reusableImageBuffer: MLMultiArray?
+    @ObservationIgnored
+    private nonisolated(unsafe) var reusableLaneBuffer: MLMultiArray?
+    @ObservationIgnored
+    private nonisolated(unsafe) var reusableDetsBuffer: MLMultiArray?
+    @ObservationIgnored
+    private nonisolated(unsafe) var reusableDetMaskBuffer: MLMultiArray?
+    @ObservationIgnored
+    private nonisolated(unsafe) var reusableStateBuffer: MLMultiArray?
+
+    /// 模型文件名（不带扩展名）。默认 `m9_v2`（export 脚本的默认产出名）。
+    private let modelFileName: String
+    /// 可调参数。
+    private let config: V2Config
+
+    /// 运动学历史（算 accel / heading_rate 用）。
+    @ObservationIgnored
+    private var lastSpeedSample: (kmh: Double, at: Date)?
+    @ObservationIgnored
+    private var lastHeadingSample: (rad: Double, at: Date)?
+    @ObservationIgnored
+    private var lastSteerCommand: Double = 0
+
+    /// PerfBus 通道名（与旧引擎区分，便于分开统计谁更贵）。
+    private var perfChannel: String { "infer.\(modelFileName)" }
+
+    init(modelFileName: String = "m9_v2", config: V2Config = .default) {
+        self.modelFileName = modelFileName
+        self.config = config
+    }
+
+    // MARK: 模型定位与加载
+
+    /// 模型路径。
+    ///
+    /// 【为什么只认 .mlmodelc】实测坑 7：`.mlpackage` **不能**被
+    /// `MLModel(contentsOf:)` 直接加载，必须先 `MLModel.compileModel(at:)`。
+    /// 旧引擎 `InferenceEngine.swift:142-150` 的 `.mlpackage` 回退路径
+    /// 按该实测**是走不通的**（对比 `YolopxEngine` 有显式 compileModel）。
+    /// 本引擎**不做那条无效回退**：找不到 .mlmodelc 就如实报"模型未导出"，
+    /// 而不是抛一个难懂的 CoreML 错误。导出脚本始终优先产出 .mlmodelc。
+    private var modelURL: URL? {
+        let modelsDir = AuroraPaths.projectRoot().appendingPathComponent("models")
+        let compiled = modelsDir.appendingPathComponent("\(modelFileName).mlmodelc")
+        guard FileManager.default.fileExists(atPath: compiled.path) else { return nil }
+        return compiled
+    }
+
+    /// 同步加载（启动路径显式预热用；保持 MainActor 语义简单）。
+    func loadIfNeeded() {
+        guard !isLoaded else { return }
+        guard Date().timeIntervalSince(lastLoadAttempt) >= loadRetryCooldown else { return }
+        lastLoadAttempt = Date()
+
+        guard let url = modelURL else {
+            // 优雅降级：模型未导出 ≠ 程序出错。如实说明，不影响旧链路。
+            errorMessage = "M9-V2 模型未就绪（models/\(modelFileName).mlmodelc 不存在；"
+                         + "请先运行 tools/export_m9_v2_coreml.py 导出）"
+            isLoaded = false
+            return
+        }
+        do {
+            let cfg = MLModelConfiguration()
+            cfg.computeUnits = .all
+            let mlModel = try MLModel(contentsOf: url, configuration: cfg)
+            model = mlModel
+            isLoaded = true
+            errorMessage = nil
+            Self.warmUp(model: mlModel, label: modelFileName, queue: inferenceQueue, config: config)
+        } catch {
+            errorMessage = "M9-V2 模型加载失败: \(error.localizedDescription)"
+            isLoaded = false
+        }
+    }
+
+    /// 后台兜底加载（热路径调用，绝不阻塞主线程）。
+    private func scheduleBackgroundLoadIfNeeded() {
+        guard !isLoadingModel else { return }
+        guard Date().timeIntervalSince(lastLoadAttempt) >= loadRetryCooldown else { return }
+        lastLoadAttempt = Date()
+
+        guard let url = modelURL else {
+            errorMessage = "M9-V2 模型未就绪（models/\(modelFileName).mlmodelc 不存在）"
+            isLoaded = false
+            return
+        }
+        isLoadingModel = true
+        let fileName = modelFileName
+        let gen = generation
+        let queue = inferenceQueue
+        let cfg = config
+
+        queue.async { [weak self] in
+            let mlCfg = MLModelConfiguration()
+            mlCfg.computeUnits = .all
+            let loaded = try? MLModel(contentsOf: url, configuration: mlCfg)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.isLoadingModel = false
+                guard self.generation == gen else { return }
+                if let loaded {
+                    self.model = loaded
+                    self.isLoaded = true
+                    self.errorMessage = nil
+                    Self.warmUp(model: loaded, label: fileName, queue: queue, config: cfg)
+                } else {
+                    self.errorMessage = "M9-V2 模型加载失败（后台兜底）: \(url.lastPathComponent)"
+                    self.isLoaded = false
+                }
+            }
+        }
+    }
+
+    /// 预热：跑一次全零输入，把 ANE 图编译/内存分配提前做完。
+    private nonisolated static func warmUp(model: MLModel, label: String,
+                                           queue: DispatchQueue, config: V2Config) {
+        queue.async {
+            guard let provider = try? makeProvider(features: zeroFeatures()) else {
+                print("[warmup.v2] \(label): 预热输入构造失败")
+                return
+            }
+            let start = Date()
+            do {
+                _ = try model.prediction(from: provider)
+                let ms = Date().timeIntervalSince(start) * 1000
+                print("[warmup.v2] \(label) 预热完成: \(String(format: "%.1f", ms))ms")
+            } catch {
+                print("[warmup.v2] \(label) 预热失败: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// 热替换（训练/导出完成后调用）。
+    func reloadModel() {
+        generation += 1
+        model = nil
+        isLoaded = false
+        isInferencing = false
+        errorMessage = nil
+        lastLoadAttempt = .distantPast   // 允许立刻重试
+    }
+
+    // MARK: 推理入口
+
+    /// 异步推理。
+    /// - Parameters:
+    ///   - image: 截屏画面（内部缩放到 180×320）
+    ///   - kinematics: 车辆运动学原料（速度/几何/转向）
+    ///   - detections: **已过 EgoBoxFilter 的**检测框（自车框必须已剔除）
+    ///   - laneMask: 车道线掩码（`YolopxEngine.laneMask`）
+    func infer(image: CGImage,
+               kinematics: V2Kinematics,
+               detections: [Detection],
+               laneMask: MaskGrid?) {
+        guard isLoaded, let modelRef = model else {
+            scheduleBackgroundLoadIfNeeded()
+            return
+        }
+        guard !isInferencing else { return }
+        isInferencing = true
+
+        // 跨线程只传值类型（MaskGrid 在这里转成 Sendable 快照）
+        let snapshot = laneMask.flatMap { LaneMaskSnapshot(mask: $0) }
+        let gen = generation
+        let cfg = config
+
+        // 速度/朝向历史在主线程取（避免后台读 MainActor 状态）
+        let now = Date()
+        var accel = 0.0
+        if let prev = lastSpeedSample, kinematics.speedValid, prev.kmh >= 0 {
+            let dt = now.timeIntervalSince(prev.at)
+            if dt > 1e-3, dt < 2.0 {
+                // km/h → m/s，除以 3.6
+                accel = ((kinematics.speedKmh - prev.kmh) / 3.6) / dt
+            }
+        }
+        if kinematics.speedValid, kinematics.speedKmh >= 0 {
+            lastSpeedSample = (kinematics.speedKmh, now)
+        } else {
+            lastSpeedSample = nil   // 速度不可信 → 断开历史，避免下次用坏点求导
+        }
+
+        let geom = LaneGeometryEstimator.estimate(mask: snapshot ?? .empty(), config: cfg)
+        var headingRate = 0.0
+        if geom.valid {
+            if let prev = lastHeadingSample {
+                let dt = now.timeIntervalSince(prev.at)
+                if dt > 1e-3, dt < 2.0 {
+                    headingRate = (geom.heading * Double.pi - prev.rad) / dt
+                }
+            }
+            lastHeadingSample = (geom.heading * Double.pi, now)
+        } else {
+            lastHeadingSample = nil
+        }
+
+        var k = kinematics
+        k.accelMps2 = accel
+        k.headingRateRad = headingRate
+        k.steerAngle = lastSteerCommand
+        k.lane = geom
+
+        let features = V2FeatureBuilder.build(kinematics: k,
+                                              detections: detections,
+                                              laneMask: snapshot,
+                                              config: cfg)
+
+        inferenceQueue.async { [weak self] in
+            guard let self else { return }
+            let start = Date()
+
+            // 复用缓冲
+            self.ensureBuffers()
+            guard let imageBuffer = Self.preprocessImage(image,
+                                                         height: V2InputContract.imageHeight,
+                                                         width: V2InputContract.imageWidth,
+                                                         into: self.reusableImageBuffer),
+                  let provider = try? Self.makeProvider(features: features,
+                                                        imageBuffer: imageBuffer,
+                                                        lane: self.reusableLaneBuffer,
+                                                        dets: self.reusableDetsBuffer,
+                                                        detMask: self.reusableDetMaskBuffer,
+                                                        state: self.reusableStateBuffer) else {
+                Task { @MainActor in self.finish(gen, nil, error: "V2 输入构造失败") }
+                return
+            }
+
+            do {
+                let output = try modelRef.prediction(from: provider)
+                // ⚠️ 输出是 MLMultiArray([1,1])，必须走 multiArrayValue[[0,0]]。
+                //    直接用 featureValue.doubleValue 对 multiArray 会返回 0
+                //    （旧引擎踩过：e2eCommand 恒 idle 的元凶，见 InferenceEngine.swift:350-354）
+                func readScalar(_ name: String) -> Double {
+                    guard let fv = output.featureValue(for: name) else { return 0 }
+                    if let mv = fv.multiArrayValue { return mv[[0, 0]].doubleValue }
+                    return fv.doubleValue
+                }
+                let result = InferenceResult(steer: readScalar(V2InputContract.steer),
+                                             throttle: readScalar(V2InputContract.throttle),
+                                             brake: readScalar(V2InputContract.brake),
+                                             latencyMs: Date().timeIntervalSince(start) * 1000)
+                Task { @MainActor in self.finish(gen, result, error: nil, features: features) }
+            } catch {
+                Task { @MainActor in
+                    self.finish(gen, nil, error: "V2 推理失败: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// 记录本次决策输出的转向角（供下一帧 state[6] 用）。
+    func noteSteerCommand(_ steer: Double) {
+        lastSteerCommand = max(-1, min(1, steer.isFinite ? steer : 0))
+    }
+
+    private func finish(_ gen: Int, _ result: InferenceResult?, error: String?,
+                        features: V2Features? = nil) {
+        guard gen == generation else { return }
+        isInferencing = false
+        if let result {
+            lastResult = result
+            lastResultTime = Date()
+            inferenceCount += 1
+            PerfBus.shared.record(perfChannel, ms: result.latencyMs)
+        }
+        if let features {
+            lastLaneGeometry = features.laneGeometry
+            lastValidDetectionCount = features.validDetectionCount
+            lastLanePixelCount = features.laneGeometry.lanePixels
+        }
+        if let error { errorMessage = error }
+    }
+
+    func reset() {
+        generation += 1
+        lastResult = nil
+        lastResultTime = nil
+        isInferencing = false
+        errorMessage = nil
+        lastSpeedSample = nil
+        lastHeadingSample = nil
+        lastLaneGeometry = .unknown
+        lastValidDetectionCount = 0
+        lastLanePixelCount = 0
+    }
+
+    // MARK: 缓冲管理
+
+    private nonisolated(unsafe) func ensureBuffers() {
+        if reusableImageBuffer == nil {
+            reusableImageBuffer = try? MLMultiArray(
+                shape: [1, 3, NSNumber(value: V2InputContract.imageHeight),
+                        NSNumber(value: V2InputContract.imageWidth)],
+                dataType: .float32)
+        }
+        if reusableLaneBuffer == nil {
+            let s = V2InputContract.laneSize
+            reusableLaneBuffer = try? MLMultiArray(
+                shape: [1, 1, NSNumber(value: s), NSNumber(value: s)], dataType: .float32)
+        }
+        if reusableDetsBuffer == nil {
+            reusableDetsBuffer = try? MLMultiArray(
+                shape: [1, NSNumber(value: V2InputContract.maxDetections),
+                        NSNumber(value: V2InputContract.detFeatureDim)],
+                dataType: .float32)
+        }
+        if reusableDetMaskBuffer == nil {
+            reusableDetMaskBuffer = try? MLMultiArray(
+                shape: [1, NSNumber(value: V2InputContract.maxDetections)], dataType: .float32)
+        }
+        if reusableStateBuffer == nil {
+            reusableStateBuffer = try? MLMultiArray(
+                shape: [1, NSNumber(value: V2InputContract.stateDim)], dataType: .float32)
+        }
+    }
+
+    // MARK: 输入装配（nonisolated 纯函数）
+
+    /// 全零特征（预热用）。
+    private nonisolated static func zeroFeatures() -> V2Features {
+        V2Features(vehicleState: [Float](repeating: 0, count: V2InputContract.stateDim),
+                   dets: [Float](repeating: 0,
+                                 count: V2InputContract.maxDetections * V2InputContract.detFeatureDim),
+                   detMask: [Float](repeating: 0, count: V2InputContract.maxDetections),
+                   laneMask: [Float](repeating: 0,
+                                     count: V2InputContract.laneSize * V2InputContract.laneSize),
+                   laneGeometry: .unknown,
+                   validDetectionCount: 0)
+    }
+
+    /// 预热用：不需要真实 image（全零图）。
+    private nonisolated static func makeProvider(features: V2Features) throws -> MLFeatureProvider {
+        guard let image = try? MLMultiArray(
+            shape: [1, 3, NSNumber(value: V2InputContract.imageHeight),
+                    NSNumber(value: V2InputContract.imageWidth)],
+            dataType: .float32) else {
+            throw NSError(domain: "InferenceEngineV2", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "预热 image 缓冲构造失败"])
+        }
+        guard let provider = try makeProvider(features: features, imageBuffer: image,
+                                              lane: nil, dets: nil, detMask: nil, state: nil) else {
+            throw NSError(domain: "InferenceEngineV2", code: -2,
+                          userInfo: [NSLocalizedDescriptionKey: "预热特征装配失败"])
+        }
+        return provider
+    }
+
+    /// 把纯特征写进 MLMultiArray 并组装 `MLFeatureProvider`。
+    ///
+    /// 特征名全部取自 `V2InputContract`（单一常量表）—— 避免"形参名 vs
+    /// CoreML 特征名"错位（`lane_mask` 是形参名、`lane` 才是特征名）。
+    private nonisolated static func makeProvider(features: V2Features,
+                                                 imageBuffer: MLMultiArray,
+                                                 lane: MLMultiArray?,
+                                                 dets: MLMultiArray?,
+                                                 detMask: MLMultiArray?,
+                                                 state: MLMultiArray?) throws -> MLFeatureProvider? {
+        // lane [1,1,160,160]
+        let laneArr = lane ?? (try? MLMultiArray(
+            shape: [1, 1, NSNumber(value: V2InputContract.laneSize),
+                    NSNumber(value: V2InputContract.laneSize)], dataType: .float32))
+        guard let laneArr else { return nil }
+        let lanePtr = laneArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        for i in 0..<features.laneMask.count { lanePtr[i] = features.laneMask[i] }
+
+        // dets [1,20,12]
+        let detsArr = dets ?? (try? MLMultiArray(
+            shape: [1, NSNumber(value: V2InputContract.maxDetections),
+                    NSNumber(value: V2InputContract.detFeatureDim)], dataType: .float32))
+        guard let detsArr else { return nil }
+        let detsPtr = detsArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        for i in 0..<features.dets.count { detsPtr[i] = features.dets[i] }
+
+        // det_mask [1,20]
+        let maskArr = detMask ?? (try? MLMultiArray(
+            shape: [1, NSNumber(value: V2InputContract.maxDetections)], dataType: .float32))
+        guard let maskArr else { return nil }
+        let maskPtr = maskArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        for i in 0..<features.detMask.count { maskPtr[i] = features.detMask[i] }
+
+        // vehicle_state [1,8]
+        let stateArr = state ?? (try? MLMultiArray(
+            shape: [1, NSNumber(value: V2InputContract.stateDim)], dataType: .float32))
+        guard let stateArr else { return nil }
+        let statePtr = stateArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        for i in 0..<features.vehicleState.count { statePtr[i] = features.vehicleState[i] }
+
+        let dict: [String: Any] = [
+            V2InputContract.image: MLFeatureValue(multiArray: imageBuffer),
+            V2InputContract.lane: MLFeatureValue(multiArray: laneArr),
+            V2InputContract.dets: MLFeatureValue(multiArray: detsArr),
+            V2InputContract.detMask: MLFeatureValue(multiArray: maskArr),
+            V2InputContract.vehicleState: MLFeatureValue(multiArray: stateArr),
+        ]
+        return try MLDictionaryFeatureProvider(dictionary: dict)
+    }
+
+    /// CGImage → MLMultiArray [1,3,H,W] Float32 CHW 归一化 [0,1]。
+    ///
+    /// 与 `InferenceEngine.preprocessImage` 逐位同算法（缩放绘制 → RGBA 读像素 →
+    /// CHW 重排 → vDSP 向量化归一化）。**没有复用它的实现**是因为那个函数是
+    /// `private`，且本文件不改原文件（写作用域纪律）。两处算法若将来要合并，
+    /// 应抽到共享工具里。
+    private nonisolated static func preprocessImage(_ cgImage: CGImage,
+                                                    height: Int, width: Int,
+                                                    into reusable: MLMultiArray?) -> MLMultiArray? {
+        let bytesPerRow = width * 4
+        var pixelData = [UInt8](repeating: 0, count: width * height * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(data: &pixelData, width: width, height: height,
+                                      bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+                                      space: colorSpace,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return nil
+        }
+        context.interpolationQuality = .high
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        let output: MLMultiArray
+        if let reusable,
+           reusable.shape.count == 4,
+           reusable.shape[0].intValue == 1,
+           reusable.shape[1].intValue == 3,
+           reusable.shape[2].intValue == height,
+           reusable.shape[3].intValue == width {
+            output = reusable
+        } else if let created = try? MLMultiArray(
+            shape: [1, 3, NSNumber(value: height), NSNumber(value: width)],
+            dataType: .float32) {
+            output = created
+        } else {
+            return nil
+        }
+
+        let ptr = output.dataPointer.assumingMemoryBound(to: Float32.self)
+        let planeSize = height * width
+        for y in 0..<height {
+            for x in 0..<width {
+                let pixelIdx = (y * width + x) * 4
+                let outIdx = y * width + x
+                ptr[outIdx]                 = Float32(pixelData[pixelIdx])
+                ptr[planeSize + outIdx]     = Float32(pixelData[pixelIdx + 1])
+                ptr[planeSize * 2 + outIdx] = Float32(pixelData[pixelIdx + 2])
+            }
+        }
+        var divisor: Float32 = 255.0
+        vDSP_vsdiv(ptr, 1, &divisor, ptr, 1, vDSP_Length(3 * planeSize))
+        return output
+    }
+}
+
+// MARK: - 离线自检（不联网、不依赖模型文件）
+
+/// V2 集成的纯逻辑自检结果。
+struct V2SelfCheck: Sendable, Equatable {
+    var ok: Bool
+    var checks: [String]
+    var failures: [String]
+}
+
+extension InferenceEngineV2 {
+
+    /// 离线自检：**纯函数级**验证（不加载模型、不发网络）。
+    ///
+    /// 覆盖：
+    ///   · 输入契约常量与 export 脚本一致（维度/名称）
+    ///   · vehicle_state 8 维：speedValid 硬门（bug 2 回归）、车道线几何接线
+    ///   · dets 12 维编码：one-hot 正确、置信度降序、空槽补零、超 20 截断
+    ///   · lane 掩码：只取车道线、尺寸不符给全零
+    ///   · 车道线几何：直线→heading≈0；右弯→heading>0；左弯→heading<0；
+    ///                 偏移→lateralOffset 符号正确；无车道线→invalid 且全零
+    nonisolated static func selfCheck() -> V2SelfCheck {
+        var checks: [String] = []
+        var failures: [String] = []
+        let cfg = V2Config.default
+
+        func expect(_ cond: Bool, _ label: String, detail: String = "") {
+            if cond { checks.append(label) } else { failures.append(label + (detail.isEmpty ? "" : " | " + detail)) }
+        }
+
+        // ── ① 契约常量（与 tools/export_m9_v2_coreml.py 契约表逐项对齐）──
+        expect(V2InputContract.image == "image", "输入名 image")
+        expect(V2InputContract.lane == "lane", "输入名 lane（**不是** lane_mask）")
+        expect(V2InputContract.dets == "dets", "输入名 dets")
+        expect(V2InputContract.detMask == "det_mask", "输入名 det_mask")
+        expect(V2InputContract.vehicleState == "vehicle_state",
+               "输入名 vehicle_state（**不能**叫 state，coremltools 会改名）")
+        expect(V2InputContract.imageHeight == 180 && V2InputContract.imageWidth == 320,
+               "image 尺寸 180×320")
+        expect(V2InputContract.laneSize == 160, "lane 尺寸 160×160")
+        expect(V2InputContract.maxDetections == 20, "dets 槽位 N=20")
+        expect(V2InputContract.detFeatureDim == 12, "dets 每框 12 维")
+        expect(V2InputContract.stateDim == 8, "vehicle_state 8 维")
+
+        // ── ② bug 2 回归：speedValid 硬门 ──
+        var k = V2Kinematics()
+        k.speedKmh = -1          // OCR 读不到的真实取值
+        k.speedValid = false
+        k.accelMps2 = 5.0        // 即便给了加速度，速度不可信时也应清零
+        let invalidState = V2FeatureBuilder.buildVehicleState(k, config: cfg)
+        expect(invalidState.count == 8, "无效速度下仍输出 8 维")
+        expect(invalidState[0] == 0,
+               "bug2：speedValid=false 时 speed=0（**不是** -1/120 = -0.0083）",
+               detail: "实得 \(invalidState[0])")
+        expect(invalidState[1] == 0,
+               "bug2：speedValid=false 时 accel 也清零（导数同样不可信）",
+               detail: "实得 \(invalidState[1])")
+
+        k.speedKmh = 60
+        k.speedValid = true
+        let validState = V2FeatureBuilder.buildVehicleState(k, config: cfg)
+        expect(abs(Double(validState[0]) - 0.5) < 1e-6,
+               "有效速度 60km/h → speed=0.5", detail: "实得 \(validState[0])")
+
+        // ── ③ bug 1 回归：curvature/heading 不再恒 0 ──
+        var straight = LaneMaskSnapshot.empty()
+        straight = SyntheticLane.make(shape: .straight, size: V2InputContract.laneSize)
+        let straightGeom = LaneGeometryEstimator.estimate(mask: straight, config: cfg)
+        expect(straightGeom.valid, "直线车道线 → 几何有效",
+               detail: "sampledRows=\(straightGeom.sampledRows)")
+        expect(abs(straightGeom.heading) < 0.05,
+               "直线 → heading ≈ 0", detail: "实得 \(straightGeom.heading)")
+        expect(abs(straightGeom.curvature) < 0.2,
+               "直线 → curvature ≈ 0", detail: "实得 \(straightGeom.curvature)")
+
+        let rightGeom = LaneGeometryEstimator.estimate(
+            mask: SyntheticLane.make(shape: .curveRight, size: V2InputContract.laneSize), config: cfg)
+        expect(rightGeom.valid, "右弯车道线 → 几何有效")
+        expect(rightGeom.heading > 0.02,
+               "右弯 → heading > 0（正值=需右打）", detail: "实得 \(rightGeom.heading)")
+        expect(rightGeom.curvature > 0.02,
+               "右弯 → curvature > 0", detail: "实得 \(rightGeom.curvature)")
+
+        let leftGeom = LaneGeometryEstimator.estimate(
+            mask: SyntheticLane.make(shape: .curveLeft, size: V2InputContract.laneSize), config: cfg)
+        expect(leftGeom.valid, "左弯车道线 → 几何有效")
+        expect(leftGeom.heading < -0.02,
+               "左弯 → heading < 0", detail: "实得 \(leftGeom.heading)")
+
+        let offsetGeom = LaneGeometryEstimator.estimate(
+            mask: SyntheticLane.make(shape: .offsetRight, size: V2InputContract.laneSize), config: cfg)
+        expect(offsetGeom.valid, "整体右偏车道线 → 几何有效")
+        expect(offsetGeom.lateralOffset > 0.05,
+               "车偏右 → lateralOffset > 0", detail: "实得 \(offsetGeom.lateralOffset)")
+
+        // 空掩码 → invalid 且三量全 0（诚实原则）
+        let emptyGeom = LaneGeometryEstimator.estimate(mask: .empty(), config: cfg)
+        expect(!emptyGeom.valid, "无车道线 → valid=false（不编造几何）")
+        expect(emptyGeom.curvature == 0 && emptyGeom.heading == 0 && emptyGeom.lateralOffset == 0,
+               "无车道线 → 三量全 0（模型按'未知'处理）")
+
+        // bug 1 的核心断言：curvature/heading 真的进了 state
+        var k2 = V2Kinematics()
+        k2.lane = rightGeom
+        let stateWithGeom = V2FeatureBuilder.buildVehicleState(k2, config: cfg)
+        expect(stateWithGeom[2] != 0,
+               "bug1：heading 真的写进 state[2]（旧实现恒 0）",
+               detail: "实得 \(stateWithGeom[2])")
+        expect(stateWithGeom[4] != 0,
+               "bug1：curvature 真的写进 state[4]（旧实现恒 0）",
+               detail: "实得 \(stateWithGeom[4])")
+
+        // ── ④ dets 编码 ──
+        let dets: [Detection] = [
+            Detection(x: 0.1, y: 0.2, width: 0.05, height: 0.06, label: .car, confidence: 0.9),
+            Detection(x: 0.5, y: 0.6, width: 0.10, height: 0.12, label: .pedestrian, confidence: 0.4),
+        ]
+        let (detsArr, maskArr, count) = V2FeatureBuilder.buildDetections(dets, config: cfg)
+        expect(count == 2, "2 个框 → validCount=2")
+        expect(detsArr.count == 20 * 12, "dets 展平长度 = 240")
+        expect(maskArr.count == 20, "det_mask 长度 = 20")
+        expect(maskArr[0] == 1 && maskArr[1] == 1 && maskArr[2] == 0,
+               "det_mask 前 2 有效、其余 0")
+        // 置信度降序：0.9 的 car 排第 0 槽
+        expect(detsArr[0] == Float(0.1) && detsArr[8] == Float(0.9),
+               "高置信度框排在前（第 0 槽 = 0.9 的车）")
+        expect(detsArr[4] == 1 && detsArr[5] == 0 && detsArr[6] == 0 && detsArr[7] == 0,
+               "car → one-hot [1,0,0,0]")
+        expect(detsArr[12 + 4] == 0 && detsArr[12 + 5] == 1,
+               "pedestrian → one-hot [0,1,0,0]")
+        // 空槽全零
+        let emptySlotOK = (2..<20).allSatisfy { slot in
+            (0..<12).allSatisfy { detsArr[slot * 12 + $0] == 0 }
+        }
+        expect(emptySlotOK, "空槽 12 维全 0（契约要求）")
+
+        // 超 20 截断
+        let many = (0..<30).map { i in
+            Detection(x: 0.5, y: 0.5, width: 0.1, height: 0.1, label: .car,
+                      confidence: Double(i) / 30.0)
+        }
+        let (_, maskMany, countMany) = V2FeatureBuilder.buildDetections(many, config: cfg)
+        expect(countMany == 20, "30 个框 → 截断到 20（CoreML 固定 N）")
+        expect(maskMany.allSatisfy { $0 == 1 }, "截断后 20 槽全有效")
+
+        // one-hot 全覆盖
+        let allLabels: [Detection.Label] = [.car, .pedestrian, .sign, .obstacle]
+        let onehots = allLabels.map { V2FeatureBuilder.labelOneHot($0) }
+        expect(onehots.allSatisfy { $0.reduce(0) { $0 + Double($1) } == 1 },
+               "4 个类别 one-hot 各自恰有 1 个 1")
+        expect(onehots[2][2] == 1, "sign → 第 2 位")
+
+        // ── ⑤ lane 掩码 ──
+        let laneOut = V2FeatureBuilder.buildLaneMask(straight)
+        expect(laneOut.count == 160 * 160, "lane 展平长度 = 25600")
+        expect(laneOut.allSatisfy { $0 == 0 || $0 == 1 }, "lane 是二值 0/1")
+        expect(laneOut.contains(1), "直线掩码含前景像素")
+        let wrongSize = LaneMaskSnapshot(width: 80, height: 80,
+                                         cells: [UInt8](repeating: 1, count: 6400))
+        let wrongOut = V2FeatureBuilder.buildLaneMask(wrongSize)
+        expect(wrongOut.allSatisfy { $0 == 0 }, "尺寸不符 → 全零（不缩放造假掩码）")
+        expect(V2FeatureBuilder.buildLaneMask(nil).allSatisfy { $0 == 0 }, "nil 掩码 → 全零")
+
+        // ══════════════════════════════════════════════════════════════════════
+        // ⑤b INT8 退化保护回归（Lead 情报 · 项目既有实测）
+        // ══════════════════════════════════════════════════════════════════════
+        // 出处 tools/yolopx/export_yolopx_coreml.py:58-64：int8 量化把车道线
+        // 正像素占比从 1.30–1.80% 打到 0.13–0.21%（约 10×）。本引擎的 lane
+        // 来自可能是 INT8 的 yolopx，故必须有"前景太少就报未知"的保护。
+        expect(straight.positiveCount > cfg.minLanePixels,
+               "正常掩码前景格数（\(straight.positiveCount)）高于退化阈值（\(cfg.minLanePixels)）")
+
+        // 模拟 INT8 退化：只留极少量碎片像素
+        var degradedCells = [UInt8](repeating: 0, count: 160 * 160)
+        for i in stride(from: 0, to: degradedCells.count, by: 700) { degradedCells[i] = 1 }
+        let degraded = LaneMaskSnapshot(width: 160, height: 160, cells: degradedCells)
+        expect(degraded.positiveCount < cfg.minLanePixels,
+               "退化掩码前景格数（\(degraded.positiveCount)）低于阈值 —— 模拟 INT8 塌陷")
+        let degradedGeom = LaneGeometryEstimator.estimate(mask: degraded, config: cfg)
+        expect(!degradedGeom.valid,
+               "INT8 退化掩码 → valid=false（**绝不用碎片硬拟合出假车道线**）")
+        expect(degradedGeom.curvature == 0 && degradedGeom.heading == 0,
+               "INT8 退化 → 曲率/朝向全 0（模型按'未知'处理）")
+        expect(degradedGeom.lanePixels == degraded.positiveCount,
+               "诊断字段如实记录前景格数（\(degradedGeom.lanePixels)），供判断上游是否被量化毁掉")
+
+        // 正常掩码的 lanePixels 也要如实填
+        expect(straightGeom.lanePixels == straight.positiveCount,
+               "正常掩码 lanePixels 如实 = \(straightGeom.lanePixels)")
+
+        // ── ⑤c 单侧车道线 → 分级降级（heading/curvature 保留，lateralOffset 置 0）──
+        let oneSided = SyntheticLane.make(shape: .straight, size: 160, onlyLeft: true)
+        let oneGeom = LaneGeometryEstimator.estimate(mask: oneSided, config: cfg)
+        expect(oneGeom.valid, "单侧车道线 → 几何仍有效（朝向/曲率只依赖一条线）")
+        expect(!oneGeom.bothSides, "单侧 → bothSides=false")
+        expect(oneGeom.lateralOffset == 0,
+               "单侧 → lateralOffset 强制 0（不拿假设当测量）",
+               detail: "实得 \(oneGeom.lateralOffset)")
+        expect(!oneGeom.lateralOffsetReliable, "单侧 → lateralOffsetReliable=false")
+        expect(straightGeom.bothSides, "双侧掩码 → bothSides=true")
+        expect(straightGeom.lateralOffsetReliable, "双侧 → lateralOffsetReliable=true")
+        expect(oneGeom.lanePixels > cfg.minLanePixels, "单侧掩码前景仍高于退化阈值")
+
+        // 单侧但前景极少 → 整体无效
+        var sparseOne = [UInt8](repeating: 0, count: 160 * 160)
+        for y in 0..<10 { sparseOne[y * 160 + 80] = 1 }
+        let sparseOneSnap = LaneMaskSnapshot(width: 160, height: 160, cells: sparseOne)
+        let sparseGeom = LaneGeometryEstimator.estimate(mask: sparseOneSnap, config: cfg)
+        expect(!sparseGeom.valid || sparseGeom.sampledRows < cfg.minLaneRows
+               || sparseOneSnap.positiveCount < cfg.minLanePixels,
+               "极稀疏单侧 → 不产生可信几何（前景 \(sparseOneSnap.positiveCount) 格，采样 \(sparseGeom.sampledRows) 行）")
+
+        // ── ⑥ 全量 build 的维度自洽 ──
+        let f = V2FeatureBuilder.build(kinematics: k2, detections: dets,
+                                       laneMask: straight, config: cfg)
+        expect(f.vehicleState.count == 8, "build: state 8 维")
+        expect(f.dets.count == 240, "build: dets 240")
+        expect(f.detMask.count == 20, "build: det_mask 20")
+        expect(f.laneMask.count == 25600, "build: lane 25600")
+        expect(f.validDetectionCount == 2, "build: validCount=2")
+
+        // ── ⑦ 边界：全零/NaN/超大输入不产生 NaN ──
+        var nanK = V2Kinematics()
+        nanK.speedKmh = .nan
+        nanK.speedValid = true
+        nanK.accelMps2 = .infinity
+        nanK.steerAngle = .nan
+        let nanState = V2FeatureBuilder.buildVehicleState(nanK, config: cfg)
+        expect(nanState.allSatisfy { $0.isFinite }, "NaN/Inf 输入 → 输出全 finite（clamp 兜住）")
+        let nanDets = [Detection(x: .nan, y: .infinity, width: -.infinity,
+                                 height: .nan, label: .sign, confidence: .nan)]
+        let (nanDetsArr, _, _) = V2FeatureBuilder.buildDetections(nanDets, config: cfg)
+        expect(nanDetsArr.allSatisfy { $0.isFinite }, "NaN 框 → dets 全 finite")
+
+        // ── ⑧ 红线：lane 只来自 laneMask（结构上不含 drivable）──
+        //     本文件的 buildLaneMask 只接受 LaneMaskSnapshot 一种输入，
+        //     且全文件不出现 drivableMask 标识符（下方 grep 式断言由 W8 复核）。
+        expect(V2FeatureBuilder.buildLaneMask(straight).count == 25600,
+               "lane 通道来源唯一 = LaneMaskSnapshot（不含可行驶区域）")
+
+        return V2SelfCheck(ok: failures.isEmpty, checks: checks, failures: failures)
+    }
+}
+
+// MARK: - 合成车道线（自检用）
+
+/// 合成车道线掩码（只服务自检；不参与生产路径）。
+enum SyntheticLane {
+
+    enum Shape {
+        case straight
+        case curveRight
+        case curveLeft
+        case offsetRight
+    }
+
+    /// 生成一对车道线（左右各一条）。
+    ///
+    /// 坐标系：x 向右、y 向下。车道线按行绘制，中心 x 随行号变化：
+    ///   · straight     center = 0.5W（恒定）
+    ///   · curveRight   center 随 y 减小（往远处）而增大 → 前方偏右
+    ///   · curveLeft    反之
+    ///   · offsetRight  center 整体右移（车偏在车道左侧 → 车道中心在画面右侧）
+    ///
+    /// - Parameter onlyLeft: 只画左车道线（模拟"右侧被压线/断裂"的单侧场景，
+    ///   用于验证分级降级：heading/curvature 保留、lateralOffset 置 0）。
+    static func make(shape: Shape, size: Int, onlyLeft: Bool = false) -> LaneMaskSnapshot {
+        var cells = [UInt8](repeating: 0, count: size * size)
+        let w = Double(size)
+        let halfWidth = w * 0.18
+
+        func centerX(row: Double) -> Double {
+            // row ∈ [0, size)，0 = 顶部（远处），size-1 = 底部（近处）
+            // t ∈ [-1, 0]：-1 = 远端，0 = 近端（与估计器的 s 同向，便于推理）
+            let t = (row - (w - 1)) / (w - 1)
+            switch shape {
+            case .straight:
+                return w * 0.5
+            case .curveRight:
+                // 二次项系数 > 0：随 t 减小（往远处）center 增大 → 前方偏右
+                return w * 0.5 + w * 0.28 * t * t
+            case .curveLeft:
+                return w * 0.5 - w * 0.28 * t * t
+            case .offsetRight:
+                return w * 0.5 + w * 0.12
+            }
+        }
+
+        let sides: [Double] = onlyLeft ? [-halfWidth] : [-halfWidth, halfWidth]
+        for y in 0..<size {
+            let c = centerX(row: Double(y))
+            for side in sides {
+                let x = Int((c + side).rounded())
+                if x >= 0 && x < size { cells[y * size + x] = 1 }
+            }
+        }
+        return LaneMaskSnapshot(width: size, height: size, cells: cells)
+    }
+}
+
+// MARK: - TODO（未完成项，如实标注）
+
+// TODO(v2-tracking): dets 的 [9]speed / [10]heading / [11]age 现恒为 0。
+//   契约允许"无则 0"，但接了跟踪器后信息量更大：
+//     · age      ← MotionPredictor 的 TrackedTarget.age（连续跟踪帧数）
+//     · heading  ← 目标朝向（可由连续帧位移估计）
+//     · speed    ← 目标相对速度（同上）
+//   **为什么现在不接**：需要改 `updateMotionPipeline` 调用链，与 T1/T7 的
+//   改动面重叠；Lead 明确要求先按 0 填、留 TODO，等模型跑通后再接。
+//
+// TODO(v2-calibration): `V2Config.curvatureReference = 0.02` 是有依据的占位，
+//   不是标定值。真实像素↔米比例未知（随分辨率/视野变化）。等真实数据回来
+//   应重新拟合，并核对 heading/curvature 的分布是否落在模型训练分布内。
+//
+// TODO(v2-wiring): 接线（DriveState 侧开关切换新旧引擎）**尚未做** ——
+//   按 Lead 指示等 T2 的 INT8 模型产出后统一安排，避免与 T3 的录制改动撞车。
+//   切换点预计在 `DriveState.tick()` 里按开关选 `inferenceEngine` 或
+//   `inferenceEngineV2`，并保证两者**互斥**（不并行推理，省算力）。

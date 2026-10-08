@@ -4213,6 +4213,23 @@ final class DriveState {
     /// 与专家模式/训练录制互不影响，仅影响 RecordEngine 的输出内容
     var glyphMode       = false
 
+    // MARK: - 录制视角（2026-10-08 新增：用户要录第三视角）
+
+    /// 录制视角开关：false = 第一人称 FPV（默认，兼容旧行为）；
+    /// true = 第三人称 TPV（用户点名要的「第三视角」，训练端按 view.txt 过滤）。
+    ///
+    /// 【为什么要做成开关】此前 `recordEngine.start(perspective:)` 的两个调用点
+    /// 都硬编码 `"first"`，`RecordEngine` 明明支持 TPV 却没人能选 —— 参数在，
+    /// 只是没接线。现在 UI 一拨即可，且**录制中途切换不生效**（与 glyphMode
+    /// 同一约定：视角决定会话输出形态，中途改会让同一个 clip 里混两种视角，
+    /// 训练端按 clip 级 view.txt 过滤会误判）。
+    var recordThirdPerson = false
+
+    /// 录制视角（传给 RecordEngine.start 的字符串）
+    var recordPerspective: String {
+        recordThirdPerson ? "third" : "first"
+    }
+
     /// 禁用控制：模型照常检测画面（YOLO 框 + E2E 推理照跑），
     /// 但不把 AI 决策注入按键 —— 人工驾驶 + 模型辅助提示。
     var controlDisabled = false
@@ -4911,6 +4928,9 @@ final class DriveState {
                     "on": isRecording,
                     "glyph": glyphMode,
                     "expert": expertMode,
+                    // 2026-10-08：视角随命令下发到引擎进程 —— 真正写盘的是引擎，
+                    // 不传过去的话用户在 UI 选 TPV、引擎照旧录 FPV（静默不一致）。
+                    "perspective": recordPerspective,
                 ])
                 return
             }
@@ -4918,7 +4938,9 @@ final class DriveState {
                 // 每次开始录制前同步字模模式开关。注意：录制中途切换 glyphMode 不影响
                 // 本次会话（语义为「录制中切换不生效，需重启录制」），故不做实时热切换。
                 recordEngine.glyphMode = glyphMode
-                recordEngine.start(perspective: "first")
+                // 2026-10-08：视角参数化（此前硬编码 "first"，TPV 录不了）。
+                // 同样遵循「录制中途切换不生效」：这里只在开始时读一次。
+                recordEngine.start(perspective: recordPerspective)
                 if !captureEngine.isCapturing {
                     captureEngine.start()
                 }
@@ -5426,6 +5448,80 @@ final class DriveState {
     /// 截屏权限状态（首次启动若未授权，引导用户到系统设置）
     var capturePermissionDenied = false
 
+    // ── 窗口选择拉条状态（2026-10-08 新增，用户点名要求）──
+    //
+    // 【用户原话】「我们可以在自动驾驶的预览框右边放一个小小的拉条，然后拉出来，
+    //   就可以看到当前所有的窗口（大窗口、游戏的窗口），然后把游戏窗口可以选择是
+    //   **录全屏**还是**只录游戏这个窗口**。」
+    //
+    // 【为什么状态放在 DriveState 而不是视图内部】
+    //   · 拉条是「视图」，但选择结果要驱动 CaptureEngine（真实捕获行为）；
+    //   · 面板收起/展开、切页都不该丢失用户选择；
+    //   · `@Observable` 下放这里，MissionConsole 与其它面板都能读同一份。
+    @ObservationIgnored var windowPickerExpanded = false
+
+    /// 可捕获窗口列表（拉条展开时刷新）
+    var capturableWindows: [CapturableWindow] = []
+
+    /// 是否正在刷新窗口列表（UI 显示转圈/禁用重复点击）
+    var windowListLoading = false
+
+    /// 窗口列表刷新失败原因（如实展示，不静默吞）
+    var windowListError: String?
+
+    /// 当前捕获模式（与 CaptureEngine.captureMode 同步；UI 据此显示「正在录什么」）
+    var captureMode: CaptureMode = .fullScreen
+
+    /// 模式切换失败原因（如窗口已关闭）
+    var captureModeError: String?
+
+    /// 自家 UI 混入录制的告警（自动断言触发；UI 显著提示）
+    var captureOwnUIWarning: String?
+
+    /// 刷新可捕获窗口列表（异步；拉条展开时调用）
+    ///
+    /// 【性能】`SCShareableContent.current` 是系统调用，实测 10-60ms（窗口多时更久），
+    /// 因此**不放在 30Hz tick 里**，只在用户展开拉条 / 点刷新时调用一次。
+    func refreshCapturableWindows() async {
+        windowListLoading = true
+        windowListError = nil
+        let list = await CaptureEngine.listWindows()
+        capturableWindows = list
+        windowListLoading = false
+        if list.isEmpty {
+            windowListError = "没有可捕获的窗口（可能未授权屏幕录制，或窗口都不满足尺寸要求）"
+        }
+    }
+
+    /// 切换捕获模式（拉条点选「录全屏」或某个窗口时调用）
+    ///
+    /// 【为什么 async】切换要重新解析 `SCShareableContent` 并等 `updateContentFilter`
+    /// 返回；失败时**保持原模式**并把原因写给 UI（不静默切回全屏）。
+    func selectCaptureMode(_ mode: CaptureMode) async {
+        captureModeError = nil
+        await captureEngine.applyMode(mode)
+        captureMode = captureEngine.captureMode
+        captureModeError = captureEngine.lastModeError
+    }
+
+    /// 游戏窗口（拉条里高亮推荐的那个；没有则 nil）
+    var recommendedGameWindow: CapturableWindow? {
+        capturableWindows.first { $0.isGame }
+    }
+
+    /// 当前捕获模式的人类可读描述（拉条标题 + 预览框角标）
+    var captureModeDescription: String {
+        switch captureMode {
+        case .fullScreen:
+            return "录全屏（已排除自家窗口 \(captureEngine.excludedOwnWindowCount) 个）"
+        case .window(let id):
+            if let match = capturableWindows.first(where: { $0.id == id }) {
+                return "只录：\(match.displayLabel)"
+            }
+            return "只录窗口 #\(id)"
+        }
+    }
+
     // ── 按键注入引擎（CGEvent 控制 WASD/空格/Shift）──
     // 启动时检查辅助功能权限，停止时释放所有按住的键
     let controlEngine = ControlEngine()
@@ -5882,6 +5978,30 @@ final class DriveState {
                 }
             }
         }
+
+        // ── 捕获模式回调（2026-10-08 新增）──────────────────────────────
+        // 拉条切模式后同步 state（UI 显示「正在录什么」）+ 把切换失败原因如实带给 UI。
+        captureEngine.onModeChange = { [weak self] mode in
+            guard let self else { return }
+            self.captureMode = mode
+            self.captureModeError = self.captureEngine.lastModeError
+        }
+
+        // ── 自家 UI 混入录制的自动断言（防回归）─────────────────────────
+        // CaptureEngine 在「录全屏」模式下每帧做极轻量像素统计，一旦发现
+        // 左上采样区蓝白 UI 像素占比超阈值（疑似把 AuroraDrive 界面录进去）
+        // 就回调这里 → 显著提示用户改用「只录游戏窗口」。
+        // 每会话只触发一次（引擎侧已去重），不会 30fps 刷屏。
+        captureEngine.onOwnUIWarning = { [weak self] message in
+            guard let self else { return }
+            self.captureOwnUIWarning = message
+            self.dlog("[CAPTURE] ⚠️ 自家 UI 混入录制：\(message)")
+            // 同步给引擎进程（引擎模式下真正录的是引擎，告警要在引擎侧也可见）
+            if EngineClient.shared.isActive {
+                EngineClient.shared.sendCommand("capturewarn", extra: ["message": message])
+            }
+        }
+
         // 初始化插帧/超分引擎
         // 只在 UI 进程做：引擎进程没有窗口/MTKView，upscaleHost 不会被使用
         //（EngineMain 侧把「喂本进程 upscaleHost」的默认接线覆盖掉了），

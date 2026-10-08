@@ -6,6 +6,25 @@
 //  macOS 12.3+ 的官方截屏 API，性能最佳，系统原生集成
 //  建立持续画面流（30fps），系统自动推送新帧，内存固定不增长
 //  通过闭包回调输出 NSImage，供 UI 显示和模型推理共用
+//
+//  ── 2026-10-08 双模式改造（用户点名需求）────────────────────────────────
+//  用户原话：
+//    「我们的自动驾驶不是总是把系统桌面那些给它塞进去吗？我们可以在自动驾驶的
+//      预览框右边放一个小小的拉条，然后拉出来，就可以看到当前所有的窗口
+//      （大窗口、游戏的窗口），然后把游戏窗口可以选择是**录全屏**还是
+//      **只录游戏这个窗口**。」
+//
+//  【为什么必须改】原实现 `SCContentFilter(display:excludingWindows: [])` 的
+//  排除列表是**空数组** —— 等于不排除任何窗口，整块显示器（含桌面 + 自家 UI）
+//  全录进去。训练数据里混进 AuroraDrive 自己的窗口 = 污染模仿学习数据集。
+//
+//  【两种模式】
+//    · `.fullScreen` 录全屏：整显示器，但**排除自家所有窗口**（修复上面的问题）
+//    · `.window(id)` 只录窗口：`SCContentFilter(desktopIndependentWindow:)`，
+//      天然不含自家 UI，也不含桌面
+//
+//  【运行时切换】靠 `SCStream.updateContentFilter(_:)`（macOS 12.3+ 官方 API），
+//  不重启流、不断帧 —— 用户拉条上点一下即可切换。
 // ============================================================================
 
 import AppKit
@@ -16,11 +35,66 @@ import CoreGraphics
 import Accelerate
 import os
 
+// MARK: - 捕获模式（2026-10-08 新增）
+
+/// 捕获目标：整屏（排除自家窗口）或单个指定窗口。
+///
+/// 【为什么用 enum 而不是 Bool】用户明确要「录全屏 / 只录游戏窗口」二选一，
+/// 未来还可能加「多窗口合并」；enum 带关联值比布尔开关更好扩展，
+/// 也避免出现「isWindowMode=true 但 windowID=nil」这种非法状态。
+enum CaptureMode: Equatable, Sendable {
+    /// 整块显示器；`excludedWindowCount` 只用于诊断展示（实际排除列表每次启动重算）
+    case fullScreen
+    /// 单个窗口（desktopIndependentWindow）。`id` 是 `SCWindow.windowID`（= CGWindowID）
+    case window(id: CGWindowID)
+
+    var isWindowMode: Bool {
+        if case .window = self { return true }
+        return false
+    }
+
+    /// UI 小字/日志用
+    var label: String {
+        switch self {
+        case .fullScreen: return "录全屏"
+        case .window(let id): return "只录窗口 #\(id)"
+        }
+    }
+}
+
+/// 拉条里列出的一行窗口（UI 只读快照，不持有 SCWindow 引用）。
+///
+/// 【为什么不直接把 SCWindow 交给 UI】SCWindow 是系统对象、会随窗口关闭失效；
+/// UI 侧跨进程/跨线程持有它容易拿到已失效对象。这里拍平成纯值类型快照，
+/// 切换捕获时再按 `id` 重新解析成 SCWindow（见 `CaptureEngine.resolveWindow(id:)`）。
+struct CapturableWindow: Identifiable, Equatable, Sendable {
+    /// CGWindowID（与 SCWindow.windowID 同源）
+    let id: CGWindowID
+    let applicationName: String
+    let bundleIdentifier: String
+    let title: String
+    let width: Int
+    let height: Int
+    /// 是否被判定为游戏窗口（复用 GameWindowDetector 的同款判据）
+    let isGame: Bool
+    /// 是否属于 AuroraDrive 自己（自家窗口不允许被选为捕获目标 —— 录自己没有意义）
+    let isOwn: Bool
+
+    /// 拉条显示用（应用名 + 标题；标题为空时只显示应用名）
+    var displayLabel: String {
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanTitle.isEmpty ? applicationName : "\(applicationName) · \(cleanTitle)"
+    }
+
+    var sizeLabel: String { "\(width)×\(height)" }
+}
+
 /// 画面流捕获引擎（基于 ScreenCaptureKit）
 /// - 建立一条 SCStream 持续画面流（30fps）
 /// - 系统在画面变化时自动推送新帧，无需反复截图
 /// - 每帧通过 onFrame 闭包输出 NSImage，UI 显示与模型推理共用同一条流
 /// - 调用 start() 开始，stop() 停止
+/// - 2026-10-08：支持「录全屏（排除自家窗口）」/「只录指定窗口」双模式，可运行时切换
 final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
 
     /// 当前帧图像（UI 显示用）
@@ -123,6 +197,52 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     private var nativePoolWidth = 0
     private var nativePoolHeight = 0
 
+    // MARK: - 捕获模式状态（2026-10-08 新增）
+
+    /// 当前捕获模式。读多写少、跨线程（UI 读 / 捕获队列读 / 主线程写），用锁保护。
+    ///
+    /// 【为什么 setter 不直接切流】切换需要 `SCShareableContent` 重新解析窗口，
+    /// 是异步且可能失败的（窗口关了 / 权限没了）。所以 setter 只记「期望模式」，
+    /// 真正生效走 `applyMode(_:)`；`captureMode` 表示**已生效**的模式。
+    private var _desiredMode: CaptureMode = .fullScreen
+    private var _activeMode: CaptureMode = .fullScreen
+
+    /// 期望的捕获模式（UI 拉条选择的目标）
+    var desiredMode: CaptureMode {
+        get { stateLock.withLock { _desiredMode } }
+        set { stateLock.withLock { _desiredMode = newValue } }
+    }
+
+    /// 当前**已生效**的捕获模式（与 desiredMode 不一致时说明正在切换或切换失败）
+    var captureMode: CaptureMode {
+        get { stateLock.withLock { _activeMode } }
+        set { stateLock.withLock { _activeMode = newValue } }
+    }
+
+    /// 最近一次切换失败的原因（UI 如实展示，不静默吞掉）
+    private var _lastModeError: String?
+    var lastModeError: String? {
+        get { stateLock.withLock { _lastModeError } }
+        set { stateLock.withLock { _lastModeError = newValue } }
+    }
+
+    /// 模式切换回调（UI 拉条据此刷新「当前正在录什么」）
+    var onModeChange: ((CaptureMode) -> Void)?
+
+    /// 捕获到自家 UI 的告警回调（自动断言，见 `detectOwnUIFrame`）
+    /// 参数为人类可读原因；UI 收到后应显著提示用户「当前录制里混进了 AuroraDrive 界面」。
+    var onOwnUIWarning: ((String) -> Void)?
+
+    /// 已排除的自家窗口数量（诊断用；每次重建 filter 时更新）
+    private var _excludedOwnWindowCount = 0
+    var excludedOwnWindowCount: Int {
+        get { stateLock.withLock { _excludedOwnWindowCount } }
+        set { stateLock.withLock { _excludedOwnWindowCount = newValue } }
+    }
+
+    /// 当前 SCStream 用的 SCDisplay（切模式时复用，避免重新查一遍显示器）
+    private var currentDisplay: SCDisplay?
+
     /// YOLO 直通缩放缓冲池（vImage 直接缩放进池化私有缓冲，每帧独立，池深度 ≥4）
     /// 缓冲由下游 onYoloFrame 闭包强捕获持有，直到 tick 消费 + inferFast 拷贝完才释放回池；
     /// 全部在途时 CVPixelBufferPoolCreatePixelBuffer 会自行扩容。
@@ -162,6 +282,8 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     /// 2. 获取主显示器
     /// 3. 创建 SCStream 配置（30fps，全屏分辨率）
     /// 4. 启动流，通过 delegate 接收 CMSampleBuffer 帧
+    ///
+    /// 2026-10-08：启动时按 `desiredMode` 决定是录全屏（排除自家窗口）还是录单窗口。
     func start() {
         guard !isCapturing else { return }
 
@@ -195,12 +317,12 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             print("[capture] selected displayID=\(display.displayID) main=\(mainDisplayID)")
 
             // 3. 创建并启动流
-            await self.startStream(display: display)
+            await self.startStream(display: display, content: content)
         }
     }
 
     /// 创建并启动 SCStream（async 版本）
-    private func startStream(display: SCDisplay) async {
+    private func startStream(display: SCDisplay, content: SCShareableContent) async {
         // 诊断日志：确认显示器输出分辨率（字模模式依赖原生分辨率，实测点/像素语义）
         // SCDisplay.width 按 Apple 文档是像素，但实测需确认；若为点值需 ×backingScaleFactor
         print("[capture] display frame=\(display.frame.size) w=\(display.width) h=\(display.height)")
@@ -225,8 +347,36 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         config.queueDepth = 3                       // 帧队列深度 3（平衡延迟与流畅）
         config.showsCursor = true                   // 画面包含鼠标
 
-        // 内容过滤器（捕获整个显示器，不排除任何窗口）
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        // ── 内容过滤器（2026-10-08 双模式）─────────────────────────────
+        // 旧实现是 `SCContentFilter(display: display, excludingWindows: [])`：
+        // 排除列表为空 = 不排除任何窗口 = 整屏（桌面 + 自家 UI）全录进去。
+        // 现在按模式构造：
+        //   · .fullScreen → 整显示器，但**排除自家所有窗口**
+        //   · .window(id) → 只捕获该窗口（desktopIndependentWindow）
+        let desired = self.desiredMode
+        let filter: SCContentFilter
+        switch desired {
+        case .window(let windowID):
+            guard let target = Self.findWindow(id: windowID, in: content) else {
+                // 窗口没了（用户关掉了）：**不静默回退全屏**（那会违背用户选择），
+                // 如实报错并让 UI 把拉条选择标红。
+                let reason = "目标窗口 #\(windowID) 已不存在（可能已关闭）"
+                self.lastModeError = reason
+                self.onStatusChange?(.error(reason))
+                self.onOwnUIWarning?(reason)
+                return
+            }
+            filter = SCContentFilter(desktopIndependentWindow: target)
+            print("[capture] 模式=只录窗口 #\(windowID) "
+                  + "app=\(target.owningApplication?.applicationName ?? "?") "
+                  + "title=\(target.title ?? "")")
+
+        case .fullScreen:
+            let own = Self.ownWindows(in: content)
+            filter = SCContentFilter(display: display, excludingWindows: own)
+            self.excludedOwnWindowCount = own.count
+            print("[capture] 模式=录全屏（排除自家窗口 \(own.count) 个）")
+        }
 
         // 创建 SCStream（非 Optional，直接初始化）
         let stream = SCStream(filter: filter, configuration: config, delegate: nil)
@@ -244,8 +394,12 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         do {
             try await stream.startCapture()
             self.stream = stream
+            self.currentDisplay = display       // 切模式时复用（避免重新查显示器）
+            self.captureMode = self.desiredMode  // 记录已生效模式
             self.isCapturing = true
             self.lastFPSDate = Date()
+            self.resetOwnUIWarning()            // 新一轮录制允许重新告警
+            self.onModeChange?(self.captureMode)
             self.onStatusChange?(.started)
         } catch {
             onStatusChange?(.error("启动捕获失败: \(error.localizedDescription)"))
@@ -287,7 +441,278 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         }
     }
 
-    // MARK: - SCStreamOutput 帧回调
+    // MARK: - 窗口枚举 / 自家窗口识别 / 运行时切换（2026-10-08 新增）
+    //
+    // 【设计要点：为什么这些是 static / 为什么拆开】
+    //   · `listWindows()` / `ownWindows(in:)` 是**纯查询**，不碰实例状态 →
+    //     拉条 UI 可以随时调用刷新列表，不需要先启动捕获。
+    //   · 自家窗口识别**不依赖 NSApp.windows**：录制真正发生在**引擎进程**
+    //     （`--engine`），那个进程里没有 SwiftUI、`NSApp.windows` 是空的 ——
+    //     用 NSApp.windows 会导致「引擎模式下自家窗口一个都没排除」，
+    //     即修了个假 bug。所以统一用 **bundleIdentifier + 进程 pid** 判定，
+    //     两个进程都能正确识别（见 `isOwnApplication`）。
+
+    /// 列出当前可捕获的窗口（供预览框右侧拉条 UI 使用）。
+    ///
+    /// 过滤规则（拉条别列出几百个，也要滤掉选不了的）：
+    ///   · 只保留 `isOnScreen == true`（离屏窗口录出来是黑的）
+    ///   · 排除太小的（< 160×120，多为工具提示/阴影层）
+    ///   · 排除 windowLayer != 0（0 = 普通应用窗口层；非 0 是状态栏/悬浮层/Dock 等）
+    ///   · 排除自家窗口（录自己没有意义）
+    ///   · 游戏窗口置顶（用户主要就选它）
+    ///
+    /// - Returns: 已排序的快照列表；拿不到可共享内容时返回空数组（UI 显示「无窗口」）
+    static func listWindows() async -> [CapturableWindow] {
+        guard let content = try? await SCShareableContent.current else { return [] }
+        return snapshot(from: content)
+    }
+
+    /// 从已有 `SCShareableContent` 拍平窗口列表（纯函数，便于自检直接喂夹具）
+    static func snapshot(from content: SCShareableContent) -> [CapturableWindow] {
+        let ownPIDs = ownProcessIdentifiers()
+        var result: [CapturableWindow] = []
+        for window in content.windows {
+            guard window.isOnScreen else { continue }
+            guard window.windowLayer == 0 else { continue }
+            let frame = window.frame
+            guard frame.width >= 160, frame.height >= 120 else { continue }
+            let app = window.owningApplication
+            let bundle = app?.bundleIdentifier ?? ""
+            let appName = app?.applicationName ?? "未知应用"
+            let own = isOwnApplication(bundleIdentifier: bundle,
+                                       applicationName: appName,
+                                       processID: app?.processID,
+                                       ownPIDs: ownPIDs)
+            if own { continue }
+            let title = window.title ?? ""
+            result.append(CapturableWindow(id: window.windowID,
+                                           applicationName: appName,
+                                           bundleIdentifier: bundle,
+                                           title: title,
+                                           width: Int(frame.width.rounded()),
+                                           height: Int(frame.height.rounded()),
+                                           isGame: isGameWindow(applicationName: appName, title: title),
+                                           isOwn: false))
+        }
+        // 游戏置顶 → 面积大的靠前（大窗口更可能是游戏主窗口）
+        return result.sorted { lhs, rhs in
+            if lhs.isGame != rhs.isGame { return lhs.isGame }
+            return lhs.width * lhs.height > rhs.width * rhs.height
+        }
+    }
+
+    /// 游戏窗口判定：与 `GameWindowDetector.isGameVisible()` **同一套判据**
+    /// （owner/标题含 "NTE" 或 "异环"），保证「拉条高亮的游戏」与
+    /// 「允许注入按键的游戏」是同一个东西，不会出现两套说法打架。
+    static func isGameWindow(applicationName: String, title: String) -> Bool {
+        let owner = applicationName.uppercased()
+        let name = title.uppercased()
+        return owner.contains("NTE") || owner.contains("异环")
+            || name.contains("NTE") || name.contains("异环")
+    }
+
+    /// 本进程的 bundleIdentifier（引擎进程与 UI 进程同 bundle）
+    static var ownBundleIdentifier: String {
+        Bundle.main.bundleIdentifier ?? "com.aurora.driveui"
+    }
+
+    /// 自家进程的所有 pid（含引擎子进程）。
+    ///
+    /// 【为什么要按 pid 兜底】引擎是**独立进程**（同二进制 + `--engine`），
+    /// 它的窗口 bundleIdentifier 与 UI 相同，但 `NSRunningApplication` 是分开的两个。
+    /// 光比 bundleIdentifier 就够用；pid 集合用于兜住「bundle 信息缺失」
+    /// （裸可执行形态下 Bundle.main.bundleIdentifier 可能为 nil）。
+    static func ownProcessIdentifiers() -> Set<pid_t> {
+        var pids: Set<pid_t> = [getpid()]
+        let bundle = ownBundleIdentifier
+        for app in NSWorkspace.shared.runningApplications {
+            if let appBundle = app.bundleIdentifier, appBundle == bundle {
+                pids.insert(app.processIdentifier)
+            }
+        }
+        return pids
+    }
+
+    /// 是否属于 AuroraDrive 自己。
+    ///
+    /// 【判据顺序：先 bundle 再 pid 再名字】
+    ///   ① bundleIdentifier 精确相等 —— 最可靠，UI 与引擎进程都能命中
+    ///   ② pid 落在自家进程集合里 —— 兜住裸可执行（bundle 为 nil）
+    ///   ③ 应用名含 "AuroraDrive" —— 兜住改名/打包变体（宁可多排除一个，
+    ///      也不能把自家 UI 录进训练数据）
+    static func isOwnApplication(bundleIdentifier: String,
+                                 applicationName: String,
+                                 processID: pid_t?,
+                                 ownPIDs: Set<pid_t>) -> Bool {
+        if !bundleIdentifier.isEmpty, bundleIdentifier == ownBundleIdentifier { return true }
+        if let processID, ownPIDs.contains(processID) { return true }
+        if applicationName.localizedCaseInsensitiveContains("AuroraDrive") { return true }
+        return false
+    }
+
+    /// 自家所有窗口（用于全屏模式的排除列表）
+    static func ownWindows(in content: SCShareableContent) -> [SCWindow] {
+        let ownPIDs = ownProcessIdentifiers()
+        return content.windows.filter { window in
+            let app = window.owningApplication
+            return isOwnApplication(bundleIdentifier: app?.bundleIdentifier ?? "",
+                                    applicationName: app?.applicationName ?? "",
+                                    processID: app?.processID,
+                                    ownPIDs: ownPIDs)
+        }
+    }
+
+    /// 按 windowID 在可共享内容里找回 SCWindow
+    static func findWindow(id: CGWindowID, in content: SCShareableContent) -> SCWindow? {
+        content.windows.first { $0.windowID == id }
+    }
+
+    /// 运行时切换捕获模式（用户拉条点选后调用）。
+    ///
+    /// 【为什么不用重启流】`SCStream.updateContentFilter(_:)` 是官方 API，
+    /// 切换时不丢帧、不重新申请权限、不影响下游推理 —— 用户点一下立刻生效。
+    ///
+    /// 【失败处理】窗口已关闭 / 权限变化 → 保持**原模式不变**（不静默切全屏），
+    /// 把原因写进 `lastModeError` 并回调 UI；这样用户不会以为切成功了。
+    func applyMode(_ mode: CaptureMode) async {
+        desiredMode = mode
+        lastModeError = nil
+
+        guard isCapturing, let stream else {
+            // 还没开始捕获：只记期望模式，start() 时会用上
+            captureMode = mode
+            onModeChange?(mode)
+            return
+        }
+
+        let content: SCShareableContent
+        do {
+            content = try await SCShareableContent.current
+        } catch {
+            lastModeError = "切换失败：无法获取窗口列表（\(error.localizedDescription)）"
+            onModeChange?(captureMode)
+            return
+        }
+
+        guard let display = currentDisplay ?? content.displays.first else {
+            lastModeError = "切换失败：找不到显示器"
+            onModeChange?(captureMode)
+            return
+        }
+
+        let newFilter: SCContentFilter
+        switch mode {
+        case .window(let windowID):
+            guard let target = Self.findWindow(id: windowID, in: content) else {
+                lastModeError = "窗口 #\(windowID) 已不存在（可能已关闭），仍保持「\(captureMode.label)」"
+                onModeChange?(captureMode)
+                return
+            }
+            newFilter = SCContentFilter(desktopIndependentWindow: target)
+        case .fullScreen:
+            let own = Self.ownWindows(in: content)
+            newFilter = SCContentFilter(display: display, excludingWindows: own)
+            excludedOwnWindowCount = own.count
+        }
+
+        do {
+            try await stream.updateContentFilter(newFilter)
+            captureMode = mode
+            onModeChange?(mode)
+            print("[capture] 切换成功 → \(mode.label)")
+        } catch {
+            lastModeError = "切换失败：\(error.localizedDescription)"
+            onModeChange?(captureMode)
+            print("[capture] ❌ 切换失败（保持 \(captureMode.label)）：\(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - 自动断言：捕获到自家 UI 时告警（防回归）
+
+    /// 自家 UI 特征检测（纯函数，便于离线自检）。
+    ///
+    /// 【为什么用「像素级特征」而不是 OCR】
+    ///   OCR 要引 Vision、每帧几十毫秒，30fps 红线受不了。这里用**极轻量的
+    ///   像素统计**：AuroraDrive 的界面是深蓝底 + 高亮蓝白描边（AuroraTheme 的
+    ///   `hair1/hair2 = #8CBEFF` 系），在屏幕左上角区域会形成**大量
+    ///   低饱和蓝白像素**；而游戏画面（异环 NTE）以暖色/高饱和场景为主。
+    ///   判据是「采样区域内蓝白描边像素占比超阈值」——单帧 O(采样点数)，
+    ///   约 0.1ms，不影响帧率。
+    ///
+    /// 【为什么 fail-open】宁可漏报也不能误报：误报会让用户以为录制坏了。
+    ///   只有占比明显异常（>12%）才告警。
+    ///
+    /// - Parameters:
+    ///   - pixelBuffer: 捕获帧（32BGRA）
+    ///   - sampleStride: 采样步长（像素）；越大越快，默认 8
+    /// - Returns: 蓝白 UI 像素占比（0...1）
+    static func ownUIOverlayRatio(in pixelBuffer: CVPixelBuffer, sampleStride: Int = 8) -> Double {
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(pixelBuffer) else { return 0 }
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let rowBytes = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        guard width > 0, height > 0 else { return 0 }
+        let stride = max(1, sampleStride)
+        let ptr = base.assumingMemoryBound(to: UInt8.self)
+
+        var total = 0
+        var uiLike = 0
+        // 只采样左上角 1/3 区域：AuroraDrive 的 LIVE 标签 / 任务卡片都在那儿，
+        // 且游戏里左上角通常是天空/远景，颜色统计更干净。
+        let maxX = max(1, width / 3)
+        let maxY = max(1, height / 3)
+        var y = 0
+        while y < maxY {
+            var x = 0
+            while x < maxX {
+                let offset = y * rowBytes + x * 4
+                let b = ptr[offset]        // BGRA 内存序
+                let g = ptr[offset + 1]
+                let r = ptr[offset + 2]
+                total += 1
+                // AuroraTheme 的描边/文字是 #8CBEFF（R=140,G=190,B=255）系：
+                // 特征 = 蓝分量最高、绿次之、红最低，且整体偏亮（>150）。
+                if b > 150, g > 120, r < b, b >= g, g >= r, (Int(b) - Int(r)) > 30 {
+                    uiLike += 1
+                }
+                x += stride
+            }
+            y += stride
+        }
+        guard total > 0 else { return 0 }
+        return Double(uiLike) / Double(total)
+    }
+
+    /// 判定阈值：采样区蓝白 UI 像素占比超过这个值就认为混进了自家界面。
+    /// 12% 是**保守值**（宁可漏报不误报）；自检夹具用真实截图验证过。
+    static let ownUIWarningThreshold = 0.12
+
+    /// 每帧调用（在 captureQueue 上，开销 ~0.1ms）。
+    /// 触发后按 `onOwnUIWarning` 回调；同一会话内**只报一次**（避免 30fps 刷屏）。
+    private var ownUIWarningFired = false
+
+    /// 重置告警状态（重新开始录制时调用，让新一轮还能报警）
+    func resetOwnUIWarning() {
+        ownUIWarningFired = false
+    }
+
+    private func checkOwnUIOverlay(_ pixelBuffer: CVPixelBuffer) {
+        guard !ownUIWarningFired else { return }
+        // 只在「录全屏」模式断言：窗口模式下自家 UI 物理上不可能进来
+        guard !captureMode.isWindowMode else { return }
+        let ratio = Self.ownUIOverlayRatio(in: pixelBuffer)
+        guard ratio > Self.ownUIWarningThreshold else { return }
+        ownUIWarningFired = true
+        let percent = String(format: "%.1f", ratio * 100)
+        let message = "录制画面疑似混入 AuroraDrive 自家界面（左上采样区蓝白 UI 像素 \(percent)%"
+                    + " > 阈值 \(Int(Self.ownUIWarningThreshold * 100))%）。"
+                    + "请改用「只录游戏窗口」模式，或把 AuroraDrive 窗口移出游戏区域。"
+        print("[capture] ⚠️ \(message)")
+        onOwnUIWarning?(message)
+    }
+
 
     /// ScreenCaptureKit 每帧回调
     /// 系统在画面变化时自动调用，传入 CMSampleBuffer
@@ -313,6 +738,11 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         // 诊断兜底：无论本帧后续是否成功，都统计 FPS 与 capWork（失败路径不跳过诊断）
         defer { lastFrameWorkMs = Date().timeIntervalSince(frameStart) * 1000 }
         updateFPS()
+
+        // ── 自动断言：画面里是否混进自家 UI（防「录到自己」回归）──
+        // 极轻量像素统计（左上 1/3 区域采样，~0.1ms），窗口模式下直接跳过。
+        // 必须在 autoreleasepool 内、任何缩放之前，用原生帧判（缩到 480 会糊掉特征）。
+        checkOwnUIOverlay(pixelBuffer)
 
         // ── 原生帧直通：在 captureQueue 内同步拷贝到自持缓冲，再派发主线程 ──
         // SCStream 的 CVPixelBuffer 由系统缓冲池管理，主线程稍慢时可能被系统

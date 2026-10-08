@@ -103,6 +103,21 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
+# ---- 车道线几何口径（与 Swift MaskGrid 逐位对齐的唯一真值实现）----
+# 两种导入方式都支持：`python -m src.train_v2`（包内）与 `python src/dataset_v2.py`（脚本）
+try:                                        # pragma: no cover - 取决于调用方式
+    from .lane_geometry import (            # type: ignore[import-not-found]
+        LANE_GRID, LANE_SRC_SIZE, LETTERBOX_PAD_VALUE,
+        assert_lane_contract, grid_content_rows, letterbox_metrics,
+        logits_to_grid, normalize_lane_mask, valid_region_in_grid,
+    )
+except ImportError:                         # pragma: no cover
+    from lane_geometry import (             # type: ignore[no-redef]
+        LANE_GRID, LANE_SRC_SIZE, LETTERBOX_PAD_VALUE,
+        assert_lane_contract, grid_content_rows, letterbox_metrics,
+        logits_to_grid, normalize_lane_mask, valid_region_in_grid,
+    )
+
 # ===================== 可调常量 =====================
 STATE_DIM = 10
 LEGACY_STATE_DIM = 6          # 前 6 维 = mono_dataset v2_new 契约
@@ -411,25 +426,70 @@ def _load_controls_csv(
 # ==================================================================================
 # 车道线掩码 / 检测框 缓存读取（含缺失降级）
 # ==================================================================================
-def _load_lane_mask(clip_dir: Path, frame_no: int, size: Tuple[int, int]
+def _load_lane_mask(clip_dir: Path, frame_no: int, size: Tuple[int, int],
+                    grid: int = LANE_GRID, strict_geometry: bool = False
                     ) -> Tuple[np.ndarray, bool]:
-    """读取车道线掩码 → ([1, H, W] float32 {0,1}, present)。
+    """读取车道线掩码 → ([1, grid, grid] float32 {0,1}, present)。
+
+    ★ 几何口径（2026-10-08 修复，本函数是核心修复点）
+    ----------------------------------------------------------------
+    返回的掩码是 **letterbox 640 坐标系下采样后的 grid×grid 网格**，
+    与 Swift `YolopxEngine.extractMask()` 产出的 `MaskGrid` **逐位同口径**。
+
+    ⛔ 修复前的行为（bug）：把缓存掩码 `resize` 到 `size=(H,W)`（相机空间 180×320），
+       导致「内容填满全图、无灰边、纵横比破坏」，与运行时口径最多差 35 格（21.9%）。
+       根因是当时认为 lane_mask 应与 image 同分辨率 —— 但运行时 lane_mask 来自
+       **letterbox 640 的俯视投影**，与 180×320 的相机空间图**本就不同坐标系**。
 
     优先级：
-      1) lane_mask/{frame:06d}.png   离线补算缓存（0/255 灰度）
-      2) lane_masks.npz              键为 "frame_{no}" 或 str(no)
-      3) lanes.json / lane_poly.json 折线 → 现场栅格化
-    全部缺失 → 返回全 0 掩码 + present=False（**不报错**）。
+      1) lane_mask/{frame:06d}.png   离线补算缓存
+         · 640×640（letterbox 全分辨率）→ 4×4 多数表决降到 grid
+         · grid×grid（已降采样）        → 原样使用
+      2) lane_masks.npz              键为 "frame_{no}" 或 str(no)，同上规则
+      3) lanes.json / lane_poly.json 折线 → 现场栅格化（相机空间，标注为 legacy）
+    全部缺失 → 返回全 0 掩码 + present=False（**不报错**，符合降级纪律）。
+
+    Args:
+        size: 相机空间 (H, W)，**仅用于 lanes.json 折线栅格化这条 legacy 路径**
+        grid: 输出网格边长，默认 160（= Swift maskGridSize）
+        strict_geometry: True 时，若缓存尺寸既不是 grid×grid 也不能整除到 grid，
+            直接抛错而不是降级（用于训练侧 fail-fast）
     """
     H, W = size
-    empty = np.zeros((1, H, W), dtype=np.float32)
+    empty = np.zeros((1, grid, grid), dtype=np.float32)
+
+    def _to_grid(arr: np.ndarray) -> np.ndarray:
+        """把任意合法来源归一到 [grid, grid] {0,1}；不合法则按 strict_geometry 决定。"""
+        a = np.asarray(arr)
+        while a.ndim > 2 and a.shape[0] == 1:
+            a = a[0]
+        if a.ndim != 2:
+            raise ValueError(f"_load_lane_mask: 期望 2D 掩码，实际 {a.shape}")
+        h, w = a.shape
+        if (h, w) == (grid, grid):
+            return (a > 0.5).astype(np.float32)
+        if h == w and h % grid == 0:
+            # letterbox 全分辨率 → 多数表决（与 Swift extractMask 同规则）
+            m = (a > 0.5).astype(np.uint8)
+            stride = h // grid
+            blocks = m.reshape(grid, stride, grid, stride)
+            return (blocks.sum(axis=(1, 3)) * 2 >= stride * stride).astype(np.float32)
+        if strict_geometry:
+            raise ValueError(
+                f"_load_lane_mask: 缓存掩码尺寸 {h}×{w} 无法归一到 {grid}×{grid} 的 "
+                f"letterbox 口径。**拒绝静默 resize**（会破坏与 Swift MaskGrid 的几何一致性）。"
+                f"请重新运行 backfill_lane_masks() 以产出 letterbox 口径缓存。")
+        # 非严格模式：仍不 resize（那正是被修复的 bug），改为返回空掩码并标记缺失
+        return None  # type: ignore[return-value]
 
     p = clip_dir / _LANE_CACHE_DIR / f"{frame_no:06d}.png"
     if p.exists():
         with Image.open(p) as im:
-            m = im.convert("L").resize((W, H), Image.NEAREST)
-            arr = (np.asarray(m, dtype=np.float32) > 127).astype(np.float32)
-        return arr[None, :, :], True
+            arr = np.asarray(im.convert("L"), dtype=np.float32)
+        g = _to_grid(arr > 127)
+        if g is None:
+            return empty, False
+        return g[None, :, :], True
 
     npz = clip_dir / "lane_masks.npz"
     if npz.exists():
@@ -437,13 +497,10 @@ def _load_lane_mask(clip_dir: Path, frame_no: int, size: Tuple[int, int]
             with np.load(npz) as z:
                 for key in (f"frame_{frame_no}", str(frame_no)):
                     if key in z:
-                        m = z[key]
-                        if m.ndim == 3:
-                            m = m[0]
-                        img = Image.fromarray((m > 0).astype(np.uint8) * 255)
-                        img = img.resize((W, H), Image.NEAREST)
-                        arr = (np.asarray(img, dtype=np.float32) > 127).astype(np.float32)
-                        return arr[None, :, :], True
+                        g = _to_grid(z[key] > 0)
+                        if g is None:
+                            return empty, False
+                        return g[None, :, :], True
         except (OSError, ValueError, KeyError):
             pass
 
@@ -454,7 +511,13 @@ def _load_lane_mask(clip_dir: Path, frame_no: int, size: Tuple[int, int]
                 data = json.loads(pj.read_text())
                 polys = data.get(str(frame_no), data.get(f"frame_{frame_no}"))
                 if polys:
-                    return _rasterize_polylines(polys, size), True
+                    # ⚠️ legacy 路径：折线是**相机空间归一化坐标**，与 letterbox 口径不同源。
+                    #    仅作过渡兼容，正式数据必须走 backfill_lane_masks()。
+                    cam = _rasterize_polylines(polys, size)      # [1,H,W]
+                    g = _to_grid(cam)
+                    if g is None:
+                        return empty, False
+                    return g[None, :, :], True
             except (json.JSONDecodeError, OSError, TypeError, KeyError):
                 pass
 
@@ -621,6 +684,8 @@ class MultiTaskClipsDataset(Dataset):
         require_active_control: bool = False,
         allow_empty: bool = True,
         strict: bool = False,
+        lane_grid: int = LANE_GRID,
+        strict_lane_geometry: bool = False,
         seed: int = 42,
     ):
         self.clips_dir = Path(clips_dir)
@@ -631,6 +696,10 @@ class MultiTaskClipsDataset(Dataset):
         self.heading_unit = heading_unit
         self.default_fps = default_fps
         self.strict = strict
+        # ★ 车道线几何口径：输出网格边长（= Swift maskGridSize）
+        self.lane_grid = int(lane_grid)
+        # ★ True 时缓存尺寸不合 letterbox 口径即抛错，而非降级
+        self.strict_lane_geometry = bool(strict_lane_geometry)
         self.rng = random.Random(seed)
 
         self.index: List[Tuple[Path, str, Dict[str, Any]]] = []
@@ -716,8 +785,10 @@ class MultiTaskClipsDataset(Dataset):
             img = self._augment(img)
         img = np.transpose(img, (2, 0, 1)).copy()
 
-        # ---- 车道线 ----
-        lane, lane_present = _load_lane_mask(clip_dir, fno, self.image_size)
+        # ---- 车道线（★ letterbox 口径 grid×grid，与 Swift MaskGrid 逐位同口径）----
+        lane, lane_present = _load_lane_mask(
+            clip_dir, fno, self.image_size, grid=self.lane_grid,
+            strict_geometry=self.strict_lane_geometry)
 
         # ---- 检测框（变长 → padding + mask）----
         boxes, scores, classes, det_mask, det_present = _load_detections(

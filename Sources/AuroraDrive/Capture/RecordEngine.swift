@@ -35,10 +35,28 @@ final class RecordEngine: @unchecked Sendable {
     let targetFps: Double = 24
 
     /// 每类 clip 目录保留上限：只保留最近 N 个 clip（目录名 clip_<ts> 字典序≈时间序）。
-    /// 录制启动时删除最旧目录，防 640×360 JPEG 30fps（像素量约 4.6×224²，估算日积约 230GB/天）无上限累积撑爆磁盘；
-    /// 有 maxClipsPerKind=10 自动清理兜底（仅保留最近 10 个 clip）。
-    /// 可调常量：调大保留更多历史数据，调小更省磁盘（raw_clips 与 glyph_clips 共用此上限）。
-    let maxClipsPerKind = 10
+    /// 录制启动时删除最旧目录，防 640×360 JPEG 30fps（像素量约 4.6×224²，估算日积约 230GB/天）无上限累积撑爆磁盘。
+    ///
+    /// ── 2026-10-08 改为可配置（用户点名：采集 10000+ 帧时数据会莫名消失）──
+    /// 【原问题】硬编码 10：用户要采集 10000+ 帧（≈17min@10fps）数据，每开一次新
+    ///   录制就会**静默删掉**最旧的 clip —— 攒的数据凭空消失，且没有任何日志。
+    /// 【现在的口径】优先级从高到低：
+    ///   ① `AURORA_MAX_CLIPS` 环境变量（正整数；采集脚本/CLI 用）
+    ///   ② `maxClipsOverride`（UI 开关/采集模式设置）
+    ///   ③ 默认 10（保持旧行为，省磁盘）
+    /// 【为什么默认值不变】10 是给「随手录一段」的默认；真正攒数据集时
+    ///   必须显式调大 —— 隐式改大默认值会让长期跑的用户某天发现磁盘满了。
+    var maxClipsOverride: Int?
+
+    /// 生效的保留上限（见上）
+    var maxClipsPerKind: Int {
+        if let raw = ProcessInfo.processInfo.environment["AURORA_MAX_CLIPS"],
+           let value = Int(raw), value > 0 {
+            return value
+        }
+        if let override = maxClipsOverride, override > 0 { return override }
+        return 10
+    }
 
     // MARK: - 字模模式
 
@@ -65,6 +83,11 @@ final class RecordEngine: @unchecked Sendable {
 
     /// 本次录制会话目录 URL
     private(set) var sessionURL: URL?
+
+    /// 本次会话的视角（"first" / "third"）。
+    /// 在 start() 里归一化后记录，stop() 写 meta.json 时用 —— 与 view.txt 同源，
+    /// 避免两处各算一遍导致不一致（旧代码正是各算一遍，meta 那处算错了）。
+    private(set) var sessionPerspective: String?
 
     /// 录制开始时间（用于时间戳）
     private var startTime: Date?
@@ -126,10 +149,60 @@ final class RecordEngine: @unchecked Sendable {
 
     // MARK: - 录制控制
 
+    /// 视角标签的合法取值（训练端 `_clip_view` 只认这两类）
+    enum Perspective: String, CaseIterable, Sendable {
+        /// 第一人称 FPV（默认）
+        case first
+        /// 第三人称 TPV（用户 2026-10-08 点名要录第三视角）
+        case third
+
+        /// 中文名（UI 用）
+        var displayName: String {
+            switch self {
+            case .first: return "第一人称 FPV"
+            case .third: return "第三人称 TPV"
+            }
+        }
+
+        /// 写进 view.txt 的标签（训练端 `src/mono_dataset.py:54` 按此过滤）
+        var viewLabel: String {
+            switch self {
+            case .first: return "FPV"
+            case .third: return "TPV"
+            }
+        }
+    }
+
+    /// 把任意输入归一成合法视角字符串。
+    /// 非法值一律回落到 `"first"`（录制是主流程，不因拼错字符串就整场不录）。
+    static func normalizePerspective(_ raw: String) -> String {
+        let lowered = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch lowered {
+        case "third", "tpv", "3", "third-person", "thirdperson", "3rd":
+            return Perspective.third.rawValue
+        default:
+            return Perspective.first.rawValue
+        }
+    }
+
     /// 开始录制
-    /// - Parameter perspective: 视角标签（如 "third"），用于目录命名
+    /// - Parameter perspective: 视角标签。支持 `"first"`（第一人称 FPV，默认）与
+    ///   `"third"`（第三人称 TPV，用户 2026-10-08 点名要录第三视角）。
+    ///   **非法值一律归一到 `"first"`**（不抛错：录制是主流程，宁可按默认视角录，
+    ///   也不能因为一个字符串拼错就整场不录）；归一结果会打印出来。
+    ///
+    /// 【2026-10-08 参数化】此前两个调用点硬编码 `"first"`，而 `RecordEngine`
+    ///   早已支持按参数写 `view.txt`（first→FPV / third→TPV）—— 参数在，
+    ///   只是没人传 `"third"`。现在由设置里的开关决定（见 `AgentSettings`/
+    ///   `DriveState.recordPerspective`）。
     func start(perspective: String = "first") {
         guard !isRecording else { return }
+
+        // 视角归一化（写进 view.txt 与 meta.json，两处必须一致）
+        let normalized = Self.normalizePerspective(perspective)
+        if normalized != perspective {
+            print("[record] ⚠️ 未知视角「\(perspective)」→ 按默认 first 录制")
+        }
 
         // ── 磁盘上限清理：录制启动时删最旧 clip，防 7×24 无上限累积撑爆磁盘 ──
         // 只在启动时清理，不在录制中动当前 clip；raw_clips 与 glyph_clips 都纳入。
@@ -164,9 +237,10 @@ final class RecordEngine: @unchecked Sendable {
                                                  withIntermediateDirectories: true)
 
         // 写视角标签，供训练端 _clip_view 过滤（first→FPV, third→TPV）
-        let viewLabel = (perspective == "first") ? "FPV" : "TPV"
+        let viewLabel = (normalized == "first") ? "FPV" : "TPV"
         try? viewLabel.write(to: sessionDir.appendingPathComponent("view.txt"),
                              atomically: true, encoding: .utf8)
+        sessionPerspective = normalized   // 供 stop() 写进 meta.json（见该处说明）
 
         // ── 2. 初始化 CSV（写表头）──
         let csvURL = sessionDir.appendingPathComponent("controls.csv")
@@ -224,8 +298,15 @@ final class RecordEngine: @unchecked Sendable {
 
         let size = targetSize
         let fps = targetFps
-        let perspective = url.lastPathComponent
-            .components(separatedBy: "_").first ?? "unknown"
+        // ── 2026-10-08 修复：meta.json 的 perspective 曾是**坏字段** ──
+        // 旧代码写的是 `url.lastPathComponent.components(separatedBy: "_").first`
+        // —— 目录名是 `clip_20261008_132000`，首段恒为 `"clip"`，于是 meta.json
+        // 里永远写着 `"perspective": "clip"`（既不是 FPV 也不是 TPV）。
+        // 训练端（src/mono_dataset.py:54、src/train_game_assist.py:114）只读
+        // view.txt，没人读这个字段，所以一直没暴露；但它是个**错误信息**，
+        // 留着会误导后续分析。现在改成写真实视角（与 view.txt 同源）。
+        let perspective = sessionPerspective
+            ?? (url.lastPathComponent.components(separatedBy: "_").first ?? "unknown")
 
         writeQueue.async { [isoFormatter] in
             // 写 meta.json（与现有格式完全一致）
@@ -257,6 +338,10 @@ final class RecordEngine: @unchecked Sendable {
     /// 清理某录制根目录下最旧的 clip_<ts> 目录，仅保留最近 maxClipsPerKind 个。
     /// - 只在录制启动时调用（start() 里），绝不在录制中动当前 clip；
     /// - 目录名 clip_yyyyMMdd_HHmmss 同格式，字典序即时间序（升序 = 最旧在前）。
+    ///
+    /// 【2026-10-08】删除时**必须打日志**：旧实现静默删，用户攒的数据凭空消失
+    /// 却查不到原因。现在每次都打印「删了几个、剩几个、上限多少」，
+    /// 并在日志里给出调大的方法（AURORA_MAX_CLIPS）。
     private func pruneOldClips(in root: URL) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(at: root,
@@ -265,10 +350,18 @@ final class RecordEngine: @unchecked Sendable {
         let clipDirs = entries
             .filter { $0.lastPathComponent.hasPrefix("clip_") }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }   // 最旧在前
-        guard clipDirs.count > maxClipsPerKind else { return }
-        for dir in clipDirs.prefix(clipDirs.count - maxClipsPerKind) {
-            try? fm.removeItem(at: dir)
+        let limit = maxClipsPerKind
+        guard clipDirs.count > limit else { return }
+        var removed = 0
+        for dir in clipDirs.prefix(clipDirs.count - limit) {
+            if (try? fm.removeItem(at: dir)) != nil { removed += 1 }
         }
+        let source = ProcessInfo.processInfo.environment["AURORA_MAX_CLIPS"] != nil
+            ? "环境变量 AURORA_MAX_CLIPS"
+            : (maxClipsOverride != nil ? "UI 设置" : "默认值")
+        print("[record] 🧹 清理旧 clip：删除 \(removed) 个，保留最近 \(limit) 个"
+              + "（上限来源：\(source)）于 \(root.lastPathComponent)/；"
+              + "要保留更多请设 AURORA_MAX_CLIPS=1000")
     }
 
     // MARK: - 帧追加（主线程调用）

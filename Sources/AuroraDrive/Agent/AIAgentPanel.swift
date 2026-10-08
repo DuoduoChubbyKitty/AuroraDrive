@@ -185,6 +185,13 @@ final class AgentSkillCenter: @unchecked Sendable {
     /// 驾驶数据集录制引擎（可选注入；nil 时 drive_dataset 报未注入）
     @ObservationIgnored var recordEngine: RecordEngine?
 
+    /// 录制视角提供者（由 DriveState 注入，读 `recordPerspective`）。
+    /// 2026-10-08 新增：`drive_dataset` 技能此前硬编码 `"first"`，用户要录
+    /// 第三视角时这条路径永远录 FPV。用闭包注入而不是直接持有 DriveState，
+    /// 是为了保持面板与 DriveState 的解耦（面板本来就只依赖注入的引擎）。
+    /// 未注入时回落 `"first"`（保持旧行为）。
+    @ObservationIgnored var recordPerspectiveProvider: (() -> String)?
+
     // ── 会话状态（UI 直接观察）──
     //
     // ══════════════════════════════════════════════════════════════════════
@@ -891,7 +898,13 @@ final class AgentSkillCenter: @unchecked Sendable {
         }
 
         // 启动录制
-        recorder.start(perspective: "first")
+        // 2026-10-08：视角参数化 —— 此前硬编码 "first"，用户要录第三视角时
+        // 这条 AI 技能路径永远录 FPV（与 UI 开关不一致）。现在跟随面板设置。
+        // `recordPerspectiveProvider` 由面板注入（读 DriveState.recordPerspective）；
+        // 未注入时回落到 "first"（保持旧行为，不影响既有自检）。
+        let perspective = recordPerspectiveProvider?() ?? "first"
+        recorder.start(perspective: perspective)
+        appendSystem("🎬 开始采集驾驶数据（视角：\(perspective == "third" ? "第三人称 TPV" : "第一人称 FPV")）")
 
         // 2Hz 采样（0.5s 间隔）
         let timer = DispatchSource.makeTimerSource(queue: workQueue)

@@ -995,14 +995,40 @@ enum EngineMain {
             let recOn = (obj["on"] as? Bool) ?? false
             let recGlyph = (obj["glyph"] as? Bool) ?? false
             let recExpert = (obj["expert"] as? Bool) ?? false
+            // 2026-10-08：录制视角随命令从 UI 下发（"first"/"third"）。
+            //
+            // 【为什么必须在这里读】引擎模式是**默认路径**（UI 启动即 spawn `--engine`），
+            // 真正写盘的是**引擎进程**的 RecordEngine。UI 侧 DriveState.recordThirdPerson
+            // 只存在于 UI 进程 —— 不把视角传过来，用户在 UI 选了第三视角、引擎照旧录
+            // 第一人称，而且**不报任何错**（静默不一致：看着对、实际错）。
+            //
+            // 【防御】老版 UI 不发这个字段 → 缺省 "first"，行为与改造前完全一致。
+            // 归一化复用 RecordEngine.normalizePerspective（非法值回落 first，
+            // 不因一个字符串拼错就让整场录制失败）。
+            let recPerspective = RecordEngine.normalizePerspective(
+                (obj["perspective"] as? String) ?? "first")
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let st = EngineGlobals.state else { return }
                     st.glyphMode = recGlyph
                     st.expertMode = recExpert
+                    // 同步视角到引擎侧 DriveState：`isRecording` 的 didSet 也会读
+                    // `recordPerspective` 去 start()，不同步的话那条路径会用默认 first。
+                    // 这里先写，保证「显式 start」与「didSet 兜底」两条路拿到同一视角。
+                    st.recordThirdPerson = (recPerspective == "third")
+                    // 先 start/stop 再置 isRecording：start() 才会建目录、写 view.txt，
+                    // 顺序反了会出现「开关已开、目录还没建」的空窗（心跳上报 session="-"）。
+                    if recOn, !st.recordEngine.isRecording {
+                        st.recordEngine.glyphMode = recGlyph
+                        st.recordEngine.start(perspective: recPerspective)
+                    } else if !recOn, st.recordEngine.isRecording {
+                        st.recordEngine.stop()
+                    }
                     st.isRecording = recOn
                     let dir = st.recordEngine.sessionURL?.lastPathComponent ?? "-"
-                    engineLog("[ENGINE] 录制\(recOn ? "开始" : "停止")：字模=\(recGlyph) 专家=\(recExpert) 会话=\(dir)")
+                    let viewLabel = recPerspective == "third" ? "TPV" : "FPV"
+                    engineLog("[ENGINE] 录制\(recOn ? "开始" : "停止")：字模=\(recGlyph) 专家=\(recExpert) "
+                              + "视角=\(recPerspective)(\(viewLabel)) 会话=\(dir)")
                     // 立即回执：心跳周期 1s，不即时上报的话 UI 会先看到「还没录」，
                     // 把开关弹回去（UI 侧也有宽限期，这里是双保险）。
                     EngineMain.sendHeartbeat(reason: "record-ack")
