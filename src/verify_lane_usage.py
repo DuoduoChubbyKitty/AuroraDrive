@@ -306,34 +306,71 @@ def experiment_gradient(model, image, lane_mask, pattern):
 def experiment_position_invariance(model, image, x_fracs=(0.1, 0.3, 0.5, 0.7, 0.9)):
     """实验 4：位置不变性（★ 本任务的核心发现）。
 
-    单条车道线横向扫过整个掩码（x 从 10%→90%），看 steer 输出是否跟着变。
+    两个层面测「车道线位置信息是否被保留」：
 
-    架构事实：LaneMaskEncoder 最后一层是 `AdaptiveAvgPool2d((1,1))`（全局平均池化），
-    GAP 对空间维度求平均 → **天然平移不变**：同样一条线无论放在哪，池化后特征相同。
-    因此「只看线的总量，不看线的位置」→ 模型无法区分「车道偏左」vs「车道偏右」。
+    A. 编码器层（无歧义铁证）：
+       单线位置 x1 vs x2，取 LaneMaskEncoder 在 GAP **之前**（10×10 空间特征图）
+       与 GAP **之后**（64 维向量）各算一次差异。
+       GAP = AdaptiveAvgPool2d((1,1)) 全局平均池化，对空间求平均 → 平移不变。
+       若 GAP 前有差、GAP 后差=0 ⇒ 位置信息在 GAP 处被抹掉（架构缺陷，铁证）。
 
-    判据：
-      steer 输出完全不随 x 变（方差≈0）→ GAP 抹掉了位置信息（架构缺陷）
-      steer 随 x 明显变化              → 位置信息保留（正常）
+    B. 端到端 steer（会被图像分支稀释，仅作参考）：
+       完整 forward，steer 的 spread。
     """
     B = image.shape[0]
     g = LANE_SIZE
+    enc = model.lane_encoder
+
+    # ---- A. 编码器层：GAP 前后差异 ----
+    def feat_before_gap(lm_1):
+        x = enc.downsample(lm_1)
+        x = torch.relu(enc.bn1(enc.conv1(x)))
+        x = torch.relu(enc.bn2(enc.conv2(x)))
+        x = torch.relu(enc.bn3(enc.conv3(x)))
+        return x  # [B,64,10,10]
+
+    def lane_mask_at(x):
+        mask = np.zeros((1, 1, g, g), dtype=np.float32)
+        mask[:, :, max(0, x - 1):x + 2] = 1.0
+        return torch.from_numpy(mask)
+
+    xs = [int(xf * g) for xf in x_fracs]
+    with torch.no_grad():
+        before, after = [], []
+        for x in xs:
+            lm = lane_mask_at(x)
+            fb = feat_before_gap(lm)              # [1,64,10,10]
+            ga = enc.global_pool(fb).flatten(1)   # [1,64]
+            before.append(fb)
+            after.append(ga)
+        # GAP 前：相邻位置特征图差异（位置信息应保留）
+        d_before = [float((before[i] - before[i + 1]).abs().mean()) for i in range(len(before) - 1)]
+        # GAP 后：相邻位置向量差异（GAP 若抹平 → 全 0）
+        d_after = [float((after[i] - after[i + 1]).abs().mean()) for i in range(len(after) - 1)]
+
+    # ---- B. 端到端 steer spread（仅参考） ----
     outs = []
     with torch.no_grad():
-        for xf in x_fracs:
-            x = int(xf * g)
-            mask = np.zeros((1, g, g), dtype=np.float32)
-            mask[:, :, max(0, x - 1):x + 2] = 1.0
-            lm = torch.from_numpy(mask).unsqueeze(0).expand(B, -1, -1, -1).contiguous()
+        for x in xs:
+            lm = lane_mask_at(x).expand(B, -1, -1, -1).contiguous()
             s = float(forward_steer(model, image, lm).mean())
-            outs.append((xf, x, s))
-    steers = [s for _, _, s in outs]
-    spread = float(max(steers) - min(steers)) if steers else 0.0
+            outs.append(s)
+    spread = float(max(outs) - min(outs)) if outs else 0.0
+
+    gap_before_mean = float(sum(d_before) / len(d_before)) if d_before else 0.0
+    gap_after_mean = float(sum(d_after) / len(d_after)) if d_after else 0.0
+    # 位置是否被保留：GAP 后差异远小于 GAP 前（比如 < 1%）即判定被抹平
+    erased = gap_after_mean < gap_before_mean * 0.01 and gap_before_mean > 1e-3
+
     return {
-        "scan": [{"x_frac": xf, "x_px": x, "steer": s} for xf, x, s in outs],
+        "scan": [{"x_frac": xf, "x_px": x, "steer": s} for xf, x, s in zip(x_fracs, xs, outs)],
         "steer_spread": spread,
-        "position_sensitive": spread > 1e-3,
-        "note": "spread≈0 ⇒ GAP 抹掉位置信息（只看总量不看位置），模型无法区分车道偏左/偏右",
+        "position_sensitive": not erased,
+        "gap_before_mean_diff": gap_before_mean,
+        "gap_after_mean_diff": gap_after_mean,
+        "gap_erased_position": erased,
+        "note": (f"GAP 前特征图差异={gap_before_mean:.6f} → GAP 后向量差异={gap_after_mean:.6f}；"
+                 f"{'位置被 GAP 抹平（铁证）' if erased else '位置保留（GAP 未抹平）'}"),
     }
 
 
@@ -393,12 +430,17 @@ def verdict(results: dict, noise_floor: float = 1e-3) -> dict:
     mean_perturb = float(np.mean(perturb_deltas)) if perturb_deltas else 0.0
     mean_flip = float(np.mean(flip_deltas)) if flip_deltas else 0.0
     spread = pos.get("steer_spread", 0.0)
+    gap_erased = pos.get("gap_erased_position", False)
+
+    # 层2 "位置敏感" 的准确定义：端到端 spread 或 GAP 未抹平位置。
+    # 严格判定用 GAP 前后差异（无歧义铁证），因为端到端 spread 会被图像分支稀释。
+    layer2_sensitive = pos.get("position_sensitive", spread > noise_floor)
 
     signals = {
         "梯度可达（层1）": gli > noise_floor,
         "消融敏感（层2 佐证）": max_abl > noise_floor,
         "扰动敏感（层2 佐证）": mean_perturb > noise_floor,
-        "位置敏感（层2 核心）": spread > noise_floor,
+        "位置敏感（层2 核心）": layer2_sensitive,
     }
 
     # 层 3（语义学会）取决于 checkpoint 事实，不在这里判（由 audit 事实给出）
@@ -409,11 +451,11 @@ def verdict(results: dict, noise_floor: float = 1e-3) -> dict:
 
     if not layer1_ok:
         conclusion = ("❌ 层1 失败：steer 梯度不流经车道分支（车道线是装饰性旁支）"
-                      "—— 模型内部无路可走，自然"不会跟线"")
+                      "—— 模型内部无路可走，自然「不会跟线」")
     elif not layer2_ok:
-        conclusion = ("⚠️ 层1 通过（梯度可达）但 层2 失败（位置不敏感，spread≈0）："
-                      "车道线位置信息被 GAP 全局平均池化抹掉——模型"看得见"车道线却"
-                      "「分不清左右」，这正是"会开出车道线"的架构根源")
+        conclusion = ("⚠️ 层1 通过（梯度可达）但 层2 失败（位置不敏感，GAP 抹掉位置）："
+                      "车道线位置信息在全局平均池化处丢失——模型「看得见」车道线却"
+                      "「分不清左右」，这正是「会开出车道线」的架构根源")
     else:
         conclusion = ("✅ 层1 + 层2 均通过：车道线既进得去 steer 梯度，又保留位置语义。"
                       "（层3 语义是否学会，另看 checkpoint 的 has_lane 事实）")
@@ -511,8 +553,20 @@ def main():
               f"‖g_fusion‖={g['grad_fusion_head']:.6f}  "
               f"lane/img={g['grad_lane_over_image']:.6f}")
 
+    # ---- 实验 4：位置不变性（★ 核心） ----
+    print("\n" + "─" * 70)
+    print("[实验 4 · 位置不变性] 单线横向扫过掩码，测 GAP 是否抹掉位置信息")
+    pos = experiment_position_invariance(model, image)
+    for r in pos["scan"]:
+        print(f"  线 x={r['x_px']:3d} ({r['x_frac']:.1f}g)  → steer={r['steer']:+.6f}")
+    print(f"  端到端 steer 极差（spread）={pos['steer_spread']:.6f}")
+    print(f"  GAP 前特征图平均差异 ={pos['gap_before_mean_diff']:.6f}")
+    print(f"  GAP 后向量平均差异   ={pos['gap_after_mean_diff']:.6f}")
+    print(f"  → {pos['note']}")
+
     # ---- 判定 ----
-    vd = verdict({"ablation": abl, "perturb": pert, "gradient": grads},
+    vd = verdict({"ablation": abl, "perturb": pert, "gradient": grads,
+                  "position": pos},
                  noise_floor=args.noise_floor)
     print("\n" + "=" * 70)
     print("[判定]")
@@ -521,6 +575,7 @@ def main():
     print(f"  消融最大|Δ|={vd['max_ablation_delta']:.6f}")
     print(f"  扰动平均|Δ|={vd['mean_perturb_delta']:.6f}")
     print(f"  镜像平均|Δ|={vd['mean_flip_delta']:.6f}")
+    print(f"  位置极差={vd['position_spread']:.6f}")
     print(f"  梯度 lane/img={vd['grad_lane_vs_image']}")
     print(f"\n  ⇒ {vd['conclusion']}")
     print("=" * 70)
@@ -529,7 +584,7 @@ def main():
         payload = {
             "meta": meta, "facts": facts,
             "ablation": abl, "perturb": pert, "gradient": grads,
-            "verdict": vd,
+            "position": pos, "verdict": vd,
         }
         print("\n[JSON]")
         print(json.dumps(payload, ensure_ascii=False, indent=2))
