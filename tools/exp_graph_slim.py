@@ -424,25 +424,16 @@ def probe_dead_subgraphs() -> Dict[str, object]:
 
     # ── 子图替换实验 ──
     def variant_no_refiner():
-        m = build_model(deploy=False, num_steps=12, moe_steps=[9, 10, 11, 12])
-        m.load_state_dict(sd, strict=False)
-        m.reparameterize()
-        m.eval()
+        m, _ = build_and_load(num_steps=12, moe_steps=[9, 10, 11, 12])
         m.refiner = None
         return m
 
     def variant_no_moe():
-        m = build_model(deploy=False, num_steps=12, moe_steps=[])
-        m.load_state_dict(sd, strict=False)
-        m.reparameterize()
-        m.eval()
+        m, _ = build_and_load(num_steps=12, moe_steps=[])
         return m
 
     def variant_no_temporal():
-        m = build_model(deploy=False, num_steps=12, moe_steps=[9, 10, 11, 12])
-        m.load_state_dict(sd, strict=False)
-        m.reparameterize()
-        m.eval()
+        m, _ = build_and_load(num_steps=12, moe_steps=[9, 10, 11, 12])
         m.temporal_encoder = _ZeroTemporal(m.temporal_encoder.hidden_dim, 8)
         return m
 
