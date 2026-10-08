@@ -987,6 +987,7 @@ def backfill_lane_masks(
     imgsz: int = 640,
     overwrite: bool = False,
     limit: Optional[int] = None,
+    grid: int = LANE_GRID,
 ) -> Dict[str, int]:
     """【离线补算】用 yolopx 的 **ll 车道线头** 对录制帧跑一遍，落盘车道线掩码。
 
@@ -995,14 +996,30 @@ def backfill_lane_masks(
 
     落盘：{clip}/lane_mask/{frame:06d}.png   uint8 0/255（1=车道线）
     模型：models/yolopx/yolopx_epoch195.pth，输入 640×640 letterbox + ImageNet 归一化，
-          取 `ll` 头 argmax==1 作为车道线；**`da`（可行驶区域）头被显式丢弃**。
+          取 `ll` 头；**`da`（可行驶区域）头被显式丢弃**。
+
+    ★ 几何口径（2026-10-08 修复）
+    ----------------------------------------------------------------
+    落盘的掩码是 **grid×grid（默认 160×160）**，通过 `logits_to_grid()` 产出，
+    逐行复刻 Swift `YolopxEngine.extractMask()`：
+        1) 在 640 上算 `ch1 > ch0`
+        2) 对每个 4×4 块做多数表决 → grid×grid
+    ⟹ 与运行时 `MaskGrid` **逐位同口径**（Swift 真跑对拍：25600 像素 0 差异）。
+
+    ⛔ 修复前的行为：存 640 全分辨率 `argmax`，再由加载器 `resize` 到相机空间
+       —— 几何错位最多 35 格（网格高度 21.9%）。现在存 grid 网格，加载器原样读取，
+       **不做任何 resize**。
 
     ⚠️ 这是**伪标签**（yolopx 预测），不是人工标注，存在域偏差，训练时建议给较低权重。
     """
     from PIL import Image as _Image
 
     net, letterbox_rgb, imgsz = _load_yolopx(imgsz)
-    stats = {"clips": 0, "frames": 0, "skipped": 0}
+    if imgsz % grid != 0:
+        raise ValueError(
+            f"backfill_lane_masks: imgsz={imgsz} 不能被 grid={grid} 整除，"
+            f"无法复刻 Swift 的多数表决降采样")
+    stats = {"clips": 0, "frames": 0, "skipped": 0, "empty_frames": 0}
     for clip in _list_clips(Path(clips_dir)):
         fmt = _detect_format(_read_header(clip / "controls.csv"), clip)
         out_dir = clip / _LANE_CACHE_DIR
@@ -1022,15 +1039,21 @@ def backfill_lane_masks(
                 stats["skipped"] += 1
                 continue
             det, ll = _yolopx_forward(net, letterbox_rgb, img_path, imgsz)
-            lane = (ll.argmax(0) == 1).astype(np.uint8) * 255
-            _Image.fromarray(lane).save(out_p)
+            # ★ 逐行复刻 Swift extractMask：(ch1>ch0) → 4×4 多数表决 → grid×grid
+            g = logits_to_grid(ll, grid=grid)
+            if g.sum() == 0:
+                stats["empty_frames"] += 1
+            _Image.fromarray((g * 255).astype(np.uint8)).save(out_p)
             n_done += 1
             stats["frames"] += 1
             if limit is not None and stats["frames"] >= limit:
                 stats["clips"] += 1
                 return stats
         stats["clips"] += 1
-        print(f"[backfill_lane] {clip.name}: 新算 {n_done} 帧")
+        print(f"[backfill_lane] {clip.name}: 新算 {n_done} 帧（{grid}×{grid} letterbox 口径）")
+    if stats["empty_frames"]:
+        print(f"[backfill_lane] ⚠ {stats['empty_frames']} 帧车道线全空"
+              f"（隧道/逆光/标线磨损，或域偏差）")
     return stats
 
 

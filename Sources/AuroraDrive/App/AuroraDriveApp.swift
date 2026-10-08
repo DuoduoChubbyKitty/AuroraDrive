@@ -959,7 +959,10 @@ struct AuroraDriveLauncher {
                               //   · --map-selftest    原生地图严格自检（MapSelfTest.swift）
                               //   · --lane-extrapolator-selftest  车道线光流外推自检（Perception/LaneExtrapolatorSelfTest.swift）
                               "--agent-selftest", "--map-selftest",
-                              "--lane-extrapolator-selftest"]
+                              "--lane-extrapolator-selftest",
+                              // 2026-10-08（T3 录制链路）：捕获双模式 + 视角归一化 +
+                              // 排除列表不变量（防「excludingWindows 被改回空数组」回归）。
+                              "--capture-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -1005,6 +1008,15 @@ struct AuroraDriveLauncher {
         // 返回失败项数，0 = 全过（与其它自检同一约定）。
         if args.contains("--quest-selftest") {
             let failed = QuestPanelReader.runSelfTest()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+
+        // ── 捕获模式自检（--capture-selftest，2026-10-08 T3）──
+        // 录制链路修复的可执行断言：视角归一化、自家窗口识别、窗口枚举过滤、
+        // 排除列表不变量（原 bug 是 excludingWindows 空数组）、保留上限可配。
+        // 返回失败项数，0 = 全过（与其它自检同一约定）。
+        if args.contains("--capture-selftest") {
+            let failed = CaptureSelfTest.run()
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
         }
 

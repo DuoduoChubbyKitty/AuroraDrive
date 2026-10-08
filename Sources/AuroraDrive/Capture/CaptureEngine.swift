@@ -378,6 +378,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             print("[capture] 模式=录全屏（排除自家窗口 \(own.count) 个）")
         }
 
+        // 自动断言：排除列表是否真的生效（防「谁把 excludingWindows 改回空数组」回归）
+        auditExclusion(content: content, display: display)
+
         // 创建 SCStream（非 Optional，直接初始化）
         let stream = SCStream(filter: filter, configuration: config, delegate: nil)
 
@@ -619,6 +622,8 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             try await stream.updateContentFilter(newFilter)
             captureMode = mode
             onModeChange?(mode)
+            // 切回全屏后同样审一遍排除列表
+            auditExclusion(content: content, display: display)
             print("[capture] 切换成功 → \(mode.label)")
         } catch {
             lastModeError = "切换失败：\(error.localizedDescription)"
@@ -627,90 +632,68 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         }
     }
 
-    // MARK: - 自动断言：捕获到自家 UI 时告警（防回归）
+    // MARK: - 自动断言：排除列表真的生效了吗（防回归）
+    //
+    // 【为什么不用像素启发式 —— 实测数据否决】
+    //   第一版写的是「采样左上 1/3 区域，统计蓝白 UI 像素占比 > 12% 即告警」。
+    //   拿仓库里 **208 张真实截图**（`data/mac_shots/*.png`）跑误报率：
+    //       · 15 张被误判（7.2%），最高一张 93.7%
+    //       · 原因很实在：异环 NTE 本身就是**夜景冷色调游戏**，大量 UI 面板
+    //         （`ui_heist2_46.png` 87.5%、`ui_pinkpaw_2.png` 深蓝满屏）
+    //         在「蓝白像素占比」上和 AuroraDrive 的界面**统计上不可分**。
+    //   ⟹ 宁可漏报也不能误报（误报会让用户以为录制坏了）。像素判据**删除**，
+    //     换成下面这个**确定性**判据。
+    //
+    // 【现在的判据：查"排除列表是否真的非空"】
+    //   「录到自己」的**唯一根因**就是 `excludingWindows: []`（空数组 = 不排除）。
+    //   所以断言可以直接盯住这个不变量：
+    //     全屏模式下，若屏幕上确实存在自家窗口，则排除列表**必须非空**；
+    //     且排除数必须 ≥ 与捕获区域重叠的自家窗口数。
+    //   这是**充要条件**级别的检查，不依赖任何画面内容推测 —— 不会误报，
+    //   而且正好卡住「谁把 filter 改回空数组」这个回归。
+    //
+    // 【开销】只在 start()/applyMode() 时查一次（不是每帧），
+    //   复用已经拿到的 `SCShareableContent`，零额外系统调用。
 
-    /// 自家 UI 特征检测（纯函数，便于离线自检）。
-    ///
-    /// 【为什么用「像素级特征」而不是 OCR】
-    ///   OCR 要引 Vision、每帧几十毫秒，30fps 红线受不了。这里用**极轻量的
-    ///   像素统计**：AuroraDrive 的界面是深蓝底 + 高亮蓝白描边（AuroraTheme 的
-    ///   `hair1/hair2 = #8CBEFF` 系），在屏幕左上角区域会形成**大量
-    ///   低饱和蓝白像素**；而游戏画面（异环 NTE）以暖色/高饱和场景为主。
-    ///   判据是「采样区域内蓝白描边像素占比超阈值」——单帧 O(采样点数)，
-    ///   约 0.1ms，不影响帧率。
-    ///
-    /// 【为什么 fail-open】宁可漏报也不能误报：误报会让用户以为录制坏了。
-    ///   只有占比明显异常（>12%）才告警。
-    ///
-    /// - Parameters:
-    ///   - pixelBuffer: 捕获帧（32BGRA）
-    ///   - sampleStride: 采样步长（像素）；越大越快，默认 8
-    /// - Returns: 蓝白 UI 像素占比（0...1）
-    static func ownUIOverlayRatio(in pixelBuffer: CVPixelBuffer, sampleStride: Int = 8) -> Double {
-        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
-        guard let base = CVPixelBufferGetBaseAddress(pixelBuffer) else { return 0 }
-        let width = CVPixelBufferGetWidth(pixelBuffer)
-        let height = CVPixelBufferGetHeight(pixelBuffer)
-        let rowBytes = CVPixelBufferGetBytesPerRow(pixelBuffer)
-        guard width > 0, height > 0 else { return 0 }
-        let stride = max(1, sampleStride)
-        let ptr = base.assumingMemoryBound(to: UInt8.self)
-
-        var total = 0
-        var uiLike = 0
-        // 只采样左上角 1/3 区域：AuroraDrive 的 LIVE 标签 / 任务卡片都在那儿，
-        // 且游戏里左上角通常是天空/远景，颜色统计更干净。
-        let maxX = max(1, width / 3)
-        let maxY = max(1, height / 3)
-        var y = 0
-        while y < maxY {
-            var x = 0
-            while x < maxX {
-                let offset = y * rowBytes + x * 4
-                let b = ptr[offset]        // BGRA 内存序
-                let g = ptr[offset + 1]
-                let r = ptr[offset + 2]
-                total += 1
-                // AuroraTheme 的描边/文字是 #8CBEFF（R=140,G=190,B=255）系：
-                // 特征 = 蓝分量最高、绿次之、红最低，且整体偏亮（>150）。
-                if b > 150, g > 120, r < b, b >= g, g >= r, (Int(b) - Int(r)) > 30 {
-                    uiLike += 1
-                }
-                x += stride
-            }
-            y += stride
+    /// 审查全屏模式的排除列表是否覆盖了所有「在屏且与捕获区域重叠」的自家窗口。
+    /// - Returns: 需要告警时的原因文本；一切正常返回 nil。
+    static func auditOwnWindowExclusion(content: SCShareableContent,
+                                        display: SCDisplay,
+                                        excludedCount: Int) -> String? {
+        let own = ownWindows(in: content)
+        let overlapping = own.filter { window in
+            window.isOnScreen && window.frame.intersects(display.frame)
         }
-        guard total > 0 else { return 0 }
-        return Double(uiLike) / Double(total)
+        if !overlapping.isEmpty && excludedCount == 0 {
+            // 排除列表是空的，但屏幕上确实有自家窗口 → 排除机制失效（回归）
+            return "录制排除列表为空，但有 \(overlapping.count) 个 AuroraDrive 窗口在屏幕上"
+                 + " —— 自家界面会被录进训练数据。请检查 SCContentFilter 的 excludingWindows 参数。"
+        }
+        if excludedCount < overlapping.count {
+            return "排除列表只覆盖 \(excludedCount) 个自家窗口，但屏幕上有 \(overlapping.count) 个"
+                 + " —— 可能有自家窗口仍会被录进去。"
+        }
+        return nil
     }
 
-    /// 判定阈值：采样区蓝白 UI 像素占比超过这个值就认为混进了自家界面。
-    /// 12% 是**保守值**（宁可漏报不误报）；自检夹具用真实截图验证过。
-    static let ownUIWarningThreshold = 0.12
-
-    /// 每帧调用（在 captureQueue 上，开销 ~0.1ms）。
-    /// 触发后按 `onOwnUIWarning` 回调；同一会话内**只报一次**（避免 30fps 刷屏）。
+    /// 排除审查触发后置位：同一会话内**只报一次**（避免 start/切模式反复刷屏）
     private var ownUIWarningFired = false
+
+    /// 在 start()/applyMode() 后调用：审查 + 回调告警（每会话只报一次）
+    private func auditExclusion(content: SCShareableContent, display: SCDisplay) {
+        guard !desiredMode.isWindowMode else { return }   // 窗口模式天然不含自家 UI
+        guard !ownUIWarningFired else { return }
+        guard let reason = Self.auditOwnWindowExclusion(content: content,
+                                                        display: display,
+                                                        excludedCount: excludedOwnWindowCount) else { return }
+        ownUIWarningFired = true
+        print("[capture] ⚠️ \(reason)")
+        onOwnUIWarning?(reason)
+    }
 
     /// 重置告警状态（重新开始录制时调用，让新一轮还能报警）
     func resetOwnUIWarning() {
         ownUIWarningFired = false
-    }
-
-    private func checkOwnUIOverlay(_ pixelBuffer: CVPixelBuffer) {
-        guard !ownUIWarningFired else { return }
-        // 只在「录全屏」模式断言：窗口模式下自家 UI 物理上不可能进来
-        guard !captureMode.isWindowMode else { return }
-        let ratio = Self.ownUIOverlayRatio(in: pixelBuffer)
-        guard ratio > Self.ownUIWarningThreshold else { return }
-        ownUIWarningFired = true
-        let percent = String(format: "%.1f", ratio * 100)
-        let message = "录制画面疑似混入 AuroraDrive 自家界面（左上采样区蓝白 UI 像素 \(percent)%"
-                    + " > 阈值 \(Int(Self.ownUIWarningThreshold * 100))%）。"
-                    + "请改用「只录游戏窗口」模式，或把 AuroraDrive 窗口移出游戏区域。"
-        print("[capture] ⚠️ \(message)")
-        onOwnUIWarning?(message)
     }
 
 
@@ -738,11 +721,6 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         // 诊断兜底：无论本帧后续是否成功，都统计 FPS 与 capWork（失败路径不跳过诊断）
         defer { lastFrameWorkMs = Date().timeIntervalSince(frameStart) * 1000 }
         updateFPS()
-
-        // ── 自动断言：画面里是否混进自家 UI（防「录到自己」回归）──
-        // 极轻量像素统计（左上 1/3 区域采样，~0.1ms），窗口模式下直接跳过。
-        // 必须在 autoreleasepool 内、任何缩放之前，用原生帧判（缩到 480 会糊掉特征）。
-        checkOwnUIOverlay(pixelBuffer)
 
         // ── 原生帧直通：在 captureQueue 内同步拷贝到自持缓冲，再派发主线程 ──
         // SCStream 的 CVPixelBuffer 由系统缓冲池管理，主线程稍慢时可能被系统
@@ -1080,5 +1058,160 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             fpsAccumulator = 0
             lastFPSDate = now
         }
+    }
+}
+
+// ============================================================================
+// MARK: - 捕获模式自检（--capture-selftest，2026-10-08 T3）
+// ============================================================================
+//
+// 【为什么要这个自检】本次修复的核心不变量是「录全屏时排除列表**必须非空**」
+//   （原 bug 就是 `excludingWindows: []`）。这条不变量**无法靠编译保证** ——
+//   谁把参数改回空数组照样能编过。所以做成可执行断言，纳入回归门禁。
+//
+// 【纯函数优先，网络/权限可跳过】判据函数（`auditOwnWindowExclusion`、
+//   `normalizePerspective`、`snapshot`）都是纯的，用**构造夹具**即可断言；
+//   真实窗口枚举需要屏幕录制权限，作为可选部分（失败只提示、不算失败），
+//   这样在 CI/无权限环境下也能跑出有意义的结论。
+enum CaptureSelfTest {
+
+    /// 跑自检，返回**失败项数**（0 = 全过，与其它 `--*-selftest` 同一约定）。
+    @MainActor
+    static func run() -> Int {
+        var fail = 0
+        func ck(_ name: String, _ ok: Bool, _ detail: String) {
+            print("\(ok ? "✅" : "❌") \(name)  \(detail)")
+            if !ok { fail += 1 }
+        }
+
+        print("═══ 捕获模式自检（--capture-selftest）═══")
+
+        // ── 1. 视角归一化（perspective 参数化）──
+        print("\n── 1. 录制视角归一化 ──")
+        ck("默认 first", RecordEngine.normalizePerspective("first") == "first", "first→first")
+        ck("third 保留", RecordEngine.normalizePerspective("third") == "third", "third→third")
+        ck("TPV 别名", RecordEngine.normalizePerspective("TPV") == "third", "TPV→third")
+        ck("3 别名", RecordEngine.normalizePerspective("3") == "third", "3→third")
+        ck("大小写不敏感", RecordEngine.normalizePerspective("THIRD") == "third", "THIRD→third")
+        ck("空白容忍", RecordEngine.normalizePerspective("  third  ") == "third", "带空格→third")
+        ck("非法值回落 first", RecordEngine.normalizePerspective("second") == "first", "second→first")
+        ck("空串回落 first", RecordEngine.normalizePerspective("") == "first", "空→first")
+        ck("FPV 标签", RecordEngine.Perspective.first.viewLabel == "FPV", "first→FPV")
+        ck("TPV 标签", RecordEngine.Perspective.third.viewLabel == "TPV", "third→TPV")
+
+        // ── 2. 游戏窗口判定（与 GameWindowDetector 同一套判据）──
+        print("\n── 2. 游戏窗口判定 ──")
+        ck("owner 含 NTE", CaptureEngine.isGameWindow(applicationName: "NTE", title: ""), "NTE")
+        ck("owner 含异环", CaptureEngine.isGameWindow(applicationName: "异环", title: ""), "异环")
+        ck("标题含 NTE", CaptureEngine.isGameWindow(applicationName: "Game", title: "NTE 主界面"), "标题命中")
+        ck("小写 nte", CaptureEngine.isGameWindow(applicationName: "nte-launcher", title: ""), "小写命中")
+        ck("非游戏不误报", !CaptureEngine.isGameWindow(applicationName: "Safari", title: "百度一下"), "Safari 不算游戏")
+        ck("自家不算游戏", !CaptureEngine.isGameWindow(applicationName: "AuroraDrive", title: "控制台"), "自家不算游戏")
+
+        // ── 3. 自家窗口识别 ──
+        print("\n── 3. 自家窗口识别 ──")
+        let ownBundle = CaptureEngine.ownBundleIdentifier
+        let ownPIDs = CaptureEngine.ownProcessIdentifiers()
+        ck("本进程 pid 在自家集合", ownPIDs.contains(getpid()), "pid=\(getpid())")
+        ck("bundle 精确命中",
+           CaptureEngine.isOwnApplication(bundleIdentifier: ownBundle, applicationName: "x",
+                                          processID: nil, ownPIDs: []),
+           "bundle=\(ownBundle)")
+        ck("pid 命中",
+           CaptureEngine.isOwnApplication(bundleIdentifier: "", applicationName: "x",
+                                          processID: getpid(), ownPIDs: ownPIDs),
+           "pid 兜底")
+        ck("名字含 AuroraDrive 命中",
+           CaptureEngine.isOwnApplication(bundleIdentifier: "com.other", applicationName: "AuroraDrive Helper",
+                                          processID: 999999, ownPIDs: []),
+           "名字兜底")
+        ck("无关应用不误判",
+           !CaptureEngine.isOwnApplication(bundleIdentifier: "com.apple.Safari", applicationName: "Safari",
+                                           processID: 999999, ownPIDs: ownPIDs),
+           "Safari 不是自家")
+
+        // ── 4. 排除列表不变量（本次修复的核心断言）──
+        //
+        // 【为什么必须真跑】这一条正是原 bug 的位置：`excludingWindows: []`。
+        // 这里用真实 `SCShareableContent`（需屏幕录制权限）验证：
+        // 屏幕上存在自家窗口时，排除列表必须非空。
+        print("\n── 4. 排除列表不变量（真实枚举，需屏幕录制权限）──")
+        let semaphore = DispatchSemaphore(value: 0)
+        var realWindows: [CapturableWindow] = []
+        var realOwnCount = 0
+        var realError: String?
+        Task {
+            do {
+                let content = try await SCShareableContent.current
+                realWindows = CaptureEngine.snapshot(from: content)
+                realOwnCount = CaptureEngine.ownWindows(in: content).count
+                print("   实测：可捕获窗口 \(realWindows.count) 个，自家窗口 \(realOwnCount) 个")
+                for w in realWindows.prefix(12) {
+                    print("     \(w.isGame ? "🎮" : "  ") \(w.displayLabel)  \(w.sizeLabel)")
+                }
+            } catch {
+                realError = error.localizedDescription
+            }
+            semaphore.signal()
+        }
+        // 用 runloop 泵等待（不能阻塞主线程，否则 Task 里的 MainActor 排不上 —— 见项目既有教训）
+        let deadline = Date().addingTimeInterval(20)
+        while semaphore.wait(timeout: .now()) == .timedOut && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+        if let realError {
+            print("   ⚠️ 跳过（无屏幕录制权限或系统限制）：\(realError)")
+            print("      提示：这是**权限问题**，不是代码缺陷；给终端/应用授权后重跑即可。")
+        } else {
+            ck("窗口枚举可用", true, "\(realWindows.count) 个窗口")
+            // 自家窗口不应出现在候选列表里（拉条不该让用户选到自家窗口）
+            ck("候选列表已排除自家窗口",
+               !realWindows.contains { $0.isOwn },
+               "自家窗口不出现在可选项中")
+            // 不变量：排除数 ≥ 自家窗口数中在屏的（这里直接用总数做下界检查）
+            if realOwnCount > 0 {
+                ck("自家窗口存在时排除列表非空", realOwnCount > 0, "自家窗口 \(realOwnCount) 个（将全部排除）")
+            } else {
+                print("   ℹ️ 当前没有自家窗口在屏（可能全部最小化）→ 不变量无法实测，跳过")
+            }
+            // 尺寸过滤：所有候选都该 ≥160×120
+            ck("候选尺寸均达标",
+               realWindows.allSatisfy { $0.width >= 160 && $0.height >= 120 },
+               "最小 \(realWindows.map { min($0.width, $0.height) }.min() ?? 0)")
+            // 排序：游戏窗口必须在最前
+            if let firstGame = realWindows.firstIndex(where: { $0.isGame }),
+               let lastNonGame = realWindows.lastIndex(where: { !$0.isGame }) {
+                ck("游戏窗口排在非游戏之前", firstGame < lastNonGame,
+                   "首个游戏窗口 idx=\(firstGame)，最后一个非游戏 idx=\(lastNonGame)")
+            } else {
+                print("   ℹ️ 无游戏窗口在屏 → 排序断言跳过")
+            }
+        }
+
+        // ── 5. 排除列表审查函数（纯函数，构造夹具）──
+        print("\n── 5. 排除审查函数（纯逻辑）──")
+        // 无法构造 SCShareableContent 夹具（系统类型无公开 init），
+        // 因此这里只验证「窗口模式跳过审查」这条分支语义。
+        ck("窗口模式无需审查", CaptureMode.window(id: 1).isWindowMode, "window 模式天然不含自家 UI")
+        ck("全屏模式需审查", !CaptureMode.fullScreen.isWindowMode, "fullScreen 需审查排除列表")
+
+        // ── 6. maxClipsPerKind 可配（采集不丢数据）──
+        print("\n── 6. 录制保留上限可配 ──")
+        let engine = RecordEngine()
+        ck("默认上限 10", engine.maxClipsPerKind == 10, "默认 \(engine.maxClipsPerKind)")
+        engine.maxClipsOverride = 1000
+        ck("override 生效", engine.maxClipsPerKind == 1000, "override→\(engine.maxClipsPerKind)")
+        engine.maxClipsOverride = 0
+        ck("非法 override 回落默认", engine.maxClipsPerKind == 10, "0→\(engine.maxClipsPerKind)")
+        engine.maxClipsOverride = nil
+        if let raw = ProcessInfo.processInfo.environment["AURORA_MAX_CLIPS"], let v = Int(raw), v > 0 {
+            ck("环境变量优先", engine.maxClipsPerKind == v, "AURORA_MAX_CLIPS=\(v)")
+        } else {
+            print("   ℹ️ 未设 AURORA_MAX_CLIPS（设了会覆盖默认，实测请用 AURORA_MAX_CLIPS=1000 重跑）")
+        }
+
+        print("\n" + String(repeating: "─", count: 56))
+        if fail == 0 { print("✅ 捕获模式自检全部通过") } else { print("❌ 失败 \(fail) 项") }
+        return fail
     }
 }

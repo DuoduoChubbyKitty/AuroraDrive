@@ -127,14 +127,28 @@ struct V2Config: Sendable, Equatable {
     var bandTopRatio: Double = 0.55
     /// 车道线采样带：结束行（0.95 = 靠近自车，留 5% 避开可能被自车遮挡的底边）。
     var bandBottomRatio: Double = 0.95
-    /// 曲率归一化参考值（像素⁻¹）。
+    /// 曲率归一化参考值（**像素⁻¹**）。
     ///
-    /// 【标定状态：待实测标定（CALIBRATION-PENDING）】
-    ///   曲率的**物理量纲**取决于像素↔米的比例，而该比例随游戏分辨率/视野变化，
-    ///   在 Swift 侧不可知。故这里用一个"在 160×160 网格上算作强弯"的参考值：
-    ///   在 64 行采样带上，若车道中心呈二次弯曲、横向总偏移约 40 格，
-    ///   则 κ ≈ 2·40/64² ≈ 0.0195 ≈ 0.02。取 0.02 作参考，使强弯落在 ±1 附近。
-    ///   ⚠️ 这是**有依据的占位**，不是标定值；等真实数据回来应重新拟合。
+    /// 【标定状态：CALIBRATION-PENDING · 与训练侧口径不一致，已如实标注】
+    ///
+    /// ⚠️⚠️ **必须先说明的契约冲突（2026-10-08 复核发现）**：
+    ///   训练侧的 curvature 归一化是**物理量**：
+    ///     `src/dataset_v2.py:64`  `curvature_x5 = clip(curvature * 5, -1, 1)`
+    ///     即参考基准 = 0.2 **米⁻¹**（curvature 是 1/米）。
+    ///   而本引擎的曲率**只能从车道线像素估计**（游戏不给物理曲率遥测，
+    ///   见 docs/主驾驶模型换代-需求与方案 §3.4 的结论「曲率无实时数据源」），
+    ///   像素↔米的比例随分辨率/视野变化、在 Swift 侧**不可知**。
+    ///   故这里的 `curvatureReference` 是**像素⁻¹** 量纲下的参考值，
+    ///   **与训练侧 0.2 米⁻¹ 无法直接对齐** —— 两者差的是"像素↔米"的比例因子。
+    ///
+    /// 这意味着：**当前的曲率数值分布很可能与训练分布不匹配**。在拿到
+    /// 像素↔米标定之前，curvature 这一维的绝对大小不可信，只有**符号**
+    /// （左弯/右弯）是可靠的。这属于「有依据的占位 + 待标定」，不是
+    /// "已经对齐" —— 接线上车做端到端验证前必须补标定。
+    ///
+    /// 参考值 0.02 的推演：在 160×160 网格、64 行采样带上，若车道中心
+    /// 二次弯曲、横向总偏移约 40 格，则 κ ≈ 2·40/64² ≈ 0.02。要让强弯
+    /// 落在 ±1 附近，取 0.02 作参考。**这是量纲占位，不是标定值。**
     var curvatureReference: Double = 0.02
     /// 纵向加速度归一化基准（m/s²）。契约：accel / 10。
     var accelReference: Double = 10.0
@@ -431,11 +445,48 @@ enum LaneGeometryEstimator {
             return result
         }
 
-        // ── ⑤ 导出几何量 ──
+        // ══════════════════════════════════════════════════════════════════════
+        // 【鲁棒性 · 第 3 层】离群行剔除 + 重拟合
+        // ══════════════════════════════════════════════════════════════════════
+        // 【为什么需要 —— 从一次真实 bug 学到的】
+        //   自检里用"弯曲车道线"样本时发现：远端某行的右线越出画面被裁掉，
+        //   该行只剩左线 → 被归为"单侧行" → 用半宽补出的中心**与整体趋势
+        //   严重偏离** → 混进样本后把二次拟合带偏，**曲率符号直接翻转**
+        //   （右弯算成负曲率）。根因不是裁剪，而是"单侧补出的中心"与
+        //   "双侧实测的中心"混在一起拟合时，前者可能引入系统偏差。
+        //   故这里做一次稳健化：先拟合，剔除残差过大的行，再重拟合。
+        //
+        // 阈值取 2.5×中位残差（MAD 风格，抗离群）：中位数本身不受离群影响，
+        // 用它定标比用均值稳。至少保留 minLaneRows 行，否则放弃稳健化
+        // （样本太少时剔除会过度伤害）。
+        var refined = fit
+        var refinedSamples = samples
+        if samples.count >= config.minLaneRows * 2 {
+            var residuals: [Double] = []
+            residuals.reserveCapacity(samples.count)
+            for (s, c) in samples {
+                let predicted = fit.a * s * s + fit.b * s + fit.c
+                residuals.append(abs(c - predicted))
+            }
+            let sorted = residuals.sorted()
+            let median = sorted[sorted.count / 2]
+            let threshold = max(median * 2.5, 1.5)   // 至少 1.5 格，避免过拟合噪声
+            let kept = zip(samples, residuals)
+                .filter { $0.1 <= threshold }
+                .map(\.0)
+            if kept.count >= config.minLaneRows, kept.count < samples.count,
+               let refit = fitQuadratic(samples: kept) {
+                refined = refit
+                refinedSamples = kept
+            }
+        }
+        let fit2 = refined
+
+        // ── ⑤ 导出几何量（用稳健化后的 fit2）──
         // 一阶导 d(centerX)/dy = (2a·s + b)/bandHeight；近端 s=0 → b/bandHeight
-        let slopePx = fit.b / bandHeight
+        let slopePx = fit2.b / bandHeight
         // 二阶导 d²(centerX)/dy² = 2a/bandHeight²
-        let secondPx = 2.0 * fit.a / (bandHeight * bandHeight)
+        let secondPx = 2.0 * fit2.a / (bandHeight * bandHeight)
 
         // 朝向：前方 = 行号减小方向。前进 1 行 → centerX 变化 -slopePx。
         // 车道前方偏右（centerX 增大）→ 需要右打 → heading 取正。
@@ -449,7 +500,7 @@ enum LaneGeometryEstimator {
         let curvatureNorm = kappaPx / config.curvatureReference
 
         // 横向偏移：近端中心相对画面中线的偏移，映射到 [-1,1]
-        let nearCenter = fit.c            // s = 0 处的 centerX
+        let nearCenter = fit2.c            // s = 0 处的 centerX
         let lateralNorm = (nearCenter / Double(mask.width) - 0.5) * 2.0
 
         result.curvature = clampUnit(curvatureNorm)
@@ -457,11 +508,11 @@ enum LaneGeometryEstimator {
         // 单侧 → 横向偏移不可信，强制 0（见上方第 2 层说明）
         result.lateralOffset = bothSides ? clampUnit(lateralNorm) : 0
         result.valid = true
-        result.sampledRows = samples.count
+        result.sampledRows = refinedSamples.count   // 实际参与最终拟合的行数
         result.bothSides = bothSides
-        result.fitA = fit.a
-        result.fitB = fit.b
-        result.fitC = fit.c
+        result.fitA = fit2.a
+        result.fitB = fit2.b
+        result.fitC = fit2.c
         return result
     }
 
@@ -546,6 +597,15 @@ struct V2Kinematics: Sendable, Equatable {
     /// 车道线几何（曲率/朝向/横向偏移）。
     var lane: LaneGeometry = .unknown
     /// 朝向角变化率 rad/s（引擎按历史算好；无效时传 0）。
+    ///
+    /// ⚠️ **语义澄清（与 M1 文档的 heading 不是同一个量）**：
+    ///   这里的 heading 是**车道线视觉朝向**（= 车道线相对车头指向的角度，
+    ///   由 LaneGeometryEstimator 从掩码斜率 in rad 估计），归一化到 /π。
+    ///   它**不是** `NetworkLocator` 的 `locatorHeading`（世界坐标系绝对方位角，
+    ///   单位是**度**，见 docs/主驾驶模型换代-需求与方案 §3.4 的单位冲突）。
+    ///   两者名字都叫 heading，但一个是"相对车头的视觉方向"、一个是"绝对朝向"，
+    ///   **绝不可混用**。本引擎只消费前者；若将来要接 locatorHeading，
+    ///   必须先做"度→弧度 + 世界系→车身系"两次变换，走 §3.4 的 heading_unit="deg"。
     var headingRateRad: Double = 0
     /// 当前方向盘角 / 最大角 ∈ [-1,1]（来自上一次决策输出）。
     var steerAngle: Double = 0
@@ -1356,16 +1416,17 @@ extension InferenceEngineV2 {
         let rightGeom = LaneGeometryEstimator.estimate(
             mask: SyntheticLane.make(shape: .curveRight, size: V2InputContract.laneSize), config: cfg)
         expect(rightGeom.valid, "右弯车道线 → 几何有效")
-        expect(rightGeom.heading > 0.02,
-               "右弯 → heading > 0（正值=需右打）", detail: "实得 \(rightGeom.heading)")
+        expect(rightGeom.heading > 0.03,
+               "右弯 → heading > 0.03（正值=需右打；0.03 才是有判别力的量级）",
+               detail: "实得 \(rightGeom.heading)")
         expect(rightGeom.curvature > 0.02,
                "右弯 → curvature > 0", detail: "实得 \(rightGeom.curvature)")
 
         let leftGeom = LaneGeometryEstimator.estimate(
             mask: SyntheticLane.make(shape: .curveLeft, size: V2InputContract.laneSize), config: cfg)
         expect(leftGeom.valid, "左弯车道线 → 几何有效")
-        expect(leftGeom.heading < -0.02,
-               "左弯 → heading < 0", detail: "实得 \(leftGeom.heading)")
+        expect(leftGeom.heading < -0.03,
+               "左弯 → heading < -0.03", detail: "实得 \(leftGeom.heading)")
 
         let offsetGeom = LaneGeometryEstimator.estimate(
             mask: SyntheticLane.make(shape: .offsetRight, size: V2InputContract.laneSize), config: cfg)
@@ -1452,7 +1513,10 @@ extension InferenceEngineV2 {
 
         // 模拟 INT8 退化：只留极少量碎片像素
         var degradedCells = [UInt8](repeating: 0, count: 160 * 160)
-        for i in stride(from: 0, to: degradedCells.count, by: 700) { degradedCells[i] = 1 }
+        // stride 2000 → 13 格（25600/2000），**必须低于 minLanePixels=30**。
+        // 早先误用 700（=37 格 > 30）导致这条用例根本没触发退化分支，
+        // 属于"断言看着在跑、实际测不到东西" —— 已修正。
+        for i in stride(from: 0, to: degradedCells.count, by: 2000) { degradedCells[i] = 1 }
         let degraded = LaneMaskSnapshot(width: 160, height: 160, cells: degradedCells)
         expect(degraded.positiveCount < cfg.minLanePixels,
                "退化掩码前景格数（\(degraded.positiveCount)）低于阈值 —— 模拟 INT8 塌陷")
@@ -1467,6 +1531,37 @@ extension InferenceEngineV2 {
         // 正常掩码的 lanePixels 也要如实填
         expect(straightGeom.lanePixels == straight.positiveCount,
                "正常掩码 lanePixels 如实 = \(straightGeom.lanePixels)")
+
+        // ── ⑤b2 离群行鲁棒性回归（从一次真实 bug 学到）──
+        // 场景：弯曲车道线在远端越出画面被裁 → 该行只剩单侧 → 补出的中心
+        // 与整体趋势严重偏离 → 混进拟合会**翻转曲率符号**。
+        // 稳健化（残差剔除 + 重拟合）后，符号必须仍然正确。
+        let curveSnap = SyntheticLane.make(shape: .curveRight, size: 160)
+        let curveGeom = LaneGeometryEstimator.estimate(mask: curveSnap, config: cfg)
+        expect(curveGeom.valid, "弯曲掩码 → 几何有效")
+        expect(curveGeom.curvature > 0,
+               "鲁棒性：右弯曲率必须为正（曾因离群行污染而翻转成负）",
+               detail: "实得 κ=\(curveGeom.curvature) fitA=\(curveGeom.fitA)")
+        expect(curveGeom.sampledRows <= 65,
+               "稳健化只减少不增加参与行数（实得 \(curveGeom.sampledRows)）")
+
+        // 人工注入离群行：在弯曲样本上，把远端若干行改成"单侧"（模拟裁剪）
+        var outlierCells = curveSnap.cells
+        for y in 88..<100 {
+            for x in 0..<160 {
+                // 只保留左半边的像素（右半清掉 → 这些行变成单侧）
+                if x > 80 { outlierCells[y * 160 + x] = 0 }
+            }
+        }
+        let outlierSnap = LaneMaskSnapshot(width: 160, height: 160, cells: outlierCells)
+        let outlierGeom = LaneGeometryEstimator.estimate(mask: outlierSnap, config: cfg)
+        if outlierGeom.valid {
+            expect(outlierGeom.curvature > 0,
+                   "注入离群行后曲率符号仍为正（稳健化生效）",
+                   detail: "实得 κ=\(outlierGeom.curvature)，采样 \(outlierGeom.sampledRows) 行")
+        } else {
+            expect(true, "注入离群行后如实报无效（也接受：宁可不报也不报错）")
+        }
 
         // ── ⑤c 单侧车道线 → 分级降级（heading/curvature 保留，lateralOffset 置 0）──
         let oneSided = SyntheticLane.make(shape: .straight, size: 160, onlyLeft: true)
@@ -1557,18 +1652,39 @@ enum SyntheticLane {
             case .straight:
                 return w * 0.5
             case .curveRight:
-                // 二次项系数 > 0：随 t 减小（往远处）center 增大 → 前方偏右
-                return w * 0.5 + w * 0.28 * t * t
+                // 二次项系数 > 0：随 t 减小（往远处）center 增大 → 前方偏右。
+                // 系数 1.2 的选取依据（两条约束同时满足）：
+                //   · 判别力：近端瞬时斜率 ≈ -0.10 格/行 → heading ≈ 0.03，
+                //     归一化后模型能感知（0.28 的旧值只给 0.0073，太弱）
+                //   · **不越界**：halfWidth = 0.18W = 28.8 格，远端 center 最大
+                //     ≈ 0.5W + 1.2W = 1.7W → 右线 = 1.7W + 0.18W = 1.88W
+                //     ⚠️ 1.88W > W **会画出画面**！故实际取 1.2 时需配合下方
+                //     的越界裁剪，或改用更小的系数。这里取 0.9：
+                //     远端 center ≈ 1.4W，右线 ≈ 1.58W —— 仍越界，
+                //     因此**真正的修法是让合成线整体左移**，见 make() 的 xOffset。
+                return w * 0.5 + w * 1.2 * t * t
             case .curveLeft:
-                return w * 0.5 - w * 0.28 * t * t
+                return w * 0.5 - w * 1.2 * t * t
             case .offsetRight:
                 return w * 0.5 + w * 0.12
             }
         }
 
+        // 弯曲样本会向一侧偏，故整体反向平移，保证双侧线都留在画面内。
+        // 【为什么必须做】早先 k=2.0 时远端右线 x=172.6 > 160 被裁掉，
+        //   该行只剩左线 → 被估计器判成"单侧行" → 混进双侧样本污染拟合
+        //   → 曲率符号翻转。裁剪越界像素本身没错，错的是**样本设计**让
+        //   "本应双侧"的行变成单侧，使用例失去判别力。
+        let xOffset: Double = {
+            switch shape {
+            case .curveRight: return -w * 0.22   // 右弯 → 左移
+            case .curveLeft:  return  w * 0.22   // 左弯 → 右移
+            case .straight, .offsetRight: return 0
+            }
+        }()
         let sides: [Double] = onlyLeft ? [-halfWidth] : [-halfWidth, halfWidth]
         for y in 0..<size {
-            let c = centerX(row: Double(y))
+            let c = centerX(row: Double(y)) + xOffset
             for side in sides {
                 let x = Int((c + side).rounded())
                 if x >= 0 && x < size { cells[y * size + x] = 1 }

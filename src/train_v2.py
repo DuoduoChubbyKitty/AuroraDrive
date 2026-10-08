@@ -404,8 +404,26 @@ def map_state(batch: Dict[str, torch.Tensor], device, enabled: bool = True
 
 
 def build_m2_inputs(batch: Dict[str, torch.Tensor], device, enable_lane: bool,
-                    enable_det: bool, lane_size: Optional[int]) -> Dict[str, torch.Tensor]:
-    """把 M3 的 batch 适配成 M2.forward 的入参。"""
+                    enable_det: bool, lane_size: Optional[int],
+                    strict_lane_geometry: bool = False) -> Dict[str, torch.Tensor]:
+    """把 M3 的 batch 适配成 M2.forward 的入参。
+
+    ★ 车道线几何口径（2026-10-08 修复）
+    ----------------------------------------------------------------
+    M2 的 `lane_mask` 契约是 [B,1,160,160]，语义是 **Swift MaskGrid**
+    —— **letterbox 640 坐标系**下采样后的网格（依据 YolopxEngine.swift:40/374、
+    InferenceEngineV2.swift:124）。dataset_v2 现在直接产出该口径，故这里
+    **原样透传，不做任何 resize**。
+
+    ⛔ 修复前：`F.interpolate(lm, size=(160,160), mode="nearest")`。
+       当 lm 是 image_size 分辨率（180×320 相机空间）时，会把它强行拉伸成方形，
+       **破坏纵横比、与 letterbox 口径最多错位 35 格（网格高度 21.9%）**。
+       更糟：M2 的 LaneMaskEncoder 用 MaxPool2d + AdaptiveAvgPool2d，
+       **任何尺寸都吃、不报错** —— 这个错误此前完全没有告警。
+
+    现在：尺寸不符 → strict 时抛错，否则按「车道线不可用」处理（lane_mask=None）。
+    **绝不静默 resize。**
+    """
     image = batch["image"].to(device, non_blocking=False)
     lane_mask = None
     if enable_lane:
@@ -414,11 +432,24 @@ def build_m2_inputs(batch: Dict[str, torch.Tensor], device, enable_lane: bool,
             lm = lm.to(device).float()
             if lm.dim() == 3:
                 lm = lm.unsqueeze(1)
-            # M2 声明 lane_mask 为 [B,1,160,160]；M3 给的是 image_size 分辨率。
-            # 两者语义不同（疑为俯视栅格 vs 相机空间），默认按 M2 声明缩放。
-            if lane_size and lm.shape[-2:] != (lane_size, lane_size):
-                lm = F.interpolate(lm, size=(lane_size, lane_size), mode="nearest")
-            lane_mask = lm
+            target = (lane_size, lane_size) if lane_size else None
+            if target is not None and tuple(lm.shape[-2:]) != target:
+                msg = (
+                    f"lane_mask 尺寸 {tuple(lm.shape[-2:])} 与 M2 契约 {target} 不符。"
+                    f"M2 的 lane_mask 语义是 letterbox 640 口径的 MaskGrid，"
+                    f"**不是**相机空间分辨率 —— 静默 resize 会破坏与运行时的几何一致性"
+                    f"（实测最多错位 35 格 / 网格高度的 21.9%）。"
+                    f"请让 dataset_v2 产出 {target} 口径"
+                    f"（backfill_lane_masks 已改为该口径）。")
+                if strict_lane_geometry:
+                    raise ValueError(msg)
+                # 非严格：拒绝 resize（那正是被修复的 bug），改为丢弃该分支输入。
+                # 宁可让模型知道"车道线不可用"（零向量），也不喂几何错误的特征。
+                print(f"⚠️  [车道线契约] {msg}\n"
+                      f"    → 本次按『车道线不可用』处理（lane_mask=None → 零向量），不 resize。")
+                lane_mask = None
+            else:
+                lane_mask = lm
 
     dets, det_mask = pack_dets(batch, device, enabled=enable_det)
     state = map_state(batch, device, enabled=True)
@@ -791,6 +822,10 @@ class V2Loss(nn.Module):
                  + self.brake_weight * l_brk)
         comps = {"steer": float(l_steer.detach()), "throttle": float(l_thr.detach()),
                  "brake": float(l_brk.detach())}
+        # "control" = 仅三个控制量的加权和，**不含**任何辅助损失。
+        # 用途：模型选择与跨配置比较必须用它 —— 辅助损失会抬高 total，
+        # 导致"开了辅助损失反而 best_val_loss 更差"的假象，且会选错 epoch。
+        comps["control"] = float(total.detach())
         stats = {"lane_supervised_frac": 0.0, "lane_consistency_valid_frac": 0.0}
 
         if self.conflict_weight > 0:
@@ -955,10 +990,15 @@ class _SyntheticV2Dataset(Dataset):
        不画进 image。若同时画进图像，图像分支自己就能读出车道几何，
        消融 lane_mask 几乎不改变结果 → 测不出车道分支的真实价值，
        自测会得出"辅助损失没用"的假结论。默认 False 才是有效测试。
+
+    ⚠️ 车道掩码口径（2026-10-08 契约修复后）：必须产出 M2 契约的
+       lane_size×lane_size（160×160）letterbox 网格，**不是** image_size。
+       产 image_size 会被 build_m2_inputs 判定为几何不符而整支丢弃。
     """
 
     def __init__(self, size=256, image_size=(180, 320), num_dets=M2_MAX_DETS,
-                 with_lane=True, with_det=True, seed=0, lane_in_image=False):
+                 with_lane=True, with_det=True, seed=0, lane_in_image=False,
+                 lane_size=M2_LANE_SIZE):
         self.size = size
         self.H, self.W = image_size
         self.num_dets = num_dets
@@ -966,6 +1006,7 @@ class _SyntheticV2Dataset(Dataset):
         self.with_det = with_det
         self.seed = seed
         self.lane_in_image = lane_in_image
+        self.lane_size = lane_size
 
     def __len__(self):
         return self.size
@@ -978,19 +1019,24 @@ class _SyntheticV2Dataset(Dataset):
         steer = max(-1.0, min(1.0, 0.6 * offset + 0.4 * curv))
 
         image = torch.rand(3, H, W, generator=g) * 0.3 + 0.35
-        lane_mask = torch.zeros(1, H, W)
+        # 车道掩码按 M2 契约口径生成（lane_size×lane_size letterbox 网格），
+        # 不是 image_size —— 否则会被判几何不符而整支丢弃
+        L = self.lane_size
+        lane_mask = torch.zeros(1, L, L)
         if self.with_lane:
-            yy = torch.arange(H).view(H, 1).float()
-            xx = torch.arange(W).view(1, W).float()
-            t = yy / max(H - 1, 1)
-            center = W / 2 + offset * (W * 0.3) * t + curv * (W * 0.5) * (1 - t) ** 2
-            half = 20 + 45 * t
-            lm = ((xx - (center - half)).abs() < 2.0) | ((xx - (center + half)).abs() < 2.0)
+            yy = torch.arange(L).view(L, 1).float()
+            xx = torch.arange(L).view(1, L).float()
+            t = yy / max(L - 1, 1)
+            center = L / 2 + offset * (L * 0.3) * t + curv * (L * 0.5) * (1 - t) ** 2
+            half = 0.12 * L + 0.25 * L * t
+            lm = ((xx - (center - half)).abs() < 1.5) | ((xx - (center + half)).abs() < 1.5)
             lane_mask[0] = lm.float()
             # 默认**不**把车道线画进图像：否则图像分支即可独立读出车道几何，
             # 消融 lane_mask 无差异，自测会误判"车道分支白加"
             if self.lane_in_image:
-                image = torch.clamp(image + lane_mask * 0.4, 0, 1)
+                image = torch.clamp(
+                    image + F.interpolate(lane_mask.unsqueeze(0), size=(H, W),
+                                          mode="nearest")[0] * 0.4, 0, 1)
 
         boxes = torch.zeros(self.num_dets, 4)
         scores = torch.zeros(self.num_dets)
@@ -1043,6 +1089,7 @@ def train_v2(
     lane_grad_diag: bool = True, lane_ablation_every: int = 1,
     lane_sign_autocalib: bool = True, synthetic: bool = False,
     synthetic_size: int = 256, synthetic_lane_in_image: bool = False,
+    select_metric: str = "control",
     limit_batches: int = 0,
     resume: Optional[str] = None, force_reference_model: bool = False,
 ) -> Path:
@@ -1287,7 +1334,10 @@ def train_v2(
                             do_ablation=do_abl, limit_batches=limit_batches)
         val_m["epoch"] = epoch
         val_history.append(val_m)
-        val_loss = val_m.get("total", float("inf"))
+        # 模型选择指标：默认用 control（纯控制损失，不含辅助项）。
+        # 若用 total，开了辅助损失的 run 会因附加项而显得更差，
+        # 既选错 epoch 也让跨配置比较失真（实测：control 口径下辅助损失明显更优）。
+        val_loss = val_m.get(select_metric, val_m.get("total", float("inf")))
 
         if device == "mps":
             torch.mps.empty_cache()   # 缓解 MPS 显存碎片
@@ -1326,6 +1376,9 @@ def train_v2(
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "best_val_loss": best_val_loss,
+                "select_metric": select_metric,
+                "val_control": val_m.get("control"),
+                "val_total_with_aux": val_m.get("total"),
                 "image_size": list(image_size),
                 "lane_size": lane_size,
                 "num_dets": num_dets,
@@ -1341,7 +1394,9 @@ def train_v2(
                     "lane_consistency": lane_consistency_weight,
                 },
             }, ckpt_dir / "best_model.pt")
-            print(f"  ★ 新最佳 val_loss={best_val_loss:.4f} → {ckpt_dir / 'best_model.pt'}")
+            print(f"  ★ 新最佳 {select_metric}={best_val_loss:.4f} "
+                  f"(control={val_m.get('control', 0):.4f}, "
+                  f"total含辅助={val_m.get('total', 0):.4f}) → {ckpt_dir / 'best_model.pt'}")
         else:
             bad_epochs += 1
 
@@ -1370,6 +1425,7 @@ def train_v2(
         "epochs": epochs, "batch_size": batch_size, "grad_accum": grad_accum,
         "lr": lr, "weight_decay": weight_decay, "image_size": list(image_size),
         "lane_size": lane_size, "num_dets": num_dets, "ctl_mode": ctl_mode,
+        "select_metric": select_metric,
         "best_val_loss": best_val_loss,
         "train_history": train_history, "val_history": val_history,
         # ⚠️ 降级留档：明确记录本次训练有哪些模态缺失，避免事后误读指标
@@ -1453,6 +1509,10 @@ def parse_args():
     p.add_argument("--synthetic_lane_in_image", action="store_true",
                    help="把车道线同时画进合成图像（默认不画；画了会掩盖车道分支价值，"
                         "导致消融测不出差异）")
+    p.add_argument("--select_metric", default="control",
+                   choices=["control", "total", "steer"],
+                   help="模型选择指标：control=纯控制损失(默认,推荐)；"
+                        "total=含辅助损失(会因辅助项抬高而选错)；steer=仅转向 L1")
     p.add_argument("--limit_batches", type=int, default=0, help="每 epoch 最多跑 N 个 batch")
     return p.parse_args()
 
@@ -1481,6 +1541,7 @@ def main():
         lane_sign_autocalib=not a.no_lane_sign_autocalib,
         synthetic=a.synthetic, synthetic_size=a.synthetic_size,
         synthetic_lane_in_image=a.synthetic_lane_in_image,
+        select_metric=a.select_metric,
         limit_batches=a.limit_batches, resume=a.resume,
         force_reference_model=a.force_reference_model,
     )
