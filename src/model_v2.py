@@ -206,7 +206,11 @@ IMG_W: int = 320
 LANE_SIZE: int = 160
 #: 检测框固定槽位数（Swift 侧空槽补 0，det_mask 置 0）
 MAX_DETECTIONS: int = 20
-#: 单个检测框的特征维度：x,y,w,h,label_onehot(4),confidence,speed,heading,age,ego_visible
+#: 单个检测框的特征维度（★ 12，不是 13）
+#: 布局：[0]x [1]y [2]w [3]h [4:8]label_onehot4 [8]confidence [9]speed [10]heading [11]age
+#: ⚠️ 2026-10-08 修正（w3-health 发现）：原注释误列 ego_visible 为第 13 项，
+#:    但实现（DetectionEncoder 文档 :552-560）第 6 维不用、自车信息走
+#:    `vehicle_state[7]`（reserved 位），故维度恒为 12。
 DET_FEAT_DIM: int = 12
 #: 车辆状态维度：speed, accel, heading, heading_rate, curvature, lateral_offset, steer_angle, reserved
 STATE_DIM: int = 8

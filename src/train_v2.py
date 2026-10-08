@@ -950,16 +950,22 @@ class _SyntheticV2Dataset(Dataset):
     """合成数据：车道线掩码与 steer 强相关，用于验证辅助损失与两项诊断真的生效。
 
     仅用于自测与联调，不参与生产训练。
+
+    ⚠️ 关键设计（踩过的坑）：lane_in_image=False 时车道线**只存在于 lane_mask**，
+       不画进 image。若同时画进图像，图像分支自己就能读出车道几何，
+       消融 lane_mask 几乎不改变结果 → 测不出车道分支的真实价值，
+       自测会得出"辅助损失没用"的假结论。默认 False 才是有效测试。
     """
 
     def __init__(self, size=256, image_size=(180, 320), num_dets=M2_MAX_DETS,
-                 with_lane=True, with_det=True, seed=0):
+                 with_lane=True, with_det=True, seed=0, lane_in_image=False):
         self.size = size
         self.H, self.W = image_size
         self.num_dets = num_dets
         self.with_lane = with_lane
         self.with_det = with_det
         self.seed = seed
+        self.lane_in_image = lane_in_image
 
     def __len__(self):
         return self.size
@@ -981,7 +987,10 @@ class _SyntheticV2Dataset(Dataset):
             half = 20 + 45 * t
             lm = ((xx - (center - half)).abs() < 2.0) | ((xx - (center + half)).abs() < 2.0)
             lane_mask[0] = lm.float()
-            image = torch.clamp(image + lane_mask * 0.4, 0, 1)
+            # 默认**不**把车道线画进图像：否则图像分支即可独立读出车道几何，
+            # 消融 lane_mask 无差异，自测会误判"车道分支白加"
+            if self.lane_in_image:
+                image = torch.clamp(image + lane_mask * 0.4, 0, 1)
 
         boxes = torch.zeros(self.num_dets, 4)
         scores = torch.zeros(self.num_dets)
@@ -1033,7 +1042,8 @@ def train_v2(
     no_lane: bool = False, no_det: bool = False,
     lane_grad_diag: bool = True, lane_ablation_every: int = 1,
     lane_sign_autocalib: bool = True, synthetic: bool = False,
-    synthetic_size: int = 256, limit_batches: int = 0,
+    synthetic_size: int = 256, synthetic_lane_in_image: bool = False,
+    limit_batches: int = 0,
     resume: Optional[str] = None, force_reference_model: bool = False,
 ) -> Path:
     torch.manual_seed(seed)
@@ -1104,6 +1114,9 @@ def train_v2(
         "lane_consistency": bool(has_lane and lane_consistency_weight > 0),
         "lane_seg": bool(has_lane and lane_seg_weight > 0),
         "det": bool(has_det),
+        # 消融是**诊断**而非损失：只要数据有车道线标注就该测，
+        # 不应随辅助损失权重开关（否则无法做"有/无辅助损失"的对照实验）
+        "lane_ablation": bool(has_lane),
     }
 
     # 车道几何符号自动校准（避免符号搞反 → 一致性损失反向优化）
@@ -1265,7 +1278,7 @@ def train_v2(
         train_history.append(train_m)
 
         # ---- 验证 ----
-        do_abl = bool(enable["lane_steer"] and lane_ablation_every > 0
+        do_abl = bool(enable["lane_ablation"] and lane_ablation_every > 0
                       and (epoch % lane_ablation_every == 0))
         val_m = validate_v2(model, val_loader, loss_fn, device, use_amp, enable, ctl_mode,
                             probe=probe, tap=tap, lane_size=lane_size,
@@ -1295,8 +1308,12 @@ def train_v2(
             print(f"  · 车道消融: steer_l1={val_m['steer_l1_with_lane']:.4f} → "
                   f"置零后={val_m['steer_l1_lane_zeroed']:.4f} (Δ={d:+.4f})")
             if abs(d) < 1e-4:
-                print("  ⚠ [消融告警] 置零车道线后 steer 误差几乎不变 → "
-                      "模型没在用车道线信息（等于白加）")
+                if enable["lane_steer"] or enable["lane_consistency"]:
+                    print("  ⚠ [消融告警] 置零车道线后 steer 误差几乎不变 → "
+                          "模型没在用车道线信息（等于白加），请检查 M2 融合结构或加大辅助权重")
+                else:
+                    print("  · [消融说明] 本次未启用任何车道辅助损失 → Δ≈0 属预期，"
+                          "此项可作对照基线")
 
         # ---- 保存 best ----
         if val_loss < best_val_loss:
