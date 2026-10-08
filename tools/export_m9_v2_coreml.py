@@ -314,6 +314,9 @@ def _build_and_load(sd: Optional[Dict[str, torch.Tensor]], src: Optional[Path]):
     if sd is None:
         print("[导出] ⚠ --self-test / --allow-random-init：使用**随机初始化**权重")
         print("[导出]   ⚠ 产物只能验证转换链路，**绝不可上车**")
+        # ★ 固定 seed：否则每次进程的随机权重不同 → 精度对比的"参考值"每次都在变，
+        #   同一个脚本跑两次结果不同（实测 car_heading 1.276 vs 1.848，全是随机权重的锅）。
+        torch.manual_seed(0)
         model = build_model(deploy=False)
         model.eval()
         model.reparameterize()

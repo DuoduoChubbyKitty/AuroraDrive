@@ -172,19 +172,34 @@ def _safe_float(v: Any) -> Optional[float]:
     return f if math.isfinite(f) else None
 
 
-def _infer_heading_unit(values: Sequence[float], eps: float = 1e-6) -> str:
+#: auto 判定阈值：|h| > 2π + 0.5 判为「度」。
+#: ★ 2026-10-08 统一（w1 发现）：原阈值为 2π + 1e-6 ≈ 6.2832，
+#:   与 src/heading_head.py:142 的 `_HEADING_UNIT_AUTO_THRESHOLD = 2π + 0.5 ≈ 6.783`
+#:   不一致 → 边界样本（|h| ∈ (6.2832, 6.783]）两侧判出不同单位（差 57.3 倍）。
+#:   统一为 2π + 0.5（保守方向）：需要更大的值才判 deg，避免把大角度弧度
+#:   （如 6.5 rad）误判成度。rad 合法范围 [-π,π] max ≈3.1416，卡 6.783 安全。
+_HEADING_UNIT_AUTO_THRESHOLD: float = 2.0 * math.pi + 0.5
+
+
+def _infer_heading_unit(values: Sequence[float],
+                        eps: Optional[float] = None) -> str:
     """推断 heading 单位，返回 "rad" 或 "deg"。
 
-    规则（保守）：
-      · 只要存在 |h| > 2π+eps 的值 → 不可能是弧度 → "deg"
+    规则（保守，与 src/heading_head.py:142 逐字一致）：
+      · 只要存在 |h| > 2π + 0.5 的值 → 不可能是弧度 → "deg"
       · 否则 → "rad"
     边界情况：heading 恰好只在 [0, 2π) 内取值时无法区分（真实数据几乎不会这么巧），
     此时按 "rad" 处理；写入端确认后请显式传 heading_unit="deg"。
+
+    Args:
+        values: heading 序列
+        eps: 兼容旧调用（旧签名 `_infer_heading_unit(values, eps=1e-6)`）。
+             新阈值固定为 2π+0.5（见模块常量），eps 仅作兼容占位，不再生效。
     """
     if not values:
         return "rad"
     m = max(abs(v) for v in values)
-    return "deg" if m > 2.0 * math.pi + eps else "rad"
+    return "deg" if m > _HEADING_UNIT_AUTO_THRESHOLD else "rad"
 
 
 # ==================================================================================

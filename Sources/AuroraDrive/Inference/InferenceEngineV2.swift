@@ -2024,7 +2024,70 @@ extension InferenceEngineV2 {
         expect(V2FeatureBuilder.buildLaneMask(straight).count == 25600,
                "lane 通道来源唯一 = LaneMaskSnapshot（不含可行驶区域）")
 
+        // ══════════════════════════════════════════════════════════════════
+        // ⑨ M4 传输扩展回归（2026-10-08 T1）—— 环形缓冲 / compass 转换
+        // ══════════════════════════════════════════════════════════════════
+        // ⑨a compass 度 → rad 转换（与 Python 侧 heading_head 逐值对齐）
+        var camK = V2Kinematics()
+        camK.cameraHeadingDeg = 90.0
+        camK.cameraHeadingValid = true
+        let (rad90, valid90) = V2FeatureBuilder.buildCameraHeadingRad(camK)
+        expect(valid90 && abs(Double(rad90) - Double.pi / 2) < 1e-5,
+               "compass 90° → π/2 rad（T1 新增）")
+        camK.cameraHeadingDeg = 359.9
+        let (rad359, _) = V2FeatureBuilder.buildCameraHeadingRad(camK)
+        expect(abs(wrapDiff(Double(rad359), 0)) < 0.0035,
+               "compass 359.9° ≈ 0 rad（跨 360 边界不跳变，T1 新增）")
+        camK.cameraHeadingValid = false
+        let (radInvalid, validInvalid) = V2FeatureBuilder.buildCameraHeadingRad(camK)
+        expect(!validInvalid && radInvalid == 0,
+               "cameraHeadingValid=false → (0,false) 不谎报有数据（T1 新增）")
+
+        // ⑨b 环形缓冲：帧序（最老在前）+ 未填满复制首帧 + 溢出覆盖
+        var ring = ImageFrameRingBuffer(capacity: 4, frameLength: 3)
+        expect(ring.snapshot().count == 12, "环形缓冲总长 = 容量×帧长")
+        // 帧 i 用 [i, i+1, i+2] 表示（frameLength=3）
+        _ = ring.push([1, 1, 1])
+        var snap1 = ring.snapshot()
+        expect(snap1[0] == 1 && snap1[3] == 1 && snap1[6] == 1 && snap1[9] == 1,
+               "未填满：空位复制首帧（[1,1,1] ×4）")
+        _ = ring.push([2, 2, 2])
+        _ = ring.push([3, 3, 3])
+        _ = ring.push([4, 4, 4])   // 填满
+        var snapFull = ring.snapshot()
+        expect(snapFull[0] == 1 && snapFull[3] == 2 && snapFull[6] == 3 && snapFull[9] == 4,
+               "填满：最老在前（1,2,3,4）")
+        _ = ring.push([5, 5, 5])   // 覆盖最老的 1
+        snapFull = ring.snapshot()
+        expect(snapFull[0] == 2 && snapFull[3] == 3 && snapFull[6] == 4 && snapFull[9] == 5,
+               "溢出：覆盖最老（2,3,4,5）—— 环形语义")
+        // 长度不符 → 忽略（不静默截断）
+        let rejected = ring.push([9])
+        expect(!rejected, "帧长不符 → 拒绝写入（不静默截断）")
+        ring.reset()
+        expect(ring.snapshot().allSatisfy { $0 == 0 }, "reset 后全零")
+
+        // ⑨c V2Features 装配：cameraHeadingRad 进特征
+        var kF = V2Kinematics()
+        kF.cameraHeadingDeg = 30.0
+        kF.cameraHeadingValid = true
+        let fF = V2FeatureBuilder.build(kinematics: kF, detections: [],
+                                        laneMask: .empty(), config: cfg)
+        expect(fF.cameraHeadingValid && fF.cameraHeadingRad != nil,
+               "build 后 cameraHeading 有效且 rad 已填（T1 新增）")
+        expect(abs(Double(fF.cameraHeadingRad!) - Double.pi / 6) < 1e-5,
+               "30° → π/6 rad（T1 新增）")
+
         return V2SelfCheck(ok: failures.isEmpty, checks: checks, failures: failures)
+    }
+
+    /// 弧度差（wrap 到 [-π,π] 的绝对值），供自检比较角度用。
+    /// 【为什么需要】`π` 与 `-π` 是同一个角，直接 allclose 会误判。
+    private nonisolated static func wrapDiff(_ a: Double, _ b: Double) -> Double {
+        var d = (a - b).truncatingRemainder(dividingBy: 2 * Double.pi)
+        if d > Double.pi { d -= 2 * Double.pi }
+        if d < -Double.pi { d += 2 * Double.pi }
+        return abs(d)
     }
 }
 
