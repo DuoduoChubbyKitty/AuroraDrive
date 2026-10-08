@@ -50,8 +50,18 @@ struct NetworkLocationResult {
     let rawCoordinate: RawPoint?
     let score: Double
     let mode: String
+    /// 相机俯仰（UE5 ControlRotation.pitch，度）。
     let cameraPitch: Double?
+    /// 相机/视角朝向（UE5 ControlRotation 的罗盘投影，0-360 度，0=正北顺时针）。
+    /// 2026-10-08 鉴定：pose.4 是 ControlRotation（玩家控制器/相机），**不是车体朝向**。
+    /// 出处：docs/车头朝向鉴定-2026-10-08.md（6 条证据链）；
+    /// 上游消费端自己命名 `camera_heading = pose[4]`（coordinate_position.py:246-247）。
     let cameraHeading: Double?
+    /// 运动方向估计（atan2 位移方向的罗盘角，0-360 度）——比 cameraHeading 更接近"车头朝向"。
+    /// 静止/抖动（位移²≤16）时保持上次的运动方向；从未移动过则为 nil。
+    /// 真车头朝向目前没有数据源（ControlRotation 不是车体），此字段是最接近的近似，
+    /// 如实命名不称"车头"，不编造。
+    let motionHeading: Double?
 }
 
 struct CoordinateTransform {
@@ -528,6 +538,9 @@ final class NetworkLocator {
     private var isConnected = false
     private var socketClient: LocalPoseSocketClient?
     private var lastLocPos: (x: Double, y: Double)?
+    /// 上次算出的运动方向（罗盘角，0-360 度）。位移不足（≤4px）时复用它，
+    /// 避免站立抖动把方向打成噪声。2026-10-08 新增（R2 车头朝向任务）。
+    private var lastMotionHeading: Double?
     private var lastResult: NetworkLocationResult?
 
     // MARK: - 初始化
@@ -544,23 +557,65 @@ final class NetworkLocator {
 
     func locate() -> NetworkLocationResult {
         guard let pose = socketClient?.read() else {
-            return lastResult ?? NetworkLocationResult(found: false, point: nil, rawCoordinate: nil, score: 0.0, mode: "coordinate_stale", cameraPitch: nil, cameraHeading: nil)
+            return lastResult ?? NetworkLocationResult(found: false, point: nil, rawCoordinate: nil, score: 0.0, mode: "coordinate_stale", cameraPitch: nil, cameraHeading: nil, motionHeading: nil)
         }
 
         let raw: RawPoint = (pose.0, pose.1, pose.2)
         let mapPoint = rawToMap(x: raw.0, y: raw.1, z: raw.2)
         guard let point = mapPoint, pose.3.isFinite, pose.4.isFinite else {
-            return NetworkLocationResult(found: false, point: nil, rawCoordinate: nil, score: 0.0, mode: "coordinate_invalid", cameraPitch: nil, cameraHeading: nil)
+            return NetworkLocationResult(found: false, point: nil, rawCoordinate: nil, score: 0.0, mode: "coordinate_invalid", cameraPitch: nil, cameraHeading: nil, motionHeading: nil)
         }
-        var heading = pose.4
+
+        // ─────────────────────────────────────────────────────────────────
+        // 【字段语义 · 2026-10-08 鉴定】（出处：docs/车头朝向鉴定-2026-10-08.md）
+        //
+        //   pose.4 = **相机朝向**（UE5 ControlRotation 的罗盘投影），不是车体朝向。
+        //     · 来源：MaaNTE 上游逐字注释 "compressed **control** rotation"
+        //       （nte_coordinate_api.py:1-7/:96 —— UE5 ControlRotation =
+        //       APawn::GetControlRotation() = 玩家控制器/相机旋转）；
+        //     · 上游消费端自己命名 `camera_heading = pose[4]`
+        //       （coordinate_position.py:246-247）；
+        //     · 仓库既有逆向文档：「计算 compass heading（基于相机朝向）」
+        //       （docs/文档库/Maa深度/MAA深度文档_架构篇.md:337）。
+        //     · 第三视角下相机挂在车后吊臂（SpringArm）上：转视角而车不动时，
+        //       变的是相机不是车 —— 故 pose.4 会"跟着视角走"（用户实测症状）。
+        //
+        //   两个字段并存，各说各话：
+        //     · cameraHeading = pose.4 的罗盘投影（相机/视角朝向），
+        //       空闲（位移小）时即 pose.4 原值，移动时仍以相机值为准；
+        //     · motionHeading = **运动方向估计**（atan2 位移方向），
+        //       车头不会瞬变，这是比 pose.4 更接近"车头朝向"的量。
+        //       真车头朝向目前**没有数据源**（ControlRotation 不是车体），
+        //       只能靠运动方向近似或另找载具包 —— 如实标注，不编造。
+        //
+        //   【单位】两字段均为**罗盘方位角 0-360 度**（0=正北，顺时针增加）。
+        //   模型契约需要弧度 [-π,π]，**换算必须在使用侧做，不要在这里混**。
+        //   另注意（w8 实测）：pose.4 不是 UE5 yaw 本身，而是
+        //   `yaw + 90.787960°` 的罗盘投影（90.788° 是 kNorth/kEast 基向量
+        //   的地图倾角，纯平移可逆，非 bug）——做训练特征时不能当 yaw 用。
+        // ─────────────────────────────────────────────────────────────────
+        var cameraHeading = pose.4
+
+        // 运动方向估计：位移超过阈值（4px²）才更新 —— 站立/抖动时保持上次方向。
+        //
+        // ★ 2026-10-08 镜像 bug 修复：地图像素系 **y 向下**，真北 = −Δy。
+        //   旧代码 `atan2(dx, dy)` 第二参取了 +dy → 关于东西轴镜像
+        //   （8 方向里 6 个是反的：正北↔正南对调、东北↔东南对调，
+        //    正东/正西是镜面不动点恰好不错 —— 用户"朝东西走看着对、
+        //    一拐南北就反"的实测症状即由此来）。
+        //   权威公式：`MissionConsole.swift:3007`（2026-09-30 已修复并实测）
+        //     `atan2(Δx, −Δy)`
+        var motionHeading: Double? = lastMotionHeading
         if let last = lastLocPos {
             let dx = Double(point.0) - last.x
             let dy = Double(point.1) - last.y
             if dx * dx + dy * dy > 16 {
-                heading = (atan2(dx, dy) * 180.0 / .pi + 360.0).truncatingRemainder(dividingBy: 360.0)
+                motionHeading = (atan2(dx, -dy) * 180.0 / .pi + 360.0)
+                    .truncatingRemainder(dividingBy: 360.0)
             }
         }
         lastLocPos = (Double(point.0), Double(point.1))
+        if let mh = motionHeading { lastMotionHeading = mh }
 
         let result = NetworkLocationResult(
             found: true,
@@ -569,7 +624,8 @@ final class NetworkLocator {
             score: 1.0,
             mode: "coordinate",
             cameraPitch: pose.3,
-            cameraHeading: heading
+            cameraHeading: cameraHeading,
+            motionHeading: motionHeading
         )
 
         lastResult = result

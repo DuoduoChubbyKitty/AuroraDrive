@@ -193,6 +193,23 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# ── M4 集成（2026-10-08）：三个新头的导入 ──────────────────────────────
+# 延迟导入写在 try 里：这三个模块由 w3/w4/w5 并行产出，若某个尚未落盘，
+# 缺失的头自动置 None（build_model 的 enable_* 开关会跳过它），
+# **不让 model_v2 因缺模块而整个 import 失败**（向后兼容旧环境）。
+try:
+    from src.heading_head import HeadingHead           # noqa: F401 (w3)
+except ImportError:  # pragma: no cover - 环境缺模块时降级
+    HeadingHead = None
+try:
+    from src.temporal import TemporalEncoder           # noqa: F401 (w5)
+except ImportError:  # pragma: no cover
+    TemporalEncoder = None
+try:
+    from src.risk_head import RiskHead, RiskHeadConfig  # noqa: F401 (w4)
+except ImportError:  # pragma: no cover
+    RiskHead, RiskHeadConfig = None, None
+
 
 # ============================================================================
 # 0. 默认超参数（集中定义，便于训练/导出两侧对齐）
@@ -222,6 +239,11 @@ DET_FEAT_DIM_OUT: int = 128
 STATE_FEAT_DIM: int = 64
 #: 融合头输入维度 = 256 + 64 + 128 + 64 = 512
 FUSION_IN_DIM: int = IMG_FEAT_DIM + LANE_FEAT_DIM + DET_FEAT_DIM_OUT + STATE_FEAT_DIM
+# ── M4 集成新增常量 ──
+#: 时序窗口 N（吃前 N 帧；1 = 退化为单帧，与旧模型等价）
+TEMPORAL_FRAMES: int = 8
+#: 时序编码器隐藏维度（GRU hidden；w5 默认 128）
+TEMPORAL_HIDDEN: int = 128
 
 
 # ============================================================================
@@ -400,7 +422,18 @@ class ImageEncoder(nn.Module):
         输出        : [B, 256]
     """
 
-    def __init__(self, deploy: bool = False, out_dim: int = IMG_FEAT_DIM):
+    def __init__(self, deploy: bool = False, out_dim: int = IMG_FEAT_DIM,
+                 stage3_blocks: int = 6, stage2_blocks: int = 3):
+        """ImageEncoder 构造。
+
+        Args:
+            deploy: 是否部署态（RepVGG 已重参数化）
+            out_dim: 输出特征维度
+            stage3_blocks: stage3 的 block 数（**M4 加大骨干的旋钮**）。
+                原值 6（A0 从 14 砍到 6，为轻量）；参数量预算允许时调到
+                10~14 可提升容量。每加 1 个 block ≈ +0.22M 参数。
+            stage2_blocks: stage2 的 block 数（默认 3）；每加 1 个 ≈ +0.08M。
+        """
         super().__init__()
         self.deploy = deploy
 
@@ -416,10 +449,11 @@ class ImageEncoder(nn.Module):
         self.stage1 = RepVGGStage(48, 48, num_blocks=2, deploy=deploy)
         # ---- stage2：3 blocks，48→96
         # [B,48,45,80] → [B,96,23,40]
-        self.stage2 = RepVGGStage(48, 96, num_blocks=3, deploy=deploy)
+        self.stage2 = RepVGGStage(48, 96, num_blocks=stage2_blocks, deploy=deploy)
         # ---- stage3：6 blocks，96→192（旧 A0 是 14 个，这里砍到 6 个）
         # [B,96,23,40] → [B,192,12,20]
-        self.stage3 = RepVGGStage(96, 192, num_blocks=6, deploy=deploy)
+        # M4：block 数改为可配（加大骨干的旋钮，见 __init__ 文档）
+        self.stage3 = RepVGGStage(96, 192, num_blocks=stage3_blocks, deploy=deploy)
         # ---- stage4：1 block，192→256，stride=1 不再下采样
         # [B,192,12,20] → [B,256,12,20]
         self.stage4 = RepVGGStage(192, out_dim, num_blocks=1, stride=1, deploy=deploy)
@@ -810,7 +844,14 @@ class M2Model(nn.Module):
                  img_feat_dim: int = IMG_FEAT_DIM,
                  lane_feat_dim: int = LANE_FEAT_DIM,
                  det_feat_dim: int = DET_FEAT_DIM_OUT,
-                 state_feat_dim: int = STATE_FEAT_DIM):
+                 state_feat_dim: int = STATE_FEAT_DIM,
+                 enable_temporal: bool = True,
+                 enable_heading: bool = True,
+                 enable_risk: bool = True,
+                 num_frames: int = TEMPORAL_FRAMES,
+                 temporal_hidden: int = TEMPORAL_HIDDEN,
+                 stage3_blocks: int = 6,
+                 stage2_blocks: int = 3):
         super().__init__()
         self.deploy = deploy
         self.img_feat_dim = img_feat_dim
@@ -819,7 +860,9 @@ class M2Model(nn.Module):
         self.state_feat_dim = state_feat_dim
 
         # ---- 四个分支 ----
-        self.image_encoder = ImageEncoder(deploy=deploy, out_dim=img_feat_dim)
+        self.image_encoder = ImageEncoder(deploy=deploy, out_dim=img_feat_dim,
+                                          stage3_blocks=stage3_blocks,
+                                          stage2_blocks=stage2_blocks)
         self.lane_encoder = LaneMaskEncoder(out_dim=lane_feat_dim)
         self.det_encoder = DetectionEncoder(out_dim=det_feat_dim)
         self.state_encoder = StateEncoder(out_dim=state_feat_dim)
@@ -827,6 +870,38 @@ class M2Model(nn.Module):
         # ---- 融合头 ----
         fusion_in = img_feat_dim + lane_feat_dim + det_feat_dim + state_feat_dim
         self.fusion_head = FusionHead(in_dim=fusion_in)
+
+        # ---- M4 集成：三个新头（均为可选；模块缺失时自动置 None）----
+        # 时序（w5）：吃「前 N 帧的图像特征」序列 → 时序特征，注入融合。
+        #   · num_frames=1 时退化为单帧（向后兼容既有单帧调用）
+        #   · 只在调用方传入 history_feats 时才真正参与前向
+        self.num_frames = num_frames
+        self.temporal_hidden = temporal_hidden
+        self.temporal_encoder = None
+        if enable_temporal and TemporalEncoder is not None:
+            self.temporal_encoder = TemporalEncoder(
+                feat_dim=img_feat_dim, hidden_dim=temporal_hidden,
+                num_frames=num_frames)
+            # 时序特征 → 拼回融合输入。用一个小投影把它并进 fusion 维度，
+            # 保持 FusionHead 的既有 512 契约（不改变其 in_dim）。
+            self.temporal_proj = nn.Linear(temporal_hidden, img_feat_dim)
+        else:
+            self.temporal_proj = None
+
+        # 车头朝向（w3）：从图像特征学 Δheading，合成 carHeading。
+        self.heading_head = None
+        if enable_heading and HeadingHead is not None:
+            self.heading_head = HeadingHead(in_dim=img_feat_dim)
+
+        # 风险/接管（w4）：从融合特征出 confidence + risk。
+        self.risk_head = None
+        if enable_risk and RiskHead is not None:
+            try:
+                self.risk_head = RiskHead(RiskHeadConfig(
+                    fused_dim=fusion_in, det_feat_dim=det_feat_dim))
+            except TypeError:
+                # 兼容 RiskHead 构造签名差异（无参 / 不同 kwarg）
+                self.risk_head = RiskHead()
 
         # ---- 记录契约常量，供 Swift/导出脚本读取 ----
         self.img_h = IMG_H
@@ -842,7 +917,11 @@ class M2Model(nn.Module):
                 lane_mask: Optional[torch.Tensor] = None,
                 dets: Optional[torch.Tensor] = None,
                 det_mask: Optional[torch.Tensor] = None,
-                vehicle_state: Optional[torch.Tensor] = None
+                vehicle_state: Optional[torch.Tensor] = None,
+                history_feats: Optional[torch.Tensor] = None,
+                frame_mask: Optional[torch.Tensor] = None,
+                camera_heading: Optional[torch.Tensor] = None,
+                return_aux: bool = False
                 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -877,6 +956,17 @@ class M2Model(nn.Module):
         # ---- 分支 1：图像 [B,3,180,320] → [B,256] ----
         img_feat = self.image_encoder(image)
 
+        # ---- M4 时序（w5）：有历史帧特征序列时融合时序信息 ----
+        # history_feats: [B,N,C] 前 N 帧的**图像特征**（不是原始图，省重复编码）。
+        # None / N=1 → 完全跳过，行为与旧单帧模型逐位一致（向后兼容）。
+        temporal_feat = None
+        if (self.temporal_encoder is not None and history_feats is not None
+                and history_feats.dim() == 3 and history_feats.shape[1] > 1):
+            temporal_feat = self.temporal_encoder(history_feats, frame_mask)
+            # 投影回图像特征维度后**残差相加**（而非拼接）：这样 FusionHead 的
+            # in_dim 契约不变（512），旧 checkpoint 完全兼容，且时序只做"增量修正"。
+            img_feat = img_feat + self.temporal_proj(temporal_feat)
+
         # ---- 分支 2：车道线 [B,1,160,160] → [B,64]（None → 零向量）----
         lane_feat = self.lane_encoder(lane_mask, batch_size, image)
 
@@ -888,7 +978,39 @@ class M2Model(nn.Module):
 
         # ---- 融合：[B,512] → 三个控制量 ----
         fused = torch.cat([img_feat, lane_feat, det_feat, state_feat], dim=1)  # [B,512]
-        return self.fusion_head(fused)
+        steer, throttle, brake = self.fusion_head(fused)
+
+        # ---- 三个主输出：契约不变（向后兼容）----
+        if not return_aux:
+            return steer, throttle, brake
+
+        # ---- M4 新增辅助输出（不参与主契约，仅 return_aux=True 时返回）----
+        aux: Dict[str, Optional[torch.Tensor]] = {
+            "steer": steer, "throttle": throttle, "brake": brake,
+            "car_heading": None, "confidence": None, "risk": None,
+            "temporal_feat": temporal_feat,
+        }
+        # 车头朝向（w3）：从图像特征学 Δheading；camera_heading 由调用方给（rad）
+        if self.heading_head is not None:
+            try:
+                aux["car_heading"] = self.heading_head(img_feat, camera_heading)
+            except Exception:
+                # 头内部校验失败（如 camera_heading 单位/形状异常）→ 如实置 None，
+                # 不让可选辅助输出拖垮主驾驶链路
+                aux["car_heading"] = None
+        # 风险/接管（w4）：从融合特征出 confidence + risk ∈ [0,1]
+        if self.risk_head is not None:
+            try:
+                confidence, risk = self.risk_head(
+                    fused, det_feat=det_feat, det_mask=det_mask,
+                    speed=(vehicle_state[:, 0] if vehicle_state is not None
+                           and vehicle_state.dim() == 2 and vehicle_state.shape[1] > 0
+                           else None))
+                aux["confidence"] = confidence
+                aux["risk"] = risk
+            except Exception:
+                pass
+        return steer, throttle, brake, aux
 
     # ------------------------------------------------------------------
     def reparameterize(self) -> None:
@@ -905,14 +1027,23 @@ class M2Model(nn.Module):
     # ------------------------------------------------------------------
     def get_param_count(self) -> Dict[str, int]:
         """各分支参数量统计（部署前训练态）。"""
-        return {
+        out = {
             "image_encoder": sum(p.numel() for p in self.image_encoder.parameters()),
             "lane_encoder": sum(p.numel() for p in self.lane_encoder.parameters()),
             "det_encoder": sum(p.numel() for p in self.det_encoder.parameters()),
             "state_encoder": sum(p.numel() for p in self.state_encoder.parameters()),
             "fusion_head": sum(p.numel() for p in self.fusion_head.parameters()),
-            "total": sum(p.numel() for p in self.parameters()),
         }
+        # M4 集成新增头（可选；None 时报 0，保持键稳定供 Swift/脚本读取）
+        out["temporal_encoder"] = (sum(p.numel() for p in self.temporal_encoder.parameters())
+                                    + sum(p.numel() for p in self.temporal_proj.parameters())
+                                    if self.temporal_encoder is not None else 0)
+        out["heading_head"] = (sum(p.numel() for p in self.heading_head.parameters())
+                                if self.heading_head is not None else 0)
+        out["risk_head"] = (sum(p.numel() for p in self.risk_head.parameters())
+                             if self.risk_head is not None else 0)
+        out["total"] = sum(p.numel() for p in self.parameters())
+        return out
 
     def get_model_size_mb(self, precision: str = "fp32") -> float:
         """模型体积估算（MB）。"""
@@ -1006,17 +1137,31 @@ class M2Loss(nn.Module):
 # 9. 构建 / 导出工具函数（命名与 src/model.py 保持一致）
 # ============================================================================
 
-def build_model(deploy: bool = False) -> M2Model:
+def build_model(deploy: bool = False, **kwargs) -> M2Model:
     """构建 M2 主驾驶模型。
 
     Args:
         deploy: False=训练态（RepVGG 多分支，精度高）
                 True =部署态（已重参数化为纯 3×3，推理快）
+        **kwargs: 透传给 M2Model 的可选参数（M4 集成新增）：
+            · enable_temporal / enable_heading / enable_risk —— 三个新头开关
+            · num_frames / temporal_hidden —— 时序窗口与隐藏维度
+            · stage2_blocks / stage3_blocks —— 骨干宽度旋钮（加大容量用）
 
     Returns:
         M2Model 实例
+
+    ⚠️ 向后兼容：`build_model(deploy=...)` 的旧调用逐字不变；
+    未知 kwarg 会被忽略并打印警告（不让训练脚本因多传参数而崩）。
     """
-    return M2Model(deploy=deploy)
+    try:
+        return M2Model(deploy=deploy, **kwargs)
+    except TypeError as e:
+        # 旧环境/拼错 kwarg：退化为默认参数构建，不让训练链路断
+        if kwargs:
+            print(f"[M2Model] ⚠ 忽略无法识别的构造参数 {sorted(kwargs)}：{e}")
+            return M2Model(deploy=deploy)
+        raise
 
 
 # 别名：build_m2 与 build_model 等价，便于与旧 build_m9/build_m9_mono 并列书写

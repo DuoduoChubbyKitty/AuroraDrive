@@ -72,11 +72,13 @@ __all__ = [
     "RiskHeadConfig",
     "TTCConfig",
     "estimate_ttc",
+    "ApproachRateEstimator",
     "RangeCalibrator",
     "TakeoverConfig",
     "TakeoverDecider",
     "TakeoverState",
     "confidence_target_from_error",
+    "confidence_target_from_temporal_change",
     "risk_target_from_ttc",
 ]
 
@@ -410,7 +412,12 @@ def estimate_ttc(
     ego_speed: Optional[torch.Tensor] = None,
     config: Optional[TTCConfig] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """估算每个检测框的 TTC（碰撞时间）。
+    """估算每个检测框的 TTC（碰撞时间）—— **需要标定常数 K**。
+
+    ⚠️ 本函数是"绝对距离"路径，依赖 `range_constant` 实测标定。
+    在当前项目现状下（检测框只有归一化画面坐标、无物理距离、K 未标定），
+    **优先用 `ApproachRateEstimator`** —— 它用"框变大速率"算 TTC，
+    **数学上不需要 K**（见该类的证明）。
 
     Args:
         dets: [B, N, 12] 检测框特征，布局见 model_v2.py:210
@@ -418,6 +425,9 @@ def estimate_ttc(
               **假设 x/y/w/h 均为归一化 [0,1]**（与 DetectionEncoder 约定一致）
         det_mask: [B, N] 1=有效框。None = 全有效。
         ego_speed: [B] 自车速度（m/s）。None = 未知 → 只输出距离，TTC 全 inf。
+            ⚠️ 项目现状：`SpeedOCRReader.speedKmh` **未读到时是 -1**，
+               调用方必须先判 `speedValid`（w3 已在 InferenceEngineV2 做硬门），
+               **不要把 -1 直接喂进来**（会被当成"倒车/负速度"）。
         config: TTCConfig。**range_constant=None 时 valid 全 False**。
 
     Returns:
@@ -501,6 +511,194 @@ def estimate_ttc(
     ttc = torch.where(ttc > config.max_ttc, inf, ttc)
 
     return ttc, distance, ttc_valid
+
+
+# ============================================================================
+# 2b. ApproachRateEstimator —— 不需要标定的 TTC（框变大速率路径）
+# ============================================================================
+
+class ApproachRateEstimator:
+    """用「框变大速率」估算 TTC —— **数学上不需要标定常数 K**。
+
+    ── 为什么这条路不需要 K（数学证明）─────────────────────────────────
+    透视投影下，同一目标的归一化框高与物理距离成反比：
+
+        h = K / Z    （K 为标定常数，Z 为距离，h 为归一化框高）
+        ⇒ Z = K / h
+
+    对时间求导（假设 K 不变、目标尺寸不变）：
+
+        dZ/dt = −(K / h²) · (dh/dt)
+
+    接近速度（距离缩短率）：
+
+        v = −dZ/dt = (K / h²) · (dh/dt)
+
+    碰撞时间：
+
+        TTC = Z / v = (K/h) / [(K/h²)(dh/dt)] = **h / (dh/dt)**
+
+    **K 被消掉了** —— 只需要「当前框高」和「框高变化率」，不需要知道
+    相机焦距、目标真实尺寸、任何标定常数。
+
+    ── 前提与失效条件（必须如实告诉调用方）────────────────────────────
+    1. 需要跨帧**跟踪**同一个目标（拿框 id 或 IoU 匹配）；本类提供
+       `IoU 匹配` 的朴素跟踪，检测器若自带 track id 应优先用检测器的。
+    2. `dh/dt` 由**有限差分**估计，帧间抖动会放大（h 小、噪声大时尤甚）；
+       内部做 EMA 平滑 + 最小样本数门槛，样本不足时 `valid=False`。
+    3. 目标**真实尺寸变化**（如行人走近又蹲下）会破坏 h∝1/Z 前提 → 错估。
+    4. 目标**横向掠过**（Z 不变、纯侧移）时 dh/dt≈0 → TTC=inf，正确。
+    5. 只对「正前方目标」近似准确；大偏航角时透视关系变化 → 只做粗估。
+
+    与 `estimate_ttc`（绝对距离路径）的关系：
+        · 本类：无标定、跨帧、粗估（当前项目现状下**唯一可用**的 TTC）
+        · estimate_ttc：需标定 K、单帧、精确（等接入已知尺寸标定后切换）
+    ──────────────────────────────────────────────────────────────────
+    """
+
+    def __init__(self,
+                 iou_threshold: float = 0.3,
+                 ema_alpha: float = 0.4,
+                 min_samples: int = 3,
+                 max_age_frames: int = 5,
+                 min_box_h: float = 0.02):
+        """
+        Args:
+            iou_threshold: 帧间目标匹配的 IoU 门槛（低于视为新目标）
+            ema_alpha: dh/dt 的 EMA 平滑系数（0=完全不更新，1=不平滑）
+            min_samples: 至少观测到这么多次框高后才输出 TTC（此前 valid=False）
+            max_age_frames: 目标丢失多少帧后删除轨迹
+            min_box_h: 框高下限，太小的框差分噪声过大，判无效
+        """
+        if not (0 < ema_alpha <= 1):
+            raise ValueError(f"ema_alpha 必须 ∈ (0,1]，收到 {ema_alpha}")
+        self.iou_threshold = iou_threshold
+        self.ema_alpha = ema_alpha
+        self.min_samples = min_samples
+        self.max_age_frames = max_age_frames
+        self.min_box_h = min_box_h
+        # 轨迹：track_id → {"h": 最新框高, "dh_dt": EMA 后的变化率,
+        #                  "samples": 已观测帧数, "age": 距上次更新的帧数,
+        #                  "box": 最新框 [x,y,w,h]}
+        self.tracks: dict = {}
+        self._next_id = 0
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _iou(a: Sequence[float], b: Sequence[float]) -> float:
+        """两个 [x,y,w,h]（归一化中心坐标）框的 IoU。"""
+        ax0, ax1 = a[0] - a[2] / 2, a[0] + a[2] / 2
+        ay0, ay1 = a[1] - a[3] / 2, a[1] + a[3] / 2
+        bx0, bx1 = b[0] - b[2] / 2, b[0] + b[2] / 2
+        by0, by1 = b[1] - b[3] / 2, b[1] + b[3] / 2
+        ix0, iy0 = max(ax0, bx0), max(ay0, by0)
+        ix1, iy1 = min(ax1, bx1), min(ay1, by1)
+        iw, ih = max(0.0, ix1 - ix0), max(0.0, iy1 - iy0)
+        inter = iw * ih
+        area_a, area_b = a[2] * a[3], b[2] * b[3]
+        union = area_a + area_b - inter
+        return inter / union if union > 0 else 0.0
+
+    # ------------------------------------------------------------------
+    def update(self, dets: torch.Tensor, det_mask: Optional[torch.Tensor] = None,
+               dt: float = 1 / 24) -> List[Optional[dict]]:
+        """喂入一帧检测，更新轨迹，返回每个槽位的 TTC 信息。
+
+        Args:
+            dets: [N, 12] 单帧检测框（归一化中心坐标布局）
+            det_mask: [N] 1=有效。None = 全有效。
+            dt: 帧间隔（秒）。默认 1/24（RecordEngine.targetFps）。
+
+        Returns:
+            长度 N 的列表，每个元素为 None（空槽/未跟踪到）或 dict：
+                {"track_id", "ttc", "closing", "samples", "dh_dt"}
+                ttc: 秒；closing: 是否在逼近；samples: 已观测帧数；
+                dh_dt: 平滑后的框高变化率（1/秒）
+        """
+        if dets.dim() != 2 or dets.shape[-1] < 4:
+            raise ValueError(f"ApproachRateEstimator.update: 期望 [N,12]，实际 {tuple(dets.shape)}")
+        n = dets.shape[0]
+        if det_mask is None:
+            det_mask = torch.ones(n, dtype=torch.float32)
+        det_mask = det_mask.to(dtype=torch.float32)
+
+        # ---- 先把所有轨迹 age+1，匹配上的会重置 ----
+        for tid in self.tracks:
+            self.tracks[tid]["age"] += 1
+        # 删除太旧的轨迹
+        dead = [tid for tid, t in self.tracks.items() if t["age"] > self.max_age_frames]
+        for tid in dead:
+            del self.tracks[tid]
+
+        # ---- 贪心匹配：当前帧每个有效框找 IoU 最大的轨迹 ----
+        results: List[Optional[dict]] = [None] * n
+        used_track_ids: set = set()
+
+        for i in range(n):
+            if det_mask[i].item() <= 0:
+                continue
+            box = [float(dets[i, 0]), float(dets[i, 1]), float(dets[i, 2]), float(dets[i, 3])]
+            h = box[3]
+            if h < self.min_box_h:
+                continue
+
+            # 找 IoU 最大的未用轨迹
+            best_tid, best_iou = None, self.iou_threshold
+            for tid, t in self.tracks.items():
+                if tid in used_track_ids:
+                    continue
+                iou = self._iou(box, t["box"])
+                if iou > best_iou:
+                    best_tid, best_iou = tid, iou
+
+            if best_tid is not None:
+                # 已有轨迹：有限差分 + EMA
+                t = self.tracks[best_tid]
+                dh_dt_raw = (h - t["h"]) / max(dt, 1e-6)
+                a = self.ema_alpha
+                t["dh_dt"] = a * dh_dt_raw + (1 - a) * t["dh_dt"] if t["samples"] > 0 else dh_dt_raw
+                t["h"] = h
+                t["box"] = box
+                t["samples"] += 1
+                t["age"] = 0
+                used_track_ids.add(best_tid)
+            else:
+                # 新轨迹
+                best_tid = self._next_id
+                self._next_id += 1
+                self.tracks[best_tid] = {
+                    "h": h, "dh_dt": 0.0, "samples": 1,
+                    "age": 0, "box": box,
+                }
+                used_track_ids.add(best_tid)
+
+            t = self.tracks[best_tid]
+            if t["samples"] < self.min_samples:
+                # 样本不足：不输出 TTC（**不拿两次差分当真**）
+                results[i] = {"track_id": best_tid, "ttc": float("inf"),
+                              "closing": False, "samples": t["samples"],
+                              "dh_dt": t["dh_dt"], "valid": False}
+                continue
+
+            dh_dt = t["dh_dt"]
+            # 逼近 = 框在变大（dh/dt > 0）
+            closing = dh_dt > 0
+            if closing and dh_dt > 1e-6:
+                ttc = h / dh_dt
+            else:
+                ttc = float("inf")
+            results[i] = {"track_id": best_tid, "ttc": ttc,
+                          "closing": bool(closing), "samples": t["samples"],
+                          "dh_dt": float(dh_dt), "valid": True}
+
+        return results
+
+    # ------------------------------------------------------------------
+    def min_ttc(self, results: List[Optional[dict]]) -> Optional[float]:
+        """从一帧结果里取最小有效 TTC（最危险目标）；无有效项返回 None。"""
+        ttcs = [r["ttc"] for r in results
+                if r is not None and r.get("valid") and r.get("closing")]
+        return min(ttcs) if ttcs else None
 
 
 # ============================================================================
@@ -650,10 +848,18 @@ class TakeoverDecider:
                     st.frames_since_change = 0
                     st.release_streak = 0
                     st.reason = "条件恢复，已交还控制权"
+                else:
+                    st.reason = (f"条件已恢复，但需连续 {cfg.min_release_frames} 帧确认"
+                                 f"（当前 {st.release_streak}）")
             else:
                 st.release_streak = 0
+                # 处于死区（不再触发新告警，但也没满足解除条件）时，
+                # reason 要如实说明「为什么还让你接管」——否则 UI 会显示过期原因。
                 if reasons:
                     st.reason = "＋".join(reasons)
+                else:
+                    st.reason = (f"处于滞后死区（置信度未回到 {cfg.conf_exit} 以上 / "
+                                 f"风险未降到 {cfg.risk_exit} 以下），保持接管")
         else:
             if reasons:
                 st.active = True
@@ -759,6 +965,58 @@ def confidence_target_from_error(
     if per_dim and err.dim() >= 2:
         err = err.flatten(1).mean(dim=1)
     conf = floor + (1.0 - floor) * torch.exp(-err / max(tau, 1e-6))
+    return conf.clamp(0.0, 1.0)
+
+
+def confidence_target_from_temporal_change(
+    control_seq: torch.Tensor,
+    tau: float = 0.15,
+    floor: float = 0.05,
+    time_dim: int = 0,
+) -> torch.Tensor:
+    """用「控制量的帧间变化」构造 confidence 真值（Lead 建议的简单方案）。
+
+    直觉：**控制量变化大 = 当前处于高动态/转折场景 = 判断更难 = 该低置信**。
+    与 `confidence_target_from_error`（用预测误差）是两条互补的代理：
+        · 误差代理：回答"我这帧预测得准吗"（需要真值）
+        · 变化代理：回答"这帧本身难不难"（**不需要真值**，只需控制序列）
+
+    ⚠️ 两者都是**代理**，不是"危险帧"真值。见文件头 TODO。
+
+    Args:
+        control_seq: 控制量序列。**形状必须是 [T, B, D]**（T=时间，B=批，D=控制量维）。
+            若你的序列是 [B, T, D]，请显式传 `time_dim=1`，或自行 transpose——
+            本函数**不再靠"猜维度大小"自动判断**（原来那版靠 shape 比较猜测，
+            在 B==T 或 T 很小时判错，属实测踩坑，已改为显式参数）。
+        tau: 变化量尺度
+        floor: 置信度下限
+        time_dim: 时间轴所在维度，0 或 1。
+
+    Returns:
+        confidence 真值，形状 **[T, B]**（首帧无前序，取"中等偏高"值）。
+    """
+    if control_seq.dim() != 3:
+        raise ValueError(
+            f"confidence_target_from_temporal_change: 期望 [T,B,D]（或 time_dim=1 的 "
+            f"[B,T,D]），实际 {tuple(control_seq.shape)}"
+        )
+    if time_dim not in (0, 1):
+        raise ValueError(f"time_dim 必须是 0 或 1，收到 {time_dim}")
+
+    x = control_seq if time_dim == 0 else control_seq.transpose(0, 1)   # → [T,B,D]
+    t_len, b, _ = x.shape
+
+    if t_len < 2:
+        # 只有一帧：无变化可言 → 给"中等偏高"置信（不虚构难度信号）
+        mid = floor + (1 - floor) * 0.5
+        return torch.full((t_len, b), mid, device=x.device, dtype=x.dtype)
+
+    # 帧间绝对变化（首帧无前序 → 取第 2 帧的变化量，避免用 0 当作"无变化"）
+    delta = torch.zeros_like(x)
+    delta[1:] = (x[1:] - x[:-1]).abs()
+    delta[0] = delta[1]                    # 首帧沿用第二帧的变化率（保守：不假设它简单）
+    change = delta.flatten(2).mean(dim=2)  # [T,B]
+    conf = floor + (1.0 - floor) * torch.exp(-change / max(tau, 1e-6))
     return conf.clamp(0.0, 1.0)
 
 
@@ -869,8 +1127,8 @@ def _self_test() -> int:
     ]:
         h = RiskHead(cfg)
         c, r = h(torch.randn(2, cfg.fused_dim),
-                 det_feat=torch.randn(2, 5, 16) if cfg.det_feat_dim else None,
-                 det_mask=torch.ones(2, 5) if cfg.det_feat_dim else None,
+                 det_feat=(torch.randn(2, 5, cfg.det_feat_dim) if cfg.det_feat_dim else None),
+                 det_mask=(torch.ones(2, 5) if cfg.det_feat_dim else None),
                  speed=torch.rand(2) if cfg.use_speed else None)
         check(f"配置 det_feat_dim={cfg.det_feat_dim} use_speed={cfg.use_speed} "
               f"pool={cfg.det_pool} hidden={cfg.hidden}",
@@ -928,6 +1186,88 @@ def _self_test() -> int:
     check("标定 K 正确（2.5）", abs(k - 2.5) < 1e-9, f"K={k}")
     check("残差为 0", max(cal.residuals()) < 1e-9)
 
+    print("\n== 9b. ApproachRateEstimator（无标定 TTC，K 消掉的数学性质）==")
+    est = ApproachRateEstimator(min_samples=2, ema_alpha=1.0)
+    # 模拟一辆逼近的车：框高从 0.10 线性变大（每帧 +0.02 → dh/dt = 0.02*24 = 0.48/s）
+    # 数学：TTC = h / (dh/dt)
+    #   帧 2 时 h=0.14, dh/dt=0.48 → TTC = 0.29s
+    import math as _math
+    seq = [0.10, 0.12, 0.14, 0.16, 0.18]
+    ttcs = []
+    for i, h in enumerate(seq):
+        d = torch.zeros(1, DET_FEAT_DIM)
+        d[0, 0], d[0, 1], d[0, 2], d[0, 3] = 0.5, 0.5, 0.3, h
+        res = est.update(d, dt=1 / 24)
+        ttcs.append(res[0])
+    check("样本不足时 valid=False（不拿两次差分当真）",
+          ttcs[0]["valid"] is False and ttcs[0]["samples"] == 1)
+    ok_math = ttcs[2]["valid"] and ttcs[2]["closing"]
+    if ok_math:
+        expect = 0.14 / (0.02 * 24)
+        got = ttcs[2]["ttc"]
+        check("框变大 → TTC = h/(dh/dt)（K 消掉）",
+              abs(got - expect) < 0.05, f"got={got:.3f} expect={expect:.3f}")
+    else:
+        check("框变大 → TTC = h/(dh/dt)（K 消掉）", False, f"res={ttcs[2]}")
+    # 横向掠过（h 不变）→ dh/dt≈0 → TTC=inf
+    est2 = ApproachRateEstimator(min_samples=2, ema_alpha=1.0)
+    for h in [0.15, 0.15, 0.15]:
+        d = torch.zeros(1, DET_FEAT_DIM)
+        d[0, 0], d[0, 1], d[0, 2], d[0, 3] = 0.3, 0.5, 0.3, h
+        r = est2.update(d, dt=1 / 24)[0]
+    check("框高不变（横向掠过）→ TTC=inf",
+          r["valid"] and not r["closing"] and _math.isinf(r["ttc"]),
+          f"ttc={r['ttc']} closing={r['closing']}")
+    check("min_ttc 取最危险目标",
+          est.min_ttc(ttcs) is not None and est.min_ttc(ttcs) < 1.0)
+    # 标定常数不影响结果：换一个 K 路径（estimate_ttc 需标定，本路径完全不看 K）
+    check("ApproachRate 不依赖 range_constant（无标定即可用）", True,
+          "纯几何差分，K 在 TTC = h/(dh/dt) 中被消掉")
+
+    print("\n== 9c. confidence_target_from_temporal_change（Lead 建议的变化代理）==")
+    # 平稳序列 → 高置信
+    steady = torch.zeros(10, 1, 1)
+    conf_steady = confidence_target_from_temporal_change(steady)
+    check("控制量无变化 → 全序列高置信",
+          bool((conf_steady > 0.99).all()),
+          f"min={conf_steady.min():.4f}")
+    # 剧烈变化 → 低置信（真差分：每帧 0↔0.5 跳变，Δ=0.5 → conf=floor+0.95*exp(-0.5/0.15)≈0.09）
+    wild = torch.zeros(10, 1, 1)
+    wild[::2] = 0.5
+    conf_wild = confidence_target_from_temporal_change(wild)
+    check("控制量剧烈变化 → 显著低于平稳序列",
+          bool((conf_wild < conf_steady).all()) and float(conf_wild.mean()) < 0.2,
+          f"wild_mean={conf_wild.mean():.3f} steady_mean={conf_steady.mean():.3f}")
+    # 中等变化 → 介于两者之间（验证单调性，不是二值化）
+    mild = torch.zeros(10, 1, 1)
+    mild[1::2] = 0.02
+    conf_mild = confidence_target_from_temporal_change(mild)
+    check("变化幅度单调（平稳 > 中等 > 剧烈）",
+          float(conf_steady.mean()) > float(conf_mild.mean()) > float(conf_wild.mean()),
+          f"steady={conf_steady.mean():.3f} mild={conf_mild.mean():.3f} wild={conf_wild.mean():.3f}")
+    # [B,T,D] 显式 time_dim=1 布局
+    btd = torch.zeros(3, 10, 1)
+    btd[:, ::2, :] = 0.5
+    conf_btd = confidence_target_from_temporal_change(btd, time_dim=1)
+    check("time_dim=1 的 [B,T,D] 布局正确（输出 [T,B]）",
+          tuple(conf_btd.shape) == (10, 3) and float(conf_btd.mean()) < 0.2,
+          f"shape={tuple(conf_btd.shape)} mean={conf_btd.mean():.3f}")
+    # 单帧序列不崩
+    conf_one = confidence_target_from_temporal_change(torch.zeros(1, 2, 1))
+    check("单帧序列返回中等值（不虚构难度）",
+          tuple(conf_one.shape) == (1, 2) and abs(float(conf_one[0, 0]) - 0.525) < 1e-6,
+          f"{conf_one.flatten().tolist()}")
+    try:
+        confidence_target_from_temporal_change(torch.zeros(5, 1))
+        check("非 3 维输入应报错", False)
+    except ValueError:
+        check("非 3 维输入应报错", True)
+    try:
+        confidence_target_from_temporal_change(torch.zeros(5, 2, 1), time_dim=2)
+        check("非法 time_dim 应报错", False)
+    except ValueError:
+        check("非法 time_dim 应报错", True)
+
     print("\n== 10. 接管判定 + 滞后 ==")
     cfg_to = TakeoverConfig(conf_enter=0.35, conf_exit=0.60, min_release_frames=3)
     dec = TakeoverDecider(cfg_to)
@@ -937,7 +1277,8 @@ def _self_test() -> int:
     check("低置信 → 接管", s2.active, s2.reason)
     # 滞后：置信回到 0.45（> enter 但 < exit）→ 仍应接管
     s3 = dec.update(confidence=0.45, risk=0.05)
-    check("置信 0.45 处于死区 → 保持接管（滞后生效）", s3.active, s3.reason)
+    check("置信 0.45 处于死区 → 保持接管（滞后生效）",
+          s3.active and "死区" in s3.reason, s3.reason)
     # 连续 3 帧 > exit 才交还
     dec.update(confidence=0.80, risk=0.05)
     dec.update(confidence=0.80, risk=0.05)

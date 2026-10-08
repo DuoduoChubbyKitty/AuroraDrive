@@ -578,6 +578,8 @@ def main():
     print(f"  端到端 steer 极差（spread）={pos['steer_spread']:.6f}")
     print(f"  GAP 前特征图平均差异 ={pos['gap_before_mean_diff']:.6f}")
     print(f"  GAP 后向量平均差异   ={pos['gap_after_mean_diff']:.6f}")
+    print(f"  ★左 vs 右差（编码器输出）={pos['left_vs_right_diff']:.6f}  "
+          f"→ {'✅ 位置敏感（修复生效）' if pos['left_vs_right_ok'] else '❌ 仍被抹平（差=0）'}")
     print(f"  → {pos['note']}")
 
     # ---- 判定 ----
