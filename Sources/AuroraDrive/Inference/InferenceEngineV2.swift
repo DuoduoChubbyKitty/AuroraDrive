@@ -142,15 +142,17 @@ enum V2InputContract {
     //   **传错不会报错，只会静默算错** —— 故这条在 Swift 侧只需保证：
     //   我们传的是"8 个连续帧"，顺序语义正确（最老在前、最新在后）。
 
-    /// 图像输入。**方案 A：`[8, 3, 180, 320]`**（8 帧原图，batch 维=时序窗口）。
+    /// 图像输入。**方案 A：`[N, 3, 180, 320]`**（N 帧原图，batch 维=时序窗口）。
     ///
-    /// 帧序：**最老在前、最新在后**（index 0 = 最旧，index 7 = 当前帧）。
+    /// 帧序：**最老在前、最新在后**（index 0 = 最旧，index N-1 = 当前帧）。
     /// 依据：GRU 逐帧递推，时间轴必须与训练侧一致；训练侧
     /// `temporal.py` 的窗口就是按"过去→现在"排列的。
-    static let image = "image"
-
-    /// 时序窗口 N = 8（与 `src/temporal.py` 的 `num_frames=8` 默认值对齐）。
-    static let historyFrames = 8
+    ///
+    /// ⚠️ 注意本常量在 `V2InputContract` 里**只能声明一次** —— 特征名 `image`
+    /// 是全文件共用的（旧契约单帧时代表 `[1,3,H,W]`，方案 A 下代表
+    /// `[N,3,H,W]`）。形状差异由 `imageFrameShape()` / `imageSequenceShape()` 表达。
+    ///
+    /// 时序窗口 N = 8（与 `src/temporal.py` 的 `num_frames=8` 对齐）。
 
     /// 视角朝向 `[1]`。**compass 度 [0,360)**（抓包口径），模型侧期望 rad。
     static let cameraHeading = "camera_heading"
@@ -1151,6 +1153,24 @@ final class InferenceEngineV2 {
     @ObservationIgnored
     private nonisolated(unsafe) var reusableStateBuffer: MLMultiArray?
 
+    // ── 方案 A：8 帧时序窗口 ──
+
+    /// 帧预处理临时缓冲（当前帧一次，写入环形缓冲后复用）。
+    @ObservationIgnored
+    private nonisolated(unsafe) var reusableFrameScratch: MLMultiArray?
+    /// 8 帧序列输入缓冲 `[8,3,180,320]` ≈ 5.5MB（每帧复用，不新建）。
+    @ObservationIgnored
+    private nonisolated(unsafe) var reusableImageSequenceBuffer: MLMultiArray?
+    /// **帧环形缓冲**（方案 A 的核心状态；5.5MB 常驻）。
+    ///
+    /// 【并发不变式】只在 `inferenceQueue`（串行）上访问——与
+    /// `reusableImageBuffer` 等复用缓冲同一套纪律（`isInferencing`
+    /// 防重叠保证同一时刻只有一个在途任务，无并发访问）。
+    /// 类型声明为 `nonisolated(unsafe)` 是因为从后台队列读写；
+    /// 逻辑安全性由上述不变式保证（注释见 push/snapshot 调用处）。
+    @ObservationIgnored
+    private nonisolated(unsafe) var frameBuffer = ImageFrameRingBuffer()
+
     /// 模型文件名（不带扩展名）。默认 `m9_v2`（export 脚本的默认产出名）。
     private let modelFileName: String
     /// 可调参数。
@@ -1401,16 +1421,45 @@ final class InferenceEngineV2 {
                 // ⚠️ 输出是 MLMultiArray([1,1])，必须走 multiArrayValue[[0,0]]。
                 //    直接用 featureValue.doubleValue 对 multiArray 会返回 0
                 //    （旧引擎踩过：e2eCommand 恒 idle 的元凶，见 InferenceEngine.swift:350-354）
+                //
+                // 【优雅降级 · 读输出的关键】旧契约模型**没有** confidence/risk/
+                // car_heading 三个输出。`featureValue(for:)` 对不存在的名字返回
+                // **nil**（不是抛错）—— 据此区分"旧契约"与"新契约"，**不崩、按旧路径走**。
                 func readScalar(_ name: String) -> Double {
                     guard let fv = output.featureValue(for: name) else { return 0 }
-                    if let mv = fv.multiArrayValue { return mv[[0, 0]].doubleValue }
+                    if let mv = fv.multiArrayValue {
+                        // car_heading 是 [1]（一维），steer/throttle/brake 是 [1,1]
+                        return mv.count > 1 ? mv[[0, 0]].doubleValue : mv[0].doubleValue
+                    }
                     return fv.doubleValue
+                }
+                /// 可选输出：不存在（旧契约）→ nil；存在 → 值。
+                /// 【为什么单独一个函数】语义必须显式："模型没这个输出"与
+                /// "模型输出了 0"是两回事，混在一起会谎报置信度。
+                func readOptional(_ name: String) -> Double? {
+                    guard let fv = output.featureValue(for: name) else { return nil }
+                    if let mv = fv.multiArrayValue {
+                        guard mv.count > 0 else { return nil }
+                        return mv.count > 1 ? mv[[0, 0]].doubleValue : mv[0].doubleValue
+                    }
+                    let v = fv.doubleValue
+                    return v == 0 && !fv.type.rawValue.contains("multiArray") ? nil : v
                 }
                 let result = InferenceResult(steer: readScalar(V2InputContract.steer),
                                              throttle: readScalar(V2InputContract.throttle),
                                              brake: readScalar(V2InputContract.brake),
                                              latencyMs: Date().timeIntervalSince(start) * 1000)
-                Task { @MainActor in self.finish(gen, result, error: nil, features: features) }
+                // 三个辅助输出（旧契约模型 → 全 nil → isEmpty=true → 按旧路径走）
+                let aux = V2AuxOutputs(
+                    confidence: readOptional(V2InputContract.confidence).flatMap {
+                        $0.isFinite ? max(0, min(1, $0)) : nil },
+                    risk: readOptional(V2InputContract.risk).flatMap {
+                        $0.isFinite ? max(0, min(1, $0)) : nil },
+                    carHeadingRad: readOptional(V2InputContract.carHeading).flatMap {
+                        $0.isFinite ? $0 : nil })
+                Task { @MainActor in
+                    self.finish(gen, result, error: nil, features: features, aux: aux)
+                }
             } catch {
                 Task { @MainActor in
                     self.finish(gen, nil, error: "V2 推理失败: \(error.localizedDescription)")
@@ -1425,7 +1474,7 @@ final class InferenceEngineV2 {
     }
 
     private func finish(_ gen: Int, _ result: InferenceResult?, error: String?,
-                        features: V2Features? = nil) {
+                        features: V2Features? = nil, aux: V2AuxOutputs? = nil) {
         guard gen == generation else { return }
         isInferencing = false
         if let result {
@@ -1438,6 +1487,14 @@ final class InferenceEngineV2 {
             lastLaneGeometry = features.laneGeometry
             lastValidDetectionCount = features.validDetectionCount
             lastLanePixelCount = features.laneGeometry.lanePixels
+            lastCameraHeadingValid = features.cameraHeadingValid
+        }
+        if let aux {
+            lastAuxOutputs = aux
+            // 置信度缓存：供 UI / 状态机读取（`ControlCommand.confidence` 的来源）
+            lastConfidence = aux.confidence
+            lastRisk = aux.risk
+            lastCarHeadingRad = aux.carHeadingRad
         }
         if let error { errorMessage = error }
     }
@@ -1458,11 +1515,13 @@ final class InferenceEngineV2 {
     // MARK: 缓冲管理
 
     private nonisolated(unsafe) func ensureBuffers() {
-        if reusableImageBuffer == nil {
-            reusableImageBuffer = try? MLMultiArray(
-                shape: [1, 3, NSNumber(value: V2InputContract.imageHeight),
-                        NSNumber(value: V2InputContract.imageWidth)],
-                dataType: .float32)
+        if reusableFrameScratch == nil {
+            reusableFrameScratch = try? MLMultiArray(
+                shape: V2InputContract.imageFrameShape(), dataType: .float32)
+        }
+        if reusableImageSequenceBuffer == nil {
+            reusableImageSequenceBuffer = try? MLMultiArray(
+                shape: V2InputContract.imageSequenceShape(), dataType: .float32)
         }
         if reusableLaneBuffer == nil {
             let s = V2InputContract.laneSize
@@ -1485,6 +1544,18 @@ final class InferenceEngineV2 {
         }
     }
 
+    // MARK: 环形缓冲访问（串行队列内调用）
+
+    /// 推入一帧（inferenceQueue 内调用；见 frameBuffer 的并发不变式注释）。
+    private nonisolated(unsafe) func frameBufferPush(_ frame: [Float]) {
+        _ = frameBuffer.push(frame)
+    }
+
+    /// 导出时序窗口（最老在前；inferenceQueue 内调用）。
+    private nonisolated(unsafe) func frameBufferSnapshot() -> [Float] {
+        frameBuffer.snapshot()
+    }
+
     // MARK: 输入装配（nonisolated 纯函数）
 
     /// 全零特征（预热用）。
@@ -1496,19 +1567,24 @@ final class InferenceEngineV2 {
                    laneMask: [Float](repeating: 0,
                                      count: V2InputContract.laneSize * V2InputContract.laneSize),
                    laneGeometry: .unknown,
-                   validDetectionCount: 0)
+                   validDetectionCount: 0,
+                   cameraHeadingRad: nil,
+                   cameraHeadingValid: false)
     }
 
-    /// 预热用：不需要真实 image（全零图）。
+    /// 预热用：不需要真实 image（全零的 8 帧序列）。
     private nonisolated static func makeProvider(features: V2Features) throws -> MLFeatureProvider {
         guard let image = try? MLMultiArray(
-            shape: [1, 3, NSNumber(value: V2InputContract.imageHeight),
-                    NSNumber(value: V2InputContract.imageWidth)],
+            shape: V2InputContract.imageSequenceShape(),
             dataType: .float32) else {
             throw NSError(domain: "InferenceEngineV2", code: -1,
-                          userInfo: [NSLocalizedDescriptionKey: "预热 image 缓冲构造失败"])
+                          userInfo: [NSLocalizedDescriptionKey: "预热 image 序列缓冲构造失败"])
         }
-        guard let provider = try makeProvider(features: features, imageBuffer: image,
+        // 预热图全零即可（数据内容不影响 ANE 图编译）
+        guard let provider = try makeProvider(features: features,
+                                              historyFrames: [Float](repeating: 0,
+                                                                    count: image.count),
+                                              imageBuffer: image,
                                               lane: nil, dets: nil, detMask: nil, state: nil) else {
             throw NSError(domain: "InferenceEngineV2", code: -2,
                           userInfo: [NSLocalizedDescriptionKey: "预热特征装配失败"])
@@ -1520,12 +1596,28 @@ final class InferenceEngineV2 {
     ///
     /// 特征名全部取自 `V2InputContract`（单一常量表）—— 避免"形参名 vs
     /// CoreML 特征名"错位（`lane_mask` 是形参名、`lane` 才是特征名）。
+    ///
+    /// - Parameters:
+    ///   - historyFrames: 帧序列（**最老在前、最新在后**），长度须 = N×3×H×W。
+    ///     为 nil 时输入 buffer 保持调用方预填的内容（旧契约单帧路径用）。
     private nonisolated static func makeProvider(features: V2Features,
+                                                 historyFrames: [Float]?,
                                                  imageBuffer: MLMultiArray,
                                                  lane: MLMultiArray?,
                                                  dets: MLMultiArray?,
                                                  detMask: MLMultiArray?,
                                                  state: MLMultiArray?) throws -> MLFeatureProvider? {
+        // image [N,3,H,W]：把 8 帧依次写进 buffer
+        if let frames = historyFrames {
+            let expected = V2InputContract.imageSequenceShape().reduce(1) { $0 * $1.intValue }
+            guard frames.count == expected else {
+                // 长度不符 → **不静默截断/补零**，直接失败让调用方如实报错
+                return nil
+            }
+            let imgPtr = imageBuffer.dataPointer.assumingMemoryBound(to: Float32.self)
+            for i in 0..<expected { imgPtr[i] = frames[i] }
+        }
+
         // lane [1,1,160,160]
         let laneArr = lane ?? (try? MLMultiArray(
             shape: [1, 1, NSNumber(value: V2InputContract.laneSize),
@@ -1556,12 +1648,18 @@ final class InferenceEngineV2 {
         let statePtr = stateArr.dataPointer.assumingMemoryBound(to: Float32.self)
         for i in 0..<features.vehicleState.count { statePtr[i] = features.vehicleState[i] }
 
+        // camera_heading [1]（rad；无效时传 0，有效性记在 Swift 侧）
+        let camArr = try? MLMultiArray(shape: [1], dataType: .float32)
+        guard let camArr else { return nil }
+        camArr[0] = NSNumber(value: features.cameraHeadingRad ?? 0)
+
         let dict: [String: Any] = [
             V2InputContract.image: MLFeatureValue(multiArray: imageBuffer),
             V2InputContract.lane: MLFeatureValue(multiArray: laneArr),
             V2InputContract.dets: MLFeatureValue(multiArray: detsArr),
             V2InputContract.detMask: MLFeatureValue(multiArray: maskArr),
             V2InputContract.vehicleState: MLFeatureValue(multiArray: stateArr),
+            V2InputContract.cameraHeading: MLFeatureValue(multiArray: camArr),
         ]
         return try MLDictionaryFeatureProvider(dictionary: dict)
     }

@@ -573,7 +573,24 @@ class LaneMaskEncoder(nn.Module):
         # / LaneSteerProbe(in_dim=64) 全部保持兼容；仅新增的 spatial_proj 随机初始化，
         # 旧 checkpoint 的卷积权重仍可加载（strict=False），需重新训练才让投影生效。
         self.global_pool = nn.AdaptiveAvgPool2d((2, 2))
+        # spatial_proj 初始化决策（T7，2026-10-08）——**与 temporal_proj 不同，不零初始化**：
+        #   · temporal_proj 是**残差相加**：随机初始化会把一个 ≈7.8 倍于主干的大项
+        #     叠加进 img_feat → 必须零初始化（见 M2Model.__init__ 内注释）
+        #   · spatial_proj 是**通道替换**（GAP2x2 展平后投影回 64 维）：不存在叠加放大；
+        #     但**零初始化会让 GAP 修复彻底失效**（实测：零初始化后 lane_feat 恒为 0，
+        #     「左 vs 右」差退回 0.000000，位置信息再次被抹平）
+        #   → 采用**确定性 4 块平均初始化**：每通道 = 4 个位置块的均值（等价于
+        #     GAP(1,1) 的旧行为作为起点），既保留位置信息（左 vs 右差 ≈ 3.27），
+        #     又不依赖随机种子、不放大尺度（lane/img 比 ≈ 3.67，与随机初始化同量级；
+        #     lane 分支本就因 has_lane=False 从未训练，训练时会随梯度重新学）。
         self.spatial_proj = nn.Linear(out_dim * 4, out_dim)
+        with torch.no_grad():
+            w = self.spatial_proj.weight          # [out_dim, out_dim*4]
+            w.zero_()
+            for c in range(out_dim):
+                for blk in range(4):
+                    w[c, blk * out_dim + c] = 0.25  # 4 块平均 → 等价旧 GAP(1,1) 起点
+            self.spatial_proj.bias.zero_()
 
     def forward(self, lane_mask: Optional[torch.Tensor], batch_size: int,
                 ref: torch.Tensor) -> torch.Tensor:
@@ -942,9 +959,19 @@ class M2Model(nn.Module):
             self.temporal_proj = None
 
         # 车头朝向（w3）：从图像特征学 Δheading，合成 carHeading。
+        # heading_unit 透传（w3 建议，2026-10-08）：默认 **"compass"** ——
+        # 本项目两个数据源（NetworkLocator.cameraHeading / dataset_v2）的实际口径
+        # 都是 compass（0=正北顺时针）。不用 "auto"：auto 有语义歧义
+        # （compass 与 deg 数值范围相同，永远分不出），且对全 <6.78° 的样本会
+        # 误判为 rad（差 57.3 倍）；显式声明消除全部猜测，零成本。
         self.heading_head = None
         if enable_heading and HeadingHead is not None:
-            self.heading_head = HeadingHead(in_dim=img_feat_dim)
+            try:
+                self.heading_head = HeadingHead(in_dim=img_feat_dim,
+                                                heading_unit=heading_unit)
+            except TypeError:
+                # 兼容旧签名（无 heading_unit 参数）
+                self.heading_head = HeadingHead(in_dim=img_feat_dim)
 
         # 风险/接管（w4）：从融合特征出 confidence + risk。
         self.risk_head = None
@@ -1052,20 +1079,20 @@ class M2Model(nn.Module):
 
         temporal_feat = None
         if seq_mode:
-            # [8,256] → [1,8,256] → TemporalEncoder → [1,128] → 投影 → [1,256]
+            # ★ 方案 A 修复（w5 发现，2026-10-08）：时序模式下其他三个分支
+            # （lane/det/state）只给**当前帧**（[1,...]），而 img_feat 是 [8,256]。
+            # torch.cat(dim=1) 要求 dim0 一致 → 8 vs 1 抛
+            # "Sizes of tensors must match except in dimension 1"。
+            # 修法：把 img_feat 降到**当前帧**（[8,256] → [1,256]，取最后一帧）
+            # 再与单帧分支融合；时序信息经 TemporalEncoder 聚合到 projected 上。
+            current_img_feat = img_feat[-1:]                     # [1,256] 当前帧
             temporal_feat = self.temporal_encoder(
-                img_feat.unsqueeze(0), None)            # [1, hidden]
-            projected = self.temporal_proj(temporal_feat)  # [1,256]
-            # 残差相加。其他分支此时 batch=1，融合特征也应是 [1,...]：
-            # 把时序修正从 [1,256] 广播/对齐到 img_feat 的实际 batch。
-            if img_feat.shape[0] != projected.shape[0]:
-                if projected.shape[0] == 1:
-                    projected = projected.expand(img_feat.shape[0], -1)
-                else:
-                    raise ValueError(
-                        f"时序特征 batch {projected.shape[0]} 与图像特征 "
-                        f"{img_feat.shape[0]} 不一致（时序窗口模式下应为 1）")
-            img_feat = img_feat + projected
+                img_feat.unsqueeze(0), None)                     # [1, hidden]
+            projected = self.temporal_proj(temporal_feat)        # [1,256]（零初始化 → 0）
+            # 残差相加到当前帧：img_feat_new = 当前帧 + 时序修正（零初始化 → 逐位等于当前帧）
+            img_feat = current_img_feat + projected              # [1,256]
+            # 供后续分支对齐：时序模式下模型有效 batch = 1
+            batch_size = 1
 
         # ---- 分支 2：车道线 [B,1,160,160] → [B,64]（None → 零向量）----
         lane_feat = self.lane_encoder(lane_mask, batch_size, image)

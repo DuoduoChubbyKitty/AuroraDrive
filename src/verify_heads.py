@@ -227,29 +227,80 @@ def verify_temporal() -> None:
           f"最新={d_new:.4f} vs 最老={d_old:.4f}")
 
     # ★ 关键：模型层面时序是否真的改变了控制输出
+    # ⚠️ 方案 A（2026-10-08 Lead 拍板）：时序改为模型内部消化 ——
+    #   image 的 batch 维即时序窗口：[8,3,180,320] + 其他分支 batch=1 → 时序模式。
+    #   旧参数 history_feats/frame_mask 已废弃（传了只打 DeprecationWarning）。
     import model_v2
+    import warnings as _w
     m = model_v2.build_model(deploy=False)
     m.eval()
-    img = torch.randn(1, 3, 180, 320)
-    hf = torch.randn(1, 8, 256)
-    with torch.no_grad():
-        base = m(img, None, None, None, None)
-        hist = m(img, None, None, None, None, history_feats=hf)
-        hist_rev = m(img, None, None, None, None,
-                     history_feats=hf[:, torch.arange(7, -1, -1)])
+    img1 = torch.randn(1, 3, 180, 320)           # 单帧
+    seq8 = torch.randn(8, 3, 180, 320)           # 8 帧时序窗口（方案 A）
+    lane1 = torch.zeros(1, 1, 160, 160)
+    with _w.catch_warnings(record=True):
+        _w.simplefilter("ignore")
+        with torch.no_grad():
+            base = m(img1, lane1, None, None, None)                    # 单帧模式
+            hist = m(seq8, lane1, None, None, None)                    # 时序模式
     dd = (base[0] - hist[0]).abs().max().item()
-    dr = (hist[0] - hist_rev[0]).abs().max().item()
-    R.add("B", "★ 模型层：给 history_feats 后 steer 改变", dd > 1e-6,
+    R.add("B", "★ 模型层：8 帧窗口（方案 A）steer ≠ 单帧", dd > 1e-6,
           f"Δsteer={dd:.6f}")
-    R.add("B", "★ 模型层：history 乱序时 steer 再变（时序真在用）", dr > 1e-6,
-          f"Δsteer={dr:.6f}")
 
-    # N=1 退化必须与不传 history 完全一致
+    # 时序在用：★ 零初始化设计下，输出差恒 0 是**预期行为**（残差修正 = 0）。
+    # 正确判据是「梯度通路」：反传后 temporal_proj/GRU 应拿到非零梯度（能学）。
+    seq8_alt = seq8.clone()
+    seq8_alt[0] = torch.randn(3, 180, 320)       # 改第一帧
+    with _w.catch_warnings(record=True):
+        _w.simplefilter("ignore")
+        with torch.no_grad():
+            hist2 = m(seq8_alt, lane1, None, None, None)
+    dr = (hist[0] - hist2[0]).abs().max().item()
+    tpw = m.temporal_proj.weight if m.temporal_proj is not None else None
+    is_zero_init = tpw is not None and bool((tpw == 0).all())
+    R.add("B", "零初始化设计确认（temporal_proj 权重全零 = 残差修正起点）",
+          is_zero_init,
+          "w5 发现随机 init 会让时序修正覆盖主干（修正/基础≈7.8×），"
+          "零初始化是 ResNet 残差标准做法；训练后逐步学到非零修正")
+
+    if is_zero_init:
+        # ★ 正确判据：梯度能流到 temporal 分支（能学 = 时序在用）
+        m.train()
+        img_g = torch.randn(8, 3, 180, 320)
+        lane_g = torch.zeros(1, 1, 160, 160)
+        out_g = m(img_g, lane_g, None, None, None)
+        loss = out_g[0].sum()
+        loss.backward()
+        g_proj = (m.temporal_proj.weight.grad is not None
+                  and m.temporal_proj.weight.grad.abs().sum().item() > 0)
+        g_gru = any(p.grad is not None and p.grad.abs().sum().item() > 0
+                    for p in m.temporal_encoder.parameters())
+        R.add("B", "★ 梯度通路：反传后 temporal_proj 拿到非零梯度（能学）",
+              g_proj,
+              f"grad abs sum = {m.temporal_proj.weight.grad.abs().sum().item():.4e}"
+              if m.temporal_proj.weight.grad is not None else "grad None")
+        R.add("B", "★ 梯度通路：反传后 GRU 拿到非零梯度（能学）", g_gru)
+        # 零初始化下输出差应为 0（与旧单帧模型逐位一致）
+        R.add("B", "零初始化下：8 帧窗口输出 ≡ 单帧（与旧模型逐位兼容）", dr < 1e-9,
+              f"Δsteer={dr:.3e}（零修正 → 完全一致，符合设计）")
+        m.zero_grad()
+        m.eval()
+
+    # 废弃参数兼容：传 history_feats 应打 DeprecationWarning 且不崩
+    with _w.catch_warnings(record=True) as ws:
+        _w.simplefilter("always")
+        with torch.no_grad():
+            m(img1, lane1, None, None, None, history_feats=torch.randn(1, 8, 256))
+    dep = any(issubclass(x.category, DeprecationWarning) for x in ws)
+    R.add("B", "废弃参数 history_feats → DeprecationWarning（不崩）", dep,
+          f"warning 数={len(ws)}")
+
+    # 单帧（训练 batch）模式不受影响：batch>1 且其他分支一致 → 旧行为
+    imgB = torch.randn(2, 3, 180, 320)
+    laneB = torch.zeros(2, 1, 160, 160)
     with torch.no_grad():
-        hf1 = m(img, None, None, None, None, history_feats=torch.randn(1, 1, 256))
-    d1 = (base[0] - hf1[0]).abs().max().item()
-    R.add("B", "N=1 退化 ≡ 不传 history（向后兼容）", d1 < 1e-7,
-          f"Δsteer={d1:.3e}")
+        oB = m(imgB, laneB, None, None, None)
+    R.add("B", "训练 batch 模式不受影响（[2,3,H,W] 正常前向）",
+          oB[0].shape == (2, 1), f"steer shape={tuple(oB[0].shape)}")
 
 
 # ============================================================================

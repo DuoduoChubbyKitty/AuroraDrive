@@ -379,9 +379,14 @@ def _shapes(c: Dict[str, int]) -> List[Tuple[int, ...]]:
 # ============================================================================
 
 def _make_inputs(c: Dict[str, int], seed: int = 0) -> List[torch.Tensor]:
-    """构造一组**在训练分布内**的确定性输入（固定 seed，保证可复现）。"""
+    """构造一组**在训练分布内**的确定性输入（固定 seed，保证可复现）。
+
+    ★ 方案 A：`image` 是 [num_frames, 3, H, W]（batch 维 = 时序窗口），
+    其余分支仍是单帧 [1,...] —— 正是模型内部 `seq_mode` 判定的触发条件
+    （image.dim0=8 ≠ 其他分支 dim0=1）。
+    """
     g = torch.Generator().manual_seed(seed)
-    img = torch.rand(1, 3, c["img_h"], c["img_w"], generator=g)
+    img = torch.rand(c["num_frames"], 3, c["img_h"], c["img_w"], generator=g)
     # 车道线是稀疏细线（实测正像素占比 1~2%），用高阈值伯努利逼近真实分布
     lane = (torch.rand(1, 1, c["lane_size"], c["lane_size"], generator=g) > 0.985).float()
     dets = torch.rand(1, c["num_dets"], c["det_feat_dim"], generator=g)
@@ -419,9 +424,58 @@ def _to_feed(inputs: Sequence[torch.Tensor]) -> Dict[str, np.ndarray]:
             for n, t in zip(INPUT_NAMES, inputs)}
 
 
+class _ExportWrapper(torch.nn.Module):
+    """把 `M2Model` 包装成**导出所需的多输出形态**（6 个张量）。
+
+    【为什么必须有这一层】（t1 验证抓出的部署链路缺失）
+      `M2Model.forward(..., return_aux=True)` 返回 `(steer, throttle, brake, aux: Dict)`，
+      **第二个返回值是 dict** —— `torch.jit.trace` 无法把 dict 作为图输出，
+      `ct.convert(outputs=[...])` 也要求扁平张量列表。
+      所以导出前必须把 aux 里的 3 个头**拆成位置固定的张量**，顺序与 OUTPUT_NAMES 一致。
+
+    【为什么要有 fallback 分支】
+      辅助头在运行时可能失败（model_v2 内部 catch 后置 None，这是刻意的 fail-safe）。
+      但**导出时 trace 必须看到真实张量**，否则该输出会缺 shape、CoreML 拿不到。
+      故 None 时用同 batch 的零张量占位 —— 与运行时"该头不可用"语义一致，
+      且保证 6 输出契约**恒定**（Swift 侧不必做"有时有有时无"的分支）。
+    """
+
+    def __init__(self, model: torch.nn.Module):
+        super().__init__()
+        self.model = model
+
+    def forward(self, image, lane, dets, det_mask, vehicle_state):
+        steer, throttle, brake, aux = self.model(
+            image, lane, dets, det_mask, vehicle_state,
+            camera_heading=None,      # ← 纯视觉绝对预测（fail-safe，见 heading_head）
+            return_aux=True)
+
+        def _or_zero(v, width: int = 1):
+            """None → 零张量占位；有值 → 保证是 [1,width] 二维。"""
+            if v is None:
+                return torch.zeros(1, width, dtype=steer.dtype, device=steer.device)
+            if v.dim() == 1:
+                return v.view(-1, width)
+            return v
+
+        confidence = _or_zero(aux.get("confidence"))
+        risk = _or_zero(aux.get("risk"))
+        car_heading = _or_zero(aux.get("car_heading"))
+        return steer, throttle, brake, confidence, risk, car_heading
+
+
 def _torch_forward(model, inputs: Sequence[torch.Tensor]) -> List[float]:
+    """PyTorch 参考输出（6 个标量）。model 可能是 _ExportWrapper 或裸 M2Model。"""
     with torch.no_grad():
         out = model(*inputs)
+    if isinstance(out, tuple) and len(out) == 4 and isinstance(out[-1], dict):
+        # 裸 M2Model(return_aux=True) 的形态 → 手工摊平（保持与 OUTPUT_NAMES 同序）
+        steer, throttle, brake, aux = out
+        def _v(x):
+            return 0.0 if x is None else float(x.flatten()[0])
+        return [float(steer.flatten()[0]), float(throttle.flatten()[0]),
+                float(brake.flatten()[0]), _v(aux.get("confidence")),
+                _v(aux.get("risk")), _v(aux.get("car_heading"))]
     return [float(o.flatten()[0]) for o in out]
 
 
@@ -738,15 +792,37 @@ def main() -> int:
     # ---- 3. 参考推理 + trace ----
     base_inputs = _make_inputs(c)
     ref = _torch_forward(model, base_inputs)
-    print(f"[导出] PyTorch 参考输出 steer/throttle/brake = {[round(v, 6) for v in ref]}")
+    print(f"[导出] PyTorch 参考输出（{len(ref)} 个标量）= {[round(v, 6) for v in ref]}")
+
+    # ★ 用 _ExportWrapper 包装：M2Model(return_aux=True) 返回 dict，
+    #   trace 无法输出 dict → 必须摊平成 6 张量（t1 抓出的部署链路缺失）。
+    export_model = _ExportWrapper(model)
+    export_model.eval()
 
     try:
         with torch.no_grad():
-            traced = torch.jit.trace(model, tuple(base_inputs), strict=False)
+            traced = torch.jit.trace(export_model, tuple(base_inputs), strict=False)
     except Exception as exc:
         print(f"[导出] ✗ jit.trace 失败：{type(exc).__name__}: {exc}", file=sys.stderr)
         return 3
     print("[导出] ✓ jit.trace 成功")
+
+    # ---- 3b. ★ GRU 算子在图里吗？（t1 就是靠这个发现的假绿）----
+    #  时序分支吃模型内部算出的特征（方案 A），trace 不应剪掉它；
+    #  但"图里有 GRU"必须**算子级验证**，不能靠代码字符串匹配 ——
+    #  coremltools 会把 aten::gru 拆成 while_loop + slice_by_index。
+    try:
+        from collections import Counter as _Counter
+        kinds = _Counter(str(n.kind()) for n in traced.inlined_graph.nodes())
+        has_gru_torch = any("gru" in k.lower() for k in kinds)
+        if not has_gru_torch:
+            print("[导出] ✗ 假绿防线触发：trace 图里没有 GRU 算子（时序分支被剪掉）！\n"
+                  "  检查 model_v2 的时序分支是否依赖外部输入（None → 被 trace 剪枝）。",
+                  file=sys.stderr)
+            return 8
+        print(f"[导出] ✓ trace 图含 aten::gru（时序分支在图内，算子数 {sum(kinds.values())}）")
+    except Exception as exc:
+        print(f"[导出] ⚠ GRU 算子检查失败（不阻断）：{type(exc).__name__}: {exc}", file=sys.stderr)
 
     # ---- 4. 转换 ----
     t0 = time.time()
@@ -798,7 +874,7 @@ def main() -> int:
     failed: List[str] = []
     for name, inputs in cases.items():
         try:
-            rv = _torch_forward(model, inputs)
+            rv = _torch_forward(export_model, inputs)   # ← 用 wrapper（6 输出，与 CoreML 同形态）
             cv = _coreml_forward(loaded, inputs)
         except Exception as exc:
             print(f"[导出]   ✗ {name:<11} 推理失败：{type(exc).__name__}: {str(exc)[:110]}")
