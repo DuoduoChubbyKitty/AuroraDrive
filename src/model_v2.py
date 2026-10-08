@@ -908,7 +908,8 @@ class M2Model(nn.Module):
                  num_frames: int = TEMPORAL_FRAMES,
                  temporal_hidden: int = TEMPORAL_HIDDEN,
                  stage3_blocks: int = 6,
-                 stage2_blocks: int = 3):
+                 stage2_blocks: int = 3,
+                 heading_unit: str = "compass"):
         super().__init__()
         self.deploy = deploy
         self.img_feat_dim = img_feat_dim
@@ -964,6 +965,14 @@ class M2Model(nn.Module):
         # 都是 compass（0=正北顺时针）。不用 "auto"：auto 有语义歧义
         # （compass 与 deg 数值范围相同，永远分不出），且对全 <6.78° 的样本会
         # 误判为 rad（差 57.3 倍）；显式声明消除全部猜测，零成本。
+        #
+        # ⚠️ T7 实测澄清（2026-10-08，穷举 0~360° 720 点）：当前 heading_head 的
+        # "compass" 分支与 "deg" 分支输出**恒等**（compass 只做 +180 wrap + ×π/180，
+        # 与 deg 的 wrap_to_pi 数学等价）—— 即 compass 分支**没有**做罗盘→数学系的
+        # 90° 旋转/镜像。对本集成**无影响**：cameraHeading 与 carHeading 同为 compass
+        # 口径，normalize 对两者施加**相同**变换 → Δ = car − camera 的差值语义保持
+        # （同口径相减成立，这是 HeadingHead 设计的关键前提，w3 文档已注明）。
+        # 若未来训练标签 carHeading 改用数学角口径，需在两侧先统一（转 M1）。
         self.heading_head = None
         if enable_heading and HeadingHead is not None:
             try:

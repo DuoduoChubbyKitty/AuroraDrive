@@ -157,6 +157,9 @@ enum V2InputContract {
     /// 视角朝向 `[1]`。**compass 度 [0,360)**（抓包口径），模型侧期望 rad。
     static let cameraHeading = "camera_heading"
 
+    /// 时序窗口 N = 8（与 `src/temporal.py` 的 `num_frames=8` 默认值对齐）。
+    static let historyFrames = 8
+
     // ── 三个新输出（M4 辅助头）──
     /// 决策置信度 `[1,1]` ∈ [0,1] → 填 `ControlCommand.confidence`。
     static let confidence = "confidence"
@@ -1126,6 +1129,22 @@ final class InferenceEngineV2 {
     /// 有了这个数字，用户/开发者能一眼判断"是算法不行还是上游模型废了"。
     private(set) var lastLanePixelCount: Int = 0
 
+    // ── M4 三个辅助头的最新输出（2026-10-08 T1 传输扩展）──
+
+    /// 最近一帧视角朝向是否有效（false = 抓包未接入/数据陈旧）。
+    private(set) var lastCameraHeadingValid: Bool = false
+    /// 最近一次的辅助输出整体（旧契约模型 = `.empty`）。
+    private(set) var lastAuxOutputs: V2AuxOutputs = .empty
+    /// **决策置信度** ∈ [0,1]（来自模型 confidence 头；旧契约模型 = nil）。
+    ///
+    /// 【用途】`ControlCommand.confidence` 的来源——状态机降级判定用。
+    /// 这个字段在旧链路里一直空着（E2E 从未填过），本引擎是第一个真填它的。
+    private(set) var lastConfidence: Double?
+    /// 风险分 ∈ [0,1]（来自模型 risk 头；旧契约模型 = nil）→ 接管判定。
+    private(set) var lastRisk: Double?
+    /// 预测车头朝向（rad，[-π,π]；来自模型 car_heading 头；旧契约 = nil）→ 诊断。
+    private(set) var lastCarHeadingRad: Double?
+
     /// 加载失败冷却（秒）。
     private let loadRetryCooldown: TimeInterval = 5.0
     @ObservationIgnored
@@ -1442,8 +1461,9 @@ final class InferenceEngineV2 {
                         guard mv.count > 0 else { return nil }
                         return mv.count > 1 ? mv[[0, 0]].doubleValue : mv[0].doubleValue
                     }
+                    // 非 multiArray（理论上不会出现，契约全是 [1,1]）→ 用标量值
                     let v = fv.doubleValue
-                    return v == 0 && !fv.type.rawValue.contains("multiArray") ? nil : v
+                    return v.isFinite && v != 0 ? v : nil
                 }
                 let result = InferenceResult(steer: readScalar(V2InputContract.steer),
                                              throttle: readScalar(V2InputContract.throttle),
@@ -1510,6 +1530,13 @@ final class InferenceEngineV2 {
         lastLaneGeometry = .unknown
         lastValidDetectionCount = 0
         lastLanePixelCount = 0
+        // M4 三个辅助头 + 环形缓冲也要清（换场景/重开一局，避免旧数据污染）
+        lastCameraHeadingValid = false
+        lastAuxOutputs = .empty
+        lastConfidence = nil
+        lastRisk = nil
+        lastCarHeadingRad = nil
+        frameBufferReset()
     }
 
     // MARK: 缓冲管理
@@ -1554,6 +1581,11 @@ final class InferenceEngineV2 {
     /// 导出时序窗口（最老在前；inferenceQueue 内调用）。
     private nonisolated(unsafe) func frameBufferSnapshot() -> [Float] {
         frameBuffer.snapshot()
+    }
+
+    /// 清空环形缓冲（reset 时；inferenceQueue 内调用）。
+    private nonisolated(unsafe) func frameBufferReset() {
+        frameBuffer.reset()
     }
 
     // MARK: 输入装配（nonisolated 纯函数）

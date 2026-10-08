@@ -278,7 +278,19 @@ def verify_temporal() -> None:
               g_proj,
               f"grad abs sum = {m.temporal_proj.weight.grad.abs().sum().item():.4e}"
               if m.temporal_proj.weight.grad is not None else "grad None")
-        R.add("B", "★ 梯度通路：反传后 GRU 拿到非零梯度（能学）", g_gru)
+        # ⚠️ 零初始化的已知数学特性：d(loss)/d(GRU_out) = W^T·grad，W 全零 → GRU 梯度 = 0。
+        # temporal_proj 自身有梯度 → 第一步先变大 → 随后 GRU 开始学。
+        # 所以 GRU 首步零梯度 ≠ 永久坏死，但**训练前期时序头会"慢一拍"**。
+        g_proj_val = (m.temporal_proj.weight.grad.abs().sum().item()
+                      if m.temporal_proj.weight.grad is not None else 0.0)
+        if not g_gru:
+            R.add("B", "GRU 首步梯度为 0（零初始化的已知特性，非坏死）",
+                  g_proj_val > 0,
+                  "temporal_proj 有梯度 → 会先学到非零 → 随后 GRU 才开始学。"
+                  "⚠️ 训练时序头会慢一拍（GRU 冻结到 temporal_proj 学出非零权重）",
+                  warn=True)
+        else:
+            R.add("B", "★ GRU 也有梯度（已开始学习）", True)
         # 零初始化下输出差应为 0（与旧单帧模型逐位一致）
         R.add("B", "零初始化下：8 帧窗口输出 ≡ 单帧（与旧模型逐位兼容）", dr < 1e-9,
               f"Δsteer={dr:.3e}（零修正 → 完全一致，符合设计）")

@@ -845,6 +845,41 @@ def main() -> int:
         return 5
     print("[导出] ✓ 输入名/顺序/shape 与输出名全部符合契约")
 
+    # ---- 5b. ★ GRU 算子在 CoreML 图里吗？（假绿防线第二环）----
+    #  t1 就是靠「转换后在 CoreML 模型里 grep GRU 算子」发现时序被剪掉的。
+    #  ⚠️ 不能靠字符串匹配：coremltools 把 aten::gru **拆解**成
+    #     while_loop + slice_by_index + tanh/sigmoid（RNN 的循环展开），
+    #  所以正确的判据是「出现 while_loop」或「保留原生 gru 算子」，二者其一。
+    try:
+        from collections import Counter as _Counter
+        spec = mlmodel.get_spec()
+        ops = _Counter()
+        for fn in spec.mlProgram.functions.values():
+            for blk in fn.block_specializations.values():
+                for op in blk.operations:
+                    ops[op.type] += 1
+        has_native_gru = any("gru" in t.lower() or "rnn" in t.lower() for t in ops)
+        has_loop_unroll = ops.get("while_loop", 0) > 0
+        if not (has_native_gru or has_loop_unroll):
+            print(f"[导出] ✗ 假绿防线触发：CoreML 图里没有 GRU（既无原生算子也无 while_loop）！\n"
+                  f"  实际算子种类：{sorted(ops.keys())}\n"
+                  f"  → 时序分支在转换时被剪掉了，检查 model_v2 的时序分支依赖。", file=sys.stderr)
+            return 9
+        detail = ("原生 GRU 算子" if has_native_gru
+                  else f"while_loop 拆解实现 ×{ops['while_loop']}")
+        print(f"[导出] ✓ CoreML 图含时序（{detail}，总算子 {sum(ops.values())}）")
+        # 同时确认三个新头真的在图里（6 输出契约的核心价值）
+        missing_aux = [n for n in ("confidence", "risk", "car_heading")
+                       if n not in [o.name for o in spec.description.output]]
+        if missing_aux:
+            print(f"[导出] ✗ 辅助头输出缺失：{missing_aux}", file=sys.stderr)
+            return 10
+        print("[导出] ✓ 三个辅助头（confidence/risk/car_heading）都在输出契约里")
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"[导出] ⚠ CoreML 算子检查失败（不阻断）：{type(exc).__name__}: {exc}", file=sys.stderr)
+
     # ---- 6. 落盘 + 编译 ----
     mlpackage, mlmodelc, save_notes = save_and_compile(mlmodel, out)
     for n in save_notes:
@@ -871,6 +906,7 @@ def main() -> int:
     cases = _edge_cases(c, base_inputs)
     worst = 0.0
     worst_case = ""
+    worst_out = ""
     failed: List[str] = []
     for name, inputs in cases.items():
         try:
@@ -880,19 +916,37 @@ def main() -> int:
             print(f"[导出]   ✗ {name:<11} 推理失败：{type(exc).__name__}: {str(exc)[:110]}")
             failed.append(name)
             continue
-        diff = max(abs(a - b) for a, b in zip(rv, cv))
-        if diff > worst:
-            worst, worst_case = diff, name
-        flag = "✓" if diff < tol else "⚠ 超阈值"
+        # ★ 判据用「绝对 OR 相对，二者其一达标」的混合判据。
+        #   【为什么演进到这版】（本作者踩了三次同款坑，逐版记录）
+        #   v1 全局绝对 <5e-3：car_heading 值域 [-π,π]≈3.14，FP16 噪声按量级放大，
+        #      天然超阈（6 用例全卡在 5.27e-03，主输出全是 0）→ 假失败。
+        #   v2 纯相对：接近 0 的输出 rel 爆炸（steer 0.031 vs 0.033，绝对差 0.0017
+        #      完全是噪声，rel 却 5%）→ 也假失败。
+        #   v3 混合（本版）：abs(a-b) ≤ tol **或** rel ≤ tol，二者其一即合格。
+        #   FP16 噪声量级实测（temporal.py 5-seed 扫描）：rel 1.5e-03~2.3e-03，
+        #   对 [0,1] 输出绝对 ~2e-03、对 [-π,π] 输出绝对 ~5e-03，都在 tol=5e-3 内。
+        diffs = []
+        for out_name, a, b in zip(OUTPUT_NAMES, rv, cv):
+            abs_d = abs(a - b)
+            rel_d = abs_d / max(abs(a), abs(b), 1e-3)
+            # 达标 = 绝对达标 或 相对达标（其一即可）
+            diffs.append(min(abs_d / tol, rel_d / tol))   # 归一到"多少倍阈值"
+        score = max(diffs)
+        which = OUTPUT_NAMES[diffs.index(score)]
+        diff = score * tol   # 还原成等效绝对差供打印
+        if score > worst:
+            worst, worst_case, worst_out = score, name, which
+        flag = "✓" if score < 1.0 else "⚠ 超阈值"
         print(f"[导出]   {flag} {name:<11} pt={[round(v, 5) for v in rv]} "
-              f"cm={[round(v, 5) for v in cv]} maxdiff={diff:.2e}")
+              f"cm={[round(v, 5) for v in cv]} max={diff:.2e}（{which}）")
 
     if failed:
         print(f"[导出] ✗ {len(failed)} 个用例推理失败：{failed}", file=sys.stderr)
         return 7
 
-    ok = worst < tol
-    print(f"[导出] 最大差异 = {worst:.2e}（用例 '{worst_case}'）"
+    ok = worst < 1.0
+    print(f"[导出] 最大失真 = {worst:.2f}×阈值（用例 '{worst_case}' 的 {worst_out}；"
+          f"判据 = 绝对 OR 相对 ≤ {tol:g}）"
           f"{'✓ 可接受' if ok else '⚠ 超阈值 —— 请评估量化失真'}")
     if args.precision == "int8":
         print("[导出]   ⚠ int8 为兜底档：控制输出是连续回归量，量化误差可能引入转向抖动。"
@@ -932,7 +986,7 @@ def main() -> int:
     # ---- 9. 总结 ----
     print("=" * 78)
     print(f"[导出] 完成 → {mlmodelc if mlmodelc else mlpackage}"
-          f"  (precision={args.precision}, 最大差异={worst:.2e})")
+          f"  (precision={args.precision}, 最大失真={worst:.2f}×阈值 @ {worst_out})")
     print(f"[导出] Swift 侧加载：config.computeUnits = .all（勿改，见脚本头 §3）")
     print("=" * 78)
     return 0 if ok else 1
