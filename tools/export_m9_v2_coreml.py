@@ -338,6 +338,7 @@ def _build_and_load(sd: Optional[Dict[str, torch.Tensor]], src: Optional[Path]):
         "missing": len(res.missing_keys),
         "unexpected": len(res.unexpected_keys),
         "missing_keys": list(res.missing_keys)[:8],
+        "all_missing_keys": list(res.missing_keys),   # 完整列表：算随机初始化占比用
         "unexpected_keys": list(res.unexpected_keys)[:8],
         "random_init": False,
     }
@@ -733,6 +734,9 @@ def main() -> int:
                     help="src 不存在时用随机初始化权重跑通转换链路（产物不可上车）")
     ap.add_argument("--emit-contract", action="store_true",
                     help="额外输出 m9_v2_contract.json（机器可读契约，供 Swift 侧核对）")
+    ap.add_argument("--allow-partial", action="store_true",
+                    help="⚠️ 允许 checkpoint 缺失新增模块权重（随机初始化占比>5%）时继续导出。"
+                         "产物**只能验证推理链路，绝不可上车**（2026-10-08：实测 missing 占比 63.3%）")
     ap.add_argument("--tol", type=float, default=None,
                     help="精度校验阈值（默认 fp16/32: 5e-3，int8: 2e-2）")
     args = ap.parse_args()
@@ -770,8 +774,30 @@ def main() -> int:
         if load_report["missing"] or load_report["unexpected"]:
             print(f"[导出]   missing 样例: {load_report.get('missing_keys')}")
             print(f"[导出]   unexpected 样例: {load_report.get('unexpected_keys')}")
-            print("[导出]   ⚠ 存在未命中键 —— 请确认 checkpoint 与 model_v2 版本一致"
-                  "（权重态误判会导致导出随机权重模型）")
+            # ★ 关键防线（2026-10-08 实测踩到）：**光看"missing 键数"不够**，
+            #   必须算"随机初始化的参数占比"。实测：checkpoint 是旧版训练产物
+            #   （13:20，只有 240 键、无 refiner/experts/temporal/heads），
+            #   missing=88 个键，但**参数占比高达 63.3%（5.70M/9.00M）**——
+            #   也就是 M4/M5 新增的整个 IterationRefiner + MoE 专家全是随机的。
+            #   这种模型"能导出、能推理、不报错"，但**输出毫无意义**，
+            #   若被当成"已验证能开车"就是最严重的假绿。故这里必须显式量化。
+            sd_now = model.state_dict()
+            missing_param = sum(sd_now[k].numel() for k in load_report.get("all_missing_keys", [])
+                                if k in sd_now)
+            total_param = sum(p.numel() for p in model.parameters())
+            ratio = missing_param / max(total_param, 1) * 100
+            load_report["missing_param_ratio"] = ratio
+            print(f"[导出]   ⚠ 未命中参数 {missing_param:,} / {total_param:,}"
+                  f" = **{ratio:.1f}% 随机初始化**")
+            if ratio > 5.0:
+                print(f"[导出]   🚨 **随机初始化占比 {ratio:.1f}% > 5% —— 此产物绝不可上车！**\n"
+                      f"       原因：checkpoint 缺少新增模块（refiner/experts/heads）的权重。\n"
+                      f"       请先训练出含这些模块的 checkpoint，或用 --allow-partial 显式接受。",
+                      file=sys.stderr)
+                if not getattr(args, "allow_partial", False):
+                    print("[导出]   → 已中止（加 --allow-partial 可强制继续，但只用于链路验证）",
+                          file=sys.stderr)
+                    return 11
     total_params = sum(p.numel() for p in model.parameters())
     print(f"[导出] 参数量 = {total_params:,}（{total_params * 2 / 1048576:.2f} MB @fp16）")
 

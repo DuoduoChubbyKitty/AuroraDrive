@@ -1310,7 +1310,7 @@ def lane_central_offset(
     n_valid = valid_rows.float().sum(dim=1).clamp_min(1e-6)
     lane_center = (row_centroids * valid_rows.float()).sum(dim=1) / n_valid  # [B]
 
-    if config.normalize:
+    if normalize:
         # 归一化到 [-1,1]：按"半幅网格宽"归一，直接对齐 w7 的 tanh 预测口径。
         # 注意：此处**忽略 offset_scale**（避免"先缩放再归一"的双重缩放歧义）。
         half = max(1.0, config.grid / 2.0)
@@ -1646,7 +1646,7 @@ def _self_test() -> int:
           RiskHeadConfig().step_feat_dim == 512,
           f"实际 {RiskHeadConfig().step_feat_dim}")
     # 用 w7 实测契约：IterationRefiner.feat_dim = 512（每步 refined 特征）
-    head_step = RiskHead(step_feat_dim=512)
+    head_step = RiskHead(step_feat_dim=512, use_step_offset=True)   # 本次验证 offset 头本身
     step_feat = torch.randn(4, 512)
     cs, rs, os_ = head_step.forward_step(step_feat, step_index=8)
     check("forward_step 返回 (conf, risk, offset) 三元组",
@@ -1748,6 +1748,42 @@ def _self_test() -> int:
     check("左线右移 → offset 单调增大",
           offs_mono[0] < offs_mono[1] < offs_mono[2],
           f"{offs_mono}")
+
+    print("\n== 20. normalize=True 归一化（对齐 w7 tanh 预测口径，Lead 裁决）==")
+    # 同一个只有左线的样本：网格格数 vs 归一化
+    off_raw, _ = lane_central_offset(left, normalize=False)
+    off_norm, _ = lane_central_offset(left, normalize=True)
+    check("normalize=True 输出 ∈ [-1,1]",
+          bool((off_norm.abs() <= 1.0).all()), f"off={off_norm[0].item():.4f}")
+    # 关系：normalize 版 = 原版 / 80（grid/2）
+    expect_ratio = off_raw[0].item() / 80.0
+    check("normalize=True 精确等于原版 ÷ (grid/2)",
+          abs(off_norm[0].item() - expect_ratio) < 1e-5,
+          f"norm={off_norm[0].item():.6f} expect={expect_ratio:.6f}")
+    check("normalize 不改变符号（左仍为负）", off_norm[0].item() < 0)
+    # 默认（不传）应与 normalize=False 一致（兼容性）
+    off_default, _ = lane_central_offset(left)
+    check("不传 normalize 时默认 = 网格格数（兼容旧调用）",
+          abs(off_default[0].item() - off_raw[0].item()) < 1e-6,
+          f"default={off_default[0].item():.4f} raw={off_raw[0].item():.4f}")
+    # 右线归一化后为正
+    off_rn, _ = lane_central_offset(right, normalize=True)
+    check("normalize=True 右线为正", off_rn[0].item() > 0,
+          f"off={off_rn[0].item():.4f}")
+    # 边界：最左（col 0）应接近 -1
+    far_left = torch.zeros(1, 1, 160, 160)
+    far_left[0, 0, 40:120, 0:2] = 1.0
+    off_fl, _ = lane_central_offset(far_left, normalize=True)
+    check("最左线 → 归一化接近 -1", abs(off_fl[0].item() + 1.0) < 0.05,
+          f"off={off_fl[0].item():.4f}")
+    # config.normalize 与函数参数的关系：函数参数优先
+    cfg_n = LaneOffsetConfig(normalize=True)
+    off_cfg, _ = lane_central_offset(left, config=cfg_n)
+    check("config.normalize=True 生效", bool((off_cfg.abs() <= 1.0).all()),
+          f"off={off_cfg[0].item():.4f}")
+    off_override, _ = lane_central_offset(left, config=cfg_n, normalize=False)
+    check("函数参数 normalize 优先于 config", abs(off_override[0].item() - off_raw[0].item()) < 1e-6,
+          f"off={off_override[0].item():.4f}")
 
     print(f"\n[M3 risk_head 自检] {'PASS' if failures == 0 else 'FAIL'} "
           f"（失败 {failures} 项）")

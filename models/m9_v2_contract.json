@@ -1,0 +1,136 @@
+{
+  "model": "M2 / m9_v2",
+  "source": "src/model_v2.py",
+  "checkpoint": "/Users/dupi/Desktop/自动驾驶系统/checkpoints/m9_v2/best_model.pt",
+  "precision": "float16",
+  "target": "macOS13",
+  "random_init": false,
+  "compute_units_policy": ".all（运行时由 Swift 侧设置，项目已实测最快，勿改）",
+  "inputs": [
+    {
+      "name": "image",
+      "shape": [
+        8,
+        3,
+        180,
+        320
+      ],
+      "dtype": "float32"
+    },
+    {
+      "name": "lane",
+      "shape": [
+        1,
+        1,
+        160,
+        160
+      ],
+      "dtype": "float32"
+    },
+    {
+      "name": "dets",
+      "shape": [
+        1,
+        20,
+        12
+      ],
+      "dtype": "float32"
+    },
+    {
+      "name": "det_mask",
+      "shape": [
+        1,
+        20
+      ],
+      "dtype": "float32"
+    },
+    {
+      "name": "vehicle_state",
+      "shape": [
+        1,
+        8
+      ],
+      "dtype": "float32"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "steer",
+      "shape": [
+        1,
+        1
+      ],
+      "dtype": "float32"
+    },
+    {
+      "name": "throttle",
+      "shape": [
+        1,
+        1
+      ],
+      "dtype": "float32"
+    },
+    {
+      "name": "brake",
+      "shape": [
+        1,
+        1
+      ],
+      "dtype": "float32"
+    },
+    {
+      "name": "confidence",
+      "shape": [
+        1,
+        1
+      ],
+      "dtype": "float32"
+    },
+    {
+      "name": "risk",
+      "shape": [
+        1,
+        1
+      ],
+      "dtype": "float32"
+    },
+    {
+      "name": "car_heading",
+      "shape": [
+        1,
+        1
+      ],
+      "dtype": "float32"
+    }
+  ],
+  "det_feature_layout": [
+    "x",
+    "y",
+    "w",
+    "h",
+    "label_car",
+    "label_pedestrian",
+    "label_sign",
+    "label_obstacle",
+    "confidence",
+    "speed",
+    "heading",
+    "age"
+  ],
+  "state_layout": [
+    "speed",
+    "accel",
+    "heading",
+    "heading_rate",
+    "curvature",
+    "lateral_offset",
+    "steer_angle",
+    "reserved"
+  ],
+  "notes": [
+    "不含可行驶区域（drivableMask/daGrid）—— 契约红线",
+    "N 固定 20 + det_mask valid 位（CoreML 不支持动态 N，见脚本头 坑 2）",
+    "IO dtype 恒 fp32，fp16 只在图内（坑 3）",
+    "输入名不可用 'state'，会被 coremltools 静默改名（坑 1）"
+  ]
+}
