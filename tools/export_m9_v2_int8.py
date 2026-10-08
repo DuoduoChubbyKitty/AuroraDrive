@@ -538,8 +538,11 @@ def _export_one(model, c: Dict[str, int], base_inputs, out: Path, scheme: str,
 
     res: Dict = {"scheme": scheme, "group_size": group_size, "preserve": preserve}
 
+    # ★ 用 wrapper 摊平 6 输出（与 M2 fp16 脚本一致；t1 抓出的部署链路缺失同款）
+    export_model = _ExportWrapper(model).eval()
+
     with torch.no_grad():
-        traced = torch.jit.trace(_ExportWrapper(model).eval(), tuple(base_inputs), strict=False)
+        traced = torch.jit.trace(export_model, tuple(base_inputs), strict=False)
 
     t0 = time.time()
     mlmodel = _convert_fp16(traced, c, target)
@@ -676,6 +679,7 @@ def main() -> int:
         print("[INT8] ⚠⚠ 本次为随机权重：**体积与耗时有效，偏差数字不代表真实精度**")
 
     base_inputs = _make_inputs(c)
+    export_model = _ExportWrapper(model).eval()
     print(f"[INT8] PyTorch 参考输出 = {[round(v, 6) for v in _torch_forward(export_model, base_inputs)]}")
 
     if args.compare_all:
