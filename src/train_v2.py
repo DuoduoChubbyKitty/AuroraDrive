@@ -1013,42 +1013,60 @@ ITER_AUX_STEPS: Dict[str, int] = {
     "control": 24,       # step24 预测最终 steer/throttle/brake
 }
 
-#: 随机深度的步数范围（§3.3）：训练时随机只用 [min,max] 步
-ITER_RANDOM_DEPTH_RANGE: Tuple[int, int] = (12, 24)
+#: 随机深度的步数比例范围（§3.3）：训练时随机只用 [min_ratio, 1.0] × num_steps 步
+#: ★ 2026-10-09 改为按比例（原硬编码 12~24 步，在 12 步配置下会退化成"全用"）
+ITER_RANDOM_DEPTH_RATIO: Tuple[float, float] = (0.5, 1.0)
 
 
 def _interp_step_weights(num_steps: int = 24) -> Dict[int, float]:
-    """把 ITER_STEP_WEIGHTS 的关键点线性插值成 num_steps 步的完整权重表。
+    """把 ITER_STEP_WEIGHT_RATIOS 的比例关键点插值成 num_steps 步的完整权重表。
 
-    step1 与 step24 都为 1.0（早期粗略 + 后期精细），中间递减。
+    首步与末步都为 1.0（早期粗略 + 后期精细），中间递减。
+    自动适配 12 步（w7 新默认）/ 24 步（备用）等任意步数：
+        num_steps=24 → step1=1.0, step8≈0.5, step16≈0.3, step24=1.0
+        num_steps=12 → step1=1.0, step4≈0.5, step8≈0.3, step12=1.0
     """
     if num_steps <= 0:
         return {}
-    anchors = sorted(ITER_STEP_WEIGHTS.items())
     if num_steps == 1:
-        return {1: anchors[-1][1]}
-    weights = {}
-    # 把关键点对齐到 num_steps 的比例位置
-    scaled = [(max(1, round(k * num_steps / max(anchors[-1][0], 1))), v)
-              for k, v in anchors]
-    # 确保首尾
-    scaled[0] = (1, scaled[0][1])
-    scaled[-1] = (num_steps, scaled[-1][1])
-    for i, (s0, v0) in enumerate(scaled[:-1]):
-        s1, v1 = scaled[i + 1]
+        return {1: 1.0}
+    # 比例关键点 → 实际步号（首步固定 1、末步固定 num_steps）
+    anchors: List[Tuple[int, float]] = []
+    for frac, w in ITER_STEP_WEIGHT_RATIOS:
+        if frac <= 0.0:
+            step = 1
+        elif frac >= 1.0:
+            step = num_steps
+        else:
+            step = max(1, min(num_steps, int(round(frac * num_steps))))
+        if anchors and step <= anchors[-1][0]:
+            step = anchors[-1][0] + 1
+        if step > num_steps:
+            step = num_steps
+        anchors.append((step, w))
+    anchors[-1] = (num_steps, ITER_STEP_WEIGHT_RATIOS[-1][1])
+    anchors[0] = (1, ITER_STEP_WEIGHT_RATIOS[0][1])
+
+    weights: Dict[int, float] = {}
+    for i, (s0, v0) in enumerate(anchors[:-1]):
+        s1, v1 = anchors[i + 1]
         if s1 == s0:
             weights[s0] = v0
             continue
         for s in range(s0, s1 + 1):
             t = (s - s0) / (s1 - s0)
             weights[s] = v0 + (v1 - v0) * t
-    weights[num_steps] = scaled[-1][1]
+    weights[num_steps] = anchors[-1][1]
     return weights
 
 
 def sample_random_depth(num_steps: int = 24, rng: Optional[random.Random] = None,
                         enabled: bool = True) -> Optional[List[int]]:
-    """§3.3 随机深度：随机选 [12,24] 步中的若干步参与训练。
+    """§3.3 随机深度：随机选 [ratio_lo, 1.0] × num_steps 步参与训练。
+
+    ★ 2026-10-09 改为按比例（原硬编码 [12,24]，在 12 步配置下会退化为"全用"）：
+        num_steps=24 → 选 [12,24] 步
+        num_steps=12 → 选 [6,12] 步
 
     Returns:
         参与的步序号列表（升序）；enabled=False 或 num_steps<2 → None（用全部步）。
@@ -1056,8 +1074,10 @@ def sample_random_depth(num_steps: int = 24, rng: Optional[random.Random] = None
     if not enabled or num_steps < 2:
         return None
     r = rng if rng is not None else random.Random()
-    lo, hi = ITER_RANDOM_DEPTH_RANGE
-    k = r.randint(max(2, min(lo, num_steps)), min(hi, num_steps))
+    lo_ratio, hi_ratio = ITER_RANDOM_DEPTH_RATIO
+    lo = max(2, int(round(lo_ratio * num_steps)))
+    hi = max(lo, min(num_steps, int(round(hi_ratio * num_steps))))
+    k = r.randint(lo, hi)
     # 始终保留第 1 步与最后一步（早期粗略 + 最终输出）
     must = {1, num_steps}
     pool = [s for s in range(1, num_steps + 1) if s not in must]
@@ -1175,18 +1195,24 @@ def iterative_refinement_loss(
     num_steps: int = 24,
     rng: Optional[random.Random] = None,
     random_depth: bool = True,
+    moe_steps: Optional[Sequence[int]] = None,
+    moe_balance_weight: float = 0.01,
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
-    """★ 24 步迭代精修的训练信号（§3 全部三段）。
+    """★ 迭代精修训练信号（§3 全部三段 + MoE 负载均衡）。
 
     Args:
-        intermediate: model_v2 在 return_intermediate=True 时返回的逐步输出。
-                      预期格式：list/tuple of dict，每个 dict 含
-                      steer/throttle/brake（每步都有，§3.1 要求共享 output head）。
+        intermediate: model_v2 在 return_aux=True 时返回的
+                      `aux["refiner_intermediates"]`。预期 list of dict，
+                      每步含 steer/throttle/brake；step8 含 lane_offset；
+                      末步含 ttc；moe_steps 里的步含 expert_weights/route_logits。
                       **格式不符时优雅返回 0（不破坏现有训练）**。
         batch:        数据 batch（用于真值）
         enable_iter:  False → 直接返回 0（IterationRefiner 未启用时）
-        num_steps:    迭代步数（默认 24）
+        num_steps:    迭代步数（默认 24；w7 新默认 12）
         rng:          随机深度用
+        moe_steps:    哪些步有专家（w7 属性 `refiner.moe_steps`）。
+                      **只对这些步做负载均衡正则**（其他步没有 expert_weights 键）
+        moe_balance_weight: 专家负载均衡正则权重（0=关闭）
 
     Returns:
         (loss, comps_dict)
