@@ -349,26 +349,25 @@ class RiskHead(nn.Module):
         """24 步迭代中间步辅助：从第 N 步的特征预测 conf/risk/offset。
 
         这是 §3.2 的核心：中间步有活干（防偷懒）。
-        step8 的 offset 会被 t1 做辅助监督（lane_central_offset 真值），
-        step16 的 risk 会被 TTC 真值监督。
+
+        ⚠️ 2026-10-08 Lead 裁决后的语义：
+            · **conf/risk 始终输出**（这是本模块在中间步的独有职责，w7 refiner 不出）；
+            · **offset 仅当 `use_step_offset=True` 时输出**；默认 False 时返回全零
+              （offset 预测归 w7 的 `step_head.lane_offset_head`，本模块不重复）。
+            · t1 在 step16 把 risk 喂 `risk_target_from_ttc` 做监督。
 
         Args:
-            step_feat: [B, step_feat_dim] IterationRefiner 第 N 步的 hidden
+            step_feat: [B, step_feat_dim] IterationRefiner 第 N 步的 refined 特征
             step_index: 步号（0..23），仅用于日志/诊断，不影响前向
 
         Returns:
             (confidence [B] ∈ [0,1], risk [B] ∈ [0,1],
-             lateral_offset [B] ∈ [-range, +range])
-            未启用 use_step_offset 时 offset 全 0（不报错，退化兼容）。
+             lateral_offset [B] ∈ [-range, +range] 或 0）
+            use_step_offset=False 时 offset 全零，但 **conf/risk 照常输出**。
 
         ⚠️ 与 `forward` 的参数完全不同：这里**不吃 det_feat/speed**，
             只吃迭代状态特征。中间步的信息已由 IterationRefiner 融合进 hidden。
         """
-        if not self._has_step:
-            b = step_feat.shape[0] if step_feat.dim() >= 2 else 1
-            dev = step_feat.device
-            z = torch.zeros(b, device=dev, dtype=step_feat.dtype)
-            return z, z, z
         if step_feat is None:
             raise ValueError("forward_step: step_feat 为必填")
         if step_feat.dim() == 1:
@@ -382,14 +381,17 @@ class RiskHead(nn.Module):
             raise ValueError(
                 f"forward_step: step_feat 末维 {step_feat.shape[1]} "
                 f"≠ 配置 step_feat_dim={self.config.step_feat_dim}"
-                f"（w7 的 IterationRefiner hidden 与本配置不一致，请对齐）"
+                f"（w7 的 IterationRefiner feat_dim 与本配置不一致，请对齐）"
             )
         h = F.relu(self.step_fc1(step_feat))
         h = F.relu(self.step_fc2(h))
         conf = torch.sigmoid(self.step_confidence_head(h)).squeeze(-1)    # [B]
         risk = torch.sigmoid(self.step_risk_head(h)).squeeze(-1)          # [B]
-        offset = torch.tanh(self.step_offset_head(h)).squeeze(-1) \
-            * self.config.lateral_offset_range                              # [B]
+        if self._has_step:
+            offset = torch.tanh(self.step_offset_head(h)).squeeze(-1) \
+                * self.config.lateral_offset_range                          # [B]
+        else:
+            offset = torch.zeros_like(conf)                                  # [B] 全零
         return conf, risk, offset
 
     # ------------------------------------------------------------------
@@ -1709,11 +1711,15 @@ def _self_test() -> int:
         check("use_step_offset=False 调 forward_with_offset 应报错", False)
     except RuntimeError:
         check("use_step_offset=False 调 forward_with_offset 应报错", True)
-    # forward_step 应返回全零（退化兼容，不崩）
+    # forward_step 在 use_step_offset=False 时：
+    #   conf/risk **照常输出**（Lead 裁决：conf/risk 是本模块在中间步的独有职责）；
+    #   offset 全零（offset 预测归 w7 refiner）。
+    # ⚠️ 这条断言曾写成"全零"，是基于旧的错误实现（把整个 step 头都关了）。
+    #    修正后 conf/risk 必须非常数，offset 全零——这才是裁决后的正确语义。
     zc, zr, zo = head_nooff.forward_step(torch.randn(2, 512), step_index=8)
-    check("use_step_offset=False → forward_step 返回全零",
-          bool((zc == 0).all() and (zr == 0).all() and (zo == 0).all()),
-          f"zc={zc.tolist()} zo={zo.tolist()}")
+    check("use_step_offset=False → forward_step 的 conf/risk 照常输出、offset 全零",
+          float(zc.std()) > 1e-6 and float(zr.std()) > 1e-6 and bool((zo == 0).all()),
+          f"conf_std={float(zc.std()):.3e} risk_std={float(zr.std()):.3e} off_all_zero={bool((zo==0).all())}")
     # 原 forward 仍正常
     cf, rf = head_nooff(fused)
     check("use_step_offset=False → 原 forward 仍正常", tuple(cf.shape) == (4,))
