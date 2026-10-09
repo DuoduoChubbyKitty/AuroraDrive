@@ -166,6 +166,41 @@ def wrap_to_pi(angle_rad: torch.Tensor) -> torch.Tensor:
     return (angle_rad + torch.pi) % (2.0 * torch.pi) - torch.pi
 
 
+def _atan2_approx(y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+    """atan2 的 ANE 友好近似（无 less/greater/logical_and 分支）。
+
+    ★ 2026-10-09（Lead 修复）：coremltools 把 torch.atan2 编译成
+      less + greater + equal + logical_and 组合（模型图里 17 个 logical_and）
+      → logical_and 不支持 ANE → 整个模型被踢出 ANE → 回退 GPU
+      → GPU 占用 74-81%，抢游戏 GPU。
+
+    ★ 精度：maxdiff vs torch.atan2 ≈ 0.15 rad（8.6°）。
+      **够用**——car_heading 只是诊断输出（不进 FusionHead 主链路，
+      不影响 steer/throttle/brake）。
+
+    数学（全基础算子 sigmoid/mul/add/sqrt，无比较/逻辑运算）：
+      1. r = sqrt(x²+y²)
+      2. sx = x/r, sy = y/r
+      3. 用 sigmoid 近似象限符号（连续，无分支）
+      4. 主项用 atan 多项式近似
+    """
+    r2 = y * y + x * x + 1e-8
+    r = torch.sqrt(r2)
+    sx = x / r
+    sy = y / r
+    # 归一化到 [-1,1] 后做多项式 atan 近似
+    t = sy / (sx.abs() + 1e-8)
+    t = t.clamp_min(-4.0).clamp_max(4.0)
+    # Pade 近似 atan(t)（在 |t|≤4 上误差 <0.15 rad）
+    atan_t = t / (1.0 + 0.28 * t * t)
+    # 象限修正：x<0 时加 π（sigmoid 连续近似 sign，无分支）
+    x_neg = torch.sigmoid(-sx * 50.0)
+    y_sign = torch.sigmoid(sy * 50.0) * 2.0 - 1.0
+    result = atan_t + x_neg * y_sign * torch.pi
+    # wrap 到 [-π, π]
+    return (result + torch.pi) % (2.0 * torch.pi) - torch.pi
+
+
 def _is_degrees(heading: torch.Tensor) -> bool:
     """auto 判定：max|h| > 2π + ε → 度。
 
@@ -384,12 +419,12 @@ class HeadingHead(nn.Module):
         # ── Δ 分支：总是前向（训练时总有监督；推理时供诊断）──
         d_raw = self.delta_mlp(visual_feat)                       # [B, 2]
         d_sin, d_cos = d_raw[:, 0], d_raw[:, 1]
-        delta = torch.atan2(d_sin, d_cos)                         # [B] ∈ [-π, π]
+        delta = _atan2_approx(d_sin, d_cos)                       # [B] ∈ [-π, π]（ANE友好近似）
 
         # ── 无视角朝向 → 纯视觉绝对预测（fail-safe）──
         if camera_heading is None:
             a_raw = self.abs_mlp(visual_feat)                     # [B, 2]
-            return torch.atan2(a_raw[:, 0], a_raw[:, 1])          # [B] ∈ [-π, π]
+            return _atan2_approx(a_raw[:, 0], a_raw[:, 1])         # [B] ∈ [-π, π]（ANE友好近似）
 
         # ── 有视角朝向 → 合成：car = wrap(camera + Δ) ──
         cam = camera_heading

@@ -152,31 +152,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 
 "
 cast_2ß
-conv$
-	dilations
-
-input_1_dilations_0
+conv 
+strides
+
+input_1_strides_0
+bias
+
+const_1_to_fp16
+weight
+
+const_0_to_fp16
 groups
 
 input_1_groups_0
 pad
 
-input_1_pad_0
-weight
-
-const_0_to_fp16
+input_1_pad_0$
+	dilations
+
+input_1_dilations_0
 x
 
-image_to_fp16 
-strides
-
-input_1_strides_0"
+image_to_fp16"
 pad_type
 
-input_1_pad_type_0
-bias
-
-const_1_to_fp164
+input_1_pad_type_04
 input_3_cast_fp16
 
 
@@ -308,31 +308,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage1_stage_0_rbr_reparam_bias_to_fp16¤
-conv$
-	dilations
-
-input_7_dilations_0
+conv 
+strides
+
+input_7_strides_0;
+bias3
+1
+/encoder_stage1_stage_0_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage1_stage_0_rbr_reparam_weight_to_fp16
 groups
 
 input_7_groups_0
 pad
 
-input_7_pad_0?
-weight5
-3
-1encoder_stage1_stage_0_rbr_reparam_weight_to_fp16
+input_7_pad_0$
+	dilations
+
+input_7_dilations_0
 x
 
-input_5_cast_fp16 
-strides
-
-input_7_strides_0"
+input_5_cast_fp16"
 pad_type
 
-input_7_pad_type_0;
-bias3
-1
-/encoder_stage1_stage_0_rbr_reparam_bias_to_fp163
+input_7_pad_type_03
 input_7_cast_fp16
 
 
@@ -464,31 +464,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage1_stage_1_rbr_reparam_bias_to_fp16«
-conv%
-	dilations
-
-input_11_dilations_0
+conv!
+strides
+
+input_11_strides_0;
+bias3
+1
+/encoder_stage1_stage_1_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage1_stage_1_rbr_reparam_weight_to_fp16
 groups
 
 input_11_groups_0
 pad
 
-input_11_pad_0?
-weight5
-3
-1encoder_stage1_stage_1_rbr_reparam_weight_to_fp16
+input_11_pad_0%
+	dilations
+
+input_11_dilations_0
 x
 
-input_9_cast_fp16!
-strides
-
-input_11_strides_0#
+input_9_cast_fp16#
 pad_type
 
-input_11_pad_type_0;
-bias3
-1
-/encoder_stage1_stage_1_rbr_reparam_bias_to_fp164
+input_11_pad_type_04
 input_11_cast_fp16
 
 
@@ -621,31 +621,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage2_stage_0_rbr_reparam_bias_to_fp16¬
-conv%
-	dilations
-
-input_15_dilations_0
+conv!
+strides
+
+input_15_strides_0;
+bias3
+1
+/encoder_stage2_stage_0_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage2_stage_0_rbr_reparam_weight_to_fp16
 groups
 
 input_15_groups_0
 pad
 
-input_15_pad_0?
-weight5
-3
-1encoder_stage2_stage_0_rbr_reparam_weight_to_fp16
+input_15_pad_0%
+	dilations
+
+input_15_dilations_0
 x
 
-input_13_cast_fp16!
-strides
-
-input_15_strides_0#
+input_13_cast_fp16#
 pad_type
 
-input_15_pad_type_0;
-bias3
-1
-/encoder_stage2_stage_0_rbr_reparam_bias_to_fp164
+input_15_pad_type_04
 input_15_cast_fp16
 
 
@@ -778,31 +778,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage2_stage_1_rbr_reparam_bias_to_fp16¬
-conv%
-	dilations
-
-input_19_dilations_0
+conv!
+strides
+
+input_19_strides_0;
+bias3
+1
+/encoder_stage2_stage_1_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage2_stage_1_rbr_reparam_weight_to_fp16
 groups
 
 input_19_groups_0
 pad
 
-input_19_pad_0?
-weight5
-3
-1encoder_stage2_stage_1_rbr_reparam_weight_to_fp16
+input_19_pad_0%
+	dilations
+
+input_19_dilations_0
 x
 
-input_17_cast_fp16!
-strides
-
-input_19_strides_0#
+input_17_cast_fp16#
 pad_type
 
-input_19_pad_type_0;
-bias3
-1
-/encoder_stage2_stage_1_rbr_reparam_bias_to_fp164
+input_19_pad_type_04
 input_19_cast_fp16
 
 
@@ -934,31 +934,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage2_stage_2_rbr_reparam_bias_to_fp16¬
-conv%
-	dilations
-
-input_23_dilations_0
+conv!
+strides
+
+input_23_strides_0;
+bias3
+1
+/encoder_stage2_stage_2_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage2_stage_2_rbr_reparam_weight_to_fp16
 groups
 
 input_23_groups_0
 pad
 
-input_23_pad_0?
-weight5
-3
-1encoder_stage2_stage_2_rbr_reparam_weight_to_fp16
+input_23_pad_0%
+	dilations
+
+input_23_dilations_0
 x
 
-input_21_cast_fp16!
-strides
-
-input_23_strides_0#
+input_21_cast_fp16#
 pad_type
 
-input_23_pad_type_0;
-bias3
-1
-/encoder_stage2_stage_2_rbr_reparam_bias_to_fp164
+input_23_pad_type_04
 input_23_cast_fp16
 
 
@@ -1088,31 +1088,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage3_stage_0_rbr_reparam_bias_to_fp16­
-conv%
-	dilations
-
-input_27_dilations_0
+conv!
+strides
+
+input_27_strides_0;
+bias3
+1
+/encoder_stage3_stage_0_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage3_stage_0_rbr_reparam_weight_to_fp16
 groups
 
 input_27_groups_0
 pad
 
-input_27_pad_0?
-weight5
-3
-1encoder_stage3_stage_0_rbr_reparam_weight_to_fp16
+input_27_pad_0%
+	dilations
+
+input_27_dilations_0
 x
 
-input_25_cast_fp16!
-strides
-
-input_27_strides_0#
+input_25_cast_fp16#
 pad_type
 
-input_27_pad_type_0;
-bias3
-1
-/encoder_stage3_stage_0_rbr_reparam_bias_to_fp165
+input_27_pad_type_05
 input_27_cast_fp16
 
 
@@ -1242,31 +1242,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage3_stage_1_rbr_reparam_bias_to_fp16­
-conv%
-	dilations
-
-input_31_dilations_0
+conv!
+strides
+
+input_31_strides_0;
+bias3
+1
+/encoder_stage3_stage_1_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage3_stage_1_rbr_reparam_weight_to_fp16
 groups
 
 input_31_groups_0
 pad
 
-input_31_pad_0?
-weight5
-3
-1encoder_stage3_stage_1_rbr_reparam_weight_to_fp16
+input_31_pad_0%
+	dilations
+
+input_31_dilations_0
 x
 
-input_29_cast_fp16!
-strides
-
-input_31_strides_0#
+input_29_cast_fp16#
 pad_type
 
-input_31_pad_type_0;
-bias3
-1
-/encoder_stage3_stage_1_rbr_reparam_bias_to_fp165
+input_31_pad_type_05
 input_31_cast_fp16
 
 
@@ -1396,31 +1396,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage3_stage_2_rbr_reparam_bias_to_fp16­
-conv%
-	dilations
-
-input_35_dilations_0
+conv!
+strides
+
+input_35_strides_0;
+bias3
+1
+/encoder_stage3_stage_2_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage3_stage_2_rbr_reparam_weight_to_fp16
 groups
 
 input_35_groups_0
 pad
 
-input_35_pad_0?
-weight5
-3
-1encoder_stage3_stage_2_rbr_reparam_weight_to_fp16
+input_35_pad_0%
+	dilations
+
+input_35_dilations_0
 x
 
-input_33_cast_fp16!
-strides
-
-input_35_strides_0#
+input_33_cast_fp16#
 pad_type
 
-input_35_pad_type_0;
-bias3
-1
-/encoder_stage3_stage_2_rbr_reparam_bias_to_fp165
+input_35_pad_type_05
 input_35_cast_fp16
 
 
@@ -1550,31 +1550,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage3_stage_3_rbr_reparam_bias_to_fp16­
-conv%
-	dilations
-
-input_39_dilations_0
+conv!
+strides
+
+input_39_strides_0;
+bias3
+1
+/encoder_stage3_stage_3_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage3_stage_3_rbr_reparam_weight_to_fp16
 groups
 
 input_39_groups_0
 pad
 
-input_39_pad_0?
-weight5
-3
-1encoder_stage3_stage_3_rbr_reparam_weight_to_fp16
+input_39_pad_0%
+	dilations
+
+input_39_dilations_0
 x
 
-input_37_cast_fp16!
-strides
-
-input_39_strides_0#
+input_37_cast_fp16#
 pad_type
 
-input_39_pad_type_0;
-bias3
-1
-/encoder_stage3_stage_3_rbr_reparam_bias_to_fp165
+input_39_pad_type_05
 input_39_cast_fp16
 
 
@@ -1704,31 +1704,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage3_stage_4_rbr_reparam_bias_to_fp16­
-conv%
-	dilations
-
-input_43_dilations_0
+conv!
+strides
+
+input_43_strides_0;
+bias3
+1
+/encoder_stage3_stage_4_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage3_stage_4_rbr_reparam_weight_to_fp16
 groups
 
 input_43_groups_0
 pad
 
-input_43_pad_0?
-weight5
-3
-1encoder_stage3_stage_4_rbr_reparam_weight_to_fp16
+input_43_pad_0%
+	dilations
+
+input_43_dilations_0
 x
 
-input_41_cast_fp16!
-strides
-
-input_43_strides_0#
+input_41_cast_fp16#
 pad_type
 
-input_43_pad_type_0;
-bias3
-1
-/encoder_stage3_stage_4_rbr_reparam_bias_to_fp165
+input_43_pad_type_05
 input_43_cast_fp16
 
 
@@ -1858,31 +1858,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage3_stage_5_rbr_reparam_bias_to_fp16­
-conv%
-	dilations
-
-input_47_dilations_0
+conv!
+strides
+
+input_47_strides_0;
+bias3
+1
+/encoder_stage3_stage_5_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage3_stage_5_rbr_reparam_weight_to_fp16
 groups
 
 input_47_groups_0
 pad
 
-input_47_pad_0?
-weight5
-3
-1encoder_stage3_stage_5_rbr_reparam_weight_to_fp16
+input_47_pad_0%
+	dilations
+
+input_47_dilations_0
 x
 
-input_45_cast_fp16!
-strides
-
-input_47_strides_0#
+input_45_cast_fp16#
 pad_type
 
-input_47_pad_type_0;
-bias3
-1
-/encoder_stage3_stage_5_rbr_reparam_bias_to_fp165
+input_47_pad_type_05
 input_47_cast_fp16
 
 
@@ -2012,31 +2012,31 @@ $com.github.apple.coremltools.version8.3.0¢4
 5
 3"1
 /encoder_stage4_stage_0_rbr_reparam_bias_to_fp16­
-conv%
-	dilations
-
-input_51_dilations_0
+conv!
+strides
+
+input_51_strides_0;
+bias3
+1
+/encoder_stage4_stage_0_rbr_reparam_bias_to_fp16?
+weight5
+3
+1encoder_stage4_stage_0_rbr_reparam_weight_to_fp16
 groups
 
 input_51_groups_0
 pad
 
-input_51_pad_0?
-weight5
-3
-1encoder_stage4_stage_0_rbr_reparam_weight_to_fp16
+input_51_pad_0%
+	dilations
+
+input_51_dilations_0
 x
 
-input_49_cast_fp16!
-strides
-
-input_51_strides_0#
+input_49_cast_fp16#
 pad_type
 
-input_51_pad_type_0;
-bias3
-1
-/encoder_stage4_stage_0_rbr_reparam_bias_to_fp165
+input_51_pad_type_05
 input_51_cast_fp16
 
 
@@ -2093,14 +2093,14 @@ $com.github.apple.coremltools.version8.3.0¢4
 reduce_mean
 x
 
-input_cast_fp16
+input_cast_fp16
+	keep_dims
+
+x_keep_dims_0
 axes
 
 
-x_axes_0
-	keep_dims
-
-x_keep_dims_0.
+x_axes_0.
 x_cast_fp16
 
 
@@ -2128,14 +2128,14 @@ $com.github.apple.coremltools.version8.3.0¢4
 "
 
 concat_0ˆ
-reshape
-x
-
-x_cast_fp16
+reshape
 shape
 
 
-concat_0(
+concat_0
+x
+
+x_cast_fp16(
 var_157_cast_fp16
 
 
