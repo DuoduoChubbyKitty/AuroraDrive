@@ -7013,7 +7013,12 @@ final class DriveState {
                 // 【为什么 V2 用上一帧的检测/车道线】见 inferenceEngineV2 声明处注释：
                 //   检测推理在本行之后，V2 用上一帧结果（与异步语义一致）。
                 inferenceEngineV2.loadIfNeeded()   // V2 lazy 加载（模型缺失时 isLoaded=false）
-                if inferenceEngineV2.isLoaded && inferenceEngineV2.timelineReady {
+                // ⚠️ 2026-10-09 修复死锁：原条件 `isLoaded && timelineReady`
+                //   → timeline 需要 infer 攒帧，infer 需要 timelineReady → 死锁
+                //   → V2 infer 从不被调 → V2 永远不激活 → 旧 M9（throttle=0.94）永远在开车
+                //   修复：去掉 timelineReady 门，让 V2 infer 从第一帧就跑（冷启动时
+                //   内部 push 帧但不产结果，v2CommandOf 有 timelineReady 守卫兜底）。
+                if inferenceEngineV2.isLoaded {
                     // ── V2 路径：构造 5 路输入 ──
                     var k2 = V2Kinematics()
                     k2.speedKmh = speedKmh
