@@ -214,7 +214,12 @@ enum V2InputContract {
     /// 世界模型输入：赛道模式标志 `[1]`（1.0=赛道，0.0=自动）。
     static let worldInputTrackMode = "track_mode"
     /// 世界模型输出：预测的下一帧融合特征 `[1, fusedDim]`。
-    static let worldOutputPredNextFused = "pred_next_fused"
+    ///
+    /// ⚠️ 实际导出模型（models/world_model.mlmodelc/metadata.json）的输出名是
+    ///   `predicted_next_fused`（带 "ed"），不是任务描述里的 `pred_next_fused`。
+    ///   以导出模型 metadata.json 为准（它是落到磁盘的真值）。
+    ///   模型还额外输出 `routing_weights[1,3]`（MoE 路由权重），本接线暂不消费。
+    static let worldOutputPredNextFused = "predicted_next_fused"
     /// 动作维度（steer/throttle/brake 三维）。
     static let actionDim = 3
 
