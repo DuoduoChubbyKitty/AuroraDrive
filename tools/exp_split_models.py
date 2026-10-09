@@ -658,6 +658,18 @@ def bench_p95(path: str, cu_name: str = "CPU_AND_NE", iters: int = 200) -> Dict:
             "mean_ms": statistics.fmean(s), "n": len(s)}
 
 
+def _a_output_name(ma) -> str:
+    """A 类模型的输出名：A_full/A_temporal → 'img_feat'，A_cnnN → 'feats'。
+
+    ★ 必须自动识别：写死名字会让 A_cnn8 串联直接 KeyError（本脚本第一版踩过）。
+    """
+    outs = [o.name for o in ma.get_spec().description.output]
+    for cand in ("img_feat", "feats"):
+        if cand in outs:
+            return cand
+    return outs[0]
+
+
 def bench_chain(a_path: str, b_path: str, iters: int = 60, warmup: int = 10) -> Dict:
     """★ A→B 串联总延迟（真实串联：A 的输出直接喂 B 的输入）。
 
@@ -673,19 +685,19 @@ def bench_chain(a_path: str, b_path: str, iters: int = 60, warmup: int = 10) -> 
     ma_ne, mb_ne = _mk(ct.ComputeUnit.CPU_AND_NE)
     ma_cpu, mb_cpu = _mk(ct.ComputeUnit.CPU_ONLY)
 
+    a_out = _a_output_name(ma_ne)
     fa = _feed_from_spec(ma_ne)
     fb = _feed_from_spec(mb_ne)
 
     def _run(ma, mb, n, w):
-        # 先把 A 的真输出灌进 B，保证形状/类型正确（不是用零占位）
         fb_local = dict(fb)
-        fb_local["img_feat"] = np.asarray(ma.predict(fa)["img_feat"], dtype=np.float32)
+        fb_local["img_feat"] = np.asarray(ma.predict(fa)[a_out], dtype=np.float32)
         for _ in range(w):
-            fb_local["img_feat"] = np.asarray(ma.predict(fa)["img_feat"], dtype=np.float32)
+            fb_local["img_feat"] = np.asarray(ma.predict(fa)[a_out], dtype=np.float32)
             mb.predict(fb_local)
         t0 = time.perf_counter()
         for _ in range(n):
-            fb_local["img_feat"] = np.asarray(ma.predict(fa)["img_feat"], dtype=np.float32)
+            fb_local["img_feat"] = np.asarray(ma.predict(fa)[a_out], dtype=np.float32)
             mb.predict(fb_local)
         return (time.perf_counter() - t0) / n * 1000.0
 
@@ -693,6 +705,54 @@ def bench_chain(a_path: str, b_path: str, iters: int = 60, warmup: int = 10) -> 
     c1 = _run(ma_cpu, mb_cpu, iters, warmup)
     c2 = _run(ma_cpu, mb_cpu, iters, warmup)
     a2 = _run(ma_ne, mb_ne, iters, warmup)
+    return {"ne_ms": statistics.median([a1, a2]), "cpu_ms": statistics.median([c1, c2]),
+            "ne_rounds": [a1, a2], "cpu_rounds": [c1, c2], "iters": iters,
+            "a_output": a_out}
+
+
+def bench_chain3(cnn_path: str, tmp_path: str, b_path: str,
+                 iters: int = 60, warmup: int = 10) -> Dict:
+    """★ 三模型串联：A_cnn(8帧纯卷积) → A_temporal(GRU) → B。
+
+    用途：若 A_cnn8 与 A_temporal 都能各自上 ANE，但合起来的 A_full 不能，
+    就退回这个三拆方案。实测 A_full 能上 ANE，故本函数作为**对照/备选**保留。
+    """
+    import coremltools as ct
+
+    def _mk(cu):
+        return (ct.models.MLModel(cnn_path, compute_units=cu),
+                ct.models.MLModel(tmp_path, compute_units=cu),
+                ct.models.MLModel(b_path, compute_units=cu))
+
+    m1_ne, m2_ne, m3_ne = _mk(ct.ComputeUnit.CPU_AND_NE)
+    m1_cpu, m2_cpu, m3_cpu = _mk(ct.ComputeUnit.CPU_ONLY)
+
+    f1 = _feed_from_spec(m1_ne)
+    f3 = _feed_from_spec(m3_ne)
+    o1 = _a_output_name(m1_ne)          # A_cnn → "feats"
+    o2 = _a_output_name(m2_ne)          # A_temporal → "img_feat"
+    # A_temporal 的**输入**名（A_cnn 的输入是 image）
+    i2 = [i.name for i in m2_ne.get_spec().description.input][0]
+
+    def _run(m1, m2, m3, n, w):
+        f3_local = dict(f3)
+        for _ in range(w + 1):
+            feats = np.asarray(m1.predict(f1)[o1], dtype=np.float32)
+            f3_local["img_feat"] = np.asarray(m2.predict({i2: feats})[o2],
+                                              dtype=np.float32)
+            m3.predict(f3_local)
+        t0 = time.perf_counter()
+        for _ in range(n):
+            feats = np.asarray(m1.predict(f1)[o1], dtype=np.float32)
+            f3_local["img_feat"] = np.asarray(m2.predict({i2: feats})[o2],
+                                              dtype=np.float32)
+            m3.predict(f3_local)
+        return (time.perf_counter() - t0) / n * 1000.0
+
+    a1 = _run(m1_ne, m2_ne, m3_ne, iters, warmup)
+    c1 = _run(m1_cpu, m2_cpu, m3_cpu, iters, warmup)
+    c2 = _run(m1_cpu, m2_cpu, m3_cpu, iters, warmup)
+    a2 = _run(m1_ne, m2_ne, m3_ne, iters, warmup)
     return {"ne_ms": statistics.median([a1, a2]), "cpu_ms": statistics.median([c1, c2]),
             "ne_rounds": [a1, a2], "cpu_rounds": [c1, c2], "iters": iters}
 
@@ -873,15 +933,134 @@ def cmd_chain(args, report: Dict) -> int:
     return 0
 
 
+def _loadavg() -> float:
+    try:
+        return os.getloadavg()[0]
+    except Exception:
+        return -1.0
+
+
+def _wait_for_quiet(max_load: float = 6.0, timeout_s: float = 600.0,
+                    poll_s: float = 5.0) -> Tuple[float, float]:
+    """等本机负载降到阈值以下（MacBook Air 无风扇 + 本机常有并行重活）。
+
+    ★ 为什么必须等：S1 首次 bench 时本机 load average 高达 37~44
+      （兄弟 agent 的 /tmp/s5_reuse/*.py 各占 ~90% CPU）—— 那种条件下
+      CPU 档数字被放大 3~5 倍，**不可作为结论**。
+      本函数如实返回 (最终load, 等待秒数)，报告里一并记录。
+    """
+    t0 = time.time()
+    while time.time() - t0 < timeout_s:
+        la = _loadavg()
+        if la < max_load:
+            return la, time.time() - t0
+        time.sleep(poll_s)
+    return _loadavg(), time.time() - t0
+
+
+def cmd_remeasure(args, report: Dict) -> int:
+    """★ 可信复测：负载门控 + **轮转交错**（round-robin）测所有变体。
+
+    与 cmd_bench 的区别：
+      · cmd_bench 是"逐变体跑完再跑下一个" → 负载漂移会让后面的变体吃亏/占便宜
+      · 本模式**每一轮把全部变体各测一遍**，轮间交错 → 负载漂移被摊平到所有变体
+      · 每轮记录 load average，取**跨轮中位数**（不是跨样本中位数）
+    """
+    import coremltools as ct
+
+    arts = {(a["variant"], a["quant"]): a
+            for a in report.get("artifacts", []) if "error" not in a}
+
+    # 要测的变体（按重要性排序；只测存在的）
+    wanted = [(v, q) for v in ("A_cnn2", "A_cnn4", "A_cnn8", "A_full",
+                               "A_temporal", "B", "full")
+              for q in ("palette_int8", "fp16")]
+    todo = [(v, q) for v, q in wanted if (v, q) in arts]
+
+    la0, waited = _wait_for_quiet(args.max_load, args.quiet_timeout)
+    print(f"[remeasure] 负载门控：等待 {waited:.0f}s 后 load={la0:.2f} "
+          f"(阈值 {args.max_load})；本机 {os.cpu_count()} 核")
+
+    # 预加载全部模型（NE + CPU 各一份），避免加载开销混进计时
+    loaded: Dict[Tuple[str, str], Dict] = {}
+    for key in todo:
+        p = arts[key]["path"]
+        try:
+            m_ne = ct.models.MLModel(p, compute_units=ct.ComputeUnit.CPU_AND_NE)
+            m_cpu = ct.models.MLModel(p, compute_units=ct.ComputeUnit.CPU_ONLY)
+            feed = _feed_from_spec(m_ne)
+            for _ in range(10):          # warmup（含 ANE 编译）
+                m_ne.predict(feed)
+            loaded[key] = {"ne": m_ne, "cpu": m_cpu, "feed": feed}
+        except Exception as exc:
+            print(f"[remeasure] ✗ 加载 {key}: {type(exc).__name__}: {str(exc)[:100]}")
+
+    rounds = args.rounds
+    iters = args.iters
+    # samples[key][cu] = [round1, round2, ...]
+    samples: Dict = {k: {"CPU_AND_NE": [], "CPU_ONLY": []} for k in loaded}
+    loads: List[float] = []
+
+    for r in range(rounds):
+        for key, L in loaded.items():
+            for cu_name in ("CPU_AND_NE", "CPU_ONLY"):
+                m = L["ne"] if cu_name == "CPU_AND_NE" else L["cpu"]
+                t0 = time.perf_counter()
+                for _ in range(iters):
+                    m.predict(L["feed"])
+                ms = (time.perf_counter() - t0) / iters * 1000.0
+                samples[key][cu_name].append(ms)
+        loads.append(_loadavg())
+        print(f"[remeasure] 第 {r+1}/{rounds} 轮完成，load={loads[-1]:.2f}")
+
+    print("\n" + "=" * 104)
+    print(f" 可信复测结果（{rounds} 轮轮转交错 × 每轮 {iters} 次；取跨轮中位数）")
+    print("=" * 104)
+    print(f"  {'变体':<12}{'量化':<13}{'ANE判定':>10}{'NE中位':>9}{'NE范围':>18}"
+          f"{'CPU中位':>10}{'NE/CPU':>8}")
+    print("  " + "-" * 96)
+
+    out = {}
+    for key in sorted(loaded, key=lambda k: (k[0], k[1])):
+        v, q = key
+        ne = samples[key]["CPU_AND_NE"]
+        cpu = samples[key]["CPU_ONLY"]
+        ne_med = statistics.median(ne)
+        cpu_med = statistics.median(cpu)
+        a = arts[key]
+        verdict = a.get("ane", {}).get("verdict", "?")
+        rng = f"{min(ne):.2f}~{max(ne):.2f}"
+        out[f"{v}_{q}"] = {"variant": v, "quant": q, "ane_verdict": verdict,
+                           "ne_median": ne_med, "ne_min": min(ne), "ne_max": max(ne),
+                           "ne_rounds": ne, "cpu_median": cpu_med,
+                           "cpu_min": min(cpu), "cpu_max": max(cpu),
+                           "cpu_rounds": cpu, "ratio": ne_med / cpu_med if cpu_med else None}
+        print(f"  {v:<12}{q:<13}{verdict:>10}{ne_med:>9.3f}{rng:>18}"
+              f"{cpu_med:>10.3f}{ne_med/cpu_med:>8.2f}")
+
+    report["remeasure"] = {"rounds": rounds, "iters": iters,
+                           "load_before": la0, "waited_s": waited,
+                           "loads_per_round": loads, "results": out}
+    report["sysinfo_remeasure"] = _sysinfo()
+    print(f"\n[remeasure] 各轮 load: {[round(x,2) for x in loads]}")
+    print(f"[remeasure] {report['sysinfo_remeasure']['uptime']}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="双模型拆分实验（S1）")
-    ap.add_argument("mode", choices=["all", "build", "export", "bench", "chain", "anecheck"])
+    ap.add_argument("mode", choices=["all", "build", "export", "bench", "chain",
+                                     "anecheck", "remeasure"])
     ap.add_argument("path", nargs="?", help="anecheck 模式的模型路径")
     ap.add_argument("--variants", nargs="*",
                     default=["A_full", "A_cnn8", "A_cnn4", "A_cnn2",
                              "A_temporal", "B", "full"])
     ap.add_argument("--quants", nargs="*", default=["palette_int8", "fp16"])
     ap.add_argument("--iters", type=int, default=60)
+    ap.add_argument("--rounds", type=int, default=5, help="remeasure 的轮转轮数")
+    ap.add_argument("--max-load", type=float, default=6.0,
+                    help="remeasure 的负载门控阈值（load average）")
+    ap.add_argument("--quiet-timeout", type=float, default=600.0)
     ap.add_argument("--chain-plans", default=None, help="JSON: [[A变体,A量化,B量化],...]")
     args = ap.parse_args()
 
@@ -906,6 +1085,8 @@ def main() -> int:
         cmd_bench(args, report)
     if args.mode in ("all", "chain"):
         cmd_chain(args, report)
+    if args.mode == "remeasure":
+        cmd_remeasure(args, report)
 
     REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n[report] {REPORT}")

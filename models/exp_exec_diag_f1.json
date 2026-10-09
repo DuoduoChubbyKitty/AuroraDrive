@@ -1,0 +1,27 @@
+{
+  "name": "diag_f1",
+  "out_mlmodelc": "/Users/dupi/Desktop/自动驾驶系统/models/exp_exec_diag_f1.mlmodelc",
+  "out_mlpackage": "/Users/dupi/Desktop/自动驾驶系统/models/exp_exec_diag_f1.mlpackage",
+  "precision": "float16",
+  "target": "macOS15",
+  "pipeline": "(无)",
+  "pipeline_steps": [],
+  "pipeline_notes": [],
+  "coremltools": "8.3.0",
+  "torch": "2.13.0",
+  "preserve_io_fp32": true,
+  "size_mlpackage_mb": 15.738,
+  "size_mlmodelc_mb": 15.746,
+  "maxdiff_vs_torch": 0.007104992866516113,
+  "ref_outputs": [
+    -0.14198239147663116,
+    0.5290586352348328,
+    0.46132606267929077,
+    0.7161430716514587,
+    0.11504857987165451,
+    -1.954279899597168
+  ],
+  "random_init": true,
+  "total_params": 8799446,
+  "created": "2026-10-09 08:04:19"
+}

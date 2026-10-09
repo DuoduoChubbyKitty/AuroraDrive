@@ -142,7 +142,10 @@ def main():
     ap.add_argument("--reps", type=int, default=4)
     ap.add_argument("--warmup", type=int, default=5)
     ap.add_argument("--burn", type=int, default=0,
-                    help="受控背景负载线程数（0=不加；推荐 6，与项目 load.sh 口径一致）")
+                    help="受控 CPU 背景负载线程数（0=不加；推荐 6，与项目 load.sh 口径一致）")
+    ap.add_argument("--gpu-burn", type=int, default=0,
+                    help="受控 **GPU** 背景负载强度（0=不加）。真实驾驶场景游戏占 GPU，"
+                         "用来验证 .cpuAndGPU 是否与游戏抢 GPU")
     ap.add_argument("--burn-sec", type=int, default=1200)
     ap.add_argument("--baseline", default=None, help="倍率基准配置名（默认第一个）")
     ap.add_argument("--tag", default="")
@@ -164,16 +167,26 @@ def main():
         fh.flush()
 
     burn = None
+    gpu_burn = None
     if args.burn > 0:
         if not BURN.exists():
             raise SystemExit(f"✗ 负载生成器不存在：{BURN}\n  先编译：bash tools/perf/load.sh build")
         burn = subprocess.Popen([str(BURN), str(args.burn), str(args.burn_sec)],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(2.5)   # 让负载稳定
+    if args.gpu_burn > 0:
+        gb = _ROOT / "models" / "exp_exec_tmp" / "gpu_burn"
+        if not gb.exists():
+            raise SystemExit(f"✗ GPU 负载生成器不存在：{gb}\n"
+                             f"  先编译：swiftc -O -o {gb} tools/exp_exec_gpu_burn.swift")
+        gpu_burn = subprocess.Popen([str(gb), str(args.burn_sec), str(args.gpu_burn)],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if burn is not None or gpu_burn is not None:
+        time.sleep(3.0)   # 让负载稳定
 
     try:
         emit(f"═══ 配对测量 suite={args.suite} 配置数={len(suite)} reps={args.reps} "
-             f"iters={args.iters} burn={args.burn}线程 基准={base} ═══")
+             f"iters={args.iters} cpu_burn={args.burn}线程 gpu_burn={args.gpu_burn} "
+             f"基准={base} ═══")
         emit(f"    开始 {time.strftime('%Y-%m-%d %H:%M:%S')} loadavg={loadavg():.2f} "
              f"uptime={int(time.time())}")
 
