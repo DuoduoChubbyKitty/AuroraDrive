@@ -5533,8 +5533,26 @@ final class DriveState {
     ///
     /// 【为什么 async】切换要重新解析 `SCShareableContent` 并等 `updateContentFilter`
     /// 返回；失败时**保持原模式**并把原因写给 UI（不静默切回全屏）。
+    ///
+    /// ⚠️ 2026-10-09 修复「点窗口没反应」：引擎模式下 UI 的 captureEngine 是空壳
+    ///   （isCapturing=false → applyMode early-return），真正的抓屏在后台引擎进程。
+    ///   不转发给引擎 → 后台引擎一无所知 → 「没有任何作用」。
+    ///   修复：引擎模式时通过 IPC 把 mode 转发给引擎进程执行真正的 filter 切换。
     func selectCaptureMode(_ mode: CaptureMode) async {
         captureModeError = nil
+        // 引擎模式：转发给引擎进程
+        if EngineClient.shared.isActive {
+            var extra: [String: Any] = ["mode": "fullscreen"]
+            if case .window(let id) = mode {
+                extra["mode"] = "window"
+                extra["windowID"] = Int(id)
+            }
+            _ = EngineClient.shared.sendCommand("set_capture_mode", extra: extra)
+            // UI 本地也记一笔（拉条选中态显示用）
+            captureMode = mode
+            return
+        }
+        // 非引擎模式（UI 直跑）：直接切换
         await captureEngine.applyMode(mode)
         captureMode = captureEngine.captureMode
         captureModeError = captureEngine.lastModeError

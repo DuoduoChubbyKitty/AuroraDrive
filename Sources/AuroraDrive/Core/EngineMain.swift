@@ -1074,6 +1074,25 @@ enum EngineMain {
                     if let v = cSpeedLimit { st.speedLimit = v }
                 }
             }
+        case "set_capture_mode":
+            // UI 预览框拉条点选「录全屏」或某个窗口 → 引擎执行真正的 filter 切换。
+            // 引擎模式下 UI 的 captureEngine 是空壳（isCapturing=false），不转发就是
+            // 「点了没反应」（用户原话）。
+            let modeStr = (obj["mode"] as? String) ?? "fullscreen"
+            let wID = obj["windowID"] as? Int
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let st = EngineGlobals.state else { return }
+                    let capMode: CaptureMode
+                    if modeStr == "window", let id = wID {
+                        capMode = .window(id: CGWindowID(truncatingIfNeeded: id))
+                    } else {
+                        capMode = .fullScreen
+                    }
+                    Task { await st.captureEngine.applyMode(capMode) }
+                    engineLog("[ENGINE] 捕获源切换：\(capMode.label)")
+                }
+            }
         case "ping":
             server.send("{\"type\":\"pong\"}")
         default:
