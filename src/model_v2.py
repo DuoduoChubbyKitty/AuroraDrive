@@ -1013,16 +1013,18 @@ class IterationRefiner(nn.Module):
     """
 
     def __init__(self, feat_dim: int = FUSION_IN_DIM, hidden: int = FUSION_IN_DIM,
-                 num_steps: int = 12, shared: bool = True,
+                 num_steps: int = 24, shared: bool = True,
                  num_experts: int = 6, enable_moe: bool = True,
                  step_head: bool = True,
                  lane_offset_step: int = 8, ttc_step: int = 16,
                  moe_steps: Optional[List[int]] = None):
         """迭代精修 + MoE 专家。
 
-        ★ 用户拍板（2026-10-09 最高依据）：
-            「12 步，然后给 4 步给专家，剩下 8 步给自己」
-          → num_steps 默认 **12**；第 1~8 步纯自己精修，第 9~12 步调 MoE 专家。
+        ★ 用户拍板（2026-10-09 最高依据，最新）：
+            「变回 8 步专家 + 16 步自己」
+          → num_steps 默认 **24**；前 16 步纯自己精修，第 17~24 步调 MoE 专家。
+            （前一次拍板是「12 步=8自己+4专家」，后因余量够大（p95 3.25ms/余量10×）
+              又改回 24 步并加大专家到 8 步 —— 实测 p95 3.95ms/余量 8.35×，仍远低于 16ms）
 
         Args:
             num_steps: 总迭代步数（默认 12 = 用户拍板值；24 为备用配置）
@@ -1051,7 +1053,7 @@ class IterationRefiner(nn.Module):
         # 默认 = 最后 4 步（num_steps=12 → [9,10,11,12]）。
         # 前 num_steps-4 步纯 GRU 精修，不调专家 → 计算量比"每步都调"少很多。
         if moe_steps is None:
-            n_moe = min(4, max(0, num_steps - 1))   # 至少留 1 步给自己
+            n_moe = min(8, max(0, num_steps - 1))   # ★ 2026-10-09 用户拍板「8步专家+16步自己」
             self.moe_steps: List[int] = list(range(num_steps - n_moe + 1, num_steps + 1))
         else:
             self.moe_steps = sorted({s for s in moe_steps if 1 <= s <= num_steps})
@@ -1226,14 +1228,14 @@ class M2Model(nn.Module):
                  stage2_blocks: int = 3,
                  heading_unit: str = "compass",
                  enable_refiner: bool = True,
-                 refiner_steps: int = 12,
+                 refiner_steps: int = 24,
                  refiner_shared: bool = True,
                  moe_steps: Optional[List[int]] = None,
                  num_steps: Optional[int] = None):
         """M2Model 构造。
 
-        ★ 用户拍板（2026-10-09）：「12 步，然后给 4 步给专家，剩下 8 步给自己」
-          → refiner_steps 默认 **12**；MoE 默认只在最后 4 步（[9,10,11,12]）生效。
+        ★ 用户拍板（2026-10-09 最新）：「变回 8 步专家 + 16 步自己」
+          → refiner_steps 默认 **24**；MoE 默认只在最后 8 步（[17..24]）生效。
 
         ⚠️ `num_steps` 与 `refiner_steps` 是**同一参数的两个名字**（别名）：
            · `refiner_steps` —— M2Model 的主名（与 IterationRefiner 的 num_steps 区分）

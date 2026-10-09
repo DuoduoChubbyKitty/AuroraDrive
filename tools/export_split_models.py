@@ -317,6 +317,8 @@ def main() -> int:
     ap.add_argument("--precision", default="float16", choices=["float16", "float32"])
     ap.add_argument("--target", default="macOS15", choices=["macOS13", "macOS14", "macOS15"])
     ap.add_argument("--num-steps", type=int, default=12)
+    ap.add_argument("--moe-steps", type=str, default=None,
+                    help="MoE 专家生效步，逗号分隔，如 '17,18,19,20,21,22,23,24'（默认自动取最后4步）")
     ap.add_argument("--verify-only", action="store_true", help="只验证拆分等价性，不导出")
     args = ap.parse_args()
 
@@ -325,7 +327,10 @@ def main() -> int:
     print("=" * 70)
     print(f"[拆分导出] 构建模型 num_steps={args.num_steps} ...")
 
-    m = model_v2.build_model(deploy=False, num_steps=args.num_steps)
+    moe_steps = None
+    if args.moe_steps:
+        moe_steps = [int(x) for x in args.moe_steps.split(",") if x.strip()]
+    m = model_v2.build_model(deploy=False, num_steps=args.num_steps, moe_steps=moe_steps)
     n_total = sum(p.numel() for p in m.parameters())
 
     ckpt = Path(args.src)

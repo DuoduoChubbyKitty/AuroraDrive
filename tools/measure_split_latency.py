@@ -61,6 +61,8 @@ def time_model(model, inputs: dict, iters: int, warmup: int = 5) -> float:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--dir", default="models/split",
+                    help="模型目录（默认 models/split；24步用 models/split24）")
     ap.add_argument("--rounds", type=int, default=10)
     ap.add_argument("--iters", type=int, default=30)
     ap.add_argument("--units", default="all",
@@ -74,8 +76,8 @@ def main() -> int:
         "cpuAndNeuralEngine": ct.ComputeUnit.CPU_AND_NE,
     }[args.units]
 
-    enc_path = _ROOT / "models" / "split" / "m9_v2_enc.mlpackage"  # Python 侧用 mlpackage（坑7：mlmodelc 无 Manifest.json）
-    ctl_path = _ROOT / "models" / "split" / "m9_v2_ctl.mlpackage"
+    enc_path = _ROOT / args.dir / "m9_v2_enc.mlpackage"  # Python 侧用 mlpackage（坑7：mlmodelc 无 Manifest.json）
+    ctl_path = _ROOT / args.dir / "m9_v2_ctl.mlpackage"
     for p in (enc_path, ctl_path):
         if not p.exists():
             print(f"❌ 模型不存在: {p}")

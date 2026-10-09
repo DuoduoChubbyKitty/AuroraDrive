@@ -1,0 +1,116 @@
+{
+  "split": true,
+  "model_a": {
+    "file": "m9_v2_enc.mlpackage",
+    "inputs": [
+      {
+        "name": "image",
+        "shape": [
+          1,
+          3,
+          180,
+          320
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "feat",
+        "shape": [
+          1,
+          256
+        ]
+      }
+    ]
+  },
+  "model_b": {
+    "file": "m9_v2_ctl.mlpackage",
+    "inputs": [
+      {
+        "name": "feat_seq",
+        "shape": [
+          1,
+          8,
+          256
+        ]
+      },
+      {
+        "name": "lane",
+        "shape": [
+          1,
+          1,
+          160,
+          160
+        ]
+      },
+      {
+        "name": "dets",
+        "shape": [
+          1,
+          20,
+          12
+        ]
+      },
+      {
+        "name": "det_mask",
+        "shape": [
+          1,
+          20
+        ]
+      },
+      {
+        "name": "vehicle_state",
+        "shape": [
+          1,
+          8
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "steer",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      {
+        "name": "throttle",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      {
+        "name": "brake",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      {
+        "name": "confidence",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      {
+        "name": "risk",
+        "shape": [
+          1,
+          1
+        ]
+      },
+      {
+        "name": "car_heading",
+        "shape": [
+          1,
+          1
+        ]
+      }
+    ]
+  },
+  "precision": "float16",
+  "target": "macOS15"
+}
