@@ -410,18 +410,25 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     }
 
     /// 停止画面流捕获
+    ///
+    /// ⚠️ 2026-10-09 修复 stop/restart 竞态：原实现把 `isCapturing=false` + `stream=nil`
+    ///   放在 async Task 里（等 stopCapture 完成才设），紧接着的 `start()` 撞
+    ///   `guard !isCapturing` 静默返回 → capture 永不重启 → 用户「停了再选就没反应」。
+    ///   修复：同步置状态（让 start() 立刻能通过 guard），async Task 只做 stopCapture + 清池。
     func stop() {
-        guard isCapturing, let stream = stream else { return }
+        guard isCapturing, let oldStream = stream else { return }
+        // 同步置状态：让紧接着的 start() 能通过 guard !isCapturing
+        self.stream = nil
+        self.isCapturing = false
+        self.currentFrame = nil
+        // async 清理：stopCapture + 释放缓冲池（不阻塞调用方）
         Task { [weak self] in
             guard let self = self else { return }
             do {
-                try await stream.stopCapture()
+                try await oldStream.stopCapture()
             } catch {
                 // 停止失败不阻塞，继续清理状态
             }
-            self.stream = nil
-            self.isCapturing = false
-            self.currentFrame = nil
             // P2 修复：停捕获时把四个 CVPixelBufferPool 置 nil，释放空闲缓冲
             //（下次 start 会按当前分辨率重建）。四个池只在 captureQueue 上被
             // stream() 回调经 make*BufferPool / upscaleBufferPool 读写，这里同样派发到
