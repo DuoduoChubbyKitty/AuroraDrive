@@ -254,12 +254,13 @@ def main():
         }, ensure_ascii=False, indent=2), encoding="utf-8")
         emit(f"\n结果 → {out}")
     finally:
-        if burn is not None:
-            burn.terminate()
-            try:
-                burn.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                burn.kill()
+        for proc in (burn, gpu_burn):
+            if proc is not None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
         fh.close()
     return 0
 

@@ -109,6 +109,7 @@ log(String(format: "[bench] load+compile = %.1f ms", loadMs))
 
 // ---------------------------------------------------------------- 静态派发图
 var deviceCounts: [String: Int] = [:]
+var supportedCounts: [String: Int] = [:]
 var costByDevice: [String: Double] = [:]
 var planErr = ""
 if wantPlan, #available(macOS 14.4, *) {
@@ -131,6 +132,10 @@ if wantPlan, #available(macOS 14.4, *) {
                         let u = plan.deviceUsage(for: op)
                         let k = devName(u?.preferred)
                         deviceCounts[k, default: 0] += 1
+                        // ★ supported 集合：ANE 是否**可被**该算子使用（硬件+编译能力）
+                        for d in (u?.supported ?? []) {
+                            supportedCounts[devName(d), default: 0] += 1
+                        }
                         if let c = plan.estimatedCost(of: op) {
                             costByDevice[k, default: 0] += c.weight
                         }
@@ -147,7 +152,8 @@ if wantPlan, #available(macOS 14.4, *) {
         sem.signal()
     }
     sem.wait()
-    log("[bench] plan deviceCounts = \(deviceCounts) planErr=\(planErr.isEmpty ? "-" : planErr)")
+    log("[bench] plan preferred = \(deviceCounts)")
+    log("[bench] plan supported = \(supportedCounts) planErr=\(planErr.isEmpty ? "-" : planErr)")
     let totalCost = costByDevice.values.reduce(0, +)
     if totalCost > 0 {
         let pct = costByDevice.mapValues { $0 / totalCost * 100 }
@@ -266,6 +272,7 @@ var result: [String: Any] = [
     "p50": p50, "p95": p95, "p99": p99, "max": all.last ?? 0, "mean": meanAll,
     "round_stats": roundStats,
     "plan_device_counts": deviceCounts,
+    "plan_supported_counts": supportedCounts,
     "plan_err": planErr,
     "first_out": firstOut,
     "host_uptime": uptimeStr(),

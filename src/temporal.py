@@ -144,11 +144,26 @@ class TemporalEncoder(nn.Module):
             )
 
         if variant == "gru":
-            self.rnn = nn.GRU(
-                input_size=hidden_dim, hidden_size=hidden_dim,
-                num_layers=num_layers, batch_first=True,
-                dropout=dropout if num_layers > 1 else 0.0,
-            )
+            # ★ 2026-10-09（S5 发现 + Lead 修复）：nn.GRU → 手工展开静态循环。
+            #
+            # 【为什么必须改】Swift `MLComputePlan` 算子级派发实测（S5）：
+            #   nn.GRU 被 coremltools trace 成 **`while_loop` 算子，仅支持 CPU**
+            #   → 只要图里有它，**整个模型被踢出 ANE**（派发 0% ANE）。
+            #   这解释了"8 帧模型 ANE 编译失败"——真凶是 GRU 的 while_loop，
+            #   不是帧数（8 帧卷积单独测 ANE 占比 71.4%，完全能上 ANE）。
+            #
+            # 【为什么用手工展开而不是 nn.GRUCell】coremltools 8.3 把 nn.GRUCell
+            #   trace 成 unsafe_chunk/uninitialized/loop，CoreML 不认识 → 导出必失败
+            #   （w5 实测）。`IterationRefiner` 早就用 `_StrictGRUStep` 这么干了，
+            #   本模块漏做 —— 这是遗漏，不是设计选择。
+            #
+            # 【数学等价】S5 实测手工展开 vs nn.GRU maxdiff = 2.98e-08（float32 极限）。
+            #
+            # 【实现】num_layers 层 × num_frames 步，逐帧递推（全静态展开，无 while_loop）。
+            self.num_layers = num_layers
+            self.cells = nn.ModuleList([
+                _StrictGRUCell(hidden_dim, hidden_dim) for _ in range(num_layers)
+            ])
         else:
             self.tcn = _CausalTCN(hidden_dim, num_layers=num_layers)
 
@@ -166,14 +181,21 @@ class TemporalEncoder(nn.Module):
         """
         if self.variant != "gru":
             return
-        for name, param in self.rnn.named_parameters():
-            if "weight_hh" in name:                       # 隐状态→隐状态
-                nn.init.orthogonal_(param)
-            elif "weight_ih" in name:                     # 输入→隐状态
-                nn.init.xavier_uniform_(param)
-            elif "bias" in name:
-                nn.init.zeros_(param)
-                # 把遗忘门偏置置 1（LSTM 惯例；GRU 无独立遗忘门，置零即可）
+        # ★ 2026-10-09：手工展开后不再有 `self.rnn`，改为遍历 `self.cells` 的
+        #   `h_*`（隐状态→隐状态，正交初始化）/ `x_*`（输入→隐状态，xavier）。
+        #   保持与 nn.GRU 的 weight_hh / weight_ih 相同的初始化策略。
+        for cell in self.cells:
+            for name, param in cell.named_parameters():
+                if name.startswith("h_"):                 # 隐状态→隐状态
+                    if "weight" in name and param.dim() >= 2:
+                        nn.init.orthogonal_(param)
+                    elif "bias" in name:
+                        nn.init.zeros_(param)
+                elif name.startswith("x_"):               # 输入→隐状态
+                    if "weight" in name and param.dim() >= 2:
+                        nn.init.xavier_uniform_(param)
+                    elif "bias" in name:
+                        nn.init.zeros_(param)
 
     def forward(self, feats: torch.Tensor,
                 frame_mask: Optional[torch.Tensor] = None,
@@ -226,11 +248,17 @@ class TemporalEncoder(nn.Module):
                 x = x * frame_mask.unsqueeze(-1).to(x.dtype)
 
         if self.variant == "gru":
-            out, _ = self.rnn(x)                            # [B,N,H]
-            # 取最后一个时间步。
-            # ⚠️ 为什么取 out[:,-1] 而不是 h_n：batch_first 下两者等价，
-            #    但 out[:,-1] 走的是同一条计算图，CoreML trace 更友好。
-            h = out[:, -1, :]
+            # ★ 手工展开的逐帧递推（全静态，无 while_loop → ANE 可用）
+            #   [B,N,H] → 逐帧喂 _StrictGRUCell → 取最后一步
+            B, N, _ = x.shape
+            h = [x.new_zeros(B, self.hidden_dim) for _ in range(self.num_layers)]
+            for t in range(N):
+                inp = x[:, t, :]
+                for layer in range(self.num_layers):
+                    h[layer] = self.cells[layer](inp, h[layer])
+                    inp = h[layer]
+            out_last = h[-1]                                # [B,H]
+            h = out_last
         else:
             h = self.tcn(x)                                 # [B,H]
 
@@ -240,6 +268,43 @@ class TemporalEncoder(nn.Module):
     def extra_repr(self) -> str:
         return (f"feat_dim={self.feat_dim}, hidden_dim={self.hidden_dim}, "
                 f"num_frames={self.num_frames}, variant={self.variant}")
+
+
+class _StrictGRUCell(nn.Module):
+    """单步严格 GRU（Linear + sigmoid + tanh + mul 手工展开）。
+
+    ★ 为什么不用 nn.GRU / nn.GRUCell（2026-10-09，S5 用 MLComputePlan 实测）：
+      · `nn.GRU` → coremltools trace 出 **`while_loop`（仅 CPU 支持）**
+        → **整个模型被踢出 ANE**。这是"8 帧模型 ANE 编译失败"的真凶。
+      · `nn.GRUCell` → trace 出 unsafe_chunk / uninitialized / loop，CoreML 不认识。
+      手工展开成基础算子后 coremltools 全支持（`IterationRefiner` 已验证）。
+
+    ★ 与 PyTorch `nn.GRUCell` **逐位等价**（S5 实测 maxdiff 2.98e-08）：
+        r = σ(W_ir·x + b_ir + W_hr·h + b_hr)
+        z = σ(W_iz·x + b_iz + W_hz·h + b_hz)
+        n = tanh(W_in·x + b_in + r ⊙ (W_hn·h + b_hn))   ★ r 乘在 (U h + b) 外层
+        h' = (1 − z) ⊙ n + z ⊙ h                        ★ 注意是 (1−z)·n + z·h
+      【三处易错点，实测踩过】
+        ① 门顺序是 (r, z, n)，不是论文的 (z, r, n)
+        ② 更新式是 (1−z)⊙n + z⊙h（z 是"保留旧状态"的比重）
+        ③ h_r/h_z/h_n **都带 bias**（bias_hh 是独立参数，不折进权重）
+    """
+
+    def __init__(self, input_dim: int, hidden_dim: int):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.x_r = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.h_r = nn.Linear(hidden_dim, hidden_dim, bias=True)
+        self.x_z = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.h_z = nn.Linear(hidden_dim, hidden_dim, bias=True)
+        self.x_n = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.h_n = nn.Linear(hidden_dim, hidden_dim, bias=True)
+
+    def forward(self, x: torch.Tensor, h_prev: torch.Tensor) -> torch.Tensor:
+        r = torch.sigmoid(self.x_r(x) + self.h_r(h_prev))
+        z = torch.sigmoid(self.x_z(x) + self.h_z(h_prev))
+        n = torch.tanh(self.x_n(x) + r * self.h_n(h_prev))
+        return (1.0 - z) * n + z * h_prev
 
 
 class _CausalTCN(nn.Module):
