@@ -93,6 +93,17 @@ def main():
     emit(f"    开始 {time.strftime('%Y-%m-%d %H:%M:%S')} loadavg={loadavg():.2f}")
 
     all_runs = {k: [] for k in suite}
+    partial_path = OUTDIR / f"min-{args.tag}-partial.json"
+
+    def dump_partial():
+        """★ 每轮落盘一次：本机负载波动大、耗时长，中途崩了不能丢全部数据。"""
+        try:
+            partial_path.write_text(json.dumps(
+                {"args": vars(args), "runs": all_runs}, ensure_ascii=False, indent=2),
+                encoding="utf-8")
+        except Exception as exc:
+            emit(f"  ⚠ 中间落盘失败（不阻断）：{exc}")
+
     for rnd in range(args.rounds):
         names = list(suite.keys()) if rnd % 2 == 0 else list(suite.keys())[::-1]
         emit(f"\n--- 第 {rnd+1}/{args.rounds} 轮 {'正向' if rnd%2==0 else '反向'} "
@@ -106,6 +117,7 @@ def main():
             emit(f"  {name:<30} p50={r['p50']:7.2f} p95={r['p95']:7.2f} "
                  f"max={r['max']:7.2f} load={r['loadavg']:.1f} "
                  f"ane_fail={r['ane_fail']}")
+        dump_partial()
 
     emit(f"\n═══ 汇总：最小值 = 无争用下界估计 ═══")
     emit(f"{'配置':<30} {'min_p50':>8} {'min_p95':>8} {'全局min':>8} "
@@ -121,7 +133,7 @@ def main():
         summary[name] = {
             "n_runs": len(runs),
             "min_p50": min(p50s), "min_p95": min(p95s),
-            "global_min": min(r["min"] for r in runs),
+            "global_min": min(min(r["samples"]) for r in runs),
             "median_p50": statistics.median(p50s),
             "median_p95": statistics.median(p95s),
             "loadavg_at_min_p50": runs[i]["loadavg"],

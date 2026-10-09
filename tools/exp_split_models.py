@@ -516,23 +516,21 @@ def anecheck_subprocess(path: str) -> Dict:
 
     hist = {}
     total = None
+    by_type = {}
     for line in both.splitlines():
         line = line.strip()
-        if line.startswith("{") and '"device_hist"' in line:
+        if '"device_hist"' not in line:
+            continue
+        for cand in (line, line[line.index("{"):line.rindex("}") + 1]
+                     if "{" in line and "}" in line else line):
             try:
-                payload = json.loads(line)
+                payload = json.loads(cand)
                 hist = payload.get("device_hist", {})
                 total = payload.get("total_ops")
+                by_type = payload.get("by_type", {})
+                break
             except Exception:
-                # JSON 行后面可能被 E5RT 的报错文本粘连 → 退化为正则抽取
-                try:
-                    i = line.index("{")
-                    j = line.rindex("}") + 1
-                    payload = json.loads(line[i:j])
-                    hist = payload.get("device_hist", {})
-                    total = payload.get("total_ops")
-                except Exception:
-                    pass
+                continue
 
     ne = hist.get("NeuralEngine", 0)
     cpu = hist.get("CPU", 0)
@@ -540,6 +538,7 @@ def anecheck_subprocess(path: str) -> Dict:
     verdict = "ANE_FAIL" if ane_err else ("ANE_OK" if ne > 0 else "NO_ANE_OPS")
     return {"path": path, "ane_error": ane_err, "device_hist": hist,
             "total_ops": total, "ne_ops": ne, "cpu_ops": cpu, "gpu_ops": gpu,
+            "by_type": by_type,
             "verdict": verdict, "check_s": dt,
             "stderr_tail": both.strip().splitlines()[-1][:300] if both.strip() else ""}
 
@@ -561,6 +560,7 @@ def _anecheck_main(path: str) -> int:
     fn = prog.functions["main"]
 
     cnt = collections.Counter()
+    by_type: Dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
 
     def walk(block):
         for op in block.operations:
@@ -570,12 +570,15 @@ def _anecheck_main(path: str) -> int:
                 nm = type(dev.preferred_compute_device).__name__ \
                     .replace("ML", "").replace("ComputeDevice", "")
             cnt[nm] += 1
+            by_type[nm][op.operator_name] += 1
             for b in op.blocks:
                 walk(b)
 
     walk(fn.block)
     print(json.dumps({"path": path, "total_ops": sum(cnt.values()),
-                      "device_hist": dict(cnt)}, ensure_ascii=False))
+                      "device_hist": dict(cnt),
+                      "by_type": {k: dict(v.most_common()) for k, v in by_type.items()}},
+                     ensure_ascii=False))
     return 0
 
 
@@ -1047,10 +1050,172 @@ def cmd_remeasure(args, report: Dict) -> int:
     return 0
 
 
+def check_coreml_equivalence(report: Dict, model) -> Dict:
+    """★ CoreML 端数值等价：单模型 full 的 CoreML 输出 vs A→B 串联的 CoreML 输出。
+
+    与 check_equivalence（PyTorch 侧，maxdiff=0）不同，这里包含**两次量化误差
+    + 一次跨模型 float16 往返**，是真实部署口径的等价性。
+    参考基准同时给 PyTorch full（fp32）以便分离"量化误差"与"拆分误差"。
+    """
+    import coremltools as ct
+
+    arts = {(a["variant"], a["quant"]): a
+            for a in report.get("artifacts", []) if "error" not in a}
+
+    c = {"img_h": 180, "img_w": 320, "lane_size": 160, "num_dets": 20,
+         "det_feat_dim": 12, "state_dim": 8}
+    cases = _cases(c)
+    fullw = FullWrapper(model).eval()
+
+    # PyTorch fp32 基准
+    pt_ref = {}
+    with torch.no_grad():
+        for name, ins in cases.items():
+            pt_ref[name] = [float(t.reshape(-1)[0]) for t in fullw(*ins)]
+
+    out: Dict = {"pt_ref": pt_ref}
+    for bq in ("palette_int8", "fp16"):
+        b = arts.get(("B", bq))
+        if b is None:
+            continue
+        for aq in ("fp16", "palette_int8"):
+            a = arts.get(("A_full", aq))
+            if a is None:
+                continue
+            key = f"A_full/{aq}+B/{bq}"
+            ma = ct.models.MLModel(a["path"], compute_units=ct.ComputeUnit.CPU_ONLY)
+            mb = ct.models.MLModel(b["path"], compute_units=ct.ComputeUnit.CPU_ONLY)
+            a_out = _a_output_name(ma)
+            rows = {}
+            for name, ins in cases.items():
+                feed_a = {"image": ins[0].numpy().astype(np.float32)}
+                feat = np.asarray(ma.predict(feed_a)[a_out], dtype=np.float32)
+                feed_b = {"img_feat": feat,
+                          "lane": ins[1].numpy().astype(np.float32),
+                          "dets": ins[2].numpy().astype(np.float32),
+                          "det_mask": ins[3].numpy().astype(np.float32),
+                          "vehicle_state": ins[4].numpy().astype(np.float32)}
+                pred = mb.predict(feed_b)
+                vals = [float(np.asarray(pred[n]).reshape(-1)[0]) for n in OUTPUT_NAMES]
+                rows[name] = {
+                    "cm": vals,
+                    "vs_pt_full": max(abs(x - y) for x, y in zip(vals, pt_ref[name])),
+                }
+            worst = max(r["vs_pt_full"] for r in rows.values())
+            out[key] = {"cases": rows, "worst_vs_pt_full": worst}
+            print(f"[cm-equiv] {key:<28} 最差 |CoreML − PyTorch(fp32)| = {worst:.3e}  "
+                  f"{'✅ <1e-3' if worst < 1e-3 else '⚠ >1e-3'}")
+
+    # 单模型 full 的 CoreML 也测一遍作对照（同口径）
+    for fq in ("palette_int8", "fp16"):
+        f = arts.get(("full", fq))
+        if f is None:
+            continue
+        mf = ct.models.MLModel(f["path"], compute_units=ct.ComputeUnit.CPU_ONLY)
+        rows = {}
+        for name, ins in cases.items():
+            feed = {"image": ins[0].numpy().astype(np.float32),
+                    "lane": ins[1].numpy().astype(np.float32),
+                    "dets": ins[2].numpy().astype(np.float32),
+                    "det_mask": ins[3].numpy().astype(np.float32),
+                    "vehicle_state": ins[4].numpy().astype(np.float32)}
+            pred = mf.predict(feed)
+            vals = [float(np.asarray(pred[n]).reshape(-1)[0]) for n in OUTPUT_NAMES]
+            rows[name] = {"cm": vals,
+                          "vs_pt_full": max(abs(x - y) for x, y in zip(vals, pt_ref[name]))}
+        worst = max(r["vs_pt_full"] for r in rows.values())
+        out[f"full/{fq}"] = {"cases": rows, "worst_vs_pt_full": worst}
+        print(f"[cm-equiv] {'full/'+fq:<28} 最差 |CoreML − PyTorch(fp32)| = {worst:.3e}")
+
+    report["coreml_equiv"] = out
+    return out
+
+
+def cmd_chain2(args, report: Dict) -> int:
+    """★ 可信串联复测：负载门控 + **轮转交错**测多组 A→B 组合。
+
+    每轮把全部组合各测一遍 → 负载漂移被摊平到所有组合。
+    另含"最优分工"组合：A 在 ANE + B 在 CPU（B 全是小算子，实测 CPU 更快）。
+    """
+    import coremltools as ct
+
+    arts = {(a["variant"], a["quant"]): a
+            for a in report.get("artifacts", []) if "error" not in a}
+
+    # (标签, A变体, A量化, A计算单元, B量化, B计算单元)
+    plans = [
+        ("A_full/fp16[NE] → B/palette[NE]",      "A_full", "fp16", "CPU_AND_NE", "palette_int8", "CPU_AND_NE"),
+        ("A_full/fp16[NE] → B/palette[CPU]",     "A_full", "fp16", "CPU_AND_NE", "palette_int8", "CPU_ONLY"),
+        ("A_full/palette[NE] → B/palette[NE]",   "A_full", "palette_int8", "CPU_AND_NE", "palette_int8", "CPU_AND_NE"),
+        ("A_cnn8/fp16[NE] → B/palette[NE]",      "A_cnn8", "fp16", "CPU_AND_NE", "palette_int8", "CPU_AND_NE"),
+        ("A_full/fp16[CPU] → B/palette[CPU]",    "A_full", "fp16", "CPU_ONLY", "palette_int8", "CPU_ONLY"),
+        ("full/palette[NE] 单模型基线",            "full", "palette_int8", "CPU_AND_NE", None, None),
+    ]
+    plans = [p for p in plans if (p[1], p[2]) in arts]
+
+    la0, waited = _wait_for_quiet(args.max_load, args.quiet_timeout)
+    print(f"[chain2] 负载门控：等待 {waited:.0f}s 后 load={la0:.2f}（阈值 {args.max_load}）")
+
+    loaded = {}
+    for label, av, aq, acu, bq, bcu in plans:
+        try:
+            ma = ct.models.MLModel(arts[(av, aq)]["path"], compute_units=getattr(ct.ComputeUnit, acu))
+            mb = (ct.models.MLModel(arts[("B", bq)]["path"], compute_units=getattr(ct.ComputeUnit, bcu))
+                  if bq else None)
+            fa = _feed_from_spec(ma)
+            fb = _feed_from_spec(mb) if mb else None
+            a_out = _a_output_name(ma)
+            # warmup
+            for _ in range(10):
+                feat = np.asarray(ma.predict(fa)[a_out], dtype=np.float32)
+                if mb:
+                    fb2 = dict(fb)
+                    fb2["img_feat"] = feat
+                    mb.predict(fb2)
+            loaded[label] = {"ma": ma, "mb": mb, "fa": fa, "fb": fb, "a_out": a_out}
+        except Exception as exc:
+            print(f"[chain2] ✗ 加载 {label}: {type(exc).__name__}: {str(exc)[:100]}")
+
+    rounds, iters = args.rounds, args.iters
+    samples = {k: [] for k in loaded}
+    loads = []
+    for r in range(rounds):
+        for label, L in loaded.items():
+            ma, mb, fa, fb, a_out = L["ma"], L["mb"], L["fa"], L["fb"], L["a_out"]
+            t0 = time.perf_counter()
+            for _ in range(iters):
+                feat = np.asarray(ma.predict(fa)[a_out], dtype=np.float32)
+                if mb:
+                    fb2 = dict(fb)
+                    fb2["img_feat"] = feat
+                    mb.predict(fb2)
+            samples[label].append((time.perf_counter() - t0) / iters * 1000.0)
+        loads.append(_loadavg())
+        print(f"[chain2] 第 {r+1}/{rounds} 轮完成，load={loads[-1]:.2f}")
+
+    print("\n" + "=" * 96)
+    print(f" 串联复测（{rounds} 轮轮转交错 × 每轮 {iters} 次；取跨轮中位数）")
+    print("=" * 96)
+    print(f"  {'组合':<40}{'中位 ms':>10}{'范围':>20}{'p95预算16ms':>14}")
+    print("  " + "-" * 88)
+    out = {}
+    for label in loaded:
+        s = samples[label]
+        med = statistics.median(s)
+        ok = "✅ 达标" if med <= 16.0 else "🔴 超标"
+        out[label] = {"median_ms": med, "min": min(s), "max": max(s), "rounds": s}
+        print(f"  {label:<40}{med:>10.3f}{f'{min(s):.2f}~{max(s):.2f}':>20}{ok:>14}")
+
+    report["chain2"] = {"rounds": rounds, "iters": iters, "load_before": la0,
+                        "waited_s": waited, "loads_per_round": loads, "results": out}
+    print(f"\n[chain2] 各轮 load: {[round(x,2) for x in loads]}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="双模型拆分实验（S1）")
     ap.add_argument("mode", choices=["all", "build", "export", "bench", "chain",
-                                     "anecheck", "remeasure"])
+                                     "anecheck", "remeasure", "chain2", "cmequiv"])
     ap.add_argument("path", nargs="?", help="anecheck 模式的模型路径")
     ap.add_argument("--variants", nargs="*",
                     default=["A_full", "A_cnn8", "A_cnn4", "A_cnn2",
@@ -1087,6 +1252,11 @@ def main() -> int:
         cmd_chain(args, report)
     if args.mode == "remeasure":
         cmd_remeasure(args, report)
+    if args.mode == "chain2":
+        cmd_chain2(args, report)
+    if args.mode == "cmequiv":
+        model = build(seed=None, live_all_paths=True)
+        check_coreml_equivalence(report, model)
 
     REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n[report] {REPORT}")

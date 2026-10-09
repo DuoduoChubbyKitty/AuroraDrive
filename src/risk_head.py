@@ -622,7 +622,12 @@ def estimate_ttc(
 
     h_norm = dets[..., 3].clamp_min(0)                     # [B,N]
     too_small = h_norm < config.min_box_h
-    valid = valid & (~too_small)
+    # ★ 2026-10-09（S5 发现 + Lead 修复）：布尔 `&` 会被 coremltools 编译成
+    #   `ios16.logical_and`（**支持 CPU+GPU，不含 ANE**）→ 只要图里有它，
+    #   整个模型被踢出 ANE（实测模型图里 ×17）。
+    #   改法：转 float 相乘（0/1 乘法，**数学等价**），算子变成 `mul`（ANE 支持）。
+    #   ⚠️ 保持 bool 语义给下游 `torch.where` 用 → 结果再转回 bool。
+    valid = (valid.to(torch.float32) * (~too_small).to(torch.float32)) > 0.5
 
     # 距离 Z = K / h（h=0 处先兜底再屏蔽）
     h_safe = torch.where(valid, h_norm, torch.ones_like(h_norm))
@@ -651,7 +656,8 @@ def estimate_ttc(
         v_rel = v_ego
 
     closing = v_rel > config.min_closing_speed            # [B,N] bool
-    ttc_valid = valid & closing
+    # ★ 同上：`&` → float 相乘（消除 logical_and，保 ANE）
+    ttc_valid = (valid.to(torch.float32) * closing.to(torch.float32)) > 0.5
 
     v_safe = torch.where(closing, v_rel, torch.ones_like(v_rel))
     ttc = distance / v_safe
@@ -1113,7 +1119,10 @@ def confidence_target_from_error(
     if per_dim and err.dim() >= 2:
         err = err.flatten(1).mean(dim=1)
     conf = floor + (1.0 - floor) * torch.exp(-err / max(tau, 1e-6))
-    return conf.clamp(0.0, 1.0)
+    # ★ 2026-10-09：双边 clamp 会被 coremltools 编译成 greater+less+logical_and
+    #   （logical_and 支持 CPU+GPU，**不含 ANE** → 整个模型被踢出 ANE）。
+    #   改单边链（clamp_min + clamp_max），数学等价，算子全 ANE 友好。
+    return conf.clamp_min(0.0).clamp_max(1.0)
 
 
 def confidence_target_from_temporal_change(
@@ -1165,7 +1174,10 @@ def confidence_target_from_temporal_change(
     delta[0] = delta[1]                    # 首帧沿用第二帧的变化率（保守：不假设它简单）
     change = delta.flatten(2).mean(dim=2)  # [T,B]
     conf = floor + (1.0 - floor) * torch.exp(-change / max(tau, 1e-6))
-    return conf.clamp(0.0, 1.0)
+    # ★ 2026-10-09：双边 clamp 会被 coremltools 编译成 greater+less+logical_and
+    #   （logical_and 支持 CPU+GPU，**不含 ANE** → 整个模型被踢出 ANE）。
+    #   改单边链（clamp_min + clamp_max），数学等价，算子全 ANE 友好。
+    return conf.clamp_min(0.0).clamp_max(1.0)
 
 
 def risk_target_from_ttc(
@@ -1197,10 +1209,11 @@ def risk_target_from_ttc(
     span = ttc_safe - ttc_danger
     finite = torch.isfinite(ttc)
     if valid is not None:
-        finite = finite & valid.bool()
+        # ★ 同上：`&` → float 相乘（消除 logical_and，保 ANE）
+        finite = (finite.to(torch.float32) * valid.bool().to(torch.float32)) > 0.5
     # risk 随 TTC 下降而上升
     risk = (ttc_safe - ttc) / span
-    risk = risk.clamp(0.0, 1.0)
+    risk = risk.clamp_min(0.0).clamp_max(1.0)   # ★ 同上：避免 logical_and
     risk = torch.where(finite, risk, torch.zeros_like(risk))
 
     if risk.dim() == 1:

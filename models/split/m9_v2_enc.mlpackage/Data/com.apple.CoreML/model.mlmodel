@@ -3,10 +3,10 @@
 image*
 ´À €R
 feat*	
-€ €¢¤¢-
-$com.github.apple.coremltools.version8.3.0¢:
+€ €¢¤¢:
 +com.github.apple.coremltools.source_dialectTorchScript¢4
-#com.github.apple.coremltools.sourcetorch==2.13.0²·«Æ©
+#com.github.apple.coremltools.sourcetorch==2.13.0¢-
+$com.github.apple.coremltools.version8.3.0²·«Æ©
 main¼©
 )
 image 
@@ -18,85 +18,85 @@ $com.github.apple.coremltools.version8.3.0¢:
 CoreML8÷¨featj
 const
 input_1_pad_type_0
-*
+*(
+name 
+
+"
+input_1_pad_type_0*
 val
 
 
 "
-custom*(
-name 
-
-"
-input_1_pad_type_0n
+customn
 const
 input_1_pad_0
 
 
-*!
+*#
+name
+
+"
+input_1_pad_0*!
 val
 
 
 
 
 
-*#
-name
-
-"
-input_1_pad_0t
+t
 const!
 input_1_strides_0
 
 
-*
+*'
+name
+
+"
+input_1_strides_0*
 val
 
 
 
 
-*'
-name
-
-"
-input_1_strides_0x
+x
 const#
 input_1_dilations_0
 
 
-*
+*)
+name!
+
+"
+input_1_dilations_0*
 val
 
 
 
 
-*)
-name!
-
-"
-input_1_dilations_0a
+a
 const
 input_1_groups_0
-*
-val
-
-
-*&
+*&
 name
 
 "
-input_1_groups_0n
+input_1_groups_0*
+val
+
+
+n
 const
 image_to_fp16_dtype_0
-*
+*+
+name#
+
+"
+image_to_fp16_dtype_0*
 val
 
 
 "
-fp16*+
-name#
-
-"
-image_to_fp16_dtype_0®
+fp16®
 const1
 const_0_to_fp16
 
@@ -104,7 +104,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 0
 
 
-*K
+*%
+name
+
+"
+const_0_to_fp16*K
 valD
 
 
@@ -112,34 +116,30 @@ $com.github.apple.coremltools.version8.3.0¢:
 
 
 *"
-@model_path/weights/weight.bin@*%
-name
-
-"
-const_0_to_fp16‹
+@model_path/weights/weight.bin@‹
 const
 const_1_to_fp16
 
 
 
-0*:
+0*%
+name
+
+"
+const_1_to_fp16*:
 val3
 
 
 
 0*#
-@model_path/weights/weight.binÀ*%
-name
-
-"
-const_1_to_fp16‹
-cast
-x	
-
-image"
+@model_path/weights/weight.binÀ‹
+cast"
 dtype
 
-image_to_fp16_dtype_01
+image_to_fp16_dtype_0
+x	
+
+image1
 image_to_fp16 
 
 
@@ -152,16 +152,10 @@ $com.github.apple.coremltools.version8.3.0¢:
 
 "
 cast_2ß
-conv
-bias
-
-const_1_to_fp16
+conv
 pad
 
-input_1_pad_0
-groups
-
-input_1_groups_0
+input_1_pad_0
 weight
 
 const_0_to_fp16$
@@ -173,7 +167,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 image_to_fp16 
 strides
 
-input_1_strides_0"
+input_1_strides_0
+bias
+
+const_1_to_fp16
+groups
+
+input_1_groups_0"
 pad_type
 
 input_1_pad_type_04
@@ -205,73 +205,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_5_cast_fp16j
 const
 input_7_pad_type_0
-*
+*(
+name 
+
+"
+input_7_pad_type_0*
 val
 
 
 "
-custom*(
-name 
-
-"
-input_7_pad_type_0n
+customn
 const
 input_7_pad_0
 
 
-*!
+*#
+name
+
+"
+input_7_pad_0*!
 val
 
 
 
 
 
-*#
-name
-
-"
-input_7_pad_0t
+t
 const!
 input_7_strides_0
 
 
-*
+*'
+name
+
+"
+input_7_strides_0*
 val
 
 
 
 
-*'
-name
-
-"
-input_7_strides_0x
+x
 const#
 input_7_dilations_0
 
 
-*
+*)
+name!
+
+"
+input_7_dilations_0*
 val
 
 
 
 
-*)
-name!
-
-"
-input_7_dilations_0a
+a
 const
 input_7_groups_0
-*
-val
-
-
-*&
+*&
 name
 
 "
-input_7_groups_0ó
+input_7_groups_0*
+val
+
+
+ó
 constS
 1encoder_stage1_stage_0_rbr_reparam_weight_to_fp16
 
@@ -279,7 +279,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 0
 0
 
-*L
+*G
+name?
+7
+5"3
+1encoder_stage1_stage_0_rbr_reparam_weight_to_fp16*L
 valE
 
 
@@ -287,37 +291,27 @@ $com.github.apple.coremltools.version8.3.0¢:
 0
 
 *#
-@model_path/weights/weight.bin€*G
-name?
-7
-5"3
-1encoder_stage1_stage_0_rbr_reparam_weight_to_fp16Ì
+@model_path/weights/weight.bin€Ì
 const?
 /encoder_stage1_stage_0_rbr_reparam_bias_to_fp16
 
 
 
-0*;
+0*E
+name=
+5
+3"1
+/encoder_stage1_stage_0_rbr_reparam_bias_to_fp16*;
 val4
 
 
 
 0*$
-@model_path/weights/weight.binÀÛ*E
-name=
-5
-3"1
-/encoder_stage1_stage_0_rbr_reparam_bias_to_fp16¤
-conv;
-bias3
-1
-/encoder_stage1_stage_0_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.binÀÛ¤
+conv
 pad
 
-input_7_pad_0
-groups
-
-input_7_groups_0?
+input_7_pad_0?
 weight5
 3
 1encoder_stage1_stage_0_rbr_reparam_weight_to_fp16$
@@ -329,7 +323,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_5_cast_fp16 
 strides
 
-input_7_strides_0"
+input_7_strides_0;
+bias3
+1
+/encoder_stage1_stage_0_rbr_reparam_bias_to_fp16
+groups
+
+input_7_groups_0"
 pad_type
 
 input_7_pad_type_03
@@ -361,73 +361,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_9_cast_fp16l
 const
 input_11_pad_type_0
-*
+*)
+name!
+
+"
+input_11_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_11_pad_type_0p
+customp
 const
 input_11_pad_0
 
 
-*!
+*$
+name
+
+"
+input_11_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_11_pad_0v
+v
 const"
 input_11_strides_0
 
 
-*
+*(
+name 
+
+"
+input_11_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_11_strides_0z
+z
 const$
 input_11_dilations_0
 
 
-*
+**
+name"
+
+"
+input_11_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_11_dilations_0c
+c
 const
 input_11_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_11_groups_0ô
+input_11_groups_0*
+val
+
+
+ô
 constS
 1encoder_stage1_stage_1_rbr_reparam_weight_to_fp16
 
@@ -435,7 +435,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 0
 0
 
-*M
+*G
+name?
+7
+5"3
+1encoder_stage1_stage_1_rbr_reparam_weight_to_fp16*M
 valF
 
 
@@ -443,37 +447,27 @@ $com.github.apple.coremltools.version8.3.0¢:
 0
 
 *$
-@model_path/weights/weight.bin€Ý*G
-name?
-7
-5"3
-1encoder_stage1_stage_1_rbr_reparam_weight_to_fp16Ì
+@model_path/weights/weight.bin€ÝÌ
 const?
 /encoder_stage1_stage_1_rbr_reparam_bias_to_fp16
 
 
 
-0*;
+0*E
+name=
+5
+3"1
+/encoder_stage1_stage_1_rbr_reparam_bias_to_fp16*;
 val4
 
 
 
 0*$
-@model_path/weights/weight.binÀ¡*E
-name=
-5
-3"1
-/encoder_stage1_stage_1_rbr_reparam_bias_to_fp16«
-conv;
-bias3
-1
-/encoder_stage1_stage_1_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.binÀ¡«
+conv
 pad
 
-input_11_pad_0
-groups
-
-input_11_groups_0?
+input_11_pad_0?
 weight5
 3
 1encoder_stage1_stage_1_rbr_reparam_weight_to_fp16%
@@ -485,7 +479,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_9_cast_fp16!
 strides
 
-input_11_strides_0#
+input_11_strides_0;
+bias3
+1
+/encoder_stage1_stage_1_rbr_reparam_bias_to_fp16
+groups
+
+input_11_groups_0#
 pad_type
 
 input_11_pad_type_04
@@ -517,73 +517,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_13_cast_fp16l
 const
 input_15_pad_type_0
-*
+*)
+name!
+
+"
+input_15_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_15_pad_type_0p
+customp
 const
 input_15_pad_0
 
 
-*!
+*$
+name
+
+"
+input_15_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_15_pad_0v
+v
 const"
 input_15_strides_0
 
 
-*
+*(
+name 
+
+"
+input_15_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_15_strides_0z
+z
 const$
 input_15_dilations_0
 
 
-*
+**
+name"
+
+"
+input_15_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_15_dilations_0c
+c
 const
 input_15_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_15_groups_0ô
+input_15_groups_0*
+val
+
+
+ô
 constS
 1encoder_stage2_stage_0_rbr_reparam_weight_to_fp16
 
@@ -591,7 +591,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 `
 0
 
-*M
+*G
+name?
+7
+5"3
+1encoder_stage2_stage_0_rbr_reparam_weight_to_fp16*M
 valF
 
 
@@ -599,38 +603,28 @@ $com.github.apple.coremltools.version8.3.0¢:
 0
 
 *$
-@model_path/weights/weight.bin€£*G
-name?
-7
-5"3
-1encoder_stage2_stage_0_rbr_reparam_weight_to_fp16Ì
+@model_path/weights/weight.bin€£Ì
 const?
 /encoder_stage2_stage_0_rbr_reparam_bias_to_fp16
 
 
 
-`*;
+`*E
+name=
+5
+3"1
+/encoder_stage2_stage_0_rbr_reparam_bias_to_fp16*;
 val4
 
 
 
 `*$
 @model_path/weights/weight.binÀ«
-*E
-name=
-5
-3"1
-/encoder_stage2_stage_0_rbr_reparam_bias_to_fp16¬
-conv;
-bias3
-1
-/encoder_stage2_stage_0_rbr_reparam_bias_to_fp16
+¬
+conv
 pad
 
-input_15_pad_0
-groups
-
-input_15_groups_0?
+input_15_pad_0?
 weight5
 3
 1encoder_stage2_stage_0_rbr_reparam_weight_to_fp16%
@@ -642,7 +636,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_13_cast_fp16!
 strides
 
-input_15_strides_0#
+input_15_strides_0;
+bias3
+1
+/encoder_stage2_stage_0_rbr_reparam_bias_to_fp16
+groups
+
+input_15_groups_0#
 pad_type
 
 input_15_pad_type_04
@@ -674,73 +674,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_17_cast_fp16l
 const
 input_19_pad_type_0
-*
+*)
+name!
+
+"
+input_19_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_19_pad_type_0p
+customp
 const
 input_19_pad_0
 
 
-*!
+*$
+name
+
+"
+input_19_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_19_pad_0v
+v
 const"
 input_19_strides_0
 
 
-*
+*(
+name 
+
+"
+input_19_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_19_strides_0z
+z
 const$
 input_19_dilations_0
 
 
-*
+**
+name"
+
+"
+input_19_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_19_dilations_0c
+c
 const
 input_19_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_19_groups_0ô
+input_19_groups_0*
+val
+
+
+ô
 constS
 1encoder_stage2_stage_1_rbr_reparam_weight_to_fp16
 
@@ -748,7 +748,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 `
 `
 
-*M
+*G
+name?
+7
+5"3
+1encoder_stage2_stage_1_rbr_reparam_weight_to_fp16*M
 valF
 
 
@@ -757,37 +761,27 @@ $com.github.apple.coremltools.version8.3.0¢:
 
 *$
 @model_path/weights/weight.binÀ­
-*G
-name?
-7
-5"3
-1encoder_stage2_stage_1_rbr_reparam_weight_to_fp16Ì
+Ì
 const?
 /encoder_stage2_stage_1_rbr_reparam_bias_to_fp16
 
 
 
-`*;
+`*E
+name=
+5
+3"1
+/encoder_stage2_stage_1_rbr_reparam_bias_to_fp16*;
 val4
 
 
 
 `*$
-@model_path/weights/weight.bin€¾*E
-name=
-5
-3"1
-/encoder_stage2_stage_1_rbr_reparam_bias_to_fp16¬
-conv;
-bias3
-1
-/encoder_stage2_stage_1_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.bin€¾¬
+conv
 pad
 
-input_19_pad_0
-groups
-
-input_19_groups_0?
+input_19_pad_0?
 weight5
 3
 1encoder_stage2_stage_1_rbr_reparam_weight_to_fp16%
@@ -799,7 +793,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_17_cast_fp16!
 strides
 
-input_19_strides_0#
+input_19_strides_0;
+bias3
+1
+/encoder_stage2_stage_1_rbr_reparam_bias_to_fp16
+groups
+
+input_19_groups_0#
 pad_type
 
 input_19_pad_type_04
@@ -831,73 +831,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_21_cast_fp16l
 const
 input_23_pad_type_0
-*
+*)
+name!
+
+"
+input_23_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_23_pad_type_0p
+customp
 const
 input_23_pad_0
 
 
-*!
+*$
+name
+
+"
+input_23_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_23_pad_0v
+v
 const"
 input_23_strides_0
 
 
-*
+*(
+name 
+
+"
+input_23_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_23_strides_0z
+z
 const$
 input_23_dilations_0
 
 
-*
+**
+name"
+
+"
+input_23_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_23_dilations_0c
+c
 const
 input_23_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_23_groups_0ô
+input_23_groups_0*
+val
+
+
+ô
 constS
 1encoder_stage2_stage_2_rbr_reparam_weight_to_fp16
 
@@ -905,7 +905,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 `
 `
 
-*M
+*G
+name?
+7
+5"3
+1encoder_stage2_stage_2_rbr_reparam_weight_to_fp16*M
 valF
 
 
@@ -913,37 +917,27 @@ $com.github.apple.coremltools.version8.3.0¢:
 `
 
 *$
-@model_path/weights/weight.bin€À*G
-name?
-7
-5"3
-1encoder_stage2_stage_2_rbr_reparam_weight_to_fp16Ì
+@model_path/weights/weight.bin€ÀÌ
 const?
 /encoder_stage2_stage_2_rbr_reparam_bias_to_fp16
 
 
 
-`*;
+`*E
+name=
+5
+3"1
+/encoder_stage2_stage_2_rbr_reparam_bias_to_fp16*;
 val4
 
 
 
 `*$
-@model_path/weights/weight.binÀÐ*E
-name=
-5
-3"1
-/encoder_stage2_stage_2_rbr_reparam_bias_to_fp16¬
-conv;
-bias3
-1
-/encoder_stage2_stage_2_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.binÀÐ¬
+conv
 pad
 
-input_23_pad_0
-groups
-
-input_23_groups_0?
+input_23_pad_0?
 weight5
 3
 1encoder_stage2_stage_2_rbr_reparam_weight_to_fp16%
@@ -955,7 +949,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_21_cast_fp16!
 strides
 
-input_23_strides_0#
+input_23_strides_0;
+bias3
+1
+/encoder_stage2_stage_2_rbr_reparam_bias_to_fp16
+groups
+
+input_23_groups_0#
 pad_type
 
 input_23_pad_type_04
@@ -987,73 +987,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_25_cast_fp16l
 const
 input_27_pad_type_0
-*
+*)
+name!
+
+"
+input_27_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_27_pad_type_0p
+customp
 const
 input_27_pad_0
 
 
-*!
+*$
+name
+
+"
+input_27_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_27_pad_0v
+v
 const"
 input_27_strides_0
 
 
-*
+*(
+name 
+
+"
+input_27_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_27_strides_0z
+z
 const$
 input_27_dilations_0
 
 
-*
+**
+name"
+
+"
+input_27_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_27_dilations_0c
+c
 const
 input_27_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_27_groups_0ö
+input_27_groups_0*
+val
+
+
+ö
 constT
 1encoder_stage3_stage_0_rbr_reparam_weight_to_fp16
 
@@ -1061,7 +1061,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 `
 
-*N
+*G
+name?
+7
+5"3
+1encoder_stage3_stage_0_rbr_reparam_weight_to_fp16*N
 valG
 
 
@@ -1069,35 +1073,25 @@ $com.github.apple.coremltools.version8.3.0¢:
 `
 
 *$
-@model_path/weights/weight.binÀÒ*G
-name?
-7
-5"3
-1encoder_stage3_stage_0_rbr_reparam_weight_to_fp16Î
+@model_path/weights/weight.binÀÒÎ
 const@
 /encoder_stage3_stage_0_rbr_reparam_bias_to_fp16
 
 
-À*<
+À*E
+name=
+5
+3"1
+/encoder_stage3_stage_0_rbr_reparam_bias_to_fp16*<
 val5
 
 
 À*$
-@model_path/weights/weight.bin€ó2*E
-name=
-5
-3"1
-/encoder_stage3_stage_0_rbr_reparam_bias_to_fp16­
-conv;
-bias3
-1
-/encoder_stage3_stage_0_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.bin€ó2­
+conv
 pad
 
-input_27_pad_0
-groups
-
-input_27_groups_0?
+input_27_pad_0?
 weight5
 3
 1encoder_stage3_stage_0_rbr_reparam_weight_to_fp16%
@@ -1109,7 +1103,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_25_cast_fp16!
 strides
 
-input_27_strides_0#
+input_27_strides_0;
+bias3
+1
+/encoder_stage3_stage_0_rbr_reparam_bias_to_fp16
+groups
+
+input_27_groups_0#
 pad_type
 
 input_27_pad_type_05
@@ -1141,73 +1141,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_29_cast_fp16l
 const
 input_31_pad_type_0
-*
+*)
+name!
+
+"
+input_31_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_31_pad_type_0p
+customp
 const
 input_31_pad_0
 
 
-*!
+*$
+name
+
+"
+input_31_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_31_pad_0v
+v
 const"
 input_31_strides_0
 
 
-*
+*(
+name 
+
+"
+input_31_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_31_strides_0z
+z
 const$
 input_31_dilations_0
 
 
-*
+**
+name"
+
+"
+input_31_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_31_dilations_0c
+c
 const
 input_31_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_31_groups_0ø
+input_31_groups_0*
+val
+
+
+ø
 constU
 1encoder_stage3_stage_1_rbr_reparam_weight_to_fp16 
 
@@ -1215,7 +1215,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 À
 
-*O
+*G
+name?
+7
+5"3
+1encoder_stage3_stage_1_rbr_reparam_weight_to_fp16*O
 valH 
 
 
@@ -1223,35 +1227,25 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 
 *$
-@model_path/weights/weight.binÀö2*G
-name?
-7
-5"3
-1encoder_stage3_stage_1_rbr_reparam_weight_to_fp16Î
+@model_path/weights/weight.binÀö2Î
 const@
 /encoder_stage3_stage_1_rbr_reparam_bias_to_fp16
 
 
-À*<
+À*E
+name=
+5
+3"1
+/encoder_stage3_stage_1_rbr_reparam_bias_to_fp16*<
 val5
 
 
 À*$
-@model_path/weights/weight.bin€·[*E
-name=
-5
-3"1
-/encoder_stage3_stage_1_rbr_reparam_bias_to_fp16­
-conv;
-bias3
-1
-/encoder_stage3_stage_1_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.bin€·[­
+conv
 pad
 
-input_31_pad_0
-groups
-
-input_31_groups_0?
+input_31_pad_0?
 weight5
 3
 1encoder_stage3_stage_1_rbr_reparam_weight_to_fp16%
@@ -1263,7 +1257,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_29_cast_fp16!
 strides
 
-input_31_strides_0#
+input_31_strides_0;
+bias3
+1
+/encoder_stage3_stage_1_rbr_reparam_bias_to_fp16
+groups
+
+input_31_groups_0#
 pad_type
 
 input_31_pad_type_05
@@ -1295,73 +1295,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_33_cast_fp16l
 const
 input_35_pad_type_0
-*
+*)
+name!
+
+"
+input_35_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_35_pad_type_0p
+customp
 const
 input_35_pad_0
 
 
-*!
+*$
+name
+
+"
+input_35_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_35_pad_0v
+v
 const"
 input_35_strides_0
 
 
-*
+*(
+name 
+
+"
+input_35_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_35_strides_0z
+z
 const$
 input_35_dilations_0
 
 
-*
+**
+name"
+
+"
+input_35_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_35_dilations_0c
+c
 const
 input_35_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_35_groups_0ø
+input_35_groups_0*
+val
+
+
+ø
 constU
 1encoder_stage3_stage_2_rbr_reparam_weight_to_fp16 
 
@@ -1369,7 +1369,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 À
 
-*O
+*G
+name?
+7
+5"3
+1encoder_stage3_stage_2_rbr_reparam_weight_to_fp16*O
 valH 
 
 
@@ -1377,35 +1381,25 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 
 *$
-@model_path/weights/weight.binÀº[*G
-name?
-7
-5"3
-1encoder_stage3_stage_2_rbr_reparam_weight_to_fp16Ï
+@model_path/weights/weight.binÀº[Ï
 const@
 /encoder_stage3_stage_2_rbr_reparam_bias_to_fp16
 
 
-À*=
+À*E
+name=
+5
+3"1
+/encoder_stage3_stage_2_rbr_reparam_bias_to_fp16*=
 val6
 
 
 À*%
-@model_path/weights/weight.bin€ûƒ*E
-name=
-5
-3"1
-/encoder_stage3_stage_2_rbr_reparam_bias_to_fp16­
-conv;
-bias3
-1
-/encoder_stage3_stage_2_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.bin€ûƒ­
+conv
 pad
 
-input_35_pad_0
-groups
-
-input_35_groups_0?
+input_35_pad_0?
 weight5
 3
 1encoder_stage3_stage_2_rbr_reparam_weight_to_fp16%
@@ -1417,7 +1411,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_33_cast_fp16!
 strides
 
-input_35_strides_0#
+input_35_strides_0;
+bias3
+1
+/encoder_stage3_stage_2_rbr_reparam_bias_to_fp16
+groups
+
+input_35_groups_0#
 pad_type
 
 input_35_pad_type_05
@@ -1449,73 +1449,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_37_cast_fp16l
 const
 input_39_pad_type_0
-*
+*)
+name!
+
+"
+input_39_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_39_pad_type_0p
+customp
 const
 input_39_pad_0
 
 
-*!
+*$
+name
+
+"
+input_39_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_39_pad_0v
+v
 const"
 input_39_strides_0
 
 
-*
+*(
+name 
+
+"
+input_39_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_39_strides_0z
+z
 const$
 input_39_dilations_0
 
 
-*
+**
+name"
+
+"
+input_39_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_39_dilations_0c
+c
 const
 input_39_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_39_groups_0ù
+input_39_groups_0*
+val
+
+
+ù
 constU
 1encoder_stage3_stage_3_rbr_reparam_weight_to_fp16 
 
@@ -1523,7 +1523,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 À
 
-*P
+*G
+name?
+7
+5"3
+1encoder_stage3_stage_3_rbr_reparam_weight_to_fp16*P
 valI 
 
 
@@ -1531,35 +1535,25 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 
 *%
-@model_path/weights/weight.binÀþƒ*G
-name?
-7
-5"3
-1encoder_stage3_stage_3_rbr_reparam_weight_to_fp16Ï
+@model_path/weights/weight.binÀþƒÏ
 const@
 /encoder_stage3_stage_3_rbr_reparam_bias_to_fp16
 
 
-À*=
+À*E
+name=
+5
+3"1
+/encoder_stage3_stage_3_rbr_reparam_bias_to_fp16*=
 val6
 
 
 À*%
-@model_path/weights/weight.bin€¿¬*E
-name=
-5
-3"1
-/encoder_stage3_stage_3_rbr_reparam_bias_to_fp16­
-conv;
-bias3
-1
-/encoder_stage3_stage_3_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.bin€¿¬­
+conv
 pad
 
-input_39_pad_0
-groups
-
-input_39_groups_0?
+input_39_pad_0?
 weight5
 3
 1encoder_stage3_stage_3_rbr_reparam_weight_to_fp16%
@@ -1571,7 +1565,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_37_cast_fp16!
 strides
 
-input_39_strides_0#
+input_39_strides_0;
+bias3
+1
+/encoder_stage3_stage_3_rbr_reparam_bias_to_fp16
+groups
+
+input_39_groups_0#
 pad_type
 
 input_39_pad_type_05
@@ -1603,73 +1603,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_41_cast_fp16l
 const
 input_43_pad_type_0
-*
+*)
+name!
+
+"
+input_43_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_43_pad_type_0p
+customp
 const
 input_43_pad_0
 
 
-*!
+*$
+name
+
+"
+input_43_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_43_pad_0v
+v
 const"
 input_43_strides_0
 
 
-*
+*(
+name 
+
+"
+input_43_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_43_strides_0z
+z
 const$
 input_43_dilations_0
 
 
-*
+**
+name"
+
+"
+input_43_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_43_dilations_0c
+c
 const
 input_43_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_43_groups_0ù
+input_43_groups_0*
+val
+
+
+ù
 constU
 1encoder_stage3_stage_4_rbr_reparam_weight_to_fp16 
 
@@ -1677,7 +1677,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 À
 
-*P
+*G
+name?
+7
+5"3
+1encoder_stage3_stage_4_rbr_reparam_weight_to_fp16*P
 valI 
 
 
@@ -1685,35 +1689,25 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 
 *%
-@model_path/weights/weight.binÀÂ¬*G
-name?
-7
-5"3
-1encoder_stage3_stage_4_rbr_reparam_weight_to_fp16Ï
+@model_path/weights/weight.binÀÂ¬Ï
 const@
 /encoder_stage3_stage_4_rbr_reparam_bias_to_fp16
 
 
-À*=
+À*E
+name=
+5
+3"1
+/encoder_stage3_stage_4_rbr_reparam_bias_to_fp16*=
 val6
 
 
 À*%
-@model_path/weights/weight.bin€ƒÕ*E
-name=
-5
-3"1
-/encoder_stage3_stage_4_rbr_reparam_bias_to_fp16­
-conv;
-bias3
-1
-/encoder_stage3_stage_4_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.bin€ƒÕ­
+conv
 pad
 
-input_43_pad_0
-groups
-
-input_43_groups_0?
+input_43_pad_0?
 weight5
 3
 1encoder_stage3_stage_4_rbr_reparam_weight_to_fp16%
@@ -1725,7 +1719,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_41_cast_fp16!
 strides
 
-input_43_strides_0#
+input_43_strides_0;
+bias3
+1
+/encoder_stage3_stage_4_rbr_reparam_bias_to_fp16
+groups
+
+input_43_groups_0#
 pad_type
 
 input_43_pad_type_05
@@ -1757,73 +1757,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_45_cast_fp16l
 const
 input_47_pad_type_0
-*
+*)
+name!
+
+"
+input_47_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_47_pad_type_0p
+customp
 const
 input_47_pad_0
 
 
-*!
+*$
+name
+
+"
+input_47_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_47_pad_0v
+v
 const"
 input_47_strides_0
 
 
-*
+*(
+name 
+
+"
+input_47_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_47_strides_0z
+z
 const$
 input_47_dilations_0
 
 
-*
+**
+name"
+
+"
+input_47_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_47_dilations_0c
+c
 const
 input_47_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_47_groups_0ù
+input_47_groups_0*
+val
+
+
+ù
 constU
 1encoder_stage3_stage_5_rbr_reparam_weight_to_fp16 
 
@@ -1831,7 +1831,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 À
 
-*P
+*G
+name?
+7
+5"3
+1encoder_stage3_stage_5_rbr_reparam_weight_to_fp16*P
 valI 
 
 
@@ -1839,35 +1843,25 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 
 *%
-@model_path/weights/weight.binÀ†Õ*G
-name?
-7
-5"3
-1encoder_stage3_stage_5_rbr_reparam_weight_to_fp16Ï
+@model_path/weights/weight.binÀ†ÕÏ
 const@
 /encoder_stage3_stage_5_rbr_reparam_bias_to_fp16
 
 
-À*=
+À*E
+name=
+5
+3"1
+/encoder_stage3_stage_5_rbr_reparam_bias_to_fp16*=
 val6
 
 
 À*%
-@model_path/weights/weight.bin€Çý*E
-name=
-5
-3"1
-/encoder_stage3_stage_5_rbr_reparam_bias_to_fp16­
-conv;
-bias3
-1
-/encoder_stage3_stage_5_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.bin€Çý­
+conv
 pad
 
-input_47_pad_0
-groups
-
-input_47_groups_0?
+input_47_pad_0?
 weight5
 3
 1encoder_stage3_stage_5_rbr_reparam_weight_to_fp16%
@@ -1879,7 +1873,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_45_cast_fp16!
 strides
 
-input_47_strides_0#
+input_47_strides_0;
+bias3
+1
+/encoder_stage3_stage_5_rbr_reparam_bias_to_fp16
+groups
+
+input_47_groups_0#
 pad_type
 
 input_47_pad_type_05
@@ -1911,73 +1911,73 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_49_cast_fp16l
 const
 input_51_pad_type_0
-*
+*)
+name!
+
+"
+input_51_pad_type_0*
 val
 
 
 "
-custom*)
-name!
-
-"
-input_51_pad_type_0p
+customp
 const
 input_51_pad_0
 
 
-*!
+*$
+name
+
+"
+input_51_pad_0*!
 val
 
 
 
 
 
-*$
-name
-
-"
-input_51_pad_0v
+v
 const"
 input_51_strides_0
 
 
-*
+*(
+name 
+
+"
+input_51_strides_0*
 val
 
 
 
 
-*(
-name 
-
-"
-input_51_strides_0z
+z
 const$
 input_51_dilations_0
 
 
-*
+**
+name"
+
+"
+input_51_dilations_0*
 val
 
 
 
 
-**
-name"
-
-"
-input_51_dilations_0c
+c
 const
 input_51_groups_0
-*
-val
-
-
-*'
+*'
 name
 
 "
-input_51_groups_0ù
+input_51_groups_0*
+val
+
+
+ù
 constU
 1encoder_stage4_stage_0_rbr_reparam_weight_to_fp16 
 
@@ -1985,7 +1985,11 @@ $com.github.apple.coremltools.version8.3.0¢:
 €
 À
 
-*P
+*G
+name?
+7
+5"3
+1encoder_stage4_stage_0_rbr_reparam_weight_to_fp16*P
 valI 
 
 
@@ -1993,35 +1997,25 @@ $com.github.apple.coremltools.version8.3.0¢:
 À
 
 *%
-@model_path/weights/weight.binÀÊý*G
-name?
-7
-5"3
-1encoder_stage4_stage_0_rbr_reparam_weight_to_fp16Ï
+@model_path/weights/weight.binÀÊýÏ
 const@
 /encoder_stage4_stage_0_rbr_reparam_bias_to_fp16
 
 
-€*=
+€*E
+name=
+5
+3"1
+/encoder_stage4_stage_0_rbr_reparam_bias_to_fp16*=
 val6
 
 
 €*%
-@model_path/weights/weight.bin€Ë³*E
-name=
-5
-3"1
-/encoder_stage4_stage_0_rbr_reparam_bias_to_fp16­
-conv;
-bias3
-1
-/encoder_stage4_stage_0_rbr_reparam_bias_to_fp16
+@model_path/weights/weight.bin€Ë³­
+conv
 pad
 
-input_51_pad_0
-groups
-
-input_51_groups_0?
+input_51_pad_0?
 weight5
 3
 1encoder_stage4_stage_0_rbr_reparam_weight_to_fp16%
@@ -2033,7 +2027,13 @@ $com.github.apple.coremltools.version8.3.0¢:
 input_49_cast_fp16!
 strides
 
-input_51_strides_0#
+input_51_strides_0;
+bias3
+1
+/encoder_stage4_stage_0_rbr_reparam_bias_to_fp16
+groups
+
+input_51_groups_0#
 pad_type
 
 input_51_pad_type_05
@@ -2067,37 +2067,37 @@ $com.github.apple.coremltools.version8.3.0¢:
 x_axes_0
 
 
-*1
+*
+name
+
+"
+
+x_axes_0*1
 val*
 
 
 
 
-þÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ*
-name
-
-"
-
-x_axes_0[
+þÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ[
 const
 x_keep_dims_0
-*
-val
-
-
-*#
+*#
 name
 
 "
-x_keep_dims_0°
-reduce_mean
-	keep_dims
-
-x_keep_dims_0
+x_keep_dims_0*
+val
+
+
+°
+reduce_mean
 axes
 
 
-x_axes_0
+x_axes_0
+	keep_dims
+
+x_keep_dims_0
 x
 
 input_cast_fp16.
@@ -2116,18 +2116,18 @@ $com.github.apple.coremltools.version8.3.0¢:
 concat_0
 
 
-* 
+*
+name
+
+"
+
+concat_0* 
 val
 
 
 	
 
-€*
-name
-
-"
-
-concat_0ˆ
+€ˆ
 reshape
 shape
 
@@ -2147,23 +2147,23 @@ $com.github.apple.coremltools.version8.3.0¢:
 op_157_cast_fp16…
 const)
 !var_157_cast_fp16_to_fp32_dtype_0
-*
+*6
+name.
+&
+$""
+ op_157_cast_fp16_to_fp32_dtype_0*
 val
 
 
 "
-fp32*6
-name.
-&
-$""
- op_157_cast_fp16_to_fp32_dtype_0
-cast
-x
-
-var_157_cast_fp16.
+fp32
+cast.
 dtype%
 #
-!var_157_cast_fp16_to_fp32_dtype_0
+!var_157_cast_fp16_to_fp32_dtype_0
+x
+
+var_157_cast_fp16
 feat
 
 

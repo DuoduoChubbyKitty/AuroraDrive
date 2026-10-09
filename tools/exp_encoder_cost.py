@@ -106,6 +106,17 @@ def _specs_for(variant: str) -> Tuple[List[Tuple[str, Tuple[int, ...]]], List[st
                 ("vehicle_state", (1, 8))], ["steer", "throttle", "brake",
                                              "confidence", "risk", "car_heading"]
 
+    if variant == "model_b":
+        # ★ Lead 拆分路线的模型 B：吃**预计算的 8 帧特征**（环形缓冲），
+        #   每 tick 只编码 1 个新帧（模型 A = enc_b1）。输入契约从
+        #   image [8,3,180,320] 改为 img_feat_seq [1,8,256]。
+        return [("img_feat_seq", (1, 8, 256)),
+                ("lane", (1, 1, 160, 160)),
+                ("dets", (1, 20, 12)),
+                ("det_mask", (1, 20)),
+                ("vehicle_state", (1, 8))], ["steer", "throttle", "brake",
+                                             "confidence", "risk", "car_heading"]
+
     if variant in ("full_b1", "full_b8"):
         b = 1 if variant == "full_b1" else 8
         return [("image", (b, 3, IMG[0], IMG[1])),
@@ -139,6 +150,7 @@ VARIANT_NOTES: Dict[str, str] = {
     "refiner_only": "IterationRefiner（12 步 + 末 4 步 MoE），[1,512] → [1,512]",
     "rest_no_refiner": "img_feat + lane/det/state + 融合头 + 三辅助头（**不含 refiner**）",
     "rest_heads": "img_feat + lane/det/state + 融合头 + 12 步 refiner/MoE + 三辅助头",
+    "model_b": "★ 拆分路线模型 B：吃预计算 [1,8,256] 特征序列 + 单帧分支 → 6 输出",
     "full_b1": "完整模型，1 帧（单帧路径，时序不参与）",
     "full_b8": "完整模型，8 帧（**部署形态**）",
 }
@@ -147,7 +159,7 @@ DEFAULT_VARIANTS: Tuple[str, ...] = (
     "enc_b1", "enc_b2", "enc_b4", "enc_b8", "enc_b16",
     "enc_b1_h90w160", "enc_b8_h90w160", "enc_b8_h45w80",
     "temporal_only", "refiner_only", "rest_no_refiner", "rest_heads",
-    "full_b1", "full_b8",
+    "full_b1", "full_b8", "model_b",
 )
 
 
@@ -227,6 +239,50 @@ class RestNoRefiner(_HeadsBase):
         super().__init__(m, use_refiner=False)
 
 
+class ModelB(torch.nn.Module):
+    """Lead 拆分路线的模型 B：吃预计算 8 帧特征 + 单帧分支 → 6 输出。
+
+    与 M2Model.forward 的时序分支**逐字同序**：
+        feat_seq [1,8,256] → temporal_encoder → temporal_proj
+        → current = feat_seq[:, -1:, :] → img_feat = current + proj（残差）
+        → 拼 lane/det/state → refiner(12 步 + 末 4 步 MoE) → fusion_head
+    """
+
+    def __init__(self, m):
+        super().__init__()
+        self.m = m
+
+    def forward(self, img_feat_seq, lane, dets, det_mask, vehicle_state):
+        m = self.m
+        current = img_feat_seq[:, -1:, :].reshape(1, -1)          # [1,256] 当前帧
+        temporal_feat = m.temporal_encoder(img_feat_seq, None)     # [1,128]
+        projected = m.temporal_proj(temporal_feat)                 # [1,256]
+        img_feat = current + projected                             # 残差
+
+        lane_feat = m.lane_encoder(lane, 1, img_feat)
+        det_feat = m.det_encoder(dets, det_mask, 1, img_feat)
+        state_feat = m.state_encoder(vehicle_state, 1, img_feat)
+        fused = torch.cat([img_feat, lane_feat, det_feat, state_feat], dim=1)
+        if m.refiner is not None:
+            fused = m.refiner(fused)
+        steer, throttle, brake = m.fusion_head(fused)
+
+        car_heading = torch.zeros(1, 1, dtype=steer.dtype)
+        confidence = torch.zeros(1, 1, dtype=steer.dtype)
+        risk = torch.zeros(1, 1, dtype=steer.dtype)
+        if m.heading_head is not None:
+            car_heading = m.heading_head(img_feat, None).reshape(1, 1)
+        if m.risk_head is not None:
+            try:
+                conf, rk = m.risk_head(fused, det_feat=det_feat, det_mask=det_mask,
+                                       speed=vehicle_state[:, 0])
+                confidence = conf.reshape(1, 1)
+                risk = rk.reshape(1, 1)
+            except Exception:
+                pass
+        return steer, throttle, brake, confidence, risk, car_heading
+
+
 def build_wrapper(variant: str, model):
     if variant.startswith("enc_b"):
         return EncOnly(model).eval()
@@ -238,6 +294,8 @@ def build_wrapper(variant: str, model):
         return RestHeads(model).eval()
     if variant == "rest_no_refiner":
         return RestNoRefiner(model).eval()
+    if variant == "model_b":
+        return ModelB(model).eval()
     if variant in ("full_b1", "full_b8"):
         return E._ExportWrapper(model).eval()
     raise KeyError(variant)

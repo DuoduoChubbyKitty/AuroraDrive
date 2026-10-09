@@ -35,9 +35,9 @@ confidence
 car_heading
 *
  €¢¤¢-
-$com.github.apple.coremltools.version8.3.0¢:
-+com.github.apple.coremltools.source_dialectTorchScript¢4
-#com.github.apple.coremltools.sourcetorch==2.13.0²¬Ê»È
+$com.github.apple.coremltools.version8.3.0¢4
+#com.github.apple.coremltools.sourcetorch==2.13.0¢:
++com.github.apple.coremltools.source_dialectTorchScript²¬Ê»È
 main±È
 )
 image 
@@ -229,28 +229,28 @@ confidenceriskcar_headingL
 
 "	
 cast_33ß
-conv 
-strides
-
-input_1_strides_0
-groups
-
-input_1_groups_0
-bias
-
-const_1_to_fp16
-x
-
-image_to_fp16$
-	dilations
-
-input_1_dilations_0
+conv
 pad
 
-input_1_pad_0"
+input_1_pad_0$
+	dilations
+
+input_1_dilations_0
+bias
+
+const_1_to_fp16 
+strides
+
+input_1_strides_0
+x
+
+image_to_fp16"
 pad_type
 
-input_1_pad_type_0
+input_1_pad_type_0
+groups
+
+input_1_groups_0
 weight
 
 const_0_to_fp164
@@ -385,28 +385,28 @@ A"?
 
 0*$
 @model_path/weights/weight.binÀÛ¼
-conv 
-strides
-
-input_7_strides_0
-groups
-
-input_7_groups_0G
-bias?
-=
-;model_image_encoder_stage1_stage_0_rbr_reparam_bias_to_fp16
-x
-
-input_5_cast_fp16$
-	dilations
-
-input_7_dilations_0
+conv
 pad
 
-input_7_pad_0"
+input_7_pad_0$
+	dilations
+
+input_7_dilations_0G
+bias?
+=
+;model_image_encoder_stage1_stage_0_rbr_reparam_bias_to_fp16 
+strides
+
+input_7_strides_0
+x
+
+input_5_cast_fp16"
 pad_type
 
-input_7_pad_type_0K
+input_7_pad_type_0
+groups
+
+input_7_groups_0K
 weightA
 ?
 =model_image_encoder_stage1_stage_0_rbr_reparam_weight_to_fp163
@@ -541,28 +541,28 @@ A"?
 
 0*$
 @model_path/weights/weight.binÀ¡Ã
-conv!
-strides
-
-input_11_strides_0
-groups
-
-input_11_groups_0G
-bias?
-=
-;model_image_encoder_stage1_stage_1_rbr_reparam_bias_to_fp16
-x
-
-input_9_cast_fp16%
-	dilations
-
-input_11_dilations_0
+conv
 pad
 
-input_11_pad_0#
+input_11_pad_0%
+	dilations
+
+input_11_dilations_0G
+bias?
+=
+;model_image_encoder_stage1_stage_1_rbr_reparam_bias_to_fp16!
+strides
+
+input_11_strides_0
+x
+
+input_9_cast_fp16#
 pad_type
 
-input_11_pad_type_0K
+input_11_pad_type_0
+groups
+
+input_11_groups_0K
 weightA
 ?
 =model_image_encoder_stage1_stage_1_rbr_reparam_weight_to_fp164
@@ -698,28 +698,28 @@ A"?
 `*$
 @model_path/weights/weight.binÀ«
 Ä
-conv!
-strides
-
-input_15_strides_0
-groups
-
-input_15_groups_0G
-bias?
-=
-;model_image_encoder_stage2_stage_0_rbr_reparam_bias_to_fp16
-x
-
-input_13_cast_fp16%
-	dilations
-
-input_15_dilations_0
+conv
 pad
 
-input_15_pad_0#
+input_15_pad_0%
+	dilations
+
+input_15_dilations_0G
+bias?
+=
+;model_image_encoder_stage2_stage_0_rbr_reparam_bias_to_fp16!
+strides
+
+input_15_strides_0
+x
+
+input_13_cast_fp16#
 pad_type
 
-input_15_pad_type_0K
+input_15_pad_type_0
+groups
+
+input_15_groups_0K
 weightA
 ?
 =model_image_encoder_stage2_stage_0_rbr_reparam_weight_to_fp164
@@ -855,28 +855,28 @@ A"?
 
 `*$
 @model_path/weights/weight.bin€¾Ä
-conv!
-strides
-
-input_19_strides_0
-groups
-
-input_19_groups_0G
-bias?
-=
-;model_image_encoder_stage2_stage_1_rbr_reparam_bias_to_fp16
-x
-
-input_17_cast_fp16%
-	dilations
-
-input_19_dilations_0
+conv
 pad
 
-input_19_pad_0#
+input_19_pad_0%
+	dilations
+
+input_19_dilations_0G
+bias?
+=
+;model_image_encoder_stage2_stage_1_rbr_reparam_bias_to_fp16!
+strides
+
+input_19_strides_0
+x
+
+input_17_cast_fp16#
 pad_type
 
-input_19_pad_type_0K
+input_19_pad_type_0
+groups
+
+input_19_groups_0K
 weightA
 ?
 =model_image_encoder_stage2_stage_1_rbr_reparam_weight_to_fp164
@@ -1011,28 +1011,28 @@ A"?
 
 `*$
 @model_path/weights/weight.binÀÐÄ
-conv!
-strides
-
-input_23_strides_0
-groups
-
-input_23_groups_0G
-bias?
-=
-;model_image_encoder_stage2_stage_2_rbr_reparam_bias_to_fp16
-x
-
-input_21_cast_fp16%
-	dilations
-
-input_23_dilations_0
+conv
 pad
 
-input_23_pad_0#
+input_23_pad_0%
+	dilations
+
+input_23_dilations_0G
+bias?
+=
+;model_image_encoder_stage2_stage_2_rbr_reparam_bias_to_fp16!
+strides
+
+input_23_strides_0
+x
+
+input_21_cast_fp16#
 pad_type
 
-input_23_pad_type_0K
+input_23_pad_type_0
+groups
+
+input_23_groups_0K
 weightA
 ?
 =model_image_encoder_stage2_stage_2_rbr_reparam_weight_to_fp164
@@ -1165,28 +1165,28 @@ A"?
 
 À*$
 @model_path/weights/weight.bin€ó2Å
-conv!
-strides
-
-input_27_strides_0
-groups
-
-input_27_groups_0G
-bias?
-=
-;model_image_encoder_stage3_stage_0_rbr_reparam_bias_to_fp16
-x
-
-input_25_cast_fp16%
-	dilations
-
-input_27_dilations_0
+conv
 pad
 
-input_27_pad_0#
+input_27_pad_0%
+	dilations
+
+input_27_dilations_0G
+bias?
+=
+;model_image_encoder_stage3_stage_0_rbr_reparam_bias_to_fp16!
+strides
+
+input_27_strides_0
+x
+
+input_25_cast_fp16#
 pad_type
 
-input_27_pad_type_0K
+input_27_pad_type_0
+groups
+
+input_27_groups_0K
 weightA
 ?
 =model_image_encoder_stage3_stage_0_rbr_reparam_weight_to_fp165
@@ -1319,28 +1319,28 @@ A"?
 
 À*$
 @model_path/weights/weight.bin€·[Å
-conv!
-strides
-
-input_31_strides_0
-groups
-
-input_31_groups_0G
-bias?
-=
-;model_image_encoder_stage3_stage_1_rbr_reparam_bias_to_fp16
-x
-
-input_29_cast_fp16%
-	dilations
-
-input_31_dilations_0
+conv
 pad
 
-input_31_pad_0#
+input_31_pad_0%
+	dilations
+
+input_31_dilations_0G
+bias?
+=
+;model_image_encoder_stage3_stage_1_rbr_reparam_bias_to_fp16!
+strides
+
+input_31_strides_0
+x
+
+input_29_cast_fp16#
 pad_type
 
-input_31_pad_type_0K
+input_31_pad_type_0
+groups
+
+input_31_groups_0K
 weightA
 ?
 =model_image_encoder_stage3_stage_1_rbr_reparam_weight_to_fp165
@@ -1473,28 +1473,28 @@ A"?
 
 À*%
 @model_path/weights/weight.bin€ûƒÅ
-conv!
-strides
-
-input_35_strides_0
-groups
-
-input_35_groups_0G
-bias?
-=
-;model_image_encoder_stage3_stage_2_rbr_reparam_bias_to_fp16
-x
-
-input_33_cast_fp16%
-	dilations
-
-input_35_dilations_0
+conv
 pad
 
-input_35_pad_0#
+input_35_pad_0%
+	dilations
+
+input_35_dilations_0G
+bias?
+=
+;model_image_encoder_stage3_stage_2_rbr_reparam_bias_to_fp16!
+strides
+
+input_35_strides_0
+x
+
+input_33_cast_fp16#
 pad_type
 
-input_35_pad_type_0K
+input_35_pad_type_0
+groups
+
+input_35_groups_0K
 weightA
 ?
 =model_image_encoder_stage3_stage_2_rbr_reparam_weight_to_fp165
@@ -1627,28 +1627,28 @@ A"?
 
 À*%
 @model_path/weights/weight.bin€¿¬Å
-conv!
-strides
-
-input_39_strides_0
-groups
-
-input_39_groups_0G
-bias?
-=
-;model_image_encoder_stage3_stage_3_rbr_reparam_bias_to_fp16
-x
-
-input_37_cast_fp16%
-	dilations
-
-input_39_dilations_0
+conv
 pad
 
-input_39_pad_0#
+input_39_pad_0%
+	dilations
+
+input_39_dilations_0G
+bias?
+=
+;model_image_encoder_stage3_stage_3_rbr_reparam_bias_to_fp16!
+strides
+
+input_39_strides_0
+x
+
+input_37_cast_fp16#
 pad_type
 
-input_39_pad_type_0K
+input_39_pad_type_0
+groups
+
+input_39_groups_0K
 weightA
 ?
 =model_image_encoder_stage3_stage_3_rbr_reparam_weight_to_fp165
@@ -1781,28 +1781,28 @@ A"?
 
 À*%
 @model_path/weights/weight.bin€ƒÕÅ
-conv!
-strides
-
-input_43_strides_0
-groups
-
-input_43_groups_0G
-bias?
-=
-;model_image_encoder_stage3_stage_4_rbr_reparam_bias_to_fp16
-x
-
-input_41_cast_fp16%
-	dilations
-
-input_43_dilations_0
+conv
 pad
 
-input_43_pad_0#
+input_43_pad_0%
+	dilations
+
+input_43_dilations_0G
+bias?
+=
+;model_image_encoder_stage3_stage_4_rbr_reparam_bias_to_fp16!
+strides
+
+input_43_strides_0
+x
+
+input_41_cast_fp16#
 pad_type
 
-input_43_pad_type_0K
+input_43_pad_type_0
+groups
+
+input_43_groups_0K
 weightA
 ?
 =model_image_encoder_stage3_stage_4_rbr_reparam_weight_to_fp165
@@ -1935,28 +1935,28 @@ A"?
 
 À*%
 @model_path/weights/weight.bin€ÇýÅ
-conv!
-strides
-
-input_47_strides_0
-groups
-
-input_47_groups_0G
-bias?
-=
-;model_image_encoder_stage3_stage_5_rbr_reparam_bias_to_fp16
-x
-
-input_45_cast_fp16%
-	dilations
-
-input_47_dilations_0
+conv
 pad
 
-input_47_pad_0#
+input_47_pad_0%
+	dilations
+
+input_47_dilations_0G
+bias?
+=
+;model_image_encoder_stage3_stage_5_rbr_reparam_bias_to_fp16!
+strides
+
+input_47_strides_0
+x
+
+input_45_cast_fp16#
 pad_type
 
-input_47_pad_type_0K
+input_47_pad_type_0
+groups
+
+input_47_groups_0K
 weightA
 ?
 =model_image_encoder_stage3_stage_5_rbr_reparam_weight_to_fp165
@@ -2089,28 +2089,28 @@ A"?
 
 €*%
 @model_path/weights/weight.bin€Ë³Å
-conv!
-strides
-
-input_51_strides_0
-groups
-
-input_51_groups_0G
-bias?
-=
-;model_image_encoder_stage4_stage_0_rbr_reparam_bias_to_fp16
-x
-
-input_49_cast_fp16%
-	dilations
-
-input_51_dilations_0
+conv
 pad
 
-input_51_pad_0#
+input_51_pad_0%
+	dilations
+
+input_51_dilations_0G
+bias?
+=
+;model_image_encoder_stage4_stage_0_rbr_reparam_bias_to_fp16!
+strides
+
+input_51_strides_0
+x
+
+input_49_cast_fp16#
 pad_type
 
-input_51_pad_type_0K
+input_51_pad_type_0
+groups
+
+input_51_groups_0K
 weightA
 ?
 =model_image_encoder_stage4_stage_0_rbr_reparam_weight_to_fp165
@@ -2168,14 +2168,14 @@ x_1_axes_0*1
 
 
 »
-reduce_mean 
-	keep_dims
-
-x_1_keep_dims_0
+reduce_mean
 axes
 
 
-x_1_axes_0
+x_1_axes_0 
+	keep_dims
+
+x_1_keep_dims_0
 x
 
 input_53_cast_fp160
@@ -2327,22 +2327,22 @@ x_1_axes_0
 max_pool%
 	ceil_mode
 
-input_55_ceil_mode_0
-strides
-	
-var_187
+input_55_ceil_mode_0
 pad
 
-input_55_pad_0#
-pad_type
-
-input_55_pad_type_0
-x
-
-lane_to_fp16
+input_55_pad_0
 kernel_sizes
 	
-var_1864
+var_186#
+pad_type
+
+input_55_pad_type_0
+strides
+	
+var_187
+x
+
+lane_to_fp164
 input_55_cast_fp16
 
 
@@ -2459,28 +2459,28 @@ x_1_axes_0
 
 *%
 @model_path/weights/weight.binÀÒ³ê
-conv!
-strides
-
-input_57_strides_0
-groups
-
-input_57_groups_0
-bias
-
-const_3_to_fp16
-x
-
-input_55_cast_fp16%
-	dilations
-
-input_57_dilations_0
+conv
 pad
 
-input_57_pad_0#
+input_57_pad_0%
+	dilations
+
+input_57_dilations_0
+bias
+
+const_3_to_fp16!
+strides
+
+input_57_strides_0
+x
+
+input_55_cast_fp16#
 pad_type
 
-input_57_pad_type_0
+input_57_pad_type_0
+groups
+
+input_57_groups_0
 weight
 
 const_2_to_fp164
@@ -2615,28 +2615,28 @@ x_1_axes_0
 
  *%
 @model_path/weights/weight.bin€œ´ê
-conv!
-strides
-
-input_63_strides_0
-groups
-
-input_63_groups_0
-bias
-
-const_5_to_fp16
-x
-
-input_61_cast_fp16%
-	dilations
-
-input_63_dilations_0
+conv
 pad
 
-input_63_pad_0#
+input_63_pad_0%
+	dilations
+
+input_63_dilations_0
+bias
+
+const_5_to_fp16!
+strides
+
+input_63_strides_0
+x
+
+input_61_cast_fp16#
 pad_type
 
-input_63_pad_type_0
+input_63_pad_type_0
+groups
+
+input_63_groups_0
 weight
 
 const_4_to_fp164
@@ -2771,28 +2771,28 @@ x_1_axes_0
 
 @*%
 @model_path/weights/weight.binÀ½¶ê
-conv!
-strides
-
-input_69_strides_0
-groups
-
-input_69_groups_0
-bias
-
-const_7_to_fp16
-x
-
-input_67_cast_fp16%
-	dilations
-
-input_69_dilations_0
+conv
 pad
 
-input_69_pad_0#
+input_69_pad_0%
+	dilations
+
+input_69_dilations_0
+bias
+
+const_7_to_fp16!
+strides
+
+input_69_strides_0
+x
+
+input_67_cast_fp16#
 pad_type
 
-input_69_pad_type_0
+input_69_pad_type_0
+groups
+
+input_69_groups_0
 weight
 
 const_6_to_fp164
@@ -2908,25 +2908,25 @@ x_1_axes_0
 avg_pool 
 	ceil_mode
 
-x_3_ceil_mode_0
-strides
-
-x_3_strides_0
+x_3_ceil_mode_0
 pad
 
-	x_3_pad_0
+	x_3_pad_0&
+kernel_sizes
+
+x_3_kernel_sizes_0
 pad_type
 
-x_3_pad_type_0F
+x_3_pad_type_0
+strides
+
+x_3_strides_0F
 exclude_padding_from_average&
 $
 "x_3_exclude_padding_from_average_0
 x
 
-input_73_cast_fp16&
-kernel_sizes
-
-x_3_kernel_sizes_0/
+input_73_cast_fp16/
 x_3_cast_fp16
 
 
@@ -3184,28 +3184,28 @@ $
 
 "
 transpose_1ã
-conv!
-strides
-
-input_79_strides_0
-groups
-
-input_79_groups_0
-bias
-
-const_9_to_fp16
-x
-
-var_238_cast_fp16%
-	dilations
-
-input_79_dilations_0
+conv
 pad
 
-input_79_pad_0#
+input_79_pad_0%
+	dilations
+
+input_79_dilations_0
+bias
+
+const_9_to_fp16!
+strides
+
+input_79_strides_0
+x
+
+var_238_cast_fp16#
 pad_type
 
-input_79_pad_type_0
+input_79_pad_type_0
+groups
+
+input_79_groups_0
 weight
 
 const_8_to_fp16.
@@ -3332,28 +3332,28 @@ $
 
 €*%
 @model_path/weights/weight.binÀÏ¹ç
-conv!
-strides
-
-input_85_strides_0
-groups
-
-input_85_groups_0
-bias
-
-const_11_to_fp16
-x
-
-input_83_cast_fp16%
-	dilations
-
-input_85_dilations_0
+conv
 pad
 
-input_85_pad_0#
+input_85_pad_0%
+	dilations
+
+input_85_dilations_0
+bias
+
+const_11_to_fp16!
+strides
+
+input_85_strides_0
+x
+
+input_83_cast_fp16#
 pad_type
 
-input_85_pad_type_0
+input_85_pad_type_0
+groups
+
+input_85_groups_0
 weight
 
 const_10_to_fp16/
@@ -3452,13 +3452,13 @@ $
 "	
 cast_30Ã
 
-reduce_sum&
-	keep_dims
-
-valid_any_keep_dims_0
+reduce_sum
 axes
 
-valid_any_axes_0
+valid_any_axes_0&
+	keep_dims
+
+valid_any_keep_dims_0
 x
 
 det_mask_to_fp16)
@@ -3563,14 +3563,14 @@ reduce_sum&
 
 "
 transpose_0®
-	fill_like$
-value
-
-var_274_value_0_to_fp16#
+	fill_like#
 
 ref_tensor
 
-var_266_cast_fp16.
+var_266_cast_fp16$
+value
+
+var_274_value_0_to_fp16.
 var_274_cast_fp16
 
 
@@ -3613,16 +3613,16 @@ ref_tensor
 
 "
 op_273_after_broadcastÂ
-select
-b
-
-var_274_cast_fp16
-a
-
-var_266_cast_fp16#
+select#
 cond
 
-var_273_after_broadcast0
+var_273_after_broadcast
+a
+
+var_266_cast_fp16
+b
+
+var_274_cast_fp160
 x_for_max_cast_fp16
 
 
@@ -3660,13 +3660,13 @@ ref_tensor
 
  Ó
 
-reduce_max)
-	keep_dims
-
-reduce_max_0_keep_dims_0
+reduce_max
 axes
 
-reduce_max_0_axes_0
+reduce_max_0_axes_0)
+	keep_dims
+
+reduce_max_0_keep_dims_0
 x
 
 x_for_max_cast_fp16-
@@ -3753,16 +3753,16 @@ reduce_max)
 
 €*%
 @model_path/weights/weight.bin€Ò¹Á
-select
-b
-
-var_279_to_fp16
-a
-
-reduce_max_0_cast_fp16#
+select#
 cond
 
-var_278_after_broadcast+
+var_278_after_broadcast
+a
+
+reduce_max_0_cast_fp16
+b
+
+var_279_to_fp16+
 pooled_max_cast_fp16
 
 
@@ -3816,13 +3816,13 @@ reduce_max)
 
  ¹
 
-reduce_sum#
-	keep_dims
-
-summed_keep_dims_0
+reduce_sum
 axes
 
-summed_axes_0
+summed_axes_0#
+	keep_dims
+
+summed_keep_dims_0
 x
 
 var_283_cast_fp16'
@@ -3862,13 +3862,13 @@ reduce_sum#
 
  º
 
-reduce_sum$
-	keep_dims
-
-var_287_keep_dims_0
+reduce_sum
 axes
 
-var_287_axes_0
+var_287_axes_0$
+	keep_dims
+
+var_287_keep_dims_0
 x
 
 mask_f_cast_fp16'
@@ -3937,7 +3937,11 @@ reduce_sum$
 
 
  ×
-concat
+concat'
+
+interleave
+
+input_89_interleave_0
 axis
 
 
@@ -3946,11 +3950,7 @@ reduce_sum$
 
 pooled_max_cast_fp16
 
-pooled_mean_cast_fp16'
-
-interleave
-
-input_89_interleave_0)
+pooled_mean_cast_fp16)
 input_89_cast_fp16
 
 
@@ -4175,7 +4175,11 @@ $model_state_encoder_fc2_bias_to_fp164
 
 
  €
-concat
+concat'
+
+interleave
+
+input_99_interleave_0
 axis
 
 
@@ -4188,11 +4192,7 @@ $model_state_encoder_fc2_bias_to_fp164
 
 det_feat_cast_fp16
 
-state_feat_cast_fp16'
-
-interleave
-
-input_99_interleave_0)
+state_feat_cast_fp16)
 input_99_cast_fp16
 
 
@@ -6832,7 +6832,7 @@ interleave
 
 
 :
-µ(Ó&·¦&ê(G¨Þ
+4#'´(º€)M©Þ
 linear-
 bias%
 #
@@ -6917,13 +6917,13 @@ interleave
 slice_by_index
 end_mask
 
-w_1_end_mask_0
-begin
-
-w_1_begin_0
+w_1_end_mask_0
 end
 
-	w_1_end_0#
+	w_1_end_0
+begin
+
+w_1_begin_0#
 x
 
 expert_weights_1_cast_fp16#
@@ -7111,13 +7111,13 @@ interleave
 slice_by_index
 end_mask
 
-w_3_end_mask_0
-begin
-
-w_3_begin_0
+w_3_end_mask_0
 end
 
-	w_3_end_0#
+	w_3_end_0
+begin
+
+w_3_begin_0#
 x
 
 expert_weights_1_cast_fp16#
@@ -7321,13 +7321,13 @@ interleave
 slice_by_index
 end_mask
 
-w_5_end_mask_0
-begin
-
-w_5_begin_0
+w_5_end_mask_0
 end
 
-	w_5_end_0#
+	w_5_end_0
+begin
+
+w_5_begin_0#
 x
 
 expert_weights_1_cast_fp16#
@@ -7531,13 +7531,13 @@ interleave
 slice_by_index
 end_mask
 
-w_7_end_mask_0
-begin
-
-w_7_begin_0
+w_7_end_mask_0
 end
 
-	w_7_end_0#
+	w_7_end_0
+begin
+
+w_7_begin_0#
 x
 
 expert_weights_1_cast_fp16#
@@ -7741,13 +7741,13 @@ interleave
 slice_by_index
 end_mask
 
-w_9_end_mask_0
-begin
-
-w_9_begin_0
+w_9_end_mask_0
 end
 
-	w_9_end_0#
+	w_9_end_0
+begin
+
+w_9_begin_0#
 x
 
 expert_weights_1_cast_fp16#
@@ -7953,14 +7953,14 @@ w_11_end_0*
 slice_by_index
 end_mask
 
-w_11_end_mask_0
-begin
-
-w_11_begin_0
+w_11_end_mask_0
 end
 
 
-w_11_end_0#
+w_11_end_0
+begin
+
+w_11_begin_0#
 x
 
 expert_weights_1_cast_fp16$
@@ -8496,14 +8496,14 @@ w_13_end_0*
 slice_by_index
 end_mask
 
-w_13_end_mask_0
-begin
-
-w_13_begin_0
+w_13_end_mask_0
 end
 
 
-w_13_end_0#
+w_13_end_0
+begin
+
+w_13_begin_0#
 x
 
 expert_weights_3_cast_fp16$
@@ -8633,14 +8633,14 @@ w_15_end_0*
 slice_by_index
 end_mask
 
-w_15_end_mask_0
-begin
-
-w_15_begin_0
+w_15_end_mask_0
 end
 
 
-w_15_end_0#
+w_15_end_0
+begin
+
+w_15_begin_0#
 x
 
 expert_weights_3_cast_fp16$
@@ -8786,14 +8786,14 @@ w_17_end_0*
 slice_by_index
 end_mask
 
-w_17_end_mask_0
-begin
-
-w_17_begin_0
+w_17_end_mask_0
 end
 
 
-w_17_end_0#
+w_17_end_0
+begin
+
+w_17_begin_0#
 x
 
 expert_weights_3_cast_fp16$
@@ -8939,14 +8939,14 @@ w_19_end_0*
 slice_by_index
 end_mask
 
-w_19_end_mask_0
-begin
-
-w_19_begin_0
+w_19_end_mask_0
 end
 
 
-w_19_end_0#
+w_19_end_0
+begin
+
+w_19_begin_0#
 x
 
 expert_weights_3_cast_fp16$
@@ -9092,14 +9092,14 @@ w_21_end_0*
 slice_by_index
 end_mask
 
-w_21_end_mask_0
-begin
-
-w_21_begin_0
+w_21_end_mask_0
 end
 
 
-w_21_end_0#
+w_21_end_0
+begin
+
+w_21_begin_0#
 x
 
 expert_weights_3_cast_fp16$
@@ -9245,14 +9245,14 @@ w_23_end_0*
 slice_by_index
 end_mask
 
-w_23_end_mask_0
-begin
-
-w_23_begin_0
+w_23_end_mask_0
 end
 
 
-w_23_end_0#
+w_23_end_0
+begin
+
+w_23_begin_0#
 x
 
 expert_weights_3_cast_fp16$
@@ -9728,14 +9728,14 @@ w_25_end_0*
 slice_by_index
 end_mask
 
-w_25_end_mask_0
-begin
-
-w_25_begin_0
+w_25_end_mask_0
 end
 
 
-w_25_end_0#
+w_25_end_0
+begin
+
+w_25_begin_0#
 x
 
 expert_weights_5_cast_fp16$
@@ -9865,14 +9865,14 @@ w_27_end_0*
 slice_by_index
 end_mask
 
-w_27_end_mask_0
-begin
-
-w_27_begin_0
+w_27_end_mask_0
 end
 
 
-w_27_end_0#
+w_27_end_0
+begin
+
+w_27_begin_0#
 x
 
 expert_weights_5_cast_fp16$
@@ -10018,14 +10018,14 @@ w_29_end_0*
 slice_by_index
 end_mask
 
-w_29_end_mask_0
-begin
-
-w_29_begin_0
+w_29_end_mask_0
 end
 
 
-w_29_end_0#
+w_29_end_0
+begin
+
+w_29_begin_0#
 x
 
 expert_weights_5_cast_fp16$
@@ -10171,14 +10171,14 @@ w_31_end_0*
 slice_by_index
 end_mask
 
-w_31_end_mask_0
-begin
-
-w_31_begin_0
+w_31_end_mask_0
 end
 
 
-w_31_end_0#
+w_31_end_0
+begin
+
+w_31_begin_0#
 x
 
 expert_weights_5_cast_fp16$
@@ -10324,14 +10324,14 @@ w_33_end_0*
 slice_by_index
 end_mask
 
-w_33_end_mask_0
-begin
-
-w_33_begin_0
+w_33_end_mask_0
 end
 
 
-w_33_end_0#
+w_33_end_0
+begin
+
+w_33_begin_0#
 x
 
 expert_weights_5_cast_fp16$
@@ -10477,14 +10477,14 @@ w_35_end_0*
 slice_by_index
 end_mask
 
-w_35_end_mask_0
-begin
-
-w_35_begin_0
+w_35_end_mask_0
 end
 
 
-w_35_end_0#
+w_35_end_0
+begin
+
+w_35_begin_0#
 x
 
 expert_weights_5_cast_fp16$
@@ -10960,14 +10960,14 @@ w_37_end_0*
 slice_by_index
 end_mask
 
-w_37_end_mask_0
-begin
-
-w_37_begin_0
+w_37_end_mask_0
 end
 
 
-w_37_end_0!
+w_37_end_0
+begin
+
+w_37_begin_0!
 x
 
 expert_weights_cast_fp16$
@@ -11097,14 +11097,14 @@ w_39_end_0*
 slice_by_index
 end_mask
 
-w_39_end_mask_0
-begin
-
-w_39_begin_0
+w_39_end_mask_0
 end
 
 
-w_39_end_0!
+w_39_end_0
+begin
+
+w_39_begin_0!
 x
 
 expert_weights_cast_fp16$
@@ -11250,14 +11250,14 @@ w_41_end_0*
 slice_by_index
 end_mask
 
-w_41_end_mask_0
-begin
-
-w_41_begin_0
+w_41_end_mask_0
 end
 
 
-w_41_end_0!
+w_41_end_0
+begin
+
+w_41_begin_0!
 x
 
 expert_weights_cast_fp16$
@@ -11403,14 +11403,14 @@ w_43_end_0*
 slice_by_index
 end_mask
 
-w_43_end_mask_0
-begin
-
-w_43_begin_0
+w_43_end_mask_0
 end
 
 
-w_43_end_0!
+w_43_end_0
+begin
+
+w_43_begin_0!
 x
 
 expert_weights_cast_fp16$
@@ -11556,14 +11556,14 @@ w_45_end_0*
 slice_by_index
 end_mask
 
-w_45_end_mask_0
-begin
-
-w_45_begin_0
+w_45_end_mask_0
 end
 
 
-w_45_end_0!
+w_45_end_0
+begin
+
+w_45_begin_0!
 x
 
 expert_weights_cast_fp16$
@@ -11707,13 +11707,13 @@ w_45_end_0!
 slice_by_index
 end_mask
 
-w_end_mask_0
-begin
-
-	w_begin_0
+w_end_mask_0
 end
 	
-w_end_0!
+w_end_0
+begin
+
+	w_begin_0!
 x
 
 expert_weights_cast_fp16!
@@ -12489,19 +12489,19 @@ $model_fusion_head_fc3_weight_to_fp16
 slice_by_index#
 end_mask
 
-var_1217_end_mask_0
-begin
-
-var_1217_begin_0
+var_1217_end_mask_0+
+squeeze_mask
+
+var_1217_squeeze_mask_0
 end
 
 var_1217_end_0
+begin
+
+var_1217_begin_0
 x
 
-linear_152_cast_fp16+
-squeeze_mask
-
-var_1217_squeeze_mask_0"
+linear_152_cast_fp16"
 var_1217_cast_fp16
 
 
@@ -12574,19 +12574,19 @@ $model_fusion_head_fc3_weight_to_fp16
 slice_by_index#
 end_mask
 
-var_1219_end_mask_0
-begin
-
-var_1219_begin_0
+var_1219_end_mask_0+
+squeeze_mask
+
+var_1219_squeeze_mask_0
 end
 
 var_1219_end_0
+begin
+
+var_1219_begin_0
 x
 
-linear_152_cast_fp16+
-squeeze_mask
-
-var_1219_squeeze_mask_0"
+linear_152_cast_fp16"
 var_1219_cast_fp16
 
 
@@ -13386,19 +13386,19 @@ $model_fusion_head_fc3_weight_to_fp16
 slice_by_index 
 end_mask
 
-speed_end_mask_0
-begin
-
-speed_begin_0
-end
-
-speed_end_0
-x
-
-vehicle_state_to_fp16(
+speed_end_mask_0(
 squeeze_mask
 
-speed_squeeze_mask_0
+speed_squeeze_mask_0
+end
+
+speed_end_0
+begin
+
+speed_begin_0
+x
+
+vehicle_state_to_fp16
 speed_cast_fp16
 
 
@@ -13495,7 +13495,11 @@ s_1_axes_0
 
 
  ë
-concat
+concat 
+
+interleave
+
+x_interleave_0
 axis
 
 
@@ -13508,11 +13512,7 @@ s_1_axes_0
 
 det_feat_cast_fp16
 
-speed_col_cast_fp16 
-
-interleave
-
-x_interleave_0"
+speed_col_cast_fp16"
 x_cast_fp16
 
 
