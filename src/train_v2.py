@@ -238,7 +238,8 @@ class _MonoDatasetV2Adapter(Dataset):
 
 
 def build_v2_dataset(clips_dir, image_size, augment, view_filter, seed, num_dets,
-                     force_no_lane=False, force_no_det=False):
+                     force_no_lane=False, force_no_det=False,
+                     enable_world_model: bool = False):
     """构建数据集：优先 M3 的 MultiTaskClipsDataset，缺失则降级到 MonoClipsDataset 适配器。
 
     返回 (dataset, source_name, has_lane, has_det)
@@ -259,7 +260,8 @@ def build_v2_dataset(clips_dir, image_size, augment, view_filter, seed, num_dets
             print("[M3接口] ⚠ dataset_v2 模块存在但无可用的数据集类")
         else:
             kwargs = dict(clips_dir=clips_dir, image_size=image_size, augment=augment,
-                          view_filter=view_filter, seed=seed, num_dets=num_dets)
+                          view_filter=view_filter, seed=seed, num_dets=num_dets,
+                          enable_world_model=enable_world_model)
             sig = inspect.signature(cls)
             if not any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
                 kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
@@ -405,7 +407,9 @@ def map_state(batch: Dict[str, torch.Tensor], device, enabled: bool = True
 
 def build_m2_inputs(batch: Dict[str, torch.Tensor], device, enable_lane: bool,
                     enable_det: bool, lane_size: Optional[int],
-                    strict_lane_geometry: bool = False) -> Dict[str, torch.Tensor]:
+                    strict_lane_geometry: bool = False,
+                    enable_world_model: bool = False
+                    ) -> Dict[str, torch.Tensor]:
     """把 M3 的 batch 适配成 M2.forward 的入参。
 
     ★ 车道线几何口径（2026-10-08 修复）
@@ -453,8 +457,18 @@ def build_m2_inputs(batch: Dict[str, torch.Tensor], device, enable_lane: bool,
 
     dets, det_mask = pack_dets(batch, device, enabled=enable_det)
     state = map_state(batch, device, enabled=True)
-    return {"image": image, "lane_mask": lane_mask, "dets": dets,
-            "det_mask": det_mask, "state": state}
+    # ★ 两种键名都产出：M2Model.forward 用 vehicle_state，_ReferenceModelV2.forward 用 state。
+    #   只给 state 时 M2Model 会把它当 kwargs 丢弃（→ vehicle_state=None → 零状态），
+    #   世界模型 forward 还会因 vehicle_state=None 崩溃被 except 吞掉。两键同给兼容两者。
+    out = {"image": image, "lane_mask": lane_mask, "dets": dets,
+           "det_mask": det_mask, "state": state, "vehicle_state": state}
+    # ★ 世界模型（w3，2026-10-09）：把 action 塞进 inputs，
+    #   call_model 会按 forward 形参名过滤——旧模型不接受 action 时自动丢弃，
+    #   M2Model 接受 action 时透传（forward 内 return_aux=True 才会消费）。
+    #   track_mode 不传（None → forward 内置全零 = 自动路由）。
+    if enable_world_model and batch.get("action") is not None:
+        out["action"] = batch["action"].to(device).float()
+    return out
 
 
 def call_model(model: nn.Module, inputs: Dict[str, torch.Tensor]) -> Any:
@@ -534,6 +548,46 @@ def call_model_with_intermediates(model: nn.Module,
     return call_model(model, inputs), None
 
 
+def call_model_full(model: nn.Module, inputs: Dict[str, torch.Tensor],
+                    enable_world_model: bool = False
+                    ) -> Tuple[Any, Any, Optional[Dict[str, Any]]]:
+    """★ 世界模型联合训练前向（w3，2026-10-09）。
+
+    用 return_aux=True 触发 M2Model 的 aux 区，从而拿到：
+        aux["pred_next_fused"]    [B,512]  世界模型预测的下一帧 fused
+        aux["wm_routing_weights"] [B,3]   路由权重（负载均衡用）
+        aux["refiner_intermediates"]       24 步中间输出（如模型有 refiner）
+    返回 (main_tuple, intermediates, aux)：
+        · intermediates = aux["refiner_intermediates"]（无 refiner 时为 None）
+        · aux = 完整 aux dict（世界模型未实例化 / 未传 action 时不含 pred_next_fused）
+    旧模型（无 return_aux 形参 / 返回 3 元组）→ 降级返回 (out, None, None)，不崩。
+    """
+    params = inspect.signature(model.forward).parameters
+    has_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD
+                 for p in params.values())
+    accepts = lambda k: (k in params) or has_kw      # noqa: E731
+
+    # ---- 路径 A：return_aux=True → (steer, throttle, brake, aux) ----
+    if accepts("return_aux"):
+        kwargs = {k: v for k, v in inputs.items()
+                  if accepts(k) and v is not None}
+        kwargs.setdefault("image", inputs["image"])
+        kwargs["return_aux"] = True
+        try:
+            out = model(**kwargs)
+        except TypeError:
+            out = None
+        if isinstance(out, tuple) and len(out) >= 4 and isinstance(out[-1], dict):
+            aux = out[-1]
+            main = tuple(out[:3])
+            inter = aux.get("refiner_intermediates")
+            return main, (inter if inter else None), aux
+
+    # ---- 降级：模型不支持 return_aux → 走普通前向，无 aux/intermediates ----
+    out = call_model(model, inputs)
+    return out, None, None
+
+
 # ==================== 3. M2 接口：model_v2（软依赖 + 参考实现） ====================
 
 class _ReferenceModelV2(nn.Module):
@@ -597,7 +651,8 @@ class _ReferenceModelV2(nn.Module):
 
 
 def build_v2_model(lane_size: int, force_reference=False,
-                   num_steps: Optional[int] = None):
+                   num_steps: Optional[int] = None,
+                   enable_world_model: bool = False):
     """构建模型：优先 M2 的 src/model_v2.build_model()，缺失则降级到参考实现。
 
     Args:
@@ -605,6 +660,10 @@ def build_v2_model(lane_size: int, force_reference=False,
             w7 已把 `num_steps` 做成显式别名（原 `refiner_steps` 亦可）。
             ⚠️ ANE 实测（2026-10-08）：24 步 ANE 编译失败退化 CPU（18ms）；
             8 步 ANE=1.58ms，12 步 2.13ms，**14~16 步是 cutoff**。
+        enable_world_model: ★ 世界模型开关（w3，2026-10-09）。True 时透传给
+            build_model(enable_world_model=True)，M2Model 会实例化 self.world_model
+            （需 src/world_model.py 已落盘）。force_reference 降级路径无世界模型
+            → 调用方据此跳过 world loss。
 
     返回 (model, source_name, lane_module)
     """
@@ -618,6 +677,18 @@ def build_v2_model(lane_size: int, force_reference=False,
                 kw = {"deploy": False}
                 if num_steps is not None:
                     kw["num_steps"] = int(num_steps)
+                # ★ 世界模型：仅当模型构造接受该参数时透传（旧版 build_model 无此参数→忽略）
+                try:
+                    sig = inspect.signature(mod.build_model)
+                    if any(p.kind == inspect.Parameter.VAR_KEYWORD
+                           for p in sig.parameters.values()) \
+                            or "enable_world_model" in sig.parameters:
+                        kw["enable_world_model"] = bool(enable_world_model)
+                    elif enable_world_model:
+                        print("[M2接口] ⚠ build_model 不接受 enable_world_model"
+                              "（旧版）→ 世界模型分支不生效")
+                except (TypeError, ValueError):
+                    pass
                 try:
                     model = mod.build_model(**kw)
                 except TypeError:
@@ -1500,7 +1571,7 @@ class _SyntheticV2Dataset(Dataset):
 
     def __init__(self, size=256, image_size=(180, 320), num_dets=M2_MAX_DETS,
                  with_lane=True, with_det=True, seed=0, lane_in_image=False,
-                 lane_size=M2_LANE_SIZE):
+                 lane_size=M2_LANE_SIZE, enable_world_model: bool = False):
         self.size = size
         self.H, self.W = image_size
         self.num_dets = num_dets
@@ -1509,6 +1580,7 @@ class _SyntheticV2Dataset(Dataset):
         self.seed = seed
         self.lane_in_image = lane_in_image
         self.lane_size = lane_size
+        self.enable_world_model = bool(enable_world_model)
 
     def __len__(self):
         return self.size
@@ -1556,7 +1628,9 @@ class _SyntheticV2Dataset(Dataset):
                 classes[i] = int(torch.randint(0, 4, (1,), generator=g))
                 det_mask[i] = 1.0
 
-        return {
+        throttle = max(0.0, min(1.0, 0.5 + 0.3 * steer))
+        brake = 1.0 if curv < -0.8 else 0.0
+        sample = {
             "image": image,
             "lane_mask": lane_mask,
             "lane_present": torch.tensor([1.0 if self.with_lane else 0.0]),
@@ -1566,10 +1640,23 @@ class _SyntheticV2Dataset(Dataset):
             "vehicle_state": torch.rand(10, generator=g) * 2 - 1,
             "vehicle_state_mask": torch.ones(10),
             "steer": torch.tensor([steer]),
-            "throttle": torch.tensor([max(0.0, min(1.0, 0.5 + 0.3 * steer))]),
-            "brake": torch.tensor([1.0 if curv < -0.8 else 0.0]),
+            "throttle": torch.tensor([throttle]),
+            "brake": torch.tensor([brake]),
             "frame_no": torch.tensor([idx], dtype=torch.int64),
         }
+        # ★ 世界模型（w3，2026-10-09）：合成「下一帧」+ action，供 --enable-world-model 自测。
+        #   next_image 用相邻种子生成一帧微变图像（模拟时序位移），action=本帧控制量。
+        if self.enable_world_model:
+            g2 = torch.Generator().manual_seed(self.seed * 100003 + idx + 1)
+            next_image = torch.rand(3, H, W, generator=g2) * 0.3 + 0.35
+            if self.lane_in_image:
+                next_image = torch.clamp(
+                    next_image + F.interpolate(lane_mask.unsqueeze(0), size=(H, W),
+                                               mode="nearest")[0] * 0.4, 0, 1)
+            sample["next_image"] = next_image
+            sample["action"] = torch.tensor([steer, throttle, float(brake)],
+                                            dtype=torch.float32)
+        return sample
 
 
 # ==================== 11. 训练主流程 ====================
@@ -1598,6 +1685,9 @@ def train_v2(
     moe_balance_weight: float = 0.01,
     limit_batches: int = 0,
     resume: Optional[str] = None, force_reference_model: bool = False,
+    enable_world_model: bool = False,
+    world_loss_weight: float = 0.3,
+    wm_balance_weight: float = 0.01,
 ) -> Path:
     torch.manual_seed(seed)
     random.seed(seed)
@@ -1617,20 +1707,24 @@ def train_v2(
         train_ds = _SyntheticV2Dataset(size=synthetic_size, image_size=image_size,
                                        num_dets=num_dets, with_lane=not no_lane,
                                        with_det=not no_det, seed=seed,
-                                       lane_in_image=synthetic_lane_in_image)
+                                       lane_in_image=synthetic_lane_in_image,
+                                       enable_world_model=enable_world_model)
         val_ds = _SyntheticV2Dataset(size=max(32, synthetic_size // 4),
                                      image_size=image_size, num_dets=num_dets,
                                      with_lane=not no_lane, with_det=not no_det,
                                      seed=seed + 7777,
-                                     lane_in_image=synthetic_lane_in_image)
+                                     lane_in_image=synthetic_lane_in_image,
+                                     enable_world_model=enable_world_model)
         ds_source = "合成数据 _SyntheticV2Dataset（自测用）"
         has_lane, has_det = (not no_lane), (not no_det)
-        print(f"[数据] 合成数据集：train={len(train_ds)} val={len(val_ds)}")
+        print(f"[数据] 合成数据集：train={len(train_ds)} val={len(val_ds)}"
+              f"（world_model={'on' if enable_world_model else 'off'}）")
     else:
         cd = clips_dir or str(_ROOT / "data" / "raw_clips")
         train_ds, ds_source, has_lane, has_det = build_v2_dataset(
             clips_dir=cd, image_size=image_size, augment=True, view_filter=view_filter,
-            seed=seed, num_dets=num_dets, force_no_lane=no_lane, force_no_det=no_det)
+            seed=seed, num_dets=num_dets, force_no_lane=no_lane, force_no_det=no_det,
+            enable_world_model=enable_world_model)
         val_ds = None
         try:
             import importlib
@@ -1675,6 +1769,8 @@ def train_v2(
         # ★ 24 步迭代精修（§3）：模型有 iter_refiner 时启用
         "iter": iter_weight > 0,
     }
+    # ★ 世界模型（w3，2026-10-09）：模型实例化 world_model 且 batch 带 next_image 时启用。
+    #   enable 字典里先占位 False；模型构建后由 wm_active 覆盖（见下方训练循环前）。
 
     # 车道几何符号自动校准（避免符号搞反 → 一致性损失反向优化）
     lane_gain = lane_consistency_gain
@@ -1700,12 +1796,31 @@ def train_v2(
     model, model_source, lane_module = build_v2_model(
         lane_size or M2_LANE_SIZE,
         force_reference=force_reference_model,
-        num_steps=refiner_steps)
+        num_steps=refiner_steps,
+        enable_world_model=enable_world_model)
     model.to(device)
     n_param = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"[模型] 来源={model_source} | 可训练参数={n_param:,} ({n_param/1e6:.2f}M)")
     if lane_module is None:
         print("[M2接口] ⚠ 未找到车道编码器模块 → 无法挂载转向探针，车道辅助损失将失效")
+
+    # ★ 世界模型实例探测（w3，2026-10-09）：build_v2_model 透传 enable_world_model
+    #   后，M2Model 在 src/world_model.py 已落盘时会实例化 self.world_model。
+    #   降级（参考模型 / build_model 不接受该参数 / world_model.py 缺失）→ None，
+    #   据此跳过 world loss，不破坏现有训练。
+    wm_module = getattr(model, "world_model", None)
+    wm_active = enable_world_model and (wm_module is not None)
+    if enable_world_model:
+        if wm_active:
+            wm_params = sum(p.numel() for p in wm_module.parameters() if p.requires_grad)
+            print(f"[世界模型] ✓ 已实例化 WorldModel（可训练参数={wm_params:,}）"
+                  f"→ world_loss_weight={world_loss_weight} wm_balance_weight={wm_balance_weight}")
+        else:
+            print("[世界模型] ⚠ enable_world_model=True 但模型未实例化 world_model"
+                  "（参考模型降级 / world_model.py 未落盘）→ world loss 自动跳过")
+    # 图像特征维度（world loss 监督目标的切片边界）：优先读模型属性，兜底 256
+    img_feat_dim = int(getattr(model, "img_feat_dim", 256))
+    enable["world_model"] = wm_active
 
     # 探针头（训练期）：挂成模型子模块，随 checkpoint 存取，导出前需剥离
     probe = None
@@ -1812,7 +1927,8 @@ def train_v2(
                 break
 
             inputs = build_m2_inputs(batch, device, enable_lane=True,
-                                     enable_det=enable["det"], lane_size=lane_size)
+                                     enable_det=enable["det"], lane_size=lane_size,
+                                     enable_world_model=enable.get("world_model", False))
             lp = batch.get("lane_present")
             lane_valid = (lp.reshape(-1).to(device) > 0.5) if lp is not None else None
 
@@ -1822,7 +1938,15 @@ def train_v2(
                     model, lane_module, batch, device, inputs, loss_fn, use_amp, ctl_mode)
 
             with torch.amp.autocast(device_type=device, enabled=use_amp):
-                out, intermediates = call_model_with_intermediates(model, inputs)
+                # ★ 世界模型（w3，2026-10-09）：启用时走 call_model_full 拿 aux
+                #   （pred_next_fused / wm_routing_weights），并透传 action。
+                #   未启用时 call_model_full 退化为等价前向（aux=None）。
+                if enable.get("world_model"):
+                    out, intermediates, aux = call_model_full(
+                        model, inputs, enable_world_model=True)
+                else:
+                    out, intermediates = call_model_with_intermediates(model, inputs)
+                    aux = None
                 preds = normalize_outputs(out, ctl_mode)
                 probe_pred = None
                 if probe is not None and tap is not None and tap.feat is not None:
@@ -1843,6 +1967,32 @@ def train_v2(
                         loss = loss + iter_weight * l_iter
                         comps["iter"] = float(l_iter.detach())
                         comps.update({k: v for k, v in c_iter.items()})
+                # ★ 世界模型联合训练 loss（w3，2026-10-09）：
+                #   world_loss = MSE(pred_next_fused 的图像特征子段, image_encoder(next_image))
+                #   · pred_next_fused 是 [B,512] 的完整 fused；只有「下一帧 image」可用，
+                #     故只监督其前 img_feat_dim 维（图像特征部分）——避免用零填充 lane/det/state
+                #     维度把模型拉向预测零。复用 image_encoder，不重新编码整条 pipeline。
+                #   · next_image 缺失（参考模型降级 / 数据未采样）→ 跳过。
+                if (enable.get("world_model") and aux is not None
+                        and aux.get("pred_next_fused") is not None
+                        and batch.get("next_image") is not None):
+                    pred_next = aux["pred_next_fused"]            # [B,512]
+                    next_img = batch["next_image"].to(device).float()
+                    with torch.amp.autocast(device_type=device, enabled=use_amp):
+                        next_img_feat = model.image_encoder(next_img)   # [B, img_feat_dim]
+                    l_world = F.mse_loss(pred_next[:, :img_feat_dim],
+                                         next_img_feat.to(pred_next.dtype))
+                    loss = loss + world_loss_weight * l_world
+                    comps["world_loss"] = float(l_world.detach())
+                    # MoE 负载均衡（世界模型路由器，3 专家：高速/低速/赛道）：
+                    # 只对自动路由的两个专家做均衡（赛道 [B,2] 不参与硬切换均衡）。
+                    w = aux.get("wm_routing_weights")             # [B,3]
+                    if w is not None:
+                        auto_w = w[:, :2]                          # [B,2]
+                        bal = auto_w.shape[1] * (auto_w ** 2).sum(dim=1).mean()
+                        loss = loss + wm_balance_weight * bal
+                        comps["wm_balance"] = float(bal.detach())
+                        comps["wm_max_share"] = float(w[:, :2].max(dim=1).values.mean().detach())
                 loss_scaled = loss / max(grad_accum, 1)
 
             if scaler is not None:
@@ -1906,8 +2056,14 @@ def train_v2(
         # ---- 日志 ----
         ep_dt = time.time() - ep_t0
         extra = f" lane_steer={train_m.get('lane_steer', 0):.4f}" if enable["lane_steer"] else ""
+        wm_extra = ""
+        if wm_active and (train_m.get("world_loss", 0) != 0
+                          or "world_loss" in train_m):
+            wm_extra = (f" world={train_m.get('world_loss', 0):.4f}"
+                        f" wm_bal={train_m.get('wm_balance', 0):.4f}"
+                        f" wm_max={train_m.get('wm_max_share', 0):.3f}")
         print(f"Epoch {epoch:3d}/{epochs} | {ep_dt:5.1f}s | "
-              f"train={train_m.get('total', 0):.4f} (steer={train_m.get('steer', 0):.4f}{extra}) | "
+              f"train={train_m.get('total', 0):.4f} (steer={train_m.get('steer', 0):.4f}{extra}{wm_extra}) | "
               f"val={val_loss:.4f} (steer={val_m.get('steer', 0):.4f}) | "
               f"lr={optimizer.param_groups[0]['lr']:.2e}")
 
@@ -1948,11 +2104,14 @@ def train_v2(
                 "dataset_source": ds_source,
                 "degradation": {"has_lane": has_lane, "has_det": has_det},
                 "has_training_probe": probe is not None,
+                "enable_world_model": wm_active,
                 "loss_weights": {
                     "steer": steer_weight, "throttle": throttle_weight,
                     "brake": brake_weight, "lane_seg": lane_seg_weight,
                     "lane_steer": lane_steer_weight,
                     "lane_consistency": lane_consistency_weight,
+                    "world_loss": world_loss_weight if wm_active else 0.0,
+                    "wm_balance": wm_balance_weight if wm_active else 0.0,
                 },
             }, ckpt_dir / "best_model.pt")
             print(f"  ★ 新最佳 {select_metric}={best_val_loss:.4f} "
@@ -1996,6 +2155,17 @@ def train_v2(
             "lane_aux_losses_enabled": enable,
             "lane_sign_corr": lane_sign_corr, "lane_gain": lane_gain,
             "training_probe_used": probe is not None,
+            "world_model": {
+                "enabled": enable_world_model,
+                "active": wm_active,
+                "world_loss_weight": world_loss_weight if wm_active else 0.0,
+                "wm_balance_weight": wm_balance_weight if wm_active else 0.0,
+                "img_feat_dim": img_feat_dim,
+                "note": ("world_loss 监督 pred_next_fused 的前 img_feat_dim 维（图像特征"
+                         "子段）与 image_encoder(next_image) 的 MSE；只对可用 next_image 的"
+                         "样本生效，下一帧缺失时复用本帧（zero-pad 降级）。"
+                         "模型未实例化 world_model 时自动跳过，不破坏现有训练。"),
+            },
             "note": ("数据缺车道线/检测框标注时对应分支自动跳过或置零；"
                      "车道辅助损失在无标注时全部禁用，绝不用零掩码假装监督。"
                      "lane_grad_norm / lane_ablation_delta 是判断'车道线是否真的"
@@ -2087,6 +2257,15 @@ def parse_args():
                    help="模型选择指标：control=纯控制损失(默认,推荐)；"
                         "total=含辅助损失(会因辅助项抬高而选错)；steer=仅转向 L1")
     p.add_argument("--limit_batches", type=int, default=0, help="每 epoch 最多跑 N 个 batch")
+    p.add_argument("--enable_world_model", action="store_true",
+                   help="★世界模型联合训练（w3，2026-10-09）：开启后 dataset 多采样下一帧、"
+                        "训练侧加 world_loss=MSE(pred_next_fused[:,:256], image_encoder(next_image))"
+                        "×0.3 + 世界模型 MoE 路由负载均衡×0.01。模型未实例化 world_model 时"
+                        "自动跳过（不破坏现有训练）")
+    p.add_argument("--world_loss_weight", type=float, default=0.3,
+                   help="世界模型预测损失权重（仅 --enable_world_model 时生效）")
+    p.add_argument("--wm_balance_weight", type=float, default=0.01,
+                   help="世界模型 MoE 路由负载均衡权重（仅 --enable_world_model 时生效）")
     return p.parse_args()
 
 
@@ -2121,6 +2300,9 @@ def main():
         moe_balance_weight=a.moe_balance_weight,
         limit_batches=a.limit_batches, resume=a.resume,
         force_reference_model=a.force_reference_model,
+        enable_world_model=a.enable_world_model,
+        world_loss_weight=a.world_loss_weight,
+        wm_balance_weight=a.wm_balance_weight,
     )
 
 

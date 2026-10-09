@@ -4240,6 +4240,15 @@ final class DriveState {
     /// 与专家模式/训练录制互不影响，仅影响 RecordEngine 的输出内容
     var glyphMode       = false
 
+    // ── 赛道模式（W5 世界模型接线）──
+    // 【是什么】世界模型（world_model）的一个输入：track_mode ∈ {0.0, 1.0}。
+    //   1.0 = 赛道模式（玩家手动驾驶/竞速），0.0 = 自动模式（AI 托管）。
+    //   这个开关让玩家在 UI 上手动切换，喂给世界模型让它区分两种驾驶风格。
+    // 【为什么放 DriveState】UI 的 Toggle 要双向绑定一个 @Observable 属性；
+    //   DriveState 是全进程唯一的驾驶状态机，放这里与 expertMode/glyphMode
+    //   同一套纪律。引擎侧的 inferenceEngineV2.trackMode 在 tick 里同步本值。
+    var trackMode       = false
+
     // MARK: - 录制视角（2026-10-08 新增：用户要录第三视角）
 
     /// 录制视角开关：false = 第一人称 FPV（默认，兼容旧行为）；
@@ -7031,6 +7040,8 @@ final class DriveState {
                         k2.cameraHeadingDeg = locatorHeading
                         k2.cameraHeadingValid = true
                     }
+                    // W5：同步赛道模式开关到引擎（世界模型输入 track_mode）
+                    inferenceEngineV2.trackMode = trackMode
                     inferenceEngineV2.infer(image: cg,
                                             kinematics: k2,
                                             detections: effectiveDetections,

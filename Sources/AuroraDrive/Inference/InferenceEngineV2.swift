@@ -173,6 +173,51 @@ enum V2InputContract {
     /// det_feat 维度（DetectionEncoder 输出 = 128）。
     static let detFeatDim = 128
 
+    // ── 世界模型契约（W5 接线，2026-10-09）──────────────────────────────
+    //
+    // 【是什么】一个可选的前向预测头：给定当前帧的融合特征 + 刚算出的动作 +
+    //   检测/状态/赛道模式，预测「下一帧的融合特征」pred_next_fused。
+    //   用途：预热/预填充下一帧的特征环形缓冲（feat ring buffer），让冷启动
+    //   或检测掉帧时 GRU 的输入更平滑，而不是纯零填充。
+    //
+    // 【为什么可选】模型文件 models/world_model.mlmodelc 可能还没导出。
+    //   不存在时引擎**跳过世界模型步骤、不报错**，主驾驶链路照常跑。
+    //   这是任务明确要求的「模型不存在时跳过，不报错」。
+    //
+    // 【IO 契约】（世界模型导出脚本确定，本文件按此构造输入）
+    //   输入：
+    //     fused       [1, 512]   当前帧融合特征（multi_split 的 tf/精炼后 fused；
+    //                            双模型无 fused 中间量 → 用 enc 输出 feat 近似填充）
+    //     action      [1, 3]     steer/throttle/brake（刚算出的主模型输出）
+    //     det_feat    [1, 128]   检测特征（复用主模型输入侧的 det 张量派生；
+    //                            双模型/单模型无 det_feat 中间量 → 用 dets 展平近似）
+    //     det_mask    [1, 20]    检测有效位（复用主模型输入）
+    //     vehicle_state [1, 8]   车辆状态（复用主模型输入）
+    //     track_mode  [1]        1.0 = 赛道模式，0.0 = 自动模式（UI 按钮控制）
+    //   输出：
+    //     pred_next_fused [1, 512]  预测的下一帧融合特征
+    //
+    // 【computeUnits = .cpuOnly】用户铁律：不碰 GPU。世界模型也走 cpuOnly，
+    //   与 multi_split 的 tf/chunk/head 同一套纪律。
+    /// 世界模型文件名（不带扩展名）。
+    static let worldModelFileName = "world_model"
+    /// 世界模型输入：当前帧融合特征 `[1, fusedDim]`。
+    static let worldInputFused = "fused"
+    /// 世界模型输入：动作 `[1, 3]`（steer/throttle/brake）。
+    static let worldInputAction = "action"
+    /// 世界模型输入：检测特征 `[1, detFeatDim]`。
+    static let worldInputDetFeat = "det_feat"
+    /// 世界模型输入：检测有效位 `[1, maxDetections]`。
+    static let worldInputDetMask = "det_mask"
+    /// 世界模型输入：车辆状态 `[1, stateDim]`。
+    static let worldInputState = "vehicle_state"
+    /// 世界模型输入：赛道模式标志 `[1]`（1.0=赛道，0.0=自动）。
+    static let worldInputTrackMode = "track_mode"
+    /// 世界模型输出：预测的下一帧融合特征 `[1, fusedDim]`。
+    static let worldOutputPredNextFused = "pred_next_fused"
+    /// 动作维度（steer/throttle/brake 三维）。
+    static let actionDim = 3
+
     /// 检测框类别 one-hot 顺序：car, pedestrian, sign, obstacle。
     /// 与 `Detection.Label` 的声明顺序一致（RuleController.swift:32-36）。
     static let labelCount = 4
@@ -1458,6 +1503,44 @@ final class InferenceEngineV2 {
     @ObservationIgnored
     private(set) var useMultiSplitModels = false
 
+    // ══════════════════════════════════════════════════════════════════════
+    // ★ 世界模型（W5 接线，2026-10-09）—— 可选的前向预测头
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // 【是什么】给定当前帧 fused + action + det_feat + det_mask + state + track_mode，
+    //   预测下一帧的融合特征 pred_next_fused。预测结果缓存起来，供下一帧
+    //   feat ring buffer 预填充（让冷启动/掉帧时的时序输入更平滑）。
+    //
+    // 【可选性】模型文件 models/world_model.mlmodelc 不存在时 worldModel=nil，
+    //   推理流水线**跳过世界模型步骤**，主驾驶链路不受影响（见 infer 内的守卫）。
+    //
+    // 【不碰 GPU】computeUnits = .cpuOnly（用户铁律）。
+    //
+    // 【不阻塞主驾驶链路】世界模型推理用 do/try/catch 包裹，任何失败都只
+    //   清掉缓存、不调 finish(error:) —— 主模型的 steer/throttle/brake 已经
+    //   算完并回传，世界模型失败绝不影响驾驶输出。
+    /// 世界模型（可选；缺失时为 nil，推理时跳过）。
+    @ObservationIgnored
+    private var worldModel: MLModel?
+    /// 世界模型是否已加载（独立于 isLoaded，世界模型缺失不影响主驾驶链路）。
+    @ObservationIgnored
+    private(set) var worldModelLoaded = false
+    /// 世界模型最近一次预测的下一帧融合特征（缓存；供下帧 feat ring buffer 预填充）。
+    ///
+    /// 【并发不变式】只在 inferenceQueue（串行）上写，与 featBuffer 同一套纪律。
+    /// 为 nil 表示「无可用预测」（模型未加载 / 上帧预测失败 / 已被消费）。
+    @ObservationIgnored
+    private nonisolated(unsafe) var lastPredNextFused: [Float]?
+
+    // ── 赛道模式（W5 接线）──
+    // 【为什么放引擎里】track_mode 是世界模型的输入，由 UI 按钮控制。
+    //   放引擎上让 infer 内部能直接读到，不必每帧从 DriveState 往里传参。
+    //   @Observable 让 UI 的 Toggle 能双向绑定（DriveState 代理这个属性）。
+    /// 赛道模式开关。true = 赛道模式（track_mode=1.0），false = 自动模式（track_mode=0.0）。
+    var trackMode: Bool = false
+    /// track_mode 的浮点值（喂给世界模型；1.0=赛道，0.0=自动）。
+    var trackModeValue: Float { trackMode ? 1.0 : 0.0 }
+
     /// 是否启用 9 模型串联（multi_split）。**默认关闭**——双模型 cpuOnly 更优
     /// （Lead 实测 0.83ms/15.8MB vs 1.72ms/70MB）。显式置 true 才尝试该路径。
     @ObservationIgnored
@@ -1579,8 +1662,45 @@ final class InferenceEngineV2 {
         return urls
     }
 
+    // ── 世界模型路径（W5）──
+    // 【路径约定】models/world_model.mlmodelc（与主模型同在 models/ 根目录）。
+    //   不存在时返回 nil → worldModel 不加载 → 推理时跳过（不报错）。
+    /// 世界模型路径：`models/world_model.mlmodelc`（不存在返回 nil）。
+    private var worldModelURL: URL? {
+        let modelsDir = AuroraPaths.projectRoot().appendingPathComponent("models")
+        let compiled = modelsDir.appendingPathComponent(
+            "\(V2InputContract.worldModelFileName).mlmodelc")
+        guard FileManager.default.fileExists(atPath: compiled.path) else { return nil }
+        return compiled
+    }
+
     /// 同步加载（启动路径显式预热用；保持 MainActor 语义简单）。
     func loadIfNeeded() {
+        // ── 世界模型加载（W5，独立于主链路）──
+        // 【为什么在 guard !isLoaded 之前】主模型已加载时 loadIfNeeded 会因
+        //   `guard !isLoaded else { return }` 直接返回 → 世界模型永远不会被加载。
+        //   故世界模型加载放在最前面，用独立的 worldModelLoaded 标志防重复。
+        //   【可选性】world_model.mlmodelc 不存在 → worldModelLoaded 保持 false，
+        //   推理时跳过世界模型步骤，不报错（任务明确要求）。
+        //   【不碰 GPU】computeUnits = .cpuOnly（用户铁律）。
+        if !worldModelLoaded, let wmURL = worldModelURL {
+            let wmCfg = MLModelConfiguration()
+            wmCfg.computeUnits = .cpuOnly
+            do {
+                let wm = try MLModel(contentsOf: wmURL, configuration: wmCfg)
+                worldModel = wm
+                worldModelLoaded = true
+                Self.warmUp(model: wm, label: V2InputContract.worldModelFileName,
+                            queue: inferenceQueue, config: config)
+                print("[v2.world] 世界模型加载成功（cpuOnly）：\(wmURL.lastPathComponent)")
+            } catch {
+                // 加载失败 → 静默跳过，不污染 errorMessage（世界模型是可选的）
+                worldModel = nil
+                worldModelLoaded = false
+                print("[v2.world] 世界模型加载失败（跳过，不影响主链路）：\(error.localizedDescription)")
+            }
+        }
+
         guard !isLoaded else { return }
         guard Date().timeIntervalSince(lastLoadAttempt) >= loadRetryCooldown else { return }
         lastLoadAttempt = Date()
@@ -1791,6 +1911,13 @@ final class InferenceEngineV2 {
                 // multi_split head：fused[1,512]+img_feat[1,256]+det_feat[1,128]+det_mask[1,20]
                 provider = try? makeMultiHeadProvider(
                     fused: nil, imgFeat: nil, detFeat: nil, detMask: nil)
+            } else if label == V2InputContract.worldModelFileName {
+                // 世界模型：fused[1,512]+action[1,3]+det_feat[1,128]+det_mask[1,20]
+                //            +vehicle_state[1,8]+track_mode[1]（全零预热即可）
+                provider = try? makeWorldProvider(
+                    fusedArr: nil, featArr: nil, action: (0, 0, 0),
+                    detFeatArr: nil, detMaskArr: nil, stateArr: nil,
+                    features: zeroFeatures(), trackMode: 0)
             } else {
                 provider = try? makeProvider(features: zeroFeatures())
             }
@@ -1822,6 +1949,10 @@ final class InferenceEngineV2 {
         chunkModels = []
         headModel = nil
         useMultiSplitModels = false
+        // 世界模型也要清（热替换后重新加载）
+        worldModel = nil
+        worldModelLoaded = false
+        lastPredNextFused = nil
         isLoaded = false
         isInferencing = false
         errorMessage = nil
@@ -1859,6 +1990,8 @@ final class InferenceEngineV2 {
         let snapshot = laneMask.flatMap { LaneMaskSnapshot(mask: $0) }
         let gen = generation
         let cfg = config
+        // 世界模型输入：track_mode 从引擎属性快照（跨线程传值，避免后台读 self）
+        let trackModeVal = trackModeValue
 
         // 速度/朝向历史在主线程取（避免后台读 MainActor 状态）
         let now = Date()
@@ -2084,6 +2217,21 @@ final class InferenceEngineV2 {
                     let output = try headModel.prediction(from: headProvider)
                     let result = Self.readResult(output, start: start)
                     let aux = Self.readAux(output)
+                    // ── W5 世界模型（可选）──
+                    // 主模型已算出 steer/throttle/brake → 用 fused+action+det_feat
+                    //   +det_mask+state+track_mode 预测下一帧 fused，缓存供下帧预填充。
+                    // 【不阻塞】失败只清缓存，主结果已拿到，照常 finish。
+                    // 【为什么用 refinedFused】multi_split 路径有真实的精炼后 fused（512维）
+                    //   和 tf 的 det_feat（128维）→ 世界模型拿到的是高质量中间量。
+                    if let wm = self.worldModel {
+                        let pred = self.runWorldModel(
+                            model: wm,
+                            fusedArr: refinedFused, featArr: nil,
+                            action: (result.steer, result.throttle, result.brake),
+                            detFeatArr: detFeatMa,
+                            features: features, trackMode: trackModeVal)
+                        self.lastPredNextFused = pred
+                    }
                     Task { @MainActor in
                         self.finish(gen, result, error: nil, features: features, aux: aux)
                     }
@@ -2147,6 +2295,20 @@ final class InferenceEngineV2 {
                     let output = try ctlModel.prediction(from: ctlProvider)
                     let result = Self.readResult(output, start: start)
                     let aux = Self.readAux(output)
+                    // ── W5 世界模型（可选）──
+                    // 双模型路径无 fused/det_feat 中间量 → 用 enc 的 feat（256维）
+                    //   近似填充 fused 前256维（后256维补零），det_feat 用 dets 展平近似。
+                    //   质量不如 multi_split 路径，但世界模型本就是可选增强。
+                    // 【不阻塞】失败只清缓存，主结果照常 finish。
+                    if let wm = self.worldModel {
+                        let pred = self.runWorldModel(
+                            model: wm,
+                            fusedArr: nil, featArr: featArr,
+                            action: (result.steer, result.throttle, result.brake),
+                            detFeatArr: nil,
+                            features: features, trackMode: trackModeVal)
+                        self.lastPredNextFused = pred
+                    }
                     Task { @MainActor in
                         self.finish(gen, result, error: nil, features: features, aux: aux)
                     }
@@ -2218,6 +2380,19 @@ final class InferenceEngineV2 {
                         $0.isFinite ? max(0, min(1, $0)) : nil },
                     carHeadingRad: readOptional(V2InputContract.carHeading).flatMap {
                         $0.isFinite ? $0 : nil })
+                // ── W5 世界模型（可选）──
+                // 单模型路径无任何中间量 → fused 全零、det_feat 用 dets 展平近似。
+                //   质量最低，但保持三条路径链路一致（世界模型是可选增强，不追求精确）。
+                // 【不阻塞】失败只清缓存，主结果照常 finish。
+                if let wm = self.worldModel {
+                    let pred = self.runWorldModel(
+                        model: wm,
+                        fusedArr: nil, featArr: nil,
+                        action: (result.steer, result.throttle, result.brake),
+                        detFeatArr: nil,
+                        features: features, trackMode: trackModeVal)
+                    self.lastPredNextFused = pred
+                }
                 Task { @MainActor in
                     self.finish(gen, result, error: nil, features: features, aux: aux)
                 }
@@ -2281,7 +2456,36 @@ final class InferenceEngineV2 {
         timelineFrames = 0
         coldStartSkipReason = nil
         frameBufferReset()
+        // 世界模型预测缓存也要清（换场景后旧预测无效）
+        lastPredNextFused = nil
     }
+
+    // MARK: 世界模型预填充（W5）
+
+    /// 取走世界模型上一帧预测的「下一帧 fused」的前 256 维，作为下一帧
+    /// 图像特征的预填充值；取走后清空缓存（一次性消费）。
+    ///
+    /// 【为什么取前 256 维】feat ring buffer 每帧 256 维（enc 输出维度），
+    ///   而 pred_next_fused 是 512 维（融合特征）。fused = img256+lane+det128+state8
+    ///   拼接，前 256 维正是图像特征段 → 取它作为下一帧 feat 的预测近似。
+    ///   这与双模型路径「用 enc feat 近似填充 fused 前 256 维」是**对称的**
+    ///   映射（见 runWorldModel 对 featArr 的近似填充注释）。
+    ///
+    /// 【用途】冷启动或 enc 掉帧时，feat ring buffer 的新帧槽位可以用这个
+    ///   预测值预填，而不是纯零 → 让 GRU 的时序输入更平滑（零帧不是中性的，
+    ///   见 minFramesForTimeline 注释）。当前只缓存不自动填充——是否消费
+    ///   由调用方/下帧 enc 失败时决定（避免覆盖 enc 真实输出）。
+    ///
+    /// - Returns: 预测的下一帧图像特征（256 维）；无缓存时返回 nil。
+    func consumePredNextFeat() -> [Float]? {
+        guard let pred = lastPredNextFused else { return nil }
+        lastPredNextFused = nil   // 一次性消费
+        let take = min(V2InputContract.featureDim, pred.count)
+        return Array(pred.prefix(take))
+    }
+
+    /// 是否有世界模型预测可用（诊断/UI 用）。
+    var hasPredNextFused: Bool { lastPredNextFused != nil }
 
     // MARK: 缓冲管理
 
@@ -2620,6 +2824,133 @@ final class InferenceEngineV2 {
     private nonisolated static func readTensor(_ output: MLFeatureProvider,
                                                _ name: String) -> MLMultiArray? {
         output.featureValue(for: name)?.multiArrayValue
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ★ 世界模型辅助（W5 接线，2026-10-09）
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // 【输入构造策略】世界模型需要 fused[512] + action[3] + det_feat[128]
+    //   + det_mask[20] + state[8] + track_mode[1]。其中：
+    //   · fused：multi_split 路径有真实 tf/精炼后 fused；双模型/单模型路径无
+    //     fused 中间量 → 用 enc 的 256 维 feat 填前 256 维、后 256 维补零
+    //     （近似填充，注释里说清楚；世界模型本来就是可选增强，不追求精确）。
+    //   · action：主模型刚算出的 steer/throttle/brake（float 三元组）。
+    //   · det_feat：multi_split 路径有 tf 的 det_feat；其余路径用 dets 展平
+    //     前 128 维近似（dets 是 [1,20,12]=240 维，取前 128 维）。
+    //   · det_mask / vehicle_state：直接复用主模型的输入张量（同一份）。
+    //   · track_mode：从引擎的 trackModeValue 取（UI 按钮控制）。
+    //
+    // 【为什么 det_mask/state 复用 reusableXxxBuffer】ensureBuffers 已经把
+    //   reusableDetMaskBuffer / reusableStateBuffer 填好了主模型的值，世界模型
+    //   吃同一份 valid 位与状态，不需要重新构造。
+
+    /// 构造世界模型输入 provider。
+    ///
+    /// - Parameters:
+    ///   - fusedArr: 当前帧融合特征 `[1,512]`（multi_split 的真实 fused；
+    ///               双模型/单模型路径传 nil → 用 feat 近似填充）。
+    ///   - featArr: enc 输出的图像特征 `[1,256]`（fusedArr 为 nil 时用于近似填充）。
+    ///   - action: 主模型输出的 (steer, throttle, brake) 三元组。
+    ///   - detFeatArr: 检测特征 `[1,128]`（multi_split 的真实 det_feat；
+    ///                 其余路径传 nil → 用 dets 展平近似）。
+    ///   - detMaskArr: 检测有效位 `[1,20]`（复用主模型输入）。
+    ///   - stateArr: 车辆状态 `[1,8]`（复用主模型输入）。
+    ///   - features: 主模型的纯特征（dets 展平用）。
+    ///   - trackMode: 赛道模式浮点值（1.0=赛道，0.0=自动）。
+    private nonisolated static func makeWorldProvider(
+        fusedArr: MLMultiArray?, featArr: MLMultiArray?,
+        action: (Double, Double, Double),
+        detFeatArr: MLMultiArray?,
+        detMaskArr: MLMultiArray?, stateArr: MLMultiArray?,
+        features: V2Features,
+        trackMode: Float) throws -> MLFeatureProvider? {
+        // fused [1,512]：有真实 fused 就用；否则用 feat 近似（前256=feat，后256=0）
+        let fusedShape = [1, NSNumber(value: V2InputContract.fusedDim)]
+        guard let fused = fusedArr ?? makeZeroArray(fusedShape) else { return nil }
+        if fusedArr == nil, let feat = featArr {
+            // 近似填充：把 256 维 feat 拷进 fused 前 256 维，后 256 维保持 0
+            let fusedPtr = fused.dataPointer.assumingMemoryBound(to: Float32.self)
+            let featPtr = feat.dataPointer.assumingMemoryBound(to: Float32.self)
+            let copyLen = min(V2InputContract.featureDim, V2InputContract.fusedDim)
+            for i in 0..<copyLen { fusedPtr[i] = featPtr[i] }
+        }
+
+        // action [1,3]：steer/throttle/brake
+        guard let actionArr = makeZeroArray(
+                [1, NSNumber(value: V2InputContract.actionDim)]) else { return nil }
+        let actPtr = actionArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        actPtr[0] = Float(action.0)
+        actPtr[1] = Float(action.1)
+        actPtr[2] = Float(action.2)
+
+        // det_feat [1,128]：有真实 det_feat 就用；否则用 dets 展平前 128 维近似
+        let detFeatShape = [1, NSNumber(value: V2InputContract.detFeatDim)]
+        guard let detFeat = detFeatArr ?? makeZeroArray(detFeatShape) else { return nil }
+        if detFeatArr == nil {
+            let detFeatPtr = detFeat.dataPointer.assumingMemoryBound(to: Float32.self)
+            let copyLen = min(features.dets.count, V2InputContract.detFeatDim)
+            for i in 0..<copyLen { detFeatPtr[i] = features.dets[i] }
+        }
+
+        // det_mask [1,20] / state [1,8]：复用主模型输入（传进来的已填好）
+        guard let maskArr = detMaskArr ?? makeZeroArray(
+                [1, NSNumber(value: V2InputContract.maxDetections)]),
+              let stateA = stateArr ?? makeZeroArray(
+                [1, NSNumber(value: V2InputContract.stateDim)]) else { return nil }
+
+        // track_mode [1]
+        guard let tmArr = makeZeroArray([1]) else { return nil }
+        tmArr[0] = NSNumber(value: trackMode)
+
+        return try MLDictionaryFeatureProvider(dictionary: [
+            V2InputContract.worldInputFused: MLFeatureValue(multiArray: fused),
+            V2InputContract.worldInputAction: MLFeatureValue(multiArray: actionArr),
+            V2InputContract.worldInputDetFeat: MLFeatureValue(multiArray: detFeat),
+            V2InputContract.worldInputDetMask: MLFeatureValue(multiArray: maskArr),
+            V2InputContract.worldInputState: MLFeatureValue(multiArray: stateA),
+            V2InputContract.worldInputTrackMode: MLFeatureValue(multiArray: tmArr),
+        ])
+    }
+
+    /// 跑一次世界模型推理，返回预测的下一帧融合特征 `[Float]`（512 维）。
+    ///
+    /// 【失败处理】任何异常都返回 nil —— 调用方据此跳过预填充，**不阻塞主驾驶链路**。
+    /// 这是任务明确要求的「世界模型推理失败不阻塞主驾驶链路」。
+    private nonisolated func runWorldModel(
+        model: MLModel,
+        fusedArr: MLMultiArray?, featArr: MLMultiArray?,
+        action: (Double, Double, Double),
+        detFeatArr: MLMultiArray?,
+        features: V2Features,
+        trackMode: Float) -> [Float]? {
+        guard let provider = try? Self.makeWorldProvider(
+                fusedArr: fusedArr, featArr: featArr, action: action,
+                detFeatArr: detFeatArr,
+                detMaskArr: self.reusableDetMaskBuffer,
+                stateArr: self.reusableStateBuffer,
+                features: features, trackMode: trackMode) else {
+            print("[v2.world] 输入构造失败，跳过")
+            return nil
+        }
+        let out: MLFeatureProvider
+        do {
+            out = try model.prediction(from: provider)
+        } catch {
+            print("[v2.world] 推理失败（跳过，不影响主链路）：\(error.localizedDescription)")
+            return nil
+        }
+        guard let predMa = Self.readTensor(out, V2InputContract.worldOutputPredNextFused) else {
+            print("[v2.world] 输出缺失 pred_next_fused，跳过")
+            return nil
+        }
+        let n = V2InputContract.fusedDim
+        let ptr = predMa.dataPointer.assumingMemoryBound(to: Float32.self)
+        var arr = [Float](repeating: 0, count: n)
+        // predMa.count 可能 >= n（含 batch 维），取前 n 个
+        let take = min(predMa.count, n)
+        for i in 0..<take { arr[i] = ptr[i] }
+        return arr
     }
 
     /// 从 CoreML 输出读三主输出（拆分/单模型共用，避免两处实现漂移）。

@@ -702,6 +702,7 @@ class MultiTaskClipsDataset(Dataset):
         lane_grid: int = LANE_GRID,
         strict_lane_geometry: bool = False,
         seed: int = 42,
+        enable_world_model: bool = False,
     ):
         self.clips_dir = Path(clips_dir)
         self.image_size = tuple(image_size)   # (H, W)
@@ -715,6 +716,10 @@ class MultiTaskClipsDataset(Dataset):
         self.lane_grid = int(lane_grid)
         # ★ True 时缓存尺寸不合 letterbox 口径即抛错，而非降级
         self.strict_lane_geometry = bool(strict_lane_geometry)
+        # ★ 世界模型联合训练（w3，2026-10-09）：开启后每个样本多采样「下一帧」
+        #   图像作为监督目标，并在 __getitem__ 里返回 next_image + action。
+        #   enable_world_model=False 时行为与旧版逐位一致（不采样下一帧）。
+        self.enable_world_model = bool(enable_world_model)
         self.rng = random.Random(seed)
 
         self.index: List[Tuple[Path, str, Dict[str, Any]]] = []
@@ -734,6 +739,7 @@ class MultiTaskClipsDataset(Dataset):
             rows, fmt, diag = _load_controls_csv(
                 clip / "controls.csv", clip, self.heading_unit, self.default_fps)
             self.diags[clip.name] = diag
+            accepted: List[Dict[str, Any]] = []
             for row in rows:
                 if require_active_control and row["steer"] == 0.0 \
                         and row["throttle"] == 0.0 and row["brake"] == 0.0:
@@ -750,6 +756,17 @@ class MultiTaskClipsDataset(Dataset):
                 if (clip / _DET_CACHE_DIR / f"{fno:06d}.json").exists() \
                         or (clip / "detections.npz").exists():
                     n_det += 1
+                accepted.append(row)
+
+            # ★ 世界模型：为同一 clip 内每个样本链上「下一帧」的 frame_no。
+            #   clip 末尾（无下一帧）→ 用自身 frame_no（zero-pad 降级，与任务要求一致）。
+            #   只在 enable_world_model=True 时写入，False 时 row 不带该键 → 旧路径不变。
+            if self.enable_world_model and accepted:
+                for i, r in enumerate(accepted):
+                    nxt = accepted[i + 1] if i + 1 < len(accepted) else r
+                    r["next_frame_no"] = nxt["frame_no"]
+
+            for row in accepted:
                 self.index.append((clip, fmt, row))
 
         self.n_with_lane = n_lane
@@ -796,6 +813,8 @@ class MultiTaskClipsDataset(Dataset):
             img = np.asarray(im, dtype=np.float32) / 255.0
 
         steer = float(row["steer"])
+        throttle = float(row["throttle"])
+        brake = float(row["brake"])
         if self.augment:
             img = self._augment(img)
         img = np.transpose(img, (2, 0, 1)).copy()
@@ -814,7 +833,7 @@ class MultiTaskClipsDataset(Dataset):
                 f"strict=True 但字段缺失: clip={clip_dir.name} frame={fno} "
                 f"lane={lane_present} det={det_present}")
 
-        return {
+        sample = {
             "image": torch.from_numpy(img),
             "lane_mask": torch.from_numpy(lane),
             "lane_present": torch.tensor([1.0 if lane_present else 0.0],
@@ -828,10 +847,37 @@ class MultiTaskClipsDataset(Dataset):
             "vehicle_state": torch.from_numpy(row["vehicle_state"].copy()),
             "vehicle_state_mask": torch.from_numpy(row["vehicle_state_mask"].copy()),
             "steer": torch.tensor([steer], dtype=torch.float32),
-            "throttle": torch.tensor([float(row["throttle"])], dtype=torch.float32),
-            "brake": torch.tensor([float(row["brake"])], dtype=torch.float32),
+            "throttle": torch.tensor([throttle], dtype=torch.float32),
+            "brake": torch.tensor([brake], dtype=torch.float32),
             "frame_no": torch.tensor([fno], dtype=torch.int64),
         }
+
+        # ★ 世界模型联合训练（w3，2026-10-09）：
+        #   · next_image：采样 clip 内的「下一帧」（第 9 帧），缺失时复用本帧（zero-pad 降级）。
+        #     用主模型的 image_encoder 编码 → 作为 pred_next_fused 的图像特征级监督目标。
+        #   · action：本帧录制的 [steer, throttle, brake]（已归一化：steer∈[-1,1]、t/b∈[0,1]）。
+        #     这是「录制的视频自带动作标签」的落点。
+        #   enable_world_model=False 时两个键都不产出 → 旧路径逐位不变。
+        if self.enable_world_model:
+            next_fno = row.get("next_frame_no", fno)
+            next_path = _frame_path(clip_dir, fmt, next_fno)
+            if next_path is None:
+                next_path = img_path      # 极端降级：next 缺图 → 复用当前帧
+            with Image.open(next_path) as nim:
+                nim = nim.convert("RGB").resize(
+                    (self.image_size[1], self.image_size[0]), Image.BILINEAR)
+                next_img = np.asarray(nim, dtype=np.float32) / 255.0
+            # next 帧不做增强（监督目标应稳定），只做与主图一致的 CHW + 归一
+            next_img = np.transpose(next_img, (2, 0, 1)).copy()
+            sample["next_image"] = torch.from_numpy(next_img)
+            # action = [steer, throttle, brake]，归一化区间与录制端一致
+            sample["action"] = torch.tensor(
+                [max(-1.0, min(1.0, steer)),
+                 max(0.0, min(1.0, throttle)),
+                 max(0.0, min(1.0, brake))],
+                dtype=torch.float32)
+
+        return sample
 
     # ---- 增强（只做亮度/对比度；不做翻转，避免 lane_mask 与 steer 语义打架）----
     def _augment(self, img: np.ndarray) -> np.ndarray:

@@ -90,11 +90,18 @@ class _SpeedRouter(nn.Module):
         super().__init__()
         # fused[512] + speed[1] → 2 个路由 logit
         self.router = nn.Linear(feat_dim + speed_dim, 2, bias=True)
-        # 初始化：让起步时倾向于低速（安全默认）
+        # ★ 归纳偏置（任务要求：「路由器应该学到高速时给高速专家更高权重」）：
+        #   · fused 列权重零初始化（起步只看 speed）
+        #   · speed 列（最后一列）→ 高速 logit 正、低速 logit 负
+        #     → speed↑ 时 w_high↑、w_low↓（起步即满足语义，训练中再精调，可逆非硬编码）
+        #   · bias → 高速偏负、低速偏正 → speed=0 时安全默认偏低速
         nn.init.zeros_(self.router.weight)
         nn.init.zeros_(self.router.bias)
-        self.router.bias.data[0] = -1.0  # 高速 logit 偏负 → 高速权重小
-        self.router.bias.data[1] = 1.0   # 低速 logit 偏正 → 低速权重大
+        with torch.no_grad():
+            self.router.weight[0, -1] = 3.0    # 高速 logit ↑ with speed
+            self.router.weight[1, -1] = -3.0   # 低速 logit ↓ with speed
+            self.router.bias[0] = -1.0          # speed=0 → 高速权重小（安全默认）
+            self.router.bias[1] = 1.0           # speed=0 → 低速权重大
 
     def forward(self, fused: torch.Tensor, speed: torch.Tensor,
                 track_mode: torch.Tensor) -> torch.Tensor:
@@ -138,7 +145,7 @@ class _WorldExpert(nn.Module):
         self.gru = _StrictGRUStep(hidden_dim, hidden_dim)
         self.mlp = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Linear(hidden_dim, hidden_dim),
         )
         self._init_weights()
@@ -169,9 +176,9 @@ class _TrackExpert(nn.Module):
         self.input_proj = nn.Linear(input_dim, hidden_dim)
         self.mlp = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Linear(hidden_dim, hidden_dim),
         )
         self._init_weights()
@@ -288,14 +295,9 @@ class WorldModel(nn.Module):
         b = fused.shape[0]
 
         # track_mode 维度规整：接受 [B], [B,1], [1], 标量 → 统一成 [B,1]
-        tm = track_mode
-        if tm.dim() == 0:
-            tm = tm.unsqueeze(0).unsqueeze(0).expand(b, 1)
-        elif tm.dim() == 1:
-            tm = tm.unsqueeze(1)
-        elif tm.shape[1] != 1:
-            tm = tm[:, 0:1]
-        tm = tm.expand(b, 1)
+        # ★ 用 reshape 而非 if/dim 比较 —— trace 友好（shape 比较会触发
+        #   TracerWarning，把 Python 值当常量；reshape 全程图内，无警告）
+        tm = track_mode.reshape(b, 1).to(fused.dtype)   # [B, 1]
 
         # 隐状态初始化
         if h_high is None:

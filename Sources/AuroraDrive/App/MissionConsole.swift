@@ -476,6 +476,21 @@ struct KeyBar: View {
                 kbRight("字形模式", state.glyphMode ? "ON" : "OFF", state.glyphMode)
                 kbRight("录制", state.isRecording ? "REC" : "READY", state.isRecording)
                 kbRight("插帧", state.upscaleEnabled ? "MGFG-1" : "OFF", state.upscaleEnabled)
+                // W5：赛道模式手动切换按钮（世界模型 track_mode 输入）
+                // 点一下在赛道/自动之间切换；开启时高亮成冰蓝色。
+                Button {
+                    state.trackMode.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("赛道").font(.system(size: 8.5))
+                            .foregroundStyle(state.trackMode ? Aurora.ice : Aurora.t4)
+                        Text(state.trackMode ? "TRACK" : "AUTO")
+                            .font(.system(size: 8.5, weight: .semibold))
+                            .foregroundStyle(state.trackMode ? Aurora.ice : Aurora.t4)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("切换赛道/自动模式（世界模型 track_mode 输入）")
             }
         }
         .padding(.horizontal, 20)
