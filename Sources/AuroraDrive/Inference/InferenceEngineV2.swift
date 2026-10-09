@@ -2899,8 +2899,8 @@ final class InferenceEngineV2 {
               let stateA = stateArr ?? makeZeroArray(
                 [1, NSNumber(value: V2InputContract.stateDim)]) else { return nil }
 
-        // track_mode [1]
-        guard let tmArr = makeZeroArray([1]) else { return nil }
+        // track_mode [1,1]（rank 2，与 CoreML 导出契约一致）
+        guard let tmArr = makeZeroArray([1, 1]) else { return nil }
         tmArr[0] = NSNumber(value: trackMode)
 
         return try MLDictionaryFeatureProvider(dictionary: [
