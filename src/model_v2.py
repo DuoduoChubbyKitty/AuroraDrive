@@ -249,6 +249,11 @@ def _import_head(mod_name: str, attrs: str):
 HeadingHead, = _import_head("heading_head", "HeadingHead")
 TemporalEncoder, = _import_head("temporal", "TemporalEncoder")
 RiskHead, RiskHeadConfig = _import_head("risk_head", "RiskHead, RiskHeadConfig")
+# 世界模型（W1/w2 集成，2026-10-09）：由 src/world_model.py 提供 WorldModel 类。
+# 复用 _import_head 的双路径 + 失败告警范式；world_model.py 尚未落盘时
+# WorldModel=None，enable_world_model=True 也会安全地把 self.world_model 置 None
+# （不崩、不影响主链路），待 W1 落盘后无需改本文件即自动生效。
+WorldModel, = _import_head("world_model", "WorldModel")
 
 
 # ============================================================================
@@ -1231,7 +1236,8 @@ class M2Model(nn.Module):
                  refiner_steps: int = 24,
                  refiner_shared: bool = True,
                  moe_steps: Optional[List[int]] = None,
-                 num_steps: Optional[int] = None):
+                 num_steps: Optional[int] = None,
+                 enable_world_model: bool = False):
         """M2Model 构造。
 
         ★ 用户拍板（2026-10-09 最新）：「变回 8 步专家 + 16 步自己」
@@ -1354,6 +1360,24 @@ class M2Model(nn.Module):
         self.det_in_dim = DET_FEAT_DIM
         self.state_dim = STATE_DIM
 
+        # ---- 世界模型（W1/w2 集成，2026-10-09）----
+        # 默认关（enable_world_model=False）→ self.world_model = None，
+        # 行为与旧模型逐位一致（向后兼容）。
+        # 开启且 WorldModel 类已导入时实例化；world_model.py 缺失则安全置 None
+        # （_import_head 已告警），不影响主链路。
+        # forward 里只在 return_aux=True 且传了 action 时才调用世界模型。
+        self.world_model = None
+        if enable_world_model and WorldModel is not None:
+            self.world_model = WorldModel()
+        elif enable_world_model and WorldModel is None:
+            # W1 尚未落盘 world_model.py：告警一次，仍保持 None（不崩）
+            _warnings.warn(
+                "[M2Model] ⚠ enable_world_model=True 但 WorldModel 类导入失败"
+                "（src/world_model.py 尚未落盘？）→ self.world_model 置 None，"
+                "本次构建的世界模型分支不生效，主链路不受影响。"
+                "待 W1 落盘 world_model.py 后重新构建即生效。",
+                RuntimeWarning, stacklevel=2)
+
     # ------------------------------------------------------------------
     def forward(self,
                 image: torch.Tensor,
@@ -1366,6 +1390,13 @@ class M2Model(nn.Module):
                 # ↓ 方案 A 后已废弃（时序改为模型内部消化）；保留仅向后兼容
                 history_feats: Optional[torch.Tensor] = None,
                 frame_mask: Optional[torch.Tensor] = None,
+                # ↓ 世界模型（W1/w2，2026-10-09）：仅在 return_aux=True 且
+                #   world_model 已实例化时参与前向，否则完全不影响主链路。
+                #   · action: [B, A] 上一帧/录制动作（steer/throttle/brake）
+                #             训练从录制数据取，推理从主模型上一帧输出取
+                #   · track_mode: [B] 跟踪模式标志；None → zeros（自动模式）
+                action: Optional[torch.Tensor] = None,
+                track_mode: Optional[torch.Tensor] = None,
                 **kwargs):
         """
         Args:
@@ -1510,6 +1541,27 @@ class M2Model(nn.Module):
                 aux["risk"] = risk
             except Exception:
                 pass
+        # 世界模型（W1/w2，2026-10-09）：从当前融合特征 + 动作预测下一帧 fused。
+        # ★ 三重护栏，任一不满足即跳过（世界模型绝不拖垮主驾驶链路）：
+        #   ① self.world_model 已实例化（enable_world_model=True 且 W1 已落盘）
+        #   ② return_aux=True（aux 区才跑，与 risk/heading 头一致的早退语义）
+        #   ③ action 不为 None（推理首帧无上一帧动作 / 训练未提供动作时跳过）
+        # track_mode 缺省 → 全零张量（"自动模式"），保持与 vehicle_state 同 batch。
+        if self.world_model is not None and action is not None:
+            try:
+                _tm = track_mode
+                if _tm is None:
+                    _tm = torch.zeros(
+                        batch_size, dtype=fused.dtype, device=fused.device)
+                pred_next_fused, wm_weights = self.world_model(
+                    fused, action, det_feat, det_mask, vehicle_state, _tm)
+                aux["pred_next_fused"] = pred_next_fused
+                aux["wm_routing_weights"] = wm_weights
+            except Exception:
+                # 世界模型内部异常（shape/类型不符等）→ 如实置 None，
+                # 不让可选辅助输出拖垮主驾驶链路（与 heading/risk 头一致策略）
+                aux["pred_next_fused"] = None
+                aux["wm_routing_weights"] = None
         return steer, throttle, brake, aux
 
     # ------------------------------------------------------------------
@@ -1554,6 +1606,9 @@ class M2Model(nn.Module):
                                 if self.heading_head is not None else 0)
         out["risk_head"] = (sum(p.numel() for p in self.risk_head.parameters())
                              if self.risk_head is not None else 0)
+        # 世界模型（W1/w2）：None 时报 0，保持键稳定供 Swift/脚本读取
+        out["world_model"] = (sum(p.numel() for p in self.world_model.parameters())
+                              if self.world_model is not None else 0)
         out["total"] = sum(p.numel() for p in self.parameters())
         return out
 
@@ -1657,6 +1712,7 @@ def build_model(deploy: bool = False, **kwargs) -> M2Model:
                 True =部署态（已重参数化为纯 3×3，推理快）
         **kwargs: 透传给 M2Model 的可选参数（M4 集成新增）：
             · enable_temporal / enable_heading / enable_risk —— 三个新头开关
+            · enable_world_model —— 世界模型开关（默认 False；W1/w2 集成）
             · num_frames / temporal_hidden —— 时序窗口与隐藏维度
             · stage2_blocks / stage3_blocks —— 骨干宽度旋钮（加大容量用）
 
