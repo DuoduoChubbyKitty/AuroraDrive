@@ -507,11 +507,16 @@ def anecheck_subprocess(path: str) -> Dict:
 
     stderr = proc.stderr or ""
     stdout = proc.stdout or ""
-    ane_err = ("MILCompilerForANE" in stderr) or ("ANECCompile() FAILED" in stderr)
+    # ★★ 实测修正（2026-10-09）：E5RT/MILCompilerForANE 的报错**两个流都可能出现**
+    #    —— 直接跑时它落在 stdout，经 shell 管道时又可能被归到 stderr。
+    #    只查一个流会漏报（本脚本第一版就漏了 full 变体，误判成 NO_ANE_OPS）。
+    #    → **两个流合并后再判**，这是唯一可靠的做法。
+    both = stderr + "\n" + stdout
+    ane_err = ("MILCompilerForANE" in both) or ("ANECCompile() FAILED" in both)
 
     hist = {}
     total = None
-    for line in stdout.splitlines():
+    for line in both.splitlines():
         line = line.strip()
         if line.startswith("{") and '"device_hist"' in line:
             try:
@@ -519,7 +524,15 @@ def anecheck_subprocess(path: str) -> Dict:
                 hist = payload.get("device_hist", {})
                 total = payload.get("total_ops")
             except Exception:
-                pass
+                # JSON 行后面可能被 E5RT 的报错文本粘连 → 退化为正则抽取
+                try:
+                    i = line.index("{")
+                    j = line.rindex("}") + 1
+                    payload = json.loads(line[i:j])
+                    hist = payload.get("device_hist", {})
+                    total = payload.get("total_ops")
+                except Exception:
+                    pass
 
     ne = hist.get("NeuralEngine", 0)
     cpu = hist.get("CPU", 0)
@@ -528,7 +541,7 @@ def anecheck_subprocess(path: str) -> Dict:
     return {"path": path, "ane_error": ane_err, "device_hist": hist,
             "total_ops": total, "ne_ops": ne, "cpu_ops": cpu, "gpu_ops": gpu,
             "verdict": verdict, "check_s": dt,
-            "stderr_tail": stderr.strip().splitlines()[-1][:300] if stderr.strip() else ""}
+            "stderr_tail": both.strip().splitlines()[-1][:300] if both.strip() else ""}
 
 
 def _anecheck_main(path: str) -> int:

@@ -1,0 +1,31 @@
+{
+  "name": "t_mac15_pal4",
+  "out_mlmodelc": "/Users/dupi/Desktop/自动驾驶系统/models/exp_exec_t_mac15_pal4.mlmodelc",
+  "out_mlpackage": "/Users/dupi/Desktop/自动驾驶系统/models/exp_exec_t_mac15_pal4.mlpackage",
+  "precision": "float16",
+  "target": "macOS15",
+  "pipeline": "palette:4",
+  "pipeline_steps": [
+    "palette"
+  ],
+  "pipeline_notes": [
+    "✓ palette 4bit kmeans（weight_threshold=128） 27.6s"
+  ],
+  "coremltools": "8.3.0",
+  "torch": "2.13.0",
+  "preserve_io_fp32": true,
+  "size_mlpackage_mb": 4.173,
+  "size_mlmodelc_mb": 4.185,
+  "maxdiff_vs_torch": 0.41602611541748047,
+  "ref_outputs": [
+    0.9999995231628418,
+    3.586004191209963e-15,
+    1.483760388509836e-05,
+    0.9993322491645813,
+    1.0,
+    1.325698733329773
+  ],
+  "random_init": false,
+  "total_params": 8799446,
+  "created": "2026-10-09 07:46:57"
+}

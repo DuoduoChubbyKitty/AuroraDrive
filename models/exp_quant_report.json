@@ -1,0 +1,3139 @@
+{
+  "api": {
+    "coremltools_version": "8.3.0",
+    "palettize_weights": true,
+    "linear_quantize_weights": true,
+    "op_palettization": false,
+    "deduplicate_weights": false,
+    "get_weights_metadata": true,
+    "MLComputePlan": true,
+    "op_name_configs_equivalent": true
+  },
+  "weights": "ckpt",
+  "lossless_tol": 0.001,
+  "results": [
+    {
+      "tag": "A1_8f_gru_loop",
+      "frames": 8,
+      "spec": {
+        "tag": "A1_8f_gru_loop",
+        "kind": "none"
+      },
+      "convert_s": 7.9,
+      "notes": [
+        "不量化（fp16 基线）"
+      ],
+      "quant_s": 7.9,
+      "total_mb": 16.077,
+      "weights_mb": 15.928,
+      "op_count": 891,
+      "op_types": 34,
+      "has_while_loop": true,
+      "ane": {
+        "ane_ops": 0,
+        "cpu_ops": 453,
+        "no_usage": 438,
+        "total_ops": 891,
+        "verdict": "ANE_FAIL",
+        "op_types_on_cpu": [
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            13
+          ],
+          [
+            "ios16.cast",
+            10
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "ios16.relu",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_types_on_ane": [],
+        "op_types_all": [
+          [
+            "const",
+            380
+          ],
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "ios16.relu",
+            52
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            17
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            14
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_type_count": 34,
+        "has_while_loop": true,
+        "while_loop_count": 1
+      },
+      "while_loop_count": 1,
+      "acc": {
+        "skipped": "本 phase 不做精度对比（无基准图/无用例）"
+      },
+      "static_gru": false,
+      "enable_temporal": true,
+      "phase": "rootcause"
+    },
+    {
+      "tag": "A2_8f_gru_static",
+      "frames": 8,
+      "spec": {
+        "tag": "A2_8f_gru_static",
+        "kind": "none"
+      },
+      "convert_s": 14.4,
+      "notes": [
+        "不量化（fp16 基线）"
+      ],
+      "quant_s": 14.4,
+      "total_mb": 16.107,
+      "weights_mb": 15.924,
+      "op_count": 1202,
+      "op_types": 34,
+      "has_while_loop": false,
+      "ane": {
+        "ane_ops": 609,
+        "cpu_ops": 52,
+        "no_usage": 541,
+        "total_ops": 1202,
+        "verdict": "PARTIAL",
+        "op_types_on_cpu": [
+          [
+            "ios16.cast",
+            11
+          ],
+          [
+            "ios16.mul",
+            8
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "ios16.add",
+            4
+          ],
+          [
+            "ios16.linear",
+            4
+          ],
+          [
+            "ios16.sub",
+            3
+          ],
+          [
+            "ios16.reshape",
+            3
+          ],
+          [
+            "ios16.relu",
+            2
+          ],
+          [
+            "ios16.sigmoid",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.greater",
+            1
+          ],
+          [
+            "ios16.less",
+            1
+          ],
+          [
+            "ios16.real_div",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ],
+          [
+            "slice_by_index",
+            1
+          ],
+          [
+            "expand_dims",
+            1
+          ],
+          [
+            "ios16.tanh",
+            1
+          ],
+          [
+            "concat",
+            1
+          ]
+        ],
+        "op_types_on_ane": [
+          [
+            "ios16.linear",
+            137
+          ],
+          [
+            "ios16.add",
+            115
+          ],
+          [
+            "ios16.mul",
+            85
+          ],
+          [
+            "slice_by_index",
+            81
+          ],
+          [
+            "ios16.relu",
+            50
+          ],
+          [
+            "ios16.sigmoid",
+            42
+          ],
+          [
+            "ios16.tanh",
+            21
+          ],
+          [
+            "ios16.sub",
+            20
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            5
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "ios16.greater",
+            3
+          ],
+          [
+            "ios16.reshape",
+            2
+          ],
+          [
+            "expand_dims",
+            2
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "transpose",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "concat",
+            2
+          ],
+          [
+            "ios16.less",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "stack",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.real_div",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ]
+        ],
+        "op_types_all": [
+          [
+            "const",
+            541
+          ],
+          [
+            "ios16.linear",
+            141
+          ],
+          [
+            "ios16.add",
+            119
+          ],
+          [
+            "ios16.mul",
+            93
+          ],
+          [
+            "slice_by_index",
+            82
+          ],
+          [
+            "ios16.relu",
+            52
+          ],
+          [
+            "ios16.sigmoid",
+            44
+          ],
+          [
+            "ios16.sub",
+            23
+          ],
+          [
+            "ios16.tanh",
+            22
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            16
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "transpose",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "stack",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_type_count": 34,
+        "has_while_loop": false,
+        "while_loop_count": 0
+      },
+      "while_loop_count": 0,
+      "acc": {
+        "skipped": "本 phase 不做精度对比（无基准图/无用例）"
+      },
+      "static_gru": true,
+      "enable_temporal": true,
+      "phase": "rootcause"
+    },
+    {
+      "tag": "A3_1f_gru_static",
+      "frames": 1,
+      "spec": {
+        "tag": "A3_1f_gru_static",
+        "kind": "none"
+      },
+      "convert_s": 12.7,
+      "notes": [
+        "不量化（fp16 基线）"
+      ],
+      "quant_s": 12.7,
+      "total_mb": 15.744,
+      "weights_mb": 15.609,
+      "op_count": 852,
+      "op_types": 32,
+      "has_while_loop": false,
+      "ane": {
+        "ane_ops": 446,
+        "cpu_ops": 52,
+        "no_usage": 354,
+        "total_ops": 852,
+        "verdict": "PARTIAL",
+        "op_types_on_cpu": [
+          [
+            "ios16.cast",
+            11
+          ],
+          [
+            "ios16.mul",
+            8
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "ios16.add",
+            4
+          ],
+          [
+            "ios16.linear",
+            4
+          ],
+          [
+            "ios16.sub",
+            3
+          ],
+          [
+            "ios16.reshape",
+            3
+          ],
+          [
+            "ios16.relu",
+            2
+          ],
+          [
+            "ios16.sigmoid",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.greater",
+            1
+          ],
+          [
+            "ios16.less",
+            1
+          ],
+          [
+            "ios16.real_div",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ],
+          [
+            "slice_by_index",
+            1
+          ],
+          [
+            "expand_dims",
+            1
+          ],
+          [
+            "ios16.tanh",
+            1
+          ],
+          [
+            "concat",
+            1
+          ]
+        ],
+        "op_types_on_ane": [
+          [
+            "ios16.linear",
+            120
+          ],
+          [
+            "ios16.add",
+            84
+          ],
+          [
+            "ios16.mul",
+            61
+          ],
+          [
+            "ios16.relu",
+            50
+          ],
+          [
+            "ios16.sigmoid",
+            26
+          ],
+          [
+            "slice_by_index",
+            26
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.tanh",
+            13
+          ],
+          [
+            "ios16.sub",
+            12
+          ],
+          [
+            "ios16.cast",
+            5
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "ios16.greater",
+            3
+          ],
+          [
+            "ios16.reshape",
+            2
+          ],
+          [
+            "transpose",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "concat",
+            2
+          ],
+          [
+            "ios16.less",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "expand_dims",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.real_div",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ]
+        ],
+        "op_types_all": [
+          [
+            "const",
+            354
+          ],
+          [
+            "ios16.linear",
+            124
+          ],
+          [
+            "ios16.add",
+            88
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "ios16.relu",
+            52
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "slice_by_index",
+            27
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            16
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            14
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "transpose",
+            2
+          ],
+          [
+            "expand_dims",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_type_count": 32,
+        "has_while_loop": false,
+        "while_loop_count": 0
+      },
+      "while_loop_count": 0,
+      "acc": {
+        "skipped": "本 phase 不做精度对比（无基准图/无用例）"
+      },
+      "static_gru": true,
+      "enable_temporal": true,
+      "phase": "rootcause"
+    },
+    {
+      "tag": "EQUIV_static_gru",
+      "phase": "rootcause",
+      "frames": 0,
+      "equivalence": {
+        "maxdiff_out": 4.023313522338867e-07,
+        "maxdiff_h": 2.1979212760925293e-07,
+        "equivalent": true
+      }
+    },
+    {
+      "tag": "fp16",
+      "frames": 8,
+      "spec": {
+        "tag": "fp16",
+        "kind": "none"
+      },
+      "convert_s": 11.1,
+      "notes": [
+        "不量化（fp16 基线）"
+      ],
+      "quant_s": 11.1,
+      "total_mb": 16.077,
+      "weights_mb": 15.928,
+      "op_count": 891,
+      "op_types": 34,
+      "has_while_loop": true,
+      "ane": {
+        "ane_ops": 0,
+        "cpu_ops": 453,
+        "no_usage": 438,
+        "total_ops": 891,
+        "verdict": "ANE_FAIL",
+        "op_types_on_cpu": [
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            13
+          ],
+          [
+            "ios16.cast",
+            10
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "ios16.relu",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_types_on_ane": [],
+        "op_types_all": [
+          [
+            "const",
+            380
+          ],
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "ios16.relu",
+            52
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            17
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            14
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_type_count": 34,
+        "has_while_loop": true,
+        "while_loop_count": 1
+      },
+      "while_loop_count": 1,
+      "bench": {
+        "ane_ms": 60.44509378261864,
+        "cpu_ms": 66.35715632000938,
+        "ratio": 0.9109054265544527,
+        "raw": {
+          "ane1": 62.10841704159975,
+          "cpu1": 69.4991460768506,
+          "cpu2": 63.21516656316817,
+          "ane2": 58.78177052363753
+        },
+        "timing_says_ane": false
+      },
+      "bench_s": 13.7,
+      "acc": {
+        "per_case": {
+          "normal": 0.0,
+          "no_dets": 0.0,
+          "no_lane": 0.0,
+          "zero_state": 0.0,
+          "all_empty": 0.0,
+          "saturated": 0.0,
+          "lane_line_w1": 0.0,
+          "lane_line_w2": 0.0,
+          "lane_line_w3": 0.0,
+          "lane_line_w6": 0.0,
+          "seq_t0": 0.0,
+          "seq_t1": 0.0,
+          "seq_t2": 0.0,
+          "seq_t3": 0.0
+        },
+        "maxdiff": 0.0,
+        "worst_case": "normal",
+        "mean_maxdiff": 0.0,
+        "lossless": true
+      },
+      "acc_s": 1.9,
+      "evidence_agree": true,
+      "phase": "sweep",
+      "static_gru": false
+    },
+    {
+      "tag": "pal8_kmeans",
+      "frames": 8,
+      "spec": {
+        "tag": "pal8_kmeans",
+        "kind": "palette",
+        "nbits": 8,
+        "mode": "kmeans"
+      },
+      "convert_s": 11.5,
+      "notes": [
+        "palette mode=kmeans nbits=8 per_tensor gs=1"
+      ],
+      "quant_s": 160.0,
+      "total_mb": 8.172,
+      "weights_mb": 8.015,
+      "op_count": 891,
+      "op_types": 35,
+      "has_while_loop": true,
+      "ane": {
+        "ane_ops": 0,
+        "cpu_ops": 453,
+        "no_usage": 438,
+        "total_ops": 891,
+        "verdict": "ANE_FAIL",
+        "op_types_on_cpu": [
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            13
+          ],
+          [
+            "ios16.cast",
+            10
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "ios16.relu",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_types_on_ane": [],
+        "op_types_all": [
+          [
+            "const",
+            334
+          ],
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "ios16.relu",
+            52
+          ],
+          [
+            "ios16.constexpr_lut_to_dense",
+            46
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            17
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            14
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_type_count": 35,
+        "has_while_loop": true,
+        "while_loop_count": 1
+      },
+      "while_loop_count": 1,
+      "bench": {
+        "ane_ms": 25.155656214337796,
+        "cpu_ms": 23.949677066411823,
+        "ratio": 1.0503547143697105,
+        "raw": {
+          "ane1": 25.53397894371301,
+          "cpu1": 23.654104094021022,
+          "cpu2": 24.245250038802624,
+          "ane2": 24.777333484962583
+        },
+        "timing_says_ane": false
+      },
+      "bench_s": 10.1,
+      "acc": {
+        "per_case": {
+          "normal": 0.0234375,
+          "no_dets": 0.0234375,
+          "no_lane": 0.0234375,
+          "zero_state": 0.0234375,
+          "all_empty": 0.0234375,
+          "saturated": 0.0625,
+          "lane_line_w1": 0.0234375,
+          "lane_line_w2": 0.0234375,
+          "lane_line_w3": 0.0234375,
+          "lane_line_w6": 0.0234375,
+          "seq_t0": 0.0234375,
+          "seq_t1": 0.01171875,
+          "seq_t2": 0.02734375,
+          "seq_t3": 0.029296875
+        },
+        "maxdiff": 0.0625,
+        "worst_case": "saturated",
+        "mean_maxdiff": 0.026088169642857144,
+        "lossless": false
+      },
+      "acc_s": 0.7,
+      "evidence_agree": true,
+      "phase": "sweep",
+      "static_gru": false
+    },
+    {
+      "tag": "pal8_kmeans_preserve",
+      "frames": 8,
+      "spec": {
+        "tag": "pal8_kmeans_preserve",
+        "kind": "palette",
+        "nbits": 8,
+        "mode": "kmeans",
+        "preserve": true
+      },
+      "convert_s": 10.4,
+      "notes": [
+        "关键分支算子命中 11 个（前缀 ['lane_encoder.', 'fusion_head.']）",
+        "palette mode=kmeans nbits=8 per_tensor gs=1 + 关键分支保 fp16"
+      ],
+      "quant_s": 149.3,
+      "total_mb": 8.208,
+      "weights_mb": 8.051,
+      "op_count": 891,
+      "op_types": 35,
+      "has_while_loop": true,
+      "ane": {
+        "ane_ops": 0,
+        "cpu_ops": 453,
+        "no_usage": 438,
+        "total_ops": 891,
+        "verdict": "ANE_FAIL",
+        "op_types_on_cpu": [
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            13
+          ],
+          [
+            "ios16.cast",
+            10
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "ios16.relu",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_types_on_ane": [],
+        "op_types_all": [
+          [
+            "const",
+            337
+          ],
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "ios16.relu",
+            52
+          ],
+          [
+            "ios16.constexpr_lut_to_dense",
+            43
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            17
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            14
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_type_count": 35,
+        "has_while_loop": true,
+        "while_loop_count": 1
+      },
+      "while_loop_count": 1,
+      "bench": {
+        "ane_ms": 28.383749828208238,
+        "cpu_ms": 26.841603976208717,
+        "ratio": 1.057453565493568,
+        "raw": {
+          "ane1": 27.142249629832804,
+          "cpu1": 26.745124836452305,
+          "cpu2": 26.938083115965128,
+          "ane2": 29.62525002658367
+        },
+        "timing_says_ane": false
+      },
+      "bench_s": 11.0,
+      "acc": {
+        "per_case": {
+          "normal": 0.0234375,
+          "no_dets": 0.0234375,
+          "no_lane": 0.0234375,
+          "zero_state": 0.0234375,
+          "all_empty": 0.0234375,
+          "saturated": 0.0625,
+          "lane_line_w1": 0.0234375,
+          "lane_line_w2": 0.0234375,
+          "lane_line_w3": 0.0234375,
+          "lane_line_w6": 0.0234375,
+          "seq_t0": 0.0234375,
+          "seq_t1": 0.01171875,
+          "seq_t2": 0.025390625,
+          "seq_t3": 0.025390625
+        },
+        "maxdiff": 0.0625,
+        "worst_case": "saturated",
+        "mean_maxdiff": 0.025669642857142856,
+        "lossless": false
+      },
+      "acc_s": 0.9,
+      "kept_at": "models/exp_quant_pal8_kmeans_preserve.mlmodelc",
+      "evidence_agree": true,
+      "phase": "sweep",
+      "static_gru": false
+    },
+    {
+      "tag": "pal6_kmeans",
+      "frames": 8,
+      "spec": {
+        "tag": "pal6_kmeans",
+        "kind": "palette",
+        "nbits": 6,
+        "mode": "kmeans"
+      },
+      "convert_s": 10.0,
+      "notes": [
+        "palette mode=kmeans nbits=6 per_tensor gs=1"
+      ],
+      "quant_s": 48.6,
+      "total_mb": 6.169,
+      "weights_mb": 6.012,
+      "op_count": 891,
+      "op_types": 35,
+      "has_while_loop": true,
+      "ane": {
+        "ane_ops": 0,
+        "cpu_ops": 453,
+        "no_usage": 438,
+        "total_ops": 891,
+        "verdict": "ANE_FAIL",
+        "op_types_on_cpu": [
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            13
+          ],
+          [
+            "ios16.cast",
+            10
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "ios16.relu",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_types_on_ane": [],
+        "op_types_all": [
+          [
+            "const",
+            334
+          ],
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "ios16.relu",
+            52
+          ],
+          [
+            "ios16.constexpr_lut_to_dense",
+            46
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            17
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            14
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_type_count": 35,
+        "has_while_loop": true,
+        "while_loop_count": 1
+      },
+      "while_loop_count": 1,
+      "bench": {
+        "ane_ms": 48.45382284838706,
+        "cpu_ms": 42.28541668271646,
+        "ratio": 1.1458754967925349,
+        "raw": {
+          "ane1": 37.275771144777536,
+          "cpu1": 35.6330624781549,
+          "cpu2": 48.93777088727802,
+          "ane2": 59.63187455199659
+        },
+        "timing_says_ane": false
+      },
+      "bench_s": 10.4,
+      "acc": {
+        "per_case": {
+          "normal": 0.03515625,
+          "no_dets": 0.03515625,
+          "no_lane": 0.03515625,
+          "zero_state": 0.03515625,
+          "all_empty": 0.03515625,
+          "saturated": 0.068359375,
+          "lane_line_w1": 0.03515625,
+          "lane_line_w2": 0.03515625,
+          "lane_line_w3": 0.03515625,
+          "lane_line_w6": 0.03515625,
+          "seq_t0": 0.03515625,
+          "seq_t1": 0.01171875,
+          "seq_t2": 0.08203125,
+          "seq_t3": 0.02734375
+        },
+        "maxdiff": 0.08203125,
+        "worst_case": "seq_t2",
+        "mean_maxdiff": 0.03864397321428571,
+        "lossless": false
+      },
+      "acc_s": 1.6,
+      "evidence_agree": true,
+      "phase": "sweep",
+      "static_gru": false
+    },
+    {
+      "tag": "pal4_kmeans",
+      "frames": 8,
+      "spec": {
+        "tag": "pal4_kmeans",
+        "kind": "palette",
+        "nbits": 4,
+        "mode": "kmeans"
+      },
+      "convert_s": 8.6,
+      "notes": [
+        "palette mode=kmeans nbits=4 per_tensor gs=1"
+      ],
+      "quant_s": 26.3,
+      "total_mb": 4.181,
+      "weights_mb": 4.024,
+      "op_count": 891,
+      "op_types": 35,
+      "has_while_loop": true,
+      "ane": {
+        "ane_ops": 0,
+        "cpu_ops": 453,
+        "no_usage": 438,
+        "total_ops": 891,
+        "verdict": "ANE_FAIL",
+        "op_types_on_cpu": [
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            13
+          ],
+          [
+            "ios16.cast",
+            10
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "ios16.relu",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_types_on_ane": [],
+        "op_types_all": [
+          [
+            "const",
+            334
+          ],
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "ios16.relu",
+            52
+          ],
+          [
+            "ios16.constexpr_lut_to_dense",
+            46
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            17
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            14
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_type_count": 35,
+        "has_while_loop": true,
+        "while_loop_count": 1
+      },
+      "while_loop_count": 1,
+      "bench": {
+        "ane_ms": 34.05501053202897,
+        "cpu_ms": 36.16050025448203,
+        "ratio": 0.9417737667444994,
+        "raw": {
+          "ane1": 37.069000070914626,
+          "cpu1": 38.881229469552636,
+          "cpu2": 33.439771039411426,
+          "ane2": 31.04102099314332
+        },
+        "timing_says_ane": false
+      },
+      "bench_s": 7.9,
+      "acc": {
+        "per_case": {
+          "normal": 0.099609375,
+          "no_dets": 0.099609375,
+          "no_lane": 0.099609375,
+          "zero_state": 0.099609375,
+          "all_empty": 0.11514698714017868,
+          "saturated": 0.53515625,
+          "lane_line_w1": 0.099609375,
+          "lane_line_w2": 0.099609375,
+          "lane_line_w3": 0.099609375,
+          "lane_line_w6": 0.099609375,
+          "seq_t0": 0.099609375,
+          "seq_t1": 0.2109375,
+          "seq_t2": 0.3046875,
+          "seq_t3": 0.3046875
+        },
+        "maxdiff": 0.53515625,
+        "worst_case": "saturated",
+        "mean_maxdiff": 0.1690785794385842,
+        "lossless": false
+      },
+      "acc_s": 1.1,
+      "kept_at": "models/exp_quant_pal4_kmeans.mlmodelc",
+      "evidence_agree": true,
+      "phase": "sweep",
+      "static_gru": false
+    },
+    {
+      "tag": "pal4_kmeans_preserve",
+      "frames": 8,
+      "spec": {
+        "tag": "pal4_kmeans_preserve",
+        "kind": "palette",
+        "nbits": 4,
+        "mode": "kmeans",
+        "preserve": true
+      },
+      "convert_s": 8.9,
+      "notes": [
+        "关键分支算子命中 11 个（前缀 ['lane_encoder.', 'fusion_head.']）",
+        "palette mode=kmeans nbits=4 per_tensor gs=1 + 关键分支保 fp16"
+      ],
+      "quant_s": 25.0,
+      "total_mb": 4.237,
+      "weights_mb": 4.08,
+      "op_count": 891,
+      "op_types": 35,
+      "has_while_loop": true,
+      "ane": {
+        "ane_ops": 0,
+        "cpu_ops": 453,
+        "no_usage": 438,
+        "total_ops": 891,
+        "verdict": "ANE_FAIL",
+        "op_types_on_cpu": [
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            13
+          ],
+          [
+            "ios16.cast",
+            10
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "ios16.relu",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_types_on_ane": [],
+        "op_types_all": [
+          [
+            "const",
+            337
+          ],
+          [
+            "ios16.linear",
+            126
+          ],
+          [
+            "ios16.add",
+            89
+          ],
+          [
+            "ios16.mul",
+            69
+          ],
+          [
+            "ios16.relu",
+            52
+          ],
+          [
+            "ios16.constexpr_lut_to_dense",
+            43
+          ],
+          [
+            "slice_by_index",
+            30
+          ],
+          [
+            "ios16.sigmoid",
+            28
+          ],
+          [
+            "ios16.conv",
+            18
+          ],
+          [
+            "ios16.cast",
+            17
+          ],
+          [
+            "ios16.sub",
+            15
+          ],
+          [
+            "ios16.tanh",
+            14
+          ],
+          [
+            "ios16.reshape",
+            5
+          ],
+          [
+            "ios16.logical_and",
+            5
+          ],
+          [
+            "transpose",
+            4
+          ],
+          [
+            "ios16.greater",
+            4
+          ],
+          [
+            "ios16.softmax",
+            4
+          ],
+          [
+            "expand_dims",
+            3
+          ],
+          [
+            "ios16.reduce_sum",
+            3
+          ],
+          [
+            "concat",
+            3
+          ],
+          [
+            "ios16.less",
+            3
+          ],
+          [
+            "ios16.layer_norm",
+            2
+          ],
+          [
+            "tile",
+            2
+          ],
+          [
+            "select",
+            2
+          ],
+          [
+            "ios16.real_div",
+            2
+          ],
+          [
+            "squeeze",
+            2
+          ],
+          [
+            "ios16.reduce_mean",
+            1
+          ],
+          [
+            "while_loop",
+            1
+          ],
+          [
+            "ios16.max_pool",
+            1
+          ],
+          [
+            "ios16.avg_pool",
+            1
+          ],
+          [
+            "ios16.fill_like",
+            1
+          ],
+          [
+            "ios16.reduce_max",
+            1
+          ],
+          [
+            "ios16.maximum",
+            1
+          ],
+          [
+            "ios16.equal",
+            1
+          ],
+          [
+            "ios16.atan",
+            1
+          ]
+        ],
+        "op_type_count": 35,
+        "has_while_loop": true,
+        "while_loop_count": 1
+      },
+      "while_loop_count": 1,
+      "bench": {
+        "ane_ms": 44.60456228116527,
+        "cpu_ms": 51.987364422529936,
+        "ratio": 0.8579885281092428,
+        "raw": {
+          "ane1": 44.362020562402904,
+          "cpu1": 51.676020957529545,
+          "cpu2": 52.29870788753033,
+          "ane2": 44.84710399992764
+        },
+        "timing_says_ane": false
+      },
+      "bench_s": 10.4,
+      "acc": {
+        "per_case": {
+          "normal": 0.099609375,
+          "no_dets": 0.099609375,
+          "no_lane": 0.099609375,
+          "zero_state": 0.099609375,
+          "all_empty": 0.11514698714017868,
+          "saturated": 0.53515625,
+          "lane_line_w1": 0.099609375,
+          "lane_line_w2": 0.099609375,
+          "lane_line_w3": 0.099609375,
+          "lane_line_w6": 0.099609375,
+          "seq_t0": 0.099609375,
+          "seq_t1": 0.2109375,
+          "seq_t2": 0.3046875,
+          "seq_t3": 0.3046875
+        },
+        "maxdiff": 0.53515625,
+        "worst_case": "saturated",
+        "mean_maxdiff": 0.1690785794385842,
+        "lossless": false
+      },
+      "acc_s": 1.8,
+      "evidence_agree": true,
+      "phase": "sweep",
+      "static_gru": false
+    }
+  ],
+  "generated_at": "2026-10-09 08:03:46"
+}

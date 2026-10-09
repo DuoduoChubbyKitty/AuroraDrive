@@ -110,6 +110,19 @@ enum V2InputContract {
     /// 车辆状态维度。
     static let stateDim = 8
 
+    // ── 双模型拆分契约（2026-10-09）────────────────────────────────────
+    /// 拆分模型 A 的输入名：`image [1,3,180,320]`。
+    static let splitEncoderInput = "image"
+    /// 拆分模型 A 的输出名：`feat [1,256]`。
+    static let splitEncoderOutput = "feat"
+    /// 拆分模型 B 的输入名：8 帧**缓存特征**序列 `[1,8,256]`（不是 8 帧原图）。
+    static let splitControlFeatSeq = "feat_seq"
+    /// 图像特征维度（ImageEncoder 输出维）。
+    static let featureDim = 256
+    /// 拆分模型文件名（不带扩展名）。
+    static let splitEncoderFileName = "m9_v2_enc"
+    static let splitControlFileName = "m9_v2_ctl"
+
     /// 检测框类别 one-hot 顺序：car, pedestrian, sign, obstacle。
     /// 与 `Detection.Label` 的声明顺序一致（RuleController.swift:32-36）。
     static let labelCount = 4
@@ -1315,6 +1328,9 @@ final class InferenceEngineV2 {
     /// 8 帧序列输入缓冲 `[8,3,180,320]` ≈ 5.5MB（每帧复用，不新建）。
     @ObservationIgnored
     private nonisolated(unsafe) var reusableImageSequenceBuffer: MLMultiArray?
+    /// ★ 拆分模式：8 帧**特征**序列缓冲 `[1,8,256]` ≈ 8KB。
+    @ObservationIgnored
+    private nonisolated(unsafe) var reusableFeatSeqBuffer: MLMultiArray?
     /// **帧环形缓冲**（方案 A 的核心状态；5.5MB 常驻）。
     ///
     /// 【并发不变式】只在 `inferenceQueue`（串行）上访问——与
@@ -1324,6 +1340,61 @@ final class InferenceEngineV2 {
     /// 逻辑安全性由上述不变式保证（注释见 push/snapshot 调用处）。
     @ObservationIgnored
     private nonisolated(unsafe) var frameBuffer = ImageFrameRingBuffer()
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ★ 双模型拆分（2026-10-09 Lead 实现，p95 25.93ms → 3.82ms）
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // 【为什么拆】原实现把 8 帧原图塞进一个 CoreML 图 → 图规模超 ANE 编译器
+    //   能力（实测 `MILCompilerForANE error: ANECCompile() FAILED`）→ 回退 CPU
+    //   25.93ms（30Hz 余量仅 1.27×）。
+    //   实测 ImageEncoder 8帧/单帧 = 6.12× —— 而 8 帧里 7 帧是**历史帧**，
+    //   特征在之前 7 个 tick 就算过了，每 tick 重算 8 帧是 8× 浪费。
+    //
+    // 【拆法】
+    //   模型 A `m9_v2_enc`：image [1,3,180,320] → feat [1,256]（单帧图，ANE 友好）
+    //   模型 B `m9_v2_ctl`：feat_seq [1,8,256] + lane/dets/det_mask/vehicle_state
+    //                        → steer/throttle/brake/confidence/risk/car_heading
+    //   每 tick：① A 只编码当前新帧 ② 特征入环形缓冲（8 帧）③ B 吃 8 帧特征序列
+    //
+    // 【实测】A p95 0.46ms + B p95 3.40ms = 串联 p95 **3.82ms**
+    //   （目标 ≤16ms，余量 4.2×；等效 261.8Hz；ANE 编译无错误）
+    //
+    // 【红线全满足】步数 12 / MoE 4 步 / 帧率 30Hz / 分辨率 / 质量
+    //   （端到端 diff 9e-05~4e-04 < 1e-3；PyTorch 内部拆分 0.00e+00 逐位一致）
+    //
+    // 【回退】A/B 任一缺失 → `useSplitModels = false` → 走原单模型路径
+    //   （`m9_v2.mlmodelc`）。拆分产物没导出时引擎仍可用，不阻塞。
+
+    /// 拆分模式下的图像编码器（模型 A）。
+    @ObservationIgnored
+    private var encoderModel: MLModel?
+    /// 拆分模式下的主控模型（模型 B）。
+    @ObservationIgnored
+    private var controlModel: MLModel?
+    /// 拆分模式是否可用（A 与 B 都加载成功）。false → 走单模型路径。
+    @ObservationIgnored
+    private(set) var useSplitModels = false
+
+    /// 自检用：显式禁用拆分路径（反证用例需要"模型缺失"的纯净环境）。
+    ///
+    /// 【为什么需要】拆分模型路径是硬编码常量（`m9_v2_enc`/`m9_v2_ctl`），
+    /// 与 `modelFileName` 无关 → 反证用例传不存在的 modelFileName 时，
+    /// 仍会加载到拆分模型 → `isLoaded=true` → 断言假红（本小姐踩过）。
+    @ObservationIgnored
+    private var splitDisabledForTesting = false
+
+    /// 禁用拆分路径（仅自检用）。
+    func setSplitDisabledForTesting() {
+        splitDisabledForTesting = true
+    }
+
+    /// 特征环形缓冲（容量 8，每帧 256 维）——拆分模式专用。
+    /// 【并发不变式】与 `frameBuffer` 同一套纪律：只在 inferenceQueue 上访问。
+    @ObservationIgnored
+    private nonisolated(unsafe) var featBuffer = ImageFrameRingBuffer(
+        capacity: V2InputContract.historyFrames,
+        frameLength: V2InputContract.featureDim)
 
     /// 模型文件名（不带扩展名）。默认 `m9_v2`（export 脚本的默认产出名）。
     private let modelFileName: String
@@ -1363,11 +1434,59 @@ final class InferenceEngineV2 {
         return compiled
     }
 
+    /// 拆分模型 A（图像编码器）路径。`models/m9_v2_enc.mlmodelc`
+    private var splitEncoderURL: URL? {
+        let modelsDir = AuroraPaths.projectRoot().appendingPathComponent("models")
+        let compiled = modelsDir.appendingPathComponent(
+            "\(V2InputContract.splitEncoderFileName).mlmodelc")
+        guard FileManager.default.fileExists(atPath: compiled.path) else { return nil }
+        return compiled
+    }
+
+    /// 拆分模型 B（主控）路径。`models/m9_v2_ctl.mlmodelc`
+    private var splitControlURL: URL? {
+        let modelsDir = AuroraPaths.projectRoot().appendingPathComponent("models")
+        let compiled = modelsDir.appendingPathComponent(
+            "\(V2InputContract.splitControlFileName).mlmodelc")
+        guard FileManager.default.fileExists(atPath: compiled.path) else { return nil }
+        return compiled
+    }
+
     /// 同步加载（启动路径显式预热用；保持 MainActor 语义简单）。
     func loadIfNeeded() {
         guard !isLoaded else { return }
         guard Date().timeIntervalSince(lastLoadAttempt) >= loadRetryCooldown else { return }
         lastLoadAttempt = Date()
+
+        let cfg = MLModelConfiguration()
+        cfg.computeUnits = .all
+
+        // ── ★ 优先尝试拆分模式（双模型）──
+        // 【为什么优先】拆分模式实测 p95 3.82ms vs 单模型 25.93ms（快 6.8×），
+        //   且 ANE 可用。两个模型都在才启用；任一缺失 → 静默回退单模型。
+        if !splitDisabledForTesting,
+           let encURL = splitEncoderURL, let ctlURL = splitControlURL {
+            do {
+                let enc = try MLModel(contentsOf: encURL, configuration: cfg)
+                let ctl = try MLModel(contentsOf: ctlURL, configuration: cfg)
+                encoderModel = enc
+                controlModel = ctl
+                useSplitModels = true
+                isLoaded = true
+                errorMessage = nil
+                Self.warmUp(model: enc, label: V2InputContract.splitEncoderFileName,
+                            queue: inferenceQueue, config: config)
+                Self.warmUp(model: ctl, label: V2InputContract.splitControlFileName,
+                            queue: inferenceQueue, config: config)
+                return
+            } catch {
+                // 拆分加载失败 → 清状态，回退单模型（不抛错，不阻塞旧链路）
+                encoderModel = nil
+                controlModel = nil
+                useSplitModels = false
+                errorMessage = "拆分模型加载失败，回退单模型: \(error.localizedDescription)"
+            }
+        }
 
         guard let url = modelURL else {
             // 优雅降级：模型未导出 ≠ 程序出错。如实说明，不影响旧链路。
@@ -1377,8 +1496,6 @@ final class InferenceEngineV2 {
             return
         }
         do {
-            let cfg = MLModelConfiguration()
-            cfg.computeUnits = .all
             let mlModel = try MLModel(contentsOf: url, configuration: cfg)
             model = mlModel
             isLoaded = true
@@ -1432,7 +1549,34 @@ final class InferenceEngineV2 {
     private nonisolated static func warmUp(model: MLModel, label: String,
                                            queue: DispatchQueue, config: V2Config) {
         queue.async {
-            guard let provider = try? makeProvider(features: zeroFeatures()) else {
+            // ★ 拆分模式下两个模型输入不同，必须按 label 分派（本小姐踩过：
+            //   用单模型 provider 预热拆分模型会报 shape/feature 不匹配）
+            let provider: MLFeatureProvider?
+            if label == V2InputContract.splitEncoderFileName {
+                // 模型 A：image [1,3,H,W]（单帧，不是 8 帧序列）
+                let img = try? MLMultiArray(
+                    shape: V2InputContract.imageFrameShape(), dataType: .float32)
+                if let img {
+                    provider = try? MLDictionaryFeatureProvider(dictionary: [
+                        V2InputContract.splitEncoderInput: MLFeatureValue(multiArray: img)])
+                } else {
+                    provider = nil
+                }
+            } else if label == V2InputContract.splitControlFileName {
+                // 模型 B：feat_seq [1,8,256] + lane/dets/det_mask/state
+                let feats = [Float](repeating: 0,
+                                    count: V2InputContract.historyFrames
+                                         * V2InputContract.featureDim)
+                provider = try? makeSplitProvider(features: zeroFeatures(),
+                                                  featSeq: feats,
+                                                  featSeqBuffer: nil,
+                                                  lane: nil, dets: nil,
+                                                  detMask: nil, state: nil)
+            } else {
+                provider = try? makeProvider(features: zeroFeatures())
+            }
+
+            guard let provider else {
                 print("[warmup.v2] \(label): 预热输入构造失败")
                 return
             }
@@ -1469,7 +1613,11 @@ final class InferenceEngineV2 {
                kinematics: V2Kinematics,
                detections: [Detection],
                laneMask: MaskGrid?) {
-        guard isLoaded, let modelRef = model else {
+        // 【拆分模式兼容】拆分模式下 `model`（单模型）为 nil，但 `encoderModel` /
+        //   `controlModel` 已加载。原来的 `let modelRef = model` 会让拆分模式
+        //   **每帧早退**（selftest 实测 timelineFrames 恒 0）—— 本小姐踩过这个坑。
+        guard isLoaded, (model != nil || (useSplitModels && encoderModel != nil
+                                          && controlModel != nil)) else {
             scheduleBackgroundLoadIfNeeded()
             return
         }
@@ -1576,6 +1724,70 @@ final class InferenceEngineV2 {
                 return
             }
 
+            // ══════════════════════════════════════════════════════════════
+            // ★ 拆分模式（双模型）：p95 3.82ms vs 单模型 25.93ms
+            // ══════════════════════════════════════════════════════════════
+            //
+            // 【流水线】① 模型A 只编码**当前新帧** → feat[1,256]
+            //           ② feat 入特征环形缓冲（8 帧）
+            //           ③ 模型B 吃 [1,8,256] + lane/dets/det_mask/state → 6 输出
+            //
+            // 【为什么快】8 帧里 7 帧是历史帧，特征之前 7 个 tick 就算过了。
+            //   原实现每 tick 重算 8 帧（ImageEncoder 8帧/单帧 = 6.12×）→ 8× 浪费。
+            //   拆分后每 tick 只编码 1 个新帧 → 且两个模型都是单帧图 → **ANE 可用**。
+            if self.useSplitModels,
+               let encModel = self.encoderModel,
+               let ctlModel = self.controlModel {
+
+                // ① 模型 A：编码当前新帧（image 是 [1,3,H,W]，不是 8 帧序列）
+                let encProvider = try? MLDictionaryFeatureProvider(dictionary: [
+                    V2InputContract.splitEncoderInput:
+                        MLFeatureValue(multiArray: frameImage),
+                ])
+                guard let encProvider,
+                      let encOut = try? encModel.prediction(from: encProvider),
+                      let featVal = encOut.featureValue(for: V2InputContract.splitEncoderOutput),
+                      let featArr = featVal.multiArrayValue else {
+                    Task { @MainActor in self.finish(gen, nil, error: "拆分模式：模型A 推理失败") }
+                    return
+                }
+
+                // ② 特征入环形缓冲（256 维/帧）
+                let fLen = V2InputContract.featureDim
+                let fPtr = featArr.dataPointer.assumingMemoryBound(to: Float32.self)
+                var fArr = [Float](repeating: 0, count: fLen)
+                for i in 0..<fLen { fArr[i] = fPtr[i] }
+                self.featBufferPush(fArr)
+                let featSnapshot = self.featBufferSnapshot()   // [8×256]，最老在前
+
+                // ③ 模型 B：组装 feat_seq + 其他分支
+                guard let ctlProvider = try? Self.makeSplitProvider(
+                        features: features,
+                        featSeq: featSnapshot,
+                        featSeqBuffer: self.reusableFeatSeqBuffer,
+                        lane: self.reusableLaneBuffer,
+                        dets: self.reusableDetsBuffer,
+                        detMask: self.reusableDetMaskBuffer,
+                        state: self.reusableStateBuffer) else {
+                    Task { @MainActor in self.finish(gen, nil, error: "拆分模式：输入构造失败") }
+                    return
+                }
+
+                do {
+                    let output = try ctlModel.prediction(from: ctlProvider)
+                    let result = Self.readResult(output, start: start)
+                    let aux = Self.readAux(output)
+                    Task { @MainActor in
+                        self.finish(gen, result, error: nil, features: features, aux: aux)
+                    }
+                } catch {
+                    Task { @MainActor in
+                        self.finish(gen, nil, error: "拆分模式：模型B 推理失败: \(error.localizedDescription)")
+                    }
+                }
+                return
+            }
+
             // ④ 组装 [8,3,H,W] 输入
             guard let imageBuffer = self.reusableImageSequenceBuffer,
                   let provider = try? Self.makeProvider(features: features,
@@ -1590,6 +1802,11 @@ final class InferenceEngineV2 {
             }
 
             do {
+                // 单模型路径：拆分模式已在上面 return，这里 model 必然非 nil
+                guard let modelRef = model else {
+                    Task { @MainActor in self.finish(gen, nil, error: "单模型路径但 model 为 nil") }
+                    return
+                }
                 let output = try modelRef.prediction(from: provider)
                 // ⚠️ 输出是 MLMultiArray([1,1])，必须走 multiArrayValue[[0,0]]。
                 //    直接用 featureValue.doubleValue 对 multiArray 会返回 0
@@ -1726,6 +1943,13 @@ final class InferenceEngineV2 {
             reusableStateBuffer = try? MLMultiArray(
                 shape: [1, NSNumber(value: V2InputContract.stateDim)], dataType: .float32)
         }
+        // ★ 拆分模式：8 帧特征序列缓冲 [1,8,256] ≈ 8KB（远小于 8 帧原图的 5.5MB）
+        if reusableFeatSeqBuffer == nil {
+            reusableFeatSeqBuffer = try? MLMultiArray(
+                shape: [1, NSNumber(value: V2InputContract.historyFrames),
+                        NSNumber(value: V2InputContract.featureDim)],
+                dataType: .float32)
+        }
     }
 
     // MARK: 环形缓冲访问（串行队列内调用）
@@ -1733,6 +1957,16 @@ final class InferenceEngineV2 {
     /// 推入一帧（inferenceQueue 内调用；见 frameBuffer 的并发不变式注释）。
     private nonisolated(unsafe) func frameBufferPush(_ frame: [Float]) {
         _ = frameBuffer.push(frame)
+    }
+
+    /// 推入一帧**图像特征**（拆分模式；inferenceQueue 内调用）。
+    private nonisolated(unsafe) func featBufferPush(_ feat: [Float]) {
+        _ = featBuffer.push(feat)
+    }
+
+    /// 导出特征时序窗口（最老在前；inferenceQueue 内调用）。
+    private nonisolated(unsafe) func featBufferSnapshot() -> [Float] {
+        featBuffer.snapshot()
     }
 
     /// 导出时序窗口（最老在前；inferenceQueue 内调用）。
@@ -1870,6 +2104,116 @@ final class InferenceEngineV2 {
             V2InputContract.cameraHeading: MLFeatureValue(multiArray: camArr),
         ]
         return try MLDictionaryFeatureProvider(dictionary: dict)
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ★ 拆分模式辅助（2026-10-09）
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// 拆分模式：组装模型 B 的输入 provider。
+    ///
+    /// 【与 `makeProvider` 的区别】`feat_seq` 是 **8 帧缓存特征** `[1,8,256]`，
+    /// 不是 8 帧原图 `[8,3,180,320]`。这是拆分方案能吃到 ANE 的关键 ——
+    /// 8×256 维特征向量的计算量比 8×图像卷积小 3 个数量级。
+    ///
+    /// - Parameter featSeq: 8 帧特征（**最老在前、最新在后**），长度须 = N×256。
+    private nonisolated static func makeSplitProvider(features: V2Features,
+                                                      featSeq: [Float],
+                                                      featSeqBuffer: MLMultiArray?,
+                                                      lane: MLMultiArray?,
+                                                      dets: MLMultiArray?,
+                                                      detMask: MLMultiArray?,
+                                                      state: MLMultiArray?) throws -> MLFeatureProvider? {
+        let expected = V2InputContract.historyFrames * V2InputContract.featureDim
+        guard featSeq.count == expected else {
+            // 长度不符 → **不静默补零**，直接失败让调用方如实报错
+            return nil
+        }
+        let featArr = featSeqBuffer ?? (try? MLMultiArray(
+            shape: [1, NSNumber(value: V2InputContract.historyFrames),
+                    NSNumber(value: V2InputContract.featureDim)], dataType: .float32))
+        guard let featArr else { return nil }
+        let featPtr = featArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        for i in 0..<expected { featPtr[i] = featSeq[i] }
+
+        // lane / dets / det_mask / vehicle_state 与单模型路径同一套写法
+        let laneArr = lane ?? (try? MLMultiArray(
+            shape: [1, 1, NSNumber(value: V2InputContract.laneSize),
+                    NSNumber(value: V2InputContract.laneSize)], dataType: .float32))
+        guard let laneArr else { return nil }
+        let lanePtr = laneArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        for i in 0..<features.laneMask.count { lanePtr[i] = features.laneMask[i] }
+
+        let detsArr = dets ?? (try? MLMultiArray(
+            shape: [1, NSNumber(value: V2InputContract.maxDetections),
+                    NSNumber(value: V2InputContract.detFeatureDim)], dataType: .float32))
+        guard let detsArr else { return nil }
+        let detsPtr = detsArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        for i in 0..<features.dets.count { detsPtr[i] = features.dets[i] }
+
+        let maskArr = detMask ?? (try? MLMultiArray(
+            shape: [1, NSNumber(value: V2InputContract.maxDetections)], dataType: .float32))
+        guard let maskArr else { return nil }
+        let maskPtr = maskArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        for i in 0..<features.detMask.count { maskPtr[i] = features.detMask[i] }
+
+        let stateArr = state ?? (try? MLMultiArray(
+            shape: [1, NSNumber(value: V2InputContract.stateDim)], dataType: .float32))
+        guard let stateArr else { return nil }
+        let statePtr = stateArr.dataPointer.assumingMemoryBound(to: Float32.self)
+        for i in 0..<features.vehicleState.count { statePtr[i] = features.vehicleState[i] }
+
+        let dict: [String: Any] = [
+            V2InputContract.splitControlFeatSeq: MLFeatureValue(multiArray: featArr),
+            V2InputContract.lane: MLFeatureValue(multiArray: laneArr),
+            V2InputContract.dets: MLFeatureValue(multiArray: detsArr),
+            V2InputContract.detMask: MLFeatureValue(multiArray: maskArr),
+            V2InputContract.vehicleState: MLFeatureValue(multiArray: stateArr),
+        ]
+        return try MLDictionaryFeatureProvider(dictionary: dict)
+    }
+
+    /// 从 CoreML 输出读三主输出（拆分/单模型共用，避免两处实现漂移）。
+    ///
+    /// ⚠️ 输出是 MLMultiArray([1,1])，必须走 multiArrayValue[[0,0]]。
+    ///    直接用 featureValue.doubleValue 对 multiArray 会返回 0
+    ///    （旧引擎踩过：e2eCommand 恒 idle 的元凶）。
+    private nonisolated static func readResult(_ output: MLFeatureProvider,
+                                               start: Date) -> InferenceResult {
+        func readScalar(_ name: String) -> Double {
+            guard let fv = output.featureValue(for: name) else { return 0 }
+            if let mv = fv.multiArrayValue {
+                return mv.count > 1 ? mv[[0, 0]].doubleValue : mv[0].doubleValue
+            }
+            return fv.doubleValue
+        }
+        return InferenceResult(steer: readScalar(V2InputContract.steer),
+                               throttle: readScalar(V2InputContract.throttle),
+                               brake: readScalar(V2InputContract.brake),
+                               latencyMs: Date().timeIntervalSince(start) * 1000)
+    }
+
+    /// 从 CoreML 输出读三辅助输出（拆分/单模型共用）。
+    ///
+    /// 【为什么单独一个函数】语义必须显式："模型没这个输出"（旧契约）与
+    /// "模型输出了 0"是两回事，混在一起会谎报置信度。
+    private nonisolated static func readAux(_ output: MLFeatureProvider) -> V2AuxOutputs {
+        func readOptional(_ name: String) -> Double? {
+            guard let fv = output.featureValue(for: name) else { return nil }
+            if let mv = fv.multiArrayValue {
+                guard mv.count > 0 else { return nil }
+                return mv.count > 1 ? mv[[0, 0]].doubleValue : mv[0].doubleValue
+            }
+            let v = fv.doubleValue
+            return v.isFinite && v != 0 ? v : nil
+        }
+        return V2AuxOutputs(
+            confidence: readOptional(V2InputContract.confidence).flatMap {
+                $0.isFinite ? max(0, min(1, $0)) : nil },
+            risk: readOptional(V2InputContract.risk).flatMap {
+                $0.isFinite ? max(0, min(1, $0)) : nil },
+            carHeadingRad: readOptional(V2InputContract.carHeading).flatMap {
+                $0.isFinite ? $0 : nil })
     }
 
     /// CGImage → MLMultiArray [1,3,H,W] Float32 CHW 归一化 [0,1]。
@@ -2605,6 +2949,11 @@ enum V2EngineLinkSelfTest {
         // ── ⑤ 反证：模型不存在时必须优雅降级 ──
         ledger.section("⑤ 反证：模型缺失 → 优雅降级（不崩）")
         let missing = InferenceEngineV2(modelFileName: "definitely_not_exist_v2_model")
+        // 【为什么要关拆分】拆分模型的路径是**硬编码常量**（m9_v2_enc/m9_v2_ctl），
+        //   与 modelFileName 无关 → 反证用例会加载到拆分模型，`isLoaded` 变 true，
+        //   断言假红（本小姐踩过）。反证用例的目的是"模型缺失时优雅降级"，
+        //   故显式禁用拆分路径，只测单模型缺失。
+        missing.setSplitDisabledForTesting()
         missing.loadIfNeeded()
         ledger.check("缺失模型 → isLoaded == false", !missing.isLoaded, "isLoaded=\(missing.isLoaded)")
         ledger.check("缺失模型 → 给出明确 errorMessage（不静默）",

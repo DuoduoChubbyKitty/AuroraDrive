@@ -165,8 +165,9 @@ def main():
     print(f"═══ S2 suite={args.suite} 配置数={len(suite)} reps={args.reps} "
           f"iters={args.iters} warmup={args.warmup} ═══")
     print(f"    uptime={int(time.time())} loadavg={os.getloadavg()}")
-    print(f"    机型：{subprocess.run(['sysctl','-n','machdep.cpu.brand_string'],"
-          f"capture_output=True,text=True).stdout.strip()}")
+    cpu = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"],
+                         capture_output=True, text=True).stdout.strip()
+    print(f"    机型：{cpu}")
 
     results = abba(suite, args.iters, args.reps, args.warmup)
 

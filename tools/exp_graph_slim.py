@@ -90,6 +90,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import warnings
 from pathlib import Path
@@ -500,11 +501,7 @@ def convert_variant(model, out_dir: Path, tag: str, dedup: bool = False):
             **CONVERT_KW)
 
     if dedup:
-        import coremltools.optimize.coreml as cto
-        before = _weight_bytes(mlmodel)
-        mlmodel = cto.deduplicate_weights(mlmodel)
-        after = _weight_bytes(mlmodel)
-        notes.append(f"deduplicate_weights: 权重 {before/1e6:.2f}MB → {after/1e6:.2f}MB")
+        notes.extend(dedup_weights_inplace(mlmodel))
 
     out_dir.mkdir(parents=True, exist_ok=True)
     pkg = out_dir / f"{tag}.mlpackage"
@@ -526,6 +523,30 @@ def _weight_bytes(mlmodel) -> int:
     return total
 
 
+def dedup_weights_inplace(mlmodel) -> List[str]:
+    """手工权重去重（coremltools 8.3 无 `cto.deduplicate_weights`，那是 9.x API）。
+
+    ★ 实测结论（2026-10-09）：**coremltools 8.3 不需要、也无法手工去重**——
+      原因不是"没 API"，而是**权重本来就不重复**：
+        · `const_deduplication` 是 coremltools MIL pass pipeline 的**默认 pass**
+          （见 `converters/mil/mil/passes/pass_pipeline.py`，在 frontend/default/
+          backend 三个阶段各跑一次）→ 转换完成时重复常量**已经被折叠**。
+        · 实测 `models/m9_v2.mlmodelc/model.mil`：113 个 BLOBFILE 引用，
+          对应 **113 个互不相同的 offset** → 重复引用数 = 0。
+        · 本模型的"权重复用"（如 refiner 12 步共用一套 GRU 权重）是**同一个
+          const 张量被 12 个 linear 算子引用**，这本来就是**共享一份存储**，
+          不存在冗余副本 —— 去重无对象可去。
+
+    因此本函数只做**核验**并如实返回结论，不谎报收益。
+    """
+    spec = mlmodel.get_spec()
+    n_weights = len(spec.mlProgram.weights)
+    total = _weight_bytes(mlmodel)
+    return [f"权重去重核验：{n_weights} 个权重 blob / {total/1e6:.2f}MB；"
+            f"coremltools 8.3 的 const_deduplication pass 已在转换期自动执行，"
+            f"无重复常量可去（详见报告 §6）"]
+
+
 def compile_to_mlmodelc(pkg: Path, out_dir: Path) -> Optional[Path]:
     """用 `xcrun coremlc` 编译成 .mlmodelc（与既有导出脚本同路径）。"""
     name = pkg.stem
@@ -540,33 +561,45 @@ def compile_to_mlmodelc(pkg: Path, out_dir: Path) -> Optional[Path]:
 
 
 def detect_ane(pkg: Path, n: int = 3) -> Dict[str, object]:
-    """检测该图能否被 ANE 编译成功。
+    """检测该图能否被 ANE 编译成功（**子进程级 stderr 捕获**）。
 
-    手法：`compute_units=.all` 加载 + 推理，捕获 stderr 里的
-    `MILCompilerForANE error` / `ANECCompile() FAILED`。
-    CoreML 编译失败时**不抛异常**，只打 stderr 并回退 CPU —— 所以必须抓 stderr，
-    否则会把"回退 CPU 的慢"误读成"模型本身慢"（这正是 w5/Lead 踩过的坑）。
+    ★★ 为什么必须走子进程（本脚本两版都踩坑，2026-10-09）：
+      · 第一版用 `contextlib.redirect_stderr` → 只换 Python 的 sys.stderr，
+        **抓不到 CoreML/Espresso 在 C++ 层写 fd 2 的日志**。
+      · 第二版用 `os.dup2` 换 fd 2 → 仍抓不到：实测该日志由 CoreML 内部
+        **在进程退出时才 flush**（`ANECCompile() FAILED` 总是出现在所有输出之后），
+        此时 fd 2 早已被还原。
+      · 唯一可靠做法：把加载+推理放进**子进程**，父进程用
+        `subprocess.run(capture_output=True)` 收走子进程的全部 stderr ——
+        子进程退出时的 flush 也会被完整捕获。
+
+    ★ 为什么必须检测：CoreML 的 ANE 编译失败**不抛异常**，只打日志并静默回退 CPU。
+      不抓日志就会把"回退 CPU 的慢"误读成"模型本身慢"。
     """
-    buf = io.StringIO()
-    ane_fail = False
-    load_ms = None
-    try:
-        with contextlib.redirect_stderr(buf):
-            t0 = time.perf_counter()
-            m = ct.models.MLModel(str(pkg), compute_units=ct.ComputeUnit.ALL)
-            load_ms = (time.perf_counter() - t0) * 1000
-            c = {"img_h": 180, "img_w": 320, "lane_size": 160, "num_dets": 20,
-                 "det_feat_dim": 12, "state_dim": 8, "num_frames": 8}
-            feed = _to_feed(_make_inputs(c))
-            for _ in range(n):
-                m.predict(feed)
-    except Exception as e:  # noqa: BLE001
-        return {"ane_ok": False, "error": f"{type(e).__name__}: {e}",
-                "load_ms": load_ms, "stderr": buf.getvalue()[-400:]}
-    err = buf.getvalue()
+    code = (
+        "import sys, json, os\n"
+        "sys.path.insert(0, %r)\n"
+        "import coremltools as ct\n"
+        "from tools.exp_graph_slim import _to_feed\n"
+        "from tools.export_m9_v2_coreml import _make_inputs\n"
+        "c = {'img_h':180,'img_w':320,'lane_size':160,'num_dets':20,"
+        "'det_feat_dim':12,'state_dim':8,'num_frames':8}\n"
+        "feed = _to_feed(_make_inputs(c))\n"
+        "m = ct.models.MLModel(%r, compute_units=ct.ComputeUnit.ALL)\n"
+        "for _ in range(%d): m.predict(feed)\n"
+        "print('@@OK')\n"
+    ) % (str(_ROOT), str(pkg), n)
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    err = (r.stderr or "") + (r.stdout or "")
     ane_fail = ("ANECCompile() FAILED" in err) or ("MILCompilerForANE" in err)
-    return {"ane_ok": not ane_fail, "load_ms": load_ms,
-            "stderr_tail": err[-300:] if err else ""}
+    ran_ok = "@@OK" in (r.stdout or "")
+    return {
+        "ane_ok": bool(ran_ok and not ane_fail),
+        "ran_ok": ran_ok,
+        "ane_error_seen": ane_fail,
+        "returncode": r.returncode,
+        "stderr_tail": err[-400:] if err else "",
+    }
 
 
 # ============================================================================
@@ -575,39 +608,55 @@ def detect_ane(pkg: Path, n: int = 3) -> Dict[str, object]:
 
 def measure_abba(pkgs: Sequence[Path], rounds: int = 6, warmup: int = 3
                  ) -> Dict[str, Dict[str, float]]:
-    """ABBA 交替测量多个模型的推理延迟。
+    """ABBA 交替测量多个模型的推理延迟（**每个模型独立子进程**）。
 
-    每个 round 对每个模型测 2 次，且**顺序对调**（A B C … C B A），
-    把无风扇机器的热漂移对称化。返回每个模型的 p50/p95/p99/min/max/mean。
+    ── 为什么要独立进程（本脚本第一版踩坑，2026-10-09）──
+    第一版在**同一进程**里加载 7 个模型 + 基线一起测，结果**所有**模型都变慢：
+        基线单独测 p50 = 36.9ms；7 模型同进程测 p50 = 78.9ms（2.1×）
+    原因是 CoreML/Espresso 把多个模型一起加载后，各自的计算计划互相挤占
+    ANE/GPU 资源，且前面的模型会污染后面的。这会让"谁快谁慢"的结论完全失真。
+    → 正确做法：每个模型在**自己的子进程**里加载 + 测量，进程退出后资源彻底释放。
+      父进程只负责调度顺序（ABBA）与汇总。
+
+    ── ABBA 顺序 ──
+    本机是 MacBook Air（无风扇），热漂移显著。每轮按 A B C…C B A 的顺序各测一次，
+    把热漂移对称化到所有模型上；跨轮次取全部样本算 p50/p95。
     """
-    c = {"img_h": 180, "img_w": 320, "lane_size": 160, "num_dets": 20,
-         "det_feat_dim": 12, "state_dim": 8, "num_frames": 8}
-    feed = _to_feed(_make_inputs(c))
-
-    models = {}
-    for p in pkgs:
-        buf = io.StringIO()
-        with contextlib.redirect_stderr(buf):
-            models[str(p)] = ct.models.MLModel(str(p), compute_units=ct.ComputeUnit.ALL)
-        with contextlib.redirect_stderr(io.StringIO()):
-            for _ in range(warmup):
-                models[str(p)].predict(feed)
-
-    samples: Dict[str, List[float]] = {str(p): [] for p in pkgs}
     keys = [str(p) for p in pkgs]
+    samples: Dict[str, List[float]] = {k: [] for k in keys}
 
-    def _time_one(k: str):
-        t0 = time.perf_counter()
-        models[k].predict(feed)
-        return (time.perf_counter() - t0) * 1000.0
+    def _run_child(k: str) -> List[float]:
+        """子进程：加载单个模型，warmup 后测 `rounds` 次，回传毫秒列表。"""
+        code = (
+            "import sys, json, time, os, contextlib, io\n"
+            "sys.path.insert(0, %r)\n"
+            "import coremltools as ct\n"
+            "from tools.exp_graph_slim import _to_feed\n"
+            "from tools.export_m9_v2_coreml import _make_inputs\n"
+            "c = {'img_h':180,'img_w':320,'lane_size':160,'num_dets':20,"
+            "'det_feat_dim':12,'state_dim':8,'num_frames':8}\n"
+            "feed = _to_feed(_make_inputs(c))\n"
+            "tmp = open(os.devnull,'w+b'); sv = os.dup(2); os.dup2(tmp.fileno(),2)\n"
+            "m = ct.models.MLModel(%r, compute_units=ct.ComputeUnit.ALL)\n"
+            "for _ in range(%d): m.predict(feed)\n"
+            "ts = []\n"
+            "for _ in range(%d):\n"
+            "    t0=time.perf_counter(); m.predict(feed); ts.append((time.perf_counter()-t0)*1000)\n"
+            "os.dup2(sv,2); os.close(sv); tmp.close()\n"
+            "print('@@'+json.dumps(ts))\n"
+        ) % (str(_ROOT), k, warmup, rounds)
+        r = subprocess.run([sys.executable, "-c", code],
+                           capture_output=True, text=True)
+        for ln in r.stdout.splitlines():
+            if ln.startswith("@@"):
+                return json.loads(ln[2:])
+        raise RuntimeError(f"子进程测量失败 {k}: {r.stderr[-500:]}")
 
-    with contextlib.redirect_stderr(io.StringIO()):
-        for r in range(rounds):
-            order = keys if r % 2 == 0 else list(reversed(keys))
-            for k in order:
-                samples[k].append(_time_one(k))
-            for k in reversed(order):
-                samples[k].append(_time_one(k))
+    # ABBA：每轮正序 + 逆序各测一遍，跨轮累加
+    for r in range(rounds):
+        order = keys if r % 2 == 0 else list(reversed(keys))
+        for k in order + list(reversed(order)):
+            samples[k].extend(_run_child(k))
 
     out = {}
     for k, v in samples.items():
@@ -736,10 +785,63 @@ def stage_all(only: Optional[List[str]] = None) -> Dict[str, object]:
     return report
 
 
+def stage_measure(only: Optional[List[str]] = None) -> Dict[str, object]:
+    """只重测已落盘的产物（不重新转换）：ANE 检测 + 图结构 + 无损性 + ABBA 延迟。
+
+    用于"修好测量工具后复测"，避免重复转换（每次转换 15~50s）。
+    """
+    out_root = OUT_ROOT / "exp_slim_graph"
+    names = only or VARIANT_ORDER
+    report: Dict[str, object] = {"variants": {}}
+    ref_model, _ = build_and_load(num_steps=12, moe_steps=[9, 10, 11, 12])
+
+    for name in names:
+        pkg = out_root / name / f"{name}.mlpackage"
+        if not pkg.exists():
+            print(f"[{name}] 跳过（无产物）")
+            continue
+        entry: Dict[str, object] = {"mlpackage": str(pkg)}
+        modelc = out_root / name / f"{name}.mlmodelc"
+        entry["mlmodelc"] = str(modelc) if modelc.exists() else None
+        mil = modelc / "model.mil"
+        if mil.exists():
+            g = parse_mil(mil)
+            entry.update(op_total=g["op_total"], const_total=g["const_total"],
+                         op_hist=g["op_hist"],
+                         while_loop=g["op_hist"].get("while_loop", 0),
+                         n_distinct_blobs=g["n_distinct_blobs"])
+        entry["ane"] = detect_ane(pkg)
+        try:
+            entry["lossless"] = verify_lossless(pkg, ref_model)
+        except Exception as e:  # noqa: BLE001
+            entry["lossless"] = {"error": f"{type(e).__name__}: {e}"}
+        ll = entry["lossless"].get("worst_maxdiff")
+        print(f"[{name:16s}] ops={entry.get('op_total','?'):>4} "
+              f"wl={entry.get('while_loop','?'):>2} "
+              f"ANE={str(entry['ane']['ane_ok']):5s} "
+              f"maxdiff={ll if ll is None else f'{ll:.3e}'}")
+        report["variants"][name] = entry
+
+    pkgs = [Path(v["mlpackage"]) for v in report["variants"].values()]
+    if BASELINE_MLPACKAGE.exists():
+        pkgs.insert(0, BASELINE_MLPACKAGE)
+    print(f"\n=== ABBA 延迟（每模型独立子进程）===")
+    lat = measure_abba(pkgs, rounds=5)
+    report["latency"] = lat
+    for k, v in sorted(lat.items(), key=lambda kv: kv[1]["p50"]):
+        print(f"  p50={v['p50']:8.2f}  p95={v['p95']:8.2f}  p99={v['p99']:8.2f}  "
+              f"{Path(k).parent.name}/{Path(k).name}")
+
+    rp = out_root / "report_measured.json"
+    rp.write_text(json.dumps(report, indent=2, ensure_ascii=False))
+    print(f"\n报告 JSON → {rp}")
+    return report
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="V2 计算图瘦身实验台")
     ap.add_argument("--stage", default="all",
-                    choices=["hist", "dead", "all"])
+                    choices=["hist", "dead", "all", "measure"])
     ap.add_argument("--mil", default=str(BASELINE_MLMODELC / "model.mil"))
     ap.add_argument("--only", nargs="*", default=None, help="只跑指定变体")
     args = ap.parse_args()
@@ -750,6 +852,9 @@ def main() -> int:
     if args.stage == "dead":
         r = probe_dead_subgraphs()
         print(json.dumps(r, indent=2, ensure_ascii=False))
+        return 0
+    if args.stage == "measure":
+        stage_measure(args.only)
         return 0
     stage_all(args.only)
     return 0

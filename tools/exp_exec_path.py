@@ -60,7 +60,15 @@ import export_m9_v2_coreml as base  # noqa: E402
 
 
 def _parse_pipeline(spec: str):
-    """'dedup:64,palette:4:128' → [('dedup', {}), ('palette', {'nbits':4})]"""
+    """'dedup:64,palette:4:128' → [('dedup', {...}), ('palette', {'nbits':4,...})]
+
+    ★ 参数名核对（2026-10-09 实测 coremltools 8.3 / 9.0）：
+        OpPalettizerConfig(mode, nbits, granularity, weight_threshold, ...)
+        OpLinearQuantizerConfig(mode, dtype, granularity, block_size, weight_threshold, ...)
+      —— 是 **weight_threshold**（元素数阈值），不是任务书里写的 min_weight_elements；
+         `deduplicate_weights` / `OpWeightDeduplicatorConfig` 在 8.3 与 9.0 **均不存在**
+         （已在两个版本的 site-packages 里全文 grep 确认）。
+    """
     steps = []
     if not spec.strip():
         return steps
@@ -75,10 +83,10 @@ def _parse_pipeline(spec: str):
             steps.append(("dedup", {"min_elements": int(args[0]) if args else 128}))
         elif kind == "palette":
             nbits = int(args[0]) if args else 4
-            minel = int(args[1]) if len(args) > 1 else 128
-            steps.append(("palette", {"nbits": nbits, "min_elements": minel}))
+            thr = int(args[1]) if len(args) > 1 else 128
+            steps.append(("palette", {"nbits": nbits, "threshold": thr}))
         elif kind == "int8":
-            steps.append(("int8", {"min_elements": int(args[0]) if args else 128}))
+            steps.append(("int8", {"threshold": int(args[0]) if args else 128}))
         else:
             raise SystemExit(f"未知 pipeline 步骤：{kind}（可选 dedup / palette / int8）")
     return steps
@@ -97,10 +105,15 @@ def _apply_pipeline(mlmodel, steps):
     for kind, kw in steps:
         t0 = time.time()
         if kind == "dedup":
+            # ★ 如实记录：这个 API 在 coremltools 8.3 与 9.0 里**都不存在**。
+            #   Apple 的 Core ML 在**编译期**（coremlc / ANE 编译器）会自行做权重去重，
+            #   没有暴露给用户的 Python API。任务书里的 `ct.optimize.coreml.deduplicate_weights`
+            #   是**不存在的函数名**，此处如实标记为"未验证/不可用"，绝不假装做过。
             if not hasattr(cto, "deduplicate_weights"):
                 notes.append(
-                    f"✗ dedup 跳过：coremltools {ct.__version__} 无 "
-                    f"`optimize.coreml.deduplicate_weights`（该 API 自 9.0 起提供）")
+                    f"✗ dedup 不可用：coremltools {ct.__version__} 无 "
+                    f"`optimize.coreml.deduplicate_weights`（8.3 与 9.0 均无此符号，"
+                    f"已全文 grep 确认）→ 该旋钮**未验证**，不是「试过没用」")
                 continue
             cfg = cto.OptimizationConfig(
                 global_config=cto.OpWeightDeduplicatorConfig(
@@ -112,18 +125,18 @@ def _apply_pipeline(mlmodel, steps):
             cfg = cto.OptimizationConfig(
                 global_config=cto.OpPalettizerConfig(
                     nbits=kw["nbits"], mode="kmeans",
-                    min_weight_elements=kw["min_elements"]))
+                    weight_threshold=kw["threshold"]))
             mlmodel = cto.palettize_weights(mlmodel, config=cfg)
             notes.append(f"✓ palette {kw['nbits']}bit kmeans"
-                         f"（min_weight_elements={kw['min_elements']}） {time.time()-t0:.1f}s")
+                         f"（weight_threshold={kw['threshold']}） {time.time()-t0:.1f}s")
         elif kind == "int8":
             cfg = cto.OptimizationConfig(
                 global_config=cto.OpLinearQuantizerConfig(
                     mode="linear_symmetric", dtype=np.int8,
-                    min_weight_elements=kw["min_elements"]))
+                    weight_threshold=kw["threshold"]))
             mlmodel = cto.linear_quantize_weights(mlmodel, config=cfg)
-            notes.append(f"✓ int8 linear_symmetric（min_weight_elements="
-                         f"{kw['min_elements']}） {time.time()-t0:.1f}s")
+            notes.append(f"✓ int8 linear_symmetric（weight_threshold="
+                         f"{kw['threshold']}） {time.time()-t0:.1f}s")
     return mlmodel, notes
 
 
@@ -145,6 +158,11 @@ def main() -> int:
                     help="不显式指定 IO dtype=fp32（IO 会随 compute_precision 变 fp16）")
     ap.add_argument("--allow-partial", action="store_true",
                     help="允许随机初始化占比 >5% 的 checkpoint（本模型 65.74%，链路验证用）")
+    ap.add_argument("--random-init", action="store_true",
+                    help="完全用随机初始化权重（诊断用：只验证图结构能否编译，绝不可上车）")
+    ap.add_argument("--num-frames", type=int, default=None,
+                    help="覆盖时序窗口帧数（★ 仅诊断用，用来定位 ANE 编译失败的根因；"
+                         "正式产物必须用默认 8 帧，红线不可降）")
     args = ap.parse_args()
 
     steps = _parse_pipeline(args.pipeline)
@@ -166,6 +184,15 @@ def main() -> int:
         return 2
     sd = base._load_state_dict(src)
     model, load_report = base._build_and_load(sd, src)
+    if args.num_frames is not None:
+        # ★ 诊断专用：换掉时序窗口帧数（正式产物绝不允许，红线）
+        from src.model_v2 import build_model as _bm
+        print(f"[导出] ⚠⚠ 诊断模式：num_frames={args.num_frames}（**非交付配置，仅定位 ANE 边界**）")
+        torch.manual_seed(0)
+        model = _bm(deploy=False, num_frames=args.num_frames)
+        model.eval()
+        model.reparameterize()
+        load_report = {"random_init": True}
     if not load_report.get("random_init"):
         sd_now = model.state_dict()
         missing_param = sum(sd_now[k].numel() for k in load_report.get("all_missing_keys", [])

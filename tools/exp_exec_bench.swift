@@ -24,6 +24,7 @@
 
 import Foundation
 import CoreML
+import Metal
 
 // ---------------------------------------------------------------- 参数解析
 var args = CommandLine.arguments
@@ -44,6 +45,7 @@ let warmup      = Int(argValue("--warmup", "5")) ?? 5
 let wantPlan    = argValue("--plan", "1") == "1"
 let label       = argValue("--label", "")
 let jsonOut     = argValue("--json", "")
+let forceDevice = argValue("--metal-device", "0") == "1"
 
 func die(_ msg: String) -> Never {
     FileHandle.standardError.write(("FATAL " + msg + "\n").data(using: .utf8)!)
@@ -71,6 +73,14 @@ if #available(macOS 15.0, *) {
         (strategyName == "fastPrediction") ? .fastPrediction : .default
 }
 cfg.allowLowPrecisionAccumulationOnGPU = lowPrecAccum
+if forceDevice {
+    if let dev = MTLCreateSystemDefaultDevice() {
+        cfg.preferredMetalDevice = dev
+        log("[bench] preferredMetalDevice = \(dev.name)")
+    } else {
+        log("[bench] ⚠ 取不到 Metal 设备，preferredMetalDevice 未设置")
+    }
+}
 
 log("[bench] model=\(modelPath)")
 log("[bench] units=\(unitsName) strategy=\(strategyName) lowPrecAccum=\(lowPrecAccum) "
@@ -249,7 +259,7 @@ var result: [String: Any] = [
     "model": modelPath,
     "units": unitsName,
     "strategy": strategyName,
-    "lowprec_accum": lowPrecAccum,
+    "lowprec_accum": lowPrecAccum, "metal_device_forced": forceDevice,
     "reshape": reshapeName,
     "rounds": rounds, "iters": iters, "warmup": warmup,
     "load_ms": loadMs,

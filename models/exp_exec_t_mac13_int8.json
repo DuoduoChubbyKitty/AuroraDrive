@@ -1,0 +1,31 @@
+{
+  "name": "t_mac13_int8",
+  "out_mlmodelc": "/Users/dupi/Desktop/自动驾驶系统/models/exp_exec_t_mac13_int8.mlmodelc",
+  "out_mlpackage": "/Users/dupi/Desktop/自动驾驶系统/models/exp_exec_t_mac13_int8.mlpackage",
+  "precision": "float16",
+  "target": "macOS13",
+  "pipeline": "int8",
+  "pipeline_steps": [
+    "int8"
+  ],
+  "pipeline_notes": [
+    "✓ int8 linear_symmetric（weight_threshold=128） 6.2s"
+  ],
+  "coremltools": "8.3.0",
+  "torch": "2.13.0",
+  "preserve_io_fp32": true,
+  "size_mlpackage_mb": 8.176,
+  "size_mlmodelc_mb": 8.209,
+  "maxdiff_vs_torch": 0.079997718334198,
+  "ref_outputs": [
+    0.9999995231628418,
+    3.586004191209963e-15,
+    1.483760388509836e-05,
+    1.0,
+    9.304432150212728e-24,
+    0.5993920564651489
+  ],
+  "random_init": false,
+  "total_params": 8799446,
+  "created": "2026-10-09 07:50:00"
+}
