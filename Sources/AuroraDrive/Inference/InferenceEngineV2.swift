@@ -123,6 +123,56 @@ enum V2InputContract {
     static let splitEncoderFileName = "m9_v2_enc"
     static let splitControlFileName = "m9_v2_ctl"
 
+    // ── 多模型串联契约（9 模型，2026-10-09）──────────────────────────────
+    //
+    // 【为什么再拆】双模型拆分把 8 帧原图塞一个图 → ANE 友好，但 ctl 仍含
+    //   完整 24 步 refiner + 融合头 → 图规模大。进一步把 refiner 24 步拆成
+    //   6 块×4 步独立小模型，tf / chunk / head 各自极小 → 全部 cpuOnly 仍比
+    //   `.all` 快 4-8×（S3 实测），且 GPU 占用 0%。
+    //
+    // 流水线（每 tick）：
+    //   enc(ANE)  image → feat
+    //   tf(CPU)   feat_seq+lane+dets+det_mask+state → fused+img_feat+det_feat
+    //   chunk1~6(CPU)  fused → refined（串联）
+    //   head(CPU)  fused+img_feat+det_feat+det_mask → 6 输出
+    //
+    // ⚠️ enc 复用 split24/m9_v2_enc（与双模型同一份），其余 8 个在 multi_split/。
+    /// 时序融合模型文件名（不带扩展名）。
+    static let multiTfFileName = "m9_v2_tf"
+    /// 融合头模型文件名（不带扩展名）。
+    static let multiHeadFileName = "m9_v2_head"
+    /// refiner 块文件名前缀（拼接 1~6）。
+    static let multiChunkPrefix = "m9_v2_chunk"
+    /// refiner 块数（24 步 / 4 步每块 = 6 块）。
+    static let multiChunkCount = 6
+    /// multi_split 子目录名。
+    static let multiSplitDir = "multi_split"
+    /// enc 所在目录（复用 split24）。
+    static let multiEncDir = "split24"
+
+    // ── multi_split 张量名（导出脚本 tools/export_multi_split.py 权威）──
+    /// tf 输出：融合特征 `[1,512]`。
+    static let multiFused = "fused"
+    /// tf 输出：图像特征 `[1,256]`（head 的 heading 子头要用）。
+    static let multiImgFeat = "img_feat"
+    /// tf 输出：检测特征 `[1,128]`（head 的 risk 子头要用）。
+    static let multiDetFeat = "det_feat"
+    /// chunk 输入 = tf 输出的 fused（原始融合特征，每块不变）。
+    static let multiChunkInput = "fused"
+    /// chunk 第二输入 = 跨块隐状态 h（首块 h 初值 = fused）。
+    static let multiChunkHInput = "h"
+    /// chunk 输出：精炼后的 fused `[1,512]`（下一块的 h）。
+    static let multiChunkOutput = "refined"
+    /// head 输入：精炼后的 fused（最后一块的输出）。
+    static let multiHeadFusedInput = "fused"
+    static let multiHeadImgFeatInput = "img_feat"
+    static let multiHeadDetFeatInput = "det_feat"
+    static let multiHeadDetMaskInput = "det_mask"
+    /// 融合特征维度（tf 输出 = img256+lane+det128+state8 拼接 = 512）。
+    static let fusedDim = 512
+    /// det_feat 维度（DetectionEncoder 输出 = 128）。
+    static let detFeatDim = 128
+
     /// 检测框类别 one-hot 顺序：car, pedestrian, sign, obstacle。
     /// 与 `Detection.Label` 的声明顺序一致（RuleController.swift:32-36）。
     static let labelCount = 4
@@ -1376,15 +1426,54 @@ final class InferenceEngineV2 {
     @ObservationIgnored
     private(set) var useSplitModels = false
 
+    // ══════════════════════════════════════════════════════════════════════
+    // ★ 9 模型串联（2026-10-09，multi_split 模式）
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // 【为什么再拆】双模型拆分（enc+ctl）里 ctl 仍含完整 24 步 refiner + 融合头，
+    //   图规模偏大。把 refiner 拆成 6 块×4 步独立小模型后，tf/chunk/head 各自极小，
+    //   全部跑 cpuOnly 仍比 `.all` 快 4-8×（S3 实测），且 GPU 占用 0%。
+    //
+    // 【流水线】enc(ANE) → feat入ring → tf(CPU) → chunk1..6(CPU 串联) → head(CPU)
+    //   · enc 复用 split24/m9_v2_enc（与双模型同一份，跑 ANE）
+    //   · tf/chunk1~6/head 跑 cpuOnly（不碰 GPU）
+    //
+    // 【优先级】multi_split > 双模型 > 单模型。9 个模型全在才启用；否则回退。
+    //
+    // 【按模型分配 computeUnits】S3 实测：tf/chunks/head 用 cpuOnly 比 .all 快 4-8×，
+    //   且零 GPU；enc 仍用 ANE（.cpuAndNeuralEngine）。这是本方案能吃到零 GPU 的关键。
+    //
+    // 【回退】任一缺失 → useMultiSplitModels=false → 走双模型或单模型路径。
+
+    /// multi_split 模式下的时序融合模型（tf）。
+    @ObservationIgnored
+    private var tfModel: MLModel?
+    /// multi_split 模式下的 refiner 块（6 个，串联）。
+    @ObservationIgnored
+    private var chunkModels: [MLModel] = []
+    /// multi_split 模式下的融合头（head）。
+    @ObservationIgnored
+    private var headModel: MLModel?
+    /// multi_split 模式是否可用（9 个模型全加载成功）。false → 走双模型/单模型。
+    @ObservationIgnored
+    private(set) var useMultiSplitModels = false
+
+    /// 是否启用 9 模型串联（multi_split）。**默认关闭**——双模型 cpuOnly 更优
+    /// （Lead 实测 0.83ms/15.8MB vs 1.72ms/70MB）。显式置 true 才尝试该路径。
+    @ObservationIgnored
+    var enableMultiSplit = false
+
     /// 自检用：显式禁用拆分路径（反证用例需要"模型缺失"的纯净环境）。
     ///
-    /// 【为什么需要】拆分模型路径是硬编码常量（`m9_v2_enc`/`m9_v2_ctl`），
+    /// 【为什么需要】拆分模型路径（双模型与 9 模型串联）都是**硬编码常量**
+    /// （`m9_v2_enc`/`m9_v2_ctl`/`m9_v2_tf`/`m9_v2_chunk*`/`m9_v2_head`），
     /// 与 `modelFileName` 无关 → 反证用例传不存在的 modelFileName 时，
     /// 仍会加载到拆分模型 → `isLoaded=true` → 断言假红（本小姐踩过）。
+    /// 本开关一次性禁用**全部**拆分路径（双模型 + multi_split），只测单模型缺失。
     @ObservationIgnored
     private var splitDisabledForTesting = false
 
-    /// 禁用拆分路径（仅自检用）。
+    /// 禁用拆分路径（仅自检用）。双模型与 multi_split 一并禁用。
     func setSplitDisabledForTesting() {
         splitDisabledForTesting = true
     }
@@ -1452,6 +1541,44 @@ final class InferenceEngineV2 {
         return compiled
     }
 
+    // ── multi_split 路径（9 模型）──
+    // 【路径约定】enc 在 `models/split24/`（复用双模型的 enc）；
+    //   tf/chunk1~6/head 在 `models/multi_split/`。与 contract JSON 一致。
+    /// multi_split enc 路径：`models/split24/m9_v2_enc.mlmodelc`（复用双模型产物）。
+    private var multiEncURL: URL? {
+        let modelsDir = AuroraPaths.projectRoot()
+            .appendingPathComponent("models")
+            .appendingPathComponent(V2InputContract.multiEncDir)
+        let compiled = modelsDir.appendingPathComponent(
+            "\(V2InputContract.splitEncoderFileName).mlmodelc")
+        guard FileManager.default.fileExists(atPath: compiled.path) else { return nil }
+        return compiled
+    }
+    /// multi_split 子模型路径：`models/multi_split/<fileName>.mlmodelc`。
+    private func multiSubURL(_ fileName: String) -> URL? {
+        let modelsDir = AuroraPaths.projectRoot()
+            .appendingPathComponent("models")
+            .appendingPathComponent(V2InputContract.multiSplitDir)
+        let compiled = modelsDir.appendingPathComponent("\(fileName).mlmodelc")
+        guard FileManager.default.fileExists(atPath: compiled.path) else { return nil }
+        return compiled
+    }
+    /// multi_split tf 路径。
+    private var multiTfURL: URL? { multiSubURL(V2InputContract.multiTfFileName) }
+    /// multi_split head 路径。
+    private var multiHeadURL: URL? { multiSubURL(V2InputContract.multiHeadFileName) }
+    /// multi_split chunk 路径（chunk1~6，按序返回，任一缺失返回 nil）。
+    private var multiChunkURLs: [URL]? {
+        var urls: [URL] = []
+        for i in 1...V2InputContract.multiChunkCount {
+            guard let u = multiSubURL("\(V2InputContract.multiChunkPrefix)\(i)") else {
+                return nil
+            }
+            urls.append(u)
+        }
+        return urls
+    }
+
     /// 同步加载（启动路径显式预热用；保持 MainActor 语义简单）。
     func loadIfNeeded() {
         guard !isLoaded else { return }
@@ -1461,14 +1588,95 @@ final class InferenceEngineV2 {
         let cfg = MLModelConfiguration()
         cfg.computeUnits = .all
 
+        // ── 可选：9 模型串联（multi_split）───
+        // 【默认关闭】Lead 实测（2026-10-09）：双模型 enc(ANE)+ctl(cpuOnly)
+        //   串联 p50=0.83ms / 15.8MB，比 9 模型串联（p50=1.72ms / 70MB）快 2.1×、
+        //   小 4.4×，且同样零 GPU。故双模型为默认路径，multi_split 仅作可选保留。
+        //   将来 INT8 量化后若体积可控可手动启用。
+        //
+        // 【按模型分配 computeUnits】enc 跑 ANE（.cpuAndNeuralEngine，不碰 GPU）；
+        //   tf/chunk1~6/head 跑 .cpuOnly。这是本方案零 GPU 的关键，
+        //   **不要**给它们套 `.all`（S3 实测更慢且抢 GPU）。
+        if !splitDisabledForTesting,
+           enableMultiSplit,
+           let encURL = multiEncURL,
+           let tfURL = multiTfURL,
+           let chunkURLs = multiChunkURLs,
+           let headURL = multiHeadURL {
+            do {
+                // enc：ANE
+                let encCfg = MLModelConfiguration()
+                encCfg.computeUnits = .cpuAndNeuralEngine
+                let enc = try MLModel(contentsOf: encURL, configuration: encCfg)
+                // tf / chunks / head：cpuOnly（各自独立配置，便于将来单独调）
+                let tfCfg = MLModelConfiguration()
+                tfCfg.computeUnits = .cpuOnly
+                let tf = try MLModel(contentsOf: tfURL, configuration: tfCfg)
+                var chunks: [MLModel] = []
+                chunks.reserveCapacity(chunkURLs.count)
+                for u in chunkURLs {
+                    let cCfg = MLModelConfiguration()
+                    cCfg.computeUnits = .cpuOnly
+                    chunks.append(try MLModel(contentsOf: u, configuration: cCfg))
+                }
+                let headCfg = MLModelConfiguration()
+                headCfg.computeUnits = .cpuOnly
+                let head = try MLModel(contentsOf: headURL, configuration: headCfg)
+
+                encoderModel = enc
+                tfModel = tf
+                chunkModels = chunks
+                headModel = head
+                useMultiSplitModels = true
+                useSplitModels = false
+                isLoaded = true
+                errorMessage = nil
+
+                Self.warmUp(model: enc, label: V2InputContract.splitEncoderFileName,
+                            queue: inferenceQueue, config: config)
+                Self.warmUp(model: tf, label: V2InputContract.multiTfFileName,
+                            queue: inferenceQueue, config: config)
+                for (i, m) in chunks.enumerated() {
+                    Self.warmUp(model: m,
+                                label: "\(V2InputContract.multiChunkPrefix)\(i + 1)",
+                                queue: inferenceQueue, config: config)
+                }
+                Self.warmUp(model: head, label: V2InputContract.multiHeadFileName,
+                            queue: inferenceQueue, config: config)
+                return
+            } catch {
+                // multi_split 加载失败 → 清状态，回退双模型（不抛错，不阻塞旧链路）
+                tfModel = nil
+                chunkModels = []
+                headModel = nil
+                useMultiSplitModels = false
+                errorMessage = "9 模型串联加载失败，回退双模型: \(error.localizedDescription)"
+            }
+        }
+
         // ── ★ 优先尝试拆分模式（双模型）──
-        // 【为什么优先】拆分模式实测 p95 3.82ms vs 单模型 25.93ms（快 6.8×），
-        //   且 ANE 可用。两个模型都在才启用；任一缺失 → 静默回退单模型。
+        // 【为什么最优先】Lead 实测（2026-10-09，min-of-60）：
+        //   双模型 enc(ANE)+ctl(cpuOnly) 串联 p50=0.83ms / p95=1.07ms / 大小15.8MB，
+        //   比 9 模型 multi_split 串联（p50=1.72ms / p95=2.05ms / 70MB）快 2.1×、
+        //   小 4.4×，且同样零 GPU。故双模型为**默认最优路径**。
+        //
+        // 【computeUnits 按模型分配（关键）】
+        //   · enc → `.cpuAndNeuralEngine`：图像编码 preferred=ANE，0.34ms，不碰 GPU
+        //   · ctl → `.cpuOnly`：ctl 图大（1329 算子）`.all` 下 preferred=gpu 71.8%
+        //     → 会抢 GPU（3.48ms）；强制 `.cpuOnly` 后 0.57ms，快 6.1× 且零 GPU
+        //
+        // 【为什么不用 .all】`.all` 让 ctl 派到 GPU，与游戏争抢 → 又慢又抢 GPU。
         if !splitDisabledForTesting,
            let encURL = splitEncoderURL, let ctlURL = splitControlURL {
             do {
-                let enc = try MLModel(contentsOf: encURL, configuration: cfg)
-                let ctl = try MLModel(contentsOf: ctlURL, configuration: cfg)
+                // enc：ANE（不碰 GPU）
+                let encCfg = MLModelConfiguration()
+                encCfg.computeUnits = .cpuAndNeuralEngine
+                // ctl：CPU（不碰 GPU，比 .all 快 6.1×）
+                let ctlCfg = MLModelConfiguration()
+                ctlCfg.computeUnits = .cpuOnly
+                let enc = try MLModel(contentsOf: encURL, configuration: encCfg)
+                let ctl = try MLModel(contentsOf: ctlURL, configuration: ctlCfg)
                 encoderModel = enc
                 controlModel = ctl
                 useSplitModels = true
@@ -1562,8 +1770,12 @@ final class InferenceEngineV2 {
                 } else {
                     provider = nil
                 }
-            } else if label == V2InputContract.splitControlFileName {
-                // 模型 B：feat_seq [1,8,256] + lane/dets/det_mask/state
+            } else if label == V2InputContract.splitControlFileName
+                        || label == V2InputContract.multiTfFileName {
+                // 模型 B（双模型 ctl）与 multi_split 的 tf **输入契约相同**：
+                //   feat_seq [1,8,256] + lane/dets/det_mask/vehicle_state。
+                //   故共用同一个 provider 构造（tf 额外输出 fused/img_feat/det_feat，
+                //   不影响输入侧）。
                 let feats = [Float](repeating: 0,
                                     count: V2InputContract.historyFrames
                                          * V2InputContract.featureDim)
@@ -1572,6 +1784,13 @@ final class InferenceEngineV2 {
                                                   featSeqBuffer: nil,
                                                   lane: nil, dets: nil,
                                                   detMask: nil, state: nil)
+            } else if label.hasPrefix(V2InputContract.multiChunkPrefix) {
+                // multi_split chunk：fused[1,512] + h[1,512] → refined（双输入）
+                provider = try? makeChunkProvider(fused: nil, h: nil)
+            } else if label == V2InputContract.multiHeadFileName {
+                // multi_split head：fused[1,512]+img_feat[1,256]+det_feat[1,128]+det_mask[1,20]
+                provider = try? makeMultiHeadProvider(
+                    fused: nil, imgFeat: nil, detFeat: nil, detMask: nil)
             } else {
                 provider = try? makeProvider(features: zeroFeatures())
             }
@@ -1595,6 +1814,14 @@ final class InferenceEngineV2 {
     func reloadModel() {
         generation += 1
         model = nil
+        // 清理拆分模式（双模型 + multi_split）状态，避免旧模型残留
+        encoderModel = nil
+        controlModel = nil
+        useSplitModels = false
+        tfModel = nil
+        chunkModels = []
+        headModel = nil
+        useMultiSplitModels = false
         isLoaded = false
         isInferencing = false
         errorMessage = nil
@@ -1614,10 +1841,14 @@ final class InferenceEngineV2 {
                detections: [Detection],
                laneMask: MaskGrid?) {
         // 【拆分模式兼容】拆分模式下 `model`（单模型）为 nil，但 `encoderModel` /
-        //   `controlModel` 已加载。原来的 `let modelRef = model` 会让拆分模式
+        //   `controlModel`（双模型）或 `tfModel`/`chunkModels`/`headModel`
+        //   （multi_split）已加载。原来的 `let modelRef = model` 会让拆分模式
         //   **每帧早退**（selftest 实测 timelineFrames 恒 0）—— 本小姐踩过这个坑。
+        let multiReady = useMultiSplitModels && encoderModel != nil
+                         && tfModel != nil && !chunkModels.isEmpty
+                         && headModel != nil
         guard isLoaded, (model != nil || (useSplitModels && encoderModel != nil
-                                          && controlModel != nil)) else {
+                                          && controlModel != nil) || multiReady) else {
             scheduleBackgroundLoadIfNeeded()
             return
         }
@@ -1720,6 +1951,145 @@ final class InferenceEngineV2 {
                 Task { @MainActor in
                     self.noteColdStartSkip(reason: reason, frames: filledNow)
                     self.isInferencing = false      // 释放防重叠门
+                }
+                return
+            }
+
+            // ══════════════════════════════════════════════════════════════
+            // ★★★ 9 模型串联（multi_split）：enc(ANE)→tf→chunk1..6→head(CPU)
+            // ══════════════════════════════════════════════════════════════
+            //
+            // 【流水线】① enc 编码当前新帧 → feat[1,256]（与双模型共用 encModel）
+            //           ② feat 入特征环形缓冲（8 帧）
+            //           ③ tf 吃 [1,8,256]+lane/dets/det_mask/state →
+            //              fused[1,512]+img_feat[1,256]+det_feat[1,128]
+            //           ④ chunk1→chunk2→...→chunk6：fused → refined（串联）
+            //           ⑤ head 吃 refined+img_feat+det_feat+det_mask → 6 输出
+            //
+            // 【为什么快】tf/chunks/head 极小且全 cpuOnly（S3 实测比 .all 快 4-8×，
+            //   零 GPU）；enc 仍 ANE。每 tick 只编码 1 个新帧（与双模型同理）。
+            //
+            // 【输入复用】tf 的输入名与双模型 ctl **完全一致**（feat_seq/lane/
+            //   dets/det_mask/vehicle_state）→ 直接复用 makeSplitProvider。
+            //   只有 chunk/head 需要新 provider（见 makeChunkProvider /
+            //   makeMultiHeadProvider）。
+            if self.useMultiSplitModels,
+               let encModel = self.encoderModel,
+               let tfModel = self.tfModel,
+               !self.chunkModels.isEmpty,
+               let headModel = self.headModel {
+
+                // ① 模型 A：编码当前新帧（image 是 [1,3,H,W]，不是 8 帧序列）
+                let encProvider = try? MLDictionaryFeatureProvider(dictionary: [
+                    V2InputContract.splitEncoderInput:
+                        MLFeatureValue(multiArray: frameImage),
+                ])
+                guard let encProvider,
+                      let encOut = try? encModel.prediction(from: encProvider),
+                      let featArr = Self.readTensor(encOut,
+                                            V2InputContract.splitEncoderOutput) else {
+                    Task { @MainActor in self.finish(gen, nil, error: "multi_split：enc 推理失败") }
+                    return
+                }
+
+                // ② 特征入环形缓冲（256 维/帧）
+                let fLen = V2InputContract.featureDim
+                let fPtr = featArr.dataPointer.assumingMemoryBound(to: Float32.self)
+                var fArr = [Float](repeating: 0, count: fLen)
+                for i in 0..<fLen { fArr[i] = fPtr[i] }
+                self.featBufferPush(fArr)
+                let featSnapshot = self.featBufferSnapshot()   // [8×256]，最老在前
+
+                // ③ tf：feat_seq + lane/dets/det_mask/vehicle_state
+                //    → fused[1,512] + img_feat[1,256] + det_feat[1,128]
+                //    ⚠️ tf 输入名与双模型 ctl 一致 → 复用 makeSplitProvider。
+                guard let tfProvider = try? Self.makeSplitProvider(
+                        features: features,
+                        featSeq: featSnapshot,
+                        featSeqBuffer: self.reusableFeatSeqBuffer,
+                        lane: self.reusableLaneBuffer,
+                        dets: self.reusableDetsBuffer,
+                        detMask: self.reusableDetMaskBuffer,
+                        state: self.reusableStateBuffer) else {
+                    Task { @MainActor in self.finish(gen, nil, error: "multi_split：tf 输入构造失败") }
+                    return
+                }
+                let tfOut: MLFeatureProvider
+                do {
+                    tfOut = try tfModel.prediction(from: tfProvider)
+                } catch {
+                    Task { @MainActor in self.finish(gen, nil, error: "multi_split：tf 推理失败: \(error.localizedDescription)") }
+                    return
+                }
+                guard let fusedMa = Self.readTensor(tfOut, V2InputContract.multiFused),
+                      let imgFeatMa = Self.readTensor(tfOut, V2InputContract.multiImgFeat),
+                      let detFeatMa = Self.readTensor(tfOut, V2InputContract.multiDetFeat) else {
+                    Task { @MainActor in self.finish(gen, nil, error: "multi_split：tf 输出缺失 fused/img_feat/det_feat") }
+                    return
+                }
+
+                // ④ chunk1→chunk2→...→chunk6：【双输入】每个 chunk 都喂同一个
+                //    原始 fused0，外加跨块隐状态 h；输出 refined 作为下一块的 h。
+                //
+                //    【为什么双输入（S4 等价性定案）】单模型 refiner 中 fused 是**常量**，
+                //    24 步全程 `h = cell(fused0, h); refined = fused0 + proj(h)`——
+                //    cell 第一入参和残差基址永远是**原始 fused0**，只有隐状态 h 跨步传递。
+                //    若把「上一块的 refined」当下一块的 fused（单输入旧契约），
+                //    chunk2+ 的 cell 入参/残差基址被污染 → 误差随步数指数放大
+                //    （实测 step24 maxdiff 6.7e5）。故 chunk 必须双输入。
+                //    串联：h = fused0; for chunk: h = chunk(fused0, h)。
+                let fused0: MLMultiArray = fusedMa        // ★ 原始 fused，全程不变
+                var currentH: MLMultiArray = fusedMa      // h 初值 = fused0
+                var failedChunk = -1
+                for (i, chunkModel) in self.chunkModels.enumerated() {
+                    guard let chunkProvider = try? Self.makeChunkProvider(
+                            fused: fused0, h: currentH) else {
+                        failedChunk = i + 1
+                        break
+                    }
+                    let chunkOut: MLFeatureProvider
+                    do {
+                        chunkOut = try chunkModel.prediction(from: chunkProvider)
+                    } catch {
+                        Task { @MainActor in self.finish(gen, nil,
+                                error: "multi_split：chunk\(i + 1) 推理失败: \(error.localizedDescription)") }
+                        return
+                    }
+                    guard let refinedMa = Self.readTensor(chunkOut,
+                                                    V2InputContract.multiChunkOutput) else {
+                        failedChunk = i + 1
+                        break
+                    }
+                    currentH = refinedMa
+                }
+                if failedChunk > 0 {
+                    Task { @MainActor in self.finish(gen, nil,
+                            error: "multi_split：chunk\(failedChunk) 输出缺失 refined") }
+                    return
+                }
+                let refinedFused = currentH
+
+                // ⑤ head：fused(精炼后)+img_feat+det_feat+det_mask → 6 输出
+                //    ⚠️ det_mask 用**喂给 tf 的那份**（同一份 valid 位），
+                //      直接复用 reusableDetMaskBuffer（ensureBuffers 已填好）。
+                guard let headProvider = try? Self.makeMultiHeadProvider(
+                        fused: refinedFused,
+                        imgFeat: imgFeatMa,
+                        detFeat: detFeatMa,
+                        detMask: self.reusableDetMaskBuffer) else {
+                    Task { @MainActor in self.finish(gen, nil, error: "multi_split：head 输入构造失败") }
+                    return
+                }
+                do {
+                    let output = try headModel.prediction(from: headProvider)
+                    let result = Self.readResult(output, start: start)
+                    let aux = Self.readAux(output)
+                    Task { @MainActor in
+                        self.finish(gen, result, error: nil, features: features, aux: aux)
+                    }
+                } catch {
+                    Task { @MainActor in self.finish(gen, nil,
+                            error: "multi_split：head 推理失败: \(error.localizedDescription)") }
                 }
                 return
             }
@@ -2171,6 +2541,85 @@ final class InferenceEngineV2 {
             V2InputContract.vehicleState: MLFeatureValue(multiArray: stateArr),
         ]
         return try MLDictionaryFeatureProvider(dictionary: dict)
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ★ 9 模型串联辅助（multi_split，2026-10-09）
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // 【IO 契约来源】tools/export_multi_split.py（权威，落到磁盘的 .mlmodelc）：
+    //   tf   : feat_seq[1,8,256] lane[1,1,160,160] dets[1,20,12]
+    //          det_mask[1,20] vehicle_state[1,8]
+    //          → fused[1,512] img_feat[1,256] det_feat[1,128]
+    //   chunk: fused[1,512] → refined[1,512]（6 块串联）
+    //   head : fused[1,512] img_feat[1,256] det_feat[1,128] det_mask[1,20] → 6 输出
+    //
+    // ⚠️ tf 的输入名与双模型 ctl **完全一致** → 直接复用 makeSplitProvider。
+    //    只有 chunk/head 需要新 provider 构造。
+
+    /// 分配全零 float32 MLMultiArray（失败返回 nil）。
+    private nonisolated static func makeZeroArray(_ shape: [NSNumber]) -> MLMultiArray? {
+        try? MLMultiArray(shape: shape, dataType: .float32)
+    }
+
+    /// multi_split chunk 输入 provider：`fused [1,512] + h [1,512]`（双输入）。
+    ///
+    /// 【为什么双输入（S4 等价性定案）】单模型 refiner 的 fused 是常量，24 步全程
+    /// `h = cell(fused0, h); refined = fused0 + proj(h)`——只有隐状态 h 跨步传递。
+    /// chunk 必须双输入：fused0（原始融合特征，每块不变）+ h（跨块隐状态）。
+    /// 串联：h = fused0; for chunk: h = chunk(fused0, h)。
+    private nonisolated static func makeChunkProvider(
+        fused: MLMultiArray?, h: MLMultiArray?) throws -> MLFeatureProvider? {
+        let zeroShape = [1, NSNumber(value: V2InputContract.fusedDim)]
+        guard let fusedArr = fused ?? makeZeroArray(zeroShape),
+              let hArr = h ?? makeZeroArray(zeroShape) else { return nil }
+        return try MLDictionaryFeatureProvider(dictionary: [
+            V2InputContract.multiChunkInput: MLFeatureValue(multiArray: fusedArr),
+            V2InputContract.multiChunkHInput: MLFeatureValue(multiArray: hArr),
+        ])
+    }
+
+    /// multi_split 融合头输入 provider：
+    /// `fused[1,512] + img_feat[1,256] + det_feat[1,128] + det_mask[1,20]`。
+    ///
+    /// 【为什么四个都要】head 的 6 个输出来自三个子头：
+    ///   · steer/throttle/brake ← fusion_head(fused)
+    ///   · car_heading ← heading_head(img_feat)
+    ///   · confidence/risk ← risk_head(fused, det_feat, det_mask)
+    /// 少任何一个输入，CoreML 会直接报 feature 缺失。
+    ///
+    /// - Parameters:
+    ///   - fused: **精炼后**的 fused（chunk6 的输出，不是 tf 的原始 fused）。
+    ///   - imgFeat/detFeat: tf 的输出张量。
+    ///   - detMask: 与喂给 tf 的 det_mask 同一份（valid 位）。
+    ///   任一为 nil → 该输入全零（仅预热场景；真实推理恒非 nil）。
+    private nonisolated static func makeMultiHeadProvider(
+        fused: MLMultiArray?, imgFeat: MLMultiArray?,
+        detFeat: MLMultiArray?, detMask: MLMultiArray?) throws -> MLFeatureProvider? {
+        guard let fusedArr = fused ?? makeZeroArray(
+                [1, NSNumber(value: V2InputContract.fusedDim)]),
+              let imgArr = imgFeat ?? makeZeroArray(
+                [1, NSNumber(value: V2InputContract.featureDim)]),
+              let detFeatArr = detFeat ?? makeZeroArray(
+                [1, NSNumber(value: V2InputContract.detFeatDim)]),
+              let maskArr = detMask ?? makeZeroArray(
+                [1, NSNumber(value: V2InputContract.maxDetections)]) else { return nil }
+        return try MLDictionaryFeatureProvider(dictionary: [
+            V2InputContract.multiHeadFusedInput: MLFeatureValue(multiArray: fusedArr),
+            V2InputContract.multiHeadImgFeatInput: MLFeatureValue(multiArray: imgArr),
+            V2InputContract.multiHeadDetFeatInput: MLFeatureValue(multiArray: detFeatArr),
+            V2InputContract.multiHeadDetMaskInput: MLFeatureValue(multiArray: maskArr),
+        ])
+    }
+
+    /// 取出 CoreML 输出里的某个 multiArray 张量（不存在 / 非数组 → nil）。
+    ///
+    /// 【为什么单独一个函数】multi_split 里 tf 一次吐 3 个张量、chunk 吐 1 个，
+    ///   读取逻辑散落在推理路径里容易漂移；集中一处并如实返回 nil，让调用方
+    ///   能区分"模型没这个输出"与"输出为空"。
+    private nonisolated static func readTensor(_ output: MLFeatureProvider,
+                                               _ name: String) -> MLMultiArray? {
+        output.featureValue(for: name)?.multiArrayValue
     }
 
     /// 从 CoreML 输出读三主输出（拆分/单模型共用，避免两处实现漂移）。

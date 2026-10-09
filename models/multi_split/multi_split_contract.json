@@ -1,0 +1,29 @@
+{
+  "multi_split": true,
+  "num_steps": 24,
+  "moe_steps": [
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24
+  ],
+  "chunk_size": 4,
+  "n_chunks": 6,
+  "models": {
+    "enc": "models/split24/m9_v2_enc.mlmodelc",
+    "temporal_fusion": "m9_v2_tf.mlmodelc",
+    "chunks": [
+      "m9_v2_chunk1.mlmodelc",
+      "m9_v2_chunk2.mlmodelc",
+      "m9_v2_chunk3.mlmodelc",
+      "m9_v2_chunk4.mlmodelc",
+      "m9_v2_chunk5.mlmodelc",
+      "m9_v2_chunk6.mlmodelc"
+    ],
+    "fusion_head": "m9_v2_head.mlmodelc"
+  }
+}
