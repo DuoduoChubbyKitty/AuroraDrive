@@ -6194,7 +6194,7 @@ final class DriveState {
         yoloEngine.loadIfNeeded()        // 首次启动加载 YOLO 检测模型
         yolopxEngine.loadIfNeeded()      // 首次启动加载 YOLOPX 三合一感知模型
         dlog("启动开车: 辅助功能权限=\(controlEngine.hasAccessibilityPermission) 专家模式=\(expertMode) 禁用控制=\(controlDisabled)")
-        dlog("模型加载: M9=\(inferenceEngine.isLoaded) 第二司机=\(assistEngine.isLoaded) YOLO=\(yoloEngine.isLoaded) YOLOPX=\(yolopxEngine.isLoaded) M9错误=\(inferenceEngine.errorMessage ?? "-")")
+        dlog("模型加载: M9=\(inferenceEngine.isLoaded) V2=\(inferenceEngineV2.isLoaded) V2拆分=\(inferenceEngineV2.useSplitModels) 第二司机=\(assistEngine.isLoaded) YOLO=\(yoloEngine.isLoaded) YOLOPX=\(yolopxEngine.isLoaded) M9错误=\(inferenceEngine.errorMessage ?? "-") V2错误=\(inferenceEngineV2.errorMessage ?? "-") 世界模型=\(inferenceEngineV2.worldModelLoaded)")
     }
 
     /// 停止自动驾驶：
@@ -7596,7 +7596,8 @@ final class DriveState {
         if nowLog.timeIntervalSince(lastTickLog) >= 1.0 {
             lastTickLog = nowLog
             didLogThisSecond = true
-            dlog("tick: mode=\(mode.rawValue) m9Live=\(m9Live) assistLive=\(assistLive) "
+            dlog("tick: mode=\(mode.rawValue) m9Live=\(m9Live) V2active=\(v2Active) V2loaded=\(inferenceEngineV2.isLoaded) V2split=\(inferenceEngineV2.useSplitModels) wm=\(inferenceEngineV2.worldModelLoaded) track=\(inferenceEngineV2.trackModeValue) "
+                 + "assistLive=\(assistLive) "
                  + "conf=\(String(format: "%.2f", confidence)) img=\(currentScreenImage != nil) "
                  + "cmd=(s=\(String(format: "%.2f", currentCommand.steer)) "
                  + "t=\(String(format: "%.2f", currentCommand.throttle)) "
