@@ -3146,19 +3146,15 @@ struct HardwareBank: View {
                                    state.pushConfig(reason: "专家模式")
                                })
 
-                    // ⚠️ 2026-10-10 新增（录制前检查发现）：**此前 UI 上根本没有视角开关**。
-                    //   `DriveState.recordThirdPerson` 全仓只有「定义 + 只读计算属性 +
-                    //   引擎侧同步写」三处引用，**零个 UI 控件绑定它** → `recordPerspective`
-                    //   恒为 "first" → 所有录制数据都是 FPV。而 V2 模型明确要**第三视角**。
-                    //   这不是"用户忘了拨开关"，是**开关根本不存在**（w3-health 独立发现）。
-                    //   【为什么必须录制前切】视角决定会话输出形态，中途改会让同一 clip
-                    //   混两种视角，训练端按 clip 级 view.txt 过滤会误判（与 glyphMode 同约定）。
-                    BankSwitch(key: "第三视角", badge: state.recordThirdPerson ? "TPV" : "FPV",
-                               on: state.recordThirdPerson,
-                               detail: state.recordThirdPerson
-                                   ? "开启 · 录第三人称（追尾）"
-                                   : "关闭 · 录第一人称",
-                               toggle: { state.recordThirdPerson.toggle() })
+                    // ⚠️ 2026-10-10 已**删除**「第三视角」开关。
+                    //   【为什么删】《异环》本身就是第三视角游戏，**不存在切第一视角**。
+                    //   那个按钮只改录制元数据的 view.txt 标签，**不会切游戏镜头** ——
+                    //   是个没有任何实际作用、只会让用户困惑的控件（用户原话：
+                    //   "本来就是个第三视角游戏怎么切第一视角"）。
+                    //   【正确做法】录制**恒为第三视角**：RecordEngine.start() 默认
+                    //   perspective 就是 "third"，view.txt 恒写 TPV，不需要用户选。
+                    //   （历史误判：w3 审计说"开关不存在导致数据全 FPV"——
+                    //     真正该修的是**默认值**，不是加控件。）
 
                     BankSwitch(key: "字形模式", badge: "GLYPH",
                                on: state.glyphMode,

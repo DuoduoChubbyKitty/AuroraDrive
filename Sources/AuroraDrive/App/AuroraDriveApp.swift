@@ -4272,21 +4272,25 @@ final class DriveState {
     //   引擎侧由 tick 同步到 `controlEngine.digestMode`（引擎进程才是真注入方）。
     var digestMode      = ProcessInfo.processInfo.environment["AURORA_DIGEST"] == "1"
 
-    // MARK: - 录制视角（2026-10-08 新增：用户要录第三视角）
+    // MARK: - 录制视角（2026-10-11 修正：恒为第三视角，不再做开关）
+    //
+    // ⚠️⚠️ 2026-10-11 修正（用户实测反馈）：
+    //   《异环》**本身就是第三视角游戏**，游戏内根本没有"切第一视角"这个选项。
+    //   之前加的「第三视角」UI 开关是**完全错误的** —— 它只改录制元数据里的
+    //   view.txt 标签，**不会切换游戏镜头**，纯粹是让用户困惑的多余控件。
+    //   【用户原话】"本来就是个第三视角游戏怎么切第一视角，我还要特地写上视角，
+    //     把第三视角游戏转移成第一视角再转回来训练第三视角？"
+    //   【正确做法】录制**恒为第三视角**：`recordPerspective` 恒返回 "third"，
+    //     view.txt 恒写 TPV。用户不需要也不应该做任何视角选择。
+    //   【保留该属性的原因】`recordThirdPerson` / `recordPerspective` 仍被
+    //     EngineMain 的 record 命令链路引用（`perspective` 字段），删掉会波及
+    //     引擎协议；故保留为**恒 true / 恒 "third"**，但**没有任何 UI 控件改变它**。
+    /// 恒为 true（第三视角）。保留属性名以兼容既有引用，但**不可从 UI 修改**。
+    var recordThirdPerson = true
 
-    /// 录制视角开关：false = 第一人称 FPV（默认，兼容旧行为）；
-    /// true = 第三人称 TPV（用户点名要的「第三视角」，训练端按 view.txt 过滤）。
-    ///
-    /// 【为什么要做成开关】此前 `recordEngine.start(perspective:)` 的两个调用点
-    /// 都硬编码 `"first"`，`RecordEngine` 明明支持 TPV 却没人能选 —— 参数在，
-    /// 只是没接线。现在 UI 一拨即可，且**录制中途切换不生效**（与 glyphMode
-    /// 同一约定：视角决定会话输出形态，中途改会让同一个 clip 里混两种视角，
-    /// 训练端按 clip 级 view.txt 过滤会误判）。
-    var recordThirdPerson = false
-
-    /// 录制视角（传给 RecordEngine.start 的字符串）
+    /// 录制视角（传给 RecordEngine.start 的字符串）：**恒为 "third"**。
     var recordPerspective: String {
-        recordThirdPerson ? "third" : "first"
+        "third"
     }
 
     /// 禁用控制：模型照常检测画面（YOLO 框 + E2E 推理照跑），
