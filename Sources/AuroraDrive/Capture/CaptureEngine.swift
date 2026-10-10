@@ -172,6 +172,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     private let stateLock = OSAllocatedUnfairLock()
     private var _currentFrame: NSImage?
     private var _isCapturing = false
+
+    /// [cap-deep] 帧到达计数（诊断用：确认 SCStream 回调真的在跑）
+    private var _deepFrameCounter = 0
     private var _captureFPS: Double = 0
     private var _lastFrameGapMs: Double = 0
     private var _lastFrameWorkMs: Double = 0
@@ -285,11 +288,16 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///
     /// 2026-10-08：启动时按 `desiredMode` 决定是录全屏（排除自家窗口）还是录单窗口。
     func start() {
-        guard !isCapturing else { return }
+        print("[cap-deep] start() 被调用 isCapturing=\(isCapturing) desiredMode=\(desiredMode.label) pid=\(getpid())")
+        guard !isCapturing else {
+            print("[cap-deep] start() 早退：isCapturing 已为 true（重复调用）")
+            return
+        }
 
         // 用 Task 包装 async 调用
         Task { [weak self] in
             guard let self = self else { return }
+            print("[cap-deep] Task 进入，开始 SCShareableContent.current …")
 
             // 1. 获取可共享内容（包含权限检查）
             //    macOS 10.15+ 首次调用会触发系统授权弹窗
@@ -297,7 +305,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             let content: SCShareableContent
             do {
                 content = try await SCShareableContent.current
+                print("[cap-deep] SCShareableContent OK displays=\(content.displays.count) windows=\(content.windows.count)")
             } catch {
+                print("[cap-deep] ❌ SCShareableContent 失败: \(error)")
                 self.onStatusChange?(.error("获取屏幕内容失败（可能未授权）: \(error.localizedDescription)"))
                 self.onStatusChange?(.permissionDenied)
                 return
@@ -311,6 +321,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             } else if let d = content.displays.first {
                 display = d
             } else {
+                print("[cap-deep] ❌ 无可用显示器")
                 self.onStatusChange?(.error("未找到可用的显示器"))
                 return
             }
@@ -388,14 +399,18 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         // type: SCStreamOutputType.screen 表示捕获屏幕画面（区别于 .audio 音频）
         do {
             try stream.addStreamOutput(self, type: SCStreamOutputType.screen, sampleHandlerQueue: captureQueue)
+            print("[cap-deep] addStreamOutput OK")
         } catch {
+            print("[cap-deep] ❌ addStreamOutput 失败: \(error)")
             onStatusChange?(.error("注册帧回调失败: \(error.localizedDescription)"))
             return
         }
 
         // 启动流（async/await 版本）
         do {
+            print("[cap-deep] 即将 startCapture() filter=\(filter) config=\(config.width)x\(config.height)")
             try await stream.startCapture()
+            print("[cap-deep] ✅ startCapture 成功")
             self.stream = stream
             self.currentDisplay = display       // 切模式时复用（避免重新查显示器）
             self.captureMode = self.desiredMode  // 记录已生效模式
@@ -404,7 +419,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             self.resetOwnUIWarning()            // 新一轮录制允许重新告警
             self.onModeChange?(self.captureMode)
             self.onStatusChange?(.started)
+            print("[cap-deep] ✅ 状态已置 isCapturing=true")
         } catch {
+            print("[cap-deep] ❌ startCapture 失败: \(error)")
             onStatusChange?(.error("启动捕获失败: \(error.localizedDescription)"))
         }
     }
@@ -585,11 +602,13 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     /// 【失败处理】窗口已关闭 / 权限变化 → 保持**原模式不变**（不静默切全屏），
     /// 把原因写进 `lastModeError` 并回调 UI；这样用户不会以为切成功了。
     func applyMode(_ mode: CaptureMode) async {
+        print("[cap-deep] applyMode(\(mode.label)) 进入 isCapturing=\(isCapturing) stream=\(stream != nil ? "有" : "nil")")
         desiredMode = mode
         lastModeError = nil
 
         guard isCapturing, let stream else {
             // 还没开始捕获：只记期望模式，start() 时会用上
+            print("[cap-deep] applyMode 早退：还没在捕获 → 只记 desiredMode（start() 时会用）")
             captureMode = mode
             onModeChange?(mode)
             return
@@ -598,13 +617,16 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         let content: SCShareableContent
         do {
             content = try await SCShareableContent.current
+            print("[cap-deep] applyMode: SCShareableContent OK windows=\(content.windows.count)")
         } catch {
+            print("[cap-deep] ❌ applyMode: SCShareableContent 失败: \(error)")
             lastModeError = "切换失败：无法获取窗口列表（\(error.localizedDescription)）"
             onModeChange?(captureMode)
             return
         }
 
         guard let display = currentDisplay ?? content.displays.first else {
+            print("[cap-deep] ❌ applyMode: 找不到显示器")
             lastModeError = "切换失败：找不到显示器"
             onModeChange?(captureMode)
             return
@@ -614,11 +636,13 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         switch mode {
         case .window(let windowID):
             guard let target = Self.findWindow(id: windowID, in: content) else {
+                print("[cap-deep] ❌ applyMode: 窗口 #\(windowID) 不在列表里")
                 lastModeError = "窗口 #\(windowID) 已不存在（可能已关闭），仍保持「\(captureMode.label)」"
                 onModeChange?(captureMode)
                 return
             }
             newFilter = SCContentFilter(desktopIndependentWindow: target)
+            print("[cap-deep] applyMode: 构造新 filter(窗口 #\(windowID)) OK")
         case .fullScreen:
             let own = Self.ownWindows(in: content)
             newFilter = SCContentFilter(display: display, excludingWindows: own)
@@ -626,13 +650,16 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         }
 
         do {
+            print("[cap-deep] 即将 updateContentFilter …")
             try await stream.updateContentFilter(newFilter)
+            print("[cap-deep] ✅ updateContentFilter 成功 → \(mode.label)")
             captureMode = mode
             onModeChange?(mode)
             // 切回全屏后同样审一遍排除列表
             auditExclusion(content: content, display: display)
             print("[capture] 切换成功 → \(mode.label)")
         } catch {
+            print("[cap-deep] ❌ updateContentFilter 失败: \(error)")
             lastModeError = "切换失败：\(error.localizedDescription)"
             onModeChange?(captureMode)
             print("[capture] ❌ 切换失败（保持 \(captureMode.label)）：\(error.localizedDescription)")
@@ -709,6 +736,12 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         // 只处理屏幕画面帧（忽略音频）
         guard type == .screen else { return }
+
+        // [cap-deep] 帧到达探针：前 3 帧必打，之后每 60 帧打一次（~2s@30fps）
+        _deepFrameCounter += 1
+        if _deepFrameCounter <= 3 || _deepFrameCounter % 60 == 0 {
+            print("[cap-deep] 📥 帧到达 #\(_deepFrameCounter) status=\(sampleBuffer.isValid ? "valid" : "INVALID")")
+        }
 
         // P1 修复：SCStream delegate 回调不自动包 autoreleasepool，30fps 下每帧
         // 临时对象（NSImage/CGImage/CGDataProvider/vImage 等）若不在帧末释放，

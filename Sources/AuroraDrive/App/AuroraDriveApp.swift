@@ -5519,13 +5519,17 @@ final class DriveState {
     /// 【性能】`SCShareableContent.current` 是系统调用，实测 10-60ms（窗口多时更久），
     /// 因此**不放在 30Hz tick 里**，只在用户展开拉条 / 点刷新时调用一次。
     func refreshCapturableWindows() async {
+        print("[cap-ui] refreshCapturableWindows 开始（engineActive=\(EngineClient.shared.isActive)）")
         windowListLoading = true
         windowListError = nil
         let list = await CaptureEngine.listWindows()
         capturableWindows = list
         windowListLoading = false
+        let gameLabel = list.first { $0.isGame }?.displayLabel ?? "无"
+        print("[cap-ui] refreshCapturableWindows 完成：\(list.count) 个窗口（游戏窗口=\(gameLabel)）")
         if list.isEmpty {
             windowListError = "没有可捕获的窗口（可能未授权屏幕录制，或窗口都不满足尺寸要求）"
+            print("[cap-ui] ⚠️ 窗口列表为空 → \(windowListError ?? "")")
         }
     }
 
@@ -5539,6 +5543,7 @@ final class DriveState {
     ///   不转发给引擎 → 后台引擎一无所知 → 「没有任何作用」。
     ///   修复：引擎模式时通过 IPC 把 mode 转发给引擎进程执行真正的 filter 切换。
     func selectCaptureMode(_ mode: CaptureMode) async {
+        print("[cap-ui] selectCaptureMode(\(mode.label)) 进入 engineActive=\(EngineClient.shared.isActive)")
         captureModeError = nil
         // 引擎模式：转发给引擎进程
         if EngineClient.shared.isActive {
@@ -5547,15 +5552,18 @@ final class DriveState {
                 extra["mode"] = "window"
                 extra["windowID"] = Int(id)
             }
-            _ = EngineClient.shared.sendCommand("set_capture_mode", extra: extra)
+            let ok = EngineClient.shared.sendCommand("set_capture_mode", extra: extra)
+            print("[cap-ui] IPC 转发 set_capture_mode ok=\(ok) extra=\(extra)")
             // UI 本地也记一笔（拉条选中态显示用）
             captureMode = mode
             return
         }
+        print("[cap-ui] ⚠️ 非引擎模式 → 走本地 captureEngine.applyMode（UI 空壳，可能 early-return）")
         // 非引擎模式（UI 直跑）：直接切换
         await captureEngine.applyMode(mode)
         captureMode = captureEngine.captureMode
         captureModeError = captureEngine.lastModeError
+        print("[cap-ui] 本地 applyMode 完成 mode=\(captureMode.label) err=\(captureModeError ?? "-")")
     }
 
     /// 游戏窗口（拉条里高亮推荐的那个；没有则 nil）

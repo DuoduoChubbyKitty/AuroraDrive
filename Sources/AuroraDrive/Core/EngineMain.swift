@@ -606,6 +606,14 @@ enum EngineGlobals {
 enum EngineMain {
 
     static func run() -> Never {
+        // ⚠️ 2026-10-10 修复「引擎进程 print 不落盘」：
+        //   引擎进程的 stdout 被 UI 重定向到 ~/Library/Logs/AuroraEngine.log。
+        //   重定向到文件时 stdio 默认是**块缓冲**（4KB 才 flush）→ 引擎里所有
+        //   `print("[cap-deep] ...")` 全卡在内存缓冲区，日志里一个字都看不到
+        //   （诊断时误判成"代码没走到"）。UI 启动路径早在 AuroraDriveApp.swift:751
+        //   设了行缓冲，引擎路径漏了 —— 这里补齐。
+        setvbuf(stdout, nil, _IOLBF, 0)
+        setvbuf(stderr, nil, _IOLBF, 0)
         engineLog("[ENGINE] 启动 --engine 模式 pid=\(getpid())")
 
         let home = FileManager.default.homeDirectoryForCurrentUser
