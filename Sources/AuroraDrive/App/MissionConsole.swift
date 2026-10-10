@@ -6032,8 +6032,8 @@ struct ContentView: View {
         // 优先级队列上运行，不受 App Nap 影响。
         let timerQueue = DispatchQueue(label: "com.aurora.tick", qos: .userInteractive)
         let timer = DispatchSource.makeTimerSource(queue: timerQueue)
-        timer.schedule(deadline: .now(), repeating: 1.0 / 30.0, leeway: .nanoseconds(0))
-        // ⚠️ 性能关键：不要无条件按 30Hz 往主线程投递 tick。
+        timer.schedule(deadline: .now(), repeating: 1.0 / 45.0, leeway: .nanoseconds(0))
+        // ⚠️ 性能关键：不要无条件按 45Hz 往主线程投递 tick。
         //
         // 每次投递都会让 SwiftUI 走一遍事务 → 重新计算整棵视图树的布局
         // （实测采样里 LayoutEngineBox.explicitAlignment / flushObservers
@@ -6041,15 +6041,15 @@ struct ContentView: View {
         // 完全是无用功，却把 UI 进程常年烧在 25-36%、WindowServer 44%+，
         // 整机发烫、帧率掉到 20 多帧。
         //
-        // 按需求分级：开车 / 录制 / 引擎联动时保持 30Hz 实时性；
-        // 纯待机降到约 4Hz —— 待机时界面本就静止，不需要 30Hz 刷新。
+        // 按需求分级：开车 / 录制 / 引擎联动时保持 45Hz 实时性；
+        // 纯待机降到约 5.6Hz —— 待机时界面本就静止，不需要 45Hz 刷新。
         var idleSkip = 0
         timer.setEventHandler {
             // 这些读取都是常量级，且不写状态，不会触发重绘
             let busy = state.isDriving || state.isRecording
             if !busy {
                 idleSkip += 1
-                if idleSkip < 8 { return }   // 30Hz / 8 ≈ 3.75Hz 待机刷新
+                if idleSkip < 8 { return }   // 45Hz / 8 ≈ 5.6Hz 待机刷新
                 idleSkip = 0
             } else {
                 idleSkip = 0

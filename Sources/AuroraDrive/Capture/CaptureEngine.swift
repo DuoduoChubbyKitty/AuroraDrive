@@ -402,24 +402,55 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         print("[capture] display frame=\(display.frame.size) w=\(display.width) h=\(display.height)")
         // 流配置
         let config = SCStreamConfiguration()
-        // 输出显示器**原生像素**分辨率：SCDisplay.width 实测可能返回点值
-        // （导致输出只有 ~1485×960、速度表数字仅 ~18px，字模/OCR 精度不足），
-        // 这里用 NSScreen.frame(点) × backingScaleFactor 换算成真像素，
-        // 保证速度表数字 ~95px 清晰（字模训练与运行时 OCR 都受益）。
+        // ⚠️ 2026-10-11 性能修复（用户明确要求"降分辨率、不降帧率"）：
+        //   原实现抓**原生 Retina 像素** 2940×1912 @30fps = **675 MB/s** 像素流，
+        //   全走 WindowServer 合成器 → 与游戏抢 GPU 带宽 → Air M3 无风扇，
+        //   一热就降频 → 游戏掉到 1-2 帧（录制 / 自动驾驶均如此）。
+        //   但训练实际只存 **640×360** JPEG、模型只吃 **180×320** —— 白抓 24 倍像素。
+        //   【为什么统一改这里】录制与自动驾驶**共用同一个 CaptureEngine** →
+        //     改这一处，录制 / 推理 / 控制三条路径全部生效。
+        //
+        // ⚠️⚠️ 关键：**必须保持屏幕原始宽高比**（不能硬编码 16:9）
+        //   SCStreamConfiguration 默认 `preservesAspectRatio = true`（官方头文件
+        //   SCStream.h：「By default the aspect ratio is preserved」），
+        //   `scalesToFit = false`（默认，只缩小不放大、不拉伸）。
+        //   若把 3:2 的屏幕（1470×956 点）硬塞进 16:9 的 1280×720 →
+        //   **letterbox 加黑边** → 所有归一化坐标（speedROINorm / 检测框 /
+        //   车道线掩码）相对整帧定位会**整体错位**。
+        //   故这里按**屏幕宽高比**等比计算输出尺寸，目标宽度 1280（≈720P 级）。
+        //
+        //   像素流：1280×832 @45fps = **192 MB/s**
+        //   （原 2940×1912 @30fps = 675 MB/s → 降 **3.5 倍**）。
+        //   ⚠️ 因为"只降分辨率、不降帧率"，降幅 = 分辨率缩减比（2940×1912 →
+        //      1280×832 是 5.3 倍面积），同时帧率从 30→45 又涨 1.5 倍，
+        //      故净降幅 5.3/1.5 ≈ 3.5 倍。若还要更低，需降 targetW。
+        let targetW: Double = 1280
+        let aspect: Double
         if let screen = NSScreen.screens.filter({
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
                 == NSNumber(value: display.displayID)
-        }).first {
-            config.width = Int(screen.frame.width * screen.backingScaleFactor)
-            config.height = Int(screen.frame.height * screen.backingScaleFactor)
+        }).first, screen.frame.height > 0 {
+            aspect = screen.frame.height / screen.frame.width      // 3:2 屏 → 0.650
+        } else if display.width > 0 {
+            aspect = Double(display.height) / Double(display.width)
         } else {
-            config.width = display.width
-            config.height = display.height
+            aspect = 9.0 / 16.0
         }
-        config.minimumFrameInterval = CMTime(value: 1, timescale: 30)  // 30fps 上限
+        config.width = Int(targetW)
+        config.height = Int((targetW * aspect).rounded())          // 3:2 → 832
+        // 显式禁用"适配画布"（默认就是 false，这里写死防止将来被误改）：
+        //   false = 只按等比缩小，不拉伸、不填充到画布 → 无黑边、坐标不错位
+        config.scalesToFit = false
+        // ⚠️ `minimumFrameInterval` 是**最小帧间隔**（1/帧率）：
+        //   timescale=45, value=1 → 1/45 秒 → **最高 45fps**。
+        //   用户明确要求：**降分辨率，不降帧率**（保持 45fps）。
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 45)  // 45fps 上限
         config.pixelFormat = kCVPixelFormatType_32BGRA  // 显式锁 32BGRA：vImageScale_ARGB8888 依赖此格式（防 SCStream 未来返回 420 花帧）
         config.queueDepth = 3                       // 帧队列深度 3（平衡延迟与流畅）
         config.showsCursor = true                   // 画面包含鼠标
+        print("[capture] 抓屏配置 \(config.width)x\(config.height) @45fps "
+              + "（屏幕比例 aspect=\(String(format: "%.3f", aspect))，像素流 "
+              + "\(String(format: "%.0f", Double(config.width * config.height * 4 * 45) / 1e6)) MB/s）")
 
         // ── 内容过滤器（2026-10-08 双模式）─────────────────────────────
         // 旧实现是 `SCContentFilter(display: display, excludingWindows: [])`：

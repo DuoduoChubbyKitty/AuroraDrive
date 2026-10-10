@@ -16,7 +16,7 @@
 //   3) beginActivity      —— 防 App Nap 冻结
 //   4) Unix domain socket —— 命令/心跳（~/Library/Application Support/AuroraDrive/engine.sock）
 //   5) 共享内存帧管道     —— 帧头 + 检测结果 + BGRA 双缓冲（引擎写 / UI 读）
-//   6) DriveState 闭环    —— 照搬主程序组装（同一份类代码）+ 30Hz DispatchSource tick
+//   6) DriveState 闭环    —— 照搬主程序组装（同一份类代码）+ 45Hz DispatchSource tick
 //   7) 信号处理           —— SIGTERM/SIGINT 退出前必先 releaseAll（防游戏内键卡死）
 //
 //  ⚠️ YOLOPX 在引擎模式下的行为（2026-09-26 核实，勿误判为"白烧算力"）：
@@ -606,6 +606,18 @@ enum EngineGlobals {
 
 enum EngineMain {
 
+    /// 引擎主循环 tick 频率（Hz）。**全链路唯一真值**：推理 / 控制 / 录制三条路径
+    /// 都挂在 `tickOnce()` 上，所以改这一个常量即三路生效。
+    ///
+    /// 【2026-10-11 task-80：30 → 45】用户要求 720P + 45fps。抓屏侧
+    /// `CaptureEngine.swift:425` 已改成 `CMTime(value: 1, timescale: 45)`；
+    /// 这里同步成 45，两端一致（tick 快于抓屏则空转、慢于抓屏则积压）。
+    ///
+    /// 【为什么用具名常量而不是裸 1.0/45.0】此前 30 是裸字面量，全文件散落 6 处
+    /// 描述性注释各写一遍 "30Hz"，改频率时必须人肉找齐（漏一处注释就与代码不符）。
+    /// 抽成常量后，频率只有一个定义点。
+    static let engineTickHz: Double = 45.0
+
     static func run() -> Never {
         // ⚠️ 2026-10-10 修复「引擎进程 print 不落盘」：
         //   引擎进程的 stdout 被 UI 重定向到 ~/Library/Logs/AuroraEngine.log。
@@ -693,7 +705,7 @@ enum EngineMain {
         // ── 3. 防冻结 ──
         let napToken = ProcessInfo.processInfo.beginActivity(
             options: [.latencyCritical, .userInteractive, .idleSystemSleepDisabled],
-            reason: "AuroraDrive 后台驾驶引擎：持续 30Hz 抓屏推理与按键注入")
+            reason: "AuroraDrive 后台驾驶引擎：持续 45Hz 抓屏推理与按键注入")
         _ = napToken   // 必须持有，否则 activity 立即释放
         if setpriority(PRIO_PROCESS, 0, -20) == 0 {
             engineLog("[ENGINE] 进程优先级 nice=-20")
@@ -761,7 +773,7 @@ enum EngineMain {
             exit(5)
         }
 
-        // ── 7. DriveState 闭环 + 30Hz tick（照搬 ContentView 驱动方式）──
+        // ── 7. DriveState 闭环 + 45Hz tick（照搬 ContentView 驱动方式）──
         MainActor.assumeIsolated {
             EngineGlobals.state = DriveState()
             EngineGlobals.shm = shm
@@ -789,7 +801,15 @@ enum EngineMain {
 
         let tickQueue = DispatchQueue(label: "aurora.engine.tick", qos: .userInteractive)
         let tickTimer = DispatchSource.makeTimerSource(queue: tickQueue)
-        tickTimer.schedule(deadline: .now(), repeating: 1.0 / 30.0, leeway: .nanoseconds(0))
+        // ⚠️ 2026-10-11（task-80）：tick 频率 30Hz → **45Hz**，与用户要求对齐
+        //   （720P + 45fps；抓屏侧 `CaptureEngine.swift:425` 用
+        //    `CMTime(value: 1, timescale: 45)` 同样锁 45fps）。
+        //   这**一处**决定推理 / 控制 / 录制三条路径的 tick 速率（它们都挂在
+        //   `tickOnce()` 上），故改这里即全链路生效。
+        //   注：`leeway` 保持 0 —— 主循环要求准点，不引入调度抖动。
+        tickTimer.schedule(deadline: .now(),
+                           repeating: 1.0 / EngineMain.engineTickHz,
+                           leeway: .nanoseconds(0))
         tickTimer.setEventHandler {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -876,7 +896,7 @@ enum EngineMain {
         hbTimer.resume()
         engineHeartbeat = hbTimer
 
-        engineLog("[ENGINE] 就绪（tick 30Hz / 心跳 1Hz / socket / shm）")
+        engineLog("[ENGINE] 就绪（tick 45Hz / 心跳 1Hz / socket / shm）")
         dispatchMain()   // 永不返回
     }
 

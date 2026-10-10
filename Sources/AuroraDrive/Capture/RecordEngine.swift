@@ -32,7 +32,7 @@ final class RecordEngine: @unchecked Sendable {
 
     /// 录制帧率上限（Hz），与推理同频
     /// 实际帧率以 appendFrame 调用频率为准，此值仅用于 meta 记录
-    let targetFps: Double = 24
+    let targetFps: Double = 45
 
     /// 每类 clip 目录保留上限：只保留最近 N 个 clip（目录名 clip_<ts> 字典序≈时间序）。
     /// 录制启动时删除最旧目录，防 640×360 JPEG 30fps（像素量约 4.6×224²，估算日积约 230GB/天）无上限累积撑爆磁盘。

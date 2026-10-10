@@ -219,7 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "AuroraDrive 实时游戏辅助：持续截屏 + AI 决策注入")
         napToken = ProcessInfo.processInfo.beginActivity(
             options: [.latencyCritical, .userInteractive, .idleSystemSleepDisabled],
-            reason: "AuroraDrive 实时游戏辅助：后台需持续 30Hz 决策与注入")
+            reason: "AuroraDrive 实时游戏辅助：后台需持续 45Hz 决策与注入")
         // 最高进程优先级：nice=-20（用户进程极限）
         if setpriority(PRIO_PROCESS, 0, -20) == 0 {
             print("[App] 进程优先级 nice=-20（最高）")
@@ -7062,7 +7062,7 @@ final class DriveState {
             return
         }
 
-        let dt = 1.0 / 30.0
+        let dt = 1.0 / 45.0
 
         // ── 1. 感知层：双驾驶模型推理 + YOLO 检测 ──
         // 异步触发推理（不阻塞 tick），读 lastResult 作为本帧输出

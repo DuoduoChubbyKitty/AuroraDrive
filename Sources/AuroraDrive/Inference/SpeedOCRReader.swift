@@ -793,7 +793,20 @@ final class SpeedOCRReader {
     /// 复用的 CoreImage 渲染上下文（线程安全，可跨线程共享）
     // P1 修复：CIContext 默认会缓存中间渲染结果，长时间 OCR 累积缓存内存。
     // 关掉 cacheIntermediates 避免中间位图常驻。
-    private nonisolated static let ciContext = CIContext(options: [.cacheIntermediates: false])
+    //
+    // ⚠️ 2026-10-11 GPU 零占用修复（w4-tools 的 P4 审计发现）：
+    //   原实现**未指定 device** → 按 Apple 文档 CIContext 默认**优先用 GPU**。
+    //   而本项目铁律是「推理不碰 GPU」（游戏需独占 GPU）——`CaptureEngine.swift:957`
+    //   的注释早就记录过血案：「消除游戏占满 GPU 时 CIContext(GPU) 排队导致的
+    //   **40ms 卡顿**」，那里的 vImage 缩放就是为绕开 GPU CIContext 才改的。
+    //   唯独本处（OCR 渲染，15Hz）与 `ConfidenceEstimator` 的平均亮度没处理。
+    //   修法：`useSoftwareRenderer: true` 强制走 CPU 渲染，与项目其余链路一致。
+    //   【代价】CPU 渲染比 GPU 慢，但 OCR 只处理速度表**小 ROI**（102×42 级），
+    //     15Hz 下开销可忽略；换来的是**绝不与游戏抢 GPU**（这是硬要求）。
+    private nonisolated static let ciContext = CIContext(options: [
+        .cacheIntermediates: false,
+        .useSoftwareRenderer: true,
+    ])
 
     // MARK: - 模板匹配（nonisolated 纯函数）
 

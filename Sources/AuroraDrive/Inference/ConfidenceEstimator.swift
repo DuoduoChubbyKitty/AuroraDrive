@@ -218,7 +218,17 @@ final class ConfidenceEstimator: @unchecked Sendable {
         label: "com.aurora.confidence.brightness", qos: .userInitiated)
 
     /// 复用的 CoreImage 渲染上下文（线程安全，跨线程共享，避免每帧新建）
-    private static let brightnessContext = CIContext(options: [.cacheIntermediates: false])
+    ///
+    /// ⚠️ 2026-10-11 GPU 零占用修复（w4-tools 的 P4 审计发现）：
+    ///   原实现**未指定 device** → CIContext 默认**优先用 GPU**。
+    ///   本项目铁律「推理不碰 GPU」（游戏独占 GPU）；`CaptureEngine.swift:957`
+    ///   已记录过 GPU CIContext 排队导致 **40ms 卡顿**的血案。
+    ///   本处虽只渲染到 **1×1** 缓冲（`CIAreaAverage`），GPU 侧开销极小，
+    ///   但**任何 GPU 提交都会与游戏争用命令队列** → 强制 CPU 渲染消除不确定性。
+    private static let brightnessContext = CIContext(options: [
+        .cacheIntermediates: false,
+        .useSoftwareRenderer: true,
+    ])
 
     /// 计算图像平均亮度 [0,1]（后台执行）
     /// 用 CIAreaAverage 全图均值代替旧 32×32 降采样 draw，主线程零绘制开销。

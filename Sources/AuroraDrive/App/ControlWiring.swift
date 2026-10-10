@@ -524,7 +524,11 @@ enum AutoRoadCondition {
         "> \(extremeThreshold) 极 · > \(busyThreshold) 繁 · > \(mediumThreshold) 中 · > \(easyThreshold) 轻 · ≤\(simpleThreshold) 不限速"
     }
 
-    /// 稳定性门：同一判定需连续成立 N 次（约 N/30 秒）才真正切换路况。
+    /// 稳定性门：同一判定需连续成立 N 次才真正切换路况。
     /// 避免单帧检测抖动导致路况/限速频繁跳变（限速一跳动就会触发刹车）。
-    static let stabilityFrames = 15   // 30Hz 下约 0.5 秒
+    ///
+    /// ⚠️ 2026-10-11 主循环 30Hz → 45Hz：原 `15` 帧在 45Hz 下只有 **0.33 秒**
+    ///   （原意是 0.5 秒的稳定性窗口）。为保持**同样的时间语义**，改为 **22 帧**
+    ///   （22/45 ≈ 0.489s ≈ 0.5s）。若将来再改帧率，请按 `≈0.5s × 帧率` 重算。
+    static let stabilityFrames = 22   // 45Hz 下约 0.5 秒（原 30Hz×15）
 }
