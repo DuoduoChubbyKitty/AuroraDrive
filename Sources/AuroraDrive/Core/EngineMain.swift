@@ -1230,13 +1230,25 @@ enum EngineMain {
             // 只存在于 UI 进程 —— 不把视角传过来，用户在 UI 选了第三视角、引擎照旧录
             // 第一人称，而且**不报任何错**（静默不一致：看着对、实际错）。
             //
-            // 【防御】老版 UI 不发这个字段 → 缺省 "first"，行为与改造前完全一致。
-            // 归一化复用 RecordEngine.normalizePerspective（非法值回落 first，
-            // 不因一个字符串拼错就让整场录制失败）。
-            let recPerspective = RecordEngine.normalizePerspective(
-                (obj["perspective"] as? String) ?? "first")
+            // 【防御】老版 UI 不发这个字段 → **沿用引擎侧当前状态**（不再无条件回落 "first"）。
+            //
+            // ⚠️ 2026-10-10 修复（w5-search 验证 E 发现）：
+            //   原实现 `(obj["perspective"] as? String) ?? "first"` —— 不带 perspective
+            //   的命令（如 `record off`、或脚本直发 `record on`）一律回落 "first"，
+            //   配合 `if recOn` 里的赋值就会**把已选好的 TPV 打回 FPV**。
+            //   w5 实测：`record on`（不带 perspective）→ view.txt 变 FPV（与预期不符）。
+            //   修法：缺省时读引擎侧当前视角（保持上次选择）——**在 MainActor 块内解析**
+            //   （`recordPerspective` 是 MainActor 隔离属性，不能在 nonisolated 上下文读）。
+            //   仅在 state 未就绪时才回落 "first"（与新引擎首启行为一致）。
+            //   生产路径不受影响（UI 的 isRecording.didSet 总是带 perspective），
+            //   但让"不传=保持"语义自洽，且脚本/Debug 路径不再静默改视角。
+            let perspectiveRaw: String? = obj["perspective"] as? String
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
+                    let recPerspective = RecordEngine.normalizePerspective(
+                        perspectiveRaw
+                            ?? EngineGlobals.state?.recordPerspective
+                            ?? "first")
                     guard let st = EngineGlobals.state else {
                         EngineMain.sendAck(id: ackID, cmd: type, ok: false,
                                            detail: "引擎状态未就绪（EngineGlobals.state == nil）",
@@ -1266,18 +1278,25 @@ enum EngineMain {
                     }
                     st.isRecording = recOn
                     let dir = st.recordEngine.sessionURL?.lastPathComponent ?? "-"
-                    let viewLabel = recPerspective == "third" ? "TPV" : "FPV"
+                    // ⚠️ 2026-10-10 修复（w5-search 验证 E 发现）：**ack 必须报"实际生效"视角**，
+                    //   不能回显命令解析出的 `recPerspective`。
+                    //   原实现回显命令值 → 出现「ack 说 first(FPV)、而磁盘 view.txt 是 TPV」
+                    //   的自相矛盾（`record off` 不带 perspective 时必然发生）。
+                    //   以 `recordEngine.sessionPerspective`（真正写进 view.txt/meta.json 的值）
+                    //   为准；它为空（未开始过录制）时才回退到命令值。
+                    let effectivePerspective = st.recordEngine.sessionPerspective ?? recPerspective
+                    let viewLabel = effectivePerspective == "third" ? "TPV" : "FPV"
                     engineLog("[ENGINE] 录制\(recOn ? "开始" : "停止")：字模=\(recGlyph) 专家=\(recExpert) "
-                              + "视角=\(recPerspective)(\(viewLabel)) 会话=\(dir)")
+                              + "视角=\(effectivePerspective)(\(viewLabel)) 会话=\(dir)")
                     // 立即回执：心跳周期 1s，不即时上报的话 UI 会先看到「还没录」，
                     // 把开关弹回去（UI 侧也有宽限期，这里是双保险）。
                     EngineMain.sendHeartbeat(reason: "record-ack")
                     // ok 以"实际是否处于请求的状态"为准，不谎报
                     EngineMain.sendAck(
                         id: ackID, cmd: type, ok: st.isRecording == recOn,
-                        detail: "录制\(recOn ? "开始" : "停止")：视角=\(recPerspective)(\(viewLabel)) 会话=\(dir)",
+                        detail: "录制\(recOn ? "开始" : "停止")：视角=\(effectivePerspective)(\(viewLabel)) 会话=\(dir)",
                         data: ["recording": st.isRecording, "frames": st.recordEngine.frameCount,
-                               "session": dir, "perspective": recPerspective],
+                               "session": dir, "perspective": effectivePerspective],
                         server: server)
                 }
             }
