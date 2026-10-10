@@ -5419,6 +5419,21 @@ final class DriveState {
                   + " · 引擎模型族 \(yolopxEngine.family.display)"
                   + " · 光流 \(m.needsOpticalFlow ? "启用" : "不需要（A-YOLOM 每帧都有真值）")")
         }
+        // ★ task-95：档位变化**必须下发引擎**。
+        //
+        // 【为什么】真正抓屏/推理的是引擎进程（引擎有自己的 DriveState）；
+        //   W2/W3 要按档位切抓屏/推理频率（ayolom→45Hz / legacy→30Hz）。
+        //   只在 UI 侧 switchFamily 而不下发，引擎就永远按旧档位跑。
+        //
+        // 【为什么放在 switched 判断之外】`switchFamily` 返回 false 只表示
+        //   "引擎侧模型族没切换"；但 config 下发是**独立通道**（走 socket），
+        //   即使本进程切换失败也应把档位事实告诉引擎（pushConfig 内部在引擎
+        //   未连接时会打印「❌ 未下发（已保留待补发）」并保留待补发，不会假装成功）。
+        //
+        // 【只在 changed 时发】避免重复点同一档位产生无意义 IPC。
+        if changed {
+            pushConfig(reason: "档位切换-\(m.title)")
+        }
     }
 
     /// 是否在预览框叠加显示 YOLOPX 的掩码（可行驶区 + 车道线）

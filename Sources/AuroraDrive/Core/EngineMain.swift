@@ -629,7 +629,169 @@ enum EngineMain {
     ///
     /// 【为什么用具名常量而不是裸 1.0/30.0】全文件散落 6 处描述性注释各写一遍 "30Hz"，
     /// 裸字面量会逼着人肉找齐（本次改造就是活例）。抽成常量后，频率只有一个定义点。
-    static let engineTickHz: Double = 30.0
+    ///
+    /// ── task-93（2026-10-11）：从 `static let 30.0` 改为**动态档位** ──
+    ///
+    /// 【用户需求原话】「正常那个模型（小型三合一 ayolom）有 45 赫兹，超大型的
+    ///   （legacy：26S+光流+YOLOPX）直接让画面流切换回 30 赫兹，还能正好少传点数据，
+    ///   为超大型给一点性能」
+    ///
+    /// 【两档定义】（key 名 **`perceptionMode`**，取值 **`"ayolom"` / `"legacy"`**，
+    ///   与 `PerceptionModelFamily.rawValue` 一致；UI 侧 W4 下发，W5 交叉验证以此为准）
+    ///   · `"ayolom"` → **45Hz**（小模型 A-YOLOM）
+    ///   · `"legacy"` → **30Hz**（大模型 YOLOPX，为重推理让出 CPU）
+    ///
+    /// 【成本模型 —— ⚠️ 2026-10-11 Lead 修正版，勿引用旧结论】
+    ///   tick 同步段本身 p50 = **0.34ms**（PERF 日志），远低于任何档位预算；
+    ///   真正吃 CPU 的是**异步推理**（每次 tick 投递，不在 tick 线程内）：
+    ///     yolopx(ayolom) 20.9ms + V2 8.5ms + world_model 3.0ms ≈ 32.4ms/帧
+    ///     30Hz ≈ 0.97 核/秒（估算）；45Hz ≈ 1.46 核/秒（估算）
+    ///   P5 实测 45Hz 下 engine CPU = **85.2%（0.85 核）**，比线性估算更省。
+    ///   ⟹ 45Hz 可行性乐观（M3 8 核），但仍需真机实测确认（不写死结论）。
+    static var engineTickHz: Double = 30.0
+
+    /// tick 定时器**已生效**的频率（诊断/心跳回显用；与 engineTickHz 同主线程读写）
+    nonisolated(unsafe) private static var lastAppliedTickHz: Double = 0.0
+
+    /// 动态调整引擎 tick 频率（task-93）。
+    ///
+    /// 【实现】`DispatchSourceTimer` 的 `schedule(deadline:repeating:leeway:)`
+    /// 支持**重复调用**重新调度（官方语义：替换当前挂起的调度）——
+    /// 不需要销毁重建 timer，也不丢已注册的 eventHandler。
+    ///
+    /// 【线程模型】**必须在主线程调用**（@MainActor 隔离）：
+    ///   · 调用方：`case "config"` 的 `DispatchQueue.main.async` 块内
+    ///   · `engineTicker` 是 `nonisolated(unsafe)` 静态持有；GCD 的调度方法本身
+    ///     线程安全，这里收敛到主线程是为了保证 `engineTickHz` / `lastAppliedTickHz`
+    ///     的读-改-写原子性（避免与读它的诊断路径竞争出旧值）。
+    ///
+    /// 【防抖】频率没变就不重调度（容差 0.01），避免 UI 每 tick 重发 config
+    /// 造成 timer 无谓重排（重排会重置本次已等待的时间）。
+    ///
+    /// - Parameter hz: 目标频率（Hz）。非有限/≤0 直接忽略并记日志
+    ///   （频率是性能参数不是安全参数，坏值静默回落而非崩溃）。
+    @MainActor
+    static func setTickHz(_ hz: Double) {
+        guard hz.isFinite, hz > 0 else {
+            engineLog("[ENGINE] ⚠️ setTickHz(非法定频 \(hz)) 已忽略")
+            return
+        }
+        let clamped = min(max(hz, 5.0), 120.0)   // 防御性钳制：5~120Hz 合理区间
+        if lastAppliedTickHz > 0, abs(lastAppliedTickHz - clamped) < 0.01 {
+            return   // 没变，不重排（避免重复 config 抖动调度）
+        }
+        engineTickHz = clamped
+        // ── deadline 用「now + 一个完整周期」，**不用 .now()** ──
+        //
+        // 【为什么】Lead 实测（2026-10-11，Swift 实验）直接对 running timer 调
+        //   `schedule(deadline: .now(), repeating:)` 时，切换瞬间会出现 **0ms 间隔**：
+        //     GAPS: 204,200,197,204,**[0]**,54,50,50,...
+        //   —— 即"额外多触发一次 tick"。虽然本项目 `hold()/release()` 有
+        //   `heldKeys.contains` 幂等守卫、`appendFrame` 有背压（重复 tick 不至于
+        //   重复注入按键/重复写帧），但**多一次 tick 仍会**：
+        //     · 多投递一次异步推理（`Task { @MainActor in ... }`，无幂等守卫）
+        //     · 多发一轮 `refreshHeldKeys()` 的 keyDown（项目刻意要这个事件流，
+        //       多一轮无害但有抖动）
+        //   ⟹ 与其论证"无害"，不如**彻底消除不确定性**：等一个完整周期再起跑，
+        //      切换点变成干净的「旧周期 → 新周期」，零额外 tick。
+        //
+        // 【代价】切档后首个新周期会晚到 1/clamped 秒（30→45Hz 时晚 ~22ms，
+        //   45→30Hz 时晚 ~33ms）。一次性的、方向正确的（新频率的首帧本就该等
+        //   一个周期），且 CPU 上限立刻由 `engineTickHz` 生效用于诊断回显。
+        engineTicker?.schedule(deadline: .now() + 1.0 / clamped,
+                               repeating: 1.0 / clamped,
+                               leeway: .nanoseconds(0))
+        lastAppliedTickHz = clamped
+        engineLog("[ENGINE] tick 频率 → \(Int(clamped.rounded()))Hz（perceptionMode 档位切换，"
+                  + "首帧延后一个周期以消除 0ms 双触发）")
+    }
+
+    /// 当前**已生效**的 tick 频率（供心跳/诊断如实回显，不谎报请求值）
+    @MainActor
+    static var currentTickHz: Double {
+        lastAppliedTickHz > 0 ? lastAppliedTickHz : engineTickHz
+    }
+
+    /// 启动时登记初始频率（只由 `run()` 的 timer 装配段调用一次）
+    @MainActor
+    static func noteInitialTickHz(_ hz: Double) {
+        lastAppliedTickHz = hz
+    }
+
+    // MARK: - task-93：档位感知的频率切换
+
+    /// 档位 → 目标 tick 频率（单一映射点，避免散落魔数）
+    ///
+    /// key 名与取值（**W5 交叉验证以此为准**）：
+    ///   · 命令字段名：**`perceptionMode`**
+    ///   · 取值：**`"ayolom"`** → 45Hz ／ **`"legacy"`** → 30Hz
+    ///     额外接受 **`"yolopx"`** 作为 `"legacy"` 的等价别名 ——
+    ///     `PerceptionModelFamily` 的 case 是 `.yolopx`/`.ayolom`，而 UI 侧把
+    ///     大模型档叫 "legacy"；两侧拼写不一致会导致**静默不切**，故两个都认。
+    /// - Returns: 目标频率；未知值返回 nil（不猜，由调用方如实回执）
+    static func tickHz(forPerceptionMode mode: String) -> Double? {
+        switch mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "ayolom":              return 45.0
+        case "legacy", "yolopx":    return 30.0
+        default:                    return nil
+        }
+    }
+
+    /// 录制期间收到档位变更时**挂起**的目标频率（nil = 无挂起）
+    ///
+    /// 【为什么"延后"而不是"拒绝" —— 设计决策与理由】
+    ///   两条路都不违反用户铁律，差别在**用户意图是否丢失**：
+    ///   · **拒绝**：用户切档 → 引擎记日志"录制中，不切" → 频率**永远不变**。
+    ///     用户必须"停止录制 → 再切一次档"，这是**静默失败**（用户以为切了）。
+    ///     更糟的是模型档已由 `yolopxEngine` 切了、只有 tick 频率没跟上 → 两者不一致。
+    ///   · **延后**：切档时记日志 + 挂起 → **录制停止时自动补上**。用户意图最终满足，
+    ///     且录制会话内频率**恒定**（不破坏帧率语义）。
+    ///   ⟹ **选延后**：既守住"录制中不切"的硬约束，又不丢用户意图。
+    nonisolated(unsafe) private static var pendingTickHz: Double?
+
+    /// 档位变更入口（由 `case "config"` 的 `perceptionMode` 分支调用）
+    /// - Parameters:
+    ///   - mode: "ayolom" / "legacy"（大小写与空白容错）
+    ///   - isRecording: 当前是否录制中（录制中只挂起、不立即切）
+    /// - Returns: (是否立即生效, 面向用户的说明文本)
+    @MainActor
+    @discardableResult
+    static func applyPerceptionMode(_ mode: String, isRecording: Bool) -> (applied: Bool, detail: String) {
+        guard let hz = tickHz(forPerceptionMode: mode) else {
+            return (false, "未知 perceptionMode「\(mode)」（仅接受 ayolom / legacy），频率未变")
+        }
+        if isRecording {
+            pendingTickHz = hz
+            return (false, "录制中：tick 频率保持 \(Int(currentTickHz.rounded()))Hz 不变"
+                         + "（避免改变已开始会话的帧率语义）；已挂起 \(Int(hz))Hz，停止录制后自动生效")
+        }
+        setTickHz(hz)
+        // ★ 2026-10-11 Lead 接线修复（w8-verify 复检发现的 P0 缺口）：
+        //   `CaptureEngine.setCaptureHz(_:)` 由 w3 实现，但**全仓库无调用者**
+        //   → 档位切换时 tick 频率变了、**抓屏频率没变** → 两者不同步
+        //   （用户要的是"小模型 45fps 抓屏 / 大模型 30fps 抓屏"）。
+        //   这里补上接线：抓屏侧与 tick 侧**用同一个 hz**，保证同步。
+        //   `setCaptureHz` 是 async，故包一层 Task（不阻塞主线程的 config 处理）。
+        //   ⚠️ 失败不致命：抓屏若热更失败会自己回退重启流，且 tick 已切好。
+        Task { @MainActor in
+            await EngineGlobals.state?.captureEngine.setCaptureHz(hz)
+        }
+        return (true, "tick 频率已切到 \(Int(hz))Hz（perceptionMode=\(mode)）；抓屏同步切换中")
+    }
+
+    /// 录制停止时调用：把挂起的档位频率补上（无挂起则什么都不做）
+    @MainActor
+    static func flushPendingTickHz() {
+        guard let hz = pendingTickHz else { return }
+        pendingTickHz = nil
+        setTickHz(hz)
+        // ★ 同步补切抓屏（与 applyPerceptionMode 的接线一致）——否则会留下
+        //   "tick 45Hz 但抓屏 30fps"的错配（本次 Lead 修复的第二个点）。
+        Task { @MainActor in
+            await EngineGlobals.state?.captureEngine.setCaptureHz(hz)
+        }
+        engineLog("[ENGINE] 录制已停止 → 补切挂起的 tick 频率 \(Int(hz))Hz（抓屏同步切换中）")
+    }
 
     static func run() -> Never {
         // ⚠️ 2026-10-10 修复「引擎进程 print 不落盘」：
@@ -814,12 +976,14 @@ enum EngineMain {
 
         let tickQueue = DispatchQueue(label: "aurora.engine.tick", qos: .userInteractive)
         let tickTimer = DispatchSource.makeTimerSource(queue: tickQueue)
-        // ⚠️ 2026-10-11（task-80）：tick 频率 30Hz → **45Hz**，与用户要求对齐
-        //   （720P + 45fps；抓屏侧 `CaptureEngine.swift:425` 用
-        //    `CMTime(value: 1, timescale: 45)` 同样锁 45fps）。
+        // ⚠️ task-93（2026-10-11）：初始频率取 `engineTickHz`（默认 **30Hz**），
+        //   之后由 `setTickHz(_:)` 按 `perceptionMode` 档位动态重调度：
+        //     "ayolom" → 45Hz ／ "legacy" → 30Hz
         //   这**一处**决定推理 / 控制 / 录制三条路径的 tick 速率（它们都挂在
         //   `tickOnce()` 上），故改这里即全链路生效。
         //   注：`leeway` 保持 0 —— 主循环要求准点，不引入调度抖动。
+        //   （下方 task-80 的历史注释已过时：抓屏侧与 tick 侧自 task-93 起
+        //    由档位解耦，不再强绑同一个 45。）
         tickTimer.schedule(deadline: .now(),
                            repeating: 1.0 / EngineMain.engineTickHz,
                            leeway: .nanoseconds(0))
@@ -832,6 +996,11 @@ enum EngineMain {
         }
         tickTimer.resume()
         engineTicker = tickTimer
+        // task-93：记录**初始已生效频率**，供 setTickHz 防抖比较与心跳回显。
+        // 必须在 resume 之后置位（此前 timer 尚未运行，回显 0 会让 UI 误判"没在 tick"）。
+        MainActor.assumeIsolated {
+            EngineMain.noteInitialTickHz(EngineMain.engineTickHz)
+        }
 
         // ── 8. 心跳（1Hz）──
         let hbQueue = DispatchQueue(label: "aurora.engine.heartbeat")
@@ -1312,6 +1481,9 @@ enum EngineMain {
                         st.recordEngine.start(perspective: recPerspective)
                     } else if !recOn, st.recordEngine.isRecording {
                         st.recordEngine.stop()
+                        // task-93：录制停止 → 补切录制期间挂起的档位频率
+                        //（"延后"策略的落点，理由见 applyPerceptionMode 注释）
+                        EngineMain.flushPendingTickHz()
                     }
                     st.isRecording = recOn
                     let dir = st.recordEngine.sessionURL?.lastPathComponent ?? "-"
@@ -1376,6 +1548,10 @@ enum EngineMain {
             // 消化模式：真正注入按键的是**引擎进程**，UI 侧开关必须下发到这里，
             //   否则「UI 显示已消化、引擎照旧真按键」—— 那是最危险的不一致。
             let cDigest = obj["digest"] as? Bool
+            // task-93：档位感知的动态 tick 频率。
+            //   key 名 **`perceptionMode`**，取值 **"ayolom" / "legacy"**（W4 下发、W5 对拍）。
+            //   两档：ayolom → 45Hz ／ legacy → 30Hz（映射见 tickHz(forPerceptionMode:)）。
+            let cPerceptionMode = obj["perceptionMode"] as? String
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let st = EngineGlobals.state else {
@@ -1417,11 +1593,36 @@ enum EngineMain {
                     if let v = cSpeedLimit { applied["speedLimit"] = v }
                     // Lead 新增的消化模式（digest）也一并回显，保持 applied 是"真实写入全量"
                     if let v = cDigest { applied["digest"] = v }
+
+                    // ── task-93：档位感知的动态 tick 频率 ──
+                    // 立即生效 vs 录制中挂起，由 applyPerceptionMode 内部判定；
+                    // 未知取值**如实回执 ok=false**（不静默吞掉，否则 UI 以为切了）。
+                    var tickNote: String?
+                    // ⚠️ 2026-10-11 Lead 修复（w8-verify 复检的 P1「谎报成功」）：
+                    //   原实现在下方 ack 里**硬编码 `ok: true`**，无视 applyPerceptionMode 的返回值
+                    //   → 两种 `(applied: false)` 情形（未知档位 / 录制中挂起）也回执成功，
+                    //     UI 会误以为已切换（静默失败）。对照同文件其它分支都有 `ok: false` 处理。
+                    //   ⚠️ 注意语义：`ok:false` 这里表示"perceptionMode 这一项没立即生效"，
+                    //     不代表整个 config 失败（其它字段仍是成功的），故 detail 里必须说清。
+                    var perceptionOK = true
+                    if let mode = cPerceptionMode {
+                        let r = EngineMain.applyPerceptionMode(mode, isRecording: st.isRecording)
+                        applied["perceptionMode"] = mode
+                        // 回显**实际生效**频率（挂起时即当前值，不谎报目标值）
+                        applied["tickHz"] = Int(EngineMain.currentTickHz)
+                        perceptionOK = r.applied
+                        tickNote = r.detail
+                    }
+
+                    let baseDetail = applied.isEmpty
+                        ? "config 未包含任何可识别字段（无改动）"
+                        : "已同步 \(applied.count) 个参数"
                     EngineMain.sendAck(
-                        id: ackID, cmd: type, ok: true,
-                        detail: applied.isEmpty ? "config 未包含任何可识别字段（无改动）"
-                                                : "已同步 \(applied.count) 个参数",
-                        data: ["applied": applied], server: server)
+                        id: ackID, cmd: type, ok: perceptionOK,
+                        detail: tickNote.map { "\(baseDetail)；\($0)" } ?? baseDetail,
+                        data: ["applied": applied,
+                               "tickHz": Int(EngineMain.currentTickHz)],
+                        server: server)
                 }
             }
         case "set_capture_mode", "capture":

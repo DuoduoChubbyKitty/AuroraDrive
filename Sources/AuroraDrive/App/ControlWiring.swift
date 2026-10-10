@@ -276,6 +276,14 @@ extension DriveState {
             //   只在 UI 侧改开关等于没改（用户实测事故：AI 驱动引擎测试时
             //   真的注入了按键，刷屏到工作群被禁言）。见 DriveState.digestMode。
             "digest":            digestMode,
+            // 感知档位：**必须下发到引擎** —— 真正抓屏/推理的是引擎进程，
+            //   W2/W3 要按档位切抓屏/推理频率（45Hz/30Hz）。
+            //   ⚠️ key/value 是与 W2 约定的 IPC 协议字段（"ayolom"/"legacy"），
+            //   **不是** Swift 枚举的 rawValue —— `PerceptionMode` 的 rawValue
+            //   是中文显示名（"A 模型"/"26S + 光流 + YOLOPX"），
+            //   `PerceptionModelFamily` 的 rawValue 是 "ayolom"/"yolopx"，
+            //   都与协议约定不一致，故这里显式映射（task-95）。
+            "perceptionMode":    perceptionMode == .ayolom ? "ayolom" : "legacy",
         ]
         // ★★★ 2026-10-02：日志必须反映**真实发送结果**。
         //

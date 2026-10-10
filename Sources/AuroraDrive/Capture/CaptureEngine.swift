@@ -167,6 +167,58 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     private var fpsAccumulator: Int = 0
 
     // ══════════════════════════════════════════════════════════════════════════
+    // task-94（W3 · 2026-10-11）：**档位感知动态抓屏帧率**
+    // ══════════════════════════════════════════════════════════════════════════
+    /// 目标抓屏帧率（Hz）。默认 45（`.ayolom` 小模型档）。
+    ///
+    /// 【档位映射约定（调用方负责映射，本类只收数值）】
+    ///   · `.ayolom`（小模型，单帧成本低）→ **45**：抓屏快、决策密
+    ///   · `.legacy`（26S + 光流 + YOLOPX，大模型）→ **30**：少传数据，
+    ///     给 YOLOPX（单帧 183ms）让性能 —— 用户原话："超大型的直接让画面流
+    ///     切换回 30 赫兹，还能正好少传点数据"
+    ///
+    /// 【为什么本类只收数值、不认档位】`PerceptionMode` 定义在
+    ///   `YolopxEngine.swift`（非本文件写域）；且档位→Hz 的映射是**策略**，
+    ///   应由调用方（EngineMain / AuroraDriveApp）决定。本类只提供能力。
+    ///
+    /// 【线程安全】`stateLock` 保护（`start()` 的 Task 与 `setCaptureHz`
+    ///   可能来自不同线程，与 `_isCapturing` 同因）。
+    private var _targetCaptureHz: Double = 45.0
+    var targetCaptureHz: Double {
+        get { stateLock.withLock { _targetCaptureHz } }
+        set {
+            let v = max(1.0, min(120.0, newValue.isFinite ? newValue : 45.0))
+            stateLock.withLock { _targetCaptureHz = v }
+        }
+    }
+
+    /// **已请求**的抓屏帧率（诊断/UI 显示用）。
+    ///
+    /// ⚠️ **语义精度说明（诚实标注）**：
+    ///   · **建流路径**（`startStream` 成功）→ 这是**真·已生效**值 ✅
+    ///   · **热更路径**（`updateConfiguration` 成功）→ 官方头文件未保证
+    ///     `minimumFrameInterval` 可热更，故这里可能是**"已请求但未验证生效"** ⚠️
+    ///   若需区分二者，可加 `activeCaptureHzVerified: Bool`；当前保持简单，
+    ///   但**不要把该值当作"实测帧率"**——实测应用
+    ///   `lastFrameGapMs`（帧到达间隔）反推。
+    private var _activeCaptureHz: Double = 45.0
+    private(set) var activeCaptureHz: Double {
+        get { stateLock.withLock { _activeCaptureHz } }
+        set { stateLock.withLock { _activeCaptureHz = newValue } }
+    }
+
+    /// 由**帧到达间隔**反推的实测抓屏帧率（Hz）。
+    ///
+    /// 【为什么需要它】`activeCaptureHz` 是"我们请求的值"，而本值是"实际到达的值"。
+    ///   验证 `setCaptureHz` 热更是否真生效，**只能看这个**。
+    ///   依据 `lastFrameGapMs`（`stream(_:)` 每帧更新，`:918-921`）。
+    var measuredCaptureHz: Double {
+        let gapMs = stateLock.withLock { _lastFrameGapMs }
+        guard gapMs > 0.1 else { return 0 }
+        return 1000.0 / gapMs
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // task-C（2026-10-10）：start/stop 流生命周期串行化
     // ══════════════════════════════════════════════════════════════════════════
     /// 上一次 `stop()` 派发的**异步清理任务**（`stopCapture()` + 清池）。
@@ -401,7 +453,6 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         // SCDisplay.width 按 Apple 文档是像素，但实测需确认；若为点值需 ×backingScaleFactor
         print("[capture] display frame=\(display.frame.size) w=\(display.width) h=\(display.height)")
         // 流配置
-        let config = SCStreamConfiguration()
         // ⚠️ 2026-10-11 性能修复（用户明确要求"降分辨率、不降帧率"）：
         //   原实现抓**原生 Retina 像素** 2940×1912 @30fps = **675 MB/s** 像素流，
         //   全走 WindowServer 合成器 → 与游戏抢 GPU 带宽 → Air M3 无风扇，
@@ -419,38 +470,17 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         //   车道线掩码）相对整帧定位会**整体错位**。
         //   故这里按**屏幕宽高比**等比计算输出尺寸，目标宽度 1280（≈720P 级）。
         //
+        //   【task-94 重构】配置装配抽到 `Self.makeStreamConfiguration(configHz:display:)`
+        //     静态纯函数 —— `start()` 与 `setCaptureHz()` 的**热更路径共用同一份**，
+        //     保证"全量 config"逐字段一致（`updateConfiguration` 要求全量传，
+        //     见 SCStream.h 签名注释）。
+        let config = Self.makeStreamConfiguration(configHz: targetCaptureHz, display: display)
+        //
         //   像素流：1280×832 @45fps = **192 MB/s**
         //   （原 2940×1912 @30fps = 675 MB/s → 降 **3.5 倍**）。
         //   ⚠️ 因为"只降分辨率、不降帧率"，降幅 = 分辨率缩减比（2940×1912 →
         //      1280×832 是 5.3 倍面积），同时帧率从 30→45 又涨 1.5 倍，
         //      故净降幅 5.3/1.5 ≈ 3.5 倍。若还要更低，需降 targetW。
-        let targetW: Double = 1280
-        let aspect: Double
-        if let screen = NSScreen.screens.filter({
-            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
-                == NSNumber(value: display.displayID)
-        }).first, screen.frame.height > 0 {
-            aspect = screen.frame.height / screen.frame.width      // 3:2 屏 → 0.650
-        } else if display.width > 0 {
-            aspect = Double(display.height) / Double(display.width)
-        } else {
-            aspect = 9.0 / 16.0
-        }
-        config.width = Int(targetW)
-        config.height = Int((targetW * aspect).rounded())          // 3:2 → 832
-        // 显式禁用"适配画布"（默认就是 false，这里写死防止将来被误改）：
-        //   false = 只按等比缩小，不拉伸、不填充到画布 → 无黑边、坐标不错位
-        config.scalesToFit = false
-        // ⚠️ `minimumFrameInterval` 是**最小帧间隔**（1/帧率）：
-        //   timescale=45, value=1 → 1/45 秒 → **最高 45fps**。
-        //   用户明确要求：**降分辨率，不降帧率**（保持 45fps）。
-        config.minimumFrameInterval = CMTime(value: 1, timescale: 45)  // 45fps 上限
-        config.pixelFormat = kCVPixelFormatType_32BGRA  // 显式锁 32BGRA：vImageScale_ARGB8888 依赖此格式（防 SCStream 未来返回 420 花帧）
-        config.queueDepth = 3                       // 帧队列深度 3（平衡延迟与流畅）
-        config.showsCursor = true                   // 画面包含鼠标
-        print("[capture] 抓屏配置 \(config.width)x\(config.height) @45fps "
-              + "（屏幕比例 aspect=\(String(format: "%.3f", aspect))，像素流 "
-              + "\(String(format: "%.0f", Double(config.width * config.height * 4 * 45) / 1e6)) MB/s）")
 
         // ── 内容过滤器（2026-10-08 双模式）─────────────────────────────
         // 旧实现是 `SCContentFilter(display: display, excludingWindows: [])`：
@@ -516,6 +546,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                       + "=\(self.desiredMode.label)（待应用标记清除）")
             }
             self.modePendingApply = false
+            // task-94：记录**已生效**的帧率（诊断/UI 用）。此处 targetCaptureHz
+            //   就是本次建流实际用的值（makeStreamConfiguration(configHz: targetCaptureHz)）。
+            self.activeCaptureHz = self.targetCaptureHz
             self.isCapturing = true
             self.lastFPSDate = Date()
             self.resetOwnUIWarning()            // 新一轮录制允许重新告警
@@ -526,6 +559,139 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             print("[cap-deep] ❌ startCapture 失败: \(error)")
             onStatusChange?(.error("启动捕获失败: \(error.localizedDescription)"))
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // task-94（W3 · 2026-10-11）：动态帧率
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// 构造完整的 `SCStreamConfiguration`（**静态纯函数**，无实例状态依赖）。
+    ///
+    /// 【为什么抽成静态】
+    ///   `start()` 的首次建流与 `setCaptureHz` 的热更**共用同一份**配置逻辑，
+    ///   保证 `updateConfiguration` 收到的 config **逐字段一致**
+    ///   （官方 API 要求全量传，不是增量更新，见 SCStream.h 注释）。
+    ///
+    /// 【分辨率逻辑（保持不变）】
+    ///   targetW=1280，height 按屏幕宽高比等比算（3:2 → 832），
+    ///   `scalesToFit=false`（无 letterbox、坐标不错位）。
+    static func makeStreamConfiguration(configHz: Double, display: SCDisplay) -> SCStreamConfiguration {
+        let config = SCStreamConfiguration()
+        let targetW: Double = 1280
+        let aspect: Double
+        if let screen = NSScreen.screens.filter({
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+                == NSNumber(value: display.displayID)
+        }).first, screen.frame.height > 0 {
+            aspect = screen.frame.height / screen.frame.width
+        } else if display.width > 0 {
+            aspect = Double(display.height) / Double(display.width)
+        } else {
+            aspect = 9.0 / 16.0
+        }
+        config.width = Int(targetW)
+        config.height = Int((targetW * aspect).rounded())
+        config.scalesToFit = false
+        // task-94：帧率从参数读（不再硬编码 45）
+        let safeHz = max(1.0, min(120.0, configHz.isFinite ? configHz : 45.0))
+        let tscale = max(1, Int(safeHz.rounded()))
+        config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(tscale))
+        config.pixelFormat = kCVPixelFormatType_32BGRA
+        config.queueDepth = 3
+        config.showsCursor = true
+        let mbps = Double(config.width * config.height * 4 * tscale) / 1e6
+        print("[capture] 抓屏配置 \(config.width)x\(config.height) @\(tscale)fps"
+              + "（aspect=\(String(format: "%.3f", aspect))，像素流 "
+              + "\(String(format: "%.0f", mbps)) MB/s）")
+        return config
+    }
+
+    /// 热切换抓屏帧率（**不重启流，避免闪帧**）。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 【依据 · 官方头文件原文（已读 `SCStream.h:500`）】
+    /// ══════════════════════════════════════════════════════════════════════
+    /// ```objc
+    /// /*!
+    ///  @abstract updateConfiguration:completionHandler:
+    ///  @param streamConfig the requested content filter to be updated
+    ///  @discussion this method will update the stream configuration for a
+    ///      content stream. A completion handler will be called when the
+    ///      update is complete with an error denoting if the update has failed.
+    /// */
+    /// - (void)updateConfiguration:(SCStreamConfiguration *)streamConfig
+    ///       completionHandler:(nullable void (^)(NSError *_Nullable error))completionHandler
+    ///       NS_SWIFT_ASYNC_NAME(updateConfiguration(_:))
+    /// ```
+    /// · **Swift 签名**：`func updateConfiguration(_ config: SCStreamConfiguration) async throws`
+    ///   （由 `NS_SWIFT_ASYNC_NAME` 决定；`completionHandler` 变 `try await`）。
+    /// · **availability**：`SCStream` 类级 `API_AVAILABLE(macos(12.3))`，
+    ///   `updateConfiguration` **无额外版本限制**（继承 12.3）；
+    ///   本项目 `platforms: [.macOS(.v26)]` → **远高于要求，可用** ✅
+    ///
+    /// ⚠️⚠️ **【未验证】`minimumFrameInterval` 是否真能热更生效**
+    ///   头文件只说"update the stream configuration"，**未明示**哪些字段可热更。
+    ///   帧率是**采集节流参数**，有可能在建流时固化、热更时被忽略（或静默无效）。
+    ///   ⟹ **本实现的弱点**：`updateConfiguration` **不抛错 ≠ 真的生效**。
+    ///      成功路径直接置 `activeCaptureHz = newHz` 是**乐观假设**。
+    ///
+    ///   **实测方案（待批准编译后执行）**：
+    ///     ① 启动引擎，看 `[cap-deep] 📥 帧到达 #N` 打印频率（默认每 60 帧一次）
+    ///        —— 45fps 下约 1.33s 一次（60/45）
+    ///     ② 调 `setCaptureHz(30)` 再看间隔
+    ///        —— 生效应约 2.0s 一次（60/30）；不变 → 热更无效
+    ///     ③ 更严谨：固定 5s 窗口数帧数（45fps → ~225 帧；30fps → ~150 帧）
+    ///     ④ 若确认热更无效 → **回退路径必须成为主路径**（总是 stop+start），
+    ///        或改为"先热更、再按实测间隔校验、不符则重启"
+    ///
+    /// 【回退路径】`updateConfiguration` 抛错 → 停止 + 重启流
+    ///   （复用 `pendingStopTask` 模式避免竞态，见 `stop()` 注释）。
+    ///   回退会闪一帧，但**保证帧率最终生效**（比"静默不改"安全）。
+    ///
+    /// 【不在捕获时】只写 `targetCaptureHz`，下次 `start()` 会自动用上。
+    ///
+    /// ⚠️ **【接线状态】本方法目前零外部调用**（w8 审计确认，属实）——
+    ///   档位→Hz 映射由调用方负责（`PerceptionMode` 在 `YolopxEngine.swift`，
+    ///   非本文件写域）。建议接线点：`EngineMain.applyPerceptionMode(_:isRecording:)`
+    ///   里 `Task { await state?.captureEngine.setCaptureHz(hz) }`。
+    func setCaptureHz(_ hz: Double) async {
+        let newHz = max(1.0, min(120.0, hz.isFinite ? hz : 45.0))
+        let old = targetCaptureHz
+        targetCaptureHz = newHz
+        print("[cap-deep] setCaptureHz(\(newHz)) 旧值=\(old) isCapturing=\(isCapturing)")
+        guard isCapturing, let stream = stream, let display = currentDisplay else {
+            print("[cap-deep] setCaptureHz: 未在捕获 → 只记 targetCaptureHz，下次 start() 生效")
+            return
+        }
+        guard newHz != old else {
+            print("[cap-deep] setCaptureHz: 频率未变（\(newHz)）→ 不做 updateConfiguration")
+            return
+        }
+
+        // ① 热更路径（优先）
+        let newConfig = Self.makeStreamConfiguration(configHz: newHz, display: display)
+        do {
+            try await stream.updateConfiguration(newConfig)
+            activeCaptureHz = newHz
+            print("[cap-deep] ✅ updateConfiguration 成功 → \(Int(newHz))fps（热切换，无闪帧）")
+            return
+        } catch {
+            print("[cap-deep] ❌ updateConfiguration 失败: \(error) → 回退重启流")
+        }
+
+        // ② 回退路径：停止 + 重启（复用 pendingStopTask 竞态防护）
+        if let pending = pendingStopTask {
+            print("[cap-deep] setCaptureHz 回退：await pendingStopTask 完成")
+            await pending.value
+            pendingStopTask = nil
+        }
+        stop()          // 同步置状态 + 异步 stopCapture/清池
+        start()         // 内部 await pendingStopTask + 读新 targetCaptureHz 建流
+        // ⚠️ 刻意**不在这里**置 `activeCaptureHz`：它是"已生效"语义，
+        //   必须等 `startStream` 真的 startCapture 成功后才由那里设置（:530）。
+        //   若在此乐观置值、而 start 失败 → activeCaptureHz 会说谎。
+        print("[cap-deep] setCaptureHz 回退完成：已请求重启流，目标 \(Int(newHz))fps"
+              + "（activeCaptureHz 待建流成功后更新）")
     }
 
     /// 停止画面流捕获
