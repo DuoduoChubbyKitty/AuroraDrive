@@ -4997,6 +4997,10 @@ final class DriveState {
                 // 每次开始录制前同步字模模式开关。注意：录制中途切换 glyphMode 不影响
                 // 本次会话（语义为「录制中切换不生效，需重启录制」），故不做实时热切换。
                 recordEngine.glyphMode = glyphMode
+                // 同步专家模式标志 → RecordEngine 用它决定 stop() 时是否做
+                // 「标签全零」告警（w4 V4 发现：引擎 KeyboardMonitor 可能收不到
+                // 键盘事件，导致专家标签静默全零、数据集整场废掉且不报错）。
+                recordEngine.expertMode = expertMode
                 // 2026-10-08：视角参数化（此前硬编码 "first"，TPV 录不了）。
                 // 同样遵循「录制中途切换不生效」：这里只在开始时读一次。
                 recordEngine.start(perspective: recordPerspective)

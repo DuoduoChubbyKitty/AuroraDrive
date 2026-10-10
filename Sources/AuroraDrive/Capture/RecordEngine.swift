@@ -43,9 +43,14 @@ final class RecordEngine: @unchecked Sendable {
     /// 【现在的口径】优先级从高到低：
     ///   ① `AURORA_MAX_CLIPS` 环境变量（正整数；采集脚本/CLI 用）
     ///   ② `maxClipsOverride`（UI 开关/采集模式设置）
-    ///   ③ 默认 10（保持旧行为，省磁盘）
-    /// 【为什么默认值不变】10 是给「随手录一段」的默认；真正攒数据集时
-    ///   必须显式调大 —— 隐式改大默认值会让长期跑的用户某天发现磁盘满了。
+    ///   ③ 默认值（见下）
+    ///
+    /// ⚠️ 2026-10-10 默认值 10 → **200**（w4-tools V4 验证发现的血案）：
+    ///   用户明确说"只能录一次，错了就完了"。默认 10 意味着**录到第 11 段就会
+    ///   静默删掉第 1 段** —— 而 w4 的证据 clip 正是这样被队友密集录制触发的
+    ///   清理删掉的（报告里已告警）。改成 200 给足余量（200 段 × 平均 500 帧
+    ///   ≈ 10 万帧，远超一次有效数据集所需）。真要限制磁盘，用
+    ///   `AURORA_MAX_CLIPS=20` 显式调小；而非让默认值偷偷吃掉用户的首场录制。
     var maxClipsOverride: Int?
 
     /// 生效的保留上限（见上）
@@ -55,7 +60,7 @@ final class RecordEngine: @unchecked Sendable {
             return value
         }
         if let override = maxClipsOverride, override > 0 { return override }
-        return 10
+        return 200
     }
 
     // MARK: - 字模模式
@@ -65,6 +70,14 @@ final class RecordEngine: @unchecked Sendable {
     /// 时序约定：值仅在 start() 时被读取一次用于决定会话输出形态，
     /// 录制中途切换不生效（需停止后重新开始录制才应用新值）。
     var glyphMode = false
+
+    /// 专家模式标志：true = 录真人物理按键（标签来自 KeyboardMonitor）。
+    /// ⚠️ 2026-10-10 新增（w4-tools V4 发现）：本字段**不参与录制逻辑**，
+    ///   只用于 `stop()` 时判断要不要做「专家模式标签全零」告警 ——
+    ///   引擎进程的 KeyboardMonitor 极可能收不到键盘事件（dispatchMain 无 run loop
+    ///   + 从未申请 Input Monitoring），若不告警用户会以为录成功了（静默失效）。
+    ///   由 `EngineMain` 的 `case "record"` 在 start 时同步。
+    var expertMode = false
 
     /// 字模模式输出根目录：data/glyph_clips/（与训练 raw_clips 隔离，互不干扰）
     private var glyphRoot: URL {
@@ -88,6 +101,22 @@ final class RecordEngine: @unchecked Sendable {
     /// 在 start() 里归一化后记录，stop() 写 meta.json 时用 —— 与 view.txt 同源，
     /// 避免两处各算一遍导致不一致（旧代码正是各算一遍，meta 那处算错了）。
     private(set) var sessionPerspective: String?
+
+    // MARK: - 标签健康统计（2026-10-10 新增：检测"专家模式标签全零"静默失效）
+    //
+    // ══════════════════════════════════════════════════════════════════════════
+    // 【为什么必须加】w4-tools 的 V4 验证发现：专家模式标签来自
+    //   `KeyboardMonitor`（`NSEvent.addGlobalMonitorForEvents`），而引擎进程主循环
+    //   是 `dispatchMain()`（**不 spin 主 run loop**），且项目**从未申请 Input
+    //   Monitoring** 权限 → **极可能收不到物理按键**。
+    //   若真收不到：CSV 里 steer/throttle/brake **全 0**，但**文件照写、帧数照涨、
+    //   不报任何错** → 用户以为录成功了，其实整场数据集废掉。**静默失效最危险。**
+    // ⟹ 对策：录制结束时统计"非零标签帧数"，专家模式下一帧非零都没有就**大声报警**。
+    // ══════════════════════════════════════════════════════════════════════════
+    /// 本次会话标签非零的帧数（steer/throttle/brake 任一非 0 即计入）
+    private(set) var labeledFrameCount: Int = 0
+    /// 本会话是否为专家模式启动（决定 stop 时要不要做"标签全零"告警）
+    private(set) var sessionExpertMode: Bool = false
 
     /// 录制开始时间（用于时间戳）
     private var startTime: Date?
@@ -266,6 +295,8 @@ final class RecordEngine: @unchecked Sendable {
         sessionURL = sessionDir
         startTime = Date()
         frameCount = 0
+        labeledFrameCount = 0                      // 标签健康统计清零
+        sessionExpertMode = expertMode             // 记住本会话是否专家模式（stop 时告警用）
         isRecording = true
     }
 
@@ -310,6 +341,26 @@ final class RecordEngine: @unchecked Sendable {
 
         let size = targetSize
         let fps = targetFps
+
+        // ⚠️⚠️ 2026-10-10 新增：**专家模式标签全零告警**（w4-tools V4 发现的对策）
+        //
+        // 【为什么必须有】专家模式标签来自 `KeyboardMonitor`（NSEvent 全局监听）。
+        //   引擎进程主循环是 `dispatchMain()`（不 spin 主 run loop），且项目从未申请
+        //   Input Monitoring → **极可能收不到物理按键**。若真收不到，CSV 里
+        //   steer/throttle/brake 全 0，但**文件照写、帧数照涨、不报错** —— 用户以为
+        //   录成功了，其实整场数据集废掉。**静默失效是录制链路最危险的失败模式。**
+        // ⟹ 这里在停止时检测：专家模式 + 有一定帧数 + 标签全零 → 大声报警。
+        //   判定阈值取 `labeledFrameCount == 0`（严格全零才报，避免误报）。
+        if sessionExpertMode, totalFrames >= 30, labeledFrameCount == 0 {
+            let warn = "[RecordEngine] 🚨🚨 专家模式标签全零告警：本会话 \(totalFrames) 帧，"
+                + "steer/throttle/brake **全部为 0**！\n"
+                + "     可能原因：① 引擎进程 KeyboardMonitor 收不到物理按键"
+                + "（dispatchMain 无 run loop / 未申请 Input Monitoring）；"
+                + "② 录制期间确实没按任何驾驶键。\n"
+                + "     ⟹ 该数据集**不可用于训练**（全是无效标签）。请先做「真按键验证」："
+                + "专家模式录 5 秒 + 物理按住 W，确认 CSV 的 throttle 非零。"
+            print(warn)
+        }
         // ── 2026-10-08 修复：meta.json 的 perspective 曾是**坏字段** ──
         // 旧代码写的是 `url.lastPathComponent.components(separatedBy: "_").first`
         // —— 目录名是 `clip_20261008_132000`，首段恒为 `"clip"`，于是 meta.json
@@ -320,8 +371,14 @@ final class RecordEngine: @unchecked Sendable {
         let perspective = sessionPerspective
             ?? (url.lastPathComponent.components(separatedBy: "_").first ?? "unknown")
 
+        let labeled = labeledFrameCount
+        let wasExpert = sessionExpertMode
         writeQueue.async { [isoFormatter] in
             // 写 meta.json（与现有格式完全一致）
+            // 2026-10-10 新增 3 个诊断字段（w2 曾指出"CSV/meta 不记 expertMode→分不清
+            //   样本是真人还是 AI"；w4 V4 又发现"专家标签可能静默全零"）：
+            //   expert_mode / labeled_frames / labeling_ok —— 让"这次录制到底有没有
+            //   有效标签"有据可查，不必事后反推。
             let meta: [String: Any] = [
                 "capture_interval_ms": Int(1000.0 / fps),
                 "target_h": Int(size.height),
@@ -329,7 +386,12 @@ final class RecordEngine: @unchecked Sendable {
                 "total_frames": totalFrames,
                 "created_at": isoFormatter.string(from: start),
                 "duration_seconds": duration,
-                "perspective": perspective
+                "perspective": perspective,
+                "expert_mode": wasExpert,
+                "labeled_frames": labeled,
+                // 是否"有有效标签"：非专家模式恒 true（标签来自模型输出，可用）；
+                // 专家模式下必须至少有一帧非零标签才算 ok（否则是静默失效）。
+                "labeling_ok": wasExpert ? (labeled > 0) : true
             ]
             if let data = try? JSONSerialization.data(withJSONObject: meta,
                                                      options: [.prettyPrinted]) {
@@ -417,6 +479,11 @@ final class RecordEngine: @unchecked Sendable {
 
         let idx = frameCount
         frameCount += 1
+        // 标签健康统计（w4-tools V4 发现的对策）：三个控制量任一非 0 即视为"有标签"。
+        // 专家模式下若整场 labeledFrameCount == 0 → stop() 会大声报警（静默失效防线）。
+        if abs(steer) > 1e-9 || throttle > 1e-9 || brake > 1e-9 {
+            labeledFrameCount += 1
+        }
         pendingLock.lock()
         pendingWrites += 1
         pendingLock.unlock()

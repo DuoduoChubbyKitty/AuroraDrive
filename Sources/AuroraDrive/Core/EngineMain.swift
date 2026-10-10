@@ -1272,6 +1272,10 @@ enum EngineMain {
                     // 顺序反了会出现「开关已开、目录还没建」的空窗（心跳上报 session="-"）。
                     if recOn, !st.recordEngine.isRecording {
                         st.recordEngine.glyphMode = recGlyph
+                        // 同步专家模式标志 → RecordEngine 用它决定 stop() 时是否做
+                        // 「标签全零」告警（w4 V4 发现：引擎 KeyboardMonitor 可能
+                        // 收不到键盘事件，导致专家标签静默全零）。
+                        st.recordEngine.expertMode = recExpert
                         st.recordEngine.start(perspective: recPerspective)
                     } else if !recOn, st.recordEngine.isRecording {
                         st.recordEngine.stop()
