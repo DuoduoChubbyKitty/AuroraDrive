@@ -1295,6 +1295,8 @@ enum EngineMain {
                     if let v = cGlyph { applied["glyph"] = v }
                     if let v = cThresh { applied["degradeThreshold"] = v }
                     if let v = cSpeedLimit { applied["speedLimit"] = v }
+                    // Lead 新增的消化模式（digest）也一并回显，保持 applied 是"真实写入全量"
+                    if let v = cDigest { applied["digest"] = v }
                     EngineMain.sendAck(
                         id: ackID, cmd: type, ok: true,
                         detail: applied.isEmpty ? "config 未包含任何可识别字段（无改动）"
@@ -1318,39 +1320,39 @@ enum EngineMain {
             //   mode=="window" 但没给 windowID → 原实现静默回落全屏；
             //   这里照旧回落，但 ack 如实说明"未收到 windowID，已回落全屏"。
             let windowModeMissingID = (modeStr == "window" && wID == nil)
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    // ⚠️ 必须写 `Task<Void, Never>`：在 assumeIsolated 闭包内裸 `Task { }`
-                    //    同时匹配 `Task` 与 `Task<Void, Never>` 两个 init 重载 → 歧义编译错。
-                    Task<Void, Never> {
-                        let (capMode, err) = await EngineMain.performCaptureModeSwitch(
-                            modeStr: modeStr, windowID: wID)
-                        engineLog("[ENGINE] 捕获源切换（\(type)）：\(capMode.label)"
-                                  + (err.map { " ⚠️ \($0)" } ?? " ✅"))
-                        var data: [String: Any] = [
-                            "mode": capMode.isWindowMode ? "window" : "fullscreen",
-                            "captureMode": capMode.label,
-                            "isCapturing": EngineGlobals.state?.captureEngine.isCapturing ?? false,
-                        ]
-                        if case .window(let id) = capMode { data["windowID"] = Int(id) }
-                        let ok = (err == nil)
-                        var detail: String
-                        if let err {
-                            detail = err
-                        } else if windowModeMissingID {
-                            detail = "mode=window 但未提供 windowID → 已按原语义回落全屏（\(capMode.label)）"
-                        } else {
-                            detail = "已切到 \(capMode.label)"
-                        }
-                        if let st = EngineGlobals.state, !st.captureEngine.isCapturing {
-                            // 未在捕获时 applyMode 只记 desiredMode（早退），如实说明，
-                            // 不让调用方以为"已经切换生效"
-                            detail += "（当前未在捕获，已记录期望模式，start() 时生效）"
-                        }
-                        EngineMain.sendAck(id: ackID, cmd: type, ok: ok, detail: detail,
-                                           data: data, server: server)
-                    }
+            // ⚠️ 这里**不用** `DispatchQueue.main.async { MainActor.assumeIsolated { Task { … } } }`：
+            //    在 assumeIsolated 闭包内嵌 Task 会让 Swift 6 编译器类型检查崩掉
+            //    （实测两种报错：`ambiguous use of init(name:priority:operation:)`，
+            //      改成 `Task<Void, Never>` 后升级为 "failed to produce diagnostic"）。
+            //    改用 `Task { @MainActor in … }`：一步到位跳到主 actor，语义等价且无嵌套。
+            //    引擎无 GUI，主队列就是主 actor，行为与既有 async 派发一致。
+            Task { @MainActor in
+                let (capMode, err) = await EngineMain.performCaptureModeSwitch(
+                    modeStr: modeStr, windowID: wID)
+                engineLog("[ENGINE] 捕获源切换（\(type)）：\(capMode.label)"
+                          + (err.map { " ⚠️ \($0)" } ?? " ✅"))
+                var data: [String: Any] = [
+                    "mode": capMode.isWindowMode ? "window" : "fullscreen",
+                    "captureMode": capMode.label,
+                    "isCapturing": EngineGlobals.state?.captureEngine.isCapturing ?? false,
+                ]
+                if case .window(let id) = capMode { data["windowID"] = Int(id) }
+                let ok = (err == nil)
+                var detail: String
+                if let err {
+                    detail = err
+                } else if windowModeMissingID {
+                    detail = "mode=window 但未提供 windowID → 已按原语义回落全屏（\(capMode.label)）"
+                } else {
+                    detail = "已切到 \(capMode.label)"
                 }
+                if let st = EngineGlobals.state, !st.captureEngine.isCapturing {
+                    // 未在捕获时 applyMode 只记 desiredMode（早退），如实说明，
+                    // 不让调用方以为"已经切换生效"
+                    detail += "（当前未在捕获，已记录期望模式，start() 时生效）"
+                }
+                EngineMain.sendAck(id: ackID, cmd: type, ok: ok, detail: detail,
+                                   data: data, server: server)
             }
         case "state":
             // ★ task-A 新增：结构化状态查询（AI 友好）。

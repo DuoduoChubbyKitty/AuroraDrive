@@ -90,6 +90,44 @@ DEFAULT_SOCKET = os.path.expanduser(
     "~/Library/Application Support/AuroraDrive/engine.sock")
 DEFAULT_TIMEOUT = 5.0
 
+#: 各子命令的**最小默认超时**（秒）。
+#:
+#: 【为什么需要 per-command 超时】2026-10-10 实测（Lead 复现 + 本机核实）：
+#:   `start` 首次会**同步加载 5 个 CoreML 模型**，阻塞引擎主 actor 约 **5.9s**
+#:   （引擎日志：`收到命令: start` @13:31:50.990 → `startDriving` @13:31:56.883），
+#:   ack 在 5.9s 后才发出。而 CLI 默认 --timeout=5.0 → 先超时 → 误报"未确认"。
+#:   这不是引擎 bug（ack 确实发了，只是慢），是**默认超时对慢命令太短**。
+#:
+#:   `start` 取 15s：实测 5.9s × 2.5 倍余量（机器忙时会更慢）。
+#:   `stop`  取 10s：释放按键 + 停抓屏，通常快，但留足余量。
+#:   其余命令保持 DEFAULT_TIMEOUT。
+#:
+#: ⚠️ 这些是**默认值的下限**：用户显式传更大的 `--timeout` 时取更大者
+#:    （见 resolve_timeout）。
+MIN_TIMEOUT_BY_CMD = {
+    "start": 15.0,
+    "stop": 10.0,
+}
+
+#: 慢命令集合：收到心跳后**不提前降级**，等满整个超时。
+#: 理由见 `EngineClient.command` 的"宽限期"注释（冷启动 start 要 5.9s 才 ack，
+#: 而引擎在连接瞬间就发心跳 → 固定短宽限期必然误判降级）。
+SLOW_COMMANDS = frozenset(MIN_TIMEOUT_BY_CMD)
+
+
+def resolve_timeout(cmd: str, user_timeout: float) -> float:
+    """算出该子命令实际使用的超时。
+
+    = max(用户传入, 该命令的最小默认值)
+
+    这样两个方向都对：
+      · 用户不传 → 慢命令拿到足够时间（start 15s / stop 10s）
+      · 用户传更大（--timeout 60）→ 尊重用户（模型首次加载可能更久）
+      · 用户传更小（--timeout 2）→ 仍抬到下限，**避免必然超时的误导性结果**
+        （若确实想短超时，那是脚本自己的选择；但默认不该给出"假失败"）
+    """
+    return max(float(user_timeout), MIN_TIMEOUT_BY_CMD.get(cmd, 0.0))
+
 # 退出码（与任务约定一致）
 EXIT_OK = 0
 EXIT_TIMEOUT = 1
@@ -258,12 +296,25 @@ class EngineClient:
         连上，会**先收到心跳、后收到 ack** —— 那时若立刻判定"老引擎降级"
         就误报了。所以：收到第一个心跳后**再多等 ack_grace 秒**，
         期间拿到 ack 就当新引擎成功；grace 用尽仍无 ack 才降级。
+
+        ⚠️ 2026-10-10 修正（实测冷启动 start 误报"未确认"）：
+            引擎在**客户端一连上就立刻发心跳**（`onClientConnected` →
+            `sendHeartbeat(reason:"client-connected")`，EngineMain.swift:742-748）。
+            所以"首个心跳"几乎在 t≈0 就到了 —— 原来固定 1.2s 的宽限期
+            **必然先于慢命令的 ack 到期**：`start` 冷启动要 5.9s 才 ack，
+            CLI 在 t=1.2s 就降级退出了，**即使把 --timeout 提到 15s 也救不了**。
+            修法：宽限期改为 **min(该命令的超时, grace)**，其中慢命令
+            （start/stop）的 grace 直接给足整个超时 —— 即"慢命令不提前降级，
+            老实等满超时"。快命令仍保留 1.2s 快速降级（老引擎上体验不退化）。
         ──────────────────────────────────────────────────────────────
         """
         cmd_id = payload.get("id")
+        cmd_type = payload.get("type")
         self.send_json(payload)
         start = time.time()
         deadline = start + self.timeout
+        # 该命令的宽限期：慢命令 = 整个超时（不提前降级），快命令 = ack_grace
+        grace = self.timeout if cmd_type in SLOW_COMMANDS else self.ack_grace
         # 收到首个心跳后的额外等待（宽限期），不超过总 deadline
         ack_deadline: float | None = None
 
@@ -281,7 +332,7 @@ class EngineClient:
                     self.last_heartbeat = msg
                     if wait_ack and cmd_id and ack_deadline is None:
                         # 首个心跳：开启宽限期（而不是立刻降级）
-                        ack_deadline = min(deadline, time.time() + self.ack_grace)
+                        ack_deadline = min(deadline, time.time() + grace)
                     continue
                 if mtype == "ack":
                     if cmd_id is None or msg.get("id") == cmd_id:
