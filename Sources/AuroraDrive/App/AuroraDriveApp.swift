@@ -7026,6 +7026,16 @@ final class DriveState {
         // 阈值同步：UI 改 degradeThreshold 时，状态机跟着变
         degradeStm.degradeHealth = degradeThreshold
 
+        // 消化模式：**无条件每帧同步**（w1+w3 独立发现的三层 gap：
+        //   ① 原在 V2 分支内 → M9 回退走不到
+        //   ② 挪到 if/else 前 → 待机（guard isDriving return）仍走不到
+        //   最终位置：guard isDriving 之前，确保**所有路径**（含待机）都同步。
+        //   若不同步，controlEngine.digestMode 和 globalDigest 不更新 →
+        //   鼠标在 digest 下仍真注入（安全红线）。
+        if controlEngine.digestMode != digestMode {
+            controlEngine.digestMode = digestMode
+        }
+
         guard isDriving else {
             // 待机：车速衰减，清空决策。
             //
@@ -7067,15 +7077,8 @@ final class DriveState {
                 //   → V2 infer 从不被调 → V2 永远不激活 → 旧 M9（throttle=0.94）永远在开车
                 //   修复：去掉 timelineReady 门，让 V2 infer 从第一帧就跑（冷启动时
                 //   内部 push 帧但不产结果，v2CommandOf 有 timelineReady 守卫兜底）。
-                //
-                // ⚠️ 2026-10-10 修复 digest 同步 gap（w1-backend + w3-health 独立发现）：
-                //   原来这段在 V2 分支**里面**（`if inferenceEngineV2.isLoaded { ... }`），
-                //   M9 回退分支（else）和待机（`guard isDriving else { return }`）都走不到
-                //   → controlEngine.digestMode 和 globalDigest 不更新 → 鼠标在 digest 下仍真注入。
-                //   修法：提到 if/else 之前，**无条件每帧同步**（1 行挪位置，零行为变更）。
-                if controlEngine.digestMode != digestMode {
-                    controlEngine.digestMode = digestMode
-                }
+                // ⚠️ 消化模式同步已上移到 `guard isDriving` 之前（无条件每帧执行），
+                //   此处不再重复 —— 覆盖待机 + M9 回退 + V2 三条路径。
                 if inferenceEngineV2.isLoaded {
                     // ── V2 路径：构造 5 路输入 ──
                     var k2 = V2Kinematics()
