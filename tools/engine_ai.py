@@ -52,6 +52,13 @@
     python3 tools/engine_ai.py start
     python3 tools/engine_ai.py stop
 
+    # 消化模式：控制输出喂给消化器，不碰系统键盘（安全测试用）
+    python3 tools/engine_ai.py digest on
+    python3 tools/engine_ai.py digest off
+
+    # 消化模式 + 开始驾驶（一步到位，第一帧起就是消化态）
+    python3 tools/engine_ai.py start --digest
+
     # 切换捕获源
     python3 tools/engine_ai.py capture fullscreen
     python3 tools/engine_ai.py capture window 12345
@@ -326,6 +333,12 @@ class EngineClient:
         """
         cmd_id = payload.get("id")
         cmd_type = payload.get("type")
+        # 每条命令重置收集器：`start --digest` 同连接发 config+start 两条命令，
+        # 若不重置，第一条 config 收集的心跳会串进第二条 start 的降级判断。
+        self.seen_heartbeats = []
+        self._stray_acks = []
+        self._others = []
+        self._saw_any_ack = False
         self.send_json(payload)
         start = time.time()
         deadline = start + self.timeout
@@ -521,7 +534,27 @@ def cmd_record(client: EngineClient, args) -> int:
     return _run_simple(client, payload, args, f"录制 {args.state}")
 
 
+def cmd_digest(client: EngineClient, args) -> int:
+    """消化模式开关：发 {"type":"config","digest":true/false,"id":...}。
+
+    语义：消化态下引擎把控制输出**喂给消化器而非系统键盘**（安全测试不碰真键盘），
+    等价于 UI 点「消化模式」按钮。详见 ControlEngine.digestMode。
+    """
+    on = (args.state == "on")
+    payload = make_command("config", digest=on)
+    return _run_simple(client, payload, args, f"消化模式 {args.state}")
+
+
 def cmd_start(client: EngineClient, args) -> int:
+    # --digest：先开消化模式再 start，保证第一帧 tick 起就是消化态
+    # （先 start 再开 digest 会有"首帧真注入"的空窗，不安全）
+    if getattr(args, "digest", False):
+        cfg_payload = make_command("config", digest=True)
+        rc = _run_simple(client, cfg_payload, args, "预置消化模式")
+        if rc != EXIT_OK:
+            warn("预置消化模式失败，已中止 start（未发 start 命令）")
+            return rc
+        info("消化模式已开 → 开始驾驶（控制输出喂给消化器，不碰系统键盘）")
     return _run_simple(client, make_command("start"), args, "开始驾驶")
 
 
@@ -720,7 +753,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("state", help="查询引擎状态（格式化 JSON）")
 
-    sub.add_parser("start", help="开始驾驶")
+    st = sub.add_parser("start", help="开始驾驶")
+    st.add_argument("--digest", action="store_true",
+                    help="先开消化模式再 start（控制输出喂给消化器，不碰系统键盘；安全测试用）")
     sub.add_parser("stop", help="停止驾驶")
 
     cap = sub.add_parser("capture", help="切换捕获源")
@@ -733,6 +768,9 @@ def build_parser() -> argparse.ArgumentParser:
     rec.add_argument("state", choices=["on", "off"], help="on=开始录制，off=停止")
     rec.add_argument("--perspective", choices=["first", "third"], default="first",
                      help="录制视角（默认 first；third=第三人称）")
+
+    dig = sub.add_parser("digest", help="消化模式开关（控制输出喂给消化器，不碰系统键盘）")
+    dig.add_argument("state", choices=["on", "off"], help="on=开消化模式，off=关")
 
     w = sub.add_parser("wait", help="轮询 state 直到条件满足")
     w.add_argument("field", help="字段名（支持点号路径，如 state.isDriving）")
@@ -777,6 +815,7 @@ def main(argv: list[str] | None = None) -> int:
         "stop": cmd_stop,
         "capture": cmd_capture,
         "record": cmd_record,
+        "digest": cmd_digest,
         "wait": cmd_wait,
         "raw": cmd_raw,
     }

@@ -7067,6 +7067,15 @@ final class DriveState {
                 //   → V2 infer 从不被调 → V2 永远不激活 → 旧 M9（throttle=0.94）永远在开车
                 //   修复：去掉 timelineReady 门，让 V2 infer 从第一帧就跑（冷启动时
                 //   内部 push 帧但不产结果，v2CommandOf 有 timelineReady 守卫兜底）。
+                //
+                // ⚠️ 2026-10-10 修复 digest 同步 gap（w1-backend + w3-health 独立发现）：
+                //   原来这段在 V2 分支**里面**（`if inferenceEngineV2.isLoaded { ... }`），
+                //   M9 回退分支（else）和待机（`guard isDriving else { return }`）都走不到
+                //   → controlEngine.digestMode 和 globalDigest 不更新 → 鼠标在 digest 下仍真注入。
+                //   修法：提到 if/else 之前，**无条件每帧同步**（1 行挪位置，零行为变更）。
+                if controlEngine.digestMode != digestMode {
+                    controlEngine.digestMode = digestMode
+                }
                 if inferenceEngineV2.isLoaded {
                     // ── V2 路径：构造 5 路输入 ──
                     var k2 = V2Kinematics()
@@ -7096,11 +7105,7 @@ final class DriveState {
                     }
                     // W5：同步赛道模式开关到引擎（世界模型输入 track_mode）
                     inferenceEngineV2.trackMode = trackMode
-                    // 消化模式：同步 UI 开关到本进程的 ControlEngine（引擎模式下本
-                    //   进程不注入，但 UI 直跑模式需要；且进程级 globalDigest 供鼠标用）
-                    if controlEngine.digestMode != digestMode {
-                        controlEngine.digestMode = digestMode
-                    }
+                    // 消化模式同步已移到 if/else 之前（无条件执行），此处不再重复
                     inferenceEngineV2.infer(image: cg,
                                             kinematics: k2,
                                             detections: effectiveDetections,
