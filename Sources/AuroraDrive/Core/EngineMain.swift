@@ -1099,6 +1099,9 @@ enum EngineMain {
                 "v2Split": false,
                 "worldModel": false,
                 "trackMode": 0.0,
+                "digestMode": false,
+                "digestedEvents": 0,
+                "postedEvents": 0,
                 "yoloLoaded": false,
                 "yolopxLoaded": false,
                 "pid": Int(getpid()),
@@ -1129,6 +1132,11 @@ enum EngineMain {
             "v2Split": st.inferenceEngineV2.useSplitModels,
             "worldModel": st.inferenceEngineV2.worldModelLoaded,
             "trackMode": Double(st.inferenceEngineV2.trackModeValue),
+            // 消化模式（2026-10-10）：供 AI/脚本确认「按键是否被消化」，
+            //   与 digestedEventCount 一起做「链路活但零注入」的证据。
+            "digestMode": st.controlEngine.digestMode,
+            "digestedEvents": st.controlEngine.digestedEventCount,
+            "postedEvents": st.controlEngine.postedEventCount,
             "yoloLoaded": st.yoloEngine.isLoaded,
             "yolopxLoaded": st.yolopxEngine.isLoaded,
             "pid": Int(getpid()),
@@ -1320,8 +1328,15 @@ enum EngineMain {
                     if let v = cGlyph { st.glyphMode = v }
                     if let v = cThresh { st.degradeThreshold = v }
                     // 消化模式：同步到引擎的 ControlEngine（唯一真注入方）
-                    if let v = cDigest, st.controlEngine.digestMode != v {
-                        st.controlEngine.digestMode = v
+                    // ⚠️ 必须**同时**改 st.digestMode（DriveState 属性）——
+                    //   否则下一帧 tick 的同步段 `if controlEngine.digestMode != digestMode`
+                    //   会用旧的 st.digestMode（false）把 controlEngine.digestMode
+                    //   改回来 = 消化模式开了立刻被关掉（用户报「没任何用处」的根因）。
+                    if let v = cDigest {
+                        st.digestMode = v
+                        if st.controlEngine.digestMode != v {
+                            st.controlEngine.digestMode = v
+                        }
                         engineLog("[ENGINE] 🧪 消化模式\(v ? " ON（不真发按键）" : " OFF（恢复真注入）")")
                     }
                     // speedLimit 不是「显示项」：它经 InferenceEngine 变成
