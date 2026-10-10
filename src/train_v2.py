@@ -261,7 +261,14 @@ def build_v2_dataset(clips_dir, image_size, augment, view_filter, seed, num_dets
         else:
             kwargs = dict(clips_dir=clips_dir, image_size=image_size, augment=augment,
                           view_filter=view_filter, seed=seed, num_dets=num_dets,
-                          enable_world_model=enable_world_model)
+                          enable_world_model=enable_world_model,
+                          # ⚠️ 2026-10-10 显式指定 heading 单位（w8-verify 录制验证 G 发现）：
+                          #   录制端 RecordEngine 写的 heading 来自 CoordinateCapture，
+                          #   单位是**度** [0,360)（dataset_v2.py:78 注释明确）。
+                          #   若走默认 "auto"，_infer_heading_unit 按 max(|h|) > 6.783 猜单位
+                          #   —— 车头全程朝北附近（0~6.78°）时会误判为 rad，把度当弧度
+                          #   用 → sin/cos 误差可达 57.3 倍。一行修，零行为变更。
+                          heading_unit="deg")
             sig = inspect.signature(cls)
             if not any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
                 kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
