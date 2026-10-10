@@ -266,7 +266,7 @@ final class EgoMotionModel {
         //   原 typicalDt=1/30 在 45Hz 下（dt≈1/45=0.0222）偏离 **33%**，
         //   距 50% 降置信阈值只剩 17% 余量 —— 任何帧率抖动都会误降置信。
         //   改为 1/45 与新的主循环帧率一致。
-        let typicalDt = 1.0 / 45.0
+        let typicalDt = 1.0 / 30.0
         let dtDeviation = abs(dt - typicalDt) / typicalDt
         if dtDeviation > 0.5 { conf *= 0.5 }
 

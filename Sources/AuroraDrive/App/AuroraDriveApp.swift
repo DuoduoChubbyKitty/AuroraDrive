@@ -7062,7 +7062,11 @@ final class DriveState {
             return
         }
 
-        let dt = 1.0 / 45.0
+        // ⚠️ 2026-10-11 改回 1/30：tick 是 30Hz（见 `EngineMain.engineTickHz` 的长注释
+        //   —— 45Hz 下 yolopx+V2 装不下 22.2ms 预算，会卡死）。
+        //   抓屏侧仍是 45fps（画面流），两者解耦：本 dt 只用于 tick 内的物理计算
+        //   （光流/加速度/状态机），必须与 tick 频率一致，否则换算全错。
+        let dt = 1.0 / 30.0
 
         // ── 1. 感知层：双驾驶模型推理 + YOLO 检测 ──
         // 异步触发推理（不阻塞 tick），读 lastResult 作为本帧输出

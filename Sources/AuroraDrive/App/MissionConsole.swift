@@ -6032,7 +6032,7 @@ struct ContentView: View {
         // 优先级队列上运行，不受 App Nap 影响。
         let timerQueue = DispatchQueue(label: "com.aurora.tick", qos: .userInteractive)
         let timer = DispatchSource.makeTimerSource(queue: timerQueue)
-        timer.schedule(deadline: .now(), repeating: 1.0 / 45.0, leeway: .nanoseconds(0))
+        timer.schedule(deadline: .now(), repeating: 1.0 / 30.0, leeway: .nanoseconds(0))
         // ⚠️ 性能关键：不要无条件按 45Hz 往主线程投递 tick。
         //
         // 每次投递都会让 SwiftUI 走一遍事务 → 重新计算整棵视图树的布局

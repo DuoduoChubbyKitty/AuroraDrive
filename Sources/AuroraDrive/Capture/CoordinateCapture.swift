@@ -671,7 +671,7 @@ final class CoordinateCapture {
     private var sample: Pose?
     private var sampleAt: Double = 0
     private var lastSampleWall: Double = 0
-    private let interval: Double = 1.0 / 45.0
+    private let interval: Double = 1.0 / 30.0
     private var running = false
     private let lock = NSLock()
 
