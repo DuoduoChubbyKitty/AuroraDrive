@@ -211,6 +211,13 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
 
     /// [cap-deep] 帧到达计数（诊断用：确认 SCStream 回调真的在跑）
     private var _deepFrameCounter = 0
+
+    /// 抓屏累计帧数（**公开可读**，供 `state` 查询判断"抓屏是否真的活着"）。
+    ///
+    /// 【为什么需要它】`recordEngine.frameCount` 是**录制帧数**，不开录制恒为 0 ——
+    ///   AI/脚本用 `frames` 断言"抓屏活着"会必然误判（w8-verify task-63 发现 P4）。
+    ///   本计数在每次帧回调递增，与是否录制无关。
+    private(set) var capturedFrameCount: Int = 0
     private var _captureFPS: Double = 0
     private var _lastFrameGapMs: Double = 0
     private var _lastFrameWorkMs: Double = 0
@@ -860,6 +867,8 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
 
         // [cap-deep] 帧到达探针：前 3 帧必打，之后每 60 帧打一次（~2s@30fps）
         _deepFrameCounter += 1
+        // 公开计数：供 `state.captureFrames` 判断抓屏是否活着（与是否录制无关）
+        capturedFrameCount = _deepFrameCounter
         if _deepFrameCounter <= 3 || _deepFrameCounter % 60 == 0 {
             print("[cap-deep] 📥 帧到达 #\(_deepFrameCounter) status=\(sampleBuffer.isValid ? "valid" : "INVALID")")
         }

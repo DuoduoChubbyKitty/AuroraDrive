@@ -38,6 +38,7 @@ import Foundation
 import Darwin
 import AppKit
 import ApplicationServices
+import ScreenCaptureKit   // validateWindowExists 枚举可捕获窗口用（P2 修复）
 
 // shm_open 在 C 声明为可变参数函数（oflag 含 O_CREAT 时才传 mode），
 // Swift 无法直接导入可变参数 C 函数；此处桥接为固定 3 参版本。
@@ -1018,11 +1019,47 @@ enum EngineMain {
         guard let st = EngineGlobals.state else {
             return (capMode, "引擎状态未就绪（EngineGlobals.state == nil）")
         }
+
+        // ⚠️ 2026-10-10 修复 P2【未捕获时谎报成功】（w8-verify task-63 独立发现）：
+        //   未在捕获时 `applyMode` 走早退分支（只记期望、**不校验窗口存在性**、
+        //   不写 `lastModeError`）→ 本函数返回 error=nil → ack 报 `ok=true`，
+        //   但该窗口可能根本不存在。后续 `start()` 才在引擎日志里暴露
+        //   「目标窗口 #N 已不存在 → 画面流失败」—— **ack 说了谎**。
+        //   修法：未捕获时**提前校验窗口存在性**（枚举一次 SCShareableContent），
+        //   不存在则直接返回错误，不让 ok=true 溜出去。
+        //   注意：这里只在**窗口模式**下多付一次枚举成本；全屏模式不需要校验。
+        if !st.captureEngine.isCapturing, case .window(let wid) = capMode {
+            if let err = await validateWindowExists(windowID: wid) {
+                return (capMode, err)
+            }
+        }
+
         await st.captureEngine.applyMode(capMode)
         // applyMode 无返回值：成功与否看它是否写入 lastModeError（见 CaptureEngine 注释：
         // 「失败处理：保持原模式不变，把原因写进 lastModeError」）。
         // ⚠️ 必须在 await 之后再读 —— applyMode 是 async，读早了拿不到本次结果。
-        return (capMode, st.captureEngine.lastModeError)
+        let err = st.captureEngine.lastModeError
+        if err != nil {
+            // P3 修复：失败时返回**实际生效的模式**（captureMode），不是请求的模式 ——
+            //   否则调用方只读 data.captureMode 会误以为切换成功。
+            return (st.captureEngine.captureMode, err)
+        }
+        return (capMode, nil)
+    }
+
+    /// 校验某个窗口当前是否可捕获（未捕获状态下用）。
+    /// - Returns: 不存在时返回错误描述；存在返回 nil。
+    @MainActor
+    private static func validateWindowExists(windowID: CGWindowID) async -> String? {
+        do {
+            let content = try await SCShareableContent.current
+            if CaptureEngine.findWindow(id: windowID, in: content) == nil {
+                return "窗口 #\(windowID) 已不存在（可能已关闭）"
+            }
+            return nil
+        } catch {
+            return "无法获取窗口列表（\(error.localizedDescription)）"
+        }
     }
 
     /// 组装 `state` 查询的结构化结果。
@@ -1041,6 +1078,10 @@ enum EngineMain {
                 "driving": false,
                 "isStreaming": false,
                 "frames": 0,
+                // P4（w8-verify 发现）：`frames` 是**录制帧数**（recordEngine.frameCount），
+                // 不开录制恒为 0 —— 断言"抓屏活着"会误判。`captureFrames` 才是
+                // 抓屏累计帧数（CaptureEngine 的帧回调计数），任何时候都反映抓屏是否在跑。
+                "captureFrames": 0,
                 "publishedSeq": Int(EngineGlobals.shm?.publishedSeq ?? 0),
                 "hasFrame": false,
                 "fps": 0.0,
@@ -1070,6 +1111,7 @@ enum EngineMain {
             "driving": st.isDriving,
             "isStreaming": st.isStreaming,
             "frames": st.recordEngine.frameCount,
+            "captureFrames": st.captureEngine.capturedFrameCount,
             "publishedSeq": Int(EngineGlobals.shm?.publishedSeq ?? 0),
             "hasFrame": st.currentFrameCG != nil,
             "fps": fps,
@@ -1341,6 +1383,17 @@ enum EngineMain {
                 var detail: String
                 if let err {
                     detail = err
+                    // ⚠️ P3 修复（w8-verify task-63 独立发现）：失败时 `capMode` 是
+                    //   **请求的**模式，而实际生效的是 `captureEngine.captureMode`
+                    //   （applyMode 失败保持原模式）。若 data 里报请求值，调用方只读
+                    //   data 会误以为切换成功了 —— 与 detail 自相矛盾。
+                    //   故失败时改写为**实际生效模式**，并把请求值另存 requestedMode。
+                    let actual = EngineGlobals.state?.captureEngine.captureMode
+                    data["requestedMode"] = capMode.label
+                    data["captureMode"] = actual?.label ?? "unknown"
+                    data["mode"] = (actual?.isWindowMode ?? false) ? "window" : "fullscreen"
+                    data.removeValue(forKey: "windowID")
+                    if case .window(let id) = actual { data["windowID"] = Int(id) }
                 } else if windowModeMissingID {
                     detail = "mode=window 但未提供 windowID → 已按原语义回落全屏（\(capMode.label)）"
                 } else {
