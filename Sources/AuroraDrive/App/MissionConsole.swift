@@ -1743,25 +1743,88 @@ struct MiniMapCard: View {
         ConsoleCard {
             VStack(alignment: .leading, spacing: 0) {
                 CardHead(title: "小地图 · 网络定位") {
-                    Button(action: onOpen) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "map")
-                                .font(.system(size: 9, weight: .medium))
-                            Text("打开大地图")
-                                .font(.system(size: 9.5))
+                    HStack(spacing: 8) {
+                        digestButton
+                        Button(action: onOpen) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "map")
+                                    .font(.system(size: 9, weight: .medium))
+                                Text("打开大地图")
+                                    .font(.system(size: 9.5))
+                            }
+                            .foregroundStyle(Aurora.ice)
+                            .padding(.horizontal, 9).padding(.vertical, 4)
+                            .background(Capsule().fill(Aurora.iceWash))
+                            .overlay(Capsule().strokeBorder(Aurora.iceLo, lineWidth: 1))
                         }
-                        .foregroundStyle(Aurora.ice)
-                        .padding(.horizontal, 9).padding(.vertical, 4)
-                        .background(Capsule().fill(Aurora.iceWash))
-                        .overlay(Capsule().strokeBorder(Aurora.iceLo, lineWidth: 1))
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                }
+
+                // 消化模式横幅：开启时**必须显眼**（隐蔽开关是排查噩梦）
+                if state.digestMode {
+                    digestBanner
                 }
 
                 MiniMapCanvas(state: state)
 
                 NavLine(state: state).padding(.top, 10)
             }
+        }
+    }
+
+    // MARK: 消化模式按钮
+    //
+    // 【位置】小地图卡片头、网络定位区域上方（用户点名位置）。
+    // 【语义】开启后：按键/鼠标链路照常跑（决策/heldKeys/计数/日志全在），
+    //   但**不真发 CGEvent** —— 测试时绝不打扰系统（游戏/聊天软件都不受影响）。
+    // 【为什么按钮要变色+带图标】用户明确要求「必须能一眼看出开着」——
+    //   隐蔽的开关会导致排查非常久（忘了有这回事）。
+    private var digestButton: some View {
+        Button {
+            state.digestMode.toggle()
+            // 引擎模式：立刻把开关下发给**真正注入按键的引擎进程**
+            //（不下发 = UI 显示已消化、引擎照旧真按键，最危险的不一致）
+            if EngineClient.shared.isActive {
+                _ = EngineClient.shared.sendCommand("config", extra: ["digest": state.digestMode])
+            }
+            print("[UI] 🧪 消化模式 \(state.digestMode ? "ON（按键被消化，不打扰系统）" : "OFF（恢复真按键！）")")
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: state.digestMode ? "shield.lefthalf.filled" : "shield")
+                    .font(.system(size: 9, weight: .medium))
+                Text(state.digestMode ? "消化中" : "消化模式")
+                    .font(.system(size: 9.5, weight: state.digestMode ? .semibold : .regular))
+            }
+            .foregroundStyle(state.digestMode ? Color.black : Aurora.t2)
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .background(Capsule().fill(state.digestMode ? Aurora.amber : Aurora.iceWash))
+            .overlay(Capsule().strokeBorder(state.digestMode ? Aurora.amber : Aurora.iceLo,
+                                            lineWidth: state.digestMode ? 1.5 : 1))
+        }
+        .buttonStyle(.plain)
+        .help(state.digestMode
+              ? "消化模式已开启：按键链路照跑，但不会真的注入到系统（不会打扰游戏/聊天软件）。点击关闭 → 恢复正常注入。"
+              : "消化模式：开启后 AI/测试可完整驱动驾驶逻辑，但按键不会真的注入系统 —— 不会打扰游戏或聊天软件。")
+    }
+
+    /// 消化模式横幅（开启时显示在卡片头下方，一眼可见）
+    private var digestBanner: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "shield.lefthalf.filled")
+                .font(.system(size: 10, weight: .semibold))
+            Text("消化模式 · 按键不真发")
+                .font(.system(size: Aurora.fsMicro, weight: .semibold))
+            Spacer()
+            Text("已消化 \(state.controlEngine.digestedEventCount)")
+                .font(.system(size: Aurora.fsMicro))
+                .monospacedDigit()
+        }
+        .foregroundStyle(Aurora.amber)
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(Aurora.amber.opacity(0.12))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Aurora.amber.opacity(0.35)).frame(height: 1)
         }
     }
 }

@@ -949,6 +949,150 @@ enum EngineMain {
 
     // MARK: - 命令处理
 
+    /// 把任意 JSON 标量转成字符串（用于 ack 的 id 原样回显）。
+    ///
+    /// 为什么不用 `as? String`：AI/脚本可能用数字做关联 id（`{"id": 7}`），
+    /// 只认 String 会让 `{"id":7}` 被当成"没有 id"而静默不回执 —— 正是本任务要消除的
+    /// "发完命令不知道成没成"。这里把 Int/Double/Bool/String 都转成 String，
+    /// 回显时**原样**（数字 7 回 "7"，字符串 "a" 回 "a"）。
+    private static func ackIDString(_ raw: Any?) -> String? {
+        switch raw {
+        case let s as String:  return s
+        case let b as Bool:    return b ? "true" : "false"
+        case let i as Int:     return String(i)
+        case let d as Double:
+            // 整数值的 Double（JSON 里 7 有时被解析成 7.0）回 "7" 而非 "7.0"，更贴近原样
+            return d == d.rounded() && abs(d) < 1e15 ? String(Int(d)) : String(d)
+        case let n as NSNumber: return n.stringValue
+        default:               return nil
+        }
+    }
+
+    /// 组装并发送一条 ack。
+    ///
+    /// 契约（task-A）：
+    ///   `{"type":"ack","id":"<原样>","cmd":"<type>","ok":bool,"detail":"<人类可读>","data":{...}}`
+    ///   · **只有入参带 id 时才发**（`id` 为 nil 时本函数直接 return）→ 向后兼容，
+    ///     现有 UI 的 start/stop/config/set_capture_mode 调用点一个字节都不受影响。
+    ///   · `data` 为空字典时省略该字段（保持行紧凑）。
+    ///   · ok 语义：**真的执行了才 true**；参数非法/前置条件不满足 → false + detail 说明原因。
+    ///     不许谎报成功。
+    static func sendAck(id: String?, cmd: String, ok: Bool,
+                        detail: String, data: [String: Any]? = nil,
+                        server: EngineSocketServer) {
+        guard let id else { return }        // ★ 无 id → 完全不回（向后兼容硬要求）
+        var obj: [String: Any] = [
+            "type": "ack",
+            "id": id,
+            "cmd": cmd,
+            "ok": ok,
+            "detail": detail,
+        ]
+        if let data, !data.isEmpty { obj["data"] = data }
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: obj),
+              let json = String(data: jsonData, encoding: .utf8) else {
+            engineLog("[ENGINE] ⚠️ ack 序列化失败: cmd=\(cmd)")
+            return
+        }
+        server.send(json)
+    }
+
+    /// 捕获模式切换的**唯一实现**（`set_capture_mode` 与 `capture` 共用，避免两份实现漂移）。
+    ///
+    /// 语义与改造前的 `set_capture_mode` **逐字一致**（含非法参数回落全屏的行为），
+    /// 但把结果（成功/失败原因）通过 completion 交回，供 ack 如实上报。
+    ///
+    /// - Returns（经 completion）：`(实际生效模式, 错误原因或 nil)`
+    ///   · 成功 → error 为 nil
+    ///   · 窗口不存在 / 权限变化 → error 为 `captureEngine.lastModeError` 的原文
+    @MainActor
+    private static func performCaptureModeSwitch(modeStr: String, windowID: Int?) async
+        -> (mode: CaptureMode, error: String?) {
+        // 参数解析与改造前一致：mode=="window" 且有 windowID → 窗口模式，否则全屏
+        let capMode: CaptureMode
+        if modeStr == "window", let id = windowID {
+            capMode = .window(id: CGWindowID(truncatingIfNeeded: id))
+        } else {
+            capMode = .fullScreen
+        }
+        guard let st = EngineGlobals.state else {
+            return (capMode, "引擎状态未就绪（EngineGlobals.state == nil）")
+        }
+        await st.captureEngine.applyMode(capMode)
+        // applyMode 无返回值：成功与否看它是否写入 lastModeError（见 CaptureEngine 注释：
+        // 「失败处理：保持原模式不变，把原因写进 lastModeError」）。
+        // ⚠️ 必须在 await 之后再读 —— applyMode 是 async，读早了拿不到本次结果。
+        return (capMode, st.captureEngine.lastModeError)
+    }
+
+    /// 组装 `state` 查询的结构化结果。
+    ///
+    /// 【安全取值】引擎刚启动 / 模型未加载 / state 尚未建立时**都不能崩**：
+    ///   · `EngineGlobals.state == nil` → 全部字段走默认值，并置 `ready=false`
+    ///   · 每个可选量都用 `?.` + `?? 默认值`，不做强制解包
+    /// 【单位】speedKmh / effectiveSpeed 为 km/h；confidence 为 0~1；trackMode 为 0/1 数值。
+    @MainActor
+    private static func buildStateSnapshot() -> [String: Any] {
+        guard let st = EngineGlobals.state else {
+            // 状态未建立：给一份"全默认"快照，字段名与正常路径**完全一致**
+            // （AI 侧无需区分两种形状，缺的只是值）
+            return [
+                "ready": false,
+                "driving": false,
+                "isStreaming": false,
+                "frames": 0,
+                "publishedSeq": Int(EngineGlobals.shm?.publishedSeq ?? 0),
+                "hasFrame": false,
+                "fps": 0.0,
+                "mode": "unknown",
+                "speedKmh": 0.0,
+                "effectiveSpeed": 0.0,
+                "confidence": 0.0,
+                "detections": 0,
+                "captureMode": "unknown",
+                "isCapturing": false,
+                "desiredMode": "unknown",
+                "lastModeError": NSNull(),
+                "recording": false,
+                "v2Loaded": false,
+                "v2Split": false,
+                "worldModel": false,
+                "trackMode": 0.0,
+                "yoloLoaded": false,
+                "yolopxLoaded": false,
+                "pid": Int(getpid()),
+            ]
+        }
+        let fps = st.captureEngine.captureFPS > 0 ? st.captureEngine.captureFPS : st.fps
+        let lastErr: Any = st.captureEngine.lastModeError ?? NSNull()
+        return [
+            "ready": true,
+            "driving": st.isDriving,
+            "isStreaming": st.isStreaming,
+            "frames": st.recordEngine.frameCount,
+            "publishedSeq": Int(EngineGlobals.shm?.publishedSeq ?? 0),
+            "hasFrame": st.currentFrameCG != nil,
+            "fps": fps,
+            "mode": st.mode.rawValue,
+            "speedKmh": st.speedKmh,
+            "effectiveSpeed": st.effectiveSpeed,
+            "confidence": st.confidence,
+            "detections": st.yoloEngine.detections.count,
+            "captureMode": st.captureEngine.captureMode.label,
+            "isCapturing": st.captureEngine.isCapturing,
+            "desiredMode": st.captureEngine.desiredMode.label,
+            "lastModeError": lastErr,
+            "recording": st.isRecording,
+            "v2Loaded": st.inferenceEngineV2.isLoaded,
+            "v2Split": st.inferenceEngineV2.useSplitModels,
+            "worldModel": st.inferenceEngineV2.worldModelLoaded,
+            "trackMode": Double(st.inferenceEngineV2.trackModeValue),
+            "yoloLoaded": st.yoloEngine.isLoaded,
+            "yolopxLoaded": st.yolopxEngine.isLoaded,
+            "pid": Int(getpid()),
+        ]
+    }
+
     static func handleCommand(_ line: String, server: EngineSocketServer) {
         guard let data = line.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -957,6 +1101,9 @@ enum EngineMain {
             return
         }
         engineLog("[ENGINE] 收到命令: \(type)")
+        // ★ task-A：关联 id（任意 JSON 标量 → String）。为 nil 时**所有 ack 都不发**，
+        //   行为与改造前逐字一致（现有 UI 调用点不带 id）。
+        let ackID = ackIDString(obj["id"])
         switch type {
         case "start":
             DispatchQueue.main.async {
@@ -964,6 +1111,11 @@ enum EngineMain {
                     EngineGlobals.clientSaidBye = false
                     EngineGlobals.state?.startDriving()
                     engineLog("[ENGINE] startDriving → isDriving=\(EngineGlobals.state?.isDriving ?? false)")
+                    let driving = EngineGlobals.state?.isDriving ?? false
+                    EngineMain.sendAck(
+                        id: ackID, cmd: type, ok: driving,
+                        detail: driving ? "已开始驾驶" : "start 已下发，但 isDriving 仍为 false（状态未就绪）",
+                        data: ["driving": driving], server: server)
                 }
             }
         case "stop":
@@ -971,6 +1123,11 @@ enum EngineMain {
                 MainActor.assumeIsolated {
                     EngineGlobals.state?.stopDriving()
                     engineLog("[ENGINE] stopDriving 完成（按键已释放）")
+                    let driving = EngineGlobals.state?.isDriving ?? false
+                    EngineMain.sendAck(
+                        id: ackID, cmd: type, ok: !driving,
+                        detail: driving ? "stop 已下发，但 isDriving 仍为 true" : "已停止驾驶（按键已释放）",
+                        data: ["driving": driving], server: server)
                 }
             }
         case "bye":
@@ -978,12 +1135,21 @@ enum EngineMain {
                 MainActor.assumeIsolated {
                     EngineGlobals.clientSaidBye = true
                     EngineMain.pauseDriving("bye")
+                    EngineMain.sendAck(
+                        id: ackID, cmd: type, ok: true,
+                        detail: "已接收 bye：暂停驾驶并释放全部按键",
+                        data: ["driving": EngineGlobals.state?.isDriving ?? false], server: server)
                 }
             }
         case "status":
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     EngineMain.sendHeartbeat(reason: "status-query")
+                    // status 的 ack 直接带完整快照（AI 一次调用就能拿到全部状态）
+                    EngineMain.sendAck(
+                        id: ackID, cmd: type, ok: true,
+                        detail: "已回发心跳 + 状态快照",
+                        data: EngineMain.buildStateSnapshot(), server: server)
                 }
             }
         case "upscale":
@@ -993,6 +1159,10 @@ enum EngineMain {
                 MainActor.assumeIsolated {
                     EngineGlobals.wantFullFrame = on
                     engineLog("[ENGINE] 画面档位切换：\(on ? "全分辨率（插帧/清晰）" : "480 宽缩略（省带宽）")")
+                    EngineMain.sendAck(
+                        id: ackID, cmd: type, ok: true,
+                        detail: on ? "已切到全分辨率帧" : "已切到 480 宽缩略帧",
+                        data: ["wantFullFrame": on], server: server)
                 }
             }
         case "record":
@@ -1017,7 +1187,12 @@ enum EngineMain {
                 (obj["perspective"] as? String) ?? "first")
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let st = EngineGlobals.state else { return }
+                    guard let st = EngineGlobals.state else {
+                        EngineMain.sendAck(id: ackID, cmd: type, ok: false,
+                                           detail: "引擎状态未就绪（EngineGlobals.state == nil）",
+                                           server: server)
+                        return
+                    }
                     st.glyphMode = recGlyph
                     st.expertMode = recExpert
                     // 同步视角到引擎侧 DriveState：`isRecording` 的 didSet 也会读
@@ -1040,6 +1215,13 @@ enum EngineMain {
                     // 立即回执：心跳周期 1s，不即时上报的话 UI 会先看到「还没录」，
                     // 把开关弹回去（UI 侧也有宽限期，这里是双保险）。
                     EngineMain.sendHeartbeat(reason: "record-ack")
+                    // ok 以"实际是否处于请求的状态"为准，不谎报
+                    EngineMain.sendAck(
+                        id: ackID, cmd: type, ok: st.isRecording == recOn,
+                        detail: "录制\(recOn ? "开始" : "停止")：视角=\(recPerspective)(\(viewLabel)) 会话=\(dir)",
+                        data: ["recording": st.isRecording, "frames": st.recordEngine.frameCount,
+                               "session": dir, "perspective": recPerspective],
+                        server: server)
                 }
             }
         case "reloadmodel":
@@ -1048,11 +1230,22 @@ enum EngineMain {
             // 引擎会一直用内存里的旧模型 →「训练完了但车还按老模型开」。
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let st = EngineGlobals.state else { return }
+                    guard let st = EngineGlobals.state else {
+                        EngineMain.sendAck(id: ackID, cmd: type, ok: false,
+                                           detail: "引擎状态未就绪（EngineGlobals.state == nil）",
+                                           server: server)
+                        return
+                    }
                     st.inferenceEngine.reloadModel()
                     st.assistEngine.reloadModel()
                     st.yoloEngine.reloadModel()
                     engineLog("[ENGINE] 模型热替换：主驾/副驾/YOLO 三引擎已置空，下次推理重读磁盘")
+                    // 语义说明：本命令只"置空待重载"，真正读盘发生在下一次推理。
+                    // 因此 ok=true 表示"已受理"，detail 写清"下次推理时生效"，不谎称"已加载新模型"。
+                    EngineMain.sendAck(
+                        id: ackID, cmd: type, ok: true,
+                        detail: "已置空主驾/副驾/YOLO 三引擎，下次推理时重读磁盘（本命令不阻塞等加载）",
+                        server: server)
                 }
             }
         case "config":
@@ -1067,44 +1260,123 @@ enum EngineMain {
             let cGlyph = obj["glyph"] as? Bool
             let cThresh = obj["degradeThreshold"] as? Double
             let cSpeedLimit = obj["speedLimit"] as? Double
+            // 消化模式：真正注入按键的是**引擎进程**，UI 侧开关必须下发到这里，
+            //   否则「UI 显示已消化、引擎照旧真按键」—— 那是最危险的不一致。
+            let cDigest = obj["digest"] as? Bool
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let st = EngineGlobals.state else { return }
+                    guard let st = EngineGlobals.state else {
+                        EngineMain.sendAck(id: ackID, cmd: type, ok: false,
+                                           detail: "引擎状态未就绪（EngineGlobals.state == nil）",
+                                           server: server)
+                        return
+                    }
                     if let v = cSport { st.sportMode = v }
                     if let v = cCtrlDisabled { st.controlDisabled = v }
                     if let v = cForceRule { st.forceRuleMode = v }
                     if let v = cExpert { st.expertMode = v }
                     if let v = cGlyph { st.glyphMode = v }
                     if let v = cThresh { st.degradeThreshold = v }
+                    // 消化模式：同步到引擎的 ControlEngine（唯一真注入方）
+                    if let v = cDigest, st.controlEngine.digestMode != v {
+                        st.controlEngine.digestMode = v
+                        engineLog("[ENGINE] 🧪 消化模式\(v ? " ON（不真发按键）" : " OFF（恢复真注入）")")
+                    }
                     // speedLimit 不是「显示项」：它经 InferenceEngine 变成
                     // vehicle_state[4] = speed_limit_norm 直接参与推理，不同步会
                     // 让 UI 显示 40 而模型仍按 120 决策。
                     if let v = cSpeedLimit { st.speedLimit = v }
+                    // 如实回显"本次真正写入了哪些键"（未传的键不写、也不虚报）
+                    var applied: [String: Any] = [:]
+                    if let v = cSport { applied["sport"] = v }
+                    if let v = cCtrlDisabled { applied["controlDisabled"] = v }
+                    if let v = cForceRule { applied["forceRule"] = v }
+                    if let v = cExpert { applied["expert"] = v }
+                    if let v = cGlyph { applied["glyph"] = v }
+                    if let v = cThresh { applied["degradeThreshold"] = v }
+                    if let v = cSpeedLimit { applied["speedLimit"] = v }
+                    EngineMain.sendAck(
+                        id: ackID, cmd: type, ok: true,
+                        detail: applied.isEmpty ? "config 未包含任何可识别字段（无改动）"
+                                                : "已同步 \(applied.count) 个参数",
+                        data: ["applied": applied], server: server)
                 }
             }
-        case "set_capture_mode":
+        case "set_capture_mode", "capture":
             // UI 预览框拉条点选「录全屏」或某个窗口 → 引擎执行真正的 filter 切换。
             // 引擎模式下 UI 的 captureEngine 是空壳（isCapturing=false），不转发就是
             // 「点了没反应」（用户原话）。
+            //
+            // ★ task-A：`capture` 是 `set_capture_mode` 的 AI 友好别名，语义**完全相同**，
+            //   两者都走下面同一个 performCaptureModeSwitch（单一实现，避免漂移）。
+            //   区别只在 ack：`capture` 明确回执切换结果（成功/失败原因）；
+            //   `set_capture_mode` 沿用原行为，仅在带 id 时回执（不带 id 时零回包，
+            //   现有 UI 调用点不受影响）。
             let modeStr = (obj["mode"] as? String) ?? "fullscreen"
             let wID = obj["windowID"] as? Int
+            // 参数合法性（仅对显式声明的非法组合判 false，不改变原有回落行为）：
+            //   mode=="window" 但没给 windowID → 原实现静默回落全屏；
+            //   这里照旧回落，但 ack 如实说明"未收到 windowID，已回落全屏"。
+            let windowModeMissingID = (modeStr == "window" && wID == nil)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let st = EngineGlobals.state else { return }
-                    let capMode: CaptureMode
-                    if modeStr == "window", let id = wID {
-                        capMode = .window(id: CGWindowID(truncatingIfNeeded: id))
-                    } else {
-                        capMode = .fullScreen
+                    // ⚠️ 必须写 `Task<Void, Never>`：在 assumeIsolated 闭包内裸 `Task { }`
+                    //    同时匹配 `Task` 与 `Task<Void, Never>` 两个 init 重载 → 歧义编译错。
+                    Task<Void, Never> {
+                        let (capMode, err) = await EngineMain.performCaptureModeSwitch(
+                            modeStr: modeStr, windowID: wID)
+                        engineLog("[ENGINE] 捕获源切换（\(type)）：\(capMode.label)"
+                                  + (err.map { " ⚠️ \($0)" } ?? " ✅"))
+                        var data: [String: Any] = [
+                            "mode": capMode.isWindowMode ? "window" : "fullscreen",
+                            "captureMode": capMode.label,
+                            "isCapturing": EngineGlobals.state?.captureEngine.isCapturing ?? false,
+                        ]
+                        if case .window(let id) = capMode { data["windowID"] = Int(id) }
+                        let ok = (err == nil)
+                        var detail: String
+                        if let err {
+                            detail = err
+                        } else if windowModeMissingID {
+                            detail = "mode=window 但未提供 windowID → 已按原语义回落全屏（\(capMode.label)）"
+                        } else {
+                            detail = "已切到 \(capMode.label)"
+                        }
+                        if let st = EngineGlobals.state, !st.captureEngine.isCapturing {
+                            // 未在捕获时 applyMode 只记 desiredMode（早退），如实说明，
+                            // 不让调用方以为"已经切换生效"
+                            detail += "（当前未在捕获，已记录期望模式，start() 时生效）"
+                        }
+                        EngineMain.sendAck(id: ackID, cmd: type, ok: ok, detail: detail,
+                                           data: data, server: server)
                     }
-                    Task { await st.captureEngine.applyMode(capMode) }
-                    engineLog("[ENGINE] 捕获源切换：\(capMode.label)")
+                }
+            }
+        case "state":
+            // ★ task-A 新增：结构化状态查询（AI 友好）。
+            // 走 ack 机制（带 id）；不带 id 时按契约**不回包**（与其它命令一致）。
+            // 全部字段安全取值，引擎刚启动 / 模型未加载也不崩（见 buildStateSnapshot）。
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    let snap = EngineMain.buildStateSnapshot()
+                    let ready = (snap["ready"] as? Bool) ?? false
+                    EngineMain.sendAck(
+                        id: ackID, cmd: type, ok: true,
+                        detail: ready ? "状态快照已生成" : "引擎状态尚未建立，返回全默认快照（ready=false）",
+                        data: snap, server: server)
                 }
             }
         case "ping":
             server.send("{\"type\":\"pong\"}")
+            // ping 额外支持带 id 的 ack（pong 保持不变，向后兼容）
+            EngineMain.sendAck(id: ackID, cmd: type, ok: true, detail: "pong",
+                               server: server)
         default:
             engineLog("[ENGINE] 未知命令类型: \(type)")
+            // 未知命令：带 id 时如实回 ok=false（AI 能立刻知道命令拼错了，
+            // 而不是干等）；不带 id 时保持原样（仅打日志，零回包）。
+            EngineMain.sendAck(id: ackID, cmd: type, ok: false,
+                               detail: "未知命令类型：\(type)", server: server)
         }
     }
 

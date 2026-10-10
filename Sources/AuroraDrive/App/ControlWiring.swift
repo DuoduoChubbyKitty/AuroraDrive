@@ -272,6 +272,10 @@ extension DriveState {
             "glyph":             glyphMode,
             "degradeThreshold":  degradeThreshold,
             "speedLimit":        speedLimit,
+            // 消化模式：**必须下发到引擎** —— 真正注入按键的是引擎进程，
+            //   只在 UI 侧改开关等于没改（用户实测事故：AI 驱动引擎测试时
+            //   真的注入了按键，刷屏到工作群被禁言）。见 DriveState.digestMode。
+            "digest":            digestMode,
         ]
         // ★★★ 2026-10-02：日志必须反映**真实发送结果**。
         //

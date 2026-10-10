@@ -33,6 +33,9 @@ final class MouseController: @unchecked Sendable {
     /// 累计成功注入的鼠标事件数（诊断用）
     @ObservationIgnored private(set) var postedEventCount: Int = 0
 
+    /// 被消化（未真发）的鼠标事件数（消化模式下它与 postedEventCount 对照）
+    @ObservationIgnored private(set) var digestedEventCount: Int = 0
+
     /// CGEventSource（与 ControlEngine 同层：HID 系统状态）
     private let eventSource: CGEventSource? = CGEventSource(stateID: .hidSystemState)
 
@@ -64,6 +67,11 @@ final class MouseController: @unchecked Sendable {
             print("[MouseController] CGEvent 创建失败 move \(point)")
             return false
         }
+        // ⚠️ 消化模式：不真发（见 ControlEngine.digestMode 长注释）
+        if ControlEngine.globalDigest {
+            digestedEventCount &+= 1
+            return true
+        }
         event.post(tap: .cghidEventTap)
         postedEventCount &+= 1
         return true
@@ -94,6 +102,13 @@ final class MouseController: @unchecked Sendable {
         ) else {
             print("[MouseController] CGEvent 创建失败 click \(point)")
             return false
+        }
+        // ⚠️ 消化模式：不真发
+        if ControlEngine.globalDigest {
+            digestedEventCount &+= 2
+            lastClickPoint = point
+            print("[MouseController] 🧪 消化 click at (\(Int(point.x)), \(Int(point.y)))（未真发）")
+            return true
         }
         down.post(tap: .cghidEventTap)
         // 按住 ~40ms，模拟真人点击节奏（0ms 的 down→up 会被部分 UI 判定为抖动）
@@ -134,6 +149,13 @@ final class MouseController: @unchecked Sendable {
         down2.setIntegerValueField(.mouseEventClickState, value: 2)
         up2.setIntegerValueField(.mouseEventClickState, value: 2)
 
+        // ⚠️ 消化模式：不真发
+        if ControlEngine.globalDigest {
+            digestedEventCount &+= 4
+            lastClickPoint = point
+            print("[MouseController] 🧪 消化 doubleClick at (\(Int(point.x)), \(Int(point.y)))（未真发）")
+            return true
+        }
         down.post(tap: .cghidEventTap)
         usleep(30_000)
         up.post(tap: .cghidEventTap)
@@ -167,6 +189,11 @@ final class MouseController: @unchecked Sendable {
             return false
         }
         event.location = pos
+        // ⚠️ 消化模式：不真发
+        if ControlEngine.globalDigest {
+            digestedEventCount &+= 1
+            return true
+        }
         event.post(tap: .cghidEventTap)
         postedEventCount &+= 1
         return true

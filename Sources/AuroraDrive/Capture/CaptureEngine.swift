@@ -166,6 +166,42 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     private var lastFPSDate: Date = .distantPast
     private var fpsAccumulator: Int = 0
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // task-C（2026-10-10）：start/stop 流生命周期串行化
+    // ══════════════════════════════════════════════════════════════════════════
+    /// 上一次 `stop()` 派发的**异步清理任务**（`stopCapture()` + 清池）。
+    ///
+    /// 【为什么需要它 —— 「停止后再选就不行」的竞态根因】
+    ///   `stop()` 为让紧接着的 `start()` 能过 `guard !isCapturing`，
+    ///   把 `stream=nil` / `isCapturing=false` **同步**置了；但真正的
+    ///   `oldStream.stopCapture()` 仍在异步任务里跑。
+    ///   若用户立刻 `start()`：新流 `startCapture()` 可能与**旧流的
+    ///   `stopCapture()` 交错**（同一 SCStream 子系统上的停/启竞争），
+    ///   实测表现就是"停止后再选没反应/黑屏"。
+    ///
+    /// 【修法】`start()` 在**真正建流之前**先 `await` 这个任务完成
+    ///   （见 `startStream` 开头）。用 `await` 而非信号量同步等待 ——
+    ///   **绝不阻塞主线程**（本类是 `@unchecked Sendable` 非 MainActor，
+    ///   但 `start()` 由主线程调用，同步等待会冻 UI）。
+    ///
+    /// 【为什么用 stateLock 保护】`stop()` 在主线程写、`start()` 的 Task 里读，
+    ///   跨线程裸读写是数据竞争（与 `_isCapturing` 同因，见 P0-3 注释）。
+    private var _pendingStopTask: Task<Void, Never>?
+    private var pendingStopTask: Task<Void, Never>? {
+        get { stateLock.withLock { _pendingStopTask } }
+        set { stateLock.withLock { _pendingStopTask = newValue } }
+    }
+
+    /// `applyMode` 早退时**是否已把 desiredMode 写入但未生效**（诊断/日志用）。
+    ///
+    /// 语义：`true` = 用户选了新模式但当前没在捕获，等下一次 `start()` 生效。
+    /// 用它让"期望 ≠ 已生效"这件事**可观测**，而不是让 UI 误以为已生效。
+    private var _modePendingApply = false
+    private var modePendingApply: Bool {
+        get { stateLock.withLock { _modePendingApply } }
+        set { stateLock.withLock { _modePendingApply = newValue } }
+    }
+
     // P0-3 修复：诊断/状态属性写于 captureQueue、读于主线程，跨线程裸读写存在
     // 数据竞争（torn read 可能读出 NaN → 读侧 Int(NaN) trap）。
     // 用 OSAllocatedUnfairLock 保护读写（纳秒级开销，不触碰 30fps 红线）。
@@ -297,6 +333,26 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         // 用 Task 包装 async 调用
         Task { [weak self] in
             guard let self = self else { return }
+
+            // ══════════════════════════════════════════════════════════════════
+            // task-C：**建流前先等上一次 stop() 的异步清理跑完**（竞态加固）
+            // ══════════════════════════════════════════════════════════════════
+            // 【为什么必须等】`stop()` 为让本函数能过 `guard !isCapturing`，
+            //   把 `stream=nil` / `isCapturing=false` **同步**置了，但旧流的
+            //   `stopCapture()` 还在异步跑。若不等就 `startCapture()`，
+            //   旧流的"停"与新流的"启"会在同一 SCStream 子系统上交错 ——
+            //   实测表现正是用户报的「停止后再选就没反应」。
+            //
+            // 【为什么用 await 而不是信号量】本函数由**主线程**调用（UI 按钮 /
+            //   socket 命令）。同步等待会冻住主线程（甚至死锁：若清理任务需要
+            //   主线程推进）。`await` 让出执行权，清理任务照常推进 —— **零死锁**。
+            if let pending = self.pendingStopTask {
+                print("[cap-deep] start() 检测到 pendingStopTask → await 其完成（避免旧流 stopCapture 与新流 startCapture 交错）")
+                await pending.value
+                print("[cap-deep] start() pendingStopTask 已完成，继续建流")
+                self.pendingStopTask = nil
+            }
+
             print("[cap-deep] Task 进入，开始 SCShareableContent.current …")
 
             // 1. 获取可共享内容（包含权限检查）
@@ -414,6 +470,14 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             self.stream = stream
             self.currentDisplay = display       // 切模式时复用（避免重新查显示器）
             self.captureMode = self.desiredMode  // 记录已生效模式
+            // task-C 第 3 点闭环：start() **确实应用了** desiredMode →
+            //   清掉"待应用"标记，让 applyMode 早退时留下的期望真正落地。
+            //   日志显式确认"用户上次的选择被沿用了"。
+            if self.modePendingApply {
+                print("[cap-deep] ✅ start() 已应用上次 applyMode 留下的期望模式"
+                      + "=\(self.desiredMode.label)（待应用标记清除）")
+            }
+            self.modePendingApply = false
             self.isCapturing = true
             self.lastFPSDate = Date()
             self.resetOwnUIWarning()            // 新一轮录制允许重新告警
@@ -433,18 +497,32 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///   `guard !isCapturing` 静默返回 → capture 永不重启 → 用户「停了再选就没反应」。
     ///   修复：同步置状态（让 start() 立刻能通过 guard），async Task 只做 stopCapture + 清池。
     func stop() {
-        guard isCapturing, let oldStream = stream else { return }
+        guard isCapturing, let oldStream = stream else {
+            print("[cap-deep] stop() 早退：isCapturing=\(isCapturing) stream=\(stream != nil ? "有" : "nil")")
+            return
+        }
+        print("[cap-deep] stop() 进入：desiredMode=\(desiredMode.label) captureMode=\(captureMode.label)")
         // 同步置状态：让紧接着的 start() 能通过 guard !isCapturing
         self.stream = nil
         self.isCapturing = false
         self.currentFrame = nil
+        // ⚠️ **刻意不动 `desiredMode`**（task-C 第 3 点）：
+        //   用户「停止后想换另一个窗口」→ 停止不应抹掉他的选择。
+        //   下一次 `start()` 会用 `desiredMode` 建流（见 startStream）。
+        //   这里显式打日志，让"选择被保留"这件事可观测。
+        print("[cap-deep] stop() 保留 desiredMode=\(desiredMode.label)（下次 start() 将沿用它）")
+
         // async 清理：stopCapture + 释放缓冲池（不阻塞调用方）
-        Task { [weak self] in
+        // ⚠️ task-C：把任务句柄存进 `pendingStopTask`，供 `start()` 在建流前 await。
+        //    否则旧流 stopCapture 可能与新流 startCapture 交错（见属性注释）。
+        let cleanup = Task { [weak self] in
             guard let self = self else { return }
             do {
                 try await oldStream.stopCapture()
+                print("[cap-deep] stop() stopCapture 完成（旧流已真正停止）")
             } catch {
                 // 停止失败不阻塞，继续清理状态
+                print("[cap-deep] stop() stopCapture 抛错（忽略继续）：\(error)")
             }
             // P2 修复：停捕获时把四个 CVPixelBufferPool 置 nil，释放空闲缓冲
             //（下次 start 会按当前分辨率重建）。四个池只在 captureQueue 上被
@@ -464,8 +542,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                 self.upscalePoolWidth = 0
                 self.upscalePoolHeight = 0
             }
+            print("[cap-deep] stop() 清理完成（池已释放）")
             self.onStatusChange?(.stopped)
         }
+        pendingStopTask = cleanup
     }
 
     // MARK: - 窗口枚举 / 自家窗口识别 / 运行时切换（2026-10-08 新增）
@@ -601,15 +681,38 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///
     /// 【失败处理】窗口已关闭 / 权限变化 → 保持**原模式不变**（不静默切全屏），
     /// 把原因写进 `lastModeError` 并回调 UI；这样用户不会以为切成功了。
+    ///
+    /// ══════════════════════════════════════════════════════════════════════
+    /// task-C 修复（2026-10-10）：**语义修正 —— `captureMode` 只表示"已生效"**
+    /// ══════════════════════════════════════════════════════════════════════
+    /// 【原缺陷】早退路径（未在捕获时）写 `captureMode = mode`，把"期望模式"
+    ///   直接标成"已生效模式"。但此刻**没有任何 filter 被更新** —— 状态说谎了。
+    ///   下游（UI 拉条 / `onModeChange` 回调）据此以为切换成功，
+    ///   而实际生效的仍是旧模式 → 用户看到"选了没反应/下次打开还是旧的"。
+    ///
+    /// 【修法】早退路径**只写 `desiredMode`**（期望），不动 `captureMode`（已生效）；
+    ///   并置 `modePendingApply = true` 让"待生效"这件事可观测。
+    ///   真正生效由两条路径完成：
+    ///     · 已在捕获 → 走下面 `updateContentFilter`，成功后写 `captureMode`
+    ///     · 未在捕获 → 下一次 `start()` 用 `desiredMode` 建流，
+    ///       `startStream` 成功后写 `captureMode = desiredMode`（既有逻辑）
+    ///
+    /// 【第 4 点：可观测性】每次调用都打日志说明**走了哪条分支 + 结果**。
     func applyMode(_ mode: CaptureMode) async {
-        print("[cap-deep] applyMode(\(mode.label)) 进入 isCapturing=\(isCapturing) stream=\(stream != nil ? "有" : "nil")")
+        print("[cap-deep] applyMode(\(mode.label)) 进入 isCapturing=\(isCapturing) stream=\(stream != nil ? "有" : "nil") captureMode=\(captureMode.label)")
         desiredMode = mode
         lastModeError = nil
 
         guard isCapturing, let stream else {
-            // 还没开始捕获：只记期望模式，start() 时会用上
-            print("[cap-deep] applyMode 早退：还没在捕获 → 只记 desiredMode（start() 时会用）")
-            captureMode = mode
+            // ── 分支 A：还没开始捕获 ──
+            // 【task-C 修复点】**只记期望，不标已生效**（原来错误地写了 captureMode）
+            modePendingApply = true
+            print("[cap-deep] applyMode 分支A（未在捕获）：只记 desiredMode=\(mode.label)，"
+                  + "captureMode 保持=\(captureMode.label)（**不谎报已生效**）；"
+                  + "待下次 start() 应用")
+            // ⚠️ 刻意**不写** `captureMode = mode`（原缺陷所在）。
+            //    回调仍发 desiredMode：UI 拉条要立刻反映"用户选了这个"，
+            //    但 UI 应结合 `modePendingApply` 判断它是否已生效。
             onModeChange?(mode)
             return
         }
@@ -652,15 +755,19 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         do {
             print("[cap-deep] 即将 updateContentFilter …")
             try await stream.updateContentFilter(newFilter)
-            print("[cap-deep] ✅ updateContentFilter 成功 → \(mode.label)")
+            print("[cap-deep] ✅ applyMode 分支B（已在捕获）成功：updateContentFilter → \(mode.label)"
+                  + "；captureMode \(captureMode.label) → \(mode.label)")
             captureMode = mode
+            modePendingApply = false   // 已真正生效，清"待应用"标记
             onModeChange?(mode)
             // 切回全屏后同样审一遍排除列表
             auditExclusion(content: content, display: display)
             print("[capture] 切换成功 → \(mode.label)")
         } catch {
-            print("[cap-deep] ❌ updateContentFilter 失败: \(error)")
+            print("[cap-deep] ❌ applyMode 分支B 失败：updateContentFilter 抛错 \(error)")
             lastModeError = "切换失败：\(error.localizedDescription)"
+            // 失败时保持"已生效模式"不变（不谎报成功），并标记待应用
+            modePendingApply = true
             onModeChange?(captureMode)
             print("[capture] ❌ 切换失败（保持 \(captureMode.label)）：\(error.localizedDescription)")
         }

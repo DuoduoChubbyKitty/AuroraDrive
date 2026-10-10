@@ -79,6 +79,61 @@ final class ControlEngine: @unchecked Sendable {
     /// 标记 @ObservationIgnored：此值每帧递增，不应触发 SwiftUI 重绘。
     @ObservationIgnored private(set) var postedEventCount: Int = 0
 
+    // MARK: - 消化模式（DIGEST MODE）
+    //
+    // ══════════════════════════════════════════════════════════════════════════
+    // 【这是什么】按键链路**照常跑完**（决策算、heldKeys 更新、UI 键盘条亮、
+    //   计数递增、日志照打），但**最后一步不真发 CGEvent 到系统** —— 事件被
+    //   「消化」在进程内部。效果：AI 可以完整驱动驾驶逻辑做测试，而**不会真的
+    //   往系统键盘注入任何按键**（不会污染游戏/聊天软件/任何前台应用）。
+    // ══════════════════════════════════════════════════════════════════════════
+    //
+    // 【为什么不是「关掉注入」】关掉会让整条链路的表现与正常时不同（heldKeys
+    //   不更新、计数不涨、UI 不亮），排查时无法区分「模型没输出」vs「注入被关」。
+    //   消化模式保证**除了最后的 CGEvent.post 之外，行为逐字一致**。
+    //
+    // 【为什么必须大声可见】隐蔽的开关是排查噩梦（用户原话：忘了有这回事会
+    //   排查非常久）。因此：① 每次进入/退出都打日志；② tick 摘要里带 `digest=`
+    //   字段；③ UI 按钮高亮；④ `digestedEventCount` 独立计数可与
+    //   `postedEventCount` 对照（消化时前者涨、后者不涨）。
+    //
+    // 【默认值】`false` = 正常注入，与改动前逐字一致（零行为变更）。
+    //   开启方式：UI 按钮（MissionConsole 小地图卡片头）/ `AURORA_DIGEST=1` 环境变量。
+    /// 消化模式开关（@Observable：UI 按钮观察它做高亮）
+    var digestMode: Bool = ControlEngine.digestModeFromEnvironment {
+        didSet {
+            guard digestMode != oldValue else { return }
+            ControlEngine.globalDigest = digestMode   // 同步进程级开关（鼠标等其它注入器读它）
+            if digestMode {
+                print("[ControlEngine] 🧪 消化模式 ON —— 按键链路照跑，但不真发 CGEvent"
+                      + "（不会打扰系统/游戏/聊天软件）")
+            } else {
+                print("[ControlEngine] ⚠️ 消化模式 OFF —— 已恢复正常按键注入（会真的按键！）")
+            }
+        }
+    }
+
+    /// 被消化（未真发）的事件计数。消化模式下它与 `postedEventCount` 的
+    /// 差值就是「本该发出去多少事件」——诊断时一眼看出链路是活的。
+    @ObservationIgnored private(set) var digestedEventCount: Int = 0
+
+    /// 启动时的默认值：环境变量 `AURORA_DIGEST=1`（给脚本/自检用）
+    private static var digestModeFromEnvironment: Bool {
+        ProcessInfo.processInfo.environment["AURORA_DIGEST"] == "1"
+    }
+
+    // MARK: - 进程级消化开关（鼠标等其它注入器共用）
+    //
+    // 【为什么要有进程级开关】键盘（ControlEngine）和鼠标（MouseController）是
+    //   两个独立的注入器。若只消化键盘，鼠标仍会真点 —— 那就成了「一半消化」，
+    //   比不消化更危险（用户以为安全了，鼠标却在点）。故用一把进程级开关统一。
+    //
+    // 【默认值】跟随 `AURORA_DIGEST` 环境变量；UI 按钮切换时经 `digestMode.didSet`
+    //   同步过来。`nonisolated(unsafe)`：只在主线程写、注入路径读，且是 Bool 原子读写。
+    nonisolated(unsafe) static var globalDigest: Bool = {
+        ProcessInfo.processInfo.environment["AURORA_DIGEST"] == "1"
+    }()
+
     // MARK: - 按住键重发节流（可选，默认关闭）
 
     /// 按住键重发的目标频率（Hz）。**0 = 关闭节流 = 每个控制周期都重发**
@@ -471,6 +526,14 @@ final class ControlEngine: @unchecked Sendable {
         // postToPid 注入到特定进程（更精确，但需要 PID）
         // 这里用 CGEvent.post 全局注入，对所有前台应用生效
         // tap: .cghidEventTap 注入到硬件事件层（最底层，游戏必响应）
+        //
+        // ⚠️ 消化模式：**唯一**真正发事件的地方，在这里截住 —— 整条链路上游
+        //   （决策 / hold / release / refreshHeldKeys / heldKeys / 日志）全部照常
+        //   执行，只是事件不离开本进程。见 `digestMode` 的长注释。
+        if digestMode {
+            digestedEventCount &+= 1
+            return
+        }
         event.post(tap: .cghidEventTap)
         postedEventCount &+= 1
     }
@@ -623,6 +686,12 @@ final class ControlEngine: @unchecked Sendable {
         }
         down.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         up.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
+        // ⚠️ 消化模式：文本注入同样被消化（这条路径最容易「乱发消息」，
+        //   必须与 postKeyEvent 一致地截住）。见 `digestMode` 长注释。
+        if digestMode {
+            digestedEventCount &+= 2
+            return
+        }
         down.post(tap: .cghidEventTap)
         up.post(tap: .cghidEventTap)
         postedEventCount &+= 2

@@ -4249,6 +4249,29 @@ final class DriveState {
     //   同一套纪律。引擎侧的 inferenceEngineV2.trackMode 在 tick 里同步本值。
     var trackMode       = false
 
+    // ── 消化模式（2026-10-10 新增：用户点名要求）──
+    //
+    // 【是什么】按键/鼠标链路**照常跑完**（决策算、heldKeys 更新、UI 键盘条亮、
+    //   计数递增、日志照打），但**最后一步不真发 CGEvent** —— 事件被消化在进程内。
+    //   效果：AI 可以完整驱动驾驶逻辑做测试，而**不会真的往系统键盘注入按键**
+    //   （不打扰游戏 / 聊天软件 / 任何前台应用）。
+    //
+    // 【为什么需要】用户实测事故：AI 通过 socket 驱动引擎做测试时，引擎真的开始
+    //   注入按键，把工作群刷屏到被禁言 4-5 个群。需要一个「测试但绝不打扰系统」的开关。
+    //
+    // 【为什么不是「关掉注入」】关掉会让链路表现与正常时不同（heldKeys 不更新、
+    //   计数不涨、UI 不亮），排查时无法区分「模型没输出」vs「注入被关」。
+    //   消化模式保证除最后的 CGEvent.post 外行为逐字一致。
+    //
+    // 【为什么必须大声可见】隐蔽开关是排查噩梦（用户原话：忘了有这回事会排查
+    //   非常久）。因此：① 进入/退出打日志；② tick 摘要带 `digest=`；③ UI 按钮
+    //   高亮成醒目色；④ `digestedEventCount` 与 `postedEventCount` 对照可验证。
+    //
+    // 【默认值】`false` = 正常注入（与改动前逐字一致）。环境变量 `AURORA_DIGEST=1`
+    //   可让进程启动即进入消化模式（给脚本/自检用）。
+    //   引擎侧由 tick 同步到 `controlEngine.digestMode`（引擎进程才是真注入方）。
+    var digestMode      = ProcessInfo.processInfo.environment["AURORA_DIGEST"] == "1"
+
     // MARK: - 录制视角（2026-10-08 新增：用户要录第三视角）
 
     /// 录制视角开关：false = 第一人称 FPV（默认，兼容旧行为）；
@@ -5519,17 +5542,17 @@ final class DriveState {
     /// 【性能】`SCShareableContent.current` 是系统调用，实测 10-60ms（窗口多时更久），
     /// 因此**不放在 30Hz tick 里**，只在用户展开拉条 / 点刷新时调用一次。
     func refreshCapturableWindows() async {
-        print("[cap-ui] refreshCapturableWindows 开始（engineActive=\(EngineClient.shared.isActive)）")
+        dlog("[cap-ui] refreshCapturableWindows 开始（engineActive=\(EngineClient.shared.isActive)）")
         windowListLoading = true
         windowListError = nil
         let list = await CaptureEngine.listWindows()
         capturableWindows = list
         windowListLoading = false
         let gameLabel = list.first { $0.isGame }?.displayLabel ?? "无"
-        print("[cap-ui] refreshCapturableWindows 完成：\(list.count) 个窗口（游戏窗口=\(gameLabel)）")
+        dlog("[cap-ui] refreshCapturableWindows 完成：\(list.count) 个窗口（游戏窗口=\(gameLabel)）")
         if list.isEmpty {
             windowListError = "没有可捕获的窗口（可能未授权屏幕录制，或窗口都不满足尺寸要求）"
-            print("[cap-ui] ⚠️ 窗口列表为空 → \(windowListError ?? "")")
+            dlog("[cap-ui] ⚠️ 窗口列表为空 → \(windowListError ?? "")")
         }
     }
 
@@ -5543,7 +5566,7 @@ final class DriveState {
     ///   不转发给引擎 → 后台引擎一无所知 → 「没有任何作用」。
     ///   修复：引擎模式时通过 IPC 把 mode 转发给引擎进程执行真正的 filter 切换。
     func selectCaptureMode(_ mode: CaptureMode) async {
-        print("[cap-ui] selectCaptureMode(\(mode.label)) 进入 engineActive=\(EngineClient.shared.isActive)")
+        dlog("[cap-ui] selectCaptureMode(\(mode.label)) 进入 engineActive=\(EngineClient.shared.isActive)")
         captureModeError = nil
         // 引擎模式：转发给引擎进程
         if EngineClient.shared.isActive {
@@ -5553,17 +5576,17 @@ final class DriveState {
                 extra["windowID"] = Int(id)
             }
             let ok = EngineClient.shared.sendCommand("set_capture_mode", extra: extra)
-            print("[cap-ui] IPC 转发 set_capture_mode ok=\(ok) extra=\(extra)")
+            dlog("[cap-ui] IPC 转发 set_capture_mode ok=\(ok) extra=\(extra)")
             // UI 本地也记一笔（拉条选中态显示用）
             captureMode = mode
             return
         }
-        print("[cap-ui] ⚠️ 非引擎模式 → 走本地 captureEngine.applyMode（UI 空壳，可能 early-return）")
+        dlog("[cap-ui] ⚠️ 非引擎模式 → 走本地 captureEngine.applyMode（UI 空壳，可能 early-return）")
         // 非引擎模式（UI 直跑）：直接切换
         await captureEngine.applyMode(mode)
         captureMode = captureEngine.captureMode
         captureModeError = captureEngine.lastModeError
-        print("[cap-ui] 本地 applyMode 完成 mode=\(captureMode.label) err=\(captureModeError ?? "-")")
+        dlog("[cap-ui] 本地 applyMode 完成 mode=\(captureMode.label) err=\(captureModeError ?? "-")")
     }
 
     /// 游戏窗口（拉条里高亮推荐的那个；没有则 nil）
@@ -7073,6 +7096,11 @@ final class DriveState {
                     }
                     // W5：同步赛道模式开关到引擎（世界模型输入 track_mode）
                     inferenceEngineV2.trackMode = trackMode
+                    // 消化模式：同步 UI 开关到本进程的 ControlEngine（引擎模式下本
+                    //   进程不注入，但 UI 直跑模式需要；且进程级 globalDigest 供鼠标用）
+                    if controlEngine.digestMode != digestMode {
+                        controlEngine.digestMode = digestMode
+                    }
                     inferenceEngineV2.infer(image: cg,
                                             kinematics: k2,
                                             detections: effectiveDetections,
@@ -7628,6 +7656,7 @@ final class DriveState {
             lastTickLog = nowLog
             didLogThisSecond = true
             dlog("tick: mode=\(mode.rawValue) m9Live=\(m9Live) V2active=\(v2Active) V2loaded=\(inferenceEngineV2.isLoaded) V2split=\(inferenceEngineV2.useSplitModels) wm=\(inferenceEngineV2.worldModelLoaded) track=\(inferenceEngineV2.trackModeValue) "
+                 + "digest=\(controlEngine.digestMode ? "ON(不真发)" : "off") digested=\(controlEngine.digestedEventCount) "
                  + "assistLive=\(assistLive) "
                  + "conf=\(String(format: "%.2f", confidence)) img=\(currentScreenImage != nil) "
                  + "cmd=(s=\(String(format: "%.2f", currentCommand.steer)) "
