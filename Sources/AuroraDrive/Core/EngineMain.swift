@@ -1243,12 +1243,19 @@ enum EngineMain {
                                            server: server)
                         return
                     }
-                    st.glyphMode = recGlyph
-                    st.expertMode = recExpert
-                    // 同步视角到引擎侧 DriveState：`isRecording` 的 didSet 也会读
-                    // `recordPerspective` 去 start()，不同步的话那条路径会用默认 first。
-                    // 这里先写，保证「显式 start」与「didSet 兜底」两条路拿到同一视角。
-                    st.recordThirdPerson = (recPerspective == "third")
+                    // ⚠️ 2026-10-10 修复：**只在开始录制时**同步这些会话级参数。
+                    //   原实现无条件写 → `record off` 命令不带 perspective 时回落 "first"，
+                    //   把 st.recordThirdPerson 覆盖回 false → **下次录制又变 FPV**
+                    //   （实测：stop 的 ack 报 `视角=first(FPV)`，而本次实际录的是 TPV）。
+                    //   这些参数只在 `start()` 那一刻被消费（视角决定 view.txt，中途不可改），
+                    //   故 stop 时不该动它们。
+                    if recOn {
+                        st.glyphMode = recGlyph
+                        st.expertMode = recExpert
+                        // 同步视角到引擎侧 DriveState：`isRecording` 的 didSet 也会读
+                        // `recordPerspective` 去 start()，不同步的话那条路径会用默认 first。
+                        st.recordThirdPerson = (recPerspective == "third")
+                    }
                     // 先 start/stop 再置 isRecording：start() 才会建目录、写 view.txt，
                     // 顺序反了会出现「开关已开、目录还没建」的空窗（心跳上报 session="-"）。
                     if recOn, !st.recordEngine.isRecording {

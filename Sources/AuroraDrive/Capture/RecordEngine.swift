@@ -243,8 +243,20 @@ final class RecordEngine: @unchecked Sendable {
         sessionPerspective = normalized   // 供 stop() 写进 meta.json（见该处说明）
 
         // ── 2. 初始化 CSV（写表头）──
+        //
+        // ⚠️ 2026-10-10 录制前检查修复（w1/w7/w8 独立发现，**录一次不能错的阻塞项**）：
+        //   原表头只有 5 列 `t_sec,frame,steer,throttle,brake`，但 `dataset_v2.py`
+        //   的 `_load_controls_csv` 期望 9 个字段（多了 speed_kmh / heading /
+        //   curvature / speed_limit）→ 缺 4 列 → `vehicle_state[10]` 里 speed /
+        //   accel / heading / curvature 全为 0 → **模型把 0 当真实状态学**。
+        //   新增 4 列在**末尾**（追加式，旧 5 列位置/含义不变，向后兼容既有读取方）。
+        //
+        //   缺值语义（w8 建议）：**写空串，不写 0** —— `dataset_v2._safe_float("")`
+        //   返回 None → 该维 mask=0（"缺失补零"），模型可区分"真值 0 速度"与
+        //   "读不到速度"。若写 0 就分不清了。
         let csvURL = sessionDir.appendingPathComponent("controls.csv")
-        let header = "t_sec,frame,steer,throttle,brake\n"
+        let header = "t_sec,frame,steer,throttle,brake,"
+            + "speed_kmh,heading,curvature,speed_limit\n"
         FileManager.default.createFile(atPath: csvURL.path,
                                        contents: header.data(using: .utf8))
         csvHandle = FileHandle(forWritingAtPath: csvURL.path)
@@ -373,7 +385,23 @@ final class RecordEngine: @unchecked Sendable {
     ///   - throttle: 油门 [0, 1]
     ///   - brake: 刹车 [0, 1]
     /// 在主线程调用，实际写盘异步进行
-    func appendFrame(image: NSImage, steer: Double, throttle: Double, brake: Double) {
+    /// 追加一帧训练数据（图像 + 控制标签 + **车辆状态**）。
+    ///
+    /// ⚠️ 2026-10-10 录制前检查修复（w1/w7/w8 独立发现，**录一次不能错的阻塞项**）：
+    ///   新增 4 个车辆状态参数 → 对应 CSV 新增的 4 列。原因见 `start()` 表头处注释。
+    ///
+    /// **缺值语义（关键）**：参数为 `nil` 时写**空串**（不是 0）——`dataset_v2._safe_float("")`
+    ///   返回 None → 该维 mask=0，模型可区分"真值 0"与"缺失"。默认 `nil` 保证旧调用点
+    ///   行为不变（多出 4 个空列，dataset 读到 None → mask=0）。
+    ///
+    /// - Parameters:
+    ///   - speedKmh: 车速 km/h（读不到时传 nil；**不要传 -1 哨兵**）
+    ///   - headingDeg: 车头/相机朝向，**度**（dataset 侧期望口径；模型侧转弧度）
+    ///   - curvature: 曲率（原始值，dataset 侧做归一）
+    ///   - speedLimit: 限速 km/h
+    func appendFrame(image: NSImage, steer: Double, throttle: Double, brake: Double,
+                     speedKmh: Double? = nil, headingDeg: Double? = nil,
+                     curvature: Double? = nil, speedLimit: Double? = nil) {
         guard isRecording, let start = startTime, let url = sessionURL else { return }
 
         let timestamp = Date().timeIntervalSince(start)
@@ -414,8 +442,18 @@ final class RecordEngine: @unchecked Sendable {
                     }
 
                     // ── 2. 追加 CSV 行 ──
-                    let line = String(format: "%.4f,%ld,%.4f,%.4f,%.4f\n",
-                                      timestamp, idx, steer, throttle, brake)
+                    //
+                    // 格式：t_sec,frame,steer,throttle,brake,speed_kmh,heading,curvature,speed_limit
+                    // 后 4 列为**可选车辆状态**：nil → 空串（dataset 侧 → None → mask=0）。
+                    // ⚠️ 不能写 0 代替缺失 —— 那样 dataset 分不清"真值 0 速度"与"读不到"。
+                    func fmtOpt(_ v: Double?) -> String {
+                        guard let v, v.isFinite else { return "" }
+                        return String(format: "%.4f", v)
+                    }
+                    let line = String(format: "%.4f,%ld,%.4f,%.4f,%.4f,%@,%@,%@,%@\n",
+                                      timestamp, idx, steer, throttle, brake,
+                                      fmtOpt(speedKmh), fmtOpt(headingDeg),
+                                      fmtOpt(curvature), fmtOpt(speedLimit))
                     if let data = line.data(using: .utf8) {
                         self.csvHandle?.write(data)
                     }

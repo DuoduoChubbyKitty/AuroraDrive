@@ -7777,10 +7777,34 @@ final class DriveState {
                 recThrottle = currentCommand.throttle
                 recBrake   = currentCommand.brake
             }
+            // ⚠️ 2026-10-10 录制前检查修复（w1/w7/w8 独立发现）：把**车辆状态**一并落盘。
+            //   此前只写 5 列（t_sec/frame/steer/throttle/brake），而 `dataset_v2` 期望
+            //   9 个字段 → vehicle_state[10] 里 speed/accel/heading/curvature 全为 0
+            //   → 模型把 0 当真实状态学（"录一次就废"的核心根因）。
+            //
+            //   【缺值写 nil 而非 0】`speedOCR.speedKmh` 读不到时是 **-1 哨兵**
+            //     （见 DriveState.speedKmh 注释），直接写 -1 会被当成负速度归一化；
+            //     写 0 则分不清"真值 0"与"读不到"。故 <0 一律传 nil → CSV 空串 → mask=0。
+            //
+            //   【heading】来自 `locatorHeading`（CoordinateCapture，**不是**已移除的
+            //     networkLocator）。⚠️ 该值由游戏 15.01s 突发驱动，30fps 下约 450 帧
+            //     共用同一值 —— 每帧照写（让 dataset 侧配合 locatorScore 决定信不信），
+            //     不在这里做去重（去重会让帧数对不上）。
+            //   【curvature】运行时未直接暴露；laneMask 可读且 `LaneGeometryEstimator.estimate`
+            //     是 static 可直接调，但**当前不在此处新增计算**（避免录制热路径变重、
+            //     且口径需与训练侧对齐）→ 暂传 nil（mask=0），训练端可离线补。
+            //   【speed_limit】UI 滑块值，恒有值。
+            let recSpeed: Double? = speedOCR.speedKmh >= 0 ? speedOCR.speedKmh : nil
+            let recHeading: Double? = locatorFound ? locatorHeading : nil
+            let recSpeedLimit: Double? = speedLimit > 0 ? speedLimit : nil
             recordEngine.appendFrame(image: image,
                                      steer: recSteer,
                                      throttle: recThrottle,
-                                     brake: recBrake)
+                                     brake: recBrake,
+                                     speedKmh: recSpeed,
+                                     headingDeg: recHeading,
+                                     curvature: nil,
+                                     speedLimit: recSpeedLimit)
             frames = recordEngine.frameCount
         }
     }
