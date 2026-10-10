@@ -293,31 +293,55 @@ final class YoloEngine {
         }
     }
 
-    /// 直通路径：CaptureEngine 已在源头把全屏画面 GPU 缩放到 352×352，
+    /// 直通路径：CaptureEngine 已在源头把全屏画面缩放到 inputSize×inputSize（640×640），
     /// 这里直接推理，跳过 NSImage/CGImage 大图转换链路（帧率瓶颈所在）。
+    ///
+    /// ⚠️ 2026-10-11 性能优化（P1 审计发现，省 70.3 MB/s = 占自动驾驶拷贝 42%）：
+    ///   原实现把传入的池化缓冲 `pixelBuffer` 再 `copyPixelBuffer` 一份到私有
+    ///   `yoloInputBuffer`（640×640×4 ≈ 1.6MB/帧 memcpy），理由是"避免与
+    ///   captureQueue 对共享缓冲的写竞争"。但 CaptureEngine 的池**每帧取一个新
+    ///   缓冲**（池深度 ≥4，`CVPixelBufferPoolCreate` + `MinimumBufferCountKey: 4`），
+    ///   且 `isInferencing` 防重叠保证同一时刻只有 1 个推理在飞 → **不存在写竞争**。
+    ///
+    ///   删掉拷贝后：闭包直接捕获 `pixelBuffer`（Swift ARC 自动 retain CVPixelBuffer），
+    ///   推理完成前池不会回收该缓冲。`MLModel.prediction(from:)` 是**同步调用**
+    ///   （在闭包内）→ 预测完成前 buffer 一直被持有。
+    ///
+    ///   【安全性论证】
+    ///   · ARC retain：CVPixelBuffer 是 CoreFoundation 对象，Swift 闭包捕获时
+    ///     ARC 会自动 CFRetain → 闭包销毁前缓冲不会被池回收
+    ///   · 池深度 4：即使有 3 个缓冲在等回收也够
+    ///   · isInferencing 防重叠：同一时刻只有 1 个推理在飞
+    ///   · 同步 prediction：`modelRef.prediction(from:)` 在闭包内同步执行，
+    ///     返回前不会释放 buffer
+    ///   【回退开关】`AURORA_YOLO_FASTCOPY=1` 可恢复拷贝路径（出问题时一行回退）。
     func inferFast(pixelBuffer: CVPixelBuffer) {
         guard enabled else { return }
         guard isLoaded, let modelRef = model else {
             loadIfNeeded()
             return
         }
-        // fastPathActive 只在「确实开始走直通」时才置位。
-        // 若像原先那样放在上面两个 guard 之前，模型未加载时也会置 true，
-        // 调用方（tick 的 if !fastPathActive）便永远不再回退慢路径，
-        // YOLO 会彻底停摆。同时记录时间戳，供调用方做超时回退判断。
         fastPathActive = true
         lastFastPathTime = Date()
         guard !isInferencing else { return }   // 防重叠
 
-        // 拷贝到私有缓冲（主线程，640×640×4 ≈ 1.6MB，memcpy 极快），
-        // 避免与 captureQueue 对共享缓冲的写竞争
-        if yoloInputBuffer == nil {
-            yoloInputBuffer = Self.makePixelBuffer(size: Self.inputSize)
-        }
-        guard let dst = yoloInputBuffer,
-              Self.copyPixelBuffer(pixelBuffer, to: dst) else {
-            errorMessage = "YOLO: 直通缓冲拷贝失败"
-            return
+        // ── 性能优化（P1）：不再拷贝，直接用传入的池化缓冲 ──
+        // 原 copyPixelBuffer(1.6MB/帧 memcpy) 已删除。见上方函数注释的安全性论证。
+        // 回退开关：设 AURORA_YOLO_FASTCOPY=1 恢复拷贝路径。
+        let useFastCopy = ProcessInfo.processInfo.environment["AURORA_YOLO_FASTCOPY"] == "1"
+        let pbForInference: CVPixelBuffer
+        if useFastCopy {
+            if yoloInputBuffer == nil {
+                yoloInputBuffer = Self.makePixelBuffer(size: Self.inputSize)
+            }
+            guard let dst = yoloInputBuffer,
+                  Self.copyPixelBuffer(pixelBuffer, to: dst) else {
+                errorMessage = "YOLO: 直通缓冲拷贝失败"
+                return
+            }
+            pbForInference = dst
+        } else {
+            pbForInference = pixelBuffer    // 直接用池化缓冲（ARC 自动 retain）
         }
 
         isInferencing = true
@@ -327,19 +351,12 @@ final class YoloEngine {
 
         inferenceQueue.async { [weak self] in
             guard let self else { return }
-            // 闭包内取缓冲（yoloInputBuffer 在主线程写、本队列读，
-            // isInferencing 防重叠保证安全）
-            // P0-2 修复：该 guard 失败路径必须复位 isInferencing，否则永久卡死、YOLO 停摆
-            guard let dst = self.yoloInputBuffer else {
-                Task { @MainActor in self.finish(gen, [], 0, "YOLO: 直通缓冲缺失") }
-                return
-            }
             let start = Date()
 
             // ── 1. 推理（输入已是 YoloEngine.inputSize×inputSize BGRA）──
             do {
                 let input = try MLDictionaryFeatureProvider(
-                    dictionary: ["image": MLFeatureValue(pixelBuffer: dst)])
+                    dictionary: ["image": MLFeatureValue(pixelBuffer: pbForInference)])
                 let out = try modelRef.prediction(from: input)
 
                 // YOLOv26 e2e：单张量输出，名称不稳定，动态取第一个 featureName。
