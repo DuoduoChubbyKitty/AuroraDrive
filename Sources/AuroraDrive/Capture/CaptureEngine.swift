@@ -700,12 +700,22 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     /// 【第 4 点：可观测性】每次调用都打日志说明**走了哪条分支 + 结果**。
     func applyMode(_ mode: CaptureMode) async {
         print("[cap-deep] applyMode(\(mode.label)) 进入 isCapturing=\(isCapturing) stream=\(stream != nil ? "有" : "nil") captureMode=\(captureMode.label)")
-        desiredMode = mode
+        // ⚠️ 2026-10-10 修复「非法窗口污染 desiredMode」：
+        //   原实现在**校验之前**就无条件 `desiredMode = mode`。若用户/脚本选了一个
+        //   不存在的窗口（如 #999999999），后续校验失败 return，但 `desiredMode`
+        //   已经指向那个不存在的窗口 —— 下一次 `start()` 会拿它去建 filter，
+        //   在 startStream 里 `findWindow` 失败 → **整个抓屏起不来**。
+        //   实测残留现场：`desiredMode=只录窗口 #999999999`（w4-tools 独立发现）。
+        //   修法：desiredMode 只在**校验通过**后才提交（见下方各成功路径）。
         lastModeError = nil
+        let previousDesired = desiredMode
 
         guard isCapturing, let stream else {
             // ── 分支 A：还没开始捕获 ──
             // 【task-C 修复点】**只记期望，不标已生效**（原来错误地写了 captureMode）
+            // 【本处】未捕获时无法校验窗口是否存在，但 desiredMode 必须记下来
+            //   （start() 会用它）；窗口若届时不存在，startStream 会如实报错。
+            desiredMode = mode
             modePendingApply = true
             print("[cap-deep] applyMode 分支A（未在捕获）：只记 desiredMode=\(mode.label)，"
                   + "captureMode 保持=\(captureMode.label)（**不谎报已生效**）；"
@@ -739,7 +749,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         switch mode {
         case .window(let windowID):
             guard let target = Self.findWindow(id: windowID, in: content) else {
-                print("[cap-deep] ❌ applyMode: 窗口 #\(windowID) 不在列表里")
+                print("[cap-deep] ❌ applyMode: 窗口 #\(windowID) 不在列表里"
+                      + " → desiredMode 保持 \(previousDesired.label)（**不写入非法值**，"
+                      + "否则下次 start() 会因找不到该窗口而起不来）")
                 lastModeError = "窗口 #\(windowID) 已不存在（可能已关闭），仍保持「\(captureMode.label)」"
                 onModeChange?(captureMode)
                 return
@@ -758,6 +770,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             print("[cap-deep] ✅ applyMode 分支B（已在捕获）成功：updateContentFilter → \(mode.label)"
                   + "；captureMode \(captureMode.label) → \(mode.label)")
             captureMode = mode
+            desiredMode = mode          // 校验通过且真正生效 → 提交期望值
             modePendingApply = false   // 已真正生效，清"待应用"标记
             onModeChange?(mode)
             // 切回全屏后同样审一遍排除列表
@@ -767,6 +780,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             print("[cap-deep] ❌ applyMode 分支B 失败：updateContentFilter 抛错 \(error)")
             lastModeError = "切换失败：\(error.localizedDescription)"
             // 失败时保持"已生效模式"不变（不谎报成功），并标记待应用
+            // desiredMode 也保持原值（不写入一个没能生效的模式，避免下次 start 用错）
             modePendingApply = true
             onModeChange?(captureMode)
             print("[capture] ❌ 切换失败（保持 \(captureMode.label)）：\(error.localizedDescription)")

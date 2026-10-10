@@ -23,8 +23,24 @@
 所以：
   · 本 CLI 运行时，**UI 会被踢下线**；
   · UI 有 3 秒重连窗口（`startReconnectWindow` :1127），会自动连回来；
-  · 因此本 CLI 的命令应当**短促、用完即断**（默认超时 5s），不要长驻。
-  · 如果你在跑自动化，建议先停掉 UI，避免两边互相踢。
+  · 因此本 CLI 的命令应当**短促、用完即断**，不要长驻。
+  · **长 `wait` 前建议先停 UI**（实测教训，2026-10-10）：
+    反复连接会不断踢掉 UI；若 UI 恰好在"重连 20 秒未成功 → 保持本地模式"
+    （`EngineClient.swift:578`）的窗口内，引擎看门狗会在 30 秒无人重连后
+    **自动退出**。`wait` 轮询会多次连接，故长等待场景请先停 UI。
+
+================================================================================
+⏱  超时：慢命令有更长的默认值
+================================================================================
+  · `start` 默认 **15s**：首次会**同步加载 5 个 CoreML 模型**，实测阻塞引擎
+    主 actor **约 5.9s**（引擎日志 `收到命令: start` → `startDriving` 间隔），
+    ack 在 5.9s 后才发出。用默认 5s 会**误报"未确认"**。
+  · `stop` 默认 **10s**：释放按键 + 停抓屏，通常快，留足余量。
+  · 其余命令默认 5s。
+  · 以上是**下限**：显式 `--timeout 60` 时取更大者；传更小值也会被抬到下限，
+    避免必然超时的误导性结果。
+  · 慢命令（start/stop）收到心跳后**不提前降级**，老实等满超时；快命令仍
+    保留 1.2s 快速降级（老引擎上体验不退化）。
 
 ================================================================================
 用法示例
@@ -769,7 +785,16 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return EXIT_USAGE
 
-    client = EngineClient(path=args.socket, timeout=args.timeout, verbose=args.verbose)
+    # 慢命令（start/stop）抬高默认超时：冷启动加载 5 个 CoreML 模型实测 5.9s
+    # （见 MIN_TIMEOUT_BY_CMD 注释）。用户显式传更大值时尊重用户。
+    effective_timeout = resolve_timeout(args.cmd, args.timeout)
+    if effective_timeout != args.timeout and not args.json:
+        why = ("首次加载 5 个 CoreML 模型较慢（实测 ~6s）"
+               if args.cmd == "start" else
+               "释放按键 + 停抓屏需要时间")
+        info(f"{args.cmd}：超时 {args.timeout:g}s → {effective_timeout:g}s"
+             f"（{why}；可用 --timeout 覆盖）")
+    client = EngineClient(path=args.socket, timeout=effective_timeout, verbose=args.verbose)
     # 每次 command 的收集器初始化（避免跨命令串味）
     client._stray_acks = []
     client._others = []
