@@ -3001,6 +3001,16 @@ final class InferenceEngineV2 {
                 $0.isFinite ? $0 : nil })
     }
 
+    /// 预分配的像素暂存缓冲（`preprocessImage` 复用，避免每帧 230KB 堆分配）。
+    ///
+    /// ⚠️ 2026-10-11：原实现每帧 `var pixelData = [UInt8](repeating: 0, count: 230400)`，
+    ///   20Hz 下 = 4.6MB/s 堆分配 + GC 压力。改为本缓冲复用，尺寸变化时才重建。
+    ///
+    /// 【线程安全】`preprocessImage` 是 `nonisolated static`，只在 `inferenceQueue`
+    ///   （串行队列，见本文件 `inferenceQueue` 声明）上调用 → 不会并发 →
+    ///   `nonisolated(unsafe)` 安全。项目已有同模式先例（`YolopxEngine.lastInferenceDoneAt`）。
+    private nonisolated(unsafe) static var preprocessPixelBuffer: [UInt8] = []
+
     /// CGImage → MLMultiArray [1,3,H,W] Float32 CHW 归一化 [0,1]。
     ///
     /// 与 `InferenceEngine.preprocessImage` 逐位同算法（缩放绘制 → RGBA 读像素 →
@@ -3011,12 +3021,28 @@ final class InferenceEngineV2 {
                                                     height: Int, width: Int,
                                                     into reusable: MLMultiArray?) -> MLMultiArray? {
         let bytesPerRow = width * 4
-        var pixelData = [UInt8](repeating: 0, count: width * height * 4)
+        let needed = width * height * 4
+
+        // ⚠️ 2026-10-11 预分配优化：原实现每帧 `var pixelData = [UInt8](repeating: 0, count: needed)`
+        //   分配 230KB（180×320×4），20Hz 下 = 4.6MB/s 堆分配 + GC 压力。
+        //   改为预分配 static buffer 复用，仅在尺寸变化时重建（懒重建）。
+        //
+        // 【线程安全】`preprocessImage` 是 `nonisolated static`，只在 `inferenceQueue`
+        //   （串行队列 :1409）上调用（:2062）→ 不会并发 → `nonisolated(unsafe)` 安全。
+        //   项目已有先例：`YolopxEngine.lastInferenceDoneAt` 同模式。
+        if preprocessPixelBuffer.count != needed {
+            preprocessPixelBuffer = [UInt8](repeating: 0, count: needed)
+        }
         let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let context = CGContext(data: &pixelData, width: width, height: height,
-                                      bitsPerComponent: 8, bytesPerRow: bytesPerRow,
-                                      space: colorSpace,
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+        // CGContext 需要 `UnsafeMutableRawPointer?` —— 用 withUnsafeMutableBufferPointer
+        // 取稳定指针（闭包内有效），draw 完成后数据已写入数组，闭包外可直接读。
+        guard let context = preprocessPixelBuffer.withUnsafeMutableBufferPointer({ buf -> CGContext? in
+            guard let base = buf.baseAddress else { return nil }
+            return CGContext(data: base, width: width, height: height,
+                             bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+                             space: colorSpace,
+                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        }) else {
             return nil
         }
         context.interpolationQuality = .high
@@ -3044,9 +3070,9 @@ final class InferenceEngineV2 {
             for x in 0..<width {
                 let pixelIdx = (y * width + x) * 4
                 let outIdx = y * width + x
-                ptr[outIdx]                 = Float32(pixelData[pixelIdx])
-                ptr[planeSize + outIdx]     = Float32(pixelData[pixelIdx + 1])
-                ptr[planeSize * 2 + outIdx] = Float32(pixelData[pixelIdx + 2])
+                ptr[outIdx]                 = Float32(preprocessPixelBuffer[pixelIdx])
+                ptr[planeSize + outIdx]     = Float32(preprocessPixelBuffer[pixelIdx + 1])
+                ptr[planeSize * 2 + outIdx] = Float32(preprocessPixelBuffer[pixelIdx + 2])
             }
         }
         var divisor: Float32 = 255.0
