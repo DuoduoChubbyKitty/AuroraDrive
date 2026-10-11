@@ -262,7 +262,11 @@ final class MotionPredictor {
     ///    调用顺序应当是：每个 tick 先 `ingest`（如果有新真值）再 `predict`；
     ///    或先 `predict` 再 `ingest` —— 两者都可，只要**每个 tick 恰好调用
     ///    一次 predict**。
-    func ingest(detections: [Detection], dtSeconds: Double = 1.0 / 30.0) {
+    /// ⚠️ 2026-10-11 主循环定档 20Hz：默认参数与 tick 频率一致（原 1/30）。
+    ///   · 生产路径 `AuroraDriveApp:6680` 显式传 `dtSeconds: dt`(=1/20) → 不走默认值
+    ///   · 自检路径（`AuroraDriveApp` 的 motion selftest）**显式传 1/30** 保住原基线
+    ///   · 本默认值与同文件 `lastIngestDt` 字段（=1/20）保持同步，消除 API 表面不一致
+    func ingest(detections: [Detection], dtSeconds: Double = 1.0 / 20.0) {
         lastObservedCount = detections.count
         lastIngestDt = dtSeconds
 

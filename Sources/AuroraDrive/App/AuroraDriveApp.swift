@@ -3316,7 +3316,7 @@ func runMotionSelfTest() -> Int32 {
         predictor.ingest(detections: [
             Detection(x: x, y: 0.6, width: 0.15, height: 0.2,
                       label: .car, confidence: 0.9, rawName: "CAR")
-        ])
+        ], dtSeconds: 1.0 / 30.0)   // 自检基线：显式 1/30（生产默认已改 1/20）
         _ = predictor.predict(dtSeconds: dt)
     }
     // 然后停止喂真值，纯靠外推，看 3 帧后误差多大
@@ -3341,7 +3341,8 @@ func runMotionSelfTest() -> Int32 {
     let p2 = MotionPredictor()
     // 只喂 1 帧（速度未确认），然后一直空跑
     p2.ingest(detections: [Detection(x: 0.5, y: 0.6, width: 0.1, height: 0.1,
-                                     label: .car, confidence: 0.9, rawName: "CAR")])
+                                     label: .car, confidence: 0.9, rawName: "CAR")],
+              dtSeconds: 1.0 / 30.0)   // 自检基线：显式 1/30（生产默认已改 1/20）
     var moved = 0.0
     let startX = p2.predictDetections(dtSeconds: dt).first?.x ?? 0.5
     for _ in 0..<5 {
@@ -3356,7 +3357,8 @@ func runMotionSelfTest() -> Int32 {
     for frame in 0..<6 {
         p3.ingest(detections: [Detection(x: 0.30 + 0.01 * Double(frame), y: 0.6,
                                          width: 0.15, height: 0.2,
-                                         label: .car, confidence: 0.9, rawName: "CAR")])
+                                         label: .car, confidence: 0.9, rawName: "CAR")],
+                  dtSeconds: 1.0 / 30.0)   // 自检基线：显式 1/30（生产默认已改 1/20）
         _ = p3.predict(dtSeconds: dt)
     }
     let beforeStop = p3.predictDetections(dtSeconds: dt).first?.x ?? 0
