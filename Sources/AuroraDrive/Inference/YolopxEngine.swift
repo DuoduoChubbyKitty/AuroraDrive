@@ -473,8 +473,12 @@ final class YolopxEngine {
             .flatMap(Double.init) ?? 0
 
     /// 上次推理**完成**的时刻（节拍判据用完成时间，不是提交时间）
+    ///
+    /// ⚠️ 2026-10-11：由 `private` 改为 `private(set)` —— 调用方（`AuroraDriveApp`
+    ///   的降级短路门禁）需要读它来判断"距上次完成多久"，以便降级时按周期重试。
+    ///   只开放读、不开放写（写仍只在本类内部 `finish()`），语义安全。
     @ObservationIgnored
-    private nonisolated(unsafe) var lastInferenceDoneAt: CFAbsoluteTime = 0
+    private(set) nonisolated(unsafe) var lastInferenceDoneAt: CFAbsoluteTime = 0
 
     /// ★ 阶段0（2026-10-01 审计修复）：letterbox 执行位置开关，**惰性读一次**。
     ///
