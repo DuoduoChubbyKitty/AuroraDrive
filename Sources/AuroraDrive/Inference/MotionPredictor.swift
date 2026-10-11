@@ -160,7 +160,9 @@ final class MotionPredictor {
     private var frameCounter: Int = 0
 
     /// 最近一次 ingest 的帧间隔（秒）。用于把观测位移换算成 /秒 速度。
-    private var lastIngestDt: Double = 1.0 / 30.0
+    // ⚠️ 2026-10-11 主循环定档 20Hz：默认值与 tick 频率一致。
+    //   运行时路径（AuroraDriveApp:6665）显式传 dtSeconds=dt(=1/20)，此默认值只影响自检。
+    private var lastIngestDt: Double = 1.0 / 20.0
 
     /// 最近一次自车运动（来自光流），供校验与诊断
     ///
