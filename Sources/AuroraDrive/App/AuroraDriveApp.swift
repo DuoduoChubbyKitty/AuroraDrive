@@ -7215,34 +7215,14 @@ final class DriveState {
             // 偶数帧门（detectGateA）；与 yolo26s 奇数帧错开，互不干扰。
             // 停用 yolopxEngine.enabled 即完全退出。
             //
-            // ⚠️⚠️ 2026-10-11 重大修复（w1-backend 的 task-104 审计发现的结构性缺陷）：
-            //   【问题】`isDegraded` 是**推理之后**才在 `finish()` 里判定的（YolopxEngine:1056），
-            //     推理入口（:898-906）与调用方（本处）**都没有降级门禁** →
-            //     降级状态下**每帧照烧**。真实日志实测（121 样本）：
-            //       · 降级=true 121/121（100% 都是降级态）
-            //       · 降级时 p50=48.7ms / max=432.9ms → 偶数帧 10Hz 下 **每秒 487ms = 单核 49%**
-            //       · da=0格 ll=0格 110/121（91% 产出空掩码 = 纯浪费）
-            //   ⟹ 这就是用户「待机/未驾驶也卡」的直接来源。
-            //
-            //   【修法】降级时短路跳过推理，但**带周期性重试**——
-            //     降级可能因场景变化（如驶入有车道线的路段）自行恢复，
-            //     永久停摆会让车道线永远回不来。故超过 `degradedRetryInterval` 强制重试一次。
-            //
-            //   【为什么不能直接永久跳过】`isDegraded` 的语义是「da/ll 信号弱」，
-            //     是**场景相关**的，不是永久故障。必须保留恢复通道。
-            //
-            //   【回退开关】`AURORA_YOLOPX_DEGRADE_SKIP=0` 恢复旧行为（每帧都跑）。
-            let degradeSkipEnabled =
-                ProcessInfo.processInfo.environment["AURORA_YOLOPX_DEGRADE_SKIP"] != "0"
-            // 重试间隔 2 秒：足够快以捕捉场景变化，又足以把空转开销从 49% 降到 <3%
-            // ⚠️ 时钟必须用 `CFAbsoluteTimeGetCurrent()`（与 `lastInferenceDoneAt` 同源，
-            //    都是从 2001-01-01 起的秒数）。**不能用 `Date().timeIntervalSince1970`**
-            //    —— 两者相差 978307200 秒，会导致条件恒真、门禁失效。
-            let degradedRetryDue: Bool = {
-                guard yolopxEngine.isDegraded, yolopxEngine.lastInferenceDoneAt > 0 else { return true }
-                return CFAbsoluteTimeGetCurrent() - yolopxEngine.lastInferenceDoneAt > 2.0
-            }()
-            if detectGateA, !degradeSkipEnabled || !yolopxEngine.isDegraded || degradedRetryDue {
+            // ⚠️ 2026-10-11 回退记录（曾尝试降级短路，但对 ayolom 档有害）：
+            //   本小姐曾在此处加"降级时跳过推理 + 2 秒重试"，逻辑上对 legacy 档
+            //   （yolopx 大模型降级白跑 48.7ms）有效。但用户**默认用 ayolom（A 模型）**，
+            //   `isDegraded` 初始=true 且 `da=0格 ll=0格` 时恒为 true → 短路会让
+            //   A-YOLOM 几乎不跑（2 秒一次）→ 检测框不更新 → 死循环。
+            //   ⟹ 对 ayolom 有害，已回退。降级短路只在 legacy 档有意义，
+            //      未来若要加，必须门控 `family == .yolopx`。
+            if detectGateA {
                 yolopxEngine.infer(image: cg)
             }
         }
