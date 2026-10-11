@@ -808,6 +808,61 @@ final class SpeedOCRReader {
         .useSoftwareRenderer: true,
     ])
 
+    /// 纯 CPU：从 32BGRA 的 CVPixelBuffer 建 CGImage（可选按归一化矩形裁剪）。
+    ///
+    /// ⚠️ 2026-10-11 新增：替代 `CIContext.createCGImage` —— 后者在 Apple Silicon
+    ///   上必然走 Metal 并**同步等 GPU**（`useSoftwareRenderer` 因平台无 OpenCL 被
+    ///   静默忽略，官方头文件 `CIContext.h:184` 明说）。此实现只用内存拷贝，
+    ///   **零 CoreImage / 零 Metal 提交 / 零 GPU 等待**。
+    ///
+    /// - Parameters:
+    ///   - pb: 32BGRA 的像素缓冲（CaptureEngine 显式锁定的格式）
+    ///   - cropNorm: 可选归一化裁剪矩形（左上原点，与 `CaptureEngine.speedROINorm` 同语义）；
+    ///               nil = 整帧
+    /// - Returns: CGImage；格式不符 / 锁失败时返回 nil（调用方如实报错，不静默吞）
+    private nonisolated static func cgImageFromPixelBuffer(_ pb: CVPixelBuffer,
+                                                           cropNorm: CGRect?) -> CGImage? {
+        let pw = CVPixelBufferGetWidth(pb)
+        let ph = CVPixelBufferGetHeight(pb)
+        guard pw > 0, ph > 0 else { return nil }
+
+        // 裁剪区域（像素，左上原点）；越界钳到边界（OCR 不因越界整帧失败）
+        var cropX = 0, cropY = 0, cropW = pw, cropH = ph
+        if let r = cropNorm {
+            cropX = max(0, min(pw - 1, Int((r.origin.x * CGFloat(pw)).rounded())))
+            cropY = max(0, min(ph - 1, Int((r.origin.y * CGFloat(ph)).rounded())))
+            cropW = max(1, min(pw - cropX, Int((r.width * CGFloat(pw)).rounded())))
+            cropH = max(1, min(ph - cropY, Int((r.height * CGFloat(ph)).rounded())))
+        }
+
+        CVPixelBufferLockBaseAddress(pb, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(pb) else { return nil }
+        let srcRowBytes = CVPixelBufferGetBytesPerRow(pb)
+
+        let outRowBytes = cropW * 4
+        var dst = [UInt8](repeating: 0, count: outRowBytes * cropH)
+        dst.withUnsafeMutableBytes { raw in
+            guard let dstBase = raw.baseAddress else { return }
+            for y in 0..<cropH {
+                let src = base.advanced(by: (cropY + y) * srcRowBytes + cropX * 4)
+                memcpy(dstBase.advanced(by: y * outRowBytes), src, outRowBytes)
+            }
+        }
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
+                                          | CGBitmapInfo.byteOrder32Little.rawValue)
+        return dst.withUnsafeMutableBytes { raw -> CGImage? in
+            guard let ctx = CGContext(data: raw.baseAddress,
+                                      width: cropW, height: cropH,
+                                      bitsPerComponent: 8, bytesPerRow: outRowBytes,
+                                      space: colorSpace, bitmapInfo: bitmapInfo.rawValue) else {
+                return nil
+            }
+            return ctx.makeImage()
+        }
+    }
+
     // MARK: - 模板匹配（nonisolated 纯函数）
 
     /// 单次识别结果
@@ -862,8 +917,33 @@ final class SpeedOCRReader {
             }
             input = CIImage(cvPixelBuffer: roiBuffer).cropped(to: rect)
         }
-        guard let cg = ciContext.createCGImage(input, from: input.extent),
-              cg.width > 0, cg.height > 0 else {
+        // ⚠️⚠️ 2026-10-11 重大修复：**改为纯 CPU 直读 CVPixelBuffer**（不再经 CIContext）
+        //
+        // 【血案证据 — `sample` 实测】
+        //   用户"没开游戏、只打开自动驾驶就卡到 12fps"。`sample` 引擎进程抓到
+        //   `Thread: com.aurora.confidence.brightness` 679 样本全卡在
+        //   `CIContext.render → CI::MetalContext::readback_bitmap → _MTLCommandBuffer
+        //    waitUntilCompleted → __psynch_cvwait`（同步等 GPU）。
+        //   本文件（SpeedOCRReader.swift:572 的闭包）是残留的第二处同类调用。
+        //
+        // 【为什么 `useSoftwareRenderer: true` 无效 — 官方头文件铁证】
+        //   `CIContext.h:184` 原文：
+        //   > Note: This option has no effect if the platform does not support OpenCL.
+        //   **Apple Silicon 无 OpenCL** → 选项被静默忽略 → 照样走 Metal。
+        //   ⟹ 只要用 CIContext 就无法保证不碰 GPU。**唯一可靠的做法是不用它。**
+        //
+        // 【新实现】输入恒为 32BGRA 的 CVPixelBuffer（CaptureEngine 显式锁的格式）→
+        //   直接 lock base address + 逐行拷进 CGContext 建的位图（纯 CPU 内存拷贝），
+        //   再 makeImage()。**零 CoreImage、零 Metal 提交、零 GPU 等待。**
+        //   小 ROI（102×42 级）拷贝量 ~17KB，开销可忽略。
+        //   【回退开关】`AURORA_OCR_CI=1` 恢复 CoreImage 路径（仅排查对比用）。
+        let cg: CGImage?
+        if isROISlice || ProcessInfo.processInfo.environment["AURORA_OCR_CI"] != "1" {
+            cg = Self.cgImageFromPixelBuffer(roiBuffer, cropNorm: isROISlice ? nil : CaptureEngine.speedROINorm)
+        } else {
+            cg = ciContext.createCGImage(input, from: input.extent)
+        }
+        guard let cg, cg.width > 0, cg.height > 0 else {
             return RecognitionResult(error: "PP-OCR: ROI 渲染失败")
         }
         guard let gray = grayscalePixels(cgImage: cg) else {
