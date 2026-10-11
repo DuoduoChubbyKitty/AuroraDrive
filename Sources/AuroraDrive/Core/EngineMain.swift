@@ -641,14 +641,24 @@ enum EngineMain {
     ///   · `"ayolom"` → **45Hz**（小模型 A-YOLOM）
     ///   · `"legacy"` → **30Hz**（大模型 YOLOPX，为重推理让出 CPU）
     ///
-    /// 【成本模型 —— ⚠️ 2026-10-11 Lead 修正版，勿引用旧结论】
-    ///   tick 同步段本身 p50 = **0.34ms**（PERF 日志），远低于任何档位预算；
-    ///   真正吃 CPU 的是**异步推理**（每次 tick 投递，不在 tick 线程内）：
-    ///     yolopx(ayolom) 20.9ms + V2 8.5ms + world_model 3.0ms ≈ 32.4ms/帧
-    ///     30Hz ≈ 0.97 核/秒（估算）；45Hz ≈ 1.46 核/秒（估算）
-    ///   P5 实测 45Hz 下 engine CPU = **85.2%（0.85 核）**，比线性估算更省。
-    ///   ⟹ 45Hz 可行性乐观（M3 8 核），但仍需真机实测确认（不写死结论）。
-    static var engineTickHz: Double = 30.0
+    /// 【2026-10-11 最终定档：**20Hz**】
+    ///
+    /// ── 用户拍板的两档频率 ──
+    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **20Hz** ＋ 抓屏 **45fps**
+    ///   · `.legacy`（大模型 26S+光流+YOLOPX）：推理 **20Hz** ＋ 抓屏 **20fps**
+    ///   两档推理频率相同（20Hz），区别只在抓屏帧率（45 vs 20）与模型大小。
+    ///
+    /// ── 为什么是 20 而不是 30/45 ──
+    ///   用户原话：「30 赫兹还是感觉有点过高，20 赫兹应该也够用了」
+    ///   · 20Hz 预算 = 50ms（ayolom 10.42ms ≪ 50ms，绰绰有余）
+    ///   · 比 30Hz 省 33% 推理量，比 45Hz 省 56%
+    ///   · 画面流不受影响（ayolom 档抓屏仍 45fps）
+    ///
+    /// ── 抓屏与 tick 解耦 ──
+    ///   · 抓屏侧由 `captureHz(forPerceptionMode:)` 单独映射（ayolom→45 / legacy→20）
+    ///   · tick 侧由 `tickHz(forPerceptionMode:)` 映射（两档都 20）
+    ///   · `applyPerceptionMode` 分别用两个频率调 `setTickHz` + `setCaptureHz`
+    static var engineTickHz: Double = 20.0
 
     /// tick 定时器**已生效**的频率（诊断/心跳回显用；与 engineTickHz 同主线程读写）
     nonisolated(unsafe) private static var lastAppliedTickHz: Double = 0.0
@@ -729,10 +739,28 @@ enum EngineMain {
     ///     `PerceptionModelFamily` 的 case 是 `.yolopx`/`.ayolom`，而 UI 侧把
     ///     大模型档叫 "legacy"；两侧拼写不一致会导致**静默不切**，故两个都认。
     /// - Returns: 目标频率；未知值返回 nil（不猜，由调用方如实回执）
+    ///
+    /// ⚠️ 2026-10-11 用户最终定档：
+    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **20Hz**（够用，省性能）＋ 抓屏 **45fps**
+    ///     —— 画面流保持 45fps 流畅，推理 20Hz 足够（模型延迟 10.42ms ≪ 50ms 预算）
+    ///   · `.legacy`（大模型 26S+光流+YOLOPX）：推理 **20Hz** ＋ 抓屏 **20fps**
+    ///     —— 大模型重，抓屏也降到 20fps 省全部带宽（给高配用户，但仍然省）
+    ///   两档推理频率相同（20Hz），区别只在抓屏帧率（45 vs 20）与模型大小。
     static func tickHz(forPerceptionMode mode: String) -> Double? {
         switch mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "ayolom":              return 20.0
+        case "legacy", "yolopx":    return 20.0
+        default:                    return nil
+        }
+    }
+
+    /// 抓屏帧率档位映射（与 tickHz 配套，由 `applyPerceptionMode` 调用 `setCaptureHz`）
+    /// - ayolom: 45fps（画面流畅，给眼睛看）
+    /// - legacy: 20fps（大模型省带宽）
+    static func captureHz(forPerceptionMode mode: String) -> Double? {
+        switch mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "ayolom":              return 45.0
-        case "legacy", "yolopx":    return 30.0
+        case "legacy", "yolopx":    return 20.0
         default:                    return nil
         }
     }
@@ -747,7 +775,11 @@ enum EngineMain {
     ///   · **延后**：切档时记日志 + 挂起 → **录制停止时自动补上**。用户意图最终满足，
     ///     且录制会话内频率**恒定**（不破坏帧率语义）。
     ///   ⟹ **选延后**：既守住"录制中不切"的硬约束，又不丢用户意图。
+    ///
+    /// ⚠️ 2026-10-11 用户定档后 tick 与抓屏频率**不再相同**（ayolom: tick=20 / capture=45），
+    ///   故挂起值也拆成两个。
     nonisolated(unsafe) private static var pendingTickHz: Double?
+    nonisolated(unsafe) private static var pendingCaptureHz: Double?
 
     /// 档位变更入口（由 `case "config"` 的 `perceptionMode` 分支调用）
     /// - Parameters:
@@ -757,40 +789,43 @@ enum EngineMain {
     @MainActor
     @discardableResult
     static func applyPerceptionMode(_ mode: String, isRecording: Bool) -> (applied: Bool, detail: String) {
-        guard let hz = tickHz(forPerceptionMode: mode) else {
+        guard let tickRate = tickHz(forPerceptionMode: mode),
+              let capRate  = captureHz(forPerceptionMode: mode) else {
             return (false, "未知 perceptionMode「\(mode)」（仅接受 ayolom / legacy），频率未变")
         }
         if isRecording {
-            pendingTickHz = hz
-            return (false, "录制中：tick 频率保持 \(Int(currentTickHz.rounded()))Hz 不变"
-                         + "（避免改变已开始会话的帧率语义）；已挂起 \(Int(hz))Hz，停止录制后自动生效")
+            pendingTickHz = tickRate
+            pendingCaptureHz = capRate
+            return (false, "录制中：tick 保持 \(Int(currentTickHz.rounded()))Hz / 抓屏保持当前帧率不变"
+                         + "（避免改变已开始会话的帧率语义）；已挂起 tick=\(Int(tickRate))Hz + 抓屏=\(Int(capRate))fps，停止录制后自动生效")
         }
-        setTickHz(hz)
+        setTickHz(tickRate)
         // ★ 2026-10-11 Lead 接线修复（w8-verify 复检发现的 P0 缺口）：
         //   `CaptureEngine.setCaptureHz(_:)` 由 w3 实现，但**全仓库无调用者**
-        //   → 档位切换时 tick 频率变了、**抓屏频率没变** → 两者不同步
-        //   （用户要的是"小模型 45fps 抓屏 / 大模型 30fps 抓屏"）。
-        //   这里补上接线：抓屏侧与 tick 侧**用同一个 hz**，保证同步。
-        //   `setCaptureHz` 是 async，故包一层 Task（不阻塞主线程的 config 处理）。
-        //   ⚠️ 失败不致命：抓屏若热更失败会自己回退重启流，且 tick 已切好。
+        //   → 档位切换时 tick 频率变了、**抓屏频率没变** → 两者不同步。
+        //   ⚠️ 用户定档后 tick 与抓屏频率**不同**（ayolom: tick=20 / capture=45），
+        //      故这里用 `capRate`（不是 `tickRate`）调 setCaptureHz。
         Task { @MainActor in
-            await EngineGlobals.state?.captureEngine.setCaptureHz(hz)
+            await EngineGlobals.state?.captureEngine.setCaptureHz(capRate)
         }
-        return (true, "tick 频率已切到 \(Int(hz))Hz（perceptionMode=\(mode)）；抓屏同步切换中")
+        return (true, "tick 已切到 \(Int(tickRate))Hz / 抓屏 \(Int(capRate))fps（perceptionMode=\(mode)）")
     }
 
     /// 录制停止时调用：把挂起的档位频率补上（无挂起则什么都不做）
     @MainActor
     static func flushPendingTickHz() {
-        guard let hz = pendingTickHz else { return }
+        guard let tickRate = pendingTickHz else { return }
+        let capRate = pendingCaptureHz
         pendingTickHz = nil
-        setTickHz(hz)
-        // ★ 同步补切抓屏（与 applyPerceptionMode 的接线一致）——否则会留下
-        //   "tick 45Hz 但抓屏 30fps"的错配（本次 Lead 修复的第二个点）。
-        Task { @MainActor in
-            await EngineGlobals.state?.captureEngine.setCaptureHz(hz)
+        pendingCaptureHz = nil
+        setTickHz(tickRate)
+        if let capRate {
+            Task { @MainActor in
+                await EngineGlobals.state?.captureEngine.setCaptureHz(capRate)
+            }
         }
-        engineLog("[ENGINE] 录制已停止 → 补切挂起的 tick 频率 \(Int(hz))Hz（抓屏同步切换中）")
+        engineLog("[ENGINE] 录制已停止 → 补切挂起频率 tick=\(Int(tickRate))Hz"
+                  + (capRate.map { " / 抓屏=\(Int($0))fps" } ?? ""))
     }
 
     static func run() -> Never {
