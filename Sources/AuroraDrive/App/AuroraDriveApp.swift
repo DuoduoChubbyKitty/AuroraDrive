@@ -7148,7 +7148,36 @@ final class DriveState {
                     inferenceEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)
                 }
             }
-            assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
+            // ⚠️ 2026-10-11 性能优化（w4-tools 审计发现，省 ~160ms/s CPU）：
+            //   原：每帧无条件调 `assistEngine.infer()`——但 e2e 模式下它的输出**不被消费**
+            //   （`:7330` 用 m9Command 不用 assistCommand；`:7496` 只在 .yolo 才消费）
+            //   → 每秒白跑 20 次 × ~8ms = ~160ms CPU 白干（占一核 ~16%）
+            //
+            //   降级链安全论证（本小姐逐行读 DegradeStateMachine.swift + isAlive）：
+            //   · isAlive() 看 `lastResultTime` 在 1.0s 内（`:7233-7235`）
+            //   · e2e 档降级检查 `!m9Live || health < degradeHealth`（DegradeStateMachine:118）
+            //     → **不看 assistLive** → e2e 档停跑 assistEngine 不触发降级 ✅
+            //   · .yolo 档降级检查 `!assistLive`（DegradeStateMachine:124）
+            //     → **看 assistLive** → 若完全停跑，1s 后 assistLive=false → 误降 .rule
+            //
+            //   方案：**保活心跳**——e2e 时每 5 帧跑一次（保持 lastResultTime < 1.0s），
+            //         .yolo 时每帧跑（降级档需要真值）。省 e2e 档 80% 的白跑量。
+            //
+            //   【为什么不用 w4 的 `mode == .yolo || confidence < threshold*1.5`】
+            //     那会在 e2e 降到 .yolo 的瞬间因 lastResultTime 过期 → assistLive=false
+            //     → 立刻被降 .rule → 连跳两级。保活心跳避免这个窗口期。
+            //
+            //   【代价】e2e 档每 5 帧（=每 250ms@20Hz）跑一次 ~8ms → 每秒 ~32ms（原 160ms）
+            //         省 80%。降级第一帧已有新鲜 lastResult → 无跳级风险。
+            //
+            //   【自检路径】`--*selftest` 仍调 `assistEngine.infer(image: testImage)`，
+            //         不走本门禁 → 自检不受影响。
+            //
+            //   ⚠️ 回退开关：`AURORA_ASSIST_KEEPALIVE=0` 恢复每帧跑（出问题时一行回退）。
+            let assistKeepalive = ProcessInfo.processInfo.environment["AURORA_ASSIST_KEEPALIVE"] != "0"
+            if !assistKeepalive || mode == .yolo || adaptiveFrameCounter % 5 == 0 {
+                assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
+            }
 
             // ── P1 · 检测网偶奇错开（yolopx 偶数帧 / yolo26s 奇数帧）──
             // 【为什么错开】两者原来同相位（同帧同停、同帧同跑），每个停帧都产生
