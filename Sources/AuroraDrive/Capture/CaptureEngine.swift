@@ -169,13 +169,13 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     // ══════════════════════════════════════════════════════════════════════════
     // task-94（W3 · 2026-10-11）：**档位感知动态抓屏帧率**
     // ══════════════════════════════════════════════════════════════════════════
-    /// 目标抓屏帧率（Hz）。默认 45（`.ayolom` 小模型档）。
+    /// 目标抓屏帧率（Hz）。默认 20（与推理 tick 20Hz 对齐）。
     ///
     /// 【档位映射约定（调用方负责映射，本类只收数值）】
-    ///   · `.ayolom`（小模型，单帧成本低）→ **45**：抓屏快、决策密
-    ///   · `.legacy`（26S + 光流 + YOLOPX，大模型）→ **30**：少传数据，
-    ///     给 YOLOPX（单帧 183ms）让性能 —— 用户原话："超大型的直接让画面流
-    ///     切换回 30 赫兹，还能正好少传点数据"
+    ///   · `.ayolom` → **20**：与 tick 20Hz 对齐，抓屏不超发（2026-10-12 改，
+    ///     原 45 时每 tick 只消费 1 帧、多余 25 帧被跳帧丢弃，纯浪费带宽/CPU）
+    ///   · `.legacy` → **20**
+    ///   · 应急冲刺（EmergencyTakeover.sprint）→ **45**：由 EngineMain.tickOnce 联动
     ///
     /// 【为什么本类只收数值、不认档位】`PerceptionMode` 定义在
     ///   `YolopxEngine.swift`（非本文件写域）；且档位→Hz 的映射是**策略**，
@@ -183,11 +183,11 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///
     /// 【线程安全】`stateLock` 保护（`start()` 的 Task 与 `setCaptureHz`
     ///   可能来自不同线程，与 `_isCapturing` 同因）。
-    private var _targetCaptureHz: Double = 45.0
+    private var _targetCaptureHz: Double = 20.0
     var targetCaptureHz: Double {
         get { stateLock.withLock { _targetCaptureHz } }
         set {
-            let v = max(1.0, min(120.0, newValue.isFinite ? newValue : 45.0))
+            let v = max(1.0, min(120.0, newValue.isFinite ? newValue : 20.0))
             stateLock.withLock { _targetCaptureHz = v }
         }
     }
@@ -201,7 +201,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///   若需区分二者，可加 `activeCaptureHzVerified: Bool`；当前保持简单，
     ///   但**不要把该值当作"实测帧率"**——实测应用
     ///   `lastFrameGapMs`（帧到达间隔）反推。
-    private var _activeCaptureHz: Double = 45.0
+    private var _activeCaptureHz: Double = 20.0
     private(set) var activeCaptureHz: Double {
         get { stateLock.withLock { _activeCaptureHz } }
         set { stateLock.withLock { _activeCaptureHz = newValue } }
@@ -593,7 +593,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         config.height = Int((targetW * aspect).rounded())
         config.scalesToFit = false
         // task-94：帧率从参数读（不再硬编码 45）
-        let safeHz = max(1.0, min(120.0, configHz.isFinite ? configHz : 45.0))
+        let safeHz = max(1.0, min(120.0, configHz.isFinite ? configHz : 20.0))
         let tscale = max(1, Int(safeHz.rounded()))
         config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(tscale))
         config.pixelFormat = kCVPixelFormatType_32BGRA
@@ -655,7 +655,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///   非本文件写域）。建议接线点：`EngineMain.applyPerceptionMode(_:isRecording:)`
     ///   里 `Task { await state?.captureEngine.setCaptureHz(hz) }`。
     func setCaptureHz(_ hz: Double) async {
-        let newHz = max(1.0, min(120.0, hz.isFinite ? hz : 45.0))
+        let newHz = max(1.0, min(120.0, hz.isFinite ? hz : 20.0))
         let old = targetCaptureHz
         targetCaptureHz = newHz
         print("[cap-deep] setCaptureHz(\(newHz)) 旧值=\(old) isCapturing=\(isCapturing)")

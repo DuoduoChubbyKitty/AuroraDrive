@@ -663,6 +663,16 @@ enum EngineMain {
     /// tick 定时器**已生效**的频率（诊断/心跳回显用；与 engineTickHz 同主线程读写）
     nonisolated(unsafe) private static var lastAppliedTickHz: Double = 0.0
 
+    /// 抓屏流**已生效**的帧率（应急爆发联动用，避免每帧重复停启流）
+    nonisolated(unsafe) private static var lastAppliedCaptureHz: Double = 20.0
+
+    /// 当前档位的**基准**抓屏频率（sprint 结束后回退到此值）。
+    /// 由 applyPerceptionMode / flushPendingTickHz 写入。
+    /// 不直接查 `captureHz(forPerceptionMode:)` —— 因为引擎侧没有存
+    /// perceptionMode 的字符串 key（DriveMode.rawValue 是中文，与
+    /// captureHz 的 key "ayolom"/"legacy" 不匹配）。直接存频率值最简单。
+    nonisolated(unsafe) private static var baseCaptureHz: Double = 20.0
+
     /// 动态调整引擎 tick 频率（task-93）。
     ///
     /// 【实现】`DispatchSourceTimer` 的 `schedule(deadline:repeating:leeway:)`
@@ -755,11 +765,11 @@ enum EngineMain {
     }
 
     /// 抓屏帧率档位映射（与 tickHz 配套，由 `applyPerceptionMode` 调用 `setCaptureHz`）
-    /// - ayolom: 45fps（画面流畅，给眼睛看）
-    /// - legacy: 20fps（大模型省带宽）
+    /// - ayolom: 20fps（与推理 tick 20Hz 对齐；应急爆发由 EmergencyTakeover 提到 45）
+    /// - legacy: 20fps
     static func captureHz(forPerceptionMode mode: String) -> Double? {
         switch mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "ayolom":              return 45.0
+        case "ayolom":              return 20.0
         case "legacy", "yolopx":    return 20.0
         default:                    return nil
         }
@@ -796,11 +806,9 @@ enum EngineMain {
         //   若应急冲刺（45Hz）或让位（5Hz）期间用户切档，档位频率会把应急频率覆盖掉。
         //
         // 【为什么选"从源头拦"而不是"只靠 tickOnce 每帧覆盖"】
-        //   tickOnce 的每帧检测（见该函数）确实能兜住频率，但**拦不住 setCaptureHz**：
-        //   EmergencyTakeover 的设计意图是「**只提推理 tick，抓屏不动**」
-        //   （需求文档 §冲刺：`sprintHz` 注释「只提推理 tick，抓屏不动」）。
-        //   若这里不拦，应急期间切档会连带改抓屏帧率 → 违背设计意图。
-        //   ⟹ 在源头 return，整条档位应用（tick + capture）都不执行，语义最干净。
+        //   tickOnce 的每帧检测能兜住 tick 和抓屏频率，但档位切档会先跑一次
+        //   setCaptureHz(20) 再被 tickOnce 覆盖回 sprint(45)——多一次无谓停启流。
+        //   从源头拦更干净。
         //
         // 【失败模式】应急结束后（enterCruise），tickOnce 会读到 effectiveTickHz=20
         //   并 setTickHz(20)——与档位要求的 20Hz 一致，无需"补切"。
@@ -821,11 +829,10 @@ enum EngineMain {
                          + "（避免改变已开始会话的帧率语义）；已挂起 tick=\(Int(tickRate))Hz + 抓屏=\(Int(capRate))fps，停止录制后自动生效")
         }
         setTickHz(tickRate)
-        // ★ 2026-10-11 Lead 接线修复（w8-verify 复检发现的 P0 缺口）：
-        //   `CaptureEngine.setCaptureHz(_:)` 由 w3 实现，但**全仓库无调用者**
-        //   → 档位切换时 tick 频率变了、**抓屏频率没变** → 两者不同步。
-        //   ⚠️ 用户定档后 tick 与抓屏频率**不同**（ayolom: tick=20 / capture=45），
-        //      故这里用 `capRate`（不是 `tickRate`）调 setCaptureHz。
+        // 同步抓屏频率 + lastAppliedCaptureHz + baseCaptureHz
+        // （tickOnce 的 sprint 联动据此判断值是否变了 / 结束后回退到基准值）
+        EngineMain.lastAppliedCaptureHz = capRate
+        EngineMain.baseCaptureHz = capRate
         Task { @MainActor in
             await EngineGlobals.state?.captureEngine.setCaptureHz(capRate)
         }
@@ -841,6 +848,8 @@ enum EngineMain {
         pendingCaptureHz = nil
         setTickHz(tickRate)
         if let capRate {
+            EngineMain.lastAppliedCaptureHz = capRate
+            EngineMain.baseCaptureHz = capRate
             Task { @MainActor in
                 await EngineGlobals.state?.captureEngine.setCaptureHz(capRate)
             }
@@ -1168,12 +1177,40 @@ enum EngineMain {
         //   应急期间若它先跑了 setTickHz(20)，本帧 tickOnce 会立刻覆盖回 45/5。
         //   但更稳的做法是**从源头拦**：applyPerceptionMode 开头加了
         //   `guard !EmergencyTakeover.shared.takeoverActive`（见该函数），
-        //   应急期间整个函数直接 return，连 setCaptureHz 都不碰——
-        //   EmergencyTakeover 的设计意图就是「只提推理 tick，抓屏不动」。
+        //   应急期间整个函数直接 return，连 setCaptureHz 都不碰。
         //   ⟹ 两层防线：① applyPerceptionMode 的 guard（预防）② 本处每帧检测（兜底）
         let wantHz = EmergencyTakeover.shared.effectiveTickHz
         if abs(wantHz - EngineMain.currentTickHz) > 0.01 {
             EngineMain.setTickHz(wantHz)
+        }
+
+        // ── 应急爆发：抓屏跟着一起冲（2026-10-12 用户要求）──
+        //
+        // 【为什么需要】原本 EmergencyTakeover「只提推理 tick，抓屏不动」（见上）。
+        //   但用户指出：正常态抓屏与推理都该是 20（抓屏 45 时每 tick 只消费 1 帧，
+        //   多出的 25 帧被跳帧丢弃，纯浪费带宽/CPU）。既然正常态对齐到 20，
+        //   爆发态就该两个一起冲 45 —— 否则"爆发"只是 tick 空转、画面供给没跟上。
+        //
+        // 【状态对应】
+        //   cruise(sprinting=false) → tick 20 / 抓屏 20（对齐，不浪费）
+        //   sprint(sprinting=true)  → tick 45 / 抓屏 45（一起冲，抗系统）
+        //   yield (userHolding)     → tick  5 / 抓屏 20（用户接管，预览不卡）
+        //   注意用 `sprinting` 而非 `takeoverActive`：让位态 takeoverActive 仍为 true，
+        //   但那时 AI 已让位、不该再抢抓屏带宽。
+        //
+        // 【为什么不每帧调】setCaptureHz 内部虽有同值短路（CaptureEngine:667），
+        //   但为清晰起见这里也做同值判断；且 setCaptureHz 是 async（可能停启流），
+        //   只在值真变时触发一次，避免每帧派发 Task。
+        let wantCapHz = EmergencyTakeover.shared.sprinting
+            ? EmergencyTakeover.sprintHz
+            : EngineMain.baseCaptureHz
+        if abs(wantCapHz - EngineMain.lastAppliedCaptureHz) > 0.01 {
+            EngineMain.lastAppliedCaptureHz = wantCapHz
+            engineLog("[ENGINE] 抓屏频率 → \(Int(wantCapHz))fps"
+                      + "（\(EmergencyTakeover.shared.sprinting ? "应急冲刺联动" : "档位默认")）")
+            Task { @MainActor in
+                await EngineGlobals.state?.captureEngine.setCaptureHz(wantCapHz)
+            }
         }
 
         // UI 开了插帧/要清晰画面时发全分辨率帧，否则发 480 宽缩略帧（省带宽）
