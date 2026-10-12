@@ -6878,9 +6878,24 @@ final class DriveState {
         // 【为什么 isDegraded 要判 isLoaded】未加载时 isDegraded 默认 true（:382，
         //   语义是"没模型=降级"）—— 但那不是"运行中退化"，不该触发应急接管。
         //   加载后才把真实退化状态喂进去。
-        EmergencyTakeover.shared.noteTickGap(tickGapMs)
-        if yolopxEngine.isLoaded {
-            EmergencyTakeover.shared.noteModelDegraded(yolopxEngine.isDegraded)
+        //
+        // ⚠️⚠️ 2026-10-12 ET-9b 修复（t1-train 的交叉验证发现 P1 #3）：
+        //   **引擎模式下 UI 进程不能本地喂信号** —— 否则会与 heartbeat 同步打架：
+        //   · UI 进程 `:6286` 无条件 `yolopxEngine.loadIfNeeded()` → UI 的 yolopx 也 loaded
+        //   · ayolom 档下 `isDegraded` 恒 true（da=0格 ll=0格，引擎日志 121/121）
+        //   · → UI 实例 `enterSprint()` 本地自进冲刺态 → `takeoverActive=true`
+        //   · → 而引擎 heartbeat 回传的是引擎真实态（可能 false）→ `syncFromEngine` 写回 false
+        //   · → **横幅一开一关闪烁**
+        //   修法：引擎模式下 UI 实例**只做显示镜像**（由 heartbeat 驱动），不本地算状态。
+        //   UI-local 模式（引擎未连）才走本地喂信号——那种模式下没有引擎可依赖。
+        //
+        //   【为什么 tickGap 也一起门控】引擎模式下 UI 的 tick 由 20Hz 定时器驱动，
+        //   tickGap 恒定 50ms，本来就不会触发；门控掉避免语义混淆。
+        if !EngineClient.shared.isActive {
+            EmergencyTakeover.shared.noteTickGap(tickGapMs)
+            if yolopxEngine.isLoaded {
+                EmergencyTakeover.shared.noteModelDegraded(yolopxEngine.isDegraded)
+            }
         }
 
         // ★ 阶段1（2026-10-01）：生产 tick 分段打点 —— 起点。
