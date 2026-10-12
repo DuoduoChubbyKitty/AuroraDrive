@@ -92,6 +92,10 @@ final class EmergencyTakeover {
     private var consecutiveMisses: Int = 0
     /// 冲刺起始时间（超时判据）
     private var sprintStart: Date?
+    /// 上一次喂入的降级状态（边沿检测用）。
+    /// 初始 true —— 与 `YolopxEngine.isDegraded` 初始值（:382）对齐，
+    /// 避免启动时 ayolom 档恒 true 的 isDegraded 误触第一次冲刺。
+    private var lastDegradedState: Bool = true
 
     // MARK: - 输入
 
@@ -127,12 +131,28 @@ final class EmergencyTakeover {
         }
     }
 
-    /// isDegraded 变化时喂；true 触发冲刺（仅在巡航态生效）。
+    /// isDegraded 变化时喂；**仅在 false→true 的边沿**触发冲刺。
+    ///
+    /// ⚠️⚠️ 2026-10-12 修复「请接管横幅一直显示、永不停」：
+    ///   原实现是**电平触发**（`if d, !sprinting, ...`）——只要 d==true 且当前不在
+    ///   冲刺态就 enterSprint()。而 ayolom 档下 `YolopxEngine.isDegraded` **恒为 true**
+    ///   （实测引擎日志每行 `da=0格 ll=0格 降级=true`：可行驶区/车道线掩码在这档
+    ///   天然出不了格，不是故障）。于是形成死循环：
+    ///     巡航态喂 true → 冲刺 → 35s 超时 enterCruise → 下一帧又喂 true → 又冲刺 …
+    ///   实测引擎日志 20:50 段：6 次冲刺 / 5 次巡航交替，横幅反复弹（用户所见）。
+    ///   注意此循环**与 tickGap 无关**：同期 tickGap=19~26ms，远低于 80ms 阈值。
+    ///
+    ///   修法：改**边沿触发**（只在 false→true 跳变时触发一次）。
+    ///   恒 true 不再反复冲刺；真实的"运行中退化"（false→true）仍会触发一次。
+    ///   `lastDegradedState` 初值 true（与 isDegraded 初值对齐）→ 启动时不误触。
     func noteModelDegraded(_ d: Bool) {
-        // 只在巡航态、d=true 时触发（冲刺/让位态不再重复触发）
-        if d, !sprinting, !userHoldingKey {
-            enterSprint()
-        }
+        let wasDegraded = lastDegradedState
+        lastDegradedState = d
+        // 边沿检测：只在 false→true 的跳变时触发一次
+        guard d, !wasDegraded else { return }
+        // 冲刺/让位态不重复触发
+        guard !sprinting, !userHoldingKey else { return }
+        enterSprint()
     }
 
     /// 用户真实按下受控键（仅在冲刺态生效 → 进入让位）。
