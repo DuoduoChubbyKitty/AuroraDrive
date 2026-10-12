@@ -64,7 +64,10 @@ final class EmergencyTakeover {
     /// 单帧 tick 间隔超过此值即算"掉拍"（ms）
     static let takeoverTickGapMs: Double = 80.0
     /// 连续 N 帧掉拍才触发冲刺（防单次抖动误触）
-    static let triggerConsecutiveMisses = 3
+    /// ⚠️ 2026-10-12 用户调整：3→10（"连续三针太狠了"）
+    ///   3帧=150ms 太容易误触（切桌面/开窗口的瞬时抖动就 3 次 >80ms）
+    ///   10帧=500ms 只有持续性降频才触发，偶发抖动不会误触
+    static let triggerConsecutiveMisses = 10
 
     // MARK: - 状态（@Observable，UI 横幅读这些）
 
