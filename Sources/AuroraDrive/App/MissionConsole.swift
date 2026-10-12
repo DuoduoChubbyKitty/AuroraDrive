@@ -705,6 +705,15 @@ struct ViewportPanel: View {
                     Spacer()
                 }
                 .transition(.move(edge: .top).combined(with: .opacity))
+            } else if EmergencyTakeover.shared.takeoverActive {
+                // ET-3：接管横幅优先级**高于路况**（Lead 指令 + 任务描述），
+                // 但**低于卡死**（`needsManualIntervention` 最优先不变）。
+                VStack {
+                    TakeoverWarn()
+                        .padding(.top, 52)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
             } else if state.roadCondition.needsTakeover {
                 VStack {
                     RCWarn()
@@ -1469,6 +1478,75 @@ struct StuckWarn: View {
         }
         .clipShape(Capsule())
         .shadow(color: Aurora.danger.opacity(pulse ? 0.70 : 0.35), radius: 22)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
+        }
+    }
+}
+
+// ============================================================================
+// MARK: - 应急接管横幅（ET-3 · 2026-10-12）
+//
+// 【为什么需要】`EmergencyTakeover`（ET-1）在推理连续掉拍时 `takeoverActive=true`
+//   并让 AI 让位，但**用户看不到任何提示** —— 不知道 AI 已经不管事了、需要自己开。
+//   本横幅就是那个"看得见的提示"。
+//
+// 【设计】复用 `StuckWarn`（本文件上方）的骨架（胶囊 + 脉冲边框），只改 3 处：
+//   ① 图标  hand.raised.fill → exclamationmark.triangle.fill / checkmark.circle.fill
+//   ② 文案  按 `userHoldingKey` 分两种状态
+//   ③ 配色  已接管 → `Aurora.ok`（绿·确认）；未接管 → `Aurora.danger`（红·催）
+//   ⚠️ 颜色常量必须用**已存在的** `Aurora.ok`（AuroraTheme.swift:69 = 0x34E5AA），
+//      项目里**没有** `Aurora.success`（本小姐核实过，别照着直觉写）。
+//
+// 【两种文案】
+//   · 未接管（userHoldingKey == false）→ `⚠️ 推理掉拍 · 请立即接管驾驶`（红·催）
+//   · 已接管（userHoldingKey == true） → `✅ 已接管 · AI 已让位`（绿·确认）
+//   为什么要有第二种：用户按下键接管后横幅**不能立刻消失**（那样用户不确定
+//   有没有接管成功）；要变成"已接管"的确认态，让用户安心。横幅的消失由
+//   `takeoverActive` 置 false（掉拍恢复）控制，与 `userHoldingKey` 正交。
+//
+// 【数据来源】直接读 `EmergencyTakeover.shared`（**UI 进程自己的实例**）——
+//   不需要 shm/heartbeat：UI 进程的 tick() 也会喂 `noteTickGap`
+//   （`AuroraDriveApp.swift:6848`，在 isActive 早退之前），故 UI 自己的实例
+//   也能检测掉拍（ET-6/ET-7 审计确认）。
+//   `EmergencyTakeover` 是 `@MainActor @Observable`（EmergencyTakeover.swift:44-46）
+//   → SwiftUI 在 body 里访问其属性会自动建立依赖 → **状态变化自动刷新，
+//     不需要额外 Timer 轮询**。
+// ============================================================================
+
+struct TakeoverWarn: View {
+    @State private var pulse = false
+
+    /// 用户是否已接管（决定文案与配色）。
+    /// 直接访问 `EmergencyTakeover.shared`——View 的 computed property 是
+    /// `@MainActor`（协议约定），`EmergencyTakeover` 也是 `@MainActor`（:44），安全。
+    /// ⚠️ 不用 `private let takeover = .shared` 的 stored property——
+    ///   Swift 6 下 stored property default value 在 init 求值，可能触发并发告警。
+    ///   `@Observable` 追踪在 body 内访问的属性（即使经 computed property 中转）。
+    private var holding: Bool { EmergencyTakeover.shared.userHoldingKey }
+
+    /// 当前状态色：已接管=绿（确认），未接管=红（催促）
+    private var tone: Color { holding ? Aurora.ok : Aurora.danger }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: holding ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(tone)
+            Text(holding ? "✅ 已接管 · AI 已让位" : "⚠️ 推理掉拍 · 请立即接管驾驶")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(tone)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .background {
+            Capsule().fill(Color.black.opacity(0.90))
+        }
+        .overlay {
+            Capsule().strokeBorder(tone.opacity(pulse ? 0.85 : 0.42), lineWidth: 1.5)
+        }
+        .clipShape(Capsule())
+        .shadow(color: tone.opacity(pulse ? 0.70 : 0.35), radius: 22)
         .onAppear {
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
         }

@@ -95,6 +95,15 @@ final class EngineClient {
     private(set) var enginePID: Int32 = 0
     /// 引擎自报的协议版本（0 = 旧引擎，不发 proto 字段）
     private(set) var engineProtocol = 0
+    /// 引擎侧应急接管：是否处于「请接管」告警态（heartbeat 回传，1Hz）
+    ///
+    /// ⚠️ 2026-10-12 ET-9（Lead 发现的致命缺陷修复）：
+    ///   `EmergencyTakeover` 在 UI / 引擎两个进程**各有独立实例**。UI 进程在引擎模式下
+    ///   `tick()` 会 `tickEngineMode(); return` 早退 → UI 实例的 tickGap 恒定 50ms
+    ///   → **永不触发** → 横幅永不显示。故 UI 侧的告警态必须由引擎经 heartbeat 回传。
+    private(set) var engineTakeoverActive = false
+    /// 引擎侧应急接管：用户是否正接管让位（heartbeat 回传）
+    private(set) var engineUserHolding = false
     /// 是否已经历过至少一次「连接激活 → 收到心跳」的完整周期。
     /// 只有它成立时才允许判定版本错配，避免启动瞬间误判。
     private(set) var sawHeartbeat = false
@@ -418,6 +427,17 @@ final class EngineClient {
         // 录制状态回传（引擎模式下真正的写盘在引擎进程，UI 只负责显示）
         if let v = obj["recording"] as? Bool { engineRecording = v }
         if let v = obj["frames"] as? Int { engineRecordFrames = v }
+        // ET-9（2026-10-12）：应急接管状态从引擎经 heartbeat 同步到 UI 实例
+        // （Lead 发现的致命缺陷修复：UI 进程的 EmergencyTakeover 实例永不触发 → 横幅永不显示）
+        if let v = obj["takeover"] as? Bool { engineTakeoverActive = v }
+        if let v = obj["userHolding"] as? Bool { engineUserHolding = v }
+        // EmergencyTakeover 是 @MainActor，本方法在 socket 读线程执行 → 切主线程同步
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            EmergencyTakeover.shared.syncFromEngine(
+                takeover: self.engineTakeoverActive,
+                userHolding: self.engineUserHolding)
+        }
         // 协议版本：UI 重启后可能连上重编译前的旧引擎（旧引擎不发此字段 → 保持 0）
         if let v = obj["proto"] as? Int { engineProtocol = v }
         // 标记「已收到过心跳」：版本错配判定以此为前置，避免启动瞬间误判

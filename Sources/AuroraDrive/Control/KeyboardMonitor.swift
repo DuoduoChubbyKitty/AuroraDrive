@@ -29,6 +29,49 @@ final class KeyboardMonitor {
     @ObservationIgnored
     private var keyDownTimes: [CGKeyCode: Date] = [:]
 
+    // MARK: - 用户按键回调（ET-2 · 应急接管用）
+
+    /// 用户真实按下受控键（W/A/S/D/空格等驾驶键）时回调。
+    /// 只在 EmergencyTakeover.takeoverActive 时接线方会设值；平时为 nil（省资源）。
+    ///
+    /// 【零开销】nil 时本类只在 handleKeyDown 里做一次 `if let` 即返回，
+    /// 不查受控键集合（短路顺序：先判 nil，再判集合）。
+    /// 【线程】与 heldKeys 同模型：全局监听回调投递在主线程，接线方也在主线程设值。
+    var onUserKeyDown: (() -> Void)?
+
+    /// 用户松开受控键时回调
+    var onUserKeyUp: (() -> Void)?
+
+    /// 受控键的 macOS 虚拟键码集合（用于判定 onUserKeyDown/Up 是否触发）。
+    ///
+    /// ⚠️ **必须与 `ControlEngine.gameKeyToKeyCode`（`ControlEngine.swift:624-641`）
+    ///   保持一致** —— 那张表是 `private static`，本类访问不到，故在此镜像一份。
+    ///   GameKey 极少变动（上次加键是 2026-09 钢琴键），漂移风险低；
+    ///   若 ControlEngine 新增 GameKey，**必须同步加到这里**（否则新键的接管回调失效）。
+    ///   键码是稳定的 kVK_ANSI_* 常量，不会随版本变。
+    private static let controlledKeyCodes: Set<CGKeyCode> = [
+        // 移动 W/A/S/D
+        13, 0, 1, 2,
+        // 交互 F/E/Space
+        3, 14, 49,
+        // UI：ESC/Q/R/M/B/T
+        53, 12, 15, 46, 11, 17,
+        // 功能热键 F1/F2/F4
+        122, 120, 118,
+        // 修饰 Shift/Ctrl
+        56, 59,
+        // 数字 1-7
+        18, 19, 20, 21, 23, 22, 26,
+        // 俄罗斯方块/节奏 J/K/L
+        38, 40, 37,
+        // 钢琴低音 Z/X/C/V/N
+        6, 7, 8, 9, 45,
+        // 钢琴中音 G/H/I
+        5, 4, 34,
+        // 钢琴高音 Y/U
+        16, 32,
+    ]
+
     /// 全局监听句柄（启动时保存，停止时移除）
     private var keyDownMonitor: Any?
     private var keyUpMonitor: Any?
@@ -79,12 +122,22 @@ final class KeyboardMonitor {
     private func handleKeyDown(keyCode: CGKeyCode) {
         heldKeys.insert(keyCode)
         keyDownTimes[keyCode] = Date()
+        // ET-2：用户真实按下受控键 → 回调应急接管。
+        // 短路顺序：先判闭包 nil（零开销），再查受控键集合（O(1) Set）。
+        // nil 时不查集合 = 平时（非接管态）无任何额外成本。
+        if let onUserKeyDown, Self.controlledKeyCodes.contains(keyCode) {
+            onUserKeyDown()
+        }
     }
 
     /// 按键释放：从 heldKeys 移除，并清除时间戳
     private func handleKeyUp(keyCode: CGKeyCode) {
         heldKeys.remove(keyCode)
         keyDownTimes.removeValue(forKey: keyCode)
+        // ET-2：松开同理（短路顺序同上）
+        if let onUserKeyUp, Self.controlledKeyCodes.contains(keyCode) {
+            onUserKeyUp()
+        }
     }
 
     // MARK: - 状态查询

@@ -6260,6 +6260,23 @@ final class DriveState {
         isDriving = true
         drivingStartTime = Date()
         keyboardMonitor.start()   // 启动物理键盘监听（KeyboardBar 显示用 + 录制用）
+        // ★ ET-4（2026-10-12）：把 UI 进程的物理按键事件经 socket 通知引擎。
+        //
+        // 【跨进程架构】KeyboardMonitor 只在 UI 进程（引擎进程是后台无 GUI，
+        //   收不到 NSEvent —— 见 V4 审计）。而真正注入按键、需要"让位"的是
+        //   引擎进程。故：UI 监听按键 → socket config → 引擎设 takeover 状态。
+        //
+        // 【为什么不需要门控 takeoverActive】Lead 裁决：回调是轻量的（发一条
+        //   socket JSON），且引擎侧 noteUserKeyDown 只在 sprinting 状态才生效，
+        //   平时无害。加门控反而要跨进程同步 takeoverActive（复杂且有时序 gap）。
+        //   本回调**只在受控键**触发 —— KeyboardMonitor 内部已用
+        //   controlledKeyCodes 过滤（:128/:138），非受控键不会发 socket。
+        keyboardMonitor.onUserKeyDown = {
+            _ = EngineClient.shared.sendCommand("config", extra: ["takeover": true])
+        }
+        keyboardMonitor.onUserKeyUp = {
+            _ = EngineClient.shared.sendCommand("config", extra: ["takeover": false])
+        }
         captureEngine.start()
         // networkLocator.start()  // 旧网络抓包定位已移除    // 启动网络抓包定位
         inferenceEngine.loadIfNeeded()   // 首次启动加载 M9 驾驶模型（V2 冷启动/缺失时的回退）
@@ -6847,6 +6864,24 @@ final class DriveState {
         let tickNow = Date()
         tickGapMs = tickNow.timeIntervalSince(lastTickTime) * 1000
         lastTickTime = tickNow
+
+        // ★ ET-4（2026-10-12）：喂应急接管触发信号。
+        //
+        // 【为什么必须放在这里】本行之后 :6886 就有 `if EngineClient.shared.isActive
+        //   { tickEngineMode(); return }` 早退 —— 引擎模式下 **UI 进程走到那里就 return 了**。
+        //   而两个进程跑的是**同一份 tick()**，各有独立的 EmergencyTakeover 实例：
+        //     · 引擎进程 → 该实例控制 setTickHz（让位后降到 5Hz 省 CPU）
+        //     · UI 进程   → 该实例控制横幅显示
+        //   故喂信号必须在早退**之前**，否则 UI 进程永远喂不到（照抄 digest 同步
+        //   三层 gap 的教训，见 :7055 的注释）。
+        //
+        // 【为什么 isDegraded 要判 isLoaded】未加载时 isDegraded 默认 true（:382，
+        //   语义是"没模型=降级"）—— 但那不是"运行中退化"，不该触发应急接管。
+        //   加载后才把真实退化状态喂进去。
+        EmergencyTakeover.shared.noteTickGap(tickGapMs)
+        if yolopxEngine.isLoaded {
+            EmergencyTakeover.shared.noteModelDegraded(yolopxEngine.isDegraded)
+        }
 
         // ★ 阶段1（2026-10-01）：生产 tick 分段打点 —— 起点。
         //   `AURORA_PERF` 未设时 `stamp()` 返回 0，后续每个 `lap` 都立即短路，
@@ -7688,6 +7723,16 @@ final class DriveState {
             }
             // ★ E1：先比后写（专家模式下本已为 false，每帧白写会触发重绘）
             if speedLimitBrakeLatched { speedLimitBrakeLatched = false }   // 刹车状态一并复位，防下次进来自锁
+        } else if EmergencyTakeover.shared.userHoldingKey {
+            // ★ ET-4（2026-10-12）：让位 —— 用户正按住应急键，不与用户抢控制权。
+            //
+            // 【ET-6 结论】一次性 releaseAll 不够：下一帧 tick 会 applyCommand
+            //   重新按下去。故这里是**持续抑制**：本帧跳过 applyCommand，
+            //   并释放 AI 已注入的键。
+            //
+            // 【为什么只在这里生效】UI 进程在 :6886 的 isActive 早退前就 return
+            //   了，走不到本行 → 只有引擎进程执行（真正注入按键的那方）。
+            controlEngine.releaseAll()
         } else {
             applyCommand(currentCommand)
         }

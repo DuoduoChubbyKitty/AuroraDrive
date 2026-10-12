@@ -789,6 +789,27 @@ enum EngineMain {
     @MainActor
     @discardableResult
     static func applyPerceptionMode(_ mode: String, isRecording: Bool) -> (applied: Bool, detail: String) {
+        // ── ET-5 冲突处理（2026-10-12，task-111）：应急期间跳过档位频率应用 ──
+        //
+        // 【为什么需要这道 guard】
+        //   applyPerceptionMode 会 setTickHz(20)（两档当前都是 20Hz）+ setCaptureHz。
+        //   若应急冲刺（45Hz）或让位（5Hz）期间用户切档，档位频率会把应急频率覆盖掉。
+        //
+        // 【为什么选"从源头拦"而不是"只靠 tickOnce 每帧覆盖"】
+        //   tickOnce 的每帧检测（见该函数）确实能兜住频率，但**拦不住 setCaptureHz**：
+        //   EmergencyTakeover 的设计意图是「**只提推理 tick，抓屏不动**」
+        //   （需求文档 §冲刺：`sprintHz` 注释「只提推理 tick，抓屏不动」）。
+        //   若这里不拦，应急期间切档会连带改抓屏帧率 → 违背设计意图。
+        //   ⟹ 在源头 return，整条档位应用（tick + capture）都不执行，语义最干净。
+        //
+        // 【失败模式】应急结束后（enterCruise），tickOnce 会读到 effectiveTickHz=20
+        //   并 setTickHz(20)——与档位要求的 20Hz 一致，无需"补切"。
+        //   若档位将来改成非 20Hz（如 legacy=30），则应急期间被跳过的档位会
+        //   停在应急前的频率——**这是已知取舍**，如实回执说明让 UI 知情（见下）。
+        guard !EmergencyTakeover.shared.takeoverActive else {
+            return (false, "应急接管进行中（\(Int(EmergencyTakeover.shared.effectiveTickHz))Hz）"
+                         + "：档位频率暂不应用（应急优先），结束后自动恢复")
+        }
         guard let tickRate = tickHz(forPerceptionMode: mode),
               let capRate  = captureHz(forPerceptionMode: mode) else {
             return (false, "未知 perceptionMode「\(mode)」（仅接受 ayolom / legacy），频率未变")
@@ -1131,6 +1152,30 @@ enum EngineMain {
     static func tickOnce() {
         guard let st = EngineGlobals.state else { return }
         st.tick()
+
+        // ── ET-5 应急频率接线（2026-10-12，task-111）──
+        //
+        // EmergencyTakeover 状态机算出的频率（20巡航 / 45冲刺 / 5让位）。
+        // 每帧检查：变了就 setTickHz（setTickHz 内有 0.01 容差防抖，同值不重排）。
+        //
+        // 【为什么放这里（st.tick() 之后、shm publish 之前）】
+        //   st.tick() 里 ET-4 已喂了 noteTickGap / noteModelDegraded →
+        //   EmergencyTakeover 的 effectiveTickHz 可能在此刻发生变化（如连续 3 帧
+        //   >80ms → enterSprint → 45Hz）。紧跟着读，能在本帧就切频，不等到下一帧。
+        //
+        // 【与 applyPerceptionMode 的冲突怎么处理】
+        //   applyPerceptionMode 也会调 setTickHz(20)（当前两档都是 20Hz）。
+        //   应急期间若它先跑了 setTickHz(20)，本帧 tickOnce 会立刻覆盖回 45/5。
+        //   但更稳的做法是**从源头拦**：applyPerceptionMode 开头加了
+        //   `guard !EmergencyTakeover.shared.takeoverActive`（见该函数），
+        //   应急期间整个函数直接 return，连 setCaptureHz 都不碰——
+        //   EmergencyTakeover 的设计意图就是「只提推理 tick，抓屏不动」。
+        //   ⟹ 两层防线：① applyPerceptionMode 的 guard（预防）② 本处每帧检测（兜底）
+        let wantHz = EmergencyTakeover.shared.effectiveTickHz
+        if abs(wantHz - EngineMain.currentTickHz) > 0.01 {
+            EngineMain.setTickHz(wantHz)
+        }
+
         // UI 开了插帧/要清晰画面时发全分辨率帧，否则发 480 宽缩略帧（省带宽）
         var full: CVPixelBuffer? = nil
         if EngineGlobals.wantFullFrame {
@@ -1580,6 +1625,20 @@ enum EngineMain {
             let cGlyph = obj["glyph"] as? Bool
             let cThresh = obj["degradeThreshold"] as? Double
             let cSpeedLimit = obj["speedLimit"] as? Double
+            // ── ET-5：应急接管「用户接管让位」信号（2026-10-12，task-111）──
+            //
+            // 【为什么必须走 config 下发】ET-6 审计（§4）实测确认：
+            //   引擎进程**收不到物理按键**（dispatchMain 不 spin run loop +
+            //   未申请 Input Monitoring）→ 引擎进程内的 KeyboardMonitor 是死的。
+            //   所以「用户按下了受控键」这个事件必须由 **UI 进程**（它的
+            //   KeyboardMonitor 能收到系统键盘事件）经 config 命令转发到这里。
+            //
+            // 【语义】takeover=true = 用户按下受控键 → 让位（5Hz，把算力让给用户）
+            //         takeover=false = 用户松开 → 回巡航（20Hz）
+            //   EmergencyTakeover.noteUserKeyDown()/noteUserKeyUp() 内部自带状态守卫
+            //   （只在冲刺态响应 keyDown、只在让位态响应 keyUp），故这里无条件转发即可，
+            //   不需要引擎侧再做状态判断 —— 语义单一，好核对。
+            let cTakeover = obj["takeover"] as? Bool
             // 消化模式：真正注入按键的是**引擎进程**，UI 侧开关必须下发到这里，
             //   否则「UI 显示已消化、引擎照旧真按键」—— 那是最危险的不一致。
             let cDigest = obj["digest"] as? Bool
@@ -1617,6 +1676,21 @@ enum EngineMain {
                     // vehicle_state[4] = speed_limit_norm 直接参与推理，不同步会
                     // 让 UI 显示 40 而模型仍按 120 决策。
                     if let v = cSpeedLimit { st.speedLimit = v }
+                    // ── ET-5：转发「用户接管让位」信号给状态机（2026-10-12）──
+                    // 在 applied 回显**之前**处理，这样反降级信号也算"已应用的键"。
+                    // noteUserKeyDown/Up 内部有状态守卫（非冲刺态按键无意义、
+                    // 非让位态松开无意义），故这里只需如实转发，不必判状态。
+                    if let v = cTakeover {
+                        if v {
+                            EmergencyTakeover.shared.noteUserKeyDown()
+                            engineLog("[ENGINE] 🚨 应急：用户接管（按下受控键）→ 让位 "
+                                      + "\(Int(EmergencyTakeover.shared.effectiveTickHz))Hz")
+                        } else {
+                            EmergencyTakeover.shared.noteUserKeyUp()
+                            engineLog("[ENGINE] ✅ 应急：用户松开受控键 → 巡航 "
+                                      + "\(Int(EmergencyTakeover.shared.effectiveTickHz))Hz")
+                        }
+                    }
                     // 如实回显"本次真正写入了哪些键"（未传的键不写、也不虚报）
                     var applied: [String: Any] = [:]
                     if let v = cSport { applied["sport"] = v }
@@ -1628,6 +1702,8 @@ enum EngineMain {
                     if let v = cSpeedLimit { applied["speedLimit"] = v }
                     // Lead 新增的消化模式（digest）也一并回显，保持 applied 是"真实写入全量"
                     if let v = cDigest { applied["digest"] = v }
+                    // ET-5：takeover 也纳入回显（UI 可据此确认引擎真的收到了让位信号）
+                    if let v = cTakeover { applied["takeover"] = v }
 
                     // ── task-93：档位感知的动态 tick 频率 ──
                     // 立即生效 vs 录制中挂起，由 applyPerceptionMode 内部判定；
@@ -1756,8 +1832,17 @@ enum EngineMain {
         guard let st = EngineGlobals.state else { return }
         let detCount = st.yoloEngine.detections.count
         let fps = st.captureEngine.captureFPS > 0 ? st.captureEngine.captureFPS : st.fps
+        // ⚠️ 2026-10-12 ET-9 修复（Lead 发现的致命缺陷）：
+        //   应急接管状态机（EmergencyTakeover）在**两个进程各有一个实例**，互不相通。
+        //   · 引擎进程 isActive=false → 跑完整 tick → 实例能触发冲刺（45Hz 生效 ✅）
+        //   · UI 进程   isActive=true  → tickEngineMode() 早退 → 实例**永不触发** ❌
+        //   而 ET-3 的「请接管」横幅读的是 **UI 实例** → 横幅永不显示（安全功能失效）。
+        //   修法：引擎把真实的 takeover 状态经 heartbeat（1Hz）回传，UI 侧解析后同步到
+        //   自己的实例。1Hz 延迟可接受——引擎侧的 45Hz 冲刺是**零延迟**生效的，
+        //   heartbeat 只负责让 UI 把横幅显示出来。
+        let et = EmergencyTakeover.shared
         let json = """
-        {"type":"heartbeat","proto":\(EngineClient.protocolVersion),"ts":\(Int(Date().timeIntervalSince1970)),"fps":\(String(format: "%.1f", fps)),"detections":\(detCount),"isDriving":\(st.isDriving),"isStreaming":\(st.isStreaming),"mode":"\(st.mode)","modeRaw":"\(st.mode.rawValue)","speed":\(String(format: "%.1f", st.effectiveSpeed)),"speedKmh":\(String(format: "%.1f", st.speedKmh)),"confidence":\(String(format: "%.3f", st.confidence)),"recording":\(st.isRecording),"frames":\(st.recordEngine.frameCount),"pid":\(getpid()),"reason":"\(reason)"}
+        {"type":"heartbeat","proto":\(EngineClient.protocolVersion),"ts":\(Int(Date().timeIntervalSince1970)),"fps":\(String(format: "%.1f", fps)),"detections":\(detCount),"isDriving":\(st.isDriving),"isStreaming":\(st.isStreaming),"mode":"\(st.mode)","modeRaw":"\(st.mode.rawValue)","speed":\(String(format: "%.1f", st.effectiveSpeed)),"speedKmh":\(String(format: "%.1f", st.speedKmh)),"confidence":\(String(format: "%.3f", st.confidence)),"recording":\(st.isRecording),"frames":\(st.recordEngine.frameCount),"pid":\(getpid()),"takeover":\(et.takeoverActive),"userHolding":\(et.userHoldingKey),"reason":"\(reason)"}
         """
         EngineGlobals.socket?.send(json)
     }
