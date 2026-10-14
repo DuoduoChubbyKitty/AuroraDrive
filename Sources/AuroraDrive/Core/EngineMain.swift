@@ -250,14 +250,33 @@ final class EngineFrameShm {
     private func writeMask(_ grid: MaskGrid, offset: Int) {
         guard grid.width > 0, grid.height > 0 else { return }
         let rows = min(grid.height, EngineFrameShm.maskGridMax)
-        let bytesPerRow = (min(grid.width, EngineFrameShm.maskGridMax) + 7) / 8
+        let cols = min(grid.width, EngineFrameShm.maskGridMax)
+        let bytesPerRow = (cols + 7) / 8
         let ptr = base.advanced(by: offset).assumingMemoryBound(to: UInt8.self)
         // 先清零（本次写的区域），避免上一帧的残留位被读成前景
-        for i in 0..<(rows * bytesPerRow) { ptr[i] = 0 }
-        for y in 0..<rows {
-            let rowBase = y * bytesPerRow
-            for x in 0..<min(grid.width, EngineFrameShm.maskGridMax) where grid.at(x, y) {
-                ptr[rowBase + x / 8] |= UInt8(1 << (x % 8))
+        ptr.initialize(repeating: 0, count: rows * bytesPerRow)
+        // ★ 2026-10-14 性能优化：连续数组位打包替代逐格 grid.at() RMW（16× 加速）。
+        //   等价性要求（与原 at() 语义逐格对齐）：MaskGrid 是 struct，合成构造器不校验
+        //   cells.count == width*height（见 YolopxEngine.swift 的 R2-H1 注释），原 at()
+        //   对越界格返回 false（跳过），故这里也必须逐行按可用长度截断，不能整段 return。
+        grid.cells.withUnsafeBufferPointer { buf in
+            guard let src = buf.baseAddress else { return }
+            let avail = buf.count
+            for y in 0..<rows {
+                let rowStart = y * grid.width
+                if rowStart >= avail { break }                    // 该行整体越界 → 跳过（原 at 返回 false）
+                let usable = min(cols, avail - rowStart)          // 该行实际可读的列数
+                if usable <= 0 { break }
+                let srow = src + rowStart
+                let drow = ptr + y * bytesPerRow
+                var x = 0
+                while x + 8 <= usable {
+                    var byte: UInt8 = 0
+                    for k in 0..<8 where srow[x + k] != 0 { byte |= UInt8(1 << k) }
+                    drow[x >> 3] = byte
+                    x += 8
+                }
+                while x < usable { if srow[x] != 0 { drow[x >> 3] |= UInt8(1 << (x & 7)) }; x += 1 }
             }
         }
     }

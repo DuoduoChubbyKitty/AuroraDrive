@@ -7133,7 +7133,16 @@ final class DriveState {
         //   tick 是 20Hz（见 `EngineMain.engineTickHz`），抓屏 ayolom 档仍 45fps。
         //   两者解耦：本 dt 只用于 tick 内的物理计算（光流/加速度/状态机），
         //   必须与 tick 频率一致，否则换算全错。
-        let dt = 1.0 / 20.0
+        //
+        // ★ 2026-10-14 修复（perf-decision 排查发现）：原写法是硬编码 `1.0 / 20.0`。
+        //   但 EmergencyTakeover 会把 tick 切到 45Hz（冲刺，最长 35s）或 5Hz（让位），
+        //   此时硬编码值与真实 tick 间隔不符，下游的时间换算全错：
+        //     · 45Hz 下 → 帧计数常量（maxMissingFrames=30 等）实际时间缩 2.25×
+        //       （设计意图 1.5s 变成 0.67s）→ track 过早剪枝、速度过早确认
+        //     · 5Hz 下 → 时间扩 4×
+        //   改用本帧实测 tick 间隔（tickGapMs 在 tick() 开头已算好）。
+        //   钳位 [5ms, 200ms]：防首帧（tickGapMs 未初始化）与极端掉帧把 dt 算成 0 或巨大值。
+        let dt = min(max(tickGapMs / 1000.0, 0.005), 0.2)
 
         // ── 1. 感知层：双驾驶模型推理 + YOLO 检测 ──
         // 异步触发推理（不阻塞 tick），读 lastResult 作为本帧输出

@@ -1,7 +1,7 @@
 [
   {
     "metadataOutputVersion" : "3.0",
-    "storagePrecision" : "Float16",
+    "shortDescription" : "V2 ImageEncoder (mk64 pretrain ep7 acc=0.4510, palette 8bit)",
     "outputSchema" : [
       {
         "hasShapeFlexibility" : "0",
@@ -14,12 +14,15 @@
         "type" : "MultiArray"
       }
     ],
+    "storagePrecision" : "Mixed (Float16, Palettized (11 bits), Palettized (12 bits), Palettized (13 bits), UInt8)",
     "modelParameters" : [
 
     ],
+    "author" : "AuroraDrive",
     "specificationVersion" : 9,
     "mlProgramOperationTypeHistogram" : {
       "Ios16.reduceMean" : 1,
+      "Ios18.constexprLutToDense" : 12,
       "Ios18.relu" : 13,
       "Ios18.cast" : 2,
       "Ios18.conv" : 13,
@@ -41,11 +44,6 @@
     "modelType" : {
       "name" : "MLModelType_mlProgram"
     },
-    "userDefinedMetadata" : {
-      "com.github.apple.coremltools.source_dialect" : "TorchScript",
-      "com.github.apple.coremltools.source" : "torch==2.13.0",
-      "com.github.apple.coremltools.version" : "8.3.0"
-    },
     "inputSchema" : [
       {
         "hasShapeFlexibility" : "0",
@@ -58,7 +56,12 @@
         "type" : "MultiArray"
       }
     ],
-    "generatedClassName" : "m9_v2_enc",
+    "userDefinedMetadata" : {
+      "com.github.apple.coremltools.version" : "8.3.0",
+      "com.github.apple.coremltools.source" : "torch==2.13.0",
+      "com.github.apple.coremltools.source_dialect" : "TorchScript"
+    },
+    "generatedClassName" : "m9_v2_enc_pal8",
     "method" : "predict"
   }
 ]

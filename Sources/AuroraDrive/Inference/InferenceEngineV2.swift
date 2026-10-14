@@ -2072,7 +2072,9 @@ final class InferenceEngineV2 {
             var frameArr = [Float](repeating: 0, count: frameLen)
             for i in 0..<frameLen { frameArr[i] = framePtr[i] }
             self.frameBufferPush(frameArr)
-            let historySnapshot = self.frameBufferSnapshot()
+            // ★ 2026-10-14 性能优化：historySnapshot 原在此处无条件分配（5.4MB/帧），
+            //   但只有单模型路径（④ 组装输入处）消费它；multi_split 与双模型 split
+            //   两条路径都在其之前 return → 白分配。现移到唯一消费点前。
 
             // ── ③ 冷启动门控：有效帧不足 → **如实跳过，不推理** ──
             // 【为什么不是"退回单帧模式"】见 minFramesForTimeline 的注释：
@@ -2228,15 +2230,19 @@ final class InferenceEngineV2 {
                     // 【不阻塞】失败只清缓存，主结果已拿到，照常 finish。
                     // 【为什么用 refinedFused】multi_split 路径有真实的精炼后 fused（512维）
                     //   和 tf 的 det_feat（128维）→ 世界模型拿到的是高质量中间量。
-                    if let wm = self.worldModel {
-                        let pred = self.runWorldModel(
-                            model: wm,
-                            fusedArr: refinedFused, featArr: nil,
-                            action: (result.steer, result.throttle, result.brake),
-                            detFeatArr: detFeatMa,
-                            features: features, trackMode: trackModeVal)
-                        self.lastPredNextFused = pred
-                    }
+                    // ★ 2026-10-14 性能优化（perf-infer + perf-model 两队友独立发现）：
+                    //   consumePredNextFeat() 全仓零调用 → lastPredNextFused 从不被消费。
+                    //   暂时跳过世界模型推理，省 0.083ms/帧 + 1.3MB 常驻。
+                    //   将来有人接消费端时，删掉本注释即可恢复。
+                    // if let wm = self.worldModel {
+                    //     let pred = self.runWorldModel(
+                    //         model: wm,
+                    //         fusedArr: refinedFused, featArr: nil,
+                    //         action: (result.steer, result.throttle, result.brake),
+                    //         detFeatArr: detFeatMa,
+                    //         features: features, trackMode: trackModeVal)
+                    //     self.lastPredNextFused = pred
+                    // }
                     Task { @MainActor in
                         self.finish(gen, result, error: nil, features: features, aux: aux)
                     }
@@ -2305,15 +2311,19 @@ final class InferenceEngineV2 {
                     //   近似填充 fused 前256维（后256维补零），det_feat 用 dets 展平近似。
                     //   质量不如 multi_split 路径，但世界模型本就是可选增强。
                     // 【不阻塞】失败只清缓存，主结果照常 finish。
-                    if let wm = self.worldModel {
-                        let pred = self.runWorldModel(
-                            model: wm,
-                            fusedArr: nil, featArr: featArr,
-                            action: (result.steer, result.throttle, result.brake),
-                            detFeatArr: nil,
-                            features: features, trackMode: trackModeVal)
-                        self.lastPredNextFused = pred
-                    }
+                    // ★ 2026-10-14 性能优化（perf-infer + perf-model 两队友独立发现）：
+                    //   consumePredNextFeat() 全仓零调用 → lastPredNextFused 从不被消费。
+                    //   暂时跳过世界模型推理，省 0.083ms/帧 + 1.3MB 常驻。
+                    //   将来有人接消费端时，删掉本注释即可恢复。
+                    // if let wm = self.worldModel {
+                    //     let pred = self.runWorldModel(
+                    //         model: wm,
+                    //         fusedArr: nil, featArr: featArr,
+                    //         action: (result.steer, result.throttle, result.brake),
+                    //         detFeatArr: nil,
+                    //         features: features, trackMode: trackModeVal)
+                    //     self.lastPredNextFused = pred
+                    // }
                     Task { @MainActor in
                         self.finish(gen, result, error: nil, features: features, aux: aux)
                     }
@@ -2326,6 +2336,9 @@ final class InferenceEngineV2 {
             }
 
             // ④ 组装 [8,3,H,W] 输入
+            // ★ 2026-10-14 性能优化：historySnapshot 从函数开头移到此处（唯一消费点），
+            //   multi_split 与双模型 split 两条路径已提前 return → 不再白分配 5.4MB/帧
+            let historySnapshot = self.frameBufferSnapshot()
             guard let imageBuffer = self.reusableImageSequenceBuffer,
                   let provider = try? Self.makeProvider(features: features,
                                                         historyFrames: historySnapshot,
@@ -2389,15 +2402,19 @@ final class InferenceEngineV2 {
                 // 单模型路径无任何中间量 → fused 全零、det_feat 用 dets 展平近似。
                 //   质量最低，但保持三条路径链路一致（世界模型是可选增强，不追求精确）。
                 // 【不阻塞】失败只清缓存，主结果照常 finish。
-                if let wm = self.worldModel {
-                    let pred = self.runWorldModel(
-                        model: wm,
-                        fusedArr: nil, featArr: nil,
-                        action: (result.steer, result.throttle, result.brake),
-                        detFeatArr: nil,
-                        features: features, trackMode: trackModeVal)
-                    self.lastPredNextFused = pred
-                }
+                // ★ 2026-10-14 性能优化（perf-infer + perf-model 两队友独立发现）：
+                //   consumePredNextFeat() 全仓零调用 → lastPredNextFused 从不被消费。
+                //   暂时跳过世界模型推理，省 0.083ms/帧 + 1.3MB 常驻。
+                //   将来有人接消费端时，删掉本注释即可恢复。
+                // if let wm = self.worldModel {
+                //     let pred = self.runWorldModel(
+                //         model: wm,
+                //         fusedArr: nil, featArr: nil,
+                //         action: (result.steer, result.throttle, result.brake),
+                //         detFeatArr: nil,
+                //         features: features, trackMode: trackModeVal)
+                //     self.lastPredNextFused = pred
+                // }
                 Task { @MainActor in
                     self.finish(gen, result, error: nil, features: features, aux: aux)
                 }
