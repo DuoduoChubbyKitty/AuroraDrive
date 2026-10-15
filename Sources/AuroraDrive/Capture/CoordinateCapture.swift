@@ -906,6 +906,11 @@ final class CoordinateCapture {
         }
     }
     private var statS2C = 0
+    /// ★ 2026-10-15 修复：是否曾见过 TCP 30031 包（游戏心跳）。
+    /// 单调布尔（置 true 后不重置），用于守卫 learnGamePort ——
+    /// 游戏没在跑时（无 TCP 30031）拒绝学习杂包端口，
+    /// 斩断"杂包解码→学习端口→维持 hasRecentTraffic→继续解码"的自维持循环。
+    private var hasSeenTcp30031 = false
     private var statC2S = 0
     private var statDecodeCalls = 0
     private var statCandHits = 0
@@ -1457,6 +1462,12 @@ final class CoordinateCapture {
         if isGamePort(flow.1) || isGamePort(flow.3) {
             markGameTraffic()
         }
+        // ★ 2026-10-15 修复：见到 TCP 30031（游戏心跳）时标记。
+        //   单调布尔，置 true 后不重置。learnGamePort 据此判断"游戏是否在跑"，
+        //   拒绝在游戏未启动时学习杂包端口（斩断自维持循环）。
+        if protocolNum == 6 && (flow.1 == 30031 || flow.3 == 30031) {
+            hasSeenTcp30031 = true
+        }
         if direction == "s2c" { return }
         if direction != "c2s" { return }
         statC2S += 1
@@ -1549,7 +1560,33 @@ final class CoordinateCapture {
     }
 
     /// 记住「这个端口确实是游戏移动包通道」（解出真样本时调用）。
+    ///
+    /// ★ 2026-10-15 修复（定位乱飘）：加「曾见 TCP 30031」守卫。
+    ///
+    /// 【症状】游戏没启动时小地图定位疯狂乱飘（实机日志：每秒 1-2 条假坐标，
+    ///   世界坐标在 -823718..+629501 间乱跳）。
+    ///
+    /// 【根因】裸 UDP 过滤器（`tcp port 30031 or udp`，因游戏换服后 UDP 端口
+    ///   会变而故意不写死）放行机器上全部 UDP。系统杂包（DNS/mDNS/QUIC）偶发
+    ///   通过 findCandidates 的位模式校验 → 解出假坐标 → 本函数把**杂包端口**
+    ///   学成游戏端口 → 下次同端口包经 isGamePort 触发 markGameTraffic →
+    ///   hasRecentTraffic 恒真 → 上游永不进入 game_not_running 分支 →
+    ///   假坐标持续写入 locatorX/Y → 小地图乱飘。**自维持循环**。
+    ///
+    /// 【修法】TCP 30031 是游戏心跳通道，恒定存在且只在游戏运行时出现
+    ///   （见本文件 :1460 注释与 MaaNTE 上游 `nte_coordinate_api.py` 对照——
+    ///   上游无此学习机制，故无此 bug）。未见过 TCP 30031 = 游戏没在跑
+    ///   → 拒绝学习任何端口 → 杂包无法自维持 → hasRecentTraffic 自然过期
+    ///   → 上游正确进入 game_not_running → 不画假坐标。
+    ///
+    /// 【为什么不破坏正常定位】游戏在跑时 TCP 30031 必然到来（15s 心跳），
+    ///   置位后本守卫恒通；游戏退出后 hasRecentTraffic 经 20s 窗口自然过期，
+    ///   行为与修复前一致。
     private func learnGamePort(_ port: Int) {
+        lock.lock()
+        let allowed = hasSeenTcp30031
+        lock.unlock()
+        guard allowed else { return }
         lock.lock()
         if gamePorts.count < 8 { gamePorts.insert(port) }
         lock.unlock()
