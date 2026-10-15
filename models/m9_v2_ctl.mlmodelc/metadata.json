@@ -1,7 +1,7 @@
 [
   {
     "metadataOutputVersion" : "3.0",
-    "storagePrecision" : "Float16",
+    "storagePrecision" : "Mixed (Float16, Palettized (10 bits), Palettized (11 bits), Palettized (12 bits), Palettized (13 bits), Palettized (14 bits), UInt8)",
     "outputSchema" : [
       {
         "hasShapeFlexibility" : "0",
@@ -70,35 +70,36 @@
     "specificationVersion" : 9,
     "mlProgramOperationTypeHistogram" : {
       "Ios18.expandDims" : 2,
-      "Ios18.mul" : 156,
-      "Ios18.softmax" : 8,
-      "Ios18.floorDiv" : 1,
+      "Ios18.mul" : 92,
+      "Ios18.softmax" : 4,
       "Ios18.avgPool" : 1,
-      "Ios18.realDiv" : 5,
-      "Ios18.sigmoid" : 70,
-      "Ios18.minimum" : 1,
+      "Ios18.realDiv" : 2,
+      "Ios18.sigmoid" : 44,
+      "Ios18.equal" : 1,
       "Select" : 2,
-      "Ios18.greater" : 2,
+      "Ios18.greater" : 4,
       "Ios16.reduceMax" : 1,
       "Tile" : 2,
-      "Ios18.add" : 205,
+      "Ios18.add" : 119,
       "Ios16.reduceSum" : 3,
       "Ios18.layerNorm" : 2,
       "Ios16.fillLike" : 1,
       "Ios18.reshape" : 1,
-      "Ios18.maximum" : 2,
-      "Ios18.linear" : 275,
+      "Ios18.constexprLutToDense" : 39,
+      "Ios18.maximum" : 1,
+      "Ios18.linear" : 171,
       "Ios18.conv" : 5,
-      "Ios18.relu" : 63,
-      "Ios18.sub" : 35,
-      "Ios18.tanh" : 33,
-      "Ios18.cast" : 11,
+      "Ios18.relu" : 39,
+      "Ios18.sub" : 23,
+      "Ios18.tanh" : 21,
+      "Ios18.cast" : 16,
       "Ios18.transpose" : 2,
       "Ios18.concat" : 3,
       "Ios18.maxPool" : 1,
-      "Ios18.sqrt" : 1,
-      "Ios18.sliceByIndex" : 59,
-      "Ios18.abs" : 1
+      "Ios18.less" : 3,
+      "Ios18.sliceByIndex" : 35,
+      "Ios18.logicalAnd" : 5,
+      "Ios18.atan" : 1
     },
     "computePrecision" : "Mixed (Float16, Float32, Int32)",
     "isUpdatable" : "0",
@@ -117,9 +118,9 @@
       "name" : "MLModelType_mlProgram"
     },
     "userDefinedMetadata" : {
-      "com.github.apple.coremltools.version" : "8.3.0",
+      "com.github.apple.coremltools.source_dialect" : "TorchScript",
       "com.github.apple.coremltools.source" : "torch==2.13.0",
-      "com.github.apple.coremltools.source_dialect" : "TorchScript"
+      "com.github.apple.coremltools.version" : "8.3.0"
     },
     "inputSchema" : [
       {
@@ -173,7 +174,7 @@
         "type" : "MultiArray"
       }
     ],
-    "generatedClassName" : "m9_v2_ctl",
+    "generatedClassName" : "m9_v2_ctl_pal8",
     "method" : "predict"
   }
 ]
