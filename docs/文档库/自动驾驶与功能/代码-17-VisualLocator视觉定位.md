@@ -1,6 +1,34 @@
 # 代码-17 VisualLocator 视觉定位
 
+> ✅ **2026-10-18 复核**（merge-arch）：源码 491 行未变（mtime 2026-08-26），本文全部 `文件:行号` 与区间**逐条命中、零漂移**——包括 2026-10-17 那次把 §三 区间修到 226–239 的修正（实测 `sw/sh` 赋值确在 `:226`，`guard` 在 `:228`，hint 窗口 `:232-238`，`guard x1>=x0` 在 `:239`）。三个常量逐字对上：`workSizes=[2048,1536,1024]`（`:43`）、`globalScanSize=192`（`:108`）、`scoreThreshold=0.80`（`:115`）。
+>
+> **本次仅强化一处现状描述（§现状 ②）**：原文说「`LocateContext.visualLocator`（`App/LocateRuntime.swift:29-35`）当前无产品级装配/调用路径」——今日实测可精确到：**该字段全仓只有声明处一行，从未被赋值**（`grep -rn "visualLocator" Sources/` → 仅 `LocateRuntime.swift:30`）；而 `LocateContext` 本身**仍在用**（`AuroraDriveApp.swift:4497` 持有 `locateCtx`），但它只消费 `networkReady`（`:4540/:4557/:4565`）。故结论不变但更硬：**视觉定位这条路是「类型在、字段在、装配不在」**。
+>
+> **死代码确认（lead 指定核对项）**：`VisualLocator()` 全仓**零实例化**（`grep -rn "VisualLocator(" Sources/` 无输出）；`.locate(template:` 零产品调用；`runSelfTest` / `cleanup` / `minimapBytes` 均零外部调用。**主定位走 `CoordinateCapture`**（网络抓包解 UE5 位流）。
+
+> ✅ **2026-10-18 独立复核**（infer-reader，与上方 merge-arch 复核并立，结论一致）：
+>
+> 对 lead 点名的 4 项**逐条独立实测**，全部命中：
+>
+> | # | 核对项 | 实测命令 | 结果 |
+> |---|---|---|---|
+> | 1 | `VisualLocator()` 零实例化 | `grep -rn "VisualLocator(" Sources/ --include=*.swift` | **零命中** ✅ 死代码 |
+> | 2 | `workSizes=[2048,1536,1024]` | `sed -n '43p'` | `workSizes: [CGFloat] = [2048, 1536, 1024],` ✅ |
+> | 3 | `globalScanSize=192` | `sed -n '108p'` | `private static let globalScanSize: CGFloat = 192` ✅（`:108` 是 `private static let`，非 computed） |
+> | 4 | `scoreThreshold=0.80` | `sed -n '115p'` | `scoreThreshold: Double = 0.80) -> LocateResult {` ✅（是 `locate()` 的**默认参数**，非类属性——文档措辞「常量」略宽，实质无误） |
+>
+> **补充实测（文档未记，本轮新增）**：
+> - `.locate(` 全仓**零调用**（`grep -rn "\.locate(" Sources/ --include=*.swift` 无输出）——比文档「`.locate(template:` 零产品调用」更严：连**非产品调用也不存在**。
+> - `visualLocator` 字段全仓**仅 1 处**：`App/LocateRuntime.swift:30` 声明 `var visualLocator: VisualLocator? = nil`，**零赋值、零读取**。
+> - **平行佐证**：`NetworkLocator()` 同样**零实例化**（`grep -rn "NetworkLocator(" Sources/` 无输出）——两条定位链**同时废弃**，与 lead 的判断一致。
+>
+> **废弃定级建议**（⚠️ 待确认，需 lead 决策）：本文件 491 行 + 自检 32 行，是**完整可用但零装配**的能力。两种处置：① 保留为「降级备用」并在类头注明「当前无装配」；② 若确认不再需要视觉定位，整文件移入 `docs/老旧文档/` 对应的归档区。**不建议直接删除**——它是唯一不依赖网络抓包的定位实现，未来 pcap 失效时是备选。
+
+---
+
 > 覆盖源文件：`Sources/AuroraDrive/Locate/VisualLocator.swift`（491 行，2026-10-06 实测 `wc -l`）。基于当前仓库逐单元编写。
+>
+> **✅ 2026-10-17 行号复核**：源文件内容自 2026-08-26（`ls -la` mtime）后未再修改，仍 491 行（最后一次 git 提交 `25e3c18`，2026-09-20，源码树整理仅移动文件）；本文全部 `文件:行号` 已按当前工作树逐条 `grep -n` 实测核对，仅 §三「搜索窗口」一处区间由 228–239 修正为 **226–239**（`sw/sh` 字段赋值在 :226）。正文其余行号均与源码一致。
 >
 > **🔄 2026-10-06 现状说明**：
 > ① 行号复核：本文引用的 `workSizes`（`:43`）、`smoothAlpha=0.7`（`:44`）、`globalScanSize=192`（`:108`）、hint ±120px 窗口（`:232-238`）、EMA 平滑（`:198-205`）、`nccAt`（`:308`）、`buildIntegral`（`:344`）、`runSelfTest`（`:455-486`）均逐行核实无误；
@@ -9,7 +37,9 @@
 
 ## 一、数据类型与 prepare() 多尺度建档（第 1–111 行）
 
-**定位**：视觉定位器——把"小地图模板"（150px 侧长的模板块）在**大地图底图**上做多尺度 NCC（归一化互相关）匹配，输出模板在底图上的坐标。与 NetworkLocator（网络包坐标）互补：网络断了用视觉找位置。
+**定位**：视觉定位器——把"小地图模板"（150px 侧长的模板块）在**大地图底图**上做多尺度 NCC（归一化互相关）匹配，输出模板在底图上的坐标。设计意图是与 NetworkLocator（网络包坐标）互补：网络断了用视觉找位置。
+
+> ⛔ **2026-10-18 复核：本类当前是死代码（零装配）。** `VisualLocator()` 全仓零实例化、`.locate(` 零调用、`visualLocator` 字段（`LocateRuntime.swift:30`）零赋值零读取；平行的 `NetworkLocator()` 亦零实例化。**生产主定位走 `CoordinateCapture`**（网络抓包解 UE5 位流）。以下全部内容为「能力说明」而非「现役行为」，阅读时请以此为背景。
 
 **数据类型（第 9–25 行）：**
 
@@ -80,7 +110,7 @@
 
 **`matchOneScale(scale:template:tMean:tVar:tw:th:hintPixel:strideOverride: Int? = nil) -> LocateResult`（private static，第 221–306 行）**——单档匹配：
 
-1. **搜索窗口（228–239 行）**：`sw/sh` 档尺寸、`tcount = tw*th`；`guard tcount > 0, sw >= tw, sh >= th`（档比模板小则返回空）；**hintPixel 非空时 ±120px 局部窗口**（`r: Double = 120`，x0/y0/x1/y1 clamp 到边界）；`guard x1 >= x0, y1 >= y0`
+1. **搜索窗口（226–239 行）**：`sw/sh` 档尺寸、`tcount = tw*th`；`guard tcount > 0, sw >= tw, sh >= th`（档比模板小则返回空）；**hintPixel 非空时 ±120px 局部窗口**（`r: Double = 120`，x0/y0/x1/y1 clamp 到边界）；`guard x1 >= x0, y1 >= y0`
 2. **粗扫 stride（241–243 行，P修复）**：`coarseStride = strideOverride ?? ((hintPixel != nil) ? 2 : 16)`——**NCC峰宽~2px、stride=16跨峰漏检；全局扫必须 stride=2（strideOverride 传入）**
 3. **top-K 候选维护（244–258 行）**：`topK = 8`；`offer(_ s:_ X:_ Y:)` 闭包——不足 K 个直接 append（满 K 后排序）；超过时与末位比较、替换 + 插入排序（candidates 按分降序保持）
 4. **粗扫循环（259–272 行）**：双 while（yy/xx 步进 coarseStride）逐点 `Self.nccAt(...)` → offer

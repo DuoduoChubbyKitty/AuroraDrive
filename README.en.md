@@ -10,7 +10,7 @@
 
 Screen capture → CoreML inference → key injection, with packet-capture localization, speed recognition (fine-tuned PP-OCRv6 int8), an in-game AI assistant, and MetalFX display enhancement
 
-[中文文档 (Chinese)](README.md) · [Developer Guide](docs/文档库/英文版/DEVELOPER_GUIDE.en.md)
+[中文文档 (Chinese)](README.md) · [Developer Guide (Chinese)](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md)
 
 </div>
 
@@ -106,7 +106,7 @@ Free channels are best-effort: anonymous quotas are rate-limited and providers t
 
 ## 🧹 2026-09-19 Disk cleanup
 
-To free local disk space, the following paths were moved to the external drive `/Volumes/代码项目/自动驾驶项目半成品版本1.0到10.0/删除_20260919/自动驾驶系统清理/（⚠️ 2026-09-29 路径订正：实际在「自动驾驶项目半成品版本1.0到10.0」目录内，原文少两级）` — measured at **22 GB across 9 subdirectories**, matching the migration list below one-to-one (full mapping table: `docs/文档库/英文版/DEVELOPER_GUIDE.en.md` §7):
+To free local disk space, the following paths were moved to the external drive `/Volumes/代码项目/自动驾驶项目半成品版本1.0到10.0/删除_20260919/自动驾驶系统清理/（⚠️ 2026-09-29 路径订正：实际在「自动驾驶项目半成品版本1.0到10.0」目录内，原文少两级）` — measured at **22 GB across 9 subdirectories**, matching the migration list below one-to-one (full mapping table: `docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md` §七):
 
 - `data/web_frames` (19G), `build/vid_*.mp4`, `build/template_scratch`, `build/contact`, `build/ocr_batch(2)`, `data/_gray_cache`
 - `tools/ppocrv6_finetune/output` (retrainable/regenerable; contents moved to the external drive, local directory removed)
@@ -122,25 +122,19 @@ Iron rule: **never reduce frame rate, never work around limits with patches**.
 
 ## 📚 Documentation
 
-English translations live in `docs/文档库/英文版/`; the documents they translate are cited next to each entry.
-
-> ⚠️ **Link-status note (2026-10-07)**: the Level-3 English pages below translate the *early Chinese drafts* of `01-architecture` … `05-control-safety`, which were moved into `历史归档/05-自动驾驶与功能-早期稿/` on 2026-10-02. The English files themselves were restored to `docs/文档库/英文版/` on 2026-10-07 so that every link on this page resolves.
-> **The authoritative current text is the Chinese `代码-XX` series** (`代码-00` is the entry page); the early drafts are for historical traceability only, and the English translations inherit that status.
+> ⚠️ **Link-status note (2026-10-19)**: the English translation tree under `docs/文档库/英文版/` and the early-draft archive `历史归档/05-自动驾驶与功能-早期稿/` were both **removed as a whole during the 2026-10-17/18 documentation cleanup** (`ls` measurement: `docs/文档库/英文版/` → No such file or directory; `find . -name '01-architecture.md'` → 0 hits repo-wide; no recoverable copy under `.backups/`). All links below that pointed at them have been **deleted, not re-pointed** — the English translations are discontinued and the early drafts no longer exist.
+> **The authoritative current text is the Chinese `代码-XX` series** (`代码-00` is the entry page). This page (`README.en.md`) is the only English document still maintained.
 
 | Level | English | Chinese original |
 |---|---|---|
 | Overview | [README.en (this page)](README.en.md) | [README.md](README.md) |
-| Level 2 — Developer Guide | [Developer Guide](docs/文档库/英文版/DEVELOPER_GUIDE.en.md) | [开发者文档](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) |
-| Level 3 — Architecture *(early draft)* | [Architecture](docs/文档库/英文版/01-architecture.en.md) | [系统架构](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/01-architecture.md) |
-| Level 3 — Network Localization *(early draft)* | [Network Localization](docs/文档库/英文版/02-network-locate.en.md) | [网络定位](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/02-network-locate.md) |
-| Level 3 — Speed Recognition *(early draft)* | [Speed Recognition](docs/文档库/英文版/03-speed-ocr.en.md) | [速度识别](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/03-speed-ocr.md) |
-| Level 3 — Vision & Inference *(early draft)* | [Vision & Inference](docs/文档库/英文版/04-vision-inference.en.md) | [视觉与推理](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/04-vision-inference.md) |
-| Level 3 — Control & Safety *(early draft)* | [Control & Safety](docs/文档库/英文版/05-control-safety.en.md) | [控制与安全](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/05-control-safety.md) |
-| Level 4 — Internals | [English docs index](docs/文档库/英文版/00-本目录索引.md) | [核心实现原理：代码-00 源码树与架构总览](docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md) · [全文索引](docs/文档库/自动驾驶与功能/00-文档索引.md) |
+| Level 2 — Developer Guide | [Developer Guide (Chinese only — English version discontinued)](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) | [开发者文档](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) |
+| Level 3 — early drafts (Architecture / Network Localization / Speed Recognition / Vision & Inference / Control & Safety) | —（`01-architecture` … `05-control-safety` early drafts were deleted in the 2026-10-17 cleanup; their content lives on in `代码-04` / `代码-12` / `代码-13` / `代码-14` / `代码-20`） | —（同上，早期稿已删除） |
+| Level 4 — Internals | [Source tree & architecture overview (Chinese only)](docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md) | [核心实现原理：代码-00 源码树与架构总览](docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md) · [全文索引](docs/文档库/自动驾驶与功能/00-文档索引.md) |
 
-Level-4 English topics: [UE5 bitstream](docs/文档库/英文版/ue5-bitstream.en.md) · [coordinate calibration](docs/文档库/英文版/coordinate-calibration.en.md) · [BPF & LaunchDaemon](docs/文档库/英文版/bpf-daemon.en.md) · [App Nap countermeasures](docs/文档库/英文版/app-nap.en.md) · [pitfalls](docs/文档库/英文版/pitfalls.en.md)
+Level-4 Chinese topics (English versions discontinued): [UE5 bitstream → `代码-16 NetworkLocator`](docs/文档库/自动驾驶与功能/代码-16-NetworkLocator网络包定位.md) · [coordinate calibration → `代码-04 CoordinateCapture`](docs/文档库/自动驾驶与功能/代码-04-CoordinateCapture网络坐标采集.md) · [BPF & LaunchDaemon → `bpf-daemon.md`](docs/文档库/自动驾驶与功能/bpf-daemon.md) · [App Nap countermeasures → `pitfalls.md`](docs/文档库/自动驾驶与功能/pitfalls.md)
 
-> ⚠️ **Translation freshness**: the English documents are translations of their Chinese counterparts and are not guaranteed to move in lockstep. When the two disagree, **the Chinese original wins**.
+> ⚠️ **Translation freshness**: the remaining Chinese documents are the only maintained copies. When any wording disagrees with this English page, **the Chinese original wins**.
 
 ## 📄 License
 

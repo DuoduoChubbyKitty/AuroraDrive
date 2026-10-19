@@ -1,5 +1,12 @@
 # 代码-31 构建部署与 run.sh 全解
 
+> ✅ **2026-10-18 复核**（merge-arch）：逐行对照 `run.sh`（182 行）与 `scripts/build-lock.sh`（146 行），修正 3 处：
+> 1. **§一 `[3/4] 编译` 代码块漏了 `--disable-sandbox --scratch-path .build/scratch`**（最严重——读者照抄会在 DSH workspace 沙盒下 manifest 编译失败，或产物落到 `.build/release/` 而后续 `[ ! -f "$BIN_SRC" ]` 判失败）。已按 `run.sh:85` 逐字补全。
+> 2. **libpcap 提示文案已更新**：`run.sh:37` 现在写的是「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」（2026-09-29 已修，本文 §一旧文仍写「NetworkPacketCapture.swift 需要」）。判据本身也已换成 dyld 解析（`:32-34`），不再是 `ls /usr/lib/libpcap*`。
+> 3. **build-lock.sh 146 行与全部行号引用命中**（:7-11/:30/:37/:38/:64-71/:87-90/:91-94/:95/:102-107/:129-138），无需改动；`git ls-files scripts/` 实测 7 个文件全部已跟踪，`git status --short scripts/` 空。
+>
+> 已核对无误的结论：run.sh 182 行、`BIN_SRC`/`BIN_DST`（:11-12）、模型只查 3 个 + yolopx 三合四（:47/:57-64）、`--disable-sandbox --scratch-path`（:85）、原子双写部署（:104-111）、Info.plist 的 `CFBundleIdentifier=com.aurora.driveui` 与 `LSMinimumSystemVersion=14.0`（:137/:142）、`pkill -f "AuroraDriveUI"`（:148）、`.app` bundle 优先启动（:167-176）、`AuroraDriveUI` 14,193,680 B（2026-10-15）、`docs/git/` 12 个备份（2026-08-07 ~ 2026-09-13，2,561,952→4,334,752 B）、`legacy/NetworkPacketCapture.swift` 仍存在。
+
 > ### ⚠️ 2026-10-07 复核块（**持锁构建 → mtime 防静默 → 原子双写部署 → 自检矩阵**，逐条实测）
 >
 > 本次把「日常迭代怎么构建、怎么验证构建真的生效、怎么部署、部署后跑什么」固化成可复制流程。
@@ -33,8 +40,8 @@
 > |---|---|
 > | `bash scripts/build-lock.sh run "<原因>" --` | **多人/多 agent 并发时 SwiftPM 是整模块编译**，会互相打断（`error: input file '...' was modified during the build`，`build-lock.sh:7-11`）；且一人写坏全组都验不了。`run` 自动加锁/解锁（`:129-138`），拿不到锁退出码 **3**（`:95`） |
 > | `-c release` | 发布构建；自检/基准都在 release 产物上跑 |
-> | `--disable-sandbox` | DSH workspace 沙盒下 SwiftPM 自身 sandbox_apply 会 `Operation not permitted` → manifest 编译失败（run.sh:69-73 的 9-24 修复记录） |
-> | `--scratch-path .build/scratch` | 统一 scratch 目录，与增量缓存共用；`scripts/perf-snapshot.sh:128`、`scripts/regression-gate.sh:66`、`run.sh:85` 三处同一写法 |
+> | `--disable-sandbox` | DSH workspace 沙盒下 SwiftPM 自身 sandbox_apply 会 `Operation not permitted` → manifest 编译失败（run.sh:81-85 的 9-24 修复记录） |
+> | `--scratch-path .build/scratch` | 统一 scratch 目录，与增量缓存共用；`scripts/perf-snapshot.sh:137`、`scripts/regression-gate.sh:66`、`run.sh:85` 三处同一写法 |
 >
 > **产物路径**：`.build/scratch/release/AuroraDrive`（**不是** `.build/release/`，别找错文件）。
 >
@@ -82,7 +89,7 @@
 > find Sources -name '*.swift' -newer .build/scratch/release/AuroraDrive -print   # 必须为空
 > ```
 >
-> ⚠️ **`run.sh` 的老做法是每次 `rm -rf .build` 全量重编**（`run.sh:80`）——
+> ⚠️ **`run.sh` 的老做法是每次 `rm -rf .build` 全量重编**（`run.sh:77`）——
 > 那是「宁可慢也别静默」的取舍，日常迭代**不建议**（代价高），但**上线前**可以用它兜底一次。
 >
 > ---
@@ -105,7 +112,7 @@
 > cp -p ./AuroraDriveUI "/tmp/AuroraDriveUI.bak-deploy-$TS"
 >
 > # ② 原子替换：先 cp 到临时名（同目录，保证同一文件系统），再 mv 换 inode
-> #    —— 与 run.sh:105 / run.sh:112 同款写法（.tmp.$$）
+> #    —— 与 run.sh:105 / run.sh:111 同款写法（.tmp.$$）
 > cp "$SRC" "./AuroraDriveUI.tmp.$$" && mv -f "./AuroraDriveUI.tmp.$$" ./AuroraDriveUI
 > cp "$SRC" "$APP.tmp.$$"            && mv -f "$APP.tmp.$$" "$APP"
 >
@@ -228,17 +235,37 @@
 > 基于 **133 行版本**。此后经历了 133→170（9-24 构建面修复）→ **182**（9-29 补 YOLOPX 检查）
 > 两轮增长，**文末段落的实际行号已后移约 49 行**。
 > 阅读时请以「段落标题」定位，不要直接按行号跳转。
+> **2026-10-16 换算表（实测）**：本节正文的 133 版行号引用 → 当前 182 版（grep 锚点实测）：
+>
+> | 段落 | 旧(133版) | 当前(182版) |
+> |---|---|---|
+> | `[1/4] 环境检查` | 18–32 | 18–39 |
+> | libpcap 检查 | 27–32 | 26–39 |
+> | `[2/4] 模型检查` | 34–45 | 41–64 |
+> | `--status` 模式 | 47–52 | 66–71 |
+> | `[3/4] 编译` | 54–70 | 73–93 |
+> | `rm -rf .build` | 58 | 77 |
+> | 管道退出码修复 | 59–62 | 78–80 |
+> | 双条件失败判定 | 65–69 | 88–92 |
+> | `[4/4] 签名+部署` | 72–106 | 95–155 |
+> | SIGKILL 根因注释 | 73–78 | 96–101 |
+> | 原子替换 | 82 | 105 |
+> | `.app` bundle 构建 | 85–103 | 108–145 |
+> | Info.plist | 89–101 | 131–143 |
+> | 清理旧进程 | 106 | 148 |
+> | 部署完成输出 | 108–114 | 151–155 |
+> | 启动 | 116–133 | 158–182 |
 
-**用法（2–5 行）**：`./run.sh` → 编译+签名+启动 GUI；`./run.sh --status` → **只检查环境，不启动**；`./run.sh --yolo-selftest <图片>` → YOLO 自检。`set -e`（出错即停）。
+**用法（2–5 行）**：`./run.sh` → 编译+签名+启动 GUI；`./run.sh --status` → **只检查环境，不启动**；`./run.sh --yolo-selftest <图片>` → YOLO 自检；`./run.sh --yolo-bench <图片>` → YOLO 基准。`set -e`（出错即停）。
 
-**部署产物实况（本机验证）**：`AuroraDriveUI`（5.4MB，2026-09-16 裸可执行）+ `AuroraDriveUI.app/Contents/`（bundle）+ 12 个历史备份可执行（位于 `docs/git/`，`AuroraDriveUI.bak-2026MMDD-*`）。
+**部署产物实况（本机验证）**：`AuroraDriveUI`（13.5MB，2026-10-15 部署，14,193,680 字节）+ `AuroraDriveUI.app/Contents/`（bundle）+ 12 个历史备份可执行（位于 `docs/git/`，`AuroraDriveUI.bak-2026MMDD-*`）。
 
 **`[1/4] 环境检查（18–32 行）**：
 
 - `swift --version`（首行）+ `sw_vers -productVersion`——打印工具链与系统版本
-- **libpcap 检查（27–32 行）**：`ls /usr/lib/libpcap*` 或 `brew list libpcap`——✓ 已安装 / ✗ 未安装（"NetworkPacketCapture.swift 需要"——**注意：NetworkPacketCapture 已移除不编译，现 NetworkLocator 用系统 libpcap；此提示文案滞后**）+ 安装命令 `brew install libpcap`
+- **libpcap 检查（26–39 行，2026-09-20 已重写判据）**：旧判据 `ls /usr/lib/libpcap*` / `brew list libpcap` 自 macOS 11 起恒为假、必然误报「✗ 未安装」——现改为 **dyld 实际解析结果**：① `dyld_info -linked_dylibs "$BIN_SRC"`（需产物存在）；② `dyld_info -exports /usr/lib/libpcap.A.dylib` 兜底；③ `ls` 旧判据兜底。三者任一命中即 ✓。未安装时提示文案为「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」（`run.sh:37`）——⚠️ 注意 `CoordinateCapture`（`Capture/`，现役抓包）与 `NetworkLocator`（`Locate/`）是**两个不同文件**，不是改名关系；`legacy/NetworkPacketCapture.swift` 是废弃实现，不参与编译
 
-**`[2/4] 模型检查（34–45 行）**：`for m in m9_mono game_assist_control yolo26s`——三个模型逐个检查：
+**`[2/4] 模型检查（34–45 行）**：`for m in m9_mono game_assist_control yolo26s`——三个模型逐个检查；`run.sh:56-64` 另对 yolopx 三合一特查：
 
 - `models/${m}.mlmodelc` 存在 → ✓（**编译版，首选**）
 - `models/${m}.mlpackage` 存在 → ✓ (未编译,回退加载)
@@ -254,7 +281,12 @@ rm -rf .build
 # 修复：旧写法 `swift build | tail -5` 管道吞掉构建退出码（set -e 失效）
 # → 构建失败时仍继续部署/启动。现在完整记录构建输出并检查 exit code，
 #   失败时打印错误行并中止（防再犯：2026-09-15 bagel_spam 编译失败曾误部署）
-swift build -c release > .last-build.log 2>&1
+# 2026-09-24 修复（run.sh:81-84 注释）：DSH workspace-write 沙盒下 SwiftPM 自身
+#   sandbox_apply 会 Operation not permitted → manifest 编译失败；统一 scratch 到
+#   .build/scratch 与增量开发构建共用缓存。
+#   ⚠️ **这两个参数不能省**：省 --disable-sandbox 会在沙盒下 manifest 编译失败；
+#   省 --scratch-path 则产物落到 .build/release/，下面 `[ ! -f "$BIN_SRC" ]` 判失败。
+swift build -c release --disable-sandbox --scratch-path .build/scratch > .last-build.log 2>&1
 BUILD_RC=$?
 tail -5 .last-build.log
 if [ "$BUILD_RC" -ne 0 ] || [ ! -f "$BIN_SRC" ]; then
@@ -314,7 +346,7 @@ fi
 | 训练 | train_recording.py / train_speed_ocr.py / train_speed_cnn_v5.py / ppocrv6_finetune/ | OCR/CNN 微调训练 |
 | 转换 | convert_e2e_to_coreml.py / convert_e2e_v2.py / convert_e2e_v3.py / convert_yolo_to_coreml.py / export_game_assist_coreml.py / export_yolo26s_coreml.py | PyTorch → CoreML 导出（deployTrainedModel 的上游） |
 | 数据构建 | build_final_map_db.py / build_hdf5.py / build_labeled_glyphs.py / build_speed_glyphs.py / build_speed_templates.py / crop_speed_roi.py / dagr_to_h5.py / label_strong_brake.py | 地图数据库/HDF5/字模构建 |
-| 诊断 | diag_grad.py / diag_clusters.py / measure_glyph_slots.py / verify_*.py（10 个）/ roi_ab_test.py / full_audit.py / audit2.py | 簇分析/槽位测量/验证脚本 |
+| 诊断 | diag_grad.py / diag_clusters.py / measure_glyph_slots.py / verify_*.py（9 个）/ roi_ab_test.py / full_audit.py / audit2.py | 簇分析/槽位测量/验证脚本 |
 | 抓包 | aurora_capture.c / cgrab.py / mac_screen_record.py / record_video.py / hid_key.c / hid_look.c | C 抓包器/HID 探针 |
 | 辅助 | game_focus.sh / menu_click.sh / save_shot.sh / stitch_map.py / fetch_complete_map.py | 游戏聚焦/截图/地图拼接 |
 
@@ -330,13 +362,13 @@ fi
 | 地图数据 | `FINAL_complete_map_database.json`（7.2MB，5677 标记） | GameMapView |
 | 训练权重 | `yolo26s.pt`（根层，exclude）/ `data/lane_batches.json` | PyTorch 源权重（2026-09-20 整理后批次清单迁入 `data/`） |
 
-**历史备份（`docs/git/` 下 12 个 AuroraDriveUI.bak-*，本机验证）**：2026-08-07 至 2026-09-13 的部署快照（2.5MB→5.4MB）——**回滚点**（SIGKILL/误部署时可退回上一个可用版本）。
+**历史备份（`docs/git/` 下 12 个 AuroraDriveUI.bak-*，本机验证）**：2026-08-07 至 2026-09-13 的部署快照（2.5MB→4.3MB，实测 2,561,952→4,334,752 字节）——**回滚点**（SIGKILL/误部署时可退回上一个可用版本）。
 
 ## 三、scripts/build-lock.sh 原子构建锁（2026-10-06 追加，全部行号本次逐行核实）
 
-> **scripts/ 是 git 未跟踪的新目录**（2026-10-06 `git status` 实测：目录下 7 个文件中仅
-> `setup_toolchain.sh` 已跟踪，其余 6 个——`build-lock.sh` / `check-package-sources.sh` /
-> `paired-ab.sh` / `perf-snapshot.sh` / `regression-gate.sh` / `README.md`——均为 `??` 未跟踪状态）。
+> **scripts/ 已全部纳入 git 跟踪**（2026-10-16 `git ls-files scripts/` 实测：7 个文件
+> 全部已跟踪：setup_toolchain.sh / build-lock.sh / check-package-sources.sh / paired-ab.sh /
+> perf-snapshot.sh / regression-gate.sh / README.md；`git status --short scripts/` 无输出）。
 
 ### 3.1 为什么需要构建锁（`scripts/build-lock.sh:6-17` 文件头注释，本次核实）
 

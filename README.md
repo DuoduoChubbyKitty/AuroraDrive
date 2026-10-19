@@ -6,7 +6,7 @@
 
 屏幕捕获 → CoreML 推理 → 按键注入，附带网络抓包定位、速度识别（PP-OCRv6 微调 int8）与 MetalFX 显示增强
 
-[English Documentation](README.en.md) · [开发者文档](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) · [Developer Guide (EN)](docs/文档库/英文版/DEVELOPER_GUIDE.en.md) · **[📚 文档总索引](docs/00-文档总索引.md)**
+[English Documentation](README.en.md) · [开发者文档](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) · [全文索引](docs/文档库/自动驾驶与功能/00-文档索引.md)
 
 </div>
 
@@ -39,22 +39,22 @@
 - **MetalFX 显示增强**：超分 + 插帧，只作用于显示层，**绝不进入**「捕获→推理→按键」决策链路
 
 <details>
-<summary><b>📌 逐条代码依据（2026-10-07 核实，点开查看）</b></summary>
+<summary><b>📌 逐条代码依据（2026-10-17 重新核实，点开查看）</b></summary>
 
 | 功能 | 依据（`文件:行号` / 命令） |
 |---|---|
-| **三档**降级（原写「四档含脱困」**已过期**） | 脱困档 `.recover` 于 2026-09-30 整体删除：`Sources/AuroraDrive/Agent/DegradeStateMachine.swift:5-9`；`EscapeController` 类型已删、仅留 `ControlCommand` 输出格式：`Sources/AuroraDrive/Control/EscapeController.swift:12`、`AuroraDriveApp.swift:5411-5412` |
-| 网络定位**仍活着**（旧抓包路径已移除） | 旧 `networkLocator.start()` 已注释：`AuroraDriveApp.swift:5958`（原注释「旧网络抓包定位已移除」）；**现行** `CoordinateCapture` 懒初始化 + `cc.start()`：`AuroraDriveApp.swift:4447-4461`（注释「纯网络定位，无自愈引擎」）；libpcap 实调用 `CoordinateCapture.swift:1047`；过滤器/端口 `CoordinateCapture.swift:567` |
+| **三档**降级（原写「四档含脱困」**已过期**） | 脱困档 `.recover` 于 2026-09-30 整体删除：`Sources/AuroraDrive/Agent/DegradeStateMachine.swift:5-9`；`EscapeController` 类型已删、仅留 `ControlCommand` 输出格式：`Sources/AuroraDrive/Control/EscapeController.swift:12-14`、`AuroraDriveApp.swift:4053-4055` |
+| 网络定位**仍活着**（旧抓包路径已移除） | 旧 `networkLocator.start()` 已注释：`AuroraDriveApp.swift:6281`（原注释「旧网络抓包定位已移除」）；**现行** `CoordinateCapture` 懒初始化 + `cc.start()`：`AuroraDriveApp.swift:4546-4553`（注释「纯网络定位，无自愈引擎」）；libpcap 实调用 `CoordinateCapture.swift:1052`（`pcap_open_live`）；过滤器/端口 `CoordinateCapture.swift:1100`（`tcp port 30031 or udp`） |
 | `NetworkLocator` **编译但零实例化** | `grep -rn "NetworkLocator(" Sources/` → **零命中**；仅 `Sources/AuroraDrive/App/LocateRuntime.swift:31` 有一个从未赋值的字段 |
 | 三层校验 | `Sources/AuroraDrive/Inference/SpeedOCRReader.swift:638-653`（Layer 1 量程 / Layer 2 跳变 / Layer 3 多帧确认） |
 | AI **真对话** | `Sources/AuroraDrive/Agent/AgentChatService.swift:109-115`（候选上限 4、增量 15Hz 节流）；同文件 `:22-26` 记「全链失败不抛错给 UI，回退 `localReply` 并标注『离线回复』」 |
-| 自主调工具 **30 个** | `Sources/AuroraDrive/Agent/ToolRegistry.swift:16-23`（18 技能 + 4 键位 + 1 文本 + 3 鼠标 + 2 观察 + 2 搜索）；技能挂载 `:151-158`；四道护栏 `:24-34` |
-| **ESC + 鼠标**路径 | `AgentChatService.swift:340-348`（「这条路（ESC → 截图 → 鼠标点击）是本工具操作界面的**唯一可靠方式**」）；技能内 ESC 实注入 `AIAgentPanel.swift:1232`（`pressGameKey(.esc, duration: 0.05)`）；键位自检探针 `LLMSelfTest.swift:1160` |
+| 自主调工具 **30 个** | `Sources/AuroraDrive/Agent/ToolRegistry.swift:16-23`（18 技能 + 4 键位 + 1 文本 + 3 鼠标 + 2 观察 + 2 搜索）；技能挂载 `:151-160`；四道护栏 `:24-34`。⚠️ **挂载 30 个 ≠ 全部可用**：`isImplemented = skill.ported`（`:158`），18 个技能里 `ported:true` 只有 **15 个**，`pinkpaw` / `rhythm` / `preset_realtime` 三个是 `false`（`AIAgentPanel.swift:104/112/124`），调用会返回 `ok=false` |
+| **ESC + 鼠标**路径 | `AgentChatService.swift:340-348`（「这条路（ESC → 截图 → 鼠标点击）是本工具操作界面的**唯一可靠方式**」）；技能内 ESC 实注入 `AIAgentPanel.swift:1245`（`pressGameKey(.esc, duration: 0.05)`）；键位自检探针 `LLMSelfTest.swift:1160` |
 | **滑动窗口** | `Sources/AuroraDrive/Agent/AIAgentPanel.swift:197-214`（`static let maxMessages = 200`） |
 | 任务面板 **OCR** | `Sources/AuroraDrive/Inference/QuestPanelReader.swift:414-431`（`minInterval = 0.7`）；默认开启：`Sources/AuroraDrive/Core/AuroraFlags.swift:192-201`（`questOCR` 默认 `true`） |
-| 路网 **664/932** | `Sources/AuroraDrive/App/AuroraDriveApp.swift:2091`（「断头 118 (19.3%) → 36 (5.4%)，节点 612→664，边 825→932」）+ `:2095-2096` 自检断言；数据文件实测 `models/route_graph.json` → `nodes:664 / edges:932` |
-| 三级新鲜度（替代原「自愈式定位」） | `AuroraDriveApp.swift:4515-4527`（live ≤18s / recent ≤40s / stale ≤90s / lost >90s） |
-| MetalFX 仅显示层 | `Sources/AuroraDrive/Capture/CaptureEngine.swift:55`（「走独立回调**不干扰主路径**」）；`AuroraDriveApp.swift:5755` |
+| 路网 **664/932** | `Sources/AuroraDrive/App/AuroraDriveApp.swift:2135`（「断头 118 (19.3%) → 36 (5.4%)，节点 612→664，边 825→932」）+ `:2139-2140` 自检断言；数据文件实测 `models/route_graph.json` → `nodes:664 / edges:932` |
+| 三级新鲜度（替代原「自愈式定位」） | `AuroraDriveApp.swift:4620-4626`（live ≤18s / recent ≤40s / stale ≤90s / lost >90s；`recent` 起不参与决策） |
+| MetalFX 仅显示层 | `Sources/AuroraDrive/Capture/CaptureEngine.swift:128-130`（「MetalGoose 引擎需要完整帧做时域插帧/空间超分，走独立回调不干扰主路径」）；`AuroraDriveApp.swift:6037-6040`（「插帧/超分直通：全分辨率帧 → MetalGoose 引擎（仅显示路径）」） |
 
 </details>
 
@@ -83,14 +83,19 @@ cd AuroraDrive
 
 ```
 ┌─ 捕获层 Capture ──────┐   ┌─ 推理层 Inference ───────┐   ┌─ 执行层 Actuate ───┐
-│ ScreenCaptureKit      │ → │ E2E(m9_mono) 30Hz        │ → │ CGEvent 按键注入    │
-│ 30Hz CVPixelBuffer    │   │ YOLO(yolo26s) 检测        │   │ (ControlEngine)     │
-├─ 定位层 Locate ───────┤   │ 速度OCR(PP-OCRv6) 30Hz  │   ├─ 显示层 Display ───┤
+│ ScreenCaptureKit      │ → │ E2E(m9_mono) 20Hz        │ → │ CGEvent 按键注入    │
+│ 20fps CVPixelBuffer   │   │ YOLO(yolo26s) 检测        │   │ (ControlEngine)     │
+├─ 定位层 Locate ───────┤   │ 速度OCR(PP-OCRv6) 20Hz  │   ├─ 显示层 Display ───┤
 │ libpcap tcp/30031     │   ├─ 决策层 Decide ──────────┤   │ MetalFX 超分+插帧   │
 │ UE5位流→世界坐标       │   │ 三档降级状态机             │   │ 全收集交互地图      │
 │ →13056px 地图像素     │   │ e2e/yolo/rule             │   │ (仅人眼观看)        │
 └───────────────────────┘   └───────────────────────────┘   └────────────────────┘
 ```
+
+> 📌 **频率口径（2026-10-18 核实）**：tick（推理+控制+录制）与抓屏**都已是 20Hz/20fps**
+> （`EngineMain.engineTickHz = 20.0`；`tickHz/captureHz(forPerceptionMode:)` 两档都返回 20）。
+> 历史沿革：45 → 30 → 20；应急冲刺（sprint）时两者一起提到 45。
+> 上图原写「30Hz」，是 20Hz 定档前的口径，已按实况更新。
 
 **架构红线**：插帧/超分只作用于显示叠加层，绝不进入决策链路。
 *Frame interpolation / upscaling ONLY applies to the display overlay — never to the capture → inference → key-injection decision path.*
@@ -103,13 +108,13 @@ cd AuroraDrive
 | 支柱 | 说明 | 为何本图未体现 |
 |---|---|---|
 | **① 双进程 + 共享内存 v3** | UI 与引擎是两个长驻进程，经 `/aurora_frame_v1` 共享内存（72MB）传帧与检测；`EngineClient.protocolVersion = 3` | 写作时还是单进程 |
-| **② YOLOPX 三合一感知** | `YolopxEngine`：一个模型同时出 `det`（检测）/ `da`（可行驶区）/ `ll`（车道线），15Hz。**★核心资产，模型一个字节都不能换** | 写作时只有 `yolo26s` |
-| **③ 光流 + 运动预测** | OpenCV DIS 光流（`Vendor/OpenCVFlow`，≤5ms 红线）把 15Hz 检测补成 30Hz（α-β 滤波外推） | 写作后新增 |
+| **② YOLOPX 三合一感知** | `YolopxEngine`：一个模型同时出 `det`（检测）/ `da`（可行驶区）/ `ll`（车道线）。频率随档位：**ayolom 档每 tick 都跑（20Hz）**、**legacy 档偶数帧跑（10Hz）**。**★核心资产，模型一个字节都不能换** | 写作时只有 `yolo26s` |
+| **③ 光流 + 运动预测** | OpenCV DIS 光流（`Vendor/OpenCVFlow`，≤5ms 红线）把 10Hz（20Hz tick 下的偶奇帧门）检测补成 20Hz（α-β 滤波外推）。⚠️ 原写「15Hz 补成 30Hz」是 30Hz 时代口径 | 写作后新增 |
 | **④ 掩码可视化** | 可行驶区/车道线掩码经共享内存传回 UI 叠加显示（bit-pack，160×160 网格） | 写作后新增 |
 
 > 另注：架构图中 `YOLO(yolo26s) 检测` 的表述需留意——`yolo26s` 在项目中**主要用于预测侧**，
 > 而游戏内目标检测的主路径是 **YOLOPX 的 `det` 头**。详见 [`代码-14-YoloEngine目标检测.md`](docs/文档库/自动驾驶与功能/代码-14-YoloEngine目标检测.md)
-> 与 [`04-vision-inference.md` §4.8](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/04-vision-inference.md)（该文已归档，`§4.8 YOLOPX 三合一感知` 位于该文件第 92 行）。
+> 与 [`代码-13-InferenceEngine端到端推理.md`](docs/文档库/自动驾驶与功能/代码-13-InferenceEngine端到端推理.md)（原引的 `04-vision-inference.md` §4.8 已随 2026-10-17 清理删除）。
 
 ## 🧹 2026-09-19 磁盘清理 / Disk cleanup
 
@@ -140,20 +145,15 @@ cd AuroraDrive
 
 ## 📚 文档 / Documentation
 
-> ⚠️ **2026-10-07 断链修复说明**：下方「三级」一栏原指向 `自动驾驶与功能/` 下的 `01-architecture.md`～`05-control-safety.md` 五个文件，这些文件已于 2026-10-02 整体迁入 **`历史归档/05-自动驾驶与功能-早期稿/`**（`ls` 实测：原路径 No such file）。
-> 本次按「文件存在→改指新路径」原则**全部重指到归档实际位置**，并标注「早期稿」。
-> **当前权威正文在 `代码-XX` 系列**（`代码-00` 是导航页），早期稿仅供追溯。
+> ⚠️ **2026-10-19 断链修复说明（第二次）**：下方「三级」一栏原指向 `历史归档/05-自动驾驶与功能-早期稿/` 下的 `01-architecture.md`～`05-control-safety.md`，以及 `docs/文档库/英文版/` 下的对应 `.en.md`。**这两处目录已于 2026-10-17/18 的文档清理中整体删除**（`ls` 实测：`docs/文档库/英文版/` → No such file or directory；`find . -name '01-architecture.md'` 全仓 0 命中；`.backups/` 内亦无备份可恢复）。因早期稿与英文版均已无现存文件，**按「删死链 + 留说明」处理**，不再改指新路径。
+> **当前权威正文是 `代码-XX` 系列**（`代码-00` 是导航页），英文内容见 [README.en.md](README.en.md)。
 
 | 层级 | 中文 | English |
 |---|---|---|
 | 入口 Overview | [README（本页）](README.md) | [README.en](README.en.md) |
-| 二级 Developer Guide | [开发者文档](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) | [Developer Guide](docs/文档库/英文版/DEVELOPER_GUIDE.en.md) |
-| 三级 Architecture（早期稿） | [系统架构](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/01-architecture.md) | [Architecture](docs/文档库/英文版/01-architecture.en.md) |
-| 三级 Network Locate（早期稿） | [网络定位](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/02-network-locate.md) | [Network Localization](docs/文档库/英文版/02-network-locate.en.md) |
-| 三级 Speed OCR（早期稿） | [速度识别](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/03-speed-ocr.md) | [Speed Recognition](docs/文档库/英文版/03-speed-ocr.en.md) |
-| 三级 Vision & Inference（早期稿） | [视觉与推理](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/04-vision-inference.md) | [Vision & Inference](docs/文档库/英文版/04-vision-inference.en.md) |
-| 三级 Control & Safety（早期稿） | [控制与安全](docs/文档库/神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/05-control-safety.md) | [Control & Safety](docs/文档库/英文版/05-control-safety.en.md) |
-| 四级 Internals（现行） | [核心实现原理：代码-00 源码树与架构总览](docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md) · [全文索引](docs/文档库/自动驾驶与功能/00-文档索引.md) | [Internals 索引（EN）](docs/文档库/英文版/00-本目录索引.md) |
+| 二级 Developer Guide | [开发者文档](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md) | —（英文版已停更，见 [README.en.md](README.en.md)） |
+| 三级早期稿（Architecture / Network Locate / Speed OCR / Vision & Inference / Control & Safety） | —（`01-architecture`～`05-control-safety` 早期稿已随 2026-10-17 清理删除；相应内容已并入 `代码-04` / `代码-12` / `代码-13` / `代码-14` / `代码-20`） | —（英文版已随清理删除） |
+| 四级 Internals（现行） | [核心实现原理：代码-00 源码树与架构总览](docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md) · [全文索引](docs/文档库/自动驾驶与功能/00-文档索引.md) | —（英文版已停更，见 [README.en.md](README.en.md)） |
 
 **现行分模块文档（`代码-00`~`代码-39`，共 40 篇）**：按子系统一一对应源码，含 `文件:行号` 级引用，**与当前代码同步维护**。常用入口：
 

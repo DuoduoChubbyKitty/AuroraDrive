@@ -1,29 +1,51 @@
 # 代码-04 CoordinateCapture 网络坐标采集
 
-> 覆盖源文件：`Sources/AuroraDrive/Capture/CoordinateCapture.swift`（**1752 行，2026-10-06 `wc -l` 实测**）。
+> ♻️ **行号已按 9097 行版重基准（2026-10-18，sys-reader）**：本轮逐条核对本文 **5 条跨文件引用**（`AuroraDriveApp.swift` 4 条 + `MissionConsole.swift` 1 条），**修正 4 条、准确保留 1 条**：
+>
+> | 引用 | 旧值 | 新值 | 判定依据 |
+> |---|---|---|---|
+> | `runNetworkLocateStep()` | `AuroraDriveApp.swift:4544` | **`:4546`** | `sed` 实测 :4544 是 `}`，`:4546` 才是 `func runNetworkLocateStep()` |
+> | 懒初始化块（`cc.start()` / 双检锁 / `networkReady` / 锁声明） | `:4547–4553` / `:4548–4549` / `:4493` / `:4555` | **`:4549–4555` / `:4550–4551` / `:4495` / `:4557`** | `grep -n` 逐个定位 |
+> | `locateSource()` | `:4537–4542` | **`:4538–4543`** | doc-comment :4538、声明 :4539、body 至 :4543 |
+> | `readWithTier()` 消费点 | `:4632` | **`:4634`** | `:4632` 是注释行，`:4634` 才是 `let tierRead = cc.readWithTier()` |
+> | `--nic-autotest` 自建实例 | `:1604–1605` | **不变 ✅** | `:1604` `CoordinateCapture()` / `:1605` `cc.start()` 逐行命中 |
+> | `MissionConsole` 定时器 | `:6186–6200` / `:6188` | **`:6185–6204` / `:6193`** | :6191 队列 / :6193 `repeating 1.0/10.0` / :6204 `runNetworkLocateStep()` |
+>
+> ⚠️ **另修正 1 处行为描述（不只是行号）**：原文写「网络定位定时器 **10Hz**」，实际已改为**空闲降频**——开车/录制时 10Hz、空闲约 2Hz（`MissionConsole.swift:6194–6200` 的 `nlIdleSkip < 5` 早退）。
+>
+> ✅ **未变**：`CoordinateCapture.swift` 自身的 11 条内部锚点（`:671/:868/:1357/:1360/:1483/:1603/:1618/:1628/:1650/:1731/:1753`）**全部逐条命中**——该文件源码未改动，行号天然稳定。
+
+> ✅ 2026-10-18 区间复核：四个章节起点（`:22` libpcap 声明 / `:123` Bit 操作 / `:257` 解码器 /
+> `:553` 坐标抓取器）逐个打开源码核对，**全部准确命中**；仅末行差 1（本文写 1789，`wc -l` 实测
+> 1790 —— `wc -l` 数换行符，末行无换行符时少 1，属统计口径差而非内容差）。
+> 第五节声称的 `1789` 行与 `wc -l` 的 1790 相差 1 行即此因，**不影响任何符号定位**。
+
+> ✅ 2026-10-17 复核：覆盖源文件行数 1789 行已实测；正文历史存档节的旧基准行号**不再作数**，现役符号行号以文首复核块（2026-10-17 逐符号 `grep -n` 重测）为准。
+
+> 覆盖源文件：`Sources/AuroraDrive/Capture/CoordinateCapture.swift`（**1789 行，2026-10-16 `wc -l` 实测**）。
 > 从 MaaNTE `nte_coordinate_api.py` 移植（AGPL-3.0），自包含网络定位：libpcap 抓包 → UE5 移动包解析 → 世界坐标 + 朝向。基于当前仓库逐单元编写。
 >
 > ---
 >
 > ## ✅ 2026-10-06 复核（本档按现役 1752 行版本全面校对）
 >
-> **本档 2026-09-25~09-29 各节行号再次失效**（09-29 基准是 1083 行，现役 1752 行）。下面是 **2026-10-06 逐符号 `grep -n` 实测**的行号对照表（本文此后所有行号引用均按此基准）：
+> **本档 2026-09-25~09-29 各节行号曾大面积失效**（09-29 基准 1083 行）。下面行号对照表已按 **2026-10-17 当前 1789 行版逐符号 `grep -n` 重测**（10-06 对照 1752 行版之后源文件又增 37 行）：
 >
 > | 行号 | 内容 |
 > |---|---|
-> | 11–95 | libpcap C 声明（`pcap_datalink`/`pcap_lookupdev`/`pcap_findalldevs` 为 09-30 新增，:76/:79/:82）+ `pcap_if_t` |
+> | 11–95 | libpcap C 声明（`pcap_datalink`/`pcap_lookupdev`/`pcap_findalldevs` 为 09-30 新增，:77/:80/:83）+ `pcap_if_t`（:88） |
 > | 98–121 | 常量（kNorth/kEast :100–103、kCalib* :112–115） |
-> | 123–256 | 位操作 `bits`（:125–136）、`ue5Vector`、`ue5Rotator`、`hasValidRotation`、`packetDirection`（:248） |
-> | 260–551 | `UE5Decoder`：`decode`（:296）、`acceleration`（:414）、新协议区（:419）、`decodeProtoMove`（:454）、`findCandidates`（:472）、`trackingKey`（:505）、`reacquireCandidates`（:513）、`newFlowCandidate`（:520）、`confirmFlow`（:525）、`clearPending`（:545） |
-> | 553–666 | 全局回调（:556–563）+ `pcapLog` 日志系统（:581 候选路径、:609 轮转上限、:615 轮转函数、:627 主函数；09-30 动态候选路径 + 10-04 轮转，见下） |
-> | 668–1741 | `CoordinateCapture` 类：状态与窗口常量（:668–926）、网卡选择（:928，`skipPrefixes` :944–945、`loopbackNames` :947 起）、`defaultRouteInterface`（:1028）、`openWithFilter`（:1045，过滤器 :1102）、候选网卡（:1132）、`probe`（:1184）、`listenLocked`（:1229）、`sleepInterruptible`（:1250）、`setActiveInterface`（:1255）、`supervisorLoop`（:1266）、`start`（:1352）、`processPacket`（:1365）、`logStats`（:1497）、`markGameTraffic`（:1545）、`learnGamePort`（:1552）、`isGamePort`（:1559）、`hasRecentTraffic`（:1566）、`totalPackets`（:1581）、`read`（:1591）、`diagnostics`（:1613）、`readAcceleration`（:1627）、`PoseRead`/`readWithFreshness`（:1638/:1716）、`readWithTier`（:1694）、`close`（:1725）、`worldToMapPixel`（:1747） |
+> | 123–256 | 位操作 `bits`（:126）、`ue5Vector`（:143）、`ue5Rotator`（:166）、`hasValidRotation`（:185）、`packetDirection`（:248） |
+> | 260–551 | `UE5Decoder`（:260）：`decode`（:296）、`acceleration`（:414）、新协议区（:419）、`decodeProtoMove`（:454）、`findCandidates`（:472）、`trackingKey`（:505）、`reacquireCandidates`（:513）、`newFlowCandidate`（:520）、`confirmFlow`（:525）、`clearPending`（:545） |
+> | 553–666 | 全局回调 + `pcapLog` 日志系统（:581 候选路径、:609–611 轮转上限、:615 轮转函数、:627 主函数；09-30 动态候选路径 + 10-04 轮转，见下） |
+> | 668–1789 | `CoordinateCapture` 类（:668）：状态与窗口常量、网卡选择（`skipPrefixes` :947、`loopbackNames` :966）、`linkLayerHeaderLength`（:902）、`parseDefaultRoute`（:977）、`defaultRouteInterface`（:1033）、`openWithFilter`（:1050，BPF 过滤器 :1102）、候选网卡（:1137）、`probe`（:1189）、`listenLocked`（:1234）、`sleepInterruptible`（:1255）、`setActiveInterface`（:1260）、`supervisorLoop`（:1271）、`start`（:1357）、`processPacket`（:1370）、`logStats`（:1508）、`markGameTraffic`（:1556）、`learnGamePort`（:1585）、`isGamePort`（:1596）、`hasRecentTraffic`（:1603）、`read`（:1628）、`diagnostics`（:1650）、`readAcceleration`（:1664）、`PoseRead`（:1691）/`PoseTier`（:1716）/`readWithTier`（:1731）、`readWithFreshness`（:1753）、`close`（:1762）、文末 `worldToMapPixel`（:1783） |
 >
 > ### ⚠️ 2026-09-30 实测推翻本档 2026-09-25 的「s2c 放开」结论
 >
 > 本档末尾「2026-09-25 新协议逆向」一节记载的「移动包全部是 s2c、放开 s2c 通道」**已被实测推翻**（源码 :1444–1457 注释）：
 > - S2C 30031 上只有 ①76 字节心跳（每 15.00s 一个，内含微秒时钟——旧 `decodeProtoMove` 把 bit498/509 的时钟位模式当成了坐标，这正是「传送 4~5 次定位纹丝不动」的直接原因）②物品/生成记录明文推送。**全都不含玩家实时位置**。
-> - 现役行为：**s2c 仅保留流量计数（`statS2C` :1437），不进解码器**（:1460 `if direction == "s2c" { return }`）；真实移动包在 **C2S UDP**（动态端口，实测 30212/30160，~8Hz，站立也发）。
-> - `decodeProtoMove` 函数体保留但**默认停用**，仅 `AURORA_LEGACY_PROTO=1` 启用作对照诊断（:283–288）。
+> - 现役行为：**s2c 仅保留流量计数（`statS2C` 计数 :1442），不进解码器**（:1471 `if direction == "s2c" { return }`，S2C 通道注释块 :1448–1458）；真实移动包在 **C2S UDP**（动态端口，实测 30212/30160，~8Hz，站立也发）。
+> - `decodeProtoMove` 函数体保留但**默认停用**，仅 `AURORA_LEGACY_PROTO=1` 启用作对照诊断（开关 `legacyProtoEnabled` :290–291，调用点 :319–320，函数体 :454）。
 >
 > ### 2026-09-30 / 10-04 关键窗口与常量现状（全部实测校准）
 >
@@ -35,20 +57,20 @@
 > | `streamLostWindow` | 22.0s | :788 | 实测周期 15s + 7s 余量 |
 > | `trafficFreshWindow` | 20.0s | :803 | = poseFreshWindow(18)+2s，保持 traffic > pose 层级 |
 > | `poseFreshWindow` | 18.0s | :839 | 实测周期 15s + 3s 余量（15s 窗口与周期临界相撞必然闪断） |
-> | `poseRecentWindow` / `poseStaleWindow` | 40s / 90s | :1688–1689 | 分级新鲜度（live/recent/stale/lost 四档） |
-> | BPF 过滤器 | `"(tcp port 30031) or udp"` | :1102 | 09-30 第二次根因修复：UDP 移动包端口随服务器变（30212→30160），**永不写死**；甄别交给解码器 + 游戏流量标记 |
+> | `poseRecentWindow` / `poseStaleWindow` | 40s / 90s | :1725–1726 | 分级新鲜度（live/recent/stale/lost 四档，`PoseTier` :1716） |
+> | BPF 过滤器 | `"(tcp port 30031) or udp"` | :1107（表达式构造 :1100–1107） | 09-30 第二次根因修复：UDP 移动包端口随服务器变（30212→30160），**永不写死**；甄别交给解码器 + 游戏流量标记 |
 >
 > ### 2026-09-30 / 10-04 其它落地项（本档此前完全未覆盖）
-> - **pcapLog 动态候选路径**（:581–604 候选路径与探测实现）：`/tmp/aurora_pcap.log` 曾被 root 写成 `root:wheel`，普通用户静默写不进 → 定位日志 09-29 起全部丢失。现主路径不可写时依次落 `~/Library/Logs/aurora_pcap.log`、`/tmp/aurora_pcap_ui.log`，全部失败落 stderr。
-> - **pcapLog 轮转**（:609 上限 / :615–624 轮转函数 / :633–637 节流检查）：8MB 上限 + 单备份 `<path>.1` 覆盖式轮转，每 64 次写入才 stat 一次。
-> - **游戏流量标记**（:1545 `markGameTraffic`，processPacket 内调用点 :1453–1459）：裸 UDP 下 `lastPacketWall` 只由「端口 30031 或已解出真样本的端口」（`learnGamePort` :1552 / `isGamePort` :1559，上限 8 个）刷新；`probe`（:1184–1214）的命中判据也改为「窗口内 `lastPacketWall` 被刷新」——系统 UDP（QUIC/DNS/mDNS）不再误判成游戏流量。`lastPacketWall` 初值为 0（:868，「从未收到过包」哨兵；:1566 `hasRecentTraffic` 有显式 `guard lastPacketWall > 0`），收到首个包前 `hasRecentTraffic` 恒 false。
-> - **链路层头长自适应**（:889 字段 / :892–903 常量与映射 / :1417 processPacket 使用处）：按 `pcap_datalink` 决定链路层头长（以太网 14 / 回环 DLT_NULL·DLT_LOOP 4），修系统代理场景（游戏流量经 127.0.0.1 回环转发时按 14 跳会切错 IP 头，静默零坐标）。候选网卡中回环排在全部物理网卡之后（:1173–1178）。
-> - **空闲指数退避**（supervisorLoop 内 :1321–1331）：连续无流量轮按 2s→4s→…→30s 放大重探间隔（:1331 `probeFailStreak = 0` 复位），命中即复位 2s（修空闲态单核 ~17.9% CPU）。
-> - **新读取 API**：`readWithFreshness`（:1716，fresh/stale 两级，stale 不再返回 nil）、`readWithTier`（:1694，live≤18s/recent≤40s/stale≤90s/lost 四档，`PoseTier` :1679，消费者按档位决定态度）、`diagnostics()`（:1613，把 `read()` nil 的两种原因——从未有样本 vs 过期——分开）、`PoseRead` 枚举（:1654）。消费方：AuroraDriveApp.swift :4321/:4358/:4412/:4592。
+> - **pcapLog 动态候选路径**（:581–589 候选路径声明与探测实现）：`/tmp/aurora_pcap.log` 曾被 root 写成 `root:wheel`，普通用户静默写不进 → 定位日志 09-29 起全部丢失。现主路径不可写时依次落 `~/Library/Logs/aurora_pcap.log`、`/tmp/aurora_pcap_ui.log`，全部失败落 stderr。
+> - **pcapLog 轮转**（:609–611 上限与计数 / :615 轮转函数 / :634–636 节流检查）：8MB 上限 + 单备份 `<path>.1` 覆盖式轮转，每 64 次写入才 stat 一次。
+> - **游戏流量标记**（:1556 `markGameTraffic`，processPacket 内调用点 :1462–1464）：裸 UDP 下 `lastPacketWall` 只由「端口 30031 或已解出真样本的端口」（`learnGamePort` :1585 / `isGamePort` :1596，上限 8 个）刷新；`probe`（:1189–1231）的命中判据也改为「窗口内 `lastPacketWall` 被刷新」——系统 UDP（QUIC/DNS/mDNS）不再误判成游戏流量。`lastPacketWall` 初值为 0（:868，「从未收到过包」哨兵；:1611 `hasRecentTraffic` 有显式 `guard lastPacketWall > 0`），收到首个包前 `hasRecentTraffic` 恒 false。
+> - **链路层头长自适应**（`linkLayerHeaderLength(forDLT:)` :902 / 使用处 :1068 与 processPacket 内）：按 `pcap_datalink` 决定链路层头长（以太网 14 / 回环 DLT_NULL·DLT_LOOP 4），修系统代理场景（游戏流量经 127.0.0.1 回环转发时按 14 跳会切错 IP 头，静默零坐标）。候选网卡中回环排在全部物理网卡之后（:1173–1178）。
+> - **空闲指数退避**（supervisorLoop 内 :1307–1337）：连续无流量轮按 2s→4s→…→30s 放大重探间隔（:1337 `probeFailStreak = 0` 复位，:1326–1327 递增与退避计算），命中即复位 2s（修空闲态单核 ~17.9% CPU）。
+> - **新读取 API**：`readWithFreshness`（:1753，fresh/stale 两级，stale 不再返回 nil）、`readWithTier`（:1731，live≤18s/recent≤40s/stale≤90s/lost 四档，`PoseTier` :1716，消费者按档位决定态度）、`diagnostics()`（:1650，把 `read()` nil 的两种原因——从未有样本 vs 过期——分开）、`PoseRead` 枚举（:1691）。消费方：AuroraDriveApp.swift :4616 注释 / :4632 `readWithTier` 调用 / :4801 注释 / :4813 `diagnostics` 调用。
 >
 > ---
 >
-> ## ⚠️ 2026-09-29 复核追加（历史存档：本文行号映射曾大面积失效，遗漏 448 行）
+> ## 2026-09-29 复核追加（历史存档，已由 2026-10-17 复核取代：该轮行号映射的偏差已在文首复核块按当前 1789 行版重测修正）
 >
 > **（以下行号基准是 2026-09-25 的 1083 行版本，已被上方 2026-10-06 复核块取代，保留作历史参考）**
 >
@@ -138,9 +160,9 @@
 > ⑥ `pcap_open_live` 的 `to_ms` 实参为 **100**（旧档写 20）；
 > ⑦ `lastPacketWall`/`statPacketsTotal` 改为**锁内更新**（与 hasRecentTraffic/totalPackets 的读同步）。
 
-## 一、libpcap C 声明与同步常量（第 9–82 行）
+## 一、libpcap C 声明与同步常量（第 22–121 行）
 
-**libpcap C 函数声明（第 11–60 行）**——Package.swift 已链接 pcap 库，这里用 `@_silgen_name` 直连 C 符号（不经模块映射）：
+**libpcap C 函数声明（第 24–94 行）**——Package.swift 已链接 pcap 库，这里用 `@_silgen_name` 直连 C 符号（不经模块映射）：
 
 | C 函数 | Swift 签名要点 | 用途 |
 |---|---|---|
@@ -153,7 +175,7 @@
 
 配套 struct：`pcap_pkthdr`（ts/caplen/len）、`bpf_program`（bf_len/bf_insns）、`pcap_if_t`（next/name/description/addresses/flags）、`pcap_callback`（`@convention(c)` C 函数指针类型）。
 
-**同步常量（第 64–81 行，与 MaaNTE / NetworkLocator.swift 同步）：**
+**同步常量（第 100–115 行，与 MaaNTE / NetworkLocator.swift 同步）：**
 
 ```swift
 private let kNorth: (Double, Double, Double) = (-0.013752068070295848, -0.9999054358407049, 0.0)
@@ -166,7 +188,7 @@ private let kMaxRotationAbs: Double = 180.001
 - `kMaxLocationAbs`：位置绝对值上限（候选过滤用，2 百万）
 - `kMaxRotationAbs`：旋转绝对值上限（180.001 允许 ±180 整）
 
-**底图坐标变换常量（第 78–81 行）：**
+**底图坐标变换常量（第 100–115 行）：**
 
 ```swift
 private let kCalibA: Double  = 0.016394586684750773
@@ -180,78 +202,78 @@ private let kCalibTY: Double = 5210.664390686138
 - **扩图相对旧图整体平移 (+233, +1738)**——MaaNTE-Map navi-coordinate-calibration.json 三个标定点 delta 完全一致，README 同值——故 TX/TY 直接加偏移，A/B 不变
 - **标定点验证**：raw(-134394.56, 199913.53) → map(4323, 8488) ✓
 
-**类型别名（第 85–87 行）**：`Vec3 = (Double, Double, Double)`、`Pose = (Double, Double, Double, Double, Double)`（x, y, z, pitch, heading）、`Flow = (String, Int, String, Int, String)`（srcIP, srcPort, dstIP, dstPort, proto）。
+**类型别名（第 119–121 行）**：`Vec3 = (Double, Double, Double)`、`Pose = (Double, Double, Double, Double, Double)`（x, y, z, pitch, heading）、`Flow = (String, Int, String, Int, String)`（srcIP, srcPort, dstIP, dstPort, proto）。
 
-## 二、位操作与 UE5 序化解码（第 92–167 行）
+## 二、位操作与 UE5 序化解码（第 123–201 行）
 
-**`bits(_ data: [UInt8], offset: Int, count: Int) -> UInt64`（第 92–103 行）**——从 Python `_bits` 移植，从字节数组的指定位偏移读取 N 位：
+**`bits(_ data: [UInt8], offset: Int, count: Int) -> UInt64`（第 126–137 行）**——从 Python `_bits` 移植，从字节数组的指定位偏移读取 N 位：
 
 - 防御：`count <= 0 || count > 63 || offset < 0` 返回 0；越界（`lastByte > data.count`）返回 0
 - 实现：从最高有效字节往回逐字节拼 `value = (value << 8) | data[i]`，再 `(value >> (offset % 8)) & ((1 << count) - 1)`
 - **count 上限 63**：UInt64 移位语义（见下面 ue5Vector 的断言坑）
 
-**`ue5Vector(_ data: [UInt8], offset: Int, scale: Int) -> (Vec3, Int, Int, Bool)?`（第 109–129 行）**——UE5 Vector3 序化解码，返回 `(x, y, z), 新offset, bitWidth, isScaled`：
+**`ue5Vector(_ data: [UInt8], offset: Int, scale: Int) -> (Vec3, Int, Int, Bool)?`（第 143–163 行）**——UE5 Vector3 序化解码，返回 `(x, y, z), 新offset, bitWidth, isScaled`：
 
-1. 读 7 位 header（110 行）：`width = header & 63`（低 6 位）、`isScaled = (header >> 6) & 1 != 0`（第 7 位）；`width == 0` 返回 nil
-2. 逐分量读 `width` 位（119–127 行），符号扩展：
+1. 读 7 位 header（144 行）：`width = header & 63`（低 6 位）、`isScaled = (header >> 6) & 1 != 0`（第 7 位）；`width == 0` 返回 nil
+2. 逐分量读 `width` 位（153–160 行），符号扩展：
    ```swift
    let sv: Int64 = (v & sign) != 0 ? Int64(bitPattern: v &- modulus) : Int64(v)
    values.append(isScaled ? Double(sv) / Double(scale) : Double(sv))
    ```
-   - **两个源注释里的坑（122–124 行）**：
+   - **两个源注释里的坑（156–158 行）**：
      - 符号扩展必须走 `Int64(bitPattern:)`：UInt64 的 `&-` 会下溢回绕成巨大正数（Python 大整数无此问题），导致所有负坐标 > kMaxLocationAbs 被淘汰 → 永远 0 候选
      - `Int64(modulus)` 在 width=63 时（modulus=2^63）触发运行时断言（**04:04 SIGTRAP 崩溃事故**）
    - `isScaled` 时除以 scale（移动包：加速度 scale=10、位置 scale=100）
 
-**`ue5Rotator(_ data: [UInt8], offset: Int) -> (Vec3, Int)?`（第 132–148 行）**——UE5 FRotator 序化解码（Pitch, Yaw, Roll）：
+**`ue5Rotator(_ data: [UInt8], offset: Int) -> (Vec3, Int)?`（第 166–182 行）**——UE5 FRotator 序化解码（Pitch, Yaw, Roll）：
 
 - 逐分量：先读 1 位 present 标志，present 非零才读 16 位压缩角
 - 解压：`angle = Double(compressed) * 360.0 / 65536.0`，`angle > 180.0` 时减 360（归一到 [-180, 180]）
 - 返回 `(pitch, yaw, roll), 新offset`
 
-**`hasValidRotation(_ data: [UInt8], offset: Int) -> Bool`（第 151–167 行）**——检查旋转是否有效：
+**`hasValidRotation(_ data: [UInt8], offset: Int) -> Bool`（第 185–201 行）**——检查旋转是否有效：
 
-- 先重放 present 标志收集 `flags`（154–158 行，cursor 前进 `1 + (present ? 16 : 0)`）
+- 先重放 present 标志收集 `flags`（188–192 行，cursor 前进 `1 + (present ? 16 : 0)`）
 - 再调 ue5Rotator 解码，`end > data.count * 8` 返回 false
-- **有效性判定（161–166 行）**：`flags[1] && !flags[2]`（**Pitch 和 Yaw 存在，Roll 通常不存在**）+ `abs(rot.0) <= 90.001`（pitch 限 ±90）+ 三个分量都 ≤ kMaxRotationAbs
+- **有效性判定（196–200 行）**：`flags[1] && !flags[2]`（**Pitch 和 Yaw 存在，Roll 通常不存在**）+ `abs(rot.0) <= 90.001`（pitch 限 ±90）+ 三个分量都 ≤ kMaxRotationAbs
 
-**辅助函数（第 171–195 行）**：`dot(_:_:)`（点积）、`distanceSq(_:_:)`（距离平方，避免开方）、`toPose(_ location: Vec3, _ rotation: Vec3) -> Pose`——位置+旋转 → 姿态：
+**辅助函数（第 203–229 行）**：`dot(_:_:)`（点积）、`distanceSq(_:_:)`（距离平方，避免开方）、`toPose(_ location: Vec3, _ rotation: Vec3) -> Pose`——位置+旋转 → 姿态：
 - `pitch = rotation.0`，yaw 转 rad，算视线方向 `viewDir = (cos(pitchRad)*cos(yawRad), cos(pitchRad)*sin(yawRad), sin(pitchRad))`
 - `north = dot(viewDir, kNorth)`、`east = dot(viewDir, kEast)`、`heading = atan2(east, north) * 180 / π`，负值 +360 归一到 [0, 360)
 
-## 三、UE5Decoder 状态跟踪与候选选择（第 223–380 行）
+## 三、UE5Decoder 状态跟踪与候选选择（第 257–551 行）
 
-**`UE5Decoder`（final class，第 226–380 行）**——UE5 移动包解码器：状态跟踪 + 候选选择。从 Python `_Decoder` 移植。
+**`UE5Decoder`（final class，第 260–551 行）**——UE5 移动包解码器：状态跟踪 + 候选选择。从 Python `_Decoder` 移植。
 
-**状态字段（227–235 行）**：`flow`（当前流）、`lastOffset/lastCapture/lastTime/lastLocation`（上一包解码结果）、`pendingFlow/pendingCandidate/pendingSeen/pendingAt`（新流确认pending）。诊断：`lastCandCount`（最近一次 decode 找到的候选块数）。
+**状态字段（261–272 行）**：`flow`（当前流）、`lastOffset/lastCapture/lastTime/lastLocation`（上一包解码结果）、`pendingFlow/pendingCandidate/pendingSeen/pendingAt`（新流确认pending）。诊断：`lastCandCount`（最近一次 decode 找到的候选块数）。
 
-**`decode(payload:timestamp:flow:) -> Pose?`（第 243–297 行）——主解码入口，三条分支：**
+**`decode(payload:timestamp:flow:) -> Pose?`（第 296–403 行）——主解码入口，三条分支：**
 
-1. **流变化**（251–256 行）：`flow != self.flow` 时 → `newFlowCandidate` 选候选 → `confirmFlow` 确认（需连续 2 包一致）→ 成功才切换 `self.flow = flow`
-2. **首包**（257–261 行）：`lastTime == nil || lastCapture == nil` → `newFlowCandidate` 直接选定，切换 flow
-3. **跟踪中**（262–280 行）：
+1. **流变化**（351–356 行）：`flow != self.flow` 时 → `newFlowCandidate` 选候选 → `confirmFlow` 确认（需连续 2 包一致）→ 成功才切换 `self.flow = flow`
+2. **首包**（357–361 行）：`lastTime == nil || lastCapture == nil` → `newFlowCandidate` 直接选定，切换 flow
+3. **跟踪中**（362–380 行）：
    - `gap = max(0, timestamp - lastCapture)`、`expected = lastTime + gap`
    - 候选集：优先 `offset == lastOffset` 的对齐候选（`aligned`），空则全部（`tracking`）
-   - `selected = tracking.min(by: trackingKey)`——**trackingKey（334–340 行）**：`timeError + spatialPenalty`，spatialPenalty = `min(dist / 5000², 100)`（离上一位置太远的大惩罚）
-   - **timeError > 1.0 时重取**（268–278 行）：`reacquireCandidates` 过滤（clientTime ≥ 0.01、offset ≤ 512、加速度 ≤ 10000、位置 ≤ kMaxLocationAbs）→ 取 clientTime 最大的，清 pending、切换 flow
-4. 选定后读解码链（288–290 行）：`ue5Vector(offset: bitOffset + 32, scale: 10)`（加速度）→ `ue5Vector(scale: 100)`（位置）→ `ue5Rotator`（旋转）
-5. 更新状态（292–295 行）：`lastTime/lastOffset/lastCapture/lastLocation`，返回 `toPose(location, rotation)`
+   - `selected = tracking.min(by: trackingKey)`——**trackingKey（505–511 行）**：`timeError + spatialPenalty`，spatialPenalty = `min(dist / 5000², 100)`（离上一位置太远的大惩罚）
+   - **timeError > 1.0 时重取**（369–379 行）：`reacquireCandidates` 过滤（clientTime ≥ 0.01、offset ≤ 512、加速度 ≤ 10000、位置 ≤ kMaxLocationAbs）→ 取 clientTime 最大的，清 pending、切换 flow
+4. 选定后读解码链（388–390 行）：`ue5Vector(offset: bitOffset + 32, scale: 10)`（加速度）→ `ue5Vector(scale: 100)`（位置）→ `ue5Rotator`（旋转）
+5. 更新状态（392–395 行）：`lastTime/lastOffset/lastCapture/lastLocation`，返回 `toPose(location, rotation)`
 
-**`findCandidates(_ payload: [UInt8]) -> [Candidate]?`（第 300–332 行）**——扫描包中所有有效的移动块：
+**`findCandidates(_ payload: [UInt8]) -> [Candidate]?`（第 472–503 行）**——扫描包中所有有效的移动块：
 
-- 搜索范围：`for offset in 190..<searchEnd`，`searchEnd = min(512, payload.count * 8 - 60)`，`searchEnd > 190` 才继续（**payload ≥ 32 字节**——566–568 行注释：旧代码 `<70` 丢弃把 48 字节的 c2s 移动包全部挡在了 decode 之外，对齐 MaaNTE 原版"payload 非空即试"）
+- 搜索范围：`for offset in 190..<searchEnd`，`searchEnd = min(512, payload.count * 8 - 60)`，`searchEnd > 190` 才继续（**payload ≥ 32 字节**——1474–1476 行注释：旧代码 `<70` 丢弃把 48 字节的 c2s 移动包全部挡在了 decode 之外，对齐 MaaNTE 原版"payload 非空即试"）
 - 逐 offset 四重过滤：
-  1. **时间戳**（306–308 行）：32 位 float，`isFinite && >= 0 && < 100_000`
-  2. **加速度**（311–314 行）：`ue5Vector(offset+32, scale: 10)`，要求 `accelScaled`、bitWidth 1–16、分量绝对值 < 50000
-  3. **位置**（317–320 行）：`ue5Vector(cursor, scale: 100)`，要求 `locScaled`、bitWidth 20–32、分量绝对值 ≤ kMaxLocationAbs
-  4. **旋转**（322–327 行）：`hasValidRotation(payload, offset: rotationOffset)`
-- **★ 关键修复（20260913，322–326 行注释）**：ue5Vector 返回的 `locEnd` 已经是"位置向量结束后"的位偏移（= offset + 7 位 header + 3×width 值位），即 rotation 的起始位。**旧代码 `locEnd + 7` 多加 7 位 → rotation 解析错位 → hasValidRotation 永远失败 → 0 候选**。MaaNTE 原版语义：`location_end = location_start + 7 + width*3 == ue5Vector 返回的 cursor`。故 `rotationOffset = locEnd`。
+  1. **时间戳**（477–479 行）：32 位 float，`isFinite && >= 0 && < 100_000`
+  2. **加速度**（482–485 行）：`ue5Vector(offset+32, scale: 10)`，要求 `accelScaled`、bitWidth 1–16、分量绝对值 < 50000
+  3. **位置**（488–491 行）：`ue5Vector(cursor, scale: 100)`，要求 `locScaled`、bitWidth 20–32、分量绝对值 ≤ kMaxLocationAbs
+  4. **旋转**（497–498 行）：`hasValidRotation(payload, offset: rotationOffset)`
+- **★ 关键修复（20260913，493–496 行注释）**：ue5Vector 返回的 `locEnd` 已经是"位置向量结束后"的位偏移（= offset + 7 位 header + 3×width 值位），即 rotation 的起始位。**旧代码 `locEnd + 7` 多加 7 位 → rotation 解析错位 → hasValidRotation 永远失败 → 0 候选**。MaaNTE 原版语义：`location_end = location_start + 7 + width*3 == ue5Vector 返回的 cursor`。故 `rotationOffset = locEnd`。
 
-**`confirmFlow`（第 354–372 行）**——新流两包确认机制：pendingSeen 达到 2（timeOk：`timeDelta >= 0.001 && abs(timeDelta - gap) <= 0.5`；offsetOk：offset 相等；stepOk：位置距离平方 ≤ 6.4e9）才返回候选，防误切到无关流。
+**`confirmFlow`（第 525–543 行）**——新流两包确认机制：pendingSeen 达到 2（timeOk：`timeDelta >= 0.001 && abs(timeDelta - gap) <= 0.5`；offsetOk：offset 相等；stepOk：位置距离平方 ≤ 6.4e9）才返回候选，防误切到无关流。
 
-**`clearPending`（第 374–379 行）**：四个 pending 字段归零/置 nil。
+**`clearPending`（第 545–550 行）**：四个 pending 字段归零/置 nil。
 
-## 四、CoordinateCapture 抓包器与 worldToMapPixel（第 382–635 行）
+## 四、CoordinateCapture 抓包器与 worldToMapPixel（第 553–1789 行）
 
 > ## 🔴 2026-09-29 重要复核：**本节描述的是旧版单线程抓包器，现役结构已整体重写**
 >
@@ -301,17 +323,17 @@ private let kCalibTY: Double = 5210.664390686138
 >
 > **下文原正文保留作历史参考**——其中**关于 BPF 过滤器、PAC 规避、忙等修复、
 > hasRecentTraffic/totalPackets 设计意图**的论述**仍然准确且有价值**
-> （这些设计在新结构里被继承了），**只有线程模型与行号部分失效**。
+> （这些设计在新结构里被继承了）；旧线程模型描述仅作历史参考，现役符号行号已在 2026-10-17 按 1789 行版重测（见文首复核块）。
 
-**PAC 崩溃规避设计（第 384–394 行）**：pcap 回调**用 C 函数指针不用闭包**——"避免 Apple Silicon PAC 签名问题"。全局单例 `nonisolated(unsafe) var coordinateCaptureActive: CoordinateCapture?` 承载回调目标；`coordinateCaptureCallback: pcap_callback` 解引用 header/packet 后转调 `capture.processPacket(header:packet:)`。
+**PAC 崩溃规避设计（第 559–565 行）**：pcap 回调**用 C 函数指针不用闭包**——"避免 Apple Silicon PAC 签名问题"。全局单例 `nonisolated(unsafe) var coordinateCaptureActive: CoordinateCapture?` 承载回调目标；`coordinateCaptureCallback: pcap_callback` 解引用 header/packet 后转调 `capture.processPacket(header:packet:)`。
 
-**`pcapLog(_ msg: String)`（第 397–409 行）**：日志写到 `/tmp/aurora_pcap.log`（ISO8601 时间戳 + 消息），文件存在则 seekToEnd 追加，否则创建。
+**`pcapLog(_ msg: String)`（第 627–666 行）**：日志写到 `/tmp/aurora_pcap.log`（ISO8601 时间戳 + 消息），文件存在则 seekToEnd 追加，否则创建。
 
-**`CoordinateCapture`（final class，第 411–624 行）**——自包含网络坐标抓取：libpcap 抓 TCP 30031 端口 → UE5 包解析 → 世界坐标。
+**`CoordinateCapture`（final class，第 668–1778 行）**——自包含网络坐标抓取：libpcap 抓 TCP 30031 端口 → UE5 包解析 → 世界坐标。
 
-**状态（432–455 行）**：`decoder = UE5Decoder()`、`sample: Pose?` + `sampleAt` + `lastSampleWall`、`interval = 1.0/30.0`（30Hz 采样限频）、`pcapHandle` + `captureThread` + `running` + `lock`（NSLock，sample 读写跨线程）；15 秒窗口统计 7 个字段（statPackets/statS2C/statC2S/statDecodeCalls/statCandHits/statCandPeak/statSamples——仅 captureLoop 线程读写，无需加锁）；**跨线程的例外**：`lastPacketWall`（hasRecentTraffic 的唯一依据）与 `statPacketsTotal`（totalPackets 的数据源）在 processPacket 的**锁内更新**（570–575 行），与二者的锁内读保持同步。
+**状态（669–686 行）**：`decoder = UE5Decoder()`、`sample: Pose?` + `sampleAt` + `lastSampleWall`、`interval = 1.0/30.0`（30Hz 采样限频）、`pcapHandle` + `captureThread` + `running` + `lock`（NSLock，sample 读写跨线程）；15 秒窗口统计 7 个字段（statPackets/statS2C/statC2S/statDecodeCalls/statCandHits/statCandPeak/statSamples——仅 captureLoop 线程读写，无需加锁）；**跨线程的例外**：`lastPacketWall`（hasRecentTraffic 的唯一依据）与 `statPacketsTotal`（totalPackets 的数据源）在 processPacket 的**锁内更新**（1386–1388 行），与二者的锁内读保持同步。
 
-**`start() -> Bool`（第 434–512 行）**——遍历所有网卡，找到有 30031 端口流量的那个：
+**`start() -> Bool`（第 1357–1367 行）**——遍历所有网卡，找到有 30031 端口流量的那个：（注：现役 `start()` 仅启动 `supervisorLoop`，网卡遍历逻辑已移至 `probe` / `supervisorLoop`，见上「现役结构」）
 
 1. `guard !running else { return true }`（幂等）
 2. `pcap_findalldevs` 枚举网卡（失败记日志返回 false）
@@ -325,31 +347,31 @@ private let kCalibTY: Double = 5210.664390686138
 4. 选中即 break（`devName` + `pcapHandle`），`pcap_freealldevs` 释放枚举
 5. `running = true`，起 `Thread { self?.captureLoop() }`（名字 `com.aurora.coordinate-capture`），返回 true
 
-**`captureLoop()`（第 546–565 行）**——**用 pcap_next_ex 不用回调，避免 PAC 崩溃**：`while running` 循环 `pcap_next_ex(handle, &headerPtr, &packetPtr)`；**`result == 0`（超时无包）时 `usleep(5_000)` 再重试**（源码 553–559 行注释：pcap_open_live 的 to_ms=100，若立刻 continue，无流量时（游戏没开）就变成每秒上千次的忙等——白烧一个 CPU 核心；5ms 让出时间片，有包时实时性不受影响）；`< 0` break、其余 `processPacket`。
+**`captureLoop()`（旧结构符号，2026-09-25 重构后已从源码删除，见上「🔴 重要复核」证据表）**——现役对应 `listenLocked(handle:name:)`（第 1234–1252 行）+ `probe` 读包循环（1210–1229 行）：**用 pcap_next_ex 不用回调，避免 PAC 崩溃**：`while running` 循环 `pcap_next_ex(handle, &headerPtr, &packetPtr)`；`result == 1` → `processPacket`；`result < 0` break；**`result == 0`（超时无包）**：listenLocked 内判失流（读 `lastPacketWall`，连续 `streamLostWindow` 秒无包 → 返回交主循环重探，**1245–1250 行**），probe 内 `usleep(2_000)` 让出（**1226–1228 行注释**：pcap 超时 to_ms=100，无包让出后继续，包一到立即返回）。
 
-**`processPacket(header:packet:)`（第 530–588 行）**——逐包解析（captureLoop 串行调用，统计字段无需加锁）：
+**`processPacket(header:packet:)`（第 1370–1505 行）**——逐包解析（listenLocked/probe 串行调用，统计字段无需加锁）：
 
 1. `statPackets += 1`，`defer { logStats() }`
 2. 以太网头 14 字节 → IPv4 校验（`ipVersion != 4` return）→ IP 头长 `* 4` → 协议号（offset+9）→ srcIP/dstIP（offset+12..19 拼点分十进制）
-3. 传输层（547–559 行）：TCP(6) **可变头**（`offset += Int(data[offset+12] >> 4) * 4`）；UDP(17) 固定 8 字节头——对齐 MaaNTE 原版
-4. **方向过滤（562–565 行）**：`packetDirection(src:dst:)` → 只处理 `c2s`（本地→服务器）；`s2c` 和 `unknown` return
+3. 传输层（1427–1438 行）：TCP(6) **可变头**（`offset += Int(data[offset+12] >> 4) * 4`）；UDP(17) 固定 8 字节头——对齐 MaaNTE 原版
+4. **方向过滤（1471–1472 行）**：`packetDirection(src:dst:)` → 只处理 `c2s`（本地→服务器）；`s2c` 和 `unknown` return
 5. `guard payload.count >= 32`（findCandidates 需 searchEnd > 190 位）→ 读 srcPort/dstPort（transportStart 前两字节大端）
-6. `decoder.decode(...)` 成功 → `statSamples += 1` → **限频写入（575–582 行）**：`now - lastSampleWall >= interval` 才更新 `sample/sampleAt/lastSampleWall`（锁内）
+6. `decoder.decode(...)` 成功 → `statSamples += 1` → **限频写入（1483–1488 行）**：`now - lastSampleWall >= interval` 才更新 `sample/sampleAt/lastSampleWall`（锁内）
 7. `decoder.lastCandCount > 0` → statCandHits/peak 累计
 
-**`logStats()`（第 634–643 行）**：15 秒一行统计汇总（代替原先每包 2 行的刷屏日志）——`[STATS] Ns: 包=X s2c=N c2s送解=N 解码调用=N 候选包=N/峰=N 样本=N`，然后归零。
+**`logStats()`（第 1508–1516 行）**：15 秒一行统计汇总（代替原先每包 2 行的刷屏日志）——`[STATS] Ns: 包=X s2c=N c2s送解=N 解码调用=N 候选包=N/峰=N 样本=N`，然后归零。
 
-**`hasRecentTraffic(window: Double = 3.0) -> Bool`（第 645–660 行）——9-23 新增**：30031 端口最近 `window` 秒内是否真有数据包。**这是判断「游戏到底在不在跑」最直接、最便宜的信号**（源码注释原文）：定位数据全部来自这个端口，有包=游戏在通信；比查进程名可靠得多（辅助进程 crashpad_handler 也叫「异环」，曾被它骗成"游戏在跑"）；只读一个计数器，零 IPC、零 sysctl、零遍历。游戏运行时同步包是持续的（几十 Hz），3 秒窗口足够灵敏，也不会因短暂卡顿误判掉线。**锁内读**（与 processPacket 的锁内写同步）。
+**`hasRecentTraffic(window: Double = 3.0) -> Bool`（第 1603–1614 行）——9-23 新增**：30031 端口最近 `window` 秒内是否真有数据包。**这是判断「游戏到底在不在跑」最直接、最便宜的信号**（源码注释原文）：定位数据全部来自这个端口，有包=游戏在通信；比查进程名可靠得多（辅助进程 crashpad_handler 也叫「异环」，曾被它骗成"游戏在跑"）；只读一个计数器，零 IPC、零 sysctl、零遍历。游戏运行时同步包是持续的（几十 Hz），3 秒窗口足够灵敏，也不会因短暂卡顿误判掉线。**锁内读**（与 processPacket 的锁内写同步）。
 
-**`totalPackets: Int`（第 662–668 行）——9-23 新增**：自抓包启动以来收到的包总数（锁保护）。用于区分「端口没流量」与「抓包本身没跑起来」两种不同故障——totalPackets=0 说明抓包没跑起来（权限/网卡问题），>0 但 hasRecentTraffic=false 说明抓包正常但 30031 没流量（游戏没开）。
+**`totalPackets: Int`（第 1618–1622 行）——9-23 新增**：自抓包启动以来收到的包总数（锁保护）。用于区分「端口没流量」与「抓包本身没跑起来」两种不同故障——totalPackets=0 说明抓包没跑起来（权限/网卡问题），>0 但 hasRecentTraffic=false 说明抓包正常但 30031 没流量（游戏没开）。
 
-**`read(maxAge: Double = 1.0) -> Pose?`（第 671–678 行）**：锁内取 sample；**过期判定**：`now - lastSampleWall > maxAge`（默认 1 秒）返回 nil——调用方拿到的坐标最多滞后 1 秒，超龄即视为无效（防旧坐标误导导航）。
+**`read(maxAge: Double = 1.0) -> Pose?`（第 1628–1635 行）**：锁内取 sample；**过期判定**：`now - lastSampleWall > maxAge`（默认 1 秒）返回 nil——调用方拿到的坐标最多滞后 1 秒，超龄即视为无效（防旧坐标误导导航）。
 
-**`readAcceleration(maxAge: Double = 0.5) -> Vec3?`（第 684–686 行）——2026-09-22 新增**：读取最新加速度（来自同一个 30031 包，与坐标同源，经 `decoder.acceleration(maxAge:)` 带新鲜度门——过期返回 nil，避免拿旧值当实时值）。**⚠️ 坐标系尚未实测确认**（世界系 vs 车体系），单位推测为 cm/s²（与位置 cm 同源）。目前仅供 UI 展示与后续标定，**不要直接当物理加速度喂给控制逻辑**。对应 UE5Decoder 侧：`lastAcceleration` 在 decode 主入口与坐标同包解析留档（296–301 行注释："这个向量本来就挨在位置前面，findCandidates 已经解析过了，之前 decode 里用 `_` 丢掉"）。
+**`readAcceleration(maxAge: Double = 0.5) -> Vec3?`（第 1664–1666 行）——2026-09-22 新增**：读取最新加速度（来自同一个 30031 包，与坐标同源，经 `decoder.acceleration(maxAge:)` 带新鲜度门——过期返回 nil，避免拿旧值当实时值）。**⚠️ 坐标系尚未实测确认**（世界系 vs 车体系），单位推测为 cm/s²（与位置 cm 同源）。目前仅供 UI 展示与后续标定，**不要直接当物理加速度喂给控制逻辑**。对应 UE5Decoder 侧：`lastAcceleration` 在 decode 主入口与坐标同包解析留档（396–400 行注释："这个向量本来就挨在位置前面，findCandidates 已经解析过了，之前 decode 里用 `_` 丢掉"）。
 
-**`close()`（第 689–698 行）**：`running = false` → `pcap_breakloop` → `captureThread?.cancel()` → `pcap_close` → handle 置 nil；`deinit { close() }` 保证析构时停止。
+**`close()`（第 1762–1769 行）**：`running = false` → `pcap_breakloop` → `captureThread?.cancel()` → `pcap_close` → handle 置 nil；`deinit { close() }` 保证析构时停止。
 
-**`worldToMapPixel(_ pose: Pose) -> (mapX: Double, mapY: Double, heading: Double)`（第 706–712 行）**——世界坐标 → 地图像素（与 NetworkLocator.swift 的校准常量同步）：
+**`worldToMapPixel(_ pose: Pose) -> (mapX: Double, mapY: Double, heading: Double)`（第 1783–1789 行）**——世界坐标 → 地图像素（与 NetworkLocator.swift 的校准常量同步）：
 
 ```swift
 let mapX = kCalibA * wx + kCalibB * wy + kCalibTX
@@ -416,25 +438,27 @@ let mapY = kCalibA * wy - kCalibB * wx + kCalibTY
 
 ### 启动调用链（谁调 `start()`）
 
-- **生产路径（懒初始化）**：MissionConsole 的**网络定位定时器 10Hz**（MissionConsole.swift:5603–5612，`DispatchSourceTimer repeating 1/10` on `com.aurora.netlocate` 队列，事件 main.async 调 `state.runNetworkLocateStep()`）→ `runNetworkLocateStep()`（AuroraDriveApp.swift:4324）首次执行时创建 `CoordinateCapture()` 并 `cc.start()`（:4331–4334，双检锁 `healerInitLock` :4273），`start()` 返回 true 才置 `locateCtx.networkReady = true`（:4334–4336）。
-- `start()`（CoordinateCapture.swift:1352–1363）只是置 `running = true` 并起专属线程 `supervisorThread`（名字 `com.aurora.coordinate-capture`，:1355–1358）跑 `supervisorLoop()`——**抓包线程自成一个 Thread，不在 captureQueue 也不在主线程**，与 CaptureEngine（SCStream/aurora.capture 队列）完全独立。
-- **自检路径**：`--nic-autotest` 自建实例 `cc.start()`（AuroraDriveApp.swift:1439–1440）。
+- **生产路径（懒初始化）**：MissionConsole 的**网络定位定时器**（`MissionConsole.swift:6185–6204`，`DispatchSourceTimer repeating 1.0/10.0` 在 **:6193**，on `com.aurora.netlocate` 队列 **:6191**，事件 main.async 调 `state.runNetworkLocateStep()` 在 **:6204**）→ `runNetworkLocateStep()`（**AuroraDriveApp.swift:4546**）首次执行时创建 `CoordinateCapture()` 并 `cc.start()`（**:4549–4555**，双检锁 `healerInitLock` **:4550–4551**，锁声明 **:4495**），`start()` 返回 true 才置 `locateCtx.networkReady = true`（**:4557**）。
+  - ♻️ **2026-10-18 重基准**：原记 `:6186–6200` / `:6188` / `:4544` / `:4547–4553` / `:4548–4549` / `:4493` / `:4555` 均已漂移，以上为新值。
+  - ⚠️ **同时修正一处行为描述（不只是行号）**：原文称「网络定位定时器 **10Hz**」，但当前已改为**空闲降频**——`MissionConsole.swift:6187` 注释「空闲态降到 2Hz（10Hz / 5），只在开车/录制时才保持 10Hz 实时性」，实现见 `:6194–6200` 的 `nlIdleSkip < 5` 早退。**即：开车/录制时 10Hz，空闲时约 2Hz**。
+- `start()`（CoordinateCapture.swift:1357–1367）只是置 `running = true` 并起专属线程 `supervisorThread`（名字 `com.aurora.coordinate-capture`，:1360–1364）跑 `supervisorLoop()`——**抓包线程自成一个 Thread，不在 captureQueue 也不在主线程**，与 CaptureEngine（SCStream/aurora.capture 队列）完全独立。
+- **自检路径**：`--nic-autotest` 自建实例 `cc.start()`（AuroraDriveApp.swift:1604–1605）——♻️ 2026-10-18 复核：**此条行号准确、未漂移**（`:1604` `let cc = CoordinateCapture()` / `:1605` `let started = cc.start()`，逐行实测一致）。
 
 ### 数据状态与消费方
 
 | 成员 | 行号 | 说明 |
 |---|---|---|
-| `sample` / `sampleAt` / `lastSampleWall` | :671–673 | 最新坐标（锁保护，processPacket 解出真样本时限频 1/30s 写入，:1473–1481） |
-| `read(maxAge:)` | :1591 | 锁内读坐标，超 `poseFreshWindow`(18s) 返回 nil |
-| `readWithTier` / `readWithFreshness` / `diagnostics` | :1694 / :1716 / :1613 | 分级读取与诊断（把 read()==nil 的两种原因分开） |
-| `hasRecentTraffic(window:)` | :1566 | `lastPacketWall` 在窗口内即 true；初值 0 哨兵（:868）保证首包前恒 false |
-| `totalPackets` | :1581 | 累计包总数（区分「没流量」vs「抓包没跑起来」） |
-| `locateSource()` | AuroraDriveApp.swift:4317–4321 | `coordinateCapture==nil` 或 `!networkReady` → `.packetError`；有流量 → `.ready`；否则 `.noGame`（10Hz 调用） |
-| 定位消费 | AuroraDriveApp.swift:4412 | `readWithTier()` 三档分级（live/recent/stale/lost）→ UI 显示/决策降权分档 |
+| `sample` / `sampleAt` / `lastSampleWall` | :671–673 | 最新坐标（锁保护，processPacket 解出真样本时限频 1/30s 写入，:1483–1499） |
+| `read(maxAge:)` | :1628 | 锁内读坐标，超 `poseFreshWindow`(18s) 返回 nil |
+| `readWithTier` / `readWithFreshness` / `diagnostics` | :1731 / :1753 / :1650 | 分级读取与诊断（把 read()==nil 的两种原因分开） |
+| `hasRecentTraffic(window:)` | :1603 | `lastPacketWall` 在窗口内即 true；初值 0 哨兵（:868）保证首包前恒 false |
+| `totalPackets` | :1618 | 累计包总数（区分「没流量」vs「抓包没跑起来」） |
+| `locateSource()` | **AuroraDriveApp.swift:4538–4543** | `coordinateCapture==nil` 或 `!networkReady` → `.packetError`；有流量 → `.ready`；否则 `.noGame`（10Hz 调用）♻️ 原记 `:4537–4542`，函数声明实际在 **:4539**，doc-comment 起于 **:4538**，body 至 **:4543** |
+| 定位消费 | **AuroraDriveApp.swift:4634** | `readWithTier()` 三档分级（live/recent/stale/lost）→ UI 显示/决策降权分档 ♻️ 原记 `:4632`，`let tierRead = cc.readWithTier()` 实际在 **:4634** |
 
 ### 与 CaptureEngine（代码-03）的关系
 
 - **互不依赖、线程完全独立**：CoordinateCapture 跑自己的 `com.aurora.coordinate-capture` 线程 + libpcap（内核 BPF 过滤），CaptureEngine 跑 SCStream + `aurora.capture` 队列。引擎模式（--engine）与本地模式的差异只影响 SCStream 帧路径（见代码-03 第八节），**网络定位两条模式下都在各自进程跑**（UI 进程常开，MissionConsole 定时器不区分模式）。
-- **进程归属**：CoordinateCapture 的创建点在 DriveState（UI 进程与引擎进程各有 DriveState 实例时各自实例化——引擎进程 `runNetworkLocateStep` 同样会被调用，其 pcapLog 写同一路径链）。`/tmp/aurora_pcap.log` 历史上被 root 引擎写过导致普通用户写不进的事故即源于此（见 :569–580 注释）。
+- **进程归属**：CoordinateCapture 的创建点在 DriveState（UI 进程与引擎进程各有 DriveState 实例时各自实例化——引擎进程 `runNetworkLocateStep` 同样会被调用，其 pcapLog 写同一路径链）。`/tmp/aurora_pcap.log` 历史上被 root 引擎写过导致普通用户写不进的事故即源于此（见 :571–577 注释）。
 - **游戏流量窗口的一致性**：抓包侧 `streamLostWindow`(22s) > `trafficFreshWindow`(20s) > `poseFreshWindow`(18s)，三层窗口层级是 09-30 定案的（各常量注释，:788/:803/:839）——先判「游戏在通信」（traffic），再判「坐标可消费」（pose），最后网卡自己判「停流重探」（streamLost）。
 

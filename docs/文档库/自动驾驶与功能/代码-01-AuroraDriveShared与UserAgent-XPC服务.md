@@ -1,5 +1,16 @@
 # 代码-01 AuroraDriveShared 与 UserAgent XPC 服务
 
+> ✅ **2026-10-18 复核**（merge-arch）：逐行对照 `Sources/AuroraDriveShared/AuroraDriveShared.swift`（21 行）与 `Sources/AuroraDriveUserAgent/main.swift`（52 行），两个文件的行号引用全部命中，无漂移。**但发现一个重大口径问题**：
+>
+> **本文描述的整条「XPC Agent 服务链」已废弃**（详见 §四），这是本次复核最重要的修正。
+> - ① `DaemonSetup.swift`（Core/）第 9-14 行注释原文：*「原『用户会话 XPC Agent』方案**已废弃**——实测 launchd 拉起的后台进程拿不到 TCC 权限（ax=false、screen=false），驾驶引擎改为由主程序 spawn 的子进程承担」*。
+> - ② `isRunningAsDaemon()` 恒 `false`、`isDaemonInstalled()` 恒 `false`（`DaemonSetup.swift:22` / `:25`，空壳兼容入口）；`needsInstall() = !isBPFAvailable()`（:28）——**daemon 安装路径已从"装 Agent"变成"装 BPF 权限守护"**。
+> - ③ 全仓 `Sources/` 内 **`com.aurora.drive.agent` 只出现在 AuroraDriveShared.swift:8-9 两行常量定义里**；`NSXPCConnection` / `AuroraDriveUserAgentProtocol` 在 `AuroraDrive` 主 target **零引用**（`grep -rn` 实测，输出为空）；`ping` / `startDriving` / `stopDriving` 三个 XPC 方法**没有任何客户端调用**（`EngineMain.swift:1513/1525` 与 `EngineGlobals.state?.startDriving()` 是驾驶引擎的同名方法，与 XPC 协议无关）。
+> - ④ 机器现状：`launchctl list | grep com.aurora.drive.agent` → **0 命中**（Agent 未注册）；`~/Library/LaunchAgents/` 无该 label；`/Library/LaunchDaemons/` 里只有 `com.aurora.bpf-fix.plist` / `com.aurora.bpf-setup.plist` / `com.aurora.drive.daemon.plist` / `com.aurora.priority.plist` —— 其中 `com.aurora.drive.daemon.plist` 的 Label 是 `com.aurora.drive.daemon`（**不是** `.agent`）、`ProgramArguments` 指向 `/usr/local/bin/aurora-drive-daemon --daemon`（即 AuroraDriveUI 二进制本身）、**且无 `MachServices` key**，与 XPC Agent 无关。
+> - ⑤ `drivingRequested` 置位后确实无任何读取（`main.swift:9/17/24` 三处，grep 全仓只有这三行）——原文此结论仍成立。
+>
+> 处置：**保留源码级描述**（两个文件本身仍编译进 `Package.swift`：`AuroraDriveUserAgent` 是 `executableTarget`，`:72-76`；`AuroraDriveShared` 被两个 target 依赖 `:55-56/:79`），**但把「宿主运行链」从现状描述改为历史链**，并新增 §四说明现状。
+
 > 覆盖源文件：`Sources/AuroraDriveShared/AuroraDriveShared.swift`（21 行）、`Sources/AuroraDriveUserAgent/main.swift`（52 行）。基于当前仓库逐单元编写。
 
 ## 一、服务名与协议定义（AuroraDriveShared.swift 逐行）
@@ -73,4 +84,31 @@ RunLoop.current.run()
 - `NSXPCListener(machServiceName:)`：按 launchd 注册的 Mach 服务名监听（要求进程由 LaunchAgent 启动且 plist 声明了 `MachServices` key，否则监听收不到连接）
 - `listener.resume()` 启动监听；`RunLoop.current.run()` 让主线程常驻不退出（顶层代码跑完 RunLoop 才不终止进程）
 
-**宿主运行链**：`DaemonSetup.swift`（Core/）安装 LaunchAgent → launchd 以 label `com.aurora.drive.agent` 拉起本进程 → 本监听接受 UI 进程（AuroraDrive）的连接 → `ping` 健康检查。
+**宿主运行链（历史链，2026-10-18 复核确认已废弃）**：原设计为 `DaemonSetup.swift`（Core/）安装 LaunchAgent → launchd 以 label `com.aurora.drive.agent` 拉起本进程 → 本监听接受 UI 进程（AuroraDrive）的连接 → `ping` 健康检查。
+
+> ⚠️ **这条链今天不成立**：实测 `launchctl list` 无 `com.aurora.drive.agent`、`~/Library/LaunchAgents/` 无该 plist、`AuroraDrive` 主 target 零处引用该协议。废弃原因与现状见 §四。
+
+## 四、现状：这条 XPC 链已废弃（2026-10-18 复核新增）
+
+**结论**：`AuroraDriveShared` + `AuroraDriveUserAgent` 这组 target **仍在 `Package.swift` 里、仍能编译**（`AuroraDriveUserAgent` 是 `.executableTarget`，`Package.swift:72-76`；产物 `.build/scratch/release/AuroraDriveUserAgent` 存在，64,280 B），**但它们承担的 XPC 服务链已被放弃**。
+
+**废弃原因（`DaemonSetup.swift:9-14` 注释原文）**：
+
+> 原「用户会话 XPC Agent」方案**已废弃**——实测 launchd 拉起的后台进程拿不到 TCC 权限（ax=false、screen=false），驾驶引擎改为由主程序 spawn 的子进程承担（沿进程链继承权限，见 `EngineMain.swift` / `EngineClient.swift`）。
+
+即：launchd 起的后台进程**拿不到屏幕录制 + 辅助功能权限**，而自动驾驶这两样都要。改为主程序 spawn 子进程，权限沿进程链继承。
+
+**现状的四条硬证据**：
+
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| 全仓引用 | `grep -rn "com.aurora.drive.agent" Sources/` | 仅 `AuroraDriveShared.swift:8-9` 两行常量定义 |
+| 主 target 是否用协议 | `grep -rn "NSXPCConnection\|AuroraDriveUserAgentProtocol" Sources/`（排除两个 agent 文件） | **空** |
+| 客户端调用 | `grep -rn "startDriving\|stopDriving\|\.ping(" Sources/` | 命中的全是 `EngineMain` / `AuroraDriveApp` 的**同名驾驶方法**，与 XPC 协议无关 |
+| launchd 注册 | `launchctl list \| grep com.aurora.drive.agent` | **0 命中**（未注册、未加载） |
+
+**DaemonSetup 的空壳现状**（对应代码-30 的二节）：`isRunningAsDaemon()` 恒 `false`（:22）、`isDaemonInstalled()` 恒 `false`（:25）、`needsInstall() = !isBPFAvailable()`（:28）、`install(password:)` 保留参数但不读取（:34）、`uninstall(password:)` 恒 `(true, "无需卸载")`（:47）。**"装 daemon"这件事已被"装 BPF 权限守护"取代**（见 `PrivilegePill` 与 `BPFSetup`）。
+
+**现存 launchd 服务清单**（`/Library/LaunchDaemons/`）：`com.aurora.bpf-fix.plist`、`com.aurora.bpf-setup.plist`、`com.aurora.priority.plist`、`com.aurora.drive.daemon.plist`。**没有一个是 `com.aurora.drive.agent`**。其中 `com.aurora.drive.daemon.plist` 的 Label 是 `com.aurora.drive.daemon`、`ProgramArguments` 为 `/usr/local/bin/aurora-drive-daemon --daemon`（该文件是 AuroraDriveUI 二进制本体，非 UserAgent）、且 plist 内**无 `MachServices` key** —— 它是"用 daemon 模式跑主程序"，与 XPC Agent 是两回事。
+
+**因此本文的一二两节应按"历史实现"阅读**：源码描述本身仍准确（可直接对照两个文件读懂 NSXPC 的最小用法），但**不要把"宿主运行链"当成产品现状**。

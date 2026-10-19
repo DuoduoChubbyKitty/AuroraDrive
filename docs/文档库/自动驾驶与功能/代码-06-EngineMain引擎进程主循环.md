@@ -1,6 +1,28 @@
 # 代码-06 EngineMain 引擎进程主循环
-
-> 覆盖源文件：`Sources/AuroraDrive/Core/EngineMain.swift`（****1153 行**，**2026-10-02 `wc -l` 实测**（原文写 1082 行）**，2026-09-29 `wc -l` 实测；原文写 876 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Core/EngineMain.swift`（**2002 行**，2026-10-18 `wc -l` 实测；原文写 876/1082/1989 行均为旧基准）。基于当前仓库逐单元编写。
+>
+> ♻️ **行号已按 9097 行版重基准（2026-10-18）**——本篇对应 `EngineMain.swift` **2002 行**（lead 同日 +13 行：重写 `engineTickHz` 上方注释 `:628-651`、改 `run()` 末尾启动日志 `:1170-1178`）。
+>
+> **本次实测 14 处区间，修正 9 处**。偏移量**分段不等**（+13/+14），禁止统一平移：
+>
+> | 节/符号 | 旧区间 | 新区间 | 偏移 |
+> |---|---|---|---|
+> | 四、`run()` 八步 | 600–1167 | **600–1180** | 尾 +13 |
+> | 五、tick/命令/心跳 | 1177–1988 | **1193–2001** | +16 / +13 |
+> | `run()` 本体 | 880–1167 | **885–1180** | +5 / +13 |
+> | `tickOnce()` | 1180–1287 | **1193–1300** | +13 |
+> | `handleCommand()` | 1484–1882 | **1497–1895** | +13 |
+> | `sendHeartbeat()` | 1887–1904 | **1900–1917** | +13 |
+> | `startReconnectWindow()` | 1909–1920 | **1922–1933** | +13 |
+> | `startIdleExitCountdown()` | 1934–1946 | **1947–1959** | +13 |
+> | 两个 cancel 方法 | 1923–1926 / 1949–1952 | **1936–1939 / 1962–1965** | +13 |
+> | `pauseDriving()` | 1957–1969 | **1970–1982** | +13 |
+> | `performShutdown()` | 1974–1988 | **1987–2001** | +13 |
+>
+> **未漂移（零修正）**：一、`1–78` ✅ 二、`80–449` ✅ 三、`451–598` ✅（三节全在 `:628` 之前）。
+>
+> **导航提示**：第四节 `run()` 的终点 `:1180` 之后紧接本次新增的注释块与启动日志，
+> 引用「启动日志」时请用**函数名 `run()` 末尾**定位，不要用固定行号。
 >
 > ---
 >
@@ -22,7 +44,7 @@
 > ⚠️ **`pixelsOffset` 由 20480 后移到 28672 —— 这是 shm 布局变更**，也是 `protocolVersion`
 > 升到 3 的直接原因（旧 UI 会把掩码区当像素读 → 花屏）。详见 `代码-07`。
 >
-> ### 二、`writeMask(_:offset:)`（约 244–264 行）—— 位压缩写入
+> ### 二、`writeMask(_:offset:)`（第 250–282 行）—— 位压缩写入
 >
 > ```swift
 > private func writeMask(_ grid: MaskGrid, offset: Int) {
@@ -44,11 +66,11 @@
 > 1. **写前先清零**——源码注释：「避免上一帧的残留位被读成前景」。若省略，缩小的掩码会留下上一帧的旧位
 > 2. **`bytesPerRow = (width + 7) / 8`**——按**每行**独立位对齐，不是整块连续。UI 侧 `readMask` 必须严格对称（`代码-07`）
 >
-> **为何位压缩**（源码 241–243 行注释）：
+> **为何位压缩**（源码 240–245 行注释）：
 > > 160×160 用 UInt8 存是 25600 字节/份，两份 50KB；位压缩后每步 20 字节/行 × 160 行 = 3200 字节，
 > > 两份 6.4KB。30Hz 下的差别是 1.5MB/s vs 192KB/s，而掩码本来只有 0/1 信息，一个 bit 就够。
 >
-> ### 三、`publishMasks(drivable:lane:metrics:isDegraded:laneDegraded:drivableDegraded:seq:)`（约 266–300 行）
+> ### 三、`publishMasks(drivable:lane:metrics:isDegraded:laneDegraded:drivableDegraded:seq:)`（第 290–321 行）
 >
 > 由 `publishTick` 每 tick 调用。**写入的字段**（全部为 v3 新增）：
 >
@@ -91,7 +113,7 @@
 >
 > **2026-09-25 深度复核记录**（849→876 行）：① **`publish` 的 CGImage 像素路径已改 memcpy 快路径**（9-24 改动 7：原 CGContext 恒等格式转换占引擎 tick 主线程 ~78.6%，实测 2–6ms→0.2ms；dataProvider 可读时直接 memcpy——srcBPR==copyBytes 一次性整拷、否则逐行；不可读才兜底 CGContext 绘制，功能零损失）；② **引擎侧新增 `isUpscaleWanted` 门禁接线**（run() 第 7 步：`captureEngine.isUpscaleWanted = { EngineGlobals.wantFullFrame }`——UI 经 socket 的 upscale 命令实时控制，关闭时 CaptureEngine 帧回调里连全分辨率拷贝都不做）；其余架构（shm 布局/socket/八步/九命令/看门狗/退出）与上版一致。
 
-## 一、引擎组成概览与 shm/socket 桥接（第 1–63 行）
+## 一、引擎组成概览与 shm/socket 桥接（第 1–78 行）
 
 **定位（4–21 行头注释）**：`EngineMain.swift` 是**后台驾驶引擎（--engine 模式）**——由 `@main AuroraDriveLauncher` 在进程最前端分流进入：**不触碰 SwiftUI、不创建窗口、不跑 NSApp.run()**，在纯后台进程里运行完整驾驶闭环。**TCC 权限经进程链继承**（父进程已授权 → 本进程自动继承，无弹窗）。
 
@@ -105,7 +127,7 @@
 6. **DriveState 闭环**——照搬主程序组装（同一份类代码）+ 30Hz DispatchSource tick
 7. **信号处理**——SIGTERM/SIGINT 退出前必先 releaseAll（防游戏内键卡死）
 
-**shm 桥接（第 28–34 行）**：`shm_open` 在 C 是可变参数函数（oflag 含 O_CREAT 时才传 mode），Swift 无法直接导入可变参数 C 函数——桥接为固定 3 参版本：
+**shm 桥接（第 43–49 行）**：`shm_open` 在 C 是可变参数函数（oflag 含 O_CREAT 时才传 mode），Swift 无法直接导入可变参数 C 函数——桥接为固定 3 参版本：
 
 ```swift
 @_silgen_name("shm_open")
@@ -116,13 +138,13 @@ func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
 
 声明为 **internal**（不是 private）：`EngineClient`（UI 侧）也要用同一桥接。
 
-**`engineLog(_ msg: String)`（第 39–57 行）**——引擎日志：**同时写 stdout 与 `~/Library/Logs/AuroraEngine.log`**。格式 `[HH:mm:ss.SSS] msg`；日志文件不存在时先 `createFile` 再写（双保险，第 49–56 行）。`SelfTimestamp()`（59–63 行）用 `HH:mm:ss.SSS` 格式器。
+**`engineLog(_ msg: String)`（第 53–72 行）**——引擎日志：**同时写 stdout 与 `~/Library/Logs/AuroraEngine.log`**。格式 `[HH:mm:ss.SSS] msg`；日志文件不存在时先 `createFile` 再写（双保险，第 64–71 行）。`SelfTimestamp()`（74–78 行）用 `HH:mm:ss.SSS` 格式器。
 
 **排障入口**：`AuroraEngine.log` 是引擎侧的权威日志（TCC 自检、socket 状态、tick 心跳都写这里）；UI 侧的调试日志是 `/tmp/aurora_debug.log`（DriveState 的 dlog）。两边日志分离是排障"引擎死/界面活"问题的关键。
 
-## 二、EngineFrameShm 共享内存帧管道（第 65–260 行）
+## 二、EngineFrameShm 共享内存帧管道（第 80–449 行）
 
-**内存布局（字节偏移，67–88 行注释——引擎写 / UI 读的契约）：**
+**内存布局（字节偏移，82–151 行注释——引擎写 / UI 读的契约）：**
 
 | 偏移 | 字段 | 说明 |
 |---|---|---|
@@ -147,63 +169,63 @@ func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
 | 20480 | 像素页 A | 紧凑 BGRA |
 | 20480+pageSize | 像素页 B | 双缓冲另一页 |
 
-**类常量（91–98 行）**：`name = "/aurora_frame_v1"`、`headerSize = 4096`、`detOffset = 4096`、`detCapacity = 256`、`detStride = 64`、`pixelsOffset = 20480`、`maxWidth = 4096`、`maxHeight = 2304`。
+**类常量（154–177 行）**：`name = "/aurora_frame_v1"`、`headerSize = 4096`、`detOffset = 4096`、`detCapacity = 256`、`detStride = 64`、`maskOffset = 20480`（`detEnd`）、`maskGridMax = 160`、`maskBytes = 3200`、`maskRegionBytes = 6400`、**`pixelsOffset = 28672`**（v3 掩码区插入后从 20480 后移）、`maxWidth = 4096`、`maxHeight = 2304`。
 
-**`init?()`（第 110–144 行）**：
+**`init?()`（第 189–223 行）**：
 
 - 总大小 = `pixelsOffset + maxWidth×maxHeight×4 × 2`（两页满分辨率上限）
 - **引擎是共享内存的唯一创建者**：启动时先 `swift_shm_unlink(name)` 清掉上次残留对象——避免旧对象权限/尺寸异常导致打开失败（**已实测踩坑**）
 - `swift_shm_open(name, O_CREAT | O_RDWR, 0o600)` → `ftruncate(fd, size)` → `mmap(nil, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)`；任一步失败 `engineLog` + `close(fd)` + 返回 nil（failable init）
-- 写头部常量（137–143 行）：magic/version/headerSize/detOffset/detCapacity/detStride/enginePid
+- 写头部常量（215–222 行）：magic/version/headerSize/detOffset/detCapacity/detStride/enginePid
 
-**`deinit`（146–149 行）**：`munmap(base, totalSize)` + `close(fd)`。
+**`deinit`（225–228 行）**：`munmap(base, totalSize)` + `close(fd)`。
 
-**`publish(image:detections:fps:isDriving:isStreaming:fullFrame: CVPixelBuffer? = nil)`（第 160–259 行）**——发布一帧（成品画面 + 检测结果 + 状态）：
+**`publish(image:detections:fps:isDriving:isStreaming:fullFrame: CVPixelBuffer? = nil)`（第 325–448 行）**——发布一帧（成品画面 + 检测结果 + 状态）：
 
-1. **检测结果区（164–187 行）**：`n = min(detections.count, detCapacity)` 逐条写——labelId 映射（`.car→1 / .pedestrian→2 / .sign→3 / .obstacle→4`）、conf/x/y/w/h 写 Float、rawName **固定 16 字节 UTF8 截断**（`prefix(15)` + 16 字节先清零）
-2. **像素区双缓冲（189–271 行）**：**优先用全分辨率帧（fullFrame，插帧/清晰显示需要），否则用 480 宽缩略帧**
+1. **检测结果区（329–354 行）**：`n = min(detections.count, detCapacity)` 逐条写——labelId 映射（`.car→1 / .pedestrian→2 / .sign→3 / .obstacle→4`）、conf/x/y/w/h 写 Float、rawName **固定 16 字节 UTF8 截断**（`prefix(15)` + 16 字节先清零）
+2. **像素区双缓冲（355–438 行）**：**优先用全分辨率帧（fullFrame，插帧/清晰显示需要），否则用 480 宽缩略帧**
    - CVPixelBuffer 路径：锁 readOnly → **逐行 memcpy 到紧凑布局**（源可能有行填充 `bytesPerRow > w*4`，逐行拷贝 `copyBytes = w*4`）→ `storeU32(36, writePage)` 发布
-   - CGImage 路径——**memcpy 快路径（9-24 改动 7，源码 235–251 行）**：源 CGImage 由 CaptureEngine 经 CGDataProvider 零拷贝包装 uiBuf，格式与目标页完全一致（同为 32BGRA premultipliedFirst + byteOrder32Little、色彩空间同 DeviceRGB、目标矩形=源尺寸无缩放）——原路径只做恒等格式转换，却要走完整 CG 绘制管线（**实测占引擎 tick 主线程 ~78.6%**）。现直接 memcpy：`srcBPR == copyBytes`（无行填充）时一次性整拷 `copyBytes * h`，否则逐行拷贝
-   - **兜底路径（256–269 行）**：dataProvider 不可读（理论不发生，CaptureEngine 恒有 provider）时回退原 CGContext 绘制路径，功能零损失
+   - CGImage 路径——**memcpy 快路径（9-24 改动 7，源码 384–421 行）**：源 CGImage 由 CaptureEngine 经 CGDataProvider 零拷贝包装 uiBuf，格式与目标页完全一致（同为 32BGRA premultipliedFirst + byteOrder32Little、色彩空间同 DeviceRGB、目标矩形=源尺寸无缩放）——原路径只做恒等格式转换，却要走完整 CG 绘制管线（**实测占引擎 tick 主线程 ~78.6%**）。现直接 memcpy：`srcBPR == copyBytes`（无行填充）时一次性整拷 `copyBytes * h`，否则逐行拷贝
+   - **兜底路径（422–438 行）**：dataProvider 不可读（理论不发生，CaptureEngine 恒有 provider）时回退原 CGContext 绘制路径，功能零损失
    - 分辨率变化处理：`pageSize != currentPageSize` 时 `generation += 1`、写 generation（偏移 32）和 pageSize（偏移 72）——UI 端凭 generation 变化感知分辨率切换
    - **双缓冲写法**：`active = base.load(36)`，`writePage = active == 0 ? 1 : 0`——写非活动页，写完翻转 activePage（写读不冲突）
-3. **头部状态（249–258 行）**：`frameSeq += 1` → 写 frameSeq(40)/timestampNs(48)/detectionCount(56)/flags(60)/fpsMilli(64)——`flags |= 1` isDriving、`flags |= 2` isStreaming；fps 用 `max(0, fps) * 1000`
+3. **头部状态（440–447 行）**：`frameSeq += 1` → 写 frameSeq(40)/timestampNs(48)/detectionCount(56)/flags(60)/fpsMilli(64)——`flags |= 1` isDriving、`flags |= 2` isStreaming；fps 用 `max(0, fps) * 1000`
 
-## 三、EngineSocketServer Unix domain socket 服务（第 262–409 行）
+## 三、EngineSocketServer Unix domain socket 服务（第 451–598 行）
 
-**定位（264 行注释）**：命令/心跳通道。**单客户端；新连接自动替换旧连接**（UI 重开重连场景）。
+**定位（453 行注释）**：命令/心跳通道。**单客户端；新连接自动替换旧连接**（UI 重开重连场景）。
 
-**结构（265–283 行）**：`path`（socket 文件路径）、`queue`（`DispatchQueue("aurora.engine.socket", qos: .userInteractive)`）、`listenFD/clientFD`、`listenSource/clientSource`（DispatchSourceRead）、`lineBuffer: Data`。回调：`onLine: ((String) -> Void)?`、`onClientConnected/onClientDisconnected`。状态：`private(set) var hasClient = false`。
+**结构（456–468 行）**：`path`（socket 文件路径）、`queue`（`DispatchQueue("aurora.engine.socket", qos: .userInteractive)`）、`listenFD/clientFD`、`listenSource/clientSource`（DispatchSourceRead）、`lineBuffer: Data`。回调：`onLine: ((String) -> Void)?`、`onClientConnected/onClientDisconnected`。状态：`private(set) var hasClient = false`。
 
-**`start() -> Bool`（第 285–338 行）**：
+**`start() -> Bool`（第 474–527 行）**：
 
 1. 建目录（`deletingLastPathComponent` + withIntermediateDirectories）→ `unlink(path)` 清掉上次残留的 socket 文件
-2. `socket(AF_UNIX, SOCK_STREAM, 0)` → 组 `sockaddr_un`（`sun_family = AF_UNIX`，路径拷贝用 memcpy；**路径过长 guard**（300–304 行）：`pathBytes.count <= MemoryLayout.size(ofValue: addr.sun_path)`）
+2. `socket(AF_UNIX, SOCK_STREAM, 0)` → 组 `sockaddr_un`（`sun_family = AF_UNIX`，路径拷贝用 memcpy；**路径过长 guard**（489–493 行）：`pathBytes.count <= MemoryLayout.size(ofValue: addr.sun_path)`）
 3. `bind` → `listen(fd, 4)` → **`chmod(path, 0o600)`**（确保 UI 端能连，同用户 0600）
 4. `DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)` 挂 acceptClient 事件，resume
 5. 任一步失败：`engineLog`（errno）+ `close(fd)` + 返回 false
 
-**`acceptClient()`（第 340–364 行）**：
+**`acceptClient()`（第 529–553 行）**：
 
-- `accept(listenFD, nil, nil)` → **新连接替换旧连接**：源注释（343–345 行）——旧连接由**它自己的 cancel handler 关闭（只关它自己的 fd）**，**绝不在这里按 clientFD 关**——cancel 是异步的，若按共享变量关会误关新连接。`old.cancel()` 后置 `clientFD = fd`
+- `accept(listenFD, nil, nil)` → **新连接替换旧连接**：源注释（532–534 行）——旧连接由**它自己的 cancel handler 关闭（只关它自己的 fd）**，**绝不在这里按 clientFD 关**——cancel 是异步的，若按共享变量关会误关新连接。`old.cancel()` 后置 `clientFD = fd`
 - `lineBuffer.removeAll(keepingCapacity: true)`、`hasClient = true`
 - 新连接建 DispatchSourceRead：`setEventHandler { readClient(fd: fd) }`（**fd 按值捕获**——每个连接闭包持有自己的 fd）、`setCancelHandler { close(fd) }`、resume
 - `onClientConnected?()`
 
-**`readClient(fd: Int32)`（第 366–389 行）**：
+**`readClient(fd: Int32)`（第 555–578 行）**：
 
 - `read(fd, &buf, 8192)`；`n > 0` 时 append 到 lineBuffer → **按行切分**（`firstIndex(of: 0x0A)` 循环，subdata/removeSubrange）→ `onLine?(line)` 逐行回调
 - `n <= 0`（EOF 或错误）→ 本连接断开：`clientFD == fd` 时置 -1、`clientSource?.cancel()`（fd 由 cancel handler 关）、hasClient = false、`onClientDisconnected?()`
 
-**`send(_ line: String)`（第 391–399 行）**：`queue.async` 内 `guard clientFD >= 0` → `write(self.clientFD, ...)`——发送 `(line + "\n")`（行协议）。无客户端时静默丢弃。
+**`send(_ line: String)`（第 580–588 行）**：`queue.async` 内 `guard clientFD >= 0` → `write(self.clientFD, ...)`——发送 `(line + "\n")`（行协议）。无客户端时静默丢弃。
 
-**`stop()`（第 401–408 行）**：两个 source 都 cancel + close(listenFD) + `unlink(path)` 清 socket 文件。
+**`stop()`（第 590–597 行）**：两个 source 都 cancel + close(listenFD) + `unlink(path)` 清 socket 文件。
 
 **心跳/命令协议**（EngineClient 侧配合）：UI 每 N 秒发一行命令（如 `start`/`stop`/`want_full_frame`），引擎回发心跳行——具体行语义见 `代码-07-EngineClient` 文档。
 
-## 四、EngineGlobals 与 run() 主入口八步（第 411–605 行）
+## 四、EngineGlobals 与 run() 主入口八步（第 600–1180 行）
 
-**`EngineGlobals`（enum，第 413–425 行）**——引擎全局（MainActor 隔离状态）：
+**`EngineGlobals`（enum，第 602–622 行）**——引擎全局（MainActor 隔离状态）：
 
 | 字段 | 隔离 | 说明 |
 |---|---|---|
@@ -216,26 +238,26 @@ func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
 | `latestFullFrameLock = NSLock()` | nonisolated(unsafe) | 配套锁 |
 | `shutdownRequested` | nonisolated(unsafe) | SIGTERM/SIGINT 置位（由主流 tick 检查后安全停车退出） |
 
-**`EngineMain.run() -> Never`（第 431–605 行）——八步启动：**
+**`EngineMain.run() -> Never`（第 885–1180 行）——八步启动：**
 
-1. **单例锁（438–451 行）**：`engine.lock` 文件 + `flock(LOCK_EX | LOCK_NB)` 独占（失败 = 已有引擎实例，`exit(0)`）；进程退出自动释放；ftruncate 清零 + 写入 pid
-2. **TCC 自检 fail-fast（453–465 行）**：`AXIsProcessTrusted()` + `CGPreflightScreenCaptureAccess()`；任一 false 且无 `AURORA_ENGINE_DIAG_SKIP_TCC=1` 环境变量 → `exit(2)`（"权限须由父进程链继承"）；诊断旁路生效时继续运行（验证非权限逻辑）
-3. **Game Mode 对抗（467–469 行）**：`GameModeDefender.shared.start()`——静音音频 + 每 3s 重新主张（"引擎进程是跑检测的那个，最需要 audible 维度与持续重主张"）
-4. **防冻结 + 优先级（471–478 行）**：`beginActivity(options: [.latencyCritical, .userInteractive, .idleSystemSleepDisabled], reason: ...)`（**必须持有 napToken，否则 activity 立即释放**）+ `setpriority(PRIO_PROCESS, 0, -20)`（nice=-20）
-5. **信号处理（480–497 行）**：先 `signal(SIGTERM/SIGINT, SIG_IGN)` 交给 DispatchSource；SignalSource 事件 → `EngineGlobals.shutdownRequested = true` + `performShutdown(reason:)`（MainActor.assumeIsolated）
-6. **socket（499–534 行）**：`EngineSocketServer(path: appSupport/engine.sock)`；`onLine → handleCommand`；**onClientDisconnected 看门狗（505–520 行）**：`clientSaidBye` 时继续运行等待重连，否则 `startReconnectWindow()`（3 秒重连窗口）；**无论哪种断开都启动 `startIdleExitCountdown()`**（30 秒内没有 UI 重连 → 引擎自动安全退出，不再常驻占资源）；`onClientConnected` → cancel 两个倒计时 + `clientSaidBye = false` + 立即心跳。`server.start()` 失败 `exit(4)`
-7. **共享内存 + DriveState 闭环（560–589 行）**：`EngineFrameShm()` 失败 `exit(5)`；MainActor 里建 `DriveState()` + 挂 shm/socket；**全分辨率帧接线（574–578 行）**：覆盖 DriveState 默认的"喂本进程 upscaleHost"接线——引擎没有窗口/MTKView，插帧渲染在 UI 进程做，引擎只负责把全分辨率帧送过去（锁保护写入 latestFullFrame）；**isUpscaleWanted 门禁接线（581 行，9-24 改动 10）**：`captureEngine.isUpscaleWanted = { EngineGlobals.wantFullFrame }`——UI 经 socket 的 upscale 命令实时控制，关闭时帧回调里连全分辨率拷贝都不做（isUpscaleWanted 在拷贝前求值）；**`AURORA_ENGINE_DIAG_CAPTURE_ONLY=1` 诊断（585–588 行）**：只启动抓屏不注入按键，端到端验证"采集 → 共享内存 → UI"链路；**30Hz tick（592–603 行）**：`DispatchSource.makeTimerSource` + `schedule(deadline: .now(), repeating: 1.0/30.0, leeway: .nanoseconds(0))` → 每 tick 派发主线程 `tickOnce()`
-8. **心跳 1Hz（578–601 行）**：hbTimer（leeway 50ms）→ 检查 shutdownRequested → `sendHeartbeat(reason: "periodic")`；**每 5 秒输出一条管道统计**（seq/有帧/det/driving）便于无人值守验证。最后 `dispatchMain()` 永不返回
+1. **单例锁（895–908 行）**：`engine.lock` 文件 + `flock(LOCK_EX | LOCK_NB)` 独占（失败 = 已有引擎实例，`exit(0)`）；进程退出自动释放；ftruncate 清零 + 写入 pid
+2. **TCC 自检 fail-fast（910–958 行）**：`AXIsProcessTrusted()` + `CGPreflightScreenCaptureAccess()`；任一 false 且无 `AURORA_ENGINE_DIAG_SKIP_TCC=1` 环境变量 → `exit(2)`（"权限须由父进程链继承"）；诊断旁路生效时继续运行（验证非权限逻辑）
+3. **Game Mode 对抗（960–962 行）**：`GameModeDefender.shared.start()`——静音音频 + 每 3s 重新主张（"引擎进程是跑检测的那个，最需要 audible 维度与持续重主张"）
+4. **防冻结 + 优先级（964–971 行）**：`beginActivity(options: [.latencyCritical, .userInteractive, .idleSystemSleepDisabled], reason: ...)`（**必须持有 napToken，否则 activity 立即释放**）+ `setpriority(PRIO_PROCESS, 0, -20)`（nice=-20）
+5. **信号处理（973–990 行）**：先 `signal(SIGTERM/SIGINT, SIG_IGN)` 交给 DispatchSource；SignalSource 事件 → `EngineGlobals.shutdownRequested = true` + `performShutdown(reason:)`（MainActor.assumeIsolated）
+6. **socket（992–1027 行）**：`EngineSocketServer(path: appSupport/engine.sock)`；`onLine → handleCommand`；**onClientDisconnected 看门狗（998–1013 行）**：`clientSaidBye` 时继续运行等待重连，否则 `startReconnectWindow()`（3 秒重连窗口）；**无论哪种断开都启动 `startIdleExitCountdown()`**（30 秒内没有 UI 重连 → 引擎自动安全退出，不再常驻占资源）；`onClientConnected` → cancel 两个倒计时 + `clientSaidBye = false` + 立即心跳。`server.start()` 失败 `exit(4)`
+7. **共享内存 + DriveState 闭环（1029–1059 行）**：`EngineFrameShm()` 失败 `exit(5)`；MainActor 里建 `DriveState()` + 挂 shm/socket；**全分辨率帧接线（1040–1047 行）**：覆盖 DriveState 默认的"喂本进程 upscaleHost"接线——引擎没有窗口/MTKView，插帧渲染在 UI 进程做，引擎只负责把全分辨率帧送过去（锁保护写入 latestFullFrame）；**isUpscaleWanted 门禁接线（1050 行，9-24 改动 10）**：`captureEngine.isUpscaleWanted = { EngineGlobals.wantFullFrame }`——UI 经 socket 的 upscale 命令实时控制，关闭时帧回调里连全分辨率拷贝都不做（isUpscaleWanted 在拷贝前求值）；**`AURORA_ENGINE_DIAG_CAPTURE_ONLY=1` 诊断（1054–1057 行）**：只启动抓屏不注入按键，端到端验证"采集 → 共享内存 → UI"链路；**30Hz tick（1061–1087 行）**：`DispatchSource.makeTimerSource` + `schedule(deadline: .now(), repeating: 1.0/30.0, leeway: .nanoseconds(0))` → 每 tick 派发主线程 `tickOnce()`
+8. **心跳 1Hz（1089–1163 行）**：hbTimer（leeway 50ms）→ 检查 shutdownRequested → `sendHeartbeat(reason: "periodic")`；**每 5 秒输出一条管道统计**（seq/有帧/det/driving）便于无人值守验证。最后 `dispatchMain()` 永不返回
 
-## 五、tick / 命令处理 / 心跳 / 看门狗 / 安全退出（第 617–849 行）
+## 五、tick / 命令处理 / 心跳 / 看门狗 / 安全退出（第 1193–2001 行）
 
-**`tickOnce()`（@MainActor，第 618–635 行）**：
+**`tickOnce()`（@MainActor，第 1193–1300 行）**：
 
 1. `guard let st = EngineGlobals.state`，`st.tick()`（DriveState 主循环）
 2. `wantFullFrame` 时锁内取 `latestFullFrame` 作为全分辨率帧，否则 nil（发 480 宽缩略帧省带宽）
 3. `shm?.publish(image: st.currentFrameCG, detections: st.yoloEngine.detections, fps: st.captureEngine.captureFPS > 0 ? st.captureEngine.captureFPS : st.fps, isDriving: st.isDriving, isStreaming: st.isStreaming, fullFrame: full)`
 
-**`handleCommand(_ line:server:)`（第 639–751 行）**——socket 命令（JSON 行协议，`{"type": ...}`）。九种命令：
+**`handleCommand(_ line:server:)`（第 1497–1895 行）**——socket 命令（JSON 行协议，`{"type": ...}`）。九种命令：
 
 | type | 行为 | 源注释要点 |
 |---|---|---|
@@ -244,13 +266,13 @@ func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
 | `bye` | `clientSaidBye = true` + `pauseDriving("bye")` | UI 主动关闭 |
 | `status` | `sendHeartbeat(reason: "status-query")` | 状态查询 |
 | `upscale` | `wantFullFrame = on` | UI 开关「插帧/超分」→ 引擎据此决定发全分辨率帧还是 480 宽缩略帧 |
-| `record` | 置 `st.glyphMode/expertMode/isRecording` + 立即回执心跳 | **录制必须落在引擎侧**（688–689 行注释：帧只存在于引擎进程——引擎模式下 UI 的 tick 提前 return，recordFrameIfNeeded() 永远不执行 → 目录建了、文件建了、录不进东西）。立即回执防 UI 把开关弹回去（心跳周期 1s，UI 侧也有宽限期，双保险） |
-| `reloadmodel` | `inferenceEngine/assistEngine/yoloEngine` 三引擎 `reloadModel()` | **训练完成后热替换**（707–709 行注释：不转发这条命令，引擎会一直用内存里的旧模型 →「训练完了但车还按老模型开」）。置空后下次推理重读磁盘 |
-| `config` | 同步 7 个驾驶参数：`sport/controlDisabled/forceRule/expert/glyph/degradeThreshold/speedLimit` | **controlDisabled（禁用控制）与 forceRuleMode（紧急切纯规则）是安全开关**（721–723 行注释：不同步会让人以为车已经停手/已切安全档，实际还在跑模型）；**speedLimit 不是显示项**（740–742 行）：它经 InferenceEngine 变成 `vehicle_state[4] = speed_limit_norm` 直接参与推理，不同步会让 UI 显示 40 而模型仍按 120 决策 |
+| `record` | 置 `st.glyphMode/expertMode/isRecording` + 立即回执心跳 | **录制必须落在引擎侧**（1557–1560 行注释：帧只存在于引擎进程——引擎模式下 UI 的 tick 提前 return，recordFrameIfNeeded() 永远不执行 → 目录建了、文件建了、录不进东西）。立即回执防 UI 把开关弹回去（心跳周期 1s，UI 侧也有宽限期，双保险） |
+| `reloadmodel` | `inferenceEngine/assistEngine/yoloEngine` 三引擎 `reloadModel()` | **训练完成后热替换**（1648–1650 行注释：不转发这条命令，引擎会一直用内存里的旧模型 →「训练完了但车还按老模型开」）。置空后下次推理重读磁盘 |
+| `config` | 同步 7 个驾驶参数：`sport/controlDisabled/forceRule/expert/glyph/degradeThreshold/speedLimit` | **controlDisabled（禁用控制）与 forceRuleMode（紧急切纯规则）是安全开关**（1672–1676 行注释：不同步会让人以为车已经停手/已切安全档，实际还在跑模型）；**speedLimit 不是显示项**（1731–1734 行）：它经 InferenceEngine 变成 `vehicle_state[4] = speed_limit_norm` 直接参与推理，不同步会让 UI 显示 40 而模型仍按 120 决策 |
 | `ping` | `server.send("{\"type\":\"pong\"}")` | |
 | default | 未知命令类型记日志 | |
 
-**`sendHeartbeat(reason:)`（@MainActor，第 756–764 行）**——心跳 JSON 一行发 UI：
+**`sendHeartbeat(reason:)`（@MainActor，第 1900–1917 行）**——心跳 JSON 一行发 UI：
 
 ```json
 {"type":"heartbeat","proto":<协议版本>,"ts":<unix秒>,"fps":"%.1f","detections":N,
@@ -260,23 +282,23 @@ func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
 
 fps 取 `captureFPS > 0 ? captureFPS : st.fps`（采集没起来时回退标称 fps）。
 
-**看门狗与倒计时（第 766–812 行）**：
+**看门狗与倒计时（第 1906–1952 行）**：
 
-- `startReconnectWindow()`（769–780 行）：`DispatchWorkItem` + `asyncAfter(.now() + 3.0)`——3 秒后 `hasClient == true`（已重连）则 return，否则 `pauseDriving("watchdog")`（"UI died, parking"）
-- `startIdleExitCountdown()`（794–806 行）：30 秒后未重连 → `performShutdown(reason: "idle-exit")`（"先释放全部按键"）。源注释：引擎本身是「常驻」设计（UI 关掉也能继续驾驶），但**没人用还一直占资源不合理，所以加这道兜底**。重连即取消（onClientConnected 里 cancel）
-- 两个 cancel 方法（783–786、809–812 行）：cancel + 置 nil
+- `startReconnectWindow()`（1922–1933 行）：`DispatchWorkItem` + `asyncAfter(.now() + 3.0)`——3 秒后 `hasClient == true`（已重连）则 return，否则 `pauseDriving("watchdog")`（"UI died, parking"）
+- `startIdleExitCountdown()`（1947–1959 行）：30 秒后未重连 → `performShutdown(reason: "idle-exit")`（"先释放全部按键"）。源注释：引擎本身是「常驻」设计（UI 关掉也能继续驾驶），但**没人用还一直占资源不合理，所以加这道兜底**。重连即取消（onClientConnected 里 cancel）
+- 两个 cancel 方法（1936–1939、1962–1965 行）：cancel + 置 nil
 
-**`pauseDriving(_ reason: String)`（@MainActor，第 817–829 行）**——暂停驾驶（安全侧）：
+**`pauseDriving(_ reason: String)`（@MainActor，第 1970–1982 行）**——暂停驾驶（安全侧）：
 
 - `st.isDriving = false` + `st.controlEngine.releaseAll()`（**立即释放全部按键**），但**保持抓屏与推理运行，等待 UI 重连**
-- **一并停掉录制（821–827 行）**：源注释——否则引擎会在无人监管下继续录 30 秒「车已停、标签还是上一刻 AI 决策」的垃圾帧，**这些帧会被下次训练当成有效样本 → 污染模仿学习数据集**
+- **一并停掉录制（1961–1967 行）**：源注释——否则引擎会在无人监管下继续录 30 秒「车已停、标签还是上一刻 AI 决策」的垃圾帧，**这些帧会被下次训练当成有效样本 → 污染模仿学习数据集**
 - 与 `stop`（显式停止、连抓屏一起停）区分
 
-**`performShutdown(reason:)`（@MainActor，第 834–848 行）**——退出（**任何路径都先 releaseAll**）：
+**`performShutdown(reason:)`（@MainActor，第 1987–2001 行）**——退出（**任何路径都先 releaseAll**）：
 
-1. `state` 存在：`st.stopDriving()`（内部含 `controlEngine.releaseAll()`）+ **`st.recordEngine.flushSync()`**（838–840 行注释：stop() 里的 meta.json 是 writeQueue.async 写的，紧接着 exit(0) 会在元信息落盘前杀掉进程 → 录制会话缺 meta.json。这里等队列排空）
+1. `state` 存在：`st.stopDriving()`（内部含 `controlEngine.releaseAll()`）+ **`st.recordEngine.flushSync()`**（1978–1980 行注释：stop() 里的 meta.json 是 writeQueue.async 写的，紧接着 exit(0) 会在元信息落盘前杀掉进程 → 录制会话缺 meta.json。这里等队列排空）
 2. 状态尚未建立：兜底 `ControlEngine().releaseAll()`
 3. `EngineGlobals.socket?.stop()` → `engineLog("[ENGINE] 退出完成")` → `exit(0)`
 
-**EngineMain 文档至此完整**（**1082 行**，2026-09-29 实测；原文写"876 行全覆盖"对应 9-25 时点）。
+**EngineMain 文档至此完整**（**2002 行**，2026-10-18 `wc -l` 实测）。
 覆盖：概览与桥接 → shm → socket → run() 八步 → 命令/心跳/看门狗/退出 → **v3 掩码发布（见文首复核块）**。

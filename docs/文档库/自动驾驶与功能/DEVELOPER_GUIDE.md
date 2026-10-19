@@ -51,11 +51,11 @@ trap 'bash scripts/build-lock.sh release' EXIT
 
 | 章 | 文档 | 覆盖源码（Sources/AuroraDrive/） |
 |---|---|---|
-| 一 | [系统架构总览](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/01-architecture.md) | `AuroraDriveApp.swift`(**实测 8,456 行**，旧记 4379) `DegradeStateMachine.swift`(**实测 165**，旧记 250) |
-| 二 | [网络定位子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/02-network-locate.md) | `CoordinateCapture.swift`(**实测 1,752**，旧记 635) ~~`NetworkHealer.swift`~~（76e9027 已删，自愈引擎退役） `VisualLocator.swift`(491 ✅) ~~`MinimapLocatorView.swift`~~ ~~`MinimapTileCache.swift`~~<br>⚠️ **2026-10-07 实测：`Locate/` 目录只剩 2 个文件（NetworkLocator + VisualLocator），`MinimapTileCache.swift` 已被删除**——本行旧列的两个文件**均不存在** |
-| 三 | [速度识别子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/03-speed-ocr.md) | `SpeedOCRReader.swift`(**实测 1,540**，旧记 1243，PP-OCRv6 主 / CNN 备双引擎) |
+| 一 | [系统架构总览](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/01-architecture.md) | `AuroraDriveApp.swift`(**实测 9,088 行**，2026-10-17 `wc -l`；旧记 8,456/4379 已过期) `DegradeStateMachine.swift`(**实测 165**，旧记 250) |
+| 二 | [网络定位子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/02-network-locate.md) | `CoordinateCapture.swift`(**实测 1,789**，2026-10-17 实测；旧记 1,752/635 已过期) ~~`NetworkHealer.swift`~~（76e9027 已删，自愈引擎退役） `VisualLocator.swift`(491 ✅) ~~`MinimapLocatorView.swift`~~ ~~`MinimapTileCache.swift`~~<br>⚠️ **2026-10-07 实测：`Locate/` 目录只剩 2 个文件（NetworkLocator + VisualLocator），`MinimapTileCache.swift` 已被删除**——本行旧列的两个文件**均不存在** |
+| 三 | [速度识别子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/03-speed-ocr.md) | `SpeedOCRReader.swift`(**实测 1,633**，2026-10-17 实测；旧记 1,540/1243 已过期，PP-OCRv6 主 / CNN 备双引擎) |
 | 四 | [视觉与推理子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/04-vision-inference.md) | `CaptureEngine.swift`(654 ✅) `InferenceEngine.swift`(522) `YoloEngine.swift`(**实测 843**，旧记 818) `ConfidenceEstimator.swift`(248 ✅) `RecordEngine.swift`(424 ✅) `YolopxEngine.swift`(**实测 1,666**，旧记 1124) `OpticalFlowBridge.swift`(384 ✅) `MotionPredictor.swift`(**实测 569**，旧记 384) `FallbackGuard.swift`(280 ✅)<br>⚠️ 本行**缺 4 个新文件**：`QuestPanelReader.swift`(1,160) `RoadCornerGuide.swift`(757) `RoadMapPrior.swift`(360) `EgoMotionModel.swift`(358) `LaneKeepRealityTest.swift`(228) |
-| 五 | [控制与安全子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/05-control-safety.md) | `ControlEngine.swift`(**实测 649**，旧记 373) `KeyboardMonitor.swift`(113 ✅) `RuleController.swift`(**实测 200**，旧记 187) `EscapeController.swift`(**实测 44**，旧记 217——2026-10 已大幅瘦身) |
+| 五 | [控制与安全子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/05-control-safety.md) | `ControlEngine.swift`(**实测 718**，2026-10-17 实测；旧记 649/373 已过期) `KeyboardMonitor.swift`(113 ✅) `RuleController.swift`(**实测 200**，旧记 187) `EscapeController.swift`(**实测 44**，旧记 217——2026-10 已大幅瘦身) |
 | 六 | [常见问题 FAQ](#六常见问题-faq) | — |
 | 七 | [2026-09-19 磁盘清理说明](#七2026-09-19-磁盘清理说明) | 迁移路径对照 + MaaNTE 侧现状速记 |
 | **八** | **🆕 [构建 / 部署 / 自检 / 踩坑](#五点五构建--部署--自检--踩坑2026-10-07-实测补写--新人实操章)（本文 5.5 节）** | `scripts/build-lock.sh`(146) `run.sh`(182) `Package.swift`(212) |
@@ -131,7 +131,7 @@ App Nap 六重对抗（禁自动终止 / beginActivity / nice -20 / CGEventTap /
 
 ## 五、控制与安全子系统 → [三级文档](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/05-control-safety.md)
 
-- ControlEngine（**实测 649 行**）：`CGEventSource(.hidSystemState)`（游戏只读 HID 层）+ `.cghidEventTap` 注入；
+- ControlEngine（**实测 718 行**，2026-10-17）：`CGEventSource(.hidSystemState)`（游戏只读 HID 层）+ `.cghidEventTap` 注入；
   键码 W13/S1/A0/D2/空格49/Shift56（`ControlEngine.swift:46` 注释与 `:52-53` 实测**一致 ✅**）
 - KeyboardMonitor（**113**）：全局物理键监听（显示用，**非急停**）
 - RuleController（**实测 200 行**）：YOLO 检测 → 决策表（直行 0.8 油门 / urgency>0.55 急刹 / >0.25 减速避让）

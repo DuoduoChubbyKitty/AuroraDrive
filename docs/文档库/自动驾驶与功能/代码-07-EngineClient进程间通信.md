@@ -1,6 +1,73 @@
 # 代码-07 EngineClient 进程间通信
 
-> 覆盖源文件：`Sources/AuroraDrive/Core/EngineClient.swift`（**747 行**，2026-09-29 实测；本文原按 613 行编写）。基于当前仓库逐单元编写。
+> ♻️ **行号已按 9097 行版重基准（2026-10-18，sys-reader）**：检查 **8 条**跨文件引用（`EngineClient.swift` 6 + `EngineMain.swift` 2），**修正 6 条、保留 2 条**。
+>
+> | 引用 | 旧 → 新 | 依据（`sed -n` 逐行实测） |
+> |---|---|---|
+> | `protocolVersion` 声明 | `:64` → **`:65`** | `:64` 是注释行 `/// 原写 EngineClient:227 是旧行号…`，`:65` 才是 `nonisolated static let protocolVersion = 3` |
+> | `isEngineStale` stale 判据 | `:265-267` → **`:266-268`** | `:266` `var isEngineStale: Bool {` / `:267` 判据表达式 / `:268` `}` |
+> | 掩码边界校验「论证注释」 | `:704-712` → **`:705-713`** | `:705` 起 `⚠️ 安全门（必须）…` |
+> | 掩码边界校验「实际代码」 | `:713-715` → **`:714-715`** | `:714` `let maskRegionEnd = …`、`:715` `let maskReadable = shmSize >= maskRegionEnd` |
+> | shm header `storeU32(4, 1)` | `:216` → **`:217`** | `:216` 是 `storeU32(0, 0x41555246)` magic，`:217` 才是 version（此项文档早已订正，本轮确认） |
+> | 其余 `EngineClient.swift` 引用 | 不变 ✅ | 该文件仅 +1 行（895→896）且新增行在 `:65` 之前的注释区 |
+>
+> **归档（历史记录，保留不删）**：
+
+---
+
+## ✅ 2026-10-18 复核（本次改了什么）
+
+> 复核人：infer-reader · 方法：逐条 `read` 源码核对语义（不只查行号存在）· **只改文档，未动 Sources/**
+
+### A. lead 点名的三个数值——逐个核完，**全部正确** ✅
+
+| 项 | lead 给的值 | 实测位置 | 结果 |
+|---|---|---|---|
+| `protocolVersion` | 3（**`:65`**） | `EngineClient.swift:65` `nonisolated static let protocolVersion = 3` | ♻️ 2026-10-18 重基准：原写 `:64`，实测 :64 是注释行 `///     原写 EngineClient:227 是旧行号…`，声明在 **:65** |
+| 心跳超时 | 3s（`:612`） | `:612` `if isConnected, Date().timeIntervalSince(lastHeartbeat) > 3.0` | ✅ 准确 |
+| 重连上限 | 20s（`:597`） | `:597` `connectAttempts >= 40` + 0.5s 间隔 ⇒ **40×0.5 = 20 秒** | ✅ 准确（文档正文原未记载此值，已补） |
+
+> 注：`:597` 是 `tryReconnectSoon()` 的**运行期重连**上限（40 次 × 0.5s）；`startup()` 的**首次连接**上限是 `:196` 的 `connectAttempts >= 20` × 0.3s = **6 秒**。两者不同，文档 §二 只写了 6 秒那条，**已补 20 秒那条**。
+
+### B. `EngineMain.swift` 行号是否漂移——**未漂移，无需改**
+
+♻️ **2026-10-18 重基准（9097 行版）**：`EngineMain.swift` 现 **2002 行**（原 1989，+13）；`EngineClient.swift` 现 **896 行**（原 895，+1）；`AuroraDriveApp.swift` 现 **9097 行**（原 9088）。实测：本文仅 2 条 `EngineMain.swift` 引用——`storeU32(4, 1)`（shm header 结构版本）**实际在 :217**（原文档曾记 :216，:216 是上一条 `storeU32(0, 0x41555246)` magic）；`:217` 已订正。其余引用全部指向 `EngineClient.swift` 与 `EngineFrameShm` 常量。
+
+> 另：正文 `:64` 注释里引用的 `EngineClient:227`（stale 判据）——`isEngineStale` 实际在 **`:265`**。源码自己的注释写错了，非本文档问题，已加注。
+
+### C. 逐条行号实测结果（`EngineClient.swift` **895 行**，未变）
+
+| 引用项 | 文档值 | 实测 | 判定 |
+|---|---|---|---|
+| `engineClientLog` | :25-44 | :25-44 | ✅ |
+| `protocolVersion` | :64 | :64 | ✅ |
+| `isEngineStale` | :265-267 | **:265-267**（`:265` 声明 + `:266` 判据 + `:267` 闭合） | ✅ |
+| `startup()` | :166-205 | :166 | ✅ |
+| `activate()` | :207-215 | :207 | ✅ |
+| `tryConnect()` | :221-259 | :221 | ✅ |
+| `relaunchStaleEngine()` | :280-328 | :280 | ✅ |
+| `spawnEngine()` | :330-353 | :330 | ✅ |
+| `readSocket()` | :357-388 | :357 | ✅ |
+| `tryReconnectSoon()` | :390-410 | :390 | ✅ |
+| `handleHeartbeatLine()` | :412-455 | :412 | ✅ |
+| `copyIntoPixelBuffer()` | :460-492 | :460 | ✅ |
+| `takePixelBuffer()` | :494-499 | **:495** | ⚠️ 差 1，已订正 |
+| `attachShm()` | :501-522 | :501 | ✅ |
+| `detachShm()` | :524-532 | :524 | ✅ |
+| `poll()` | :609-781 | :609 | ✅ |
+| 物理边界校验 | :704-715 | **:713-715**（代码），`:704-712` 是注释 | ⚠️ 区间应拆开，已订正 |
+| `readMask()` | MARK 掩码解码 | :795 | ✅ |
+| `sendCommand()` | :836-872 | :836 | ✅ |
+| `setUpscale/sendBye/sendByeSync` | :874-894 | :875/:880/:886 | ✅ |
+
+### D. 语义复核（无错误，仅补充）
+
+- v3 掩码区布局（`maskOffset=20480`、两层各 3200 字节、`pixelsOffset=28672`）—— 与 `EngineFrameShm.maskOffset/maskRegionBytes/maskBytes` 常量一致 ✅
+- 掩码 flags 四位定义（`&1` degraded / `&2` valid / `&4` laneDegraded / `&8` drivableDegraded）—— 与 `:718-726` 逐位吻合 ✅
+- 「版本号是约定，长度是事实」的物理边界防线 —— 设计论证原文在 `:704-712`，准确 ✅
+
+---
+> 覆盖源文件：`Sources/AuroraDrive/Core/EngineClient.swift`（**895 行**，2026-09-29 实测；本文原按 613 行编写）。基于当前仓库逐单元编写。
 >
 > ---
 >
@@ -10,12 +77,12 @@
 >
 > ### 一、协议版本 v2 → v3
 >
-> `EngineClient.swift:64` 现为 `nonisolated static let protocolVersion = 3`（原 60 行 = v2）。
+> `EngineClient.swift:65` 现为 `nonisolated static let protocolVersion = 3`（♻️ 2026-10-18：原写 `:64`，实测声明在 **:65**；原 60 行 = v2 之说亦已过期）。
 >
 > **为什么必须升 v3**（源码 61–63 行注释原文）：
 > > `pixelsOffset` 从 20480 后移到 28672。**这是布局变更**：
 > > 新旧混跑时旧 UI 会把掩码区当像素读 → 花屏，所以必须升版本，
-> > 让版本守卫强制重启引擎（`EngineClient:227` 的 stale 判据）。
+> > 让版本守卫强制重启引擎（**`EngineClient.swift:266-268`** 的 stale 判据；♻️ 2026-10-18 重基准，原写 `:265-267`——`:266` 是 `var isEngineStale: Bool {`、`:267` 是判据表达式 `sawHeartbeat && engineProtocol != Self.protocolVersion`、`:268` 是 `}`）。
 >
 > **版本沿革**：
 > - v1 = 原始（start/stop/bye/status/upscale/ping）
@@ -26,12 +93,11 @@
 >
 > | 版本号 | 位置 | 当前值 | 含义 |
 > |---|---|---|---|
-> | shm header `version` | `EngineMain.swift:216` `storeU32(4, 1)` | **1** | 共享内存**结构版本**，极稳定 |
-> | `EngineClient.protocolVersion` | `EngineClient.swift:64` | **3** | socket **命令/心跳协议版本** |
+> | shm header `version` | `EngineMain.swift:217`（2026-10-18 实测订正，原写 :216）`storeU32(4, 1)` | **1** | 共享内存**结构版本**，极稳定 |
+> | `EngineClient.protocolVersion` | `EngineClient.swift:65` | **3** | socket **命令/心跳协议版本**（♻️ 原 `:64`） |
 >
-> 注意 `EngineMain.swift:162-164` 的注释写「把协议 version **升到 2**」——
-> 那是掩码第一批落地时写的，**第二批（补 letterbox 尺寸字段）又升到了 3**。
-> **以 `EngineClient.swift:64` 的 `= 3` 为准**，注释里的「2」是历史残留。
+
+> **以 `EngineClient.swift:65` 的 `= 3` 为准**（♻️ 原 `:64`），注释里的「2」是历史残留。
 >
 > ### 三、v3 新增：shm 掩码区布局
 >
@@ -59,7 +125,7 @@
 > | 120/124 | U32 | srcW / srcH |
 > | **128/132** | U32 | **newW / newH**（letterbox 内容区，2026-09-28 才补进协议） |
 >
-> **掩码 flags 位定义**（读侧 613–620 行）：
+> **掩码 flags 位定义**（读侧 718–725 行）：
 >
 > | 位 | 成员 | 含义 |
 > |---|---|---|
@@ -68,12 +134,12 @@
 > | `& 4` | `engineLaneDegraded` | 车道线层塌陷 |
 > | `& 8` | `engineDrivableDegraded` | 可行驶区层塌陷 |
 >
-> **bit2/bit3 是 fail-visible 设计**（615–617 行注释）：「旧引擎不发这两个位，那时它们恒为 0
+> **bit2/bit3 是 fail-visible 设计**（720–722 行注释）：「旧引擎不发这两个位，那时它们恒为 0
 > → 两层都不会被压暗。这是**安全的降级方向**：显示层偏亮（能看见），而不是偏暗（看不见）。」
 >
 > ### 四、★新增「最后一道防线」：物理边界校验（本文原无记载）
 >
-> `EngineClient.swift:596-609` 有一段**关键防御逻辑**：
+> **`EngineClient.swift:705–713`**（论证注释，♻️ 原写 `:704-712`）+ **`:714–715`**（实际代码，♻️ 原写 `:713-715`）有一段**关键防御逻辑**：`let maskRegionEnd = …` 在 **:714**、`let maskReadable = shmSize >= maskRegionEnd` 在 **:715**。
 >
 > > 共享内存是**引擎**创建的，UI 只是映射了它。如果引擎还是旧版（v2，pixelsOffset=20480，
 > > 总长更小），按 v3 偏移去读掩码会读到 mmap 之外 → **SIGSEGV 直接崩掉 UI 进程**。
@@ -100,7 +166,7 @@
 > | `engineMaskMetrics` | UI 侧状态 | `LetterboxMetrics`（ratio/padX/padY/newW/newH/srcW/srcH） |
 > | `engineMaskSeq` | UI 侧状态 | 已解析的掩码世代号，`!=` 才解析 |
 >
-> ### 六、9-28 血泪史：letterbox 两格字段（631–641 行注释）
+> ### 六、9-28 血泪史：letterbox 两格字段（736–748 行注释）
 >
 > > ⚠️ 2026-09-28：这两格（newW/newH）是**这次才补进协议**的。此前这里硬填 `newW: 0, newH: 0`，
 > > 而 `MaskOverlay` 当时用 `guard metrics.newW > 0` 当绘制守卫 → 引擎模式下掩码全不画
@@ -111,7 +177,7 @@
 >
 > ---
 
-## 一、职责概览与协议版本（第 1–125 行）
+## 一、职责概览与协议版本（第 1–161 行）
 
 **定位（4–16 行头注释）**：`EngineClient.swift` 是 **UI 侧引擎客户端**。职责四条：
 
@@ -124,16 +190,16 @@
 
 **`engineClientLog`（第 25–44 行）**：UI 侧客户端日志，同时写 stdout 与 `~/Library/Logs/AuroraEngineClient.log`——"GUI 进程 stdout 常被缓冲，落盘才能在退出后复查"。格式 `[HH:mm:ss.SSS] [UI-CLIENT] msg`。
 
-**类声明与协议版本（第 46–60 行）**：`@MainActor final class EngineClient`，单例 `static let shared`。
+**类声明与协议版本（第 46–64 行）**：`@MainActor final class EngineClient`，单例 `static let shared`。
 
-**`protocolVersion = 3`（nonisolated static，**第 64 行**）——⚠️ 任何命令/心跳字段变更都必须 +1**。为什么需要（51–59 行注释）：UI 与引擎是**两个独立长驻进程**。重编译后旧引擎可能还活着，而 UI 启动时只要 socket 有人应答就直接连上（单例设计）——于是「新 UI 对着旧引擎说话」：新命令被旧引擎丢进 `未知命令类型`，**静默失败**（按钮照常翻转，引擎毫无反应）。
+**`protocolVersion = 3`（nonisolated static，**第 64 行**）——⚠️ 任何命令/心跳字段变更都必须 +1**。为什么需要（51–63 行注释）：UI 与引擎是**两个独立长驻进程**。重编译后旧引擎可能还活着，而 UI 启动时只要 socket 有人应答就直接连上（单例设计）——于是「新 UI 对着旧引擎说话」：新命令被旧引擎丢进 `未知命令类型`，**静默失败**（按钮照常翻转，引擎毫无反应）。
 
 - 版本 1 = 原始（start/stop/bye/status/upscale/ping）
 - 版本 2 = 新增 record / reloadmodel / config + 心跳 recording/frames/proto 字段
 - **版本 3 = 新增 YOLOPX 掩码传递（可行驶区 + 车道线），shm 布局变更（`pixelsOffset` 20480 → 28672）**
   > ⚠️ 本文正文其余部分按 v2 编写，**v2 内容仍然准确**；v3 增量见文首复核块。
 
-**UI 读取的状态（第 62–99 行）**——引擎模式下 UI 不跑推理，面板显示靠这些（**引擎是权威源**）：
+**UI 读取的状态（第 66–109 行）**——引擎模式下 UI 不跑推理，面板显示靠这些（**引擎是权威源**）：
 
 | 成员 | 说明 |
 |---|---|
@@ -150,36 +216,38 @@
 | `engineSpeed / engineSpeedKmh / engineConfidence` | 有效车速（km/h）/ OCR 读数（-1 = 未读到）/ 置信度（0~1） |
 | `engineRecording / engineRecordFrames` | 引擎录制状态 / 已写盘帧数（帧在引擎进程里，UI 只负责显示与转发开关） |
 
-**内部状态（101–125 行）**：`socketFD/readSource/lineBuffer`（socket）、`shmBase/shmSize`（共享内存映射）、`frameCache: CGImage?` + `lastFrameSeq` + `frameCountSinceConnect`（帧缓存与去重）、`wantPixelBuffer`（UI 要「像素缓冲」形态的帧——开了插帧时为 true，由 UI 每 tick 设置）、`pendingPixelBuffer` + `cvPool/cvPoolW/cvPoolH`（像素缓冲池）、`connectTimer/connectAttempts`（连接轮询）、`relaunchPoll` + `engineRelaunching`（旧引擎重启轮询与防重复触发标记）。
+**内部状态（111–161 行）**：`socketFD/readSource/lineBuffer`（socket）、`shmBase/shmSize`（共享内存映射）、`frameCache: CGImage?` + `lastFrameSeq` + `frameCountSinceConnect`（帧缓存与去重）、`wantPixelBuffer`（UI 要「像素缓冲」形态的帧——开了插帧时为 true，由 UI 每 tick 设置）、`pendingPixelBuffer` + `cvPool/cvPoolW/cvPoolH`（像素缓冲池）、`connectTimer/connectAttempts`（连接轮询）、`relaunchPoll` + `engineRelaunching`（旧引擎重启轮询与防重复触发标记）。
 
-**静态路径（111–118 行）**：`socketPath` = `~/Library/Application Support/AuroraDrive/engine.sock`、`engineLogPath` = `~/Library/Logs/AuroraEngine.log`。`queue` = `DispatchQueue("aurora.engine.client", qos: .userInteractive)`。
+**静态路径（147–154 行）**：`socketPath` = `~/Library/Application Support/AuroraDrive/engine.sock`、`engineLogPath` = `~/Library/Logs/AuroraEngine.log`。`queue` = `DispatchQueue("aurora.engine.client", qos: .userInteractive)`。
 
-## 二、startup / tryConnect / spawnEngine 与旧引擎重启（第 127–314 行）
+## 二、startup / tryConnect / spawnEngine 与旧引擎重启（第 163–353 行）
 
-**`startup()`（第 130–166 行）**——由 AppDelegate 在 `applicationDidFinishLaunching` 调用（**非阻塞**）：
+**`startup()`（第 166–205 行）**——由 AppDelegate 在 `applicationDidFinishLaunching` 调用（**非阻塞**）：
 
 1. `AURORA_UI_LOCAL=1` → 直接 return（本地模式）
 2. `tryConnect()` 成功 → `activate()` → return（已有引擎，直连）
 3. 否则 `spawnEngine()` 失败 → return（回退本地模式）；成功 → **异步轮询连接**：0.3s 间隔定时器（leeway 50ms），每次主线程 `tryConnect()`，连上即 `activate()` + 取消定时器；**20 次（6 秒）仍未连上 → 回退本地模式**
 
-**`activate()`（第 168–176 行）**：`isActive = true`、`isConnected = true`、`lastHeartbeat = Date()`、`attachShm()`、日志"✅ 引擎模式已激活"、`onActivated?()`——**重连后主动同步一次画面档位**（UI 可能开着插帧）。`onActivated` 回调（179 行）：UI 用它把当前档位/状态同步给引擎。
+> 📌 **2026-10-18 补记**：另有**运行期重连**上限——`tryReconnectSoon()`（:390-410）的 `connectAttempts >= 40`（**:597**）+ 0.5s 间隔 ⇒ **20 秒**放弃，保持本地模式。与上面的「首次连接 6 秒」是两套独立阈值，勿混。
 
-**`tryConnect() -> Bool`（第 182–218 行）**：
+**`activate()`（第 207–215 行）**：`isActive = true`、`isConnected = true`、`lastHeartbeat = Date()`、`attachShm()`、日志"✅ 引擎模式已激活"、`onActivated?()`——**重连后主动同步一次画面档位**（UI 可能开着插帧）。`onActivated` 回调（218 行）：UI 用它把当前档位/状态同步给引擎。
+
+**`tryConnect() -> Bool`（第 221–259 行）**：
 
 - `guard socketFD < 0 else { return true }`——已连接幂等
 - `socket(AF_UNIX, SOCK_STREAM, 0)` → 组 `sockaddr_un`（同 EngineSocketServer 的路径 memcpy 写法 + 路径过长 guard）→ `connect`
 - 成功后：`socketFD = fd`、lineBuffer 清空、DispatchSourceRead 挂 `readSocket()`、resume、**`sendCommand("status")` 主动要一次状态**
 - 失败：close + false
 
-**`isEngineStale`（第 226–228 行）**——是否已与「协议版本不匹配的旧引擎」建立过连接：
+**`isEngineStale`（第 265–267 行）**——是否已与「协议版本不匹配的旧引擎」建立过连接：
 
 ```swift
 var isEngineStale: Bool { sawHeartbeat && engineProtocol != Self.protocolVersion }
 ```
 
-⚠️ **判定前提必须是 `sawHeartbeat`，不能写 `engineProtocol != 0`**（220–225 行注释）：**旧引擎压根不发 `proto` 字段**，它的心跳让 `engineProtocol` 永远停在 0。若把 0 当"未知、不算错配"，守卫会恰好漏掉「新 UI × 旧引擎」这个唯一需要它生效的场合（**2026-09-12 实测踩坑**）。
+⚠️ **判定前提必须是 `sawHeartbeat`，不能写 `engineProtocol != 0`**（261–264 行注释）：**旧引擎压根不发 `proto` 字段**，它的心跳让 `engineProtocol` 永远停在 0。若把 0 当"未知、不算错配"，守卫会恰好漏掉「新 UI × 旧引擎」这个唯一需要它生效的场合（**2026-09-12 实测踩坑**）。
 
-**`relaunchStaleEngine()`（第 241–288 行）**——终止协议不匹配的旧引擎，并拉起同版本新引擎。⚠️ **2026-09-12 踩坑记录（第一版写错，导致 UI 陷入无限重启）**：
+**`relaunchStaleEngine()`（第 280–328 行）**——终止协议不匹配的旧引擎，并拉起同版本新引擎。⚠️ **2026-09-12 踩坑记录（第一版写错，导致 UI 陷入无限重启）**：
 
 1. **`bye` 不会让引擎退出**——它只做 `pauseDriving()`，然后等 30 秒空闲才退。所以这里**必须真 kill**，不能靠 bye 商量
 2. **必须等旧引擎死透再 startup()**——否则 `tryConnect()` 会又连回旧引擎，形成「连上→发现旧→重启→又连上」的死循环。flock 单例还会让新引擎直接 `exit(0)`（锁被旧引擎持有），新引擎根本起不来
@@ -192,53 +260,53 @@ var isEngineStale: Bool { sawHeartbeat && engineProtocol != Self.protocolVersion
 3. **真 kill（坑 1）**：`kill(pid, SIGTERM)`，1.2 秒后仍在则 `kill(pid, SIGKILL)`
 4. **轮询等旧引擎死透（坑 2）**：0.4s 间隔，`alive = pid > 0 && kill(pid, 0) == 0`；`!alive || waited >= 8.0` 才 `poll.cancel()` + `engineRelaunching = false` + `startup()`——最多等 8 秒，8 秒未退出仍继续尝试拉起
 
-**`spawnEngine() -> Bool`（第 291–314 行）**：
+**`spawnEngine() -> Bool`（第 330–353 行）**：
 
 - `exeURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.resolvingSymlinksInPath()`——**同二进制**（解析符号链接）
 - `isExecutableFile` 校验 → `Process()` + `arguments = ["--engine"]` → **stdout/stderr 重定向到引擎日志文件**（FileHandle append 模式）
 - `try process.run()` → 记 pid；失败记日志返回 false
 
-## 三、心跳解析 / 共享内存读取 / poll() / 命令发送（第 316–613 行）
+## 三、心跳解析 / 共享内存读取 / poll() / 命令发送（第 355–894 行）
 
-**`readSocket()`（第 318–344 行）**：`read(socketFD, &buf, 8192)` → lineBuffer 按行切分（同 EngineSocketServer 的 0x0A 循环）→ **逐行派发主线程 `handleHeartbeatLine`**；`n <= 0`（断开）→ cancel readSource + close + 主线程 `isConnected = false` + `tryReconnectSoon()`。
+**`readSocket()`（第 357–388 行）**：`read(socketFD, &buf, 8192)` → lineBuffer 按行切分（同 EngineSocketServer 的 0x0A 循环）→ **逐行派发主线程 `handleHeartbeatLine`**；`n <= 0`（断开）→ cancel readSource + close + 主线程 `isConnected = false` + `tryReconnectSoon()`。
 
-**`tryReconnectSoon()`（第 346–366 行）**：`guard isActive else { return }`（未激活不重连）→ connectAttempts 归零 → connectTimer 为 nil 时建 0.5s 间隔定时器（leeway 100ms）→ 主线程 `tryConnect()`，连上置 `isConnected = true` + 取消定时器。
+**`tryReconnectSoon()`（第 390–410 行）**：`guard isActive else { return }`（未激活不重连）→ connectAttempts 归零 → connectTimer 为 nil 时建 0.5s 间隔定时器（leeway 100ms）→ 主线程 `tryConnect()`，连上置 `isConnected = true` + 取消定时器。
 
-**`handleHeartbeatLine(_ line: String)`（第 368–400 行）**——心跳 JSON 解析：
+**`handleHeartbeatLine(_ line: String)`（第 412–455 行）**——心跳 JSON 解析：
 
 - `guard type == "heartbeat"` → `lastHeartbeat = Date()` + `isConnected = true`
 - 逐字段回传（全部 `if let` 可选解包，缺字段不覆盖旧值）：isDriving/isStreaming/fps/modeRaw（`DriveMode(rawValue:)`）/**speed/speedKmh/confidence（引擎模式下 UI 不跑推理，面板/状态栏靠这些刷新）**/recording/frames（**真正的写盘在引擎进程，UI 只负责显示**）/proto（旧引擎不发此字段 → 保持 0）
 - `if !sawHeartbeat { sawHeartbeat = true }`——标记「已收到过心跳」：版本错配判定以此为前置
-- **引擎重启检测（390–399 行）**：只在「已有 pid 且 pid 变了」时重新映射共享内存（`detachShm()` + `attachShm()`）；首次心跳时 enginePID 还是 0，**不能当成重启**（否则白白多映射一次）——else 分支只记录 pid
+- **引擎重启检测（446–453 行）**：只在「已有 pid 且 pid 变了」时重新映射共享内存（`detachShm()` + `attachShm()`）；首次心跳时 enginePID 还是 0，**不能当成重启**（否则白白多映射一次）——else 分支只记录 pid
 
-**`attachShm()`（第 446–467 行）**：
+**`attachShm()`（第 501–522 行）**：
 
 - `guard shmBase == nil`（幂等）→ `swift_shm_open(EngineFrameShm.name, O_RDONLY, 0)`——**只读打开**（引擎是创建者/写者）
 - `fstat` 取 size → `mmap(nil, size, PROT_READ, MAP_SHARED, fd, 0)` → **close(fd)（mmap 后可关闭 fd，映射保持有效）** → shmBase/shmSize 记录、lastFrameSeq 归零
 - 失败路径：日志"共享内存打开失败（引擎可能尚未创建）"——**不阻塞**，下次心跳重试
 
-**`detachShm()`（第 469–477 行）**：`munmap` + shmBase/shmSize 置 nil/0 + frameCache = nil + lastFrameSeq = 0。
+**`detachShm()`（第 524–532 行）**：`munmap` + shmBase/shmSize 置 nil/0 + frameCache = nil + lastFrameSeq = 0。
 
-**`copyIntoPixelBuffer(base:offset:w:h:) -> CVPixelBuffer?`（第 405–437 行）**——从共享内存拷到 CVPixelBuffer（池化复用；供 MetalGoose 插帧消费）：
+**`copyIntoPixelBuffer(base:offset:w:h:) -> CVPixelBuffer?`（第 460–492 行）**——从共享内存拷到 CVPixelBuffer（池化复用；供 MetalGoose 插帧消费）：
 
 - 池惰性创建：32BGRA + **IOSurfaceProperties**（与 CaptureEngine 的 upscale 池相反——这里加 IOSurface，因为消费方是 MetalGoose）
 - 逐行 memcpy：**目标可能有行填充，源侧共享内存是紧凑布局**（`bpr >= w*4`，逐行拷 `copyBytes = w*4`）
 
-**`takePixelBuffer() -> CVPixelBuffer?`（第 440–444 行）**：取出 `pendingPixelBuffer` 并置 nil（**消费一次**；插帧模式用）。
+**`takePixelBuffer() -> CVPixelBuffer?`（第 495–499 行，2026-10-18 实测订正）**：取出 `pendingPixelBuffer` 并置 nil（**消费一次**；插帧模式用）。
 
-**`poll() -> CGImage?`（第 480–572 行）**——每 tick 调用，拉取最新帧与检测结果：
+**`poll() -> CGImage?`（第 609–781 行）**——每 tick 调用，拉取最新帧与检测结果：
 
 1. `guard isActive` → **心跳超时检测**：`isConnected && Date().timeIntervalSince(lastHeartbeat) > 3.0` → `isConnected = false`（"⚠️ 引擎心跳超时（失联）"）
 2. `guard let base = shmBase else { return frameCache }`——未映射时返回缓存
 3. **帧去重**：`seq = base.load(40, u64)`，`seq == lastFrameSeq` → 返回缓存（无新帧复用）；否则更新 lastFrameSeq
 4. 读头部：activePage(36)/w(24)/h(28)/pageSize(72)
-5. **像素读取按 UI 当前档位二选一（498–526 行）**：
+5. **像素读取按 UI 当前档位二选一（628–656 行）**：
    - `wantPixelBuffer`（开插帧）→ 读成 CVPixelBuffer（直接喂 MetalGoose，省一次大图构造）→ 存 `pendingPixelBuffer`
    - 普通显示 → 读成 CGImage：`Data(bytes:src, count:pageSize)` → `CGDataProvider(data:)` → `CGImage(...premultipliedFirst | byteOrder32Little...shouldInterpolate: false)` → 存 `frameCache`；**首帧打日志**："收到引擎首帧 W×H（帧管道打通）"（frameCountSinceConnect == 1）
    - 边界校验：`off + pageSize <= shmSize` 防越界
-6. **检测结果（528–562 行）**：`n = base.load(56, u32)`；`n > 0 || !engineDetections.isEmpty` 才重建数组（检测清零也要清 UI 显示）——逐条读 labelId/conf/cx/cy/bw/bh + rawName（**16 字节遇 0 截断**）→ `Detection(...)`；labelId 反查映射 `1→.car / 2→.pedestrian / 3→.sign / default→.obstacle`
-7. **状态标志（564–569 行）**：flags bit0/bit1 → engineIsDriving/engineIsStreaming；fpsMilli > 0 → engineFPS = /1000
-8. **★掩码读取（v3 新增，596–666 行）**——本项为 v3 新增，本文原按 v2 编写时不存在：
+6. **检测结果（658–692 行）**：`n = base.load(56, u32)`；`n > 0 || !engineDetections.isEmpty` 才重建数组（检测清零也要清 UI 显示）——逐条读 labelId/conf/cx/cy/bw/bh + rawName（**16 字节遇 0 截断**）→ `Detection(...)`；labelId 反查映射 `1→.car / 2→.pedestrian / 3→.sign / default→.obstacle`
+7. **状态标志（773–778 行）**：flags bit0/bit1 → engineIsDriving/engineIsStreaming；fpsMilli > 0 → engineFPS = /1000
+8. **★掩码读取（v3 新增，694–771 行）**——本项为 v3 新增，本文原按 v2 编写时不存在：
    - **物理边界校验**：`maskReadable = shmSize >= maskOffset + maskRegionBytes`——映射长度不够就整个跳过（防 SIGSEGV，详见文首复核块第四节）
    - `maskSeq`（偏移 80）`!= engineMaskSeq` 才解析（世代号去重，避免每帧重复解析）
    - 读 flags（104）→ 4 个位：degraded / valid / laneDegraded / drivableDegraded
@@ -246,14 +314,10 @@ var isEngineStale: Bool { sawHeartbeat && engineProtocol != Self.protocolVersion
    - **尺寸合法性守卫**：`dw/dh/lw/lh <= maskGridMax(160)`——越界会读到像素区
    - 读 letterbox 几何 → `LetterboxMetrics(ratio,padX,padY,padBottom:0,newW,newH,srcW,srcH)`
    - `maskValid` 为假 → 两层掩码都置 `.empty`（"本帧没有掩码"，如未开始驾驶/模型未加载）
-9. **默认发送（576–590 行）**……
 
-**EngineClient 文档至此完整**（**747 行**，2026-09-29 实测；原文写"613 行全覆盖"对应 v2 时代）。
-覆盖：概览与协议版本 → startup/spawn/重启 → 心跳/shm/poll/命令 → **v3 掩码传递（见文首复核块）**。
+**`sendCommand(_ type:extra:)`（第 836–872 行）**：JSON 序列化 `["type": type] + extra` → 行协议（+`\n`）→ `queue.async` 内 `write(fd, ...)`——写盘异步（fd 按值捕获）。
 
-**`sendCommand(_ type:extra:)`（第 576–590 行）**：JSON 序列化 `["type": type] + extra` → 行协议（+`\n`）→ `queue.async` 内 `write(fd, ...)`——写盘异步（fd 按值捕获）。
-
-**三个便捷命令（592–612 行）**：
+**三个便捷命令（874–894 行）**：
 
 | 方法 | 发送 | 说明 |
 |---|---|---|
@@ -261,5 +325,5 @@ var isEngineStale: Bool { sawHeartbeat && engineProtocol != Self.protocolVersion
 | `sendBye()` | `bye` | UI 正常关闭前调用（引擎继续运行） |
 | `sendByeSync()` | `bye`（**同步 write**） | **UI 正常退出前同步发送**——不走异步队列（进程即将退出，异步写可能来不及）；引擎收到 bye 后不触发看门狗停车，保持抓屏推理等待下次重连 |
 
-**EngineClient 文档至此完整**（**747 行**，2026-09-29 实测；原文写"613 行全覆盖"对应 v2 时代）。
+**EngineClient 文档至此完整**（**895 行**，2026-10-17 `wc -l` 实测；原文写"613 行全覆盖"对应 v2 时代）。
 覆盖：概览与协议版本 → startup/spawn/重启 → 心跳/shm/poll/命令 → **v3 掩码传递（见文首复核块）**。

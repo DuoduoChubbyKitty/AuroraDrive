@@ -1,11 +1,20 @@
 # 代码-19 AgentLoop 复合任务规划
-
+> 🔄 2026-10-16 复核：正文 `AuroraDriveApp.swift:NNNN` 已按当前 9088 行版重测（effectiveDetections=4233-4234）；`EgoBoxFilter.swift` 118 行不变。
+>
+> ✅ **2026-10-18 复核（agent-reader）**：逐条 `read` + `grep -n` 核实 AgentLoop.swift（657 行不变）。本次修订：
+> - **新增**：`onProgress`（:136）是**死接线**——`AIAgentPanel.swift:1524` 赋值，但 `handle` 内部 11 处 `progress(...)` 调用全用**闭包参数**，从不读 `onProgress` 属性（§一末尾补注）。
+> - **新增**：`RuleController.fuse(detections:e2e:)`（:182-199）**全仓零调用**（§4.1 表补注）——`grep -rn "fuse(" Sources/` 只命中定义行，无消费点。
+> - **修正 4 处 `AuroraDriveApp.swift` 行号漂移**（文件已 9094 行）：`effectiveDetections` 消费点 :4233-4234 → **:4235-4236**；FallbackGuard 消费者删除块 :6726-6737 → **:6729-6740**；施加点删除块 :7691-7716 → **:7697-7719**。
+> - **确认无误**：`maxDuration = 120`（:212）原文档已正确（旧版曾写 60s，本版已修）；657 行已正确；18 技能 / 15 true / 3 false 已正确。
+>
 > 覆盖源文件：`Sources/AuroraDrive/Agent/AgentLoop.swift`（**657 行**，2026-10-07 `wc -l` 实测）。
+> ♻️ **行号已按 9097 行版重基准（2026-10-18）**：源码冻结后对全部 **11 条** `X.swift:N` 逐条 `sed -n` 比语义 + `grep -n` 定真值。**11 条行号全部命中、零漂移**（`AgentLoop.swift` 657 行未变；`AIAgentPanel.swift` 的 68 / 90-128 / 96 / 98 / 110 / 112 / 114 / 263 / 1500 / 1524 / 1529-1538，以及 `AuroraDriveApp.swift:4235-4236`、`AgentLoop.swift:144-146` / `:385` 均正确）。
+> 但**发现并修正 1 处语义错误**（非行号问题）：原文称 `:385` 文案里 5 个技能「早已是 `ported: true`」——实际 `rhythm`（`:112`）是 `ported: false`，只有其余 4 个已移植。详见 §三「文案口径」条。
 > 🔁 **2026-10-07 由文档核对代理 E4 按当前源码重写**：本文旧版描述的是 **325 行**版本（2026-10-06 A5 复核稿），
 > 现源文件已增至 **657 行**——本次改造为 **W7「规划/执行复用新传输层与工具注册表」**：
 > `RealLLMPlanner` 不再自带 HTTP、不再调 `AgentSkillCenter.callLLM`，改走 **`LLMTransport`(W2) + `ToolRegistry`(W4)**，
 > 可用模型来自 **`LLMHealthMonitor`(W3) 候选链**。弱模型防线 4/5/6/7/8/10 **逐条保留**（源码 :31-38 明文要求"不许删"）。
-> 旧文的全部行号、协议字段、执行通道描述均已失效，故全文重写；行号全部为 2026-10-07 实测。
+> 全文按当前源码重写（2026-10-07 E4 初版 + **2026-10-17 T7 逐条 `grep -n` 复测**）；行号全部为实测值。
 >
 > ⚠️ **技能清单勘误**：旧文写「18 个技能、其中 17 个 `ported:true`」**有误**。实测（AIAgentPanel.swift:90-128）：
 > 18 个技能里**只有 15 个显式 `ported: true`**，唯一显式 `ported: false` 的是 `preset_realtime`（:124）；
@@ -50,7 +59,7 @@ AgentSkillCenter.sendUserMessage("帮我登录然后领奖励")
 | `resetLLMDowngrade()`（:124-127） | **手动恢复 AI 规划**（面板"AI 规划"开关/CLI 调用此方法）：连败清零 + 恢复 true |
 | `isRunning`（private(set)，:130） | 是否正在运行任务 |
 | `maxSteps = 8`（private let，:133） | **最多连续工具调用步数（防模型死循环）** |
-| `onProgress: ((String) -> Void)?`（:136） | 执行过程中的进度回调（UI 显示用） |
+| `onProgress: ((String) -> Void)?`（:136） | 执行过程中的进度回调（UI 显示用）。⚠️ **死接线**：`AIAgentPanel.swift:1524` 赋值 `loop.onProgress = { … }`，但 `handle` 内部 11 处 `progress(...)` 调用全用**闭包参数**（`progress: @escaping (String) -> Void`，:143），从不读 `onProgress` 属性 → 该属性赋值后**从未被调用**。保留但不影响功能（UI 进度靠闭包参数 :1533 的 `DispatchQueue.main.async` 驱动）。 |
 
 ## 二、handle() 主循环与弱模型防线（第 140–287 行）
 
@@ -122,7 +131,7 @@ AgentSkillCenter.sendUserMessage("帮我登录然后领奖励")
 - **`plan(task:) async -> [AgentToolCall]`（:365-376）**：`for rule in rules where calls.isEmpty`——**只取第一条命中规则**；`rule.skills.enumerated().map { i, sid in AgentToolCall(id: "mock-\(sid)-\(i)", skillID: sid, args: [:]) }`；无命中返回 []
 - **`nextStep`（:378-381）**：**Mock 模式单轮规划即完成（无多步依赖），恒返回 nil**
 - **`finalize`（:383-389）**：history 空 → "我没有找到匹配的技能。当前可用：登录、排球、领奖励、收家具（真实），钓鱼/咖啡/钢琴/闪避/超强音（待移植）。…"（:385）；非空 → "任务完成：共执行 N 个技能。" + 摘要串接（:387-388）
-- ⚠️ **文案口径已过期**：:385 仍说"钓鱼/咖啡/钢琴/闪避/超强音（待移植）"，但那 5 个**早已是 `ported: true` 的真实技能**（AIAgentPanel.swift:96/98/110/114/112）——**代码未随技能清单更新**，MockLLMPlanner 也不查 `ported`（plan 直接返回调用，靠 execute 三重校验兜底）。本文只如实记录该漂移，未改代码。
+- ⚠️ **文案口径已过期（且原描述有一处说反了，♻️ 2026-10-18 修正）**：`AgentLoop.swift:385` 仍说"钓鱼/咖啡/钢琴/闪避/超强音（待移植）"。其中 **4 个确已 `ported: true`**（`AIAgentPanel.swift:96` fishing / `:98` coffee / `:110` piano / `:114` dodge），但 **`rhythm`（超强音）实为 `ported: false`**——`:112-113` 未写 `ported` 字段，走 `:68` 的默认值 `false`，与文档原先把这 5 个并列为 "早已是 ported: true" **不符**（原文把 :112 也当成了已移植例证）。⟹ 该处文案对 4 个技能确实过期，对 `rhythm` **仍然正确**。MockLLMPlanner 也不查 `ported`（plan 直接返回调用，靠 execute 三重校验兜底）。本文只如实记录该漂移，未改代码。
 
 **`RealLLMPlanner`（final class，:396-657）**——真实 LLM 调用（**W7 复用新传输层**）：**本类不做 HTTP、不手工拼 tools**（:394-395）。
 
@@ -166,31 +175,31 @@ AgentSkillCenter.sendUserMessage("帮我登录然后领奖励")
 ### 4.1 文件职责一览（行数 2026-10-07 `wc -l` 实测）
 
 - **AgentLoop.swift**（**657 行**）：本文主体——零框架原生 Tool-Calling 任务循环（W7 复用 LLMTransport + ToolRegistry）。
-- **RuleController.swift**（200 行）：YOLO 检测→控制量的规则控制器（:79 类声明）。核心语义（2026-10-02 用户要求，:138-152 注释）：**绝不自动刹车**（本游戏 brake = S 键兼倒车），危险时只压油门 + 反向转向（b 恒 0）；三档危险分级 :153-174。`fuse(detections:e2e:)`（:182-199）做「危险规则覆盖、安全信 E2E」融合。
+- **RuleController.swift**（200 行）：YOLO 检测→控制量的规则控制器（:79 类声明）。核心语义（2026-10-02 用户要求，:139-152 注释）：**绝不自动刹车**（本游戏 brake = S 键兼倒车），危险时只压油门 + 反向转向（b 恒 0）；三档危险分级 :153-174。`fuse(detections:e2e:)`（:182-199）做「危险规则覆盖、安全信 E2E」融合。⚠️ **✅ 2026-10-18 复核**：`fuse` **全仓零调用**（`grep -rn "fuse(" Sources/` 只命中定义行 :182，无消费点）→ 该方法是**死代码**。`dangerLevel`/`nearestDetection` 两个 `@Observable` 状态同样只写不读。
 - **DegradeStateMachine.swift**（165 行）：三档降级梯子 e2e → yolo → rule（:6）。优先级：forceRule（:92-97）> 极速模式强制 e2e（:101-104）> 暖机保持（:108-110）> 健康度+滞回驱动（:113-137，恢复阈值 0.99 上限防死锁 :114）。**脱困档 .recover 已删**（:7-8、:36-38），详见 代码-20。
 - **DriveSegmentController.swift**（430 行）：驾驶分段状态机 vision→mapTurn/junction→straighten→handover→vision（:37-50 枚举）。交接**四条件 AND**（:340-362）：走廊内 :343-348、位移达标 :350-351、拟合稳定 :353、车道线置信 >0.25 :355；连续帧累计 :357-361（破裂则退不硬凑），12s 凑不齐退回回正段 :378-382。6 个参数全部来自 AURORA_SEG_*（init :104-113，走 AuroraFlags）。
-- **EgoBoxFilter.swift**（118 行）：按**面积**剔除第三视角自车框（纯函数 struct，:53）。阈值 4.0%（:63，实测依据 :29-39：自车框 min 4.25% / 真车中位 0.17%，差 33 倍）；fail-open（异常面积保留 :42、:91-95）；**只作用于决策层，UI 照画全部框**（:45-46；消费点 `effectiveDetections = egoBoxFilter.filter(displayDetections)`，AuroraDriveApp.swift:4186-4188）。
-- **FallbackGuard.swift**（280 行）：双结构几何兜底（结构 A 中心带内面积最大框 :220-234、结构 B IoU≥0.15（:104）或中心距≤0.06（:110）判碰撞 :166-176），连续 3 帧确认 :113、:183-186。⚠️ **主链路已停用**：AuroraDriveApp.swift:7095-7121 的删除块（结论句 :7115-7119：几何兜底原理不成立、**整体删除不留任何脱困措施**、脱困唯一途径改为请求人工介入），实例与类型保留仅供诊断/自检（:7119-7120）。
-- **AIAgentPanel.swift**（**3253 行**）：AI 面板 + 技能中枢。`AgentSkillLibrary`（:90-128）18 个技能清单（**15 个 `ported: true`**，见文首勘误）；`AgentSkillCenter`（:135 起，`static let shared` :137）是「人类点击与 AI 指令的唯一执行通道」（:133 注释），`workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)`（:256）、LLM 调用 `callLLM` :274、`runSkill` :576、`sendUserMessage` :1487；AgentLoop 调用点在 :1519（复合判据 :1508），自检 3.6 :1849-1855。
+- **EgoBoxFilter.swift**（118 行）：按**面积**剔除第三视角自车框（纯函数 struct，:53）。阈值 4.0%（:63，实测依据 :29-39：自车框 min 4.25% / 真车中位 0.17%，差 33 倍）；fail-open（异常面积保留 :42、:91-95）；**只作用于决策层，UI 照画全部框**（:45-46；消费点 `effectiveDetections` 计算属性 = `egoBoxFilter.filter(displayDetections)`，**AuroraDriveApp.swift:4235-4236**，✅ 2026-10-18 复核修正：原写 :4233-4234，那两行是注释不是代码）。
+- **FallbackGuard.swift**（280 行）：双结构几何兜底（结构 A 中心带内面积最大框 :220-234、结构 B IoU≥0.15（:104）或中心距≤0.06（:110）判碰撞 :166-176），连续 3 帧确认 :113、:183-186。⚠️ **主链路已停用**：AuroraDriveApp.swift 有两处删除记录——tick 内消费者删除块 **:6729-6740**（结论句 **:6739-6740**：实例与类型保留仅供自检、不再参与任何控制），施加点删除块 **:7697-7719**（结论句 **:7717-7719**：几何兜底原理不成立、**整体删除不留任何脱困措施**、脱困唯一途径改为请求人工介入）。✅ 2026-10-18 复核修正行号（原写 :6726-6737 / :7691-7716 / 结论句 :6736-6737 / :7710-7716 —— `AuroraDriveApp.swift` 已增至 9094 行，全部漂移 3~7 行）。附带：`FallbackGuard.evaluate` 的 `isDegraded` 形参、`lastResult`、`collisionStreak` 均无消费者。
+- **AIAgentPanel.swift**（**3273 行**，2026-10-16 `wc -l` 实测；原文写 3253 行）：AI 面板 + 技能中枢。`AgentSkillLibrary`（:90-128）18 个技能清单（**15 个 `ported: true`**，见文首勘误）；`AgentSkillCenter`（:135 起，`static let shared` :137）是「人类点击与 AI 指令的唯一执行通道」（:133 注释），`workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)`（:263）、LLM 调用 `callLLM` :281、`runSkill` :583、`sendUserMessage` :1500；AgentLoop 调用点在 :1532（复合判据 :1521），自检 3.6「AgentLoop 端到端规划」:1862-1868。
 - **LoginAssistant.swift**（166 行）：OCR 自动登录引擎（:27 类声明），Vision OCR（:47 `VNRecognizeTextRequest`）→ 关键词优先级匹配（`buttonKeywords` :40-44）→ 屏幕点击 → 2s 后重截图验证（`verifyDelay = 2.0` :118、:133-138），有界 3 轮（`maxRounds: Int = 3` :119）。`locateButton`（:66/:72）也被领奖励/收家具等技能复用。
 - **W1–W4 新传输层（2026-10-07 复核，本目录）**：`AgentSettings.swift`（262 行，`LLMBackendKind` :29）、`LLMBackend.swift`（884 行，`LLMBackendDescriptor` :94、`LLMBackendRegistry`）、`LLMTransport.swift`（1580 行，`LLMErrorKind` :62、`LLMToolSpec` :375、`LLMCompletion` :451、`LLMRequest` :478、`protocol LLMTransport` :526、`LLMTransportFactory.make` :1567）、`LLMHealth.swift`（1791 行，`LLMCandidate` :112、`LLMHealthMonitor`、`candidates(preferred:…)` :840）、`ToolRegistry.swift`（1065 行，`shared` :119、`specs()` :372、`invoke(name:args:dryRun:)` :388）、`WebSearch.swift`（1463 行）、`AgentChatService.swift`（618 行，`systemPrompt` :151）、`LLMSelfTest.swift`（2183 行）。
 
 ### 4.2 AI 任务链（非驾驶）
 
 ```
-AgentSkillCenter.sendUserMessage(text)（AIAgentPanel.swift:1487）
-  ├─ 停止指令优先（:1493-1498）
-  ├─ 关键词直配成功（单技能且非复合）→ 直接 runSkill（:1530-1535）
-  └─ 复合任务（matchedCount >= 2 或 单技能带任务动词 isComplexTask，:1508）
-       → AgentLoop.shared.handle(task, from: .ai)（调用点 AIAgentPanel.swift:1519，Task 内 await，不阻塞 workQueue）
+AgentSkillCenter.sendUserMessage(text)（AIAgentPanel.swift:1500）
+  ├─ 停止指令优先（:1506-1512）
+  ├─ 关键词直配成功（单技能且非复合）→ 直接 runSkill（:1543-1548）
+  └─ 复合任务（matchedCount >= 2 或 单技能带任务动词 isComplexTask，:1521）
+       → AgentLoop.shared.handle(task, from: .ai)（调用点 AIAgentPanel.swift:1532，Task 内 await，不阻塞 workQueue）
             → 候选链（W3）→ RealLLMPlanner（LLMTransport）plan → 执行循环 → nextStep → finalize
             → execute() → ToolRegistry.invoke（:316）统一执行（技能类先过三重校验）
-  └─ 自由聊天（无技能命中）→ AgentChatService.reply（:1538 起，独立于 AgentLoop）
+  └─ 自由聊天（无技能命中）→ `sendChatMessage`（:1555 调用；内部走 AgentChatService.reply :1591，独立于 AgentLoop）
 ```
 
 ### 4.3 线程要点（本目录相关）
 
-- `AgentSkillCenter.workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)`（AIAgentPanel.swift:256）——所有技能循环定时器（`DispatchSourceTimer`，声明 :241-254）与异步任务都在它上面串行跑；AgentLoop 的 handle 走独立 `Task`（AIAgentPanel.swift:1517-1524 注释：**已去掉会永久阻塞 workQueue 的 semaphore**）。
+- `AgentSkillCenter.workQueue = DispatchQueue(label: "agent.skill", qos: .userInteractive)`（AIAgentPanel.swift:263）——所有技能循环定时器（`DispatchSourceTimer`，声明 :248-262）与异步任务都在它上面串行跑；AgentLoop 的 handle 走独立 `Task`（AIAgentPanel.swift:1529-1538 注释：**已去掉会永久阻塞 workQueue 的 semaphore**）。
 - `AgentLoop.handle` 有 `isRunning` 互斥（AgentLoop.swift:144-146），任务不并发。
 - **W7 后 execute 内已无 `Thread.sleep`**：旧文"阻塞调用方 0.6s"的描述随 `AgentSkillCenter.callLLM` 路径一并作废。
 - DegradeStateMachine / RuleController / DriveSegmentController / EgoBoxFilter 均在**主线程 tick** 里被调用（见 代码-25 第八节），无自带队列。

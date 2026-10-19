@@ -1,5 +1,7 @@
 # 代码-36 RoadMapPrior 路网先验
 
+> ✅ **2026-10-18 复核**（merge-arch）：源码 360 行未变，**本文全部行号与常量逐条命中、零漂移、零修正**。13 个常量（shared:48 / gridSize:53 / metersPerCell:56 / calibA:59 / calibB:60 / calibTX:61 / calibTY:62 / mapPixels:63 / headingAgreementDeg:76 / nearRadiusCells:79 / farRadiusCells:80 / junctionPenalty:83 / lock:90）+ 11 个 API（ensureLoaded:104 / locateResource:151 / isLoaded:176 / worldToGrid:184 / gridToWorld:195 / isOnRoad:210 / nearestRoadPoint:225 / roadHeadingCandidates:273 / pcaLineAngle:308 / ringDiff180:336 / selfTest:344）全部对上。三次修正记录（:18-31）与源码头注释逐字一致。资产实测：`road_prior_2048_t70_fixed.png` 42,993 B ✓、`bigworldmap-13056.jpg` 7,740,402 B（doc 写 7.7MB ✓）、两个生成脚本均存在。**本类是现役代码**（DriveSegmentController:125 / AuroraDriveApp:8049-8050 / PerfSelfTest:449-461 均调用），非死代码。
+
 > 覆盖源文件：`Sources/AuroraDrive/Inference/RoadMapPrior.swift`（**360 行**，2026-10-02 实测）
 > 数据源：`models/road_prior_2048_t70_fixed.png`（**42993 B**）
 > 关联：[`代码-35-RoadCornerGuide弯道先验.md`](代码-35-RoadCornerGuide弯道先验.md)、
