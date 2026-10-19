@@ -69,10 +69,19 @@ final class ConfidenceEstimator: @unchecked Sendable {
     private var steerHistory: [Double] = []
     /// 最近 N 帧是否极端（转向打满）的标记
     private var extremeHistory: [Bool] = []
-    /// 长窗口极端标记（3 秒，判"持续打满=贴墙/打转退化"）
+    /// 长窗口极端标记（判"持续打满=贴墙/打转退化"；长度见 longExtremeWindow）
     private var longExtremeHistory: [Bool] = []
 
-    /// 长窗口帧数（3 秒 @30Hz）：持续打满这么久还没松 → 不是过弯，是退化
+    /// 长窗口帧数：持续打满这么久还没松 → 不是过弯，是退化。
+    ///
+    /// ⚠️ **2026-10-18 审计发现的口径漂移（只标注，未改数值）**：
+    ///   本值按「3 秒 @30Hz」定为 90 帧，但 tick 已于 2026-10-12 定档 **20Hz**
+    ///   → 90 帧实际是 **4.5 秒**（比设计意图慢 50%），即"方向持续打满"要更久
+    ///   才会被判为退化。属 20Hz 迁移的漏改项之一（同批还有
+    ///   `YoloEngine.lockLostFrames` / `MotionPredictor.maxPredictionFrames` /
+    ///   `maxMissingFrames` / `LaneFallback.stabilityFrames`）。
+    ///   改数值会改变降级时序，属产品决策，故此处**只标注不改**；
+    ///   若要恢复 3 秒语义，应改为 60（或按 tickHz 换算）。
     var longExtremeWindow: Int = 90
     /// 长窗口打满占比阈值：超过 → 判持续退化
     var longExtremeRatioThreshold: Double = 0.7

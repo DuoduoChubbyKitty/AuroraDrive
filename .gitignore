@@ -17,6 +17,18 @@ checkpoints/
 /data/
 archive/
 backups/
+# ⚠️ 2026-10-20：`.backups/`（名前多一个点）不在上方 `backups/` 的匹配范围，
+#   66MB 的删除备份一度要进 `git add -A`。连同模型备份目录一起显式挡住。
+.backups/
+.agents/
+models/_backup_*/
+models/*.old_*/
+models/*.old_fp16_*/
+# ⚠️ 上面几条挡不住 `models/m9_v2_enc.mlmodelc.fp16_20261014/` 这种形态 ——
+#   目录名是「模型产物名 + .fp16_ + 日期」，`*.old_*` 锚在 `.old_` 上自然漏掉。
+#   改用「.mlmodelc. 后跟任意后缀」+「_YYYYMMDD 日期后缀」两式覆盖一切变体。
+models/*.mlmodelc.*/
+models/chaseview-pretrained/
 留档/
 models/pair_checks/
 lane_batches.json

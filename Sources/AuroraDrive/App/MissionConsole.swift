@@ -364,7 +364,12 @@ struct RCChip: View {
 struct RCBar: View {
     @Binding var condition: RoadCondition
     let autoSpeedOn: Bool
-    /// 当前 YOLO 检测框数量（自动速度的判定依据，如实展示）
+    /// 当前检测框数量（自动速度的判定依据，如实展示）
+    /// 2026-10-19 改口径：原名写「YOLO 检测框数量」，但这个数字的上游是
+    /// `state.detectedBoxCount ← effectiveDetections.count`（AuroraDriveApp.swift:7521），
+    /// 其数据源 `displayDetections` 在当前感知档位下走的是**该档的模型**
+    /// （A 模型档 = A-YOLOM 的框，legacy 档 = 26S/YOLOPX 的框）。
+    /// 叫「YOLO」会让 A 模型档用户以为 26S 在出框，故去掉型号字样。
     var detectedBoxCount: Int = 0
     @State private var hovered: RoadCondition?
 
@@ -391,7 +396,7 @@ struct RCBar: View {
 
             Spacer()
 
-            // 判定依据如实展示：当前 YOLO 框数 + 阈值。
+            // 判定依据如实展示：当前感知档模型的检测框数 + 阈值。
             // 让用户能直接看到「自动速度」是按什么在判 —— 不是黑箱。
             if autoSpeedOn {
                 HStack(spacing: 5) {
@@ -1846,6 +1851,47 @@ struct MiniMapCard: View {
 
                 MiniMapCanvas(state: state)
 
+                // ── 朝向读数（箭头=角色朝向 / 光束=视角朝向）──
+                // 每行都带"为什么"：两个角度不一致时用户能立刻看出相机独立转了。
+                // 指针读数不可用时如实写「无指针」，不拿视角朝向冒充角色朝向。
+                HStack(spacing: 10) {
+                    if let body = state.bodyHeadingDeg {
+                        Label {
+                            Text(String(format: "箭头 %.0f°", body))
+                                .font(.system(size: 9.5, weight: .medium))
+                                .foregroundStyle(Aurora.ice)
+                        } icon: {
+                            Image(systemName: "location.north.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(Aurora.ice)
+                        }
+                        Text(String(format: "conf %.2f", state.bodyHeadingConf))
+                            .font(.system(size: 8.5))
+                            .foregroundStyle(Aurora.t4)
+                    } else {
+                        Label {
+                            Text("无指针")
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(Aurora.t4)
+                        } icon: {
+                            Image(systemName: "location.north")
+                                .font(.system(size: 8))
+                                .foregroundStyle(Aurora.t4)
+                        }
+                    }
+                    Divider().frame(height: 10)
+                    Label {
+                        Text(String(format: "光束 %.0f°", state.locatorHeading))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(Aurora.t3)
+                    } icon: {
+                        Image(systemName: "viewfinder")
+                            .font(.system(size: 8))
+                            .foregroundStyle(Aurora.t3)
+                    }
+                }
+                .padding(.top, 8)
+
                 NavLine(state: state).padding(.top, 10)
             }
         }
@@ -1971,13 +2017,31 @@ struct MiniMapCanvas: View {
                     //   点积算出）。箭头用 Capsule 竖条 + `offset(y:-13)` 使其
                     //   初始指向正上方（屏幕 -Y = 北），再 `rotationEffect` 顺时针
                     //   旋转 heading 度 —— 与罗盘定义一致（SwiftUI 正角度=顺时针）。
+                    // ── 双层朝向标 ──
+                    // 光束（半透明扇形）= 视角朝向（locatorHeading = ControlRotation）
+                    // 箭头本体（实心竖条）= 角色朝向（bodyHeadingDeg，读小地图指针）
+                    // 两者不一致时肉眼可见「箭头与光束错开」= 相机独立转了，
+                    // 这正是第三视角下「视角≠车头」的可视化。
+                    // bodyHeadingDeg 为 nil（模型未加载/失败）时箭头回退视角朝向。
                     ZStack {
+                        Path { p in
+                            let r: Double = 20
+                            p.move(to: CGPoint(x: 20, y: 20))
+                            p.addArc(center: CGPoint(x: 20, y: 20), radius: r,
+                                     startAngle: .degrees(255), endAngle: .degrees(285),
+                                     clockwise: false)
+                            p.closeSubpath()
+                        }
+                        .fill(Aurora.ice.opacity(0.12))
+                        .frame(width: 40, height: 40)
+                        .rotationEffect(.degrees(state.locatorHeading))
+
                         Circle().fill(Aurora.ice.opacity(0.20)).frame(width: 24, height: 24)
                         Capsule()
                             .fill(Aurora.ice)
                             .frame(width: 2.5, height: 11)
                             .offset(y: -10)
-                            .rotationEffect(.degrees(state.locatorHeading))
+                            .rotationEffect(.degrees(state.bodyHeadingDeg ?? state.locatorHeading))
                         Circle().fill(Aurora.ice).frame(width: 8, height: 8)
                             .shadow(color: Aurora.ice, radius: 8)
                     }
@@ -3343,6 +3407,9 @@ struct PerceptionPickerCard: View {
     private func chip(_ m: PerceptionMode) -> some View {
         let on = state.perceptionMode == m
         let accent = (m == .ayolom) ? Aurora.ok : Aurora.ice
+        // 26S 的真实装载状态（本地模式才有意义，引擎模式下推理在引擎进程）。
+        // 抽成局部常量而非内联三元：本文件既有风格是 chip 顶部先算好 let 再用。
+        let yolo26sState = state.yoloEngine.isLoaded ? "已加载" : "未加载"
 
         Button {
             state.selectPerceptionMode(m)
@@ -3368,6 +3435,39 @@ struct PerceptionPickerCard: View {
                     .font(.system(size: 8.5))
                     .foregroundStyle(Aurora.t4)
                     .lineLimit(1)
+                // ── 档位事实行（2026-10-19 用户铁律：隐蔽开关是排查噩梦）──
+                //
+                // 【为什么单独一行，不改 PerceptionMode.subtitle】
+                //   subtitle 是 YolopxEngine.swift 的域（task-3），且被切档日志与
+                //   `--perception-selftest` 共用；这里只补「本档到底加载/跑哪些模型」
+                //   这一件 UI 必须可见的事实，diff 锁在本文件内。
+                //
+                // 【文案边界】只写代码已确定的事实：
+                //   · A 模型档：yolo26s 不加载也不推理（开机门 AuroraDriveApp.swift:6317
+                //     与每帧门 :6977 双重保证）；
+                //   · legacy 档：26S 检测 + 光流 + YOLOPX 三合一照常（该档行为不变，
+                //     光流门 `perceptionMode.needsOpticalFlow` 只作用于 A 模型档）。
+                //   A 模型档是否「不跑光流」待 flow-risk 结论，**未定稿前本行不写**。
+                Text(m == .ayolom
+                     ? "仅 A-YOLOM 三合一 · 不加载 26S"
+                     : "26S 检测 + 光流 + YOLOPX 三合一")
+                    .font(.system(size: 8))
+                    .foregroundStyle(Aurora.t4.opacity(0.85))
+                    .lineLimit(1)
+                // 本地模式下补一行 26S 的**真实**加载状态（读 YoloEngine.isLoaded，
+                // 它由开机门 / 切档装卸真实驱动）。引擎模式整行隐藏：那时本地
+                // yoloEngine 恒未加载（推理在引擎进程），显示出来会是假值。
+                //
+                // 【为什么只挂在选中档】isLoaded 是**全局**状态（描述"此刻加载了没"），
+                //   不是每个档位的属性。挂在未选中档上会出现「A 模型档写着不加载 26S、
+                //   旁边却显示已加载」的观感矛盾（其实因为当前选的是 legacy）。
+                //   只挂选中档 → 事实行说"这一档在跑什么"，状态行印证"此刻确实如此"。
+                if on, !EngineClient.shared.isActive {
+                    Text("26S（本地）\(yolo26sState)")
+                        .font(.system(size: 8))
+                        .foregroundStyle(state.yoloEngine.isLoaded ? Aurora.ice : Aurora.t4)
+                        .lineLimit(1)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
@@ -5531,7 +5631,12 @@ struct DecisionRail: View {
             section("当前状态", "LIVE") {
                 mini("M9 端到端", state.mode == .e2e ? "在线" : "待机",
                      state.mode == .e2e ? Aurora.ok : Aurora.t4)
-                mini("YOLO 感知", state.mode == .yolo ? "在线" : "待机",
+                // 2026-10-19：原名「YOLO 感知」。这个 mini 说的是**主驾档位**
+                // DriveMode.yolo（= assistEngine 那套驾驶模型接管，AuroraDriveApp.swift:4051），
+                // 与 yolo26s 检测网是否加载/运行毫无关系。用户实测会把它读成
+                // 「26S 感知在跑」—— A 模型档下 26S 根本不加载，这就是误导。
+                // 改名对齐 rawValue「YOLO接管」，去掉「感知」这个会被误读的词。
+                mini("YOLO 接管档", state.mode == .yolo ? "在线" : "待机",
                      state.mode == .yolo ? Aurora.ok : Aurora.t4)
                 mini("SpeedOCR", state.speedValid ? "\(Int(state.speedKmh)) km/h" : "待机",
                      state.speedValid ? Aurora.ok : Aurora.t4)
@@ -6110,8 +6215,12 @@ struct ContentView: View {
         // 优先级队列上运行，不受 App Nap 影响。
         let timerQueue = DispatchQueue(label: "com.aurora.tick", qos: .userInteractive)
         let timer = DispatchSource.makeTimerSource(queue: timerQueue)
-        timer.schedule(deadline: .now(), repeating: 1.0 / 30.0, leeway: .nanoseconds(0))
-        // ⚠️ 性能关键：不要无条件按 45Hz 往主线程投递 tick。
+        // ⚠️ 2026-10-12 定档 20Hz：与 `EngineMain.engineTickHz`（引擎进程 tick）
+        //   保持一致。UI-local 模式（未连引擎）下 DriveState.tick() 由本定时器
+        //   驱动，若两边频率不同，`dt` 与帧计数常量的实际时间会错。
+        //   （原为 1.0/30.0，是 20Hz 定档前的遗留值。）
+        timer.schedule(deadline: .now(), repeating: 1.0 / 20.0, leeway: .nanoseconds(0))
+        // ⚠️ 性能关键：不要无条件按满频往主线程投递 tick。
         //
         // 每次投递都会让 SwiftUI 走一遍事务 → 重新计算整棵视图树的布局
         // （实测采样里 LayoutEngineBox.explicitAlignment / flushObservers
@@ -6119,15 +6228,16 @@ struct ContentView: View {
         // 完全是无用功，却把 UI 进程常年烧在 25-36%、WindowServer 44%+，
         // 整机发烫、帧率掉到 20 多帧。
         //
-        // 按需求分级：开车 / 录制 / 引擎联动时保持 45Hz 实时性；
-        // 纯待机降到约 5.6Hz —— 待机时界面本就静止，不需要 45Hz 刷新。
+        // 按需求分级：开车 / 录制 / 引擎联动时保持满频（20Hz）实时性；
+        // 纯待机降到约 2.5Hz —— 待机时界面本就静止，不需要满频刷新。
+        // （原注释写 45Hz / 8 ≈ 5.6Hz，是 45Hz 时代的遗留口径；现为 20Hz / 8 ≈ 2.5Hz。）
         var idleSkip = 0
         timer.setEventHandler {
             // 这些读取都是常量级，且不写状态，不会触发重绘
             let busy = state.isDriving || state.isRecording
             if !busy {
                 idleSkip += 1
-                if idleSkip < 8 { return }   // 45Hz / 8 ≈ 5.6Hz 待机刷新
+                if idleSkip < 8 { return }   // 20Hz / 8 ≈ 2.5Hz 待机刷新
                 idleSkip = 0
             } else {
                 idleSkip = 0

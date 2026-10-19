@@ -158,6 +158,13 @@ final class YoloEngine {
 
     /// 模型定位：优先编译产物 .mlmodelc，回退 .mlpackage。
     /// YOLOv26s 替换后模型名从 game_assist_yolo 改为 yolo26s（旧文件保留作回滚）。
+    ///
+    /// ⚠️ 若要换模型文件，必须先编译出同名 .mlmodelc 并替换/删除现役 .mlmodelc；
+    ///    仅加一个 .mlpackage **不会生效**（本处优先返回 .mlmodelc）。
+    ///    2026-10-19 model-compare 实测：`yolo26s` 与 `yolo26s_int8` 的 weight.bin
+    ///    md5 相同、280 帧真实游戏画面输出张量 max|Δ| = 0，两者本就是同一份导出，
+    ///    `int8` 后缀是误导（现役 storagePrecision 已是 "Mixed (Float16,
+    ///    Palettized (8 bits))"，101 个权重走 8bit LUT，无需再量化）。
     private var modelURL: URL {
         let modelsDir = AuroraPaths.projectRoot()
             .appendingPathComponent("models")
@@ -236,7 +243,11 @@ final class YoloEngine {
     // MARK: - 推理入口（主线程）
 
     /// 异步检测
-    /// - Parameter image: 截屏画面 CGImage（CaptureEngine 直传，内部拉伸到 352×352）
+    /// - Parameter image: 截屏画面 CGImage（CaptureEngine 直传，内部拉伸到 640×640）
+    ///
+    /// ⚠️ 2026-10-19 订正：原文写「拉伸到 352×352」是**过期尺寸**（旧 FastestV2
+    ///   时代的输入）。YOLOv26s 官方输入 640（见上方 `inputSize` 常量 :44），
+    ///   352 在全项目已不存在。
     func infer(image: CGImage) {
         guard enabled else { return }
         guard isLoaded, let modelRef = model else {
@@ -379,7 +390,10 @@ final class YoloEngine {
         }
     }
 
-    /// 像素缓冲整块拷贝（352×352 BGRA，约 0.5MB）
+    /// 像素缓冲整块拷贝（640×640 BGRA，约 1.6MB）
+    ///
+    /// ⚠️ 2026-10-19 订正：原文写「352×352 BGRA，约 0.5MB」是过期尺寸与过期字节数
+    ///   （旧 FastestV2 时代）。现为 640×640×4 = 1.6MB（`inputSize` = 640，见 :44）。
     private nonisolated static func copyPixelBuffer(_ src: CVPixelBuffer,
                                                     to dst: CVPixelBuffer) -> Bool {
         CVPixelBufferLockBaseAddress(src, [])
@@ -474,6 +488,44 @@ final class YoloEngine {
         lockLostFrames = 0
         lockMessage = nil
         fastPathActive = false
+    }
+
+    // MARK: - 模型卸载（2026-10-19，A 模型档专用）
+
+    /// 把 yolo26s 从内存里卸掉（释放 9.2MB 权重 + CoreML 运行时占用）。
+    ///
+    /// 【为什么需要】A 模型档（`.ayolom`）的设计原话是「**只跑 A-YOLOM(n) int8
+    ///   一个三合一模型**」（PerceptionMode.swift:194-200），yolo26s 只属于
+    ///   legacy 三件套档。但 `AuroraDriveApp` 开机无条件 `loadIfNeeded()`、
+    ///   `detectGateB` 又没有档位门 → A 模型档下它既常驻 9.2MB 内存，又每两帧
+    ///   推理一次（p50 6.2~14ms）抢 ANE/GPU。用户实测「裸游戏流畅、开 App 持续卡、
+    ///   GPU 恒 100%」，这是其中之一。
+    ///
+    /// 【与 reset() 的分工】`reset()` 清状态但**保留模型**（停止驾驶后再开要能立刻跑）；
+    ///   本方法连模型一起卸。调用方是 `selectPerceptionMode`：切到 A 模型档才卸。
+    ///
+    /// 【安全性】
+    ///   · `generation += 1` 让在途推理结果作废（`finish()` 的 `guard gen == generation`），
+    ///     不会出现「卸完模型后旧结果又写回 detections」；
+    ///   · `detections = []` 必须清 —— 否则 `.rule` 纯规则档会拿陈旧的 26S 残留框开车
+    ///     （历史事故模式：路上的车在动、决策按几秒前的画面打方向）；
+    ///   · `lastFastPathTime = .distantPast` 让慢路径的 `fastPathStale` 判活立即为真，
+    ///     卸掉后若门被误开，`infer()` 会走 `loadIfNeeded()` 重新加载而非静默停摆；
+    ///   · `fastPathActive = false` 与之配套，避免"以为直通还活着"而永不回退慢路径。
+    ///
+    /// 【幂等】未加载时调用是安全的（model 置 nil 无副作用），切档重复调用不崩。
+    func unload() {
+        generation += 1
+        model = nil
+        isLoaded = false
+        isInferencing = false
+        detections = []
+        lastFrame = []
+        lastLatencyMs = 0
+        errorMessage = nil
+        lastFastPathTime = .distantPast
+        fastPathActive = false
+        print("[YoloEngine] yolo26s 已卸载（A 模型档不需要检测网，省 9.2MB 权重常驻）")
     }
 
     // MARK: - 锁定追踪控制（主线程调用）

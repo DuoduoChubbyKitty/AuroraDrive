@@ -177,6 +177,13 @@ let package = Package(
                 "Vendor/MetalGoose/WindowCaptureManager.swift",
                 "Vendor/MetalGoose/Engine/Shaders.metal",
                 "Sources/AuroraDrive/Capture/CaptureEngine.swift.bak-20260930",
+                // 2026-10-18 清理：以下 3 项原未进 exclude，SwiftPM 会遍历它们并报
+                // "found unhandled files" 警告（`scripts/check-package-sources.sh` 检出）。
+                // .agents 是 DSH 技能目录、.backups 是本地备份、docs 是文档库，
+                // 三者都不参与编译，显式排除以避免每次构建刷警告。
+                ".agents",
+                ".backups",
+                "docs",
             ],
             // 目录级白名单：新增 .swift 自动纳入，不必再登记。
             sources: [

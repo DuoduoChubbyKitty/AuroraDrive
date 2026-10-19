@@ -442,7 +442,7 @@ enum AuroraFlags {
         .init(key: "AURORA_YOLOPX_LETTERBOX_MAIN", defaultValue: "0", summary: "letterbox 预处理放主线程", isDiagnostic: true, readBy: "Inference/YolopxEngine.swift"),
         .init(key: "AURORA_SKIP_MODEL_LOAD", defaultValue: "0", summary: "OCR 模型延迟到首次推理前加载", isDiagnostic: true, readBy: "Inference/SpeedOCRReader.swift"),
         .init(key: "AURORA_OCR_DEBUG", defaultValue: "0", summary: "OCR 调试打印（曾在推理热路径现读 3 次）", isDiagnostic: true, readBy: "Inference/SpeedOCRReader.swift"),
-        .init(key: "AURORA_QUEST_OCR", defaultValue: "0", summary: "任务面板 OCR 读任务名 → 世界坐标目标（默认关）", isDiagnostic: false, readBy: "Inference/QuestPanelReader.swift"),
+        .init(key: "AURORA_QUEST_OCR", defaultValue: "1", summary: "任务面板 OCR 读任务名 → 世界坐标目标（默认开，2026-10-17 修正：原误写默认关）", isDiagnostic: false, readBy: "Inference/QuestPanelReader.swift"),
         // D. 光流 / 自车运动
         .init(key: "AURORA_DISABLE_OPTICAL_FLOW", defaultValue: "0", summary: "关闭光流（legacy 档核心组件，勿默认关）", isDiagnostic: true, readBy: "App/AuroraDriveApp.swift"),
         .init(key: "AURORA_EGO_CHECK", defaultValue: "(未设=开)", summary: "自车运动校验开关；off=关闭判定。⚠️ 运行时可变，故不 static let 化", isDiagnostic: true, readBy: "Inference/EgoMotionModel.swift"),

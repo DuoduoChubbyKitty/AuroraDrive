@@ -4,18 +4,27 @@
 // ============================================================================
 //  RuleController.swift — YOLO 检测 → 控制量 规则控制器
 //
-//  职责：把感知模型（game_assist_yolo.onnx）的障碍物检测结果，
-//        用规则转换为 steer/throttle/brake 控制量
+//  职责：把感知模型的障碍物检测结果，用规则转换为
+//        steer/throttle/brake 控制量。
+//        框源**按感知档位而定**（PerceptionMode）：A 模型档 → A-YOLOM(n) int8
+//        三合一的 det 头；legacy 档 → yolo26s 或 YOLOPX 的 det。
+//        （原注释写死的 `game_assist_yolo.onnx` 是早已弃用的旧检测器名，
+//         现役模型见 YoloEngine.modelURL 与 YolopxEngine 的候选表。）
 //
-//  用途：
-//    .yolo 态（YOLO_RULE）：纯规则，YOLO 检测 → 规则控制
-//    .rule 态（E2E_ASSISTED）：E2E 输出 + 规则修正（避障覆盖）
+//  用途（现役三档梯子 .e2e / .yolo / .rule，见 DegradeStateMachine）：
+//    .rule 态：**唯一调用点**（AuroraDriveApp 的 switch decided）——
+//        纯规则兜底，检测框 → 手写规则开车（最后防线）。
+//    .e2e / .yolo 态：**不经过本控制器**（分别由 M9 / assist 神经网开车，
+//        检测框只用于 UI 显示与路况观测）。
+//    ⚠️ 旧注释写的「.yolo 态纯规则 / .rule 态 E2E 融合」与现役代码不符：
+//        `fuse()`（E2E + 规则融合）目前**全仓无调用点**，是预留路径。
 //
 //  设计：
 //    1) 检测框用归一化坐标 [0,1]，与图像分辨率解耦
 //    2) 只关心"正前方危险区"的障碍：水平中心带 + 垂直下方（近距）
 //    3) 危险等级分三档：避让（转向绕开）/ 减速 / 急刹
-//    4) .rule 态下与 E2E 输出融合：危险时规则覆盖，安全时信 E2E
+//    4) E2E 融合规则（`fuse`）目前**无调用点**，是预留路径；现役只有
+//       `decide` 被 .rule 档调用（见上方「用途」）。
 // ============================================================================
 import Foundation
 import Observation

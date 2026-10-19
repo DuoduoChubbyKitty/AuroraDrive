@@ -16,7 +16,7 @@
 //   3) beginActivity      —— 防 App Nap 冻结
 //   4) Unix domain socket —— 命令/心跳（~/Library/Application Support/AuroraDrive/engine.sock）
 //   5) 共享内存帧管道     —— 帧头 + 检测结果 + BGRA 双缓冲（引擎写 / UI 读）
-//   6) DriveState 闭环    —— 照搬主程序组装（同一份类代码）+ 45Hz DispatchSource tick
+//   6) DriveState 闭环    —— 照搬主程序组装（同一份类代码）+ 20Hz DispatchSource tick
 //   7) 信号处理           —— SIGTERM/SIGINT 退出前必先 releaseAll（防游戏内键卡死）
 //
 //  ⚠️ YOLOPX 在引擎模式下的行为（2026-09-26 核实，勿误判为"白烧算力"）：
@@ -628,23 +628,27 @@ enum EngineMain {
     /// 引擎主循环 tick 频率（Hz）。**全链路唯一真值**：推理 / 控制 / 录制三条路径
     /// 都挂在 `tickOnce()` 上，所以改这一个常量即三路生效。
     ///
-    /// 【2026-10-11 最终定档：**30Hz**】
+    /// 【频率演进史 —— 按时间倒序，看最新的那节】
     ///
-    /// ── 为什么从 45 改回 30（本小姐踩过的坑，务必看完再动）──
-    /// 用户要求"720P + 45fps"，本小姐当时**把 tick 也一起改成了 45** —— **这是错的**：
+    /// ── 2026-10-12 最终定档（最新，以此为准）──
+    ///   · **tick（推理+控制+录制）**：**20Hz**（两档都是，见 `tickHz(forPerceptionMode:)`）
+    ///   · **抓屏（画面流）**：**20fps**（两档都是，见 `captureHz(forPerceptionMode:)`）
+    ///     理由：45fps 时每 tick 只消费 1 帧，多余 25 帧被跳帧丢弃，纯浪费带宽/CPU；
+    ///     所有消费者（推理/检测/预览/OCR）都是 tick 驱动，45 完全多余。
+    ///   · **例外**：应急冲刺（sprint）时 tick 与抓屏一起提到 45Hz/45fps（见 `tickOnce`）。
+    ///
+    /// ── 历史：2026-10-11 曾定「tick 20 + 抓屏 ayolom 45 / legacy 20」──
+    ///   该分工已于 2026-10-12（69bf409）废弃：抓屏也统一降到 20。
+    ///   `CaptureEngine.swift:447` 的 `CMTime(value: 1, timescale: 45)` 是
+    ///   **上限/初始值**，实际帧率由 `setCaptureHz(_:)` 按档位与应急态动态下发。
+    ///
+    /// ── 更早：45Hz 整体方案为什么不可行（勿再尝试）──
+    /// 用户曾要求"720P + 45fps"，当时把 tick 也改成 45 —— **这是错的**：
     ///   · 45Hz 预算 = 22.2ms
     ///   · 但单帧实际工作量（实测）：yolopx letterbox 10.5ms + ayolom 模型 10.4ms
     ///     + V2 推理 8.5ms + world_model 3ms + 光流/控制/录制 2ms ≈ **36.9ms**
     ///   · ⟹ 45Hz 下**光 yolopx 就占 94% 预算**，V2/world_model/控制全部挤不下
     ///     → **游戏掉到 1-2 帧**（用户实测）
-    ///   · 30Hz 预算 = 33.3ms → 勉强装下 → **这是改之前一直正常工作的速率**
-    ///
-    /// ── 现在的分工（用户拍板）──
-    ///   · **抓屏（画面流）**：保持 **45fps**（`CaptureEngine.swift:447` 的
-    ///     `CMTime(value: 1, timescale: 45)`）→ 游戏画面流畅
-    ///   · **tick（推理+控制+录制）**：**30Hz**（本常量）→ 重模型装得下
-    ///   两者解耦：抓屏多出的帧由 `pendingFrame` 机制丢弃（每 tick 只取最新一帧），
-    ///   不积压、不降质。
     ///
     /// 【为什么用具名常量而不是裸 1.0/30.0】全文件散落 6 处描述性注释各写一遍 "30Hz"，
     /// 裸字面量会逼着人肉找齐（本次改造就是活例）。抽成常量后，频率只有一个定义点。
@@ -657,26 +661,28 @@ enum EngineMain {
     ///
     /// 【两档定义】（key 名 **`perceptionMode`**，取值 **`"ayolom"` / `"legacy"`**，
     ///   与 `PerceptionModelFamily.rawValue` 一致；UI 侧 W4 下发，W5 交叉验证以此为准）
-    ///   · `"ayolom"` → **45Hz**（小模型 A-YOLOM）
-    ///   · `"legacy"` → **30Hz**（大模型 YOLOPX，为重推理让出 CPU）
+    ///   · `"ayolom"` → **20Hz**（小模型 A-YOLOM；原 45Hz 已降，见上方演进史）
+    ///   · `"legacy"` → **20Hz**（大模型 YOLOPX；原 30Hz 已降）
     ///
-    /// 【2026-10-11 最终定档：**20Hz**】
+    /// 【2026-10-12 现行值：两档推理都 20Hz】
     ///
     /// ── 用户拍板的两档频率 ──
-    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **20Hz** ＋ 抓屏 **45fps**
+    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **20Hz** ＋ 抓屏 **20fps**
     ///   · `.legacy`（大模型 26S+光流+YOLOPX）：推理 **20Hz** ＋ 抓屏 **20fps**
-    ///   两档推理频率相同（20Hz），区别只在抓屏帧率（45 vs 20）与模型大小。
+    ///   两档推理频率相同（20Hz），区别只在模型大小与是否跑光流。
     ///
     /// ── 为什么是 20 而不是 30/45 ──
     ///   用户原话：「30 赫兹还是感觉有点过高，20 赫兹应该也够用了」
     ///   · 20Hz 预算 = 50ms（ayolom 10.42ms ≪ 50ms，绰绰有余）
     ///   · 比 30Hz 省 33% 推理量，比 45Hz 省 56%
-    ///   · 画面流不受影响（ayolom 档抓屏仍 45fps）
+    ///   · 2026-10-12 起抓屏也对齐到 20fps（不再为「每 tick 只消费 1 帧」的
+    ///     画面流白烧带宽，见上方演进史）
     ///
     /// ── 抓屏与 tick 解耦 ──
-    ///   · 抓屏侧由 `captureHz(forPerceptionMode:)` 单独映射（ayolom→45 / legacy→20）
+    ///   · 抓屏侧由 `captureHz(forPerceptionMode:)` 单独映射（两档都 20）
     ///   · tick 侧由 `tickHz(forPerceptionMode:)` 映射（两档都 20）
     ///   · `applyPerceptionMode` 分别用两个频率调 `setTickHz` + `setCaptureHz`
+    ///   · 应急冲刺时两个频率一起提到 45（`tickOnce` 的 sprint 联动）
     static var engineTickHz: Double = 20.0
 
     /// tick 定时器**已生效**的频率（诊断/心跳回显用；与 engineTickHz 同主线程读写）
@@ -763,18 +769,17 @@ enum EngineMain {
     ///
     /// key 名与取值（**W5 交叉验证以此为准**）：
     ///   · 命令字段名：**`perceptionMode`**
-    ///   · 取值：**`"ayolom"`** → 45Hz ／ **`"legacy"`** → 30Hz
+    ///   · 取值：**`"ayolom"`** → 20Hz ／ **`"legacy"`** → 20Hz
     ///     额外接受 **`"yolopx"`** 作为 `"legacy"` 的等价别名 ——
     ///     `PerceptionModelFamily` 的 case 是 `.yolopx`/`.ayolom`，而 UI 侧把
     ///     大模型档叫 "legacy"；两侧拼写不一致会导致**静默不切**，故两个都认。
     /// - Returns: 目标频率；未知值返回 nil（不猜，由调用方如实回执）
     ///
-    /// ⚠️ 2026-10-11 用户最终定档：
-    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **20Hz**（够用，省性能）＋ 抓屏 **45fps**
-    ///     —— 画面流保持 45fps 流畅，推理 20Hz 足够（模型延迟 10.42ms ≪ 50ms 预算）
+    /// ⚠️ 2026-10-12 现行值（历史：45/30 → 10-11 改 20/20 → 10-12 抓屏也对齐 20）：
+    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **20Hz** ＋ 抓屏 **20fps**
     ///   · `.legacy`（大模型 26S+光流+YOLOPX）：推理 **20Hz** ＋ 抓屏 **20fps**
-    ///     —— 大模型重，抓屏也降到 20fps 省全部带宽（给高配用户，但仍然省）
-    ///   两档推理频率相同（20Hz），区别只在抓屏帧率（45 vs 20）与模型大小。
+    ///   两档推理与抓屏频率都相同（20Hz），区别只在模型大小与是否跑光流。
+    ///   应急冲刺期间两者一起提到 45（见 `tickOnce` 的 sprint 联动）。
     static func tickHz(forPerceptionMode mode: String) -> Double? {
         switch mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "ayolom":              return 20.0
@@ -791,6 +796,79 @@ enum EngineMain {
         case "ayolom":              return 20.0
         case "legacy", "yolopx":    return 20.0
         default:                    return nil
+        }
+    }
+
+    // ── yolo26s 档位门（2026-10-19 用户拍板，goal-3279b59b 需求 5/7/8）──
+    //
+    // 【为什么引擎侧必须自己存一份档位】
+    //   `DriveState.perceptionMode` 是 **UI 进程**的属性（AuroraDriveApp.swift:5414 定义），
+    //   虽然引擎进程也 new 了自己的 DriveState（EngineMain.swift:1042），但全仓
+    //   **没有任何代码在引擎侧写它** —— `selectPerceptionMode`（:5424）只 pushConfig。
+    //   所以引擎进程的 `st.perceptionMode` 恒为初值 `.ayolom`，而 UI 侧的档位门
+    //   `detectGateB`（tick 里）读的正是它。要让引擎侧 26S 真正按档位开停，
+    //   必须在下发处把档位**写进 DriveState**，否则判据永远是 A 模型档。
+    //
+    // 【为什么默认是 "ayolom" 而不是 "legacy"】开机时引擎还没收到任何 config。
+    //   · 引擎开机**本来就没有加载 yolo26s 的路径**（全仓 `yoloEngine.loadIfNeeded()`
+    //     0 处在 EngineMain，见 grep 证据），默认 ayolom 不会产生"先加载再卸载"的白跑；
+    //   · UI 侧默认档也是 `.ayolom`（用户明确要求「默认选择这个 A 模型」），两侧一致。
+    //   若默认 legacy，则引擎开机就要装 9.2MB 权重，与"开机按档位决定是否加载"相反。
+    //
+    // 【回退开关】`AURORA_FORCE_YOLO26S=1` → A 模型档也常驻加载并跑 26S，
+    //   完全恢复 2026-10-19 之前的旧行为。与 UI 侧 `DriveState.forceYolo26s`
+    //   （AuroraDriveApp.swift:5576-5597）**同名环境变量、同语义**：
+    //   引擎是 UI 用 Process spawn 的独立进程（EngineClient.swift:338-347 未设
+    //   environment），两边各自读一次进程环境变量，值天然一致。
+    //
+    // 【线程】`applyPerceptionMode` 与 config 分支都在 @MainActor 上，本属性也只在
+    //   这两处写；`run()` 的启动段虽然在 nonisolated 的 `run()` 里，但调用点包在
+    //   `MainActor.assumeIsolated` 内 → 全部读写实际都收敛到主线程。
+    //   仍标 `unsafe`：`enum EngineMain` 自身没有 actor 隔离标注，Swift 6 语言模式下
+    //   可变静态存储必须有显式隔离声明，否则报 #MutableGlobalVariable。
+    nonisolated(unsafe) private static var enginePerceptionMode: String = "ayolom"
+
+    /// yolo26s 强制加载开关（引擎侧；与 UI 侧 `DriveState.forceYolo26s` 同语义）
+    private static let forceYolo26s: Bool = {
+        ProcessInfo.processInfo.environment["AURORA_FORCE_YOLO26S"] == "1"
+    }()
+
+    /// 按档位装卸 yolo26s（引擎侧唯一入口，由 `applyPerceptionMode` 调用）。
+    ///
+    /// 【为什么显式装载而不是让 tick 首帧自己发现】`YoloEngine.inferFast` 未加载时
+    ///   会自己调 `loadIfNeeded()` 然后本帧 return（YoloEngine.swift:331-334）——
+    ///   也就是说不会静默停摆，但首次进 legacy 那一帧要在推理队列上同步跑一次
+    ///   `MLModel(contentsOf:)`（几十 ms 级）打一个尖峰。切档时主动装好并跑一次预热
+    ///   （loadIfNeeded 内部自带 warmUp，YoloEngine.swift:200）比让首帧自己撞上更好。
+    ///
+    /// 【顺序】先写 DriveState.perceptionMode（让 tick 的档位门读到新档位），
+    ///   再装卸模型。两步都在同一个 @MainActor 函数内连续执行，中间不会有 tick
+    ///   插入，故不存在"门已放行但模型还没装"或"模型已卸但门还开着"的窗口。
+    @MainActor
+    private static func applyYolo26sForMode(_ mode: String) {
+        let legacy = (mode == "legacy" || mode == "yolopx")
+        // 档位写进 DriveState：tick 的档位门读的就是这个属性
+        // （AuroraDriveApp 里 `forceYolo26s || perceptionMode == .legacy` 那一行）。
+        // 引擎进程与 UI 进程跑的是同一份 tick() 代码，故一处写入即两进程同判据。
+        if let st = EngineGlobals.state {
+            st.perceptionMode = legacy ? .legacy : .ayolom
+        }
+        if Self.forceYolo26s {
+            // 回退开关：无条件装上（下面 loadIfNeeded 内部 guard !isLoaded 幂等）
+            EngineGlobals.state?.yoloEngine.loadIfNeeded()
+            return
+        }
+        if legacy {
+            EngineGlobals.state?.yoloEngine.loadIfNeeded()
+            engineLog("[ENGINE] 感知档位 → legacy：yolo26s 已按需加载"
+                      + "（loaded=\(EngineGlobals.state?.yoloEngine.isLoaded ?? false)）")
+        } else {
+            // A 模型档：卸掉 9.2MB 权重。unload 幂等（未加载时调用无副作用），
+            // 并清空 detections —— 否则 .rule 档会拿陈旧的 26S 残留框开车
+            //   （YoloEngine.swift:505-514 的安全论证）。
+            EngineGlobals.state?.yoloEngine.unload()
+            engineLog("[ENGINE] 感知档位 → A 模型（ayolom）：yolo26s 已卸载"
+                      + "（不占 9.2MB 权重常驻，也不参与每帧推理）")
         }
     }
 
@@ -855,6 +933,23 @@ enum EngineMain {
         Task { @MainActor in
             await EngineGlobals.state?.captureEngine.setCaptureHz(capRate)
         }
+        // ── yolo26s 按档位装卸（2026-10-19，goal-3279b59b 需求 5/6）──
+        //
+        // 【为什么放在这里】本函数是引擎侧**唯一**收到档位事实的地方（config 的
+        //   perceptionMode 分支只调它），所以"切档即时生效"只能落在这里。
+        //   放在频率应用之后：频率与模型是同一笔用户意图，要么一起生效、要么
+        //   一起被上面的 guard 挡掉，不会出现"频率切了但模型没切"的半拉子状态。
+        //
+        // 【为什么应急/录制两条早退路径不补模型装卸】
+        //   · 应急早退：应急只改频率，不改模型归属；用户切档意图仍会被记在
+        //     `enginePerceptionMode` 之外的 UI 侧，应急结束后下一次切档自然带上。
+        //   · 录制早退：录制中"帧率语义恒定"的理由（见上方 pending 注释）同样
+        //     适用于模型 —— 会话中途换检测网会让录到的数据前后不同源。
+        //     挂起的频率在 flushPendingTickHz 补上，模型则由用户下次切档补。
+        //   ⚠️ 这是**已知取舍**：录制中切档 → 频率与模型都延后。如实回执已说明
+        //      "频率未变"，模型同理（ack detail 由调用方拼装，不含模型状态）。
+        enginePerceptionMode = mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        applyYolo26sForMode(enginePerceptionMode)
         return (true, "tick 已切到 \(Int(tickRate))Hz / 抓屏 \(Int(capRate))fps（perceptionMode=\(mode)）")
     }
 
@@ -964,7 +1059,7 @@ enum EngineMain {
         // ── 3. 防冻结 ──
         let napToken = ProcessInfo.processInfo.beginActivity(
             options: [.latencyCritical, .userInteractive, .idleSystemSleepDisabled],
-            reason: "AuroraDrive 后台驾驶引擎：持续 45Hz 抓屏推理与按键注入")
+            reason: "AuroraDrive 后台驾驶引擎：持续 20Hz 抓屏推理与按键注入")
         _ = napToken   // 必须持有，否则 activity 立即释放
         if setpriority(PRIO_PROCESS, 0, -20) == 0 {
             engineLog("[ENGINE] 进程优先级 nice=-20")
@@ -1055,6 +1150,15 @@ enum EngineMain {
                 EngineGlobals.state?.captureEngine.start()
                 engineLog("[ENGINE] 诊断：仅抓屏模式（不注入按键），用于验证帧管道")
             }
+            // ── 开机按档位决定 yolo26s 装不装（2026-10-19，goal-3279b59b 需求7）──
+            //
+            // 【为什么开机就定】引擎开机时还没收到任何 config（UI 连上后才推），
+            //   若不在这里定一次，`enginePerceptionMode` 的初值只活在变量里、
+            //   DriveState.perceptionMode 也还是初值 —— 两边虽然都默认 ayolom，
+            //   但没有日志可核对，用户问"开机到底装没装"时只能靠猜。
+            //   这一行让开机行为在日志里可见，且 `applyYolo26sForMode` 本身幂等
+            //   （A 模型档卸一个没装过的模型是无副作用的），重复调用无代价。
+            applyYolo26sForMode(enginePerceptionMode)
         }
         engineLog("[ENGINE] DriveState 已创建")
 
@@ -1162,7 +1266,15 @@ enum EngineMain {
         hbTimer.resume()
         engineHeartbeat = hbTimer
 
-        engineLog("[ENGINE] 就绪（tick 45Hz / 心跳 1Hz / socket / shm）")
+        // 如实打印**当前已生效**的 tick 频率（不是常量请求值）：
+        //   engineTickHz 只是启动默认值，applyPerceptionMode 与应急态都会改它。
+        //   原实现硬编码「tick 45Hz」—— 45Hz 方案早已废弃，20Hz 定档后这句一直是谎报。
+        //   ⚠️ 这里在 nonisolated 的 run() 里，不能直接读 @MainActor 的 currentTickHz
+        //      （实测编译报 actor-isolated 错），改用同一份 @MainActor 静态存储的
+        //      nonisolated(unsafe) 原始值 lastAppliedTickHz —— 语义等价（它记的就是
+        //      「已生效频率」，见 noteInitialTickHz 与 setTickHz）。
+        let tickNowHz = lastAppliedTickHz > 0 ? lastAppliedTickHz : engineTickHz
+        engineLog("[ENGINE] 就绪（tick \(Int(tickNowHz.rounded()))Hz / 心跳 1Hz / socket / shm）")
         dispatchMain()   // 永不返回
     }
 
@@ -1241,7 +1353,24 @@ enum EngineMain {
         }
         EngineGlobals.shm?.publish(
             image: st.currentFrameCG,
-            detections: st.yoloEngine.detections,
+            // ── 检测框来源：26S 优先，空则回落小模型（2026-10-19，需求5 连带）──
+            //
+            // 【为什么必须回落】A 模型档下 yolo26s 不加载/不推理 → `st.yoloEngine.detections`
+            //   恒为空数组 → 原来直接发它，UI 侧 `remoteDetections` 就是空的 →
+            //   `displayDetections` 在引擎模式下**没有框可画**（UI 进程的 yolopx 是空转的，
+            //   tickEngineMode 早退不跑本地推理，那条"优先 yolopx 的框"在引擎模式下
+            //   永远取不到值）。这是本次档位门在引擎模式下暴露的真实缺口，不是原有缺陷。
+            //
+            // 【为什么回落到 yolopx 而不是改协议】UI 侧 `displayDetections` 的既定语义
+            //   （`preferYolopxDetections` 那个条件，AuroraDriveApp.swift:4219）
+            //   就是「小模型优先、无框才回落 26S」。
+            //   引擎侧照同一优先级发，两端判据一致，不必给协议加字段（方案 Z）。
+            //
+            // 【legacy 档行为是否变了】没变。legacy 档下 26S 每两帧出框，`yoloEngine.detections`
+            //   非空 → 取的就是它；只有 26S 恰好空的那一帧才顶一下，与改前"偶有真空帧"同性质。
+            detections: st.yoloEngine.detections.isEmpty
+                ? st.yolopxEngine.detections
+                : st.yoloEngine.detections,
             fps: st.captureEngine.captureFPS > 0 ? st.captureEngine.captureFPS : st.fps,
             isDriving: st.isDriving,
             isStreaming: st.isStreaming,
@@ -1661,6 +1790,16 @@ enum EngineMain {
                     st.assistEngine.reloadModel()
                     st.yoloEngine.reloadModel()
                     engineLog("[ENGINE] 模型热替换：主驾/副驾/YOLO 三引擎已置空，下次推理重读磁盘")
+                    // ── A 模型档下把 26S 一起卸掉（2026-10-19，goal-3279b59b 需求5）──
+                    //
+                    // 【为什么必须补这一步】`reloadModel()` 只把 model 置 nil + isLoaded=false，
+                    //   而 `YoloEngine.inferFast` 未加载时会**自己调 loadIfNeeded()**
+                    //   （YoloEngine.swift:331-334）。A 模型档下 26S 本该不在内存里，
+                    //   这条 reloadmodel 命令会把它重新拉起来 —— 于是"训练完点一下应用"
+                    //   就静默破坏了档位门，之后每两帧跑一次 26S 抢 ANE/GPU。
+                    //   热替换的语义是"下次推理重读磁盘"，与"该档位要不要这个模型"是两件
+                    //   独立的事，故这里按当前档位把装卸状态恢复回来。
+                    applyYolo26sForMode(enginePerceptionMode)
                     // 语义说明：本命令只"置空待重载"，真正读盘发生在下一次推理。
                     // 因此 ok=true 表示"已受理"，detail 写清"下次推理时生效"，不谎称"已加载新模型"。
                     EngineMain.sendAck(
@@ -1700,7 +1839,7 @@ enum EngineMain {
             let cDigest = obj["digest"] as? Bool
             // task-93：档位感知的动态 tick 频率。
             //   key 名 **`perceptionMode`**，取值 **"ayolom" / "legacy"**（W4 下发、W5 对拍）。
-            //   两档：ayolom → 45Hz ／ legacy → 30Hz（映射见 tickHz(forPerceptionMode:)）。
+            //   两档：ayolom → 20Hz ／ legacy → 20Hz（映射见 tickHz(forPerceptionMode:)）。
             let cPerceptionMode = obj["perceptionMode"] as? String
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -1777,6 +1916,9 @@ enum EngineMain {
                         applied["perceptionMode"] = mode
                         // 回显**实际生效**频率（挂起时即当前值，不谎报目标值）
                         applied["tickHz"] = Int(EngineMain.currentTickHz)
+                        // 26S 装载实况：让 UI/脚本能核对「切到 A 模型档后 26S 真的卸了」
+                        // （用户铁律：隐蔽开关是排查噩梦 —— 装卸状态必须可观测）。
+                        applied["yoloLoaded"] = st.yoloEngine.isLoaded
                         perceptionOK = r.applied
                         tickNote = r.detail
                     }

@@ -5,7 +5,9 @@
 //  RecordEngine.swift — 行驶录制引擎
 //  兼容现有 recordings/{perspective}_{timestamp}/ 格式：
 //    frames/00000.jpg   (640x360 JPEG)
-//    controls.csv       (timestamp,frame,steer,throttle,brake)
+//    controls.csv       (t_sec,frame,steer,throttle,brake,speed_kmh,heading,curvature,speed_limit)
+//                       ⚠️ 9 列 v2 格式（2026-08 从 5 列扩容；原注释写 5 列已过期，
+//                          dataset_v2.py 期望 9 字段，缺 4 列会让模型把 0 当成真实状态学）
 //    meta.json          (录制元信息)
 //  设计要点：
 //    1) 异步写盘 —— 主线程只入队，后台串行队列做缩放+写文件
@@ -36,7 +38,9 @@ final class RecordEngine: @unchecked Sendable {
     let targetFps: Double = 20
 
     /// 每类 clip 目录保留上限：只保留最近 N 个 clip（目录名 clip_<ts> 字典序≈时间序）。
-    /// 录制启动时删除最旧目录，防 640×360 JPEG 30fps（像素量约 4.6×224²，估算日积约 230GB/天）无上限累积撑爆磁盘。
+    /// 录制启动时删除最旧目录，防 640×360 JPEG 20fps（像素量约 4.6×224²，估算日积约 153GB/天）无上限累积撑爆磁盘。
+    /// ⚠️ 原写「30fps / 230GB/天」，2026-10-12 抓屏与录制都定档 20fps 后应改为
+    ///    153GB/天（230 × 20/30）。2026-10-18 修正估算口径。
     ///
     /// ── 2026-10-08 改为可配置（用户点名：采集 10000+ 帧时数据会莫名消失）──
     /// 【原问题】硬编码 10：用户要采集 10000+ 帧（≈17min@10fps）数据，每开一次新
@@ -55,13 +59,19 @@ final class RecordEngine: @unchecked Sendable {
     var maxClipsOverride: Int?
 
     /// 生效的保留上限（见上）
+    ///
+    /// 【为什么抽 defaultMaxClipsPerKind 常量】`--capture-selftest` 原先写死
+    /// `== 10`，2026-10-10 默认值改成 200 后断言静默失效（报 FAIL 但功能没坏），
+    /// 长期训练人忽略自检失败。抽成命名常量后断言与默认值同源，改默认值不再漂移。
+    static let defaultMaxClipsPerKind = 200
+
     var maxClipsPerKind: Int {
         if let raw = ProcessInfo.processInfo.environment["AURORA_MAX_CLIPS"],
            let value = Int(raw), value > 0 {
             return value
         }
         if let override = maxClipsOverride, override > 0 { return override }
-        return 200
+        return Self.defaultMaxClipsPerKind
     }
 
     // MARK: - 字模模式

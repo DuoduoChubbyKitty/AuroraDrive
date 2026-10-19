@@ -88,8 +88,8 @@ func runWireSelfTest() -> Int {
     // B2：本地模式下 UI 必须走本地数据源。
     //     这是修复④的核心 —— 改前心跳超时不动 isActive，UI 会继续读死引擎的数据。
     let state = DriveState()
-    ok(!client.isActive, "B2 本地模式下 effectiveDetections 走本地推理源",
-       "isActive=false → base = yoloEngine.detections")
+    ok(!client.isActive, "B2 本地模式下决策层读点走本地推理源（effectiveDetections）",
+       "isActive=false → 本地推理源；A 模型档下为 ayolom 的 det 头（26S 不加载）")
 
     // ══════════════════════════════════════════════════════════════════
     // C. wantsEngineMode：区分「已连上」与「还想连」（修复④的重连前提）

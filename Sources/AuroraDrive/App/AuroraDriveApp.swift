@@ -4045,7 +4045,7 @@ final class DragHandleView: NSView {
 // ============================================================================
 
 enum DriveMode: String, CaseIterable, Identifiable {
-    // 内部降级状态机的 4 个档位（逻辑层完整保留，降级/回升仍按 4 档走）。
+    // 内部降级状态机的 **3 个**档位（2026-09-30 起从 4 档减为 3 档，见下方 .recover 删除说明）。
     // UI 层按 DriveModeGroup 合并为 2 个用户可见档位（端到端主驾 / 规则）。
     case e2e     = "端到端主驾"   // 档1：M9 端到端模型直接开车
     case yolo    = "YOLO接管"     // 档2：第二套神经网接管（YOLO 画框）
@@ -4064,8 +4064,9 @@ enum DriveMode: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 所属 UI 展示分组：内部 4 档 → 用户可见 2 档。
-    /// 模型驱动侧（e2e+yolo）归「端到端主驾」；规则/脱困侧（recover+rule）归「规则」。
+    /// 所属 UI 展示分组：内部 3 档 → 用户可见 2 档。
+    /// 模型驱动侧（e2e+yolo）归「端到端主驾」；规则侧（rule）归「规则」。
+    /// （脱困档 .recover 已于 2026-09-30 删除，故规则组只剩 .rule 一个成员。）
     var uiGroup: DriveModeGroup {
         switch self {
         case .e2e, .yolo:     return .e2eDrive
@@ -4074,9 +4075,10 @@ enum DriveMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// UI 用户可见的驾驶模式分组（内部 4 档合并为 2 档）。
+/// UI 用户可见的驾驶模式分组（内部 3 档合并为 2 档）。
 /// - `.e2eDrive`     端到端主驾：模型驱动侧，开得快（M9 + 神经网接管）；
-/// - `.ruleFallback` 规则：规则兜底 + 脱困，紧急保命用，不当主驾。
+/// - `.ruleFallback` 规则：规则兜底，紧急保命用，不当主驾。
+///   （原描述含「+ 脱困」，脱困档 2026-09-30 已删除。）
 enum DriveModeGroup: String, CaseIterable, Identifiable {
     case e2eDrive     = "端到端主驾"
     case ruleFallback = "规则"
@@ -4200,9 +4202,18 @@ final class DriveState {
     ///   S 键兼倒车 → 托管状态跟用户抢控制权，见 §5.5 的删除记录）。
     ///   但**用户要求 UI 照常显示**，所以画框走这里、决策走 `effectiveDetections`。
     ///
-    /// 数据来源：引擎模式用引擎回传，本地模式用本地 YoloEngine；
+    /// 数据来源：引擎模式用引擎回传，本地模式用本地 YoloEngine。
+    ///
+    /// ⚠️ 2026-10-19 档位语义澄清（用户拍板 A 模型档不加载 yolo26s，goal-3279b59b）：
+    ///   「本地模式用本地 YoloEngine」与「回落到 yolo26s」**只在 legacy 档成立**。
+    ///   A 模型档（默认）下 `yoloEngine` 不加载、`detections` 恒空 → `base` 恒空，
+    ///   于是本属性恒定返回 yolopx 实例（该档内装 ayolom_n_int8）的框。
+    ///   即：A 模型档下"没有 26S 兜底"这件事是**设计如此**，不是缺陷；
+    ///   若该档真需要检测兜底，用户手动切 legacy 档即可（:5446 会装上 26S）。
+    ///
     /// 「优先 YOLOPX det」开关打开且 YOLOPX 有结果时，改用 YOLOPX 的框
-    /// （nc=1 只有车；YOLOPX 未加载/降级时自动回落到 yolo26s，不会变瞎）。
+    /// （nc=1 只有车；**legacy 档** YOLOPX 未加载/降级时自动回落到 yolo26s，
+    /// 不会变瞎；A 模型档无此回落路径，见上一段）。
     var displayDetections: [Detection] {
         let base = EngineClient.shared.isActive ? remoteDetections : yoloEngine.detections
         if preferYolopxDetections, yolopxEngine.isLoaded, !yolopxEngine.detections.isEmpty {
@@ -4367,6 +4378,16 @@ final class DriveState {
     var locatorY: Double = 0
     var locatorScore: Double = 0
     var locatorHeading: Double = 0
+
+    /// 角色/车辆身体朝向（罗盘角 [0,360)，0=正北顺时针）。
+    ///
+    /// **这是真·车头朝向**，由 `PointerHeadingReader` 读小地图指针箭头得到，
+    /// 与相机怎么转无关。区别于 `locatorHeading`（=UE5 ControlRotation = 视角朝向）。
+    /// nil = 本帧没有可用的指针读数（模型未加载 / 推理失败 / 置信度过低）。
+    var bodyHeadingDeg: Double? = nil
+    /// 指针读数的模型置信度 [0,1]（`bodyHeadingDeg` 非 nil 时才有意义）。
+    var bodyHeadingConf: Double = 0
+
     /// 同包加速度（m/s²，来自 30031 包，与坐标同源）。
     /// ⚠️ 坐标系（世界系/车体系）尚未实测确认 —— 只做如实展示，
     ///    在标定完成前不参与任何控制逻辑。nil = 本帧无数据。
@@ -5231,37 +5252,58 @@ final class DriveState {
 
     /// 当前实际加载的推理模型名（供顶栏如实显示，不写死）。
     /// 优先取引擎上报的模型名，未连接时显示实际将要加载的模型文件。
+    ///
+    /// ⚠️ 2026-10-19 档位化（goal-3279b59b）：改前 `detectedModelName()` 的候选表
+    ///   写死 yolo26s，于是 A 模型档（默认档，26S 根本不加载）下顶栏照样显示
+    ///   「yolo26s · ANE」—— 用户会以为 26S 检测网正在 ANE 上跑。现按档位探测，
+    ///   顶栏模型名与"这一档真正加载的模型"一致。
     var activeModelLabel: String {
         let engine = EngineClient.shared
-        let name = Self.detectedModelName()
+        let name = Self.detectedModelName(mode: perceptionMode)
         // 真实判定：模型文件在盘上 + 引擎在跑，才叫「已挂载 · ANE」。
         // 任一不满足都如实说明缺哪一环，不拿"引擎在跑"冒充"模型已挂载"。
-        guard Self.modelFileExists() else { return "\(name) · 模型缺失" }
+        guard Self.modelFileExists(mode: perceptionMode) else { return "\(name) · 模型缺失" }
         return engine.isActive ? "\(name) · ANE" : "\(name) · 引擎未连接"
     }
 
+    /// 各感知档位要探测的模型文件候选表（编译产物优先，包次之）。
+    ///
+    /// 【为什么按档位分】A 模型档跑的是 `models/ayolom/ayolom_n_int8`（3.8MB 三合一），
+    ///   legacy 档跑 `models/yolo26s`（9.4MB 检测网）+ YOLOPX。写死一张表会让
+    ///   默认档的 UI 报出一个根本没加载的模型名（见 activeModelLabel 的 2026-10-19 注记）。
+    /// - Parameter mode: nil 时按 legacy 档给表（兼容不传档位的旧调用点）。
+    private static func modelCandidates(mode: PerceptionMode? = nil) -> [String] {
+        switch mode {
+        case .some(.ayolom):
+            return ["ayolom/ayolom_n_int8.mlmodelc", "ayolom/ayolom_n_int8.mlpackage"]
+        case .some(.legacy), .none:
+            return ["yolo26s.mlmodelc", "yolo26s.mlpackage"]
+        }
+    }
+
     /// 探测实际存在的模型文件（models/yolo26s.mlmodelc 等），返回真实模型名。
-    static func detectedModelName() -> String {
+    static func detectedModelName(mode: PerceptionMode? = nil) -> String {
         let fm = FileManager.default
         // 必须用 AuroraPaths.projectRoot() 而不是 currentDirectoryPath：
         // 双击 .app 启动时 cwd 是 "/"，用 cwd 找 models 永远找不到，
         // 于是界面一直显示「未挂载」——正是用户看到的问题。
         let modelsDir = AuroraPaths.projectRoot().appendingPathComponent("models")
         // 按优先级探测：编译产物(.mlmodelc) → 包(.mlpackage)
-        for candidate in ["yolo26s.mlmodelc", "yolo26s.mlpackage"] {
+        let candidates = Self.modelCandidates(mode: mode)
+        for candidate in candidates {
             if fm.fileExists(atPath: modelsDir.appendingPathComponent(candidate).path) {
                 return String(candidate.split(separator: ".").first ?? "yolo26s")
             }
         }
-        return "yolo26s"
+        return candidates.first.map { String($0.split(separator: ".").first ?? "yolo26s") } ?? "yolo26s"
     }
 
     /// 模型是否真实存在于磁盘（用于区分「已挂载」与「未挂载」，
     /// 不再只看引擎是否在跑 —— 引擎跑着但模型缺失时也必须如实报未挂载）。
-    static func modelFileExists() -> Bool {
+    static func modelFileExists(mode: PerceptionMode? = nil) -> Bool {
         let fm = FileManager.default
         let modelsDir = AuroraPaths.projectRoot().appendingPathComponent("models")
-        for candidate in ["yolo26s.mlmodelc", "yolo26s.mlpackage"] {
+        for candidate in Self.modelCandidates(mode: mode) {
             if fm.fileExists(atPath: modelsDir.appendingPathComponent(candidate).path) {
                 return true
             }
@@ -5404,14 +5446,38 @@ final class DriveState {
     /// 切换感知档位（UI 选择器唯一入口）。
     ///
     /// 副作用链：① 改本档位（UI 立即高亮）② 让引擎换模型族并重新加载
-    ///   ③ 清空预测器（旧模型的框不能带进新档位）。
+    ///   ③ 清空预测器（旧模型的框不能带进新档位）④ **按档位装卸 yolo26s**。
     ///
     /// 为什么必须清 `motionPredictor`：旧三件套的 `predictorDetections` 是
     ///   「YOLOPX 低频真值 + 光流外推」的产物；切到 A-YOLOM 后真值来自另一个模型，
     ///   若不清，会有一段时间拿"YOLOPX 的旧框"喂给决策层。
+    ///
+    /// ── ④ yolo26s 按档位装卸（2026-10-19 用户拍板，goal-3279b59b 需求6）──
+    /// 【用户原话】「点一下就立刻生效」。
+    /// 【为什么】A 模型档的设计原话是「只跑 A-YOLOM(n) int8 一个三合一模型」
+    ///   （PerceptionMode.swift:194-200），yolo26s 只属于 legacy 三件套档。
+    ///   常驻它会白占 9.2MB 权重 + 每两帧 p50 6.2~14ms 推理抢 ANE/GPU
+    ///   （用户实测「裸游戏流畅、开 App 持续卡、GPU 恒 100%」）。
+    /// 【顺序】先装卸 26S、再 switchFamily —— 因为 `unload()` 会把
+    ///   `yoloEngine.detections` 清空，而 `.rule` 纯规则档在那一瞬会读到空数组；
+    ///   放在 switchFamily 之前，紧跟其后 motionPredictor.reset() + 空
+    ///   predictorDetections，整个切档窗口的框源状态是一致的（都空、都重建），
+    ///   不会出现「26S 的框已清、小模型的框还没来」的中间态被决策层读到。
+    ///   ⚠️ 反过来放（先 switch 后 unload）则会在换族期间残留 26S 的旧框，
+    ///      正是本项目反复出过事的那类"跨档位串味"。
     func selectPerceptionMode(_ m: PerceptionMode) {
         let changed = m != perceptionMode
         if changed { perceptionMode = m }
+        // ── yolo26s 按档位装卸（点一下立刻生效）──
+        // 切到 A 模型档：卸掉 26S（释放 9.2MB 权重 + 后续不再推理）。
+        // 切到 legacy 档：确保 26S 已加载（首次进入要等一次加载/预热，
+        //   用户已知情并接受："重新预热很快，那几秒实际上并不会有问题的"）。
+        // 回退开关 AURORA_FORCE_YOLO26S=1 → 两档都常驻加载+推理（旧行为）。
+        if m == .legacy || Self.forceYolo26s {
+            yoloEngine.loadIfNeeded()
+        } else if yoloEngine.isLoaded {
+            yoloEngine.unload()
+        }
         let switched = yolopxEngine.switchFamily(to: m.family)
         if switched {
             motionPredictor.reset()
@@ -5419,6 +5485,7 @@ final class DriveState {
             // 档位切换是**低频人工动作**，日志不打节流（每次都要看得见）
             print("[感知] 切档 → \(m.title)（\(m.subtitle)）"
                   + " · 引擎模型族 \(yolopxEngine.family.display)"
+                  + " · 检测网 26S \(yoloEngine.isLoaded ? "已加载" : "未加载（A 模型档不需要）")"
                   + " · 光流 \(m.needsOpticalFlow ? "启用" : "不需要（A-YOLOM 每帧都有真值）")")
         }
         // ★ task-95：档位变化**必须下发引擎**。
@@ -5504,6 +5571,29 @@ final class DriveState {
             return v
         }
         return 2   // P1 默认：检测网 2 帧 1 次（15Hz）
+    }()
+
+    /// yolo26s 强制加载开关（2026-10-19 用户拍板，goal-3279b59b 需求8 的回退开关）。
+    ///
+    /// 【语义】`AURORA_FORCE_YOLO26S=1` → 完全恢复 2026-10-19 之前的旧行为：
+    ///   A 模型档也常驻加载 yolo26s（开机 :6304）并且每两帧推理一次（tick 档位门）。
+    ///   设它为的是「改动后出问题时能一行回退对照」，**不是**日常模式。
+    ///
+    /// 【为什么是静态 let 而非每帧现读】环境变量在进程生命周期内不可能变化，
+    ///   且本开关被两处读取（开机加载 + tick 档位门）。若每帧现读，按项目实测
+    ///   `ProcessInfo.environment[key]` = 17.213 µs/次（PerfBus 那段注释的依据），
+    ///   20Hz 下每秒白烧 0.34ms。抽成静态 let 后只有一处定义，与
+    ///   `detectDecimate`（:5513）完全同款写法与同款理由。
+    ///
+    /// 【与 detectDecimate 的分工】`detectDecimate` 管「多久跑一次」（频率），
+    ///   本开关管「这个模型在不在」（存在性）。两者正交：回退旧行为需要
+    ///   `AURORA_FORCE_YOLO26S=1`（本开关），不需要动 detectDecimate。
+    ///
+    /// 【引擎进程侧】engine-gate 队友在 EngineMain.swift 用同名环境变量实现同语义，
+    ///   因为引擎是独立进程、读不到这里的静态属性。两处必须语义一致。
+    @ObservationIgnored
+    private static let forceYolo26s: Bool = {
+        ProcessInfo.processInfo.environment["AURORA_FORCE_YOLO26S"] == "1"
     }()
 
     /// 主循环帧计数（检测网降频相位源；tick 每入一次推进一次，进位自然回绕）。
@@ -5895,9 +5985,16 @@ final class DriveState {
     // CaptureEngine 原生帧 → 后台 OCR 读车速 → 主线程读 speedKmh/speedConfidence
     let speedOCR = SpeedOCRReader()
 
+    // ── 小地图指针朝向读取器（角色/车辆真·朝向）──
+    // 读小地图指针箭头 → 罗盘角。与 `locatorHeading`（视角朝向）互补：
+    // 视角可独立转，指针恒指角色正前方。模型 2.78MB / 64×64 / ANE。
+    // tick 里同步调一次（亚毫秒级），结果写入 `bodyHeadingDeg`。
+    let pointerReader = PointerHeadingReader()
+
     // ── 任务面板 OCR 读取器（2026-10-06 task-1）──
     // 读左侧任务面板文字 → models/quest_index.json → 世界坐标 → setLocatorTarget。
-    // 默认关闭（AuroraFlags.questOCR 默认 false）；自检入口 `--quest-selftest`
+    // 默认开启（AuroraFlags.questOCR 默认 true，2026-10-06 用户实测反馈改默认）；
+    // 原注释误写「默认关闭（默认 false）」，2026-10-17 修正。自检入口 `--quest-selftest`
     // 不需要本开关（纯索引查询，不截屏）。
     //
     // ⚠️ OCR 在 QuestPanelReader 内部的**后台队列**跑（实测 .accurate p50 33.6ms
@@ -5995,8 +6092,20 @@ final class DriveState {
             self.pendingFrameTime = Date()
             self.pendingFrameLock.unlock()
         }
-        // YOLO 直通：CaptureEngine 源头 GPU 缩放好的 352×352 缓冲，
+        // YOLO 直通：CaptureEngine 源头 **CPU vImage** 缩放好的 640×640 缓冲，
         // 直接喂推理引擎（跳过 NSImage/CGImage 大图转换 → 检测帧率↑）
+        //
+        // ⚠️ 2026-10-19 措辞勘误（flow-risk task-5 发现）：原文写「GPU 缩放好的
+        //   **352×352** 缓冲」两处都错 —— ① 是 **CPU vImage**（不是 GPU），
+        //   `CaptureEngine.swift:1122` 原文「vImage 缩放到模型输入尺寸（CPU，双线性
+        //   kvImageNoFlags）」，且该文件无任何 CIContext 调用；改用 CPU 正是为了
+        //   **绕开** GPU（消除游戏占满 GPU 时 CIContext(GPU) 排队导致的 40ms 卡顿）。
+        //   ② 尺寸是 **640×640**（`YoloEngine.inputSize`），352×352 是旧值、
+        //   全项目已不存在。
+        //   项目自己的勘误先例：docs/老旧文档/已整合归档-2026-10-18/
+        //   性能-GPU约束与CPU化-2026-10-13.md:15「仅注释引用血案」。
+        //   实测成本（同归档文档 性能-帧回调拷贝审计-2026-10-11.md:60）：
+        //   vImageScale 1280×832 → 640×640 中位 0.312ms（max 0.852）。
         captureEngine.onYoloFrame = { [weak self] pb in
             // 跳帧防堆积：captureQueue 只覆盖最新 YOLO 帧，tick 主线程取最新消费，
             // 主线程卡时旧帧被覆盖丢弃，不往 main 队列堆积 1.6MB 缓冲。
@@ -6282,8 +6391,25 @@ final class DriveState {
         inferenceEngine.loadIfNeeded()   // 首次启动加载 M9 驾驶模型（V2 冷启动/缺失时的回退）
         inferenceEngineV2.loadIfNeeded() // 首次启动加载 V2 新一代驾驶模型（缺失时优雅降级、自动回退 M9）
         assistEngine.loadIfNeeded()      // 首次启动加载第二套驾驶模型（YOLO接管档）
-        yoloEngine.loadIfNeeded()        // 首次启动加载 YOLO 检测模型
-        yolopxEngine.loadIfNeeded()      // 首次启动加载 YOLOPX 三合一感知模型
+        // ── yolo26s 按档位加载（2026-10-19 用户拍板，goal-3279b59b 需求7）──
+        //
+        // 【改前】无条件 `yoloEngine.loadIfNeeded()` —— 用户默认就是 A 模型档，
+        //   而 A 模型档的设计原话是「只跑 A-YOLOM(n) int8 一个三合一模型」
+        //   （PerceptionMode.swift:194-200）。无条件加载的后果：开机就白占
+        //   9.2MB 权重常驻 + 加载耗时，且 `detectGateB` 当时没档位门 → 每两帧
+        //   还推理一次（p50 6.2~14ms）抢 ANE/GPU。用户实测「裸游戏流畅、
+        //   开 App 持续卡、GPU 恒 100%」，这是其中之一。
+        //
+        // 【改后】只有 legacy 三件套档才在开机时加载；A 模型档连内存都不占。
+        //   切档时的装卸在 `selectPerceptionMode`（用户要求「点一下立刻生效」）。
+        //
+        // 【回退开关】AURORA_FORCE_YOLO26S=1 → 恢复无条件加载+每帧推理的旧行为。
+        if Self.forceYolo26s || perceptionMode == .legacy {
+            yoloEngine.loadIfNeeded()    // 仅 legacy 三件套档需要检测网
+        } else {
+            dlog("[启动] A 模型档：跳过 yolo26s 加载（不占 9.2MB 权重常驻）")
+        }
+        yolopxEngine.loadIfNeeded()      // 首次启动加载三合一感知模型（A 模型档内为 ayolom_n_int8）
         dlog("启动开车: 辅助功能权限=\(controlEngine.hasAccessibilityPermission) 专家模式=\(expertMode) 禁用控制=\(controlDisabled)")
         dlog("模型加载: M9=\(inferenceEngine.isLoaded) V2=\(inferenceEngineV2.isLoaded) V2拆分=\(inferenceEngineV2.useSplitModels) 第二司机=\(assistEngine.isLoaded) YOLO=\(yoloEngine.isLoaded) YOLOPX=\(yolopxEngine.isLoaded) M9错误=\(inferenceEngine.errorMessage ?? "-") V2错误=\(inferenceEngineV2.errorMessage ?? "-") 世界模型=\(inferenceEngineV2.worldModelLoaded)")
     }
@@ -6929,7 +7055,34 @@ final class DriveState {
         // ayolom（默认小模型）每帧跑，不做错开降频。
         let isAyolom = (yolopxEngine.family == .ayolom)
         let detectGateA = decimateFallback || isAyolom || parityEven    // yolopx：ayolom 恒跑 / legacy 偶数帧
-        let detectGateB = decimateFallback || !parityEven               // yolo26s：奇数帧
+
+        // ── yolo26s 档位门（2026-10-19 用户拍板，见 goal-3279b59b）──
+        //
+        // 【问题】yolo26s 原本**没有档位门**：`detectGateB = 奇偶帧`，A 模型档下
+        //   照样每两帧推理一次。而 A 模型档的设计原话（PerceptionMode.swift:194-200）
+        //   是「**只跑 A-YOLOM(n) int8 一个三合一模型**」——yolo26s 只属于
+        //   legacy 三件套档。代码漏了这个门，后果：常驻 9.2MB 权重 + 每两帧
+        //   p50 6.2~14ms 推理，且 `YoloEngine.computeUnits = .all` 会把算子派
+        //   GPU，与游戏抢卡（用户实测：裸游戏流畅、开 App 持续卡、GPU 恒 100%）。
+        //
+        // 【修法】门控判据改为「当前是不是 legacy 档」。A 模型档 → 恒 false，
+        //   26S 既不推理也不加载（开机 :6304 与切档 :5424 同步按档位装卸）。
+        //
+        // 【为什么不用「yolopx 有没有框」当判据】22:33 我曾那样改过，是**错的**：
+        //   `.rule` 纯规则档原本只吃 26S 的框（:7381 → :7632），小模型一有框就把
+        //   26S 按停，等于让最后防线拿陈旧框开车。且该判据与「档位语义」无关 ——
+        //   用户要的是"A 模型档根本没有 26S 这个东西"，不是"有框时省一次推理"。
+        //
+        // 【.rule 档怎么办】已按用户拍板改成吃小模型的框（见 :7381 处改动），
+        //   所以 A 模型档下 .rule 档有新鲜框可用，不会变瞎。
+        //
+        // 【回退开关】AURORA_DETECT_DECIMATE=1 → 两门恒真（含 legacy 的 26S），
+        //   一行恢复旧行为。另配 AURORA_FORCE_YOLO26S=1 → A 模型档也常驻加载
+        //   并跑 26S（完全回到 2026-10-19 之前），供排查对照。
+        //   开关本身是 DriveState 上的静态属性（与开机加载处 :6304 共用同一份），
+        //   引擎进程侧由 engine-gate 队友用同名环境变量实现，语义一致。
+        let detectGateB = decimateFallback
+            || ((Self.forceYolo26s || perceptionMode == .legacy) && !parityEven)  // yolo26s：仅 legacy 档奇数帧
 
         // ── 引擎模式：只拉取显示数据，本地抓屏/推理/按键全部不跑 ──
         if EngineClient.shared.isActive {
@@ -6960,7 +7113,7 @@ final class DriveState {
         pendingFrameLock.unlock()
         perfT = PerfBus.lap("tick.consumeFrame", from: perfT)   // ★ 阶段1 打点
 
-        // ── 任务面板 OCR（2026-10-06 task-1，默认关：AURORA_QUEST_OCR=1 打开）──
+        // ── 任务面板 OCR（2026-10-06 task-1，默认开：AURORA_QUEST_OCR=0 关闭；原注释误写默认关，与 AuroraFlags.swift:201 实际 default:true 相反，2026-10-17 修正）──
         // 节流 0.7s 与"上一次没回来就跳过"都在 QuestPanelReader 内部；
         // 这里每 tick 调一次是**零成本**的（不满足间隔直接 return）。
         //
@@ -6982,8 +7135,13 @@ final class DriveState {
             //   直通 inferFast 是 yolo26s 的**每帧主力**（待机与驾驶都跑、且不依赖
             //   currentFrameCG）。yolo26s 只出检测框，归入奇数帧门后，偶数帧由
             //   yolopx 的检测框补真值，每帧至少一网出框、检测框 30Hz 连续。
+            //
             // 【为什么光流不降】光流是帧间差分，必须连续两帧都喂，降了会断流；
             //   下方 `runOpticalFlow(on:)` 仍每帧执行，不受 detectGateB 影响。
+            //
+            // 【档位门】detectGateB 已含「仅 legacy 档」判据（定义见 tick 开头）。
+            //   A 模型档下它恒为 false → yolo26s 不推理；配合开机/切档的按档位
+            //   加载，A 模型档下 26S 连内存都不占。回退：AURORA_FORCE_YOLO26S=1。
             if detectGateB {
                 yoloEngine.inferFast(pixelBuffer: yoloFrame)
                 perfT = PerfBus.lap("tick.yoloFast", from: perfT)   // ★ 阶段1 打点
@@ -7129,9 +7287,11 @@ final class DriveState {
             return
         }
 
-        // ⚠️ 2026-10-11 最终定档 20Hz：用户拍板「20 赫兹应该也够用了」。
-        //   tick 是 20Hz（见 `EngineMain.engineTickHz`），抓屏 ayolom 档仍 45fps。
-        //   两者解耦：本 dt 只用于 tick 内的物理计算（光流/加速度/状态机），
+        // ⚠️ 2026-10-12 最终定档 20Hz：用户拍板「20 赫兹应该也够用了」。
+        //   tick 是 20Hz（见 `EngineMain.engineTickHz`），抓屏两档也都 20fps
+        //   （2026-10-12 起对齐；原 ayolom 档 45fps 已废弃 —— 每 tick 只消费 1 帧，
+        //    多余帧全被跳帧丢弃，纯浪费带宽）。
+        //   本 dt 只用于 tick 内的物理计算（光流/加速度/状态机），
         //   必须与 tick 频率一致，否则换算全错。
         //
         // ★ 2026-10-14 修复（perf-decision 排查发现）：原写法是硬编码 `1.0 / 20.0`。
@@ -7147,6 +7307,18 @@ final class DriveState {
         // ── 1. 感知层：双驾驶模型推理 + YOLO 检测 ──
         // 异步触发推理（不阻塞 tick），读 lastResult 作为本帧输出
         if let cg = currentFrameCG {
+            // ── 小地图指针朝向读取（独立于驾驶模式，UI 始终需要）──
+            // 64×64 + 2.45M 参数，ANE 上亚毫秒级；init 已预热。
+            // nil = 模型未加载/推理失败/置信度过低 → UI 回退用视角朝向显示。
+            if pointerReader.isAvailable {
+                if let h = pointerReader.read(frame: cg) {
+                    bodyHeadingDeg = h.headingDeg
+                    bodyHeadingConf = h.confidence
+                } else {
+                    bodyHeadingDeg = nil
+                    bodyHeadingConf = 0
+                }
+            }
             // 紧急切纯规则时主驾停推理（省资源；纯规则决策不依赖模型输出）
             if !forceRuleMode {
                 // ════════════════════════════════════════════════════════════════
@@ -7264,6 +7436,7 @@ final class DriveState {
             // 直通它不会自动回落；这里用 lastFastPathTime 做超时判活，超过 1 秒没有
             // 新的直通推理就认为直通已失效，回退慢路径，避免 YOLO 静默停摆。
             // P1：直通帧仍每帧喂光流（后面 yoloFrame 分支），但检测网提交偶奇错开。
+            //     档位门见 tick 开头 detectGateB 定义处（仅 legacy 档才跑 26S）。
             if detectGateB {
                 let fastPathStale = Date().timeIntervalSince(yoloEngine.lastFastPathTime) > 1.0
                 if !yoloEngine.fastPathActive || fastPathStale {
@@ -7343,9 +7516,38 @@ final class DriveState {
         let m9Live = v2Active ? isAliveV2(inferenceEngineV2) : isAlive(inferenceEngine)
         let assistLive = isAlive(assistEngine)
 
-        // YOLO 检测结果（异步推理，读最新一帧；未出结果时为空数组 → 规则态走安全直行）
-        // 同一份数据同时供：RuleController 决策 + ObstacleOverlay 画框
-        let detections = yoloEngine.detections
+        // ── 纯规则档（.rule）的检测框来源 ──
+        //
+        // 【2026-10-19 改：从 yolo26s 改为感知档的当前模型】用户拍板（goal-3279b59b
+        //   需求4）：A 模型档下 yolo26s 不加载/不推理，若 .rule 档继续只吃
+        //   `yoloEngine.detections`，它会拿到 `unload()` 留下的空数组或陈旧的残留框
+        //   —— 表现是"路上的车在动，最后防线按几秒前的画面打方向"。
+        //
+        // 【为什么用 effectiveDetections】它是**决策层的统一读取点**（:4235 定义），
+        //   语义本来就是「小模型（ayolom/yolopx）优先、无框才回落 yolo26s」，
+        //   且已套 EgoBoxFilter 剔除自车框（第三视角下模型会把玩家自己的车也框出来，
+        //   历史事故：自车框被规则判成障碍 → 自动刹车 → 而本游戏 brake 就是 S 键
+        //   兼倒车 → 托管状态跟用户抢控制权，见 :4200-4203 的删除记录）。
+        //   改用它等于让 .rule 档与 AutoRoadCondition / motionPredictor 同源，
+        //   消掉了"26S 与小模型各出一份框、决策吃哪份全凭档位"的隐式分裂。
+        //
+        // 【legacy 档行为是否变了】没变。legacy 档下 `preferYolopxDetections=true`（:5397）
+        //   且 yolopx 有框 → `effectiveDetections` 取的就是 yolopx 的框；只有 yolopx
+        //   没框时才回落 yolo26s，与改前 :7381 直接读 26S 的差异仅在"yolopx 优先"，
+        //   而这正是 displayDetections 自 2026-10-02 起的既定语义。
+        //
+        // 【一处需注意的差异】改前 .rule 档吃的是**未过滤自车框**的原始 26S 结果；
+        //   改后经 EgoBoxFilter。这是修 bug 而非引入 bug（理由见上），
+        //   且 displayDetections（UI 画框）本来就是过滤后给决策的。
+        //
+        // 【消费方】仅 `ruleController.decide`（:7753）。UI 画框走的是
+        //   `state.displayDetections`（MissionConsole.swift:604），两条链路在
+        //   :4236 就已分家，不经 RuleController。
+        //   ⚠️ 改前这里写"同一份数据同时供 RuleController + ObstacleOverlay 画框"，
+        //      那句自 2026-10-19 起是说谎的（26S 时代两处确实共用，现已不同源）。
+        //
+        // 同一份数据仅供 RuleController 决策；UI 画框走 displayDetections（另路）。
+        let detections = effectiveDetections
 
         // ── 2. 有效车速：OCR 新鲜（<0.5s 且 conf>0.3）→ EMA 追真实读数；否则一阶滤波回退 ──
         // 替代原遥测模拟（指数逼近限速 + 随机抖动）：速度现在来自真实游戏读数（speedOCR），
@@ -7396,7 +7598,8 @@ final class DriveState {
             if needsManualIntervention { needsManualIntervention = false }
         }
 
-        // ── 3. 降级状态机决策（四档梯子：模型存活 + 健康度驱动）──
+        // ── 3. 降级状态机决策（三档梯子：模型存活 + 健康度驱动）──
+        // （原写「四档梯子」，脱困档 .recover 已于 2026-09-30 删除，2026-10-18 修正）
         // 暖机期（开车头几秒还没出推理结果）保持档位不降级
         let warmingUp = inferenceEngine.lastResult == nil
             && Date().timeIntervalSince(drivingStartTime) < 3.0
@@ -7545,11 +7748,12 @@ final class DriveState {
             //   刹车持续期间每帧都在做「通知所有人 → 无人响应」的空转。
             //
             // 【同一类错误的第二个位置】上一轮在主路径修了这个问题
-            //   （见 :4729 的长注释），但只改了一处 —— 典型的对称遗漏。
-            //   这次连同提前 return 的分支一起对齐。
+            //   （见本文件 tick 末尾 `lastDecided` 那段的长注释），但只改了一处 ——
+            //   典型的对称遗漏。这次连同提前 return 的分支一起对齐。
             //
-            // 【行为等价】下一帧的 `.recover` 边沿检测（:4718）只关心
-            //   「值是否发生了变化」，值相同则本就不需要通知。
+            // 【行为等价】脱困档 `.recover` 已于 2026-09-30 删除，`lastDecided`
+            //   现在只作诊断留档、没有边沿检测消费者；但「值不变就不通知」
+            //   这条约定与消费者无关，仍是热路径的正确写法。
             if lastDecided != decided { lastDecided = decided }
             recordFrameIfNeeded()
             PerfBus.mark("tick.brakeTail", from: perfT)   // ★ 阶段1 打点（限速刹车早退分支）
@@ -7572,13 +7776,14 @@ final class DriveState {
         //   `@Observable` 属性 —— **赋值即通知全体观察者**，不管值有没有变。
         //
         //   这 4 处都在 `tick()` 的主路径上、每帧必执行一处（`switch` 四选一），
-        //   30Hz 下等于**每秒 30 次无效通知**。而 `currentCommand` 的 UI 读取方
+        //   20Hz 下等于**每秒 20 次无效通知**（原写 30Hz，是 20Hz 定档前的口径）。
+        //   而 `currentCommand` 的 UI 读取方
         //   只有 `MissionConsole.swift:504`（状态向量的 steer/throttle/brake 数值），
         //   正常行驶时连续帧的差异极小、绝大多数帧完全相同 ——
         //   于是每帧都在做「通知 UI → 值没变 → 白重算」的空转。
         //
         //   项目约定（其它热路径早已如此）：**先比较、变了才写**，
-        //   见待机分支的 `speedValid` / `effectiveSpeed` 与 :4740 的 `lastDecided`。
+        //   见待机分支的 `speedValid` / `effectiveSpeed` 与 `lastDecided`（声明在 `:5118`）。
         //
         //   行为等价性：`ControlCommand: Equatable`（EscapeController.swift:28），
         //   相等则本就不需要通知；不等则照常写入并通知，下游读取到的值不变。
@@ -7605,11 +7810,11 @@ final class DriveState {
         //   的主路径上、每帧执行一次 —— 但 `decided`（本帧决策模式）
         //   在绝大多数帧里与前帧相同（正常行驶时长期停在同一个模式）。
         //   于是每帧都在做一次「通知全体观察者 → 无人响应」的空转，
-        //   30Hz 下等于每秒 30 次无效的视图失效判定。
+        //   20Hz 下等于每秒 20 次无效的视图失效判定（原注释写 30Hz，是定档前的口径）。
         //   项目里其它热路径（如待机分支的 speedValid / effectiveSpeed）
         //   早已采用同一约定：**先比较、变了才写**。这里与之一致。
-        //   行为等价：值相同则本就不需要通知；值不同则照常写入并通知，
-        //   下一帧的 `.recover` 边沿检测（:4592）依赖的语义完全不变。
+        //   行为等价：值相同则本就不需要通知；值不同则照常写入并通知。
+        //   （脱困档 `.recover` 已删除，`lastDecided` 现在只作诊断留档、无消费者。）
         if lastDecided != decided { lastDecided = decided }
         perfT = PerfBus.lap("tick.ruleDecision", from: perfT)   // ★ 阶段1 打点（§4.4~5）
 
@@ -7640,7 +7845,8 @@ final class DriveState {
             // 数据来源（均为既有、已验证的链路）：
             //   · 世界坐标 + 朝向 ← readAcceleration / 网络定位（C2S UDP 解码，10Hz）
             //   · 是否在路上       ← RoadMapPrior（2048² 位图先验）
-            //   · 前方弯道点       ← RoadCornerGuide（road_corners_v2.json 打点集）
+            //   · 前方弯道点       ← RoadCornerGuide（road_corners_v3b.json 打点集；
+            //                        原写 v2 已过期 —— 源码 RoadCornerGuide.swift:307 实际加载 v3b）
             var segmentUsed = false
             if let pose = readPose(),
                let segDecision = segmentDecisionForRule(pose: pose) {

@@ -476,11 +476,12 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         //     见 SCStream.h 签名注释）。
         let config = Self.makeStreamConfiguration(configHz: targetCaptureHz, display: display)
         //
-        //   像素流：1280×832 @45fps = **192 MB/s**
-        //   （原 2940×1912 @30fps = 675 MB/s → 降 **3.5 倍**）。
-        //   ⚠️ 因为"只降分辨率、不降帧率"，降幅 = 分辨率缩减比（2940×1912 →
-        //      1280×832 是 5.3 倍面积），同时帧率从 30→45 又涨 1.5 倍，
-        //      故净降幅 5.3/1.5 ≈ 3.5 倍。若还要更低，需降 targetW。
+        //   像素流：1280×832 @20fps = **85 MB/s**（2026-10-12 定档 20fps，与推理
+        //   tick 20Hz 对齐；原 45fps = 192 MB/s，多出的帧每 tick 只消费 1 帧，
+        //   全被跳帧丢弃，纯浪费带宽）。
+        //   （历史对比：原 2940×1912 @30fps = 675 MB/s → 降到 20fps 后共降 **7.9 倍**。）
+        //   ⚠️ 帧率由 `setCaptureHz(_:)` 按档位与应急态动态下发（两档基准都 20fps，
+        //      应急冲刺提到 45fps），本条只是**默认基准**下的量级参考。
 
         // ── 内容过滤器（2026-10-08 双模式）─────────────────────────────
         // 旧实现是 `SCContentFilter(display: display, excludingWindows: [])`：
@@ -637,10 +638,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///
     ///   **实测方案（待批准编译后执行）**：
     ///     ① 启动引擎，看 `[cap-deep] 📥 帧到达 #N` 打印频率（默认每 60 帧一次）
-    ///        —— 45fps 下约 1.33s 一次（60/45）
-    ///     ② 调 `setCaptureHz(30)` 再看间隔
-    ///        —— 生效应约 2.0s 一次（60/30）；不变 → 热更无效
-    ///     ③ 更严谨：固定 5s 窗口数帧数（45fps → ~225 帧；30fps → ~150 帧）
+    ///        —— 20fps 下约 3.0s 一次（60/20）
+    ///     ② 调 `setCaptureHz(45)` 再看间隔
+    ///        —— 生效应约 1.33s 一次（60/45）；不变 → 热更无效
+    ///     ③ 更严谨：固定 5s 窗口数帧数（20fps → ~100 帧；45fps → ~225 帧）
     ///     ④ 若确认热更无效 → **回退路径必须成为主路径**（总是 stop+start），
     ///        或改为"先热更、再按实测间隔校验、不符则重启"
     ///
@@ -650,10 +651,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///
     /// 【不在捕获时】只写 `targetCaptureHz`，下次 `start()` 会自动用上。
     ///
-    /// ⚠️ **【接线状态】本方法目前零外部调用**（w8 审计确认，属实）——
-    ///   档位→Hz 映射由调用方负责（`PerceptionMode` 在 `YolopxEngine.swift`，
-    ///   非本文件写域）。建议接线点：`EngineMain.applyPerceptionMode(_:isRecording:)`
-    ///   里 `Task { await state?.captureEngine.setCaptureHz(hz) }`。
+    /// ⚠️ **【接线状态】2026-10-12 已接线**（旧注释说"零外部调用"已过期）：
+    ///   `EngineMain.applyPerceptionMode` 两处（:861 切档 / :878 录制结束补切）
+    ///   与 `tickOnce` 的应急 sprint 联动（:1244）都在调它。
     func setCaptureHz(_ hz: Double) async {
         let newHz = max(1.0, min(120.0, hz.isFinite ? hz : 20.0))
         let old = targetCaptureHz
@@ -1563,13 +1563,26 @@ enum CaptureSelfTest {
         ck("全屏模式需审查", !CaptureMode.fullScreen.isWindowMode, "fullScreen 需审查排除列表")
 
         // ── 6. maxClipsPerKind 可配（采集不丢数据）──
-        print("\n── 6. 录制保留上限可配 ──")
+        //
+        // ⚠️ 2026-10-19 修断言漂移（selftest-runner 归因）：原断言写死 `== 10`，
+        //   但默认值早在 2026-10-10（bd74ad1）就改成了 **200**
+        //   （RecordEngine.swift:53-58 记录了原因：w4-tools V4 验证发现默认 10
+        //   会让用户"录到第 11 段就静默删掉第 1 段"，而 w4 的证据 clip 正是这样
+        //   被队友密集录制触发的清理删掉的）。
+        //   写死数字的断言在默认值变更时会**静默失效**（报 FAIL 但功能没坏），
+        //   长期会训练人忽略自检失败。改为引用 RecordEngine 的默认常量，
+        //   以后默认值再变，断言自动跟上、无需人工同步。
+        print("\n── 6. 录制保留上限可配 ─")
         let engine = RecordEngine()
-        ck("默认上限 10", engine.maxClipsPerKind == 10, "默认 \(engine.maxClipsPerKind)")
+        ck("默认上限 \(RecordEngine.defaultMaxClipsPerKind)",
+           engine.maxClipsPerKind == RecordEngine.defaultMaxClipsPerKind,
+           "默认 \(engine.maxClipsPerKind)")
         engine.maxClipsOverride = 1000
         ck("override 生效", engine.maxClipsPerKind == 1000, "override→\(engine.maxClipsPerKind)")
         engine.maxClipsOverride = 0
-        ck("非法 override 回落默认", engine.maxClipsPerKind == 10, "0→\(engine.maxClipsPerKind)")
+        ck("非法 override 回落默认",
+           engine.maxClipsPerKind == RecordEngine.defaultMaxClipsPerKind,
+           "0→\(engine.maxClipsPerKind)")
         engine.maxClipsOverride = nil
         if let raw = ProcessInfo.processInfo.environment["AURORA_MAX_CLIPS"], let v = Int(raw), v > 0 {
             ck("环境变量优先", engine.maxClipsPerKind == v, "AURORA_MAX_CLIPS=\(v)")

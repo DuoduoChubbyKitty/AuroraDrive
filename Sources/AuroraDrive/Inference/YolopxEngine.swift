@@ -225,20 +225,32 @@ enum PerceptionMode: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 该档位**是否依赖光流做帧间外推** —— 用于 UI 副标题与切换日志的说明文字。
+    /// 该档位**是否依赖光流做帧间外推** —— 既是 UI 副标题与切换日志的说明文字，
+    /// **也是光流的真档位门**（不只是显示）。
     ///
-    /// ⚠️ 诚实标注：本属性**目前只用于显示，不改变任何行为**。
-    ///    `motionPredictor` / 光流链路对两个档位**照常运行**，原因是：
-    ///      · 游标器（`predictorDetections`）喂的是 `yolopxEngine.detections`，
-    ///        而两个档位共用同一个引擎实例，所以它天然对两档都生效；
-    ///      · 关掉它会动到「模型输出频率不得下降」这条红线（R1），
-    ///        而用户本次只要求「可选模型」，没有要求改光流行为。
+    /// 【读取点】
+    ///   · 真门控：`AuroraDriveApp.swift:7195`
+    ///     `if !Self.opticalFlowDisabled, perceptionMode.needsOpticalFlow { runOpticalFlow(...) }`
+    ///     （A2，2026-10-04 落地）→ `.ayolom` 档下光流**不跑**，`.legacy` 档逐帧不变。
+    ///   · 显示：`selectPerceptionMode` 的切档日志、诊断摘要行。
+    ///   · 自检断言：`--perception-selftest` 里「A 档不需要光流 / 旧档需要光流」两条。
     ///
-    /// 【为什么标注这个区别】光流存在的原始理由是
-    ///    「YOLOPX 单帧 183ms → 跑不到 30Hz → 用光流补中间帧」；
-    ///    这个前提在 A-YOLOM 档**不成立**（ANE 上 p50 10.4ms → 95.9Hz，
-    ///    30Hz 主循环下每帧都有真值）。将来若要关掉 A-YOLOM 档的光流，
-    ///    这个属性就是那个开关的落点。
+    /// ⚠️ 2026-10-04 之前的诚实标注已作废，此处保留原文备考古：
+    ///   「本属性目前只用于显示，不改变任何行为 —— motionPredictor / 光流链路
+    ///     对两个档位照常运行」。该状态在 A2 之后**不再成立**（见上方真门控）。
+    ///
+    /// 【A 模型档下光流为何可以不跑】光流存在的原始理由是
+    ///    「YOLOPX 单帧 183ms → 跑不到 30Hz → 用光流补中间帧」；该前提在
+    ///    A-YOLOM 档**不成立**（ANE 上 p50 10.4ms → 95.9Hz，30Hz 主循环下
+    ///    每帧都有真值），不需要帧间外推补帧。
+    ///
+    /// 【行为增量（诚实标注，不是纯性能优化）】`.ayolom` 档下
+    ///    `currentEgoFlow` 恒为 nil → `egoBlocked` 恒 false → 不再有
+    ///    「光流否决外推」这一步。风险评估结论（task-5，goal-3279b59b）：
+    ///    三大消费者逐个判定 —— MotionPredictor 退化方向偏安全、LaneBridge
+    ///    在 A 档下本就空转（ayolom 的 da/ll 实测 0 格）、egoVerdict 的退化
+    ///    已由 `AURORA_EGO_CHECK=off` 验证可接受。`.legacy` 档光流是核心组件，
+    ///    行为逐帧不变。
     var needsOpticalFlow: Bool {
         switch self {
         case .ayolom: return false

@@ -60,7 +60,8 @@ final class EngineClient {
     /// 3 = 共享内存新增**掩码区**（da/ll 位压缩网格 + letterbox 几何），
     ///     `pixelsOffset` 从 20480 后移到 28672。**这是布局变更**：
     ///     新旧混跑时旧 UI 会把掩码区当像素读 → 花屏，所以必须升版本，
-    ///     让版本守卫强制重启引擎（`EngineClient:227` 的 stale 判据）。
+    ///     让版本守卫强制重启引擎（`isEngineStale` 的 stale 判据，见 `:265`；
+    ///     原写 `EngineClient:227` 是旧行号，2026-10-18 修正）。
     nonisolated static let protocolVersion = 3
 
     // ── UI 读取的状态 ──

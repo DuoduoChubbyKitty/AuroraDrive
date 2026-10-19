@@ -1251,7 +1251,7 @@ final class AgentSkillCenter: @unchecked Sendable {
             }
 
             var clicked = 0
-            for _ in 1...maxRounds {
+            for round in 1...maxRounds {
                 guard runningSkills.contains(skill.id) else {
                     logger("⏹️ 已停止（用户中断）")
                     return
@@ -1321,7 +1321,7 @@ final class AgentSkillCenter: @unchecked Sendable {
 
         let maxRounds = 12
         appendSystem("🎣 钓鱼循环启动：F 抛竿/收杆 × \(maxRounds) 轮（点击技能可停止）")
-        for _ in 1...maxRounds {
+        for round in 1...maxRounds {
             guard runningSkills.contains(skill.id) else {
                 appendSystem("⏹️ 钓鱼已停止")
                 return

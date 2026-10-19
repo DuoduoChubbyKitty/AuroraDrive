@@ -264,6 +264,14 @@ func runPerfSelfTest(seconds: Double) -> Int {
     PerfBus.shared.reset()
 
     // ── 建立各子系统实例（与生产同一套构造路径，避免"测的不是生产"）──
+    //
+    // ⚠️ 夹具口径（2026-10-19 补注，防误读）：本夹具**无条件**加载并推理
+    //    yolo26s（下方 `yolo.loadIfNeeded()` + 每轮 `yolo.infer()`），**不受
+    //    生产档位门影响** —— 生产在 A 模型档（默认档）下根本不加载/不推理
+    //    26S（见 `detectGateB` 的「仅 legacy 档」判据与 `YoloEngine.unload()`）。
+    //    ⟹ 本夹具的 `infer.yolo26s` / `submit.yolo26s` / `yolo26Rate` 是
+    //      **26S 单机性能基线**，不是「生产默认档下的表现」。要测生产档位
+    //      行为请用 `--tick-bench`（它驱动真实 `tick()`，两档对照）。
     let yolopx = YolopxEngine()
     let yolo = YoloEngine()
     let m9 = InferenceEngine()
