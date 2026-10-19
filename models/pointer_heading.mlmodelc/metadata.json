@@ -1,0 +1,84 @@
+[
+  {
+    "metadataOutputVersion" : "3.0",
+    "storagePrecision" : "Mixed (Float16, Palettized (8 bits), UInt8)",
+    "outputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 84 × 15)",
+        "shortDescription" : "",
+        "shape" : "[1, 84, 15]",
+        "name" : "output0",
+        "type" : "MultiArray"
+      }
+    ],
+    "modelParameters" : [
+
+    ],
+    "specificationVersion" : 9,
+    "mlProgramOperationTypeHistogram" : {
+      "Ios18.expandDims" : 3,
+      "Ios18.softmax" : 2,
+      "UpsampleNearestNeighbor" : 2,
+      "Ios18.mul" : 4,
+      "Ios18.matmul" : 4,
+      "Ios18.sigmoid" : 2,
+      "Split" : 12,
+      "Ios18.gatherAlongAxis" : 3,
+      "Ios18.greaterEqual" : 1,
+      "Select" : 1,
+      "Ios16.reduceMax" : 1,
+      "Tile" : 2,
+      "Ios18.add" : 23,
+      "Ios18.gather" : 1,
+      "Ios18.reshape" : 19,
+      "Ios18.constexprLutToDense" : 82,
+      "Ios18.conv" : 111,
+      "Ios18.concat" : 26,
+      "Ios18.silu" : 93,
+      "Ios18.sub" : 2,
+      "Ios18.cast" : 11,
+      "Ios18.transpose" : 1,
+      "Ios18.topk" : 2,
+      "Ios18.maxPool" : 3,
+      "Ios18.sliceByIndex" : 4
+    },
+    "computePrecision" : "Mixed (Float16, Float32, Int16, Int32, UInt16)",
+    "isUpdatable" : "0",
+    "stateSchema" : [
+
+    ],
+    "availability" : {
+      "macOS" : "15.0",
+      "tvOS" : "18.0",
+      "visionOS" : "2.0",
+      "watchOS" : "11.0",
+      "iOS" : "18.0",
+      "macCatalyst" : "18.0"
+    },
+    "modelType" : {
+      "name" : "MLModelType_mlProgram"
+    },
+    "userDefinedMetadata" : {
+      "com.github.apple.coremltools.source_dialect" : "TorchScript",
+      "com.github.apple.coremltools.version" : "8.3.0",
+      "com.github.apple.coremltools.source" : "torch==2.13.0"
+    },
+    "inputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 3 × 64 × 64)",
+        "shortDescription" : "",
+        "shape" : "[1, 3, 64, 64]",
+        "name" : "images",
+        "type" : "MultiArray"
+      }
+    ],
+    "generatedClassName" : "pointer_heading",
+    "method" : "predict"
+  }
+]
