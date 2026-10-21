@@ -7308,9 +7308,12 @@ final class DriveState {
         // 异步触发推理（不阻塞 tick），读 lastResult 作为本帧输出
         if let cg = currentFrameCG {
             // ── 小地图指针朝向读取（独立于驾驶模式，UI 始终需要）──
-            // 64×64 + 2.45M 参数，ANE 上亚毫秒级；init 已预热。
+            // ⚠️ 2026-10-21 更新：模型从旧 pointer_heading（2.45M 参数/2.4MB）
+            //   换成自训 tiny_pointer（18.7K 参数/30.3KB int8），注释里的
+            //   「2.45M 参数」已过期。新模型 ROI 改为右上角 [1061,66]@720p。
             // nil = 模型未加载/推理失败/置信度过低 → UI 回退用视角朝向显示。
             if pointerReader.isAvailable {
+                let ptrStart = PerfBus.stamp()
                 if let h = pointerReader.read(frame: cg) {
                     bodyHeadingDeg = h.headingDeg
                     bodyHeadingConf = h.confidence
@@ -7318,6 +7321,7 @@ final class DriveState {
                     bodyHeadingDeg = nil
                     bodyHeadingConf = 0
                 }
+                PerfBus.mark("tick.pointer", from: ptrStart)
             }
             // 紧急切纯规则时主驾停推理（省资源；纯规则决策不依赖模型输出）
             if !forceRuleMode {
