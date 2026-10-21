@@ -9,7 +9,7 @@ program(1.0)
             tensor<int32, []> input_1_groups_0 = const()[name = tensor<string, []>("input_1_groups_0"), val = tensor<int32, []>(1)];
             tensor<string, []> images_to_fp16_dtype_0 = const()[name = tensor<string, []>("images_to_fp16_dtype_0"), val = tensor<string, []>("fp16")];
             tensor<fp16, [8, 3, 3, 3]> features_0_weight_to_fp16 = const()[name = tensor<string, []>("features_0_weight_to_fp16"), val = tensor<fp16, [8, 3, 3, 3]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(64)))];
-            tensor<fp16, [8]> features_0_bias_to_fp16 = const()[name = tensor<string, []>("features_0_bias_to_fp16"), val = tensor<fp16, [8]>([0x1.e44p-4, 0x1.fp-4, -0x1.87p-4, -0x1.c9p-5, -0x1.448p-6, -0x1.798p-4, -0x1.3d4p-3, -0x1.124p-3])];
+            tensor<fp16, [8]> features_0_bias_to_fp16 = const()[name = tensor<string, []>("features_0_bias_to_fp16"), val = tensor<fp16, [8]>([-0x1.494p-3, -0x1.714p-6, -0x1.e98p-4, 0x1.e48p-6, 0x1.d88p-4, -0x1.374p-4, 0x1.32p-5, -0x1.484p-3])];
             tensor<fp16, [1, 3, 64, 64]> images_to_fp16 = cast(dtype = images_to_fp16_dtype_0, x = images)[name = tensor<string, []>("cast_1")];
             tensor<fp16, [1, 8, 64, 64]> input_1_cast_fp16 = conv(bias = features_0_bias_to_fp16, dilations = input_1_dilations_0, groups = input_1_groups_0, pad = input_1_pad_0, pad_type = input_1_pad_type_0, strides = input_1_strides_0, weight = features_0_weight_to_fp16, x = images_to_fp16)[name = tensor<string, []>("input_1_cast_fp16")];
             tensor<fp16, [1, 8, 64, 64]> input_3_cast_fp16 = relu(x = input_1_cast_fp16)[name = tensor<string, []>("input_3_cast_fp16")];
@@ -52,7 +52,7 @@ program(1.0)
             tensor<int32, [2]> var_53 = const()[name = tensor<string, []>("op_53"), val = tensor<int32, [2]>([1, 1536])];
             tensor<fp16, [1, 1536]> input_cast_fp16 = reshape(shape = var_53, x = x_3_cast_fp16)[name = tensor<string, []>("input_cast_fp16")];
             tensor<fp16, [9, 1536]> head_weight_to_fp16_palettized = constexpr_lut_to_dense()[indices = tensor<uint8, [13824]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(7296))), lut = tensor<fp16, [256]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(21184))), name = tensor<string, []>("head_weight_to_fp16_palettized"), shape = tensor<uint32, [2]>([9, 1536])];
-            tensor<fp16, [9]> head_bias_to_fp16 = const()[name = tensor<string, []>("head_bias_to_fp16"), val = tensor<fp16, [9]>([-0x1.bd8p-7, -0x1.0fp-10, 0x1.26p-6, -0x1.314p-6, 0x1.c6cp-8, 0x1.ebcp-6, 0x1.1e4p-7, 0x1.73cp-6, 0x1.098p-5])];
+            tensor<fp16, [9]> head_bias_to_fp16 = const()[name = tensor<string, []>("head_bias_to_fp16"), val = tensor<fp16, [9]>([0x1.a94p-7, -0x1.cccp-6, 0x1.064p-6, -0x1.d28p-7, -0x1.97p-7, 0x1.4a8p-5, 0x1.56cp-6, -0x1.cap-7, 0x1.37cp-5])];
             tensor<fp16, [1, 9]> linear_0_cast_fp16 = linear(bias = head_bias_to_fp16, weight = head_weight_to_fp16_palettized, x = input_cast_fp16)[name = tensor<string, []>("linear_0_cast_fp16")];
             tensor<fp16, [1, 9]> var_58_cast_fp16 = sigmoid(x = linear_0_cast_fp16)[name = tensor<string, []>("op_58_cast_fp16")];
             tensor<string, []> var_58_cast_fp16_to_fp32_dtype_0 = const()[name = tensor<string, []>("op_58_cast_fp16_to_fp32_dtype_0"), val = tensor<string, []>("fp32")];
