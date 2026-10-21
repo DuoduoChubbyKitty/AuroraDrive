@@ -50,6 +50,30 @@ func swift_shm_unlink(_ name: UnsafePointer<CChar>) -> Int32
 
 // MARK: - 引擎日志
 
+/// 引擎日志文件大小上限（超过即轮转）。与 `pcapLog` 同款单备份策略。
+///
+/// ⚠️ 2026-10-22 新增（纯浪费清理）：此前 `engineLog` **只追加、无任何上限**
+///   （`pcapLog`/`dlog` 都有 8~10MB 封顶，唯独这个没有）。实测单个会话
+///   5.71h 写了 6.16MB（951KB/h）→ 持续运行 24h ≈ 22MB 且永不清理。
+///   而其中 **70% 是「每 5 秒一条」的统计行**（见 sendHeartbeat 调用点，已同步降频）。
+let engineLogMaxBytes: UInt64 = 8 * 1024 * 1024
+/// 每写这么多次检查一次文件大小（避免每次写日志都 stat）
+private let engineLogCheckEvery: UInt64 = 64
+private nonisolated(unsafe) var engineLogWriteCount: UInt64 = 0
+
+/// 超限则把当前日志挪到 `.1`（单备份，旧 `.1` 直接覆盖），并重建空文件。
+private func engineLogRotateIfNeeded(path: String) -> Bool {
+    let fm = FileManager.default
+    guard let attrs = try? fm.attributesOfItem(atPath: path),
+          let size = attrs[.size] as? UInt64,
+          size >= engineLogMaxBytes else { return false }
+    let backup = path + ".1"
+    try? fm.removeItem(atPath: backup)
+    try? fm.moveItem(atPath: path, toPath: backup)
+    fm.createFile(atPath: path, contents: nil)
+    return true
+}
+
 /// 引擎日志：同时写 stdout 与 ~/Library/Logs/AuroraEngine.log
 func engineLog(_ msg: String) {
     let ts = SelfTimestamp()
@@ -57,6 +81,12 @@ func engineLog(_ msg: String) {
     FileHandle.standardOutput.write(line.data(using: .utf8) ?? Data())
     let path = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Logs/AuroraEngine.log").path
+    // 轮转检查（节流：每 64 次写入 stat 一次）。放在写之前，
+    // 让本轮就落到新文件里，不留「已超限却还在写旧文件」的窗口。
+    engineLogWriteCount &+= 1
+    if engineLogWriteCount % engineLogCheckEvery == 0 {
+        _ = engineLogRotateIfNeeded(path: path)
+    }
     if let fh = FileHandle(forWritingAtPath: path) {
         fh.seekToEndOfFile()
         fh.write(line.data(using: .utf8) ?? Data())
@@ -1240,8 +1270,18 @@ enum EngineMain {
                     }
                     EngineMain.sendHeartbeat(reason: "periodic")
                     heartbeatCount += 1
-                    // 每 5 秒输出一条管道统计，便于无人值守验证
-                    if heartbeatCount % 5 == 0 {
+                    // 每 15 秒输出一条管道统计，便于无人值守验证。
+                    //
+                    // ⚠️ 2026-10-22：5→15 秒（纯浪费清理，不是 30 秒 —— 见下）。
+                    //   实测该行占整个 AuroraEngine.log 的 **70%**
+                    //   （45,106 行里 28,446 行是它；4.34MB / 6.16MB）。
+                    //   唯一的机器消费方是 tools/deep_capture.sh:133 的
+                    //   `grep "统计: seq=" | tail -2` —— 只取最后两条，粒度变粗无影响。
+                    //   【为什么定 15 而不是 30】同块内还顺带输出 [PERF] 分段统计
+                    //   （PerfBus，仅在 AURORA_PERF=1 时）并 reset 窗口；
+                    //   而 deep_capture.sh 默认 DURATION=120s —— 30 秒只剩 4 个窗口，
+                    //   样本太少；15 秒有 8 个窗口，且写盘量降为原来的 1/3。
+                    if heartbeatCount % 15 == 0 {
                         let seq = EngineGlobals.shm?.publishedSeq ?? 0
                         let hasFrame = EngineGlobals.state?.currentFrameCG != nil
                         // 掩码诊断：把「引擎到底有没有在跑 YOLOPX、有没有把掩码发出去」

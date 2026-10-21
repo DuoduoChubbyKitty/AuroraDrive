@@ -6664,7 +6664,9 @@ final class DriveState {
         if useUpscale {
             if let pb = client.takePixelBuffer() {
                 upscaleHost.push(pixelBuffer: pb)
-                isStreaming = true
+                // ⚠️ 2026-10-22：先比后写。poll() 无新帧时会返回缓存 frameCache，
+                //   而本函数跑 15Hz → 原先每帧无条件写同一个 true（见下方同款改动）。
+                if !isStreaming { isStreaming = true }
                 // 源尺寸必须随帧更新（不能只在 nil 时设一次）：
                 // 检测框叠加、框选手势的坐标换算都以 screenSize 为基准，
                 // 尺寸变了却不更新 → 框错位、框选选不中。
@@ -6676,7 +6678,7 @@ final class DriveState {
             currentFrameCG = cg
             let sz = CGSize(width: cg.width, height: cg.height)
             if screenSize != sz { screenSize = sz }
-            isStreaming = true
+            if !isStreaming { isStreaming = true }
             frameHost.push(cg)
         }
         // 先比后写：检测列表值不变时跳过 @Observable 写入（省观察者通知）。
@@ -6728,7 +6730,13 @@ final class DriveState {
            isDriving != client.engineIsDriving {
             isDriving = client.engineIsDriving
         }
-        if client.engineFPS > 0 { fps = client.engineFPS }
+        // fps：**先比后写**（与本地模式 :7581 处同款纪律）。
+        // ⚠️ 2026-10-22 修复：原先无条件 `if client.engineFPS > 0 { fps = client.engineFPS }`，
+        //   而 engineFPS 由 **1Hz 心跳**更新、本函数跑 15Hz → 每秒约 14 次写入
+        //   **完全相同的 Double**。fps 是普通 @Observable 属性且 TopBar 真的在读它
+        //   （MissionConsole.swift:128），值没变还写 = 14 次/秒的无效顶栏失效重排。
+        //   显示值不变（本来就是同一个数），纯浪费。
+        if client.engineFPS > 0, fps != client.engineFPS { fps = client.engineFPS }
         // 录制状态回同步（引擎是权威源）：引擎进程真正写盘，UI 只显示帧数。
         // 置 applyingRemoteRecord 防回环，否则 isRecording 的 didSet 会把命令回声给引擎。
         // 宽限期：刚发过 record 命令的 2 秒内不信心跳（心跳 1Hz + 引擎带即时回执），
@@ -6751,10 +6759,12 @@ final class DriveState {
         // 这些只在 tick() 里被读，而引擎模式下 tick() 跑在引擎进程 ——
         // 必须显式推送。只在变化时发，避免 30Hz 刷屏。
         pushEngineConfigIfChanged()
-        // 插帧实时统计（引擎模式下同样显示）
-        if useUpscale, let stats = upscaleHost.statsSnapshot() {
-            upscaleLive = "产出 \(stats.interpolatedFrameCount) · 透传 \(stats.passthroughFrameCount) · 输入 \(String(format: "%.0f", stats.captureFPS))fps → 输出 \(String(format: "%.0f", stats.outputFPS))fps"
-        }
+        // ⚠️ 2026-10-22 删除「插帧实时统计」的每 tick 字符串拼接（纯浪费）：
+        //   原代码 `upscaleLive = "产出 … · 透传 … · 输入 …fps → 输出 …fps"`，
+        //   含 2 次 String(format:) + 4 次数值插值，在 15Hz 的 tickEngineMode 里
+        //   **无节流**执行。而 `upscaleLive` 全仓**零读取方**（声明处注释 :5333
+        //   自己也写明了「零读取方（唯一提及是它自己的赋值语句）」）。
+        //   真正的插帧统计走另一条路（:8027 的 1Hz 节流路径写日志），功能不受影响。
     }
 
     /// 对一帧 640×640 BGRA 直通帧跑光流。
