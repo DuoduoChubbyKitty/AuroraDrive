@@ -112,14 +112,21 @@ final class PointerHeadingReader {
 
     /// 小地图 ROI，定义在 1280×720 坐标系。
     ///
-    /// 【2026-10-21 改：从左上角改成右上角】
-    ///   MaaNTE 原值 [73,60,64,64]（左上角）在异环实际画面上**裁到空白区域**——
-    ///   导致旧模型和新模型都 conf≈0。用户截图（2940×1912）实测确认小地图在
-    ///   右上角，OpenCV HoughCircles 检测到圆心约 (2490,246) r=110，换算到
-    ///   720p 基准 = (1061,66)。模型在该位置 vis=0.944。
-    ///   原 MaaNTE 值 [73,60] 保留在此注释里供考古：它可能是别的游戏版本
-    ///   或 MaaNTE 强制调窗到 720p 后小地图位置不同。
-    private static let roiIn720p = CGRect(x: 1061, y: 66, width: 64, height: 64)
+    /// 【2026-10-21 定稿：左上角，用户手标平均】
+    ///   用户（MaaNTE 项目作者之一）亲手在 5 张 640×360 真实跑图帧上画框，
+    ///   标注平均值 x=33.2 y=38.2 w=59.0 h=47.8 → 换算到 720p 基准（×2）：
+    ///   x=66 y=76 w=118 h=96，取整后 (66, 76, 118, 96)。
+    ///   实测该 ROI 裁出的图里指针箭头清晰可见，旧 MaaNTE 模型在其上
+    ///   conf 0.89~0.98（六种朝向全部正确），是可靠的检测位置。
+    ///
+    /// 【为什么不是 MaaNTE 原值 [73,60,64,64]】
+    ///   那是 MaaNTE 在 **1280×720 强制调窗**下的坐标；本机抓屏是
+    ///   1280×832（宽高比不同），且游戏内小地图的实际像素尺寸也不同，
+    ///   直接套用会裁偏。用户手标值才是这台机器的正确值。
+    ///
+    /// 【历史教训】2026-10-21 白天曾误判为「右上角」——那是把右上角的
+    ///   圆形 UI 图标错认成小地图，已作废。小地图恒在左上角。
+    private static let roiIn720p = CGRect(x: 66, y: 76, width: 118, height: 96)
     /// MaaNTE ROI 的基准画面尺寸
     private static let roiBaseWidth: Double = 1280
     private static let roiBaseHeight: Double = 720
@@ -147,7 +154,7 @@ final class PointerHeadingReader {
 
     /// - Parameter modelFileName: 模型文件名（不带扩展名），默认 `tiny_pointer`
     ///   （2026-10-21 改：从旧 `pointer_heading` 换成自训的 30KB 极小模型）
-    init(modelFileName: String = "tiny_pointer") {
+    init(modelFileName: String = "pointer_heading") {
         let modelsDir = AuroraPaths.modelsDir()
         let compiled = modelsDir.appendingPathComponent("\(modelFileName).mlmodelc")
 
