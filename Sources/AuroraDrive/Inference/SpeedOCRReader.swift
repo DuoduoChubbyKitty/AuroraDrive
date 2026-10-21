@@ -1435,9 +1435,23 @@ final class SpeedOCRReader {
     /// - 输出：/tmp/aurora_ocr_dbg_full.png（ROI 缩略）、/tmp/aurora_ocr_dbg_slot{0,1,2}.png、
     ///         /tmp/aurora_ocr_dbg.txt（fg + 原生 ROI 分辨率）。覆盖写。
     /// - 若 ROI 缩略里能看到速度表数字 → 不是截错区域；若三槽裁图全空 → 坐标/朝向错位。
+    ///
+    /// ⚠️ 2026-10-22 加节流：`fg=` 诊断在**画面里没有速度表时每次识别都产生**
+    ///   （载入画面/菜单/视角错位/停车后），而识别跑 15Hz → 本函数曾以 15 次/秒
+    ///   的速率做「CIImage 缩放 + CPU PNG 编码 + 两次文件写」（纯 CPU 软件渲染器，
+    ///   见 `ciContext` 的 `useSoftwareRenderer: true`）。调试产物覆盖写，
+    ///   15Hz 与 0.1Hz 对排障的价值完全相同 —— 纯浪费。
+    ///   节流到 **10 秒一次**：仍能抓到「当时画面长什么样」，但写盘频率降 150 倍。
     nonisolated private static func saveOCRDebug(
         buffer: CVPixelBuffer, slots: [CGImage], fg: Int
     ) {
+        // 节流：距上次写盘不足 10 秒则整段跳过（含 CIImage 构造，连编码都不做）
+        let now = Date()
+        if let last = lastDebugSaveTime, now.timeIntervalSince(last) < Self.debugSaveMinInterval {
+            return
+        }
+        lastDebugSaveTime = now
+
         let sw = CVPixelBufferGetWidth(buffer)
         let sh = CVPixelBufferGetHeight(buffer)
         let input = CIImage(cvPixelBuffer: buffer)
@@ -1454,6 +1468,12 @@ final class SpeedOCRReader {
         try? txt.write(to: URL(fileURLWithPath: "/tmp/aurora_ocr_dbg.txt"),
                        atomically: true, encoding: .utf8)
     }
+
+    /// 调试写盘最小间隔（秒）。只在 `saveOCRDebug` 内使用。
+    private static let debugSaveMinInterval: TimeInterval = 10.0
+    /// 上次调试写盘时刻（ocrQueue 串行执行，无并发竞争；与 lastFrameHash 同一前提）
+    @ObservationIgnored
+    nonisolated(unsafe) private static var lastDebugSaveTime: Date?
 
     /// CGImage → PNG 文件（调试写盘用）
     nonisolated private static func writePNG(_ cg: CGImage, to path: String) {

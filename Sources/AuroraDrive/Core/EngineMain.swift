@@ -844,6 +844,23 @@ enum EngineMain {
     //   可变静态存储必须有显式隔离声明，否则报 #MutableGlobalVariable。
     nonisolated(unsafe) private static var enginePerceptionMode: String = "ayolom"
 
+    /// 当前档位是否需要 YOLO 直通帧（`CaptureEngine.isYoloWanted` 的引擎侧判据）。
+    ///
+    /// 【判据与 UI 侧逐字对齐】UI 侧是
+    ///   `Self.forceYolo26s || perceptionMode == .legacy`
+    /// 引擎侧同义：`AURORA_FORCE_YOLO26S=1` 或档位为 legacy/yolopx。
+    ///
+    /// 【为什么用 nonisolated 读 String 是安全的】`enginePerceptionMode` 只在主线程写
+    ///   （applyPerceptionMode / run 启动段），本方法供抓屏队列（captureQueue）读。
+    ///   最坏情况是切换档位的瞬间读到旧值 → 那一帧多做/少做一次缩放，
+    ///   下一帧即恢复正确。不会崩溃（Swift String 是值类型 + COW，跨线程读一个
+    ///   已发布的不可变 String 值是安全的；且这里只做等值比较）。
+    nonisolated static var needsYoloThrough: Bool {
+        forceYolo26s
+            || enginePerceptionMode == "legacy"
+            || enginePerceptionMode == "yolopx"
+    }
+
     /// yolo26s 强制加载开关（引擎侧；与 UI 侧 `DriveState.forceYolo26s` 同语义）
     private static let forceYolo26s: Bool = {
         ProcessInfo.processInfo.environment["AURORA_FORCE_YOLO26S"] == "1"
@@ -1159,6 +1176,10 @@ enum EngineMain {
             // 门禁：UI 经 socket 的 upscale 命令（wantFullFrame）实时控制——
             // 关闭时帧回调里连全分辨率拷贝都不做（isUpscaleWanted 在拷贝前求值）。
             EngineGlobals.state?.captureEngine.isUpscaleWanted = { EngineGlobals.wantFullFrame }
+            // 门禁：YOLO 直通帧（640×640 CPU 缩放 + 1.6MB 写）只在需要时做。
+            // A 模型档下该帧的两个消费者（yolo26s inferFast / 光流）都被档位门挡死
+            // → 造出来必被丢弃（详见 CaptureEngine.isYoloWanted 的注释）。
+            EngineGlobals.state?.captureEngine.isYoloWanted = { EngineMain.needsYoloThrough }
             // 诊断（仅供无按键权限的环境验证帧管道）：
             // 只启动抓屏、不注入按键，用来端到端验证「采集 → 共享内存 → UI」这条链路。
             // 生产路径不受影响（默认不设该变量）。

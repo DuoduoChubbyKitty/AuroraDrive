@@ -6150,6 +6150,13 @@ final class DriveState {
         }
         // 门禁：运行时读最新插帧开关（weak 捕获），关闭时不做全分辨率拷贝
         captureEngine.isUpscaleWanted = { [weak self] in self?.upscaleEnabled ?? false }
+        // 门禁：YOLO 直通帧只在需要时造（与引擎侧 EngineMain.needsYoloThrough 同判据）。
+        // A 模型档下两个消费者（yolo26s inferFast / 光流）都被档位门挡死，
+        // 造出来必被丢弃 —— 见 CaptureEngine.isYoloWanted 的注释。
+        captureEngine.isYoloWanted = { [weak self] in
+            guard let self else { return true }   // self 已释放 → 保守放行（宁可多做不误伤）
+            return Self.forceYolo26s || self.perceptionMode == .legacy
+        }
         captureEngine.onStatusChange = { [weak self] status in
             DispatchQueue.main.async {
                 switch status {
@@ -7126,7 +7133,20 @@ final class DriveState {
         // ⚠️ 绝不同步跑 OCR：实测 .accurate p50 33.6ms ≈ 一整个 30Hz 帧预算，
         //    同步会卡帧。QuestPanelReader 内部把 Vision 丢到自己的后台队列，
         //    确认后回主线程触发 onConfirmed（见 init 里的接线）。
-        if AuroraFlags.questOCR, let cg = currentFrameCG {
+        //
+        // ⚠️⚠️ 2026-10-22 生产缺陷修复（纯浪费，单核约 4.8%）：
+        //   **引擎进程跑这段毫无意义** —— 它 `EngineClient.shared.isActive == false`
+        //   （引擎只当服务端），所以不会在下面 `tickEngineMode()` 早退，会一路跑到
+        //   这里，以 0.7s 一次、每次 33.6ms 的代价跑满 Vision `.accurate`。
+        //   但 `onConfirmed` 只写**本进程**的 `questName` / `locatorTarget`，
+        //   而引擎进程的这两个字段**没有任何回传通道**（heartbeat / pointer /
+        //   ack / buildStateSnapshot 全都不含 quest* 字段，已逐项核实）——
+        //   ⟹ 引擎算出来的任务文本 UI 永远收不到，纯烧 CPU。
+        //   而 UI 进程在引擎模式下早就 `tickEngineMode(); return` 了，也不跑这里。
+        //   结论：引擎模式下两边都没人在用，加 `!isActive` 门控后：
+        //     · 引擎进程：不再白跑（省 4.8% 单核）
+        //     · UI 本地模式（未连引擎）：行为逐字不变（`isActive == false` → 照跑）
+        if AuroraFlags.questOCR, !EngineClient.shared.isActive, let cg = currentFrameCG {
             questPanel.ingest(cgImage: cg)
         }
 

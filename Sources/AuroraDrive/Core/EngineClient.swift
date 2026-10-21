@@ -160,6 +160,14 @@ final class EngineClient {
             .appendingPathComponent("Library/Logs/AuroraEngine.log").path
     }
 
+    /// DeviceRGB 色彩空间（复用单例）。
+    ///
+    /// 【为什么提到静态】`poll()` 里构造 CGImage 用得上，原先每帧调一次
+    /// `CGColorSpaceCreateDeviceRGB()`。虽然该 API 返回的是共享实例、开销很小，
+    /// 但在 15Hz 的每帧路径上没必要重复取；提成 `static let` 只取一次。
+    /// 与 `CaptureEngine` 里同款写法一致（本改动不改任何像素语义）。
+    private static let cgDeviceRGB = CGColorSpaceCreateDeviceRGB()
+
     private let queue = DispatchQueue(label: "aurora.engine.client", qos: .userInteractive)
 
     /// 等待旧引擎退场的轮询定时器（relaunchStaleEngine 持有）
@@ -653,8 +661,17 @@ final class EngineClient {
                     pendingPixelBuffer = copyIntoPixelBuffer(base: base, offset: off, w: w, h: h)
                 } else {
                     let src = base.advanced(by: off)
+                    // ⚠️ 2026-10-22 评估过「CGDataProvider 直指共享内存页」的零拷贝方案，
+                    //    **结论：不做**。实测折算：缩略帧 480×312 = 585KB，
+                    //    memcpy 约 15µs/帧 → 15Hz 下 0.22ms/秒 ≈ **单核 0.022%**。
+                    //    收益属噪声级，却要引入「UI 持有 mmap 页指针期间引擎翻页覆写」
+                    //    的撕裂风险（双缓冲只能保证「下一帧写另一页」，不能保证
+                    //    「UI 读一页跨了两次翻转」）。按项目「改动必须有可解释收益」
+                    //    的纪律，不值得。保留现有 Data 拷贝（语义最稳）。
+                    //    本轮真正回收的浪费在别处：engine 白跑 quest OCR、
+                    //    world_model 白加载、A 档白做 640×640 缩放。
                     let data = Data(bytes: src, count: pageSize)
-                    let cs = CGColorSpaceCreateDeviceRGB()
+                    let cs = Self.cgDeviceRGB
                     let info = CGImageAlphaInfo.premultipliedFirst.rawValue
                         | CGBitmapInfo.byteOrder32Little.rawValue
                     if let provider = CGDataProvider(data: data as CFData),

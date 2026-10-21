@@ -1679,6 +1679,15 @@ final class InferenceEngineV2 {
         return compiled
     }
 
+    /// 是否加载世界模型权重（默认 **false**，见 `loadIfNeeded` 里的长注释）。
+    ///
+    /// 【为什么是静态 let 而非每帧现读】与 `DriveState.forceYolo26s` 同一约定：
+    ///   环境变量在进程生命周期内不可能变化，且本开关只在启动加载时读一次。
+    /// 【回退开关】`AURORA_WORLD_MODEL=1` → 恢复无条件加载（旧行为）。
+    private static let worldModelEnabled: Bool = {
+        ProcessInfo.processInfo.environment["AURORA_WORLD_MODEL"] == "1"
+    }()
+
     /// 同步加载（启动路径显式预热用；保持 MainActor 语义简单）。
     func loadIfNeeded() {
         // ── 世界模型加载（W5，独立于主链路）──
@@ -1688,7 +1697,17 @@ final class InferenceEngineV2 {
         //   【可选性】world_model.mlmodelc 不存在 → worldModelLoaded 保持 false，
         //   推理时跳过世界模型步骤，不报错（任务明确要求）。
         //   【不碰 GPU】computeUnits = .cpuOnly（用户铁律）。
-        if !worldModelLoaded, let wmURL = worldModelURL {
+        //
+        // ⚠️ 2026-10-22：**默认不加载**（纯浪费清理）。
+        //   事实：`runWorldModel` 的三处调用点（:2238 / :2319 / :2410）**全部被注释**，
+        //   即世界模型加载后**永不推理**；其输出 `lastPredNextFused` 的消费者
+        //   `consumePredNextFeat()` 全仓零调用（代码注释 :2231-2235 已记录，2026-10-14
+        //   那次优化把推理砍了，但**忘了把加载一起砍**）。
+        //   代价：模型文件 1.3MB 常驻 + 开机一次 `MLModel(contentsOf:)` + `warmUp` 预热，
+        //   收益 0。故改为按需开关，默认关闭。
+        //   【回退开关】`AURORA_WORLD_MODEL=1` → 恢复无条件加载（将来若恢复世界模型推理，
+        //   同时打开本开关即可，行为与改动前逐字一致）。
+        if Self.worldModelEnabled, !worldModelLoaded, let wmURL = worldModelURL {
             let wmCfg = MLModelConfiguration()
             wmCfg.computeUnits = .cpuOnly
             do {

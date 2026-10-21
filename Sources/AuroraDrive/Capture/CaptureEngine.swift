@@ -137,6 +137,24 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     /// 模式（main 上赋值、captureQueue 上读）。
     var isUpscaleWanted: () -> Bool = { false }
 
+    /// 是否需要 YOLO 直通帧（每次帧回调时求值；与 `isUpscaleWanted` 完全同款模式）。
+    ///
+    /// ⚠️ 2026-10-22 新增（纯浪费清理）：
+    ///   `onYoloFrame` 路径每帧都做一次 **1280×832 → 640×640 的 CPU vImage 双线性缩放**
+    ///   （实测 0.312ms/帧，见 docs 归档的性能-帧回调拷贝审计）+ 写 1.6MB 池化缓冲。
+    ///   但在 **A 模型档（.ayolom，生产默认）** 下，这个帧的两个消费者**全部被门挡死**：
+    ///     · `yoloEngine.inferFast` —— 门是 `detectGateB`，
+    ///       而 `(forceYolo26s || perceptionMode == .legacy) && !parityEven` 在 A 档恒 false
+    ///     · `runOpticalFlow` —— 门是 `perceptionMode.needsOpticalFlow`，
+    ///       而 `.ayolom` 返回 false（光流在 A 档根本不存在）
+    ///   ⟹ 帧造出来后一路走到 tick，被 `pendingYoloFrame = nil` 直接丢弃。
+    ///   代价：0.312ms/帧 → 15Hz 约 4.7ms CPU/秒 + 24.6MB/s 内存写带宽，
+    ///        并且占着 SCStream 的 sampleHandlerQueue（项目自己记录过同类事故：
+    ///        在 captureQueue 上做同步计算导致 capGap 从 11ms 飙到 2081ms）。
+    ///   收益：这两项都不做之后一切行为逐字不变（本来就没被消费）。
+    ///   回退：设 `AURORA_FORCE_YOLO26S=1` 时档位仍按 legacy 语义开放，行为恢复。
+    var isYoloWanted: () -> Bool = { true }
+
     /// 原生帧直通回调（每帧调用，传入速度表 ROI 原生分辨率 CVPixelBuffer，未缩放）
     /// SpeedOCR 等需要"原生分辨率直裁直读（不插值）"的下游用这条，
     /// 绕开 NSImage 缩放链路；与 onFrame / onYoloFrame 互不影响
@@ -1116,7 +1134,12 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
 
         // ── YOLO 直通：CPU vImage 缩放到模型输入尺寸（YoloEngine.inputSize，640）──
         // 在源头完成缩放，绕开大图 → NSImage → CGImage → 再缩放的链路
-        if let onYoloFrame {
+        //
+        // ⚠️ 2026-10-22：门禁先于缩放求值（与上面 onUpscaleFrame 同款）。
+        //   A 模型档下两个消费者都被档位门挡死（见 `isYoloWanted` 的注释），
+        //   这里连 vImageScale 都不做 → 省 0.312ms/帧 + 24.6MB/s 带宽，
+        //   并让出 captureQueue（SCStream 的 sampleHandlerQueue）。
+        if let onYoloFrame, isYoloWanted() {
             // 直接缩放进池化私有缓冲（每帧独立、池深度 ≥4），下游 onYoloFrame 强捕获该缓冲，
             // 直到 tick 消费 + inferFast 拷贝完才释放回池 —— 主线程卡顿也不会拿到被覆写的帧。
             // 相比旧「双缓冲 + copyYoloFrame 整拷一份」省掉一次 640×640×4 ≈ 1.6MB 冗余 memcpy。
