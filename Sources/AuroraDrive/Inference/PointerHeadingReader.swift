@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // ============================================================================
-//  PointerHeadingReader.swift — 小地图指针朝向读取（角色/车辆朝向的真值源）
+//  PointerHeadingReader.swift — 小地图朝向读数（⚠️ 当前实测为视角朝向/光束，非角色指针）
 // ============================================================================
 //
 //  【这个文件解决什么问题】
@@ -10,8 +10,10 @@
 //    UE5 的 **ControlRotation**（相机/视角朝向），不是角色身体朝向。
 //    第三视角下相机可独立旋转 → 「视角朝向 ≠ 车头朝向」，沿路网跟车会用错方向。
 //
-//    本文件用 MaaNTE 的 `pointer_model.onnx`（已转 CoreML int8）读**小地图指针箭头**。
-//    小地图指针恒指角色正前方 → 它给出的是**真正的角色朝向**，与相机怎么转无关。
+//    本文件用 MaaNTE 的 `pointer_model.onnx`（已转 CoreML int8）读小地图上的朝向标记。
+//    ⚠️ 诚实标注（2026-10-20 核实）：实测该模型读到的是**光束**（视角朝向），
+//       不是指针箭头 → 与 cameraHeading 同源，**不构成角色朝向真值**。
+//       真正的角色朝向需另训模型；在它训好前，本读数不得被当作车头朝向使用。
 //
 //  【模型】
 //    models/pointer_heading.mlmodelc
@@ -21,7 +23,7 @@
 //      契约：images [1,3,64,64] Float32 → output0 [1,84,15] Float32
 //            输出是 YOLOv8-pose 格式：84 = 4(bbox) + 1(conf) + ... ，
 //            15 = 4(bbox) + 1(conf) + 剩余位里 [6:15] 是 3 个关键点的 (x,y,vis)
-//      实测：在《异环》2940×1912 真实截图上 conf=0.978，关键点贴合指针
+//      实测：在《异环》2940×1912 真实截图上 conf=0.978，关键点贴合**光束**（非指针）
 //
 //  【ROI 契约（关键）】
 //    MaaNTE 原值 `[73, 60, 64, 64]` 定义在 **1280×720** 画面坐标系。
@@ -55,11 +57,13 @@ import Foundation
 
 // MARK: - 输出
 
-/// 小地图指针读数
+/// 小地图朝向读数（⚠️ 当前实测为光束/视角朝向，非角色指针）
 struct PointerHeading: Equatable {
-    /// 角色朝向（罗盘角，0 = 正北 = 地图上方，顺时针为正，范围 [0,360)）
+    /// ⚠️ 视角朝向（罗盘角，0 = 正北 = 地图上方，顺时针为正，范围 [0,360)）
     ///
-    /// 与 `CoordinateCapture.cameraHeading` 同口径（compass），可直接替换使用。
+    /// 与 `CoordinateCapture.cameraHeading` 同口径（compass）——**同源，不是独立真值**。
+    /// 该值当前读的是小地图光束（视角），**不得被当作车头朝向使用**。
+    /// 真正的角色朝向需另训模型；训好前，沿路网跟车仍应用 `locatorHeading`（视角）兜底。
     let headingDeg: Double
 
     /// 模型置信度 [0,1]。低于调用方阈值应视为不可信。
@@ -88,25 +92,34 @@ final class PointerHeadingReader {
 
     /// CoreML 输入特征名
     private static let inputName = "images"
-    /// CoreML 输出特征名
-    private static let outputName = "output0"
+    /// CoreML 输出特征名（旧模型 `pointer_heading` 用 `output0`）。
+    ///
+    /// ⚠️ 2026-10-21：新模型 `tiny_pointer` 的输出名由 coremltools 自动生成
+    ///   （实测为 `var_58`，不稳定），故**不再硬编码**——改为运行时取
+    ///   `output.featureNames.first`（与 YoloEngine.swift:363 同款纪律）。
+    ///   本常量仅作为旧模型的文档记录保留。
+    private static let legacyOutputName = "output0"
     /// 模型输入边长（正方形）
     private static let modelSide = 64
-    /// 输出 anchor 数（84）
+    /// 输出 anchor 数（旧模型 84）
     private static let anchorCount = 84
-    /// 每个 anchor 的字段数（15）
+    /// 每个 anchor 的字段数（旧模型 15）
     private static let fieldsPerAnchor = 15
     /// 置信度在 anchor 内的下标
     private static let confidenceIndex = 4
     /// 关键点起始下标（4 bbox + 1 conf = 5，之后 [5] 是 pose 相关位）
     private static let keypointStart = 6
 
-    /// MaaNTE 原始 ROI，定义在 1280×720 坐标系。
+    /// 小地图 ROI，定义在 1280×720 坐标系。
     ///
-    /// 【为什么保留原始常量而不直接写死 832 的值】
-    ///   832 是根据本机屏幕比例算出来的；换屏幕（16:9 / 21:9）时抓屏高度会变。
-    ///   保留 720p 基准 + 运行时等比缩放，换屏幕无需改代码。
-    private static let roiIn720p = CGRect(x: 73, y: 60, width: 64, height: 64)
+    /// 【2026-10-21 改：从左上角改成右上角】
+    ///   MaaNTE 原值 [73,60,64,64]（左上角）在异环实际画面上**裁到空白区域**——
+    ///   导致旧模型和新模型都 conf≈0。用户截图（2940×1912）实测确认小地图在
+    ///   右上角，OpenCV HoughCircles 检测到圆心约 (2490,246) r=110，换算到
+    ///   720p 基准 = (1061,66)。模型在该位置 vis=0.944。
+    ///   原 MaaNTE 值 [73,60] 保留在此注释里供考古：它可能是别的游戏版本
+    ///   或 MaaNTE 强制调窗到 720p 后小地图位置不同。
+    private static let roiIn720p = CGRect(x: 1061, y: 66, width: 64, height: 64)
     /// MaaNTE ROI 的基准画面尺寸
     private static let roiBaseWidth: Double = 1280
     private static let roiBaseHeight: Double = 720
@@ -132,8 +145,9 @@ final class PointerHeadingReader {
 
     // MARK: - 初始化
 
-    /// - Parameter modelFileName: 模型文件名（不带扩展名），默认 `pointer_heading`
-    init(modelFileName: String = "pointer_heading") {
+    /// - Parameter modelFileName: 模型文件名（不带扩展名），默认 `tiny_pointer`
+    ///   （2026-10-21 改：从旧 `pointer_heading` 换成自训的 30KB 极小模型）
+    init(modelFileName: String = "tiny_pointer") {
         let modelsDir = AuroraPaths.modelsDir()
         let compiled = modelsDir.appendingPathComponent("\(modelFileName).mlmodelc")
 
@@ -213,7 +227,11 @@ final class PointerHeadingReader {
             return nil
         }
 
-        guard let array = output.featureValue(for: Self.outputName)?.multiArrayValue else {
+        // ⚠️ 2026-10-21：输出名动态取名。新模型 `tiny_pointer` 的输出名是
+        //   coremltools 自动生成的（实测 `var_58`），不稳定，故不硬编码。
+        //   与 YoloEngine.swift:363 同款纪律：取 featureNames.first。
+        guard let firstFeature = output.featureNames.first,
+              let array = output.featureValue(for: firstFeature)?.multiArrayValue else {
             return nil
         }
 
@@ -222,20 +240,64 @@ final class PointerHeadingReader {
 
     // MARK: - 解码
 
-    /// 解析 `output0 [1, 84, 15]` → 最优 anchor → 三关键点 → 角度。
+    /// 解析模型输出 → 三关键点 → 角度。**按 shape 分派两种格式**。
     ///
-    /// 输出布局（YOLOv8-pose，已实测确认）：
-    ///   `[anchor][field]`，共 84 anchor × 15 field。
-    ///   field[0..3] = bbox (x, y, w, h)（ROI 归一化坐标）
-    ///   field[4]    = 置信度
-    ///   field[5]    = pose 预留位
-    ///   field[6..14]= 3 个关键点 × (x, y, vis)
+    /// 支持两种契约（2026-10-21 起）：
+    ///   ① `[1, 9]`（新模型 `tiny_pointer`，自训，30KB int8）：
+    ///      9 个值 = 3 关键点 × (x, y, vis)，全部已 sigmoid 到 [0,1]。
+    ///   ② `[1, 84, 15]`（旧模型 `pointer_heading`，MaaNTE 转的，2.4MB）：
+    ///      YOLOv8-pose 布局。⚠️ 实测该模型读的是光束（视角朝向）而非指针。
     private func decode(_ array: MLMultiArray) -> PointerHeading? {
-        guard array.shape.count == 3,
-              array.shape[1].intValue == Self.anchorCount,
-              array.shape[2].intValue == Self.fieldsPerAnchor else {
-            return nil
+        if array.shape.count == 2,
+           array.shape[0].intValue == 1,
+           array.shape[1].intValue == 9 {
+            return decodeTiny9(array)
         }
+        if array.shape.count == 3,
+           array.shape[1].intValue == Self.anchorCount,
+           array.shape[2].intValue == Self.fieldsPerAnchor {
+            return decodeLegacyPose(array)
+        }
+        return nil
+    }
+
+    /// 解析新模型 `[1, 9]` 输出：3 关键点 × (x, y, vis)，归一化 [0,1]。
+    private func decodeTiny9(_ array: MLMultiArray) -> PointerHeading? {
+        let ptr = array.dataPointer.assumingMemoryBound(to: Float32.self)
+        let stride0 = array.strides[0].intValue
+        func field(_ i: Int) -> Double { Double(ptr[i * stride0]) }
+
+        let tip   = CGPoint(x: field(0), y: field(1))
+        let left  = CGPoint(x: field(3), y: field(4))
+        let right = CGPoint(x: field(6), y: field(7))
+
+        for p in [tip, left, right] {
+            guard p.x.isFinite, p.y.isFinite,
+                  p.x >= 0, p.x <= 1, p.y >= 0, p.y <= 1 else { return nil }
+        }
+
+        // 置信度 = 三个 vis 的均值（新模型无独立 conf 输出）
+        let visAvg = (field(2) + field(5) + field(8)) / 3.0
+        guard visAvg.isFinite, visAvg > 0.5 else { return nil }
+
+        let tailX = (left.x + right.x) / 2
+        let tailY = (left.y + right.y) / 2
+        let dx = Double(tip.x) - tailX
+        let dy = Double(tip.y) - tailY
+        guard dx * dx + dy * dy > 1e-6 else { return nil }
+
+        var angle = atan2(dx, -dy) * 180 / .pi
+        if angle < 0 { angle += 360 }
+
+        return PointerHeading(headingDeg: angle,
+                              confidence: visAvg,
+                              tip: tip,
+                              left: left,
+                              right: right)
+    }
+
+    /// 解析旧模型 `[1, 84, 15]` 输出（YOLOv8-pose 布局）。
+    private func decodeLegacyPose(_ array: MLMultiArray) -> PointerHeading? {
 
         let ptr = array.dataPointer.assumingMemoryBound(to: Float32.self)
         let stride0 = array.strides[1].intValue   // 相邻 anchor 的步长
