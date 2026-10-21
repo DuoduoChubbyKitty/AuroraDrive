@@ -51,9 +51,11 @@ final class EmergencyTakeover {
     // MARK: - 频率常量（用户拍板）
 
     /// 正常巡航（当前 engineTickHz 默认值）
-    static let normalHz: Double = 20.0
+    /// ⚠️ 2026-10-22：20→15（用户实测 20Hz 已导致游戏降到 8-14Hz，性能不够用）
+    static let normalHz: Double = 15.0
     /// 抗系统冲刺（只提推理 tick，抓屏不动）
-    static let sprintHz: Double = 45.0
+    /// ⚠️ 2026-10-22：45→20（旧 45Hz 在系统降频时根本跑不完，反而更卡）
+    static let sprintHz: Double = 20.0
     /// 用户接管让位
     static let yieldHz: Double = 5.0
     /// 冲刺上限，超时强制降回（保机器不关机）
@@ -62,23 +64,27 @@ final class EmergencyTakeover {
     // MARK: - 触发阈值
 
     /// 单帧 tick 间隔超过此值即算"掉拍"（ms）
-    static let takeoverTickGapMs: Double = 80.0
+    ///
+    /// ⚠️ 2026-10-22：80→100。15Hz 正常周期 = 66.7ms，旧阈值 80ms 只剩 13ms 余量，
+    ///   系统正常抖动（切窗口/GC）就会误判成掉拍。100ms ≈ 1.5× 周期，
+    ///   与旧口径（20Hz/50ms 周期 → 80ms ≈ 1.6×）基本一致。
+    static let takeoverTickGapMs: Double = 100.0
     /// 连续 N 帧掉拍才触发冲刺（防单次抖动误触）
     /// ⚠️ 2026-10-12 用户调整：3→10（"连续三针太狠了"）
-    ///   3帧=150ms 太容易误触（切桌面/开窗口的瞬时抖动就 3 次 >80ms）
-    ///   10帧=500ms 只有持续性降频才触发，偶发抖动不会误触
+    ///   3帧=150ms 太容易误触（切桌面/开窗口的瞬时抖动就 3 次 >100ms）
+    ///   10帧=667ms@15Hz 只有持续性降频才触发，偶发抖动不会误触
     static let triggerConsecutiveMisses = 10
 
     // MARK: - 状态（@Observable，UI 横幅读这些）
 
     /// 「请接管」横幅是否显示
     private(set) var takeoverActive: Bool = false
-    /// 45Hz 抗系统冲刺期
+    /// 20Hz 抗系统冲刺期（2026-10-22：45→20）
     private(set) var sprinting: Bool = false
     /// 用户按住受控键（5Hz 让位）
     private(set) var userHoldingKey: Bool = false
     /// 当前应生效 tick 频率（EngineMain 读此值动态调整）
-    private(set) var effectiveTickHz: Double = 20.0 {
+    private(set) var effectiveTickHz: Double = 15.0 {
         didSet {
             if oldValue != effectiveTickHz {
                 print("[EmergencyTakeover] effectiveTickHz: \(oldValue) → \(effectiveTickHz)")

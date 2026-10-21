@@ -134,6 +134,12 @@ final class EngineClient {
     private(set) var engineRecording = false
     /// 引擎已写盘的录制帧数
     private(set) var engineRecordFrames = 0
+    /// 引擎回传的指针朝向（罗盘角 [0,360)）。nil = 引擎侧也没读到指针。
+    /// 引擎模式下 UI 进程 tickEngineMode 早退 → pointerReader 从不执行，
+    /// 故 UI 侧的 bodyHeadingDeg 必须由引擎回传（5Hz 独立 `pointer` 消息）。
+    private(set) var engineBodyHeading: Double?
+    /// 引擎回传的指针置信度 [0,1]（engineBodyHeading 非 nil 时才有意义）
+    private(set) var engineBodyHeadingConf: Double = 0
 
     /// UI 当前是否要「像素缓冲」形态的帧（开了插帧时为 true）——
     /// 由 UI 每 tick 设置；引擎侧也会收到同名开关命令来决定发全分辨率还是缩略帧。
@@ -414,6 +420,17 @@ final class EngineClient {
         guard let data = line.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = obj["type"] as? String else { return }
+        // 指针朝向轻量消息（5Hz，独立于 1Hz 心跳 —— 心跳带 4 倍状态量，
+        // 提到 5Hz 不划算；指针只有两个数值，单独发一条最小包）。
+        if type == "pointer" {
+            if let v = obj["heading"] as? Double {
+                engineBodyHeading = v
+            } else {
+                engineBodyHeading = nil
+            }
+            if let v = obj["conf"] as? Double { engineBodyHeadingConf = v }
+            return
+        }
         guard type == "heartbeat" else { return }
         lastHeartbeat = Date()
         isConnected = true

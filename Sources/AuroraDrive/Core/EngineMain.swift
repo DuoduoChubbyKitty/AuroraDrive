@@ -619,6 +619,12 @@ enum EngineGlobals {
     @MainActor static var maskSeq: UInt64 = 0
     /// 上一次发布时的掩码指纹（用于判断"掩码是否真的变了"）
     @MainActor static var lastMaskFingerprint: Int = 0
+
+    /// 指针朝向回传的帧相位（每 tick 自增；% 3 == 0 时发一条 pointer 消息）。
+    ///
+    /// 为什么用帧相位而不是时间戳：tick 基准 15Hz，÷3 = 5Hz 精确对齐，
+    /// 且不引入浮点比较；`&+=` 进位自然回绕，无需重置。
+    @MainActor static var pointerPhase: UInt64 = 0
 }
 
 // MARK: - 引擎主入口
@@ -630,7 +636,14 @@ enum EngineMain {
     ///
     /// 【频率演进史 —— 按时间倒序，看最新的那节】
     ///
-    /// ── 2026-10-12 最终定档（最新，以此为准）──
+    /// ── 2026-10-22 最终定档（最新，以此为准）──
+    ///   · **tick（推理+控制+录制）**：**15Hz**（两档都是，见 `tickHz(forPerceptionMode:)`）
+    ///   · **抓屏（画面流）**：**15fps**（两档都是，见 `captureHz(forPerceptionMode:)`）
+    ///   · **应急冲刺（sprint）**：**20Hz**（原 45Hz 在系统已降频时跑不完，反而更卡）
+    ///   · **地图指针读数**：**5Hz**（15Hz ÷ 3，独立轻量 `pointer` 通道，见 `tickOnce` 末尾）
+    ///   理由：用户实测 20Hz 下游戏被压到 8-14Hz（整机降频），性能不够用。
+    ///
+    /// ── 2026-10-12 定档（已被上面的 15Hz 取代，保留作历史）──
     ///   · **tick（推理+控制+录制）**：**20Hz**（两档都是，见 `tickHz(forPerceptionMode:)`）
     ///   · **抓屏（画面流）**：**20fps**（两档都是，见 `captureHz(forPerceptionMode:)`）
     ///     理由：45fps 时每 tick 只消费 1 帧，多余 25 帧被跳帧丢弃，纯浪费带宽/CPU；
@@ -661,29 +674,32 @@ enum EngineMain {
     ///
     /// 【两档定义】（key 名 **`perceptionMode`**，取值 **`"ayolom"` / `"legacy"`**，
     ///   与 `PerceptionModelFamily.rawValue` 一致；UI 侧 W4 下发，W5 交叉验证以此为准）
-    ///   · `"ayolom"` → **20Hz**（小模型 A-YOLOM；原 45Hz 已降，见上方演进史）
-    ///   · `"legacy"` → **20Hz**（大模型 YOLOPX；原 30Hz 已降）
+    ///   · `"ayolom"` → **15Hz**（小模型 A-YOLOM；原 45Hz → 20Hz → 15Hz）
+    ///   · `"legacy"` → **15Hz**（大模型 YOLOPX；原 30Hz → 20Hz → 15Hz）
     ///
-    /// 【2026-10-12 现行值：两档推理都 20Hz】
+    /// 【2026-10-22 现行值：两档推理都 15Hz】
     ///
     /// ── 用户拍板的两档频率 ──
-    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **20Hz** ＋ 抓屏 **20fps**
-    ///   · `.legacy`（大模型 26S+光流+YOLOPX）：推理 **20Hz** ＋ 抓屏 **20fps**
-    ///   两档推理频率相同（20Hz），区别只在模型大小与是否跑光流。
+    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **15Hz** ＋ 抓屏 **15fps**
+    ///   · `.legacy`（大模型 26S+光流+YOLOPX）：推理 **15Hz** ＋ 抓屏 **15fps**
+    ///   两档推理频率相同（15Hz），区别只在模型大小与是否跑光流。
     ///
-    /// ── 为什么是 20 而不是 30/45 ──
-    ///   用户原话：「30 赫兹还是感觉有点过高，20 赫兹应该也够用了」
-    ///   · 20Hz 预算 = 50ms（ayolom 10.42ms ≪ 50ms，绰绰有余）
-    ///   · 比 30Hz 省 33% 推理量，比 45Hz 省 56%
-    ///   · 2026-10-12 起抓屏也对齐到 20fps（不再为「每 tick 只消费 1 帧」的
-    ///     画面流白烧带宽，见上方演进史）
+    /// ── 为什么是 15 而不是 20/30/45 ──
+    ///   用户原话：「全链路除了地图 5 赫兹之外，其他全部给我 15 赫兹，
+    ///             要不然真的性能真的不够用，性能太卡了」
+    ///   实测依据：20Hz 定档时游戏被压到 8-14Hz（整机降频），反而更卡。
+    ///   · 15Hz 预算 = 66.7ms（ayolom 10.42ms 只占 16%）
+    ///   · 比 20Hz 省 25% 推理量，比 45Hz 省 67%
+    ///   · 抓屏同步对齐 15fps（每 tick 恰好消费 1 帧，不浪费带宽）
     ///
     /// ── 抓屏与 tick 解耦 ──
-    ///   · 抓屏侧由 `captureHz(forPerceptionMode:)` 单独映射（两档都 20）
-    ///   · tick 侧由 `tickHz(forPerceptionMode:)` 映射（两档都 20）
+    ///   · 抓屏侧由 `captureHz(forPerceptionMode:)` 单独映射（两档都 15）
+    ///   · tick 侧由 `tickHz(forPerceptionMode:)` 映射（两档都 15）
     ///   · `applyPerceptionMode` 分别用两个频率调 `setTickHz` + `setCaptureHz`
-    ///   · 应急冲刺时两个频率一起提到 45（`tickOnce` 的 sprint 联动）
-    static var engineTickHz: Double = 20.0
+    ///   · 应急冲刺时两个频率一起提到 20（`tickOnce` 的 sprint 联动）
+    ///
+    /// ⚠️ 2026-10-22：20→15（用户实测 20Hz 下游戏被压到 8-14Hz，性能不够用）
+    static var engineTickHz: Double = 15.0
 
     /// tick 定时器**已生效**的频率（诊断/心跳回显用；与 engineTickHz 同主线程读写）
     nonisolated(unsafe) private static var lastAppliedTickHz: Double = 0.0
@@ -775,26 +791,26 @@ enum EngineMain {
     ///     大模型档叫 "legacy"；两侧拼写不一致会导致**静默不切**，故两个都认。
     /// - Returns: 目标频率；未知值返回 nil（不猜，由调用方如实回执）
     ///
-    /// ⚠️ 2026-10-12 现行值（历史：45/30 → 10-11 改 20/20 → 10-12 抓屏也对齐 20）：
-    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **20Hz** ＋ 抓屏 **20fps**
-    ///   · `.legacy`（大模型 26S+光流+YOLOPX）：推理 **20Hz** ＋ 抓屏 **20fps**
-    ///   两档推理与抓屏频率都相同（20Hz），区别只在模型大小与是否跑光流。
-    ///   应急冲刺期间两者一起提到 45（见 `tickOnce` 的 sprint 联动）。
+    /// ⚠️ 2026-10-22 现行值（历史：45/30 → 10-11 改 20/20 → 10-12 抓屏对齐 20 → 10-22 全链路 15）：
+    ///   · `.ayolom`（默认小模型 A-YOLOM）：推理 **15Hz** ＋ 抓屏 **15fps**
+    ///   · `.legacy`（大模型 26S+光流+YOLOPX）：推理 **15Hz** ＋ 抓屏 **15fps**
+    ///   两档推理与抓屏频率都相同（15Hz），区别只在模型大小与是否跑光流。
+    ///   应急冲刺期间两者一起提到 20（见 `tickOnce` 的 sprint 联动）。
     static func tickHz(forPerceptionMode mode: String) -> Double? {
         switch mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "ayolom":              return 20.0
-        case "legacy", "yolopx":    return 20.0
+        case "ayolom":              return 15.0
+        case "legacy", "yolopx":    return 15.0
         default:                    return nil
         }
     }
 
     /// 抓屏帧率档位映射（与 tickHz 配套，由 `applyPerceptionMode` 调用 `setCaptureHz`）
-    /// - ayolom: 20fps（与推理 tick 20Hz 对齐；应急爆发由 EmergencyTakeover 提到 45）
-    /// - legacy: 20fps
+    /// - ayolom: 15fps（与推理 tick 15Hz 对齐；应急爆发由 EmergencyTakeover 提到 20）
+    /// - legacy: 15fps
     static func captureHz(forPerceptionMode mode: String) -> Double? {
         switch mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "ayolom":              return 20.0
-        case "legacy", "yolopx":    return 20.0
+        case "ayolom":              return 15.0
+        case "legacy", "yolopx":    return 15.0
         default:                    return nil
         }
     }
@@ -1412,6 +1428,25 @@ enum EngineMain {
                                             metrics: .zero, isDegraded: true,
                                             laneDegraded: true, drivableDegraded: true,
                                             seq: 0)
+        }
+
+        // ── 指针朝向回传（5Hz）──
+        //
+        // 【为什么需要】引擎模式下 UI 进程 tickEngineMode() 早退，`pointerReader`
+        //   从不执行 → `bodyHeadingDeg` 恒 nil → UI 显示「无指针」。引擎进程跑完整
+        //   tick、有 currentFrameCG → pointerReader 正常出值，必须回传给 UI。
+        //
+        // 【为什么不塞进 1Hz 心跳】用户要求地图读数 5Hz。把整包心跳提到 5Hz 会
+        //   白带 4 倍状态量（检测数/录制帧数/接管态等）；指针只有两个数值，
+        //   单独发一条最小包更省。心跳保持 1Hz 不动。
+        //
+        // 【为什么是每 3 帧】tick 基准 15Hz，÷3 = 5Hz。用固定相位（% 3）而不是
+        //   时间戳判断，避免浮点抖动；`pointerPhase` 每帧自增、进位自然回绕。
+        EngineGlobals.pointerPhase &+= 1
+        if EngineGlobals.pointerPhase % 3 == 0, let socket = EngineGlobals.socket {
+            let heading = st.bodyHeadingDeg.map { String(format: "%.1f", $0) } ?? "null"
+            let conf = String(format: "%.3f", st.bodyHeadingConf)
+            socket.send("{\"type\":\"pointer\",\"heading\":\(heading),\"conf\":\(conf)}")
         }
     }
 
@@ -2039,6 +2074,11 @@ enum EngineMain {
         //   自己的实例。1Hz 延迟可接受——引擎侧的 45Hz 冲刺是**零延迟**生效的，
         //   heartbeat 只负责让 UI 把横幅显示出来。
         let et = EmergencyTakeover.shared
+        // ⚠️ 2026-10-21：指针朝向回传（与 ET-9 同理：UI 进程 tickEngineMode 早退，
+        //   pointerReader 从不执行 → bodyHeadingDeg 恒 nil → UI 显示「无指针」）。
+        //   ⚠️ 2026-10-22：**不放心跳里** —— 心跳 1Hz 太慢（用户要求地图 5Hz），
+        //   且把整包心跳提到 5Hz 会白带 4 倍状态量。改为独立的轻量 `pointer`
+        //   消息（只有两个数值），由 `tickOnce` 每 3 帧发一次（15Hz ÷ 3 = 5Hz）。
         let json = """
         {"type":"heartbeat","proto":\(EngineClient.protocolVersion),"ts":\(Int(Date().timeIntervalSince1970)),"fps":\(String(format: "%.1f", fps)),"detections":\(detCount),"isDriving":\(st.isDriving),"isStreaming":\(st.isStreaming),"mode":"\(st.mode)","modeRaw":"\(st.mode.rawValue)","speed":\(String(format: "%.1f", st.effectiveSpeed)),"speedKmh":\(String(format: "%.1f", st.speedKmh)),"confidence":\(String(format: "%.3f", st.confidence)),"recording":\(st.isRecording),"frames":\(st.recordEngine.frameCount),"pid":\(getpid()),"takeover":\(et.takeoverActive),"userHolding":\(et.userHoldingKey),"reason":"\(reason)"}
         """

@@ -6734,6 +6734,12 @@ final class DriveState {
         }
         let remoteFrames = client.engineRecording ? client.engineRecordFrames : 0
         if frames != remoteFrames { frames = remoteFrames }
+        // 指针朝向回传同步：引擎模式下 UI 进程的 pointerReader 从不执行
+        // （tickEngineMode 早退），bodyHeadingDeg 恒 nil → UI 显示「无指针」。
+        // 引擎进程跑完整 tick → pointerReader 正常出值 → 经 5Hz `pointer`
+        // 轻量消息回传（见 EngineMain.tickOnce 末尾）→ 这里写回。
+        if bodyHeadingDeg != client.engineBodyHeading { bodyHeadingDeg = client.engineBodyHeading }
+        if bodyHeadingConf != client.engineBodyHeadingConf { bodyHeadingConf = client.engineBodyHeadingConf }
         // 驾驶参数下发：极速 / 禁用控制 / 紧急切纯规则 / 专家 / 字模 / 降级阈值
         // 这些只在 tick() 里被读，而引擎模式下 tick() 跑在引擎进程 ——
         // 必须显式推送。只在变化时发，避免 30Hz 刷屏。
@@ -7287,19 +7293,19 @@ final class DriveState {
             return
         }
 
-        // ⚠️ 2026-10-12 最终定档 20Hz：用户拍板「20 赫兹应该也够用了」。
-        //   tick 是 20Hz（见 `EngineMain.engineTickHz`），抓屏两档也都 20fps
-        //   （2026-10-12 起对齐；原 ayolom 档 45fps 已废弃 —— 每 tick 只消费 1 帧，
-        //    多余帧全被跳帧丢弃，纯浪费带宽）。
+        // ⚠️ 2026-10-22 最终定档 15Hz（用户：「全链路除了地图 5 赫兹之外，
+        //   其他全部给我 15 赫兹，性能真的不够用」）。
+        //   tick 是 15Hz（见 `EngineMain.engineTickHz`），抓屏两档也都 15fps
+        //   （同步对齐；历史：45 → 20 → 15）。
         //   本 dt 只用于 tick 内的物理计算（光流/加速度/状态机），
         //   必须与 tick 频率一致，否则换算全错。
         //
         // ★ 2026-10-14 修复（perf-decision 排查发现）：原写法是硬编码 `1.0 / 20.0`。
-        //   但 EmergencyTakeover 会把 tick 切到 45Hz（冲刺，最长 35s）或 5Hz（让位），
+        //   但 EmergencyTakeover 会把 tick 切到 20Hz（冲刺，最长 35s）或 5Hz（让位），
         //   此时硬编码值与真实 tick 间隔不符，下游的时间换算全错：
-        //     · 45Hz 下 → 帧计数常量（maxMissingFrames=30 等）实际时间缩 2.25×
-        //       （设计意图 1.5s 变成 0.67s）→ track 过早剪枝、速度过早确认
-        //     · 5Hz 下 → 时间扩 4×
+        //     · 冲刺 20Hz 下 → 帧计数常量（maxMissingFrames=30 等）实际时间缩到 3/4
+        //       （设计意图 1.5s 变成 1.125s）→ track 过早剪枝、速度过早确认
+        //     · 让位 5Hz 下 → 时间扩 3×
         //   改用本帧实测 tick 间隔（tickGapMs 在 tick() 开头已算好）。
         //   钳位 [5ms, 200ms]：防首帧（tickGapMs 未初始化）与极端掉帧把 dt 算成 0 或巨大值。
         let dt = min(max(tickGapMs / 1000.0, 0.005), 0.2)
@@ -7308,11 +7314,12 @@ final class DriveState {
         // 异步触发推理（不阻塞 tick），读 lastResult 作为本帧输出
         if let cg = currentFrameCG {
             // ── 小地图指针朝向读取（独立于驾驶模式，UI 始终需要）──
-            // ⚠️ 2026-10-21 更新：模型从旧 pointer_heading（2.45M 参数/2.4MB）
-            //   换成自训 tiny_pointer（18.7K 参数/30.3KB int8），注释里的
-            //   「2.45M 参数」已过期。新模型 ROI 改为右上角 [1061,66]@720p。
+            // ⚠️ 2026-10-22 降频（用户明确要求「全链路除了地图 5 赫兹之外，
+            //   其他全部 15 赫兹」）：本读数只用于小地图朝向标显示，
+            //   **不参与任何控制决策** → 与主链路解耦，降到 5Hz（15Hz ÷ 3）。
+            //   朝向是低频量（角色转向持续数百毫秒），5Hz 视觉上足够平滑。
             // nil = 模型未加载/推理失败/置信度过低 → UI 回退用视角朝向显示。
-            if pointerReader.isAvailable {
+            if pointerReader.isAvailable, adaptiveFrameCounter % 3 == 0 {
                 let ptrStart = PerfBus.stamp()
                 if let h = pointerReader.read(frame: cg) {
                     bodyHeadingDeg = h.headingDeg

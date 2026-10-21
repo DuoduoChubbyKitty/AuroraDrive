@@ -6215,11 +6215,11 @@ struct ContentView: View {
         // 优先级队列上运行，不受 App Nap 影响。
         let timerQueue = DispatchQueue(label: "com.aurora.tick", qos: .userInteractive)
         let timer = DispatchSource.makeTimerSource(queue: timerQueue)
-        // ⚠️ 2026-10-12 定档 20Hz：与 `EngineMain.engineTickHz`（引擎进程 tick）
+        // ⚠️ 2026-10-22 定档 15Hz：与 `EngineMain.engineTickHz`（引擎进程 tick）
         //   保持一致。UI-local 模式（未连引擎）下 DriveState.tick() 由本定时器
         //   驱动，若两边频率不同，`dt` 与帧计数常量的实际时间会错。
-        //   （原为 1.0/30.0，是 20Hz 定档前的遗留值。）
-        timer.schedule(deadline: .now(), repeating: 1.0 / 20.0, leeway: .nanoseconds(0))
+        //   （历史：原 1.0/30.0 → 2026-10-12 改 20Hz → 2026-10-22 全链路降 15Hz）
+        timer.schedule(deadline: .now(), repeating: 1.0 / 15.0, leeway: .nanoseconds(0))
         // ⚠️ 性能关键：不要无条件按满频往主线程投递 tick。
         //
         // 每次投递都会让 SwiftUI 走一遍事务 → 重新计算整棵视图树的布局
@@ -6228,16 +6228,16 @@ struct ContentView: View {
         // 完全是无用功，却把 UI 进程常年烧在 25-36%、WindowServer 44%+，
         // 整机发烫、帧率掉到 20 多帧。
         //
-        // 按需求分级：开车 / 录制 / 引擎联动时保持满频（20Hz）实时性；
-        // 纯待机降到约 2.5Hz —— 待机时界面本就静止，不需要满频刷新。
-        // （原注释写 45Hz / 8 ≈ 5.6Hz，是 45Hz 时代的遗留口径；现为 20Hz / 8 ≈ 2.5Hz。）
+        // 按需求分级：开车 / 录制 / 引擎联动时保持满频（15Hz）实时性；
+        // 纯待机降到约 1.9Hz —— 待机时界面本就静止，不需要满频刷新。
+        // （历史口径：45Hz/8 ≈ 5.6Hz → 20Hz/8 = 2.5Hz → 15Hz/8 ≈ 1.9Hz。）
         var idleSkip = 0
         timer.setEventHandler {
             // 这些读取都是常量级，且不写状态，不会触发重绘
             let busy = state.isDriving || state.isRecording
             if !busy {
                 idleSkip += 1
-                if idleSkip < 8 { return }   // 20Hz / 8 ≈ 2.5Hz 待机刷新
+                if idleSkip < 8 { return }   // 15Hz / 8 ≈ 1.9Hz 待机刷新
                 idleSkip = 0
             } else {
                 idleSkip = 0

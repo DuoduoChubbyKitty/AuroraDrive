@@ -183,7 +183,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///
     /// 【线程安全】`stateLock` 保护（`start()` 的 Task 与 `setCaptureHz`
     ///   可能来自不同线程，与 `_isCapturing` 同因）。
-    private var _targetCaptureHz: Double = 20.0
+    ///
+    /// ⚠️ 2026-10-22：默认 20→15（全链路降频，与 EngineMain.tickHz 对齐）。
+    ///   正常由 `setCaptureHz(_:)` 按档位覆盖，这里只是建流前的初值。
+    private var _targetCaptureHz: Double = 15.0
     var targetCaptureHz: Double {
         get { stateLock.withLock { _targetCaptureHz } }
         set {
@@ -201,7 +204,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///   若需区分二者，可加 `activeCaptureHzVerified: Bool`；当前保持简单，
     ///   但**不要把该值当作"实测帧率"**——实测应用
     ///   `lastFrameGapMs`（帧到达间隔）反推。
-    private var _activeCaptureHz: Double = 20.0
+    ///
+    /// ⚠️ 2026-10-22：初值 20→15，与 `_targetCaptureHz` 保持一致
+    ///   （建流成功后会被 `targetCaptureHz` 覆盖，这里只影响建流前的显示）。
+    private var _activeCaptureHz: Double = 15.0
     private(set) var activeCaptureHz: Double {
         get { stateLock.withLock { _activeCaptureHz } }
         set { stateLock.withLock { _activeCaptureHz = newValue } }
