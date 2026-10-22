@@ -7119,6 +7119,27 @@ final class DriveState {
         // onFrame 在 captureQueue 只覆盖最新帧；这里每 tick 取最新一帧赋给
         // currentScreenImage（主线程，SwiftUI 刷新）。处理不过来时旧帧被覆盖
         // 丢弃 → 主线程永不积压大图。帧率不变（30fps 红线）。
+        // ⚠️⚠️ 2026-10-22 关键修复（纯浪费/阻塞源，本轮最大单项）：
+        //   `frameHost.push(cg)` **必须移出 `pendingFrameLock` 临界区**。
+        //
+        //   【为什么】`push` 内部是 `hostView?.layer?.contents = image`
+        //     （AuroraDriveApp.swift:8944）—— 这一步会**进 WindowServer 合成路径**。
+        //     而游戏全屏时 WindowServer 已被占满，该调用可能阻塞几十~几百 ms。
+        //     原来它被写在 `pendingFrameLock.lock()` 与 `unlock()` **之间** →
+        //     主线程持锁等 WindowServer 的同时，**captureQueue（抓屏回调）也在
+        //     同一把锁上排队**（见 onFrame 闭包的 lock）→ 抓屏帧被堵在门外。
+        //     实测证据：生产日志 `capWork` p95=47ms / max=1650ms，
+        //     而本机实测抓屏回调里所有组件的真实成本合计仅 **0.23ms**
+        //     （vImageScale 0.227ms + lock 0.0005ms + CGImage 0.001ms +
+        //       NSImage 0.001ms + ROI memcpy 0.0004ms）——
+        //     即 99% 的"回调耗时"是**等锁**，不是计算。这与 `capGap` p95=504ms
+        //     的掉帧现象互为因果。
+        //
+        //   【改法】临界区内只做「取走待显示帧 + 复位槽位」这套纯内存指针操作
+        //     （微秒级），把推屏动作留到 unlock 之后。
+        //     语义完全不变：`push` 用的仍是同一个 `latestCG`，
+        //     且它本来就在主线程上串行执行（tick 驱动），无并发风险。
+        var latestCGToPush: CGImage? = nil
         pendingFrameLock.lock()
         if let latest = pendingFrame {
             pendingFrame = nil
@@ -7130,10 +7151,12 @@ final class DriveState {
             pendingFrameTime = nil
             currentScreenImage = latest
             currentFrameCG = latestCG
-            if isStreaming, let cg = latestCG { frameHost.push(cg) }
+            if isStreaming { latestCGToPush = latestCG }
             if screenSize != latest.size { screenSize = latest.size }
         }
         pendingFrameLock.unlock()
+        // ↓ 锁外推屏：这一步可能等 WindowServer，绝不能在持锁期间做
+        if let cg = latestCGToPush { frameHost.push(cg) }
         perfT = PerfBus.lap("tick.consumeFrame", from: perfT)   // ★ 阶段1 打点
 
         // ── 任务面板 OCR（2026-10-06 task-1，默认开：AURORA_QUEST_OCR=0 关闭；原注释误写默认关，与 AuroraFlags.swift:201 实际 default:true 相反，2026-10-17 修正）──
