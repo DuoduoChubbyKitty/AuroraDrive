@@ -202,6 +202,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             exit(0)
         }
 
+        // ── 小地图箭头朝向自检（离线跑目录下真实帧，用于与参考实现对拍）──
+        if let i = args.firstIndex(of: "--pointer-selftest"), i + 1 < args.count {
+            let reader = PointerHeadingReader()
+            let summary = reader.selfTestDirectory(args[i + 1])
+            FileHandle.standardError.write(("SUMMARY " + summary + "\n").data(using: .utf8)!)
+            exit(0)
+        }
+
         // ── 引擎模式启动（后台引擎拆分）──
         // 探测 engine.sock：已有健康引擎 → 直接连接；没有 → spawn 自己（--engine）。
         // 任一步失败自动回退本地模式（下方全部本地逻辑保持原样）。
@@ -967,7 +975,10 @@ struct AuroraDriveLauncher {
                               "--lane-extrapolator-selftest",
                               // 2026-10-08（T3 录制链路）：捕获双模式 + 视角归一化 +
                               // 排除列表不变量（防「excludingWindows 被改回空数组」回归）。
-                              "--capture-selftest"]
+                              "--capture-selftest",
+                               // 2026-10-23（小地图箭头）：离线跑真实帧，与 Python 参考实现
+                               // runtime_detector.py 对拍，确认 Swift 检测/裁剪/归一化移植无误。
+                               "--pointer-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
