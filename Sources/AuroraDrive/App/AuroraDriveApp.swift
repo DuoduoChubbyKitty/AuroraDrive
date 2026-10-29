@@ -6406,8 +6406,32 @@ final class DriveState {
         }
         captureEngine.start()
         // networkLocator.start()  // 旧网络抓包定位已移除    // 启动网络抓包定位
-        inferenceEngine.loadIfNeeded()   // 首次启动加载 M9 驾驶模型（V2 冷启动/缺失时的回退）
-        inferenceEngineV2.loadIfNeeded() // 首次启动加载 V2 新一代驾驶模型（缺失时优雅降级、自动回退 M9）
+        // ── 主驾模型：V2 优先；M9 只在 V2 **真的加载失败**时才加载（2026-10-24 打死 M9 空转）──
+        //
+        // 【改前】这里无条件 `inferenceEngine.loadIfNeeded()`：每次 `startDriving()` 都在
+        //   **主线程**同步 `MLModel(contentsOf:)` 加载 `m9_mono`（15MB 纯 fp16 未量化，
+        //   `InferenceEngine.swift:281-285` 自述冷态 **250–1330ms**）。
+        //   而 V2 正常时 M9 的 `infer()` **永远不会被调用** —— 推理分支是互斥的
+        //   （`:7452` `if inferenceEngineV2.isLoaded { V2 } else { M9 }`）。
+        //   实测日志 `模型加载: M9=true V2=true` 且 V2 每帧在跑 ⟹ M9 是"加载了但永不推理"。
+        //   代价：15MB 常驻 + 一次主线程加载 + 一次 warmUp 预热；收益 0。
+        //   连带后果：`m9Command = v2CommandOf(V2) ?? commandOf(M9)`（`:7608`）里
+        //   回退项永远拿 `.idle`（`commandOf` 在 `lastResult == nil` 时返回 `.idle`），
+        //   即这个回退**从来没有真的兜住过任何东西**。
+        //
+        // 【改后】先加载 V2，只有 V2 没起来才加载 M9。
+        //   `InferenceEngineV2.loadIfNeeded()` 是**同步**的（`:1728` guard 之后直接
+        //   `MLModel(contentsOf:)`），所以此处读到的是已落定的结果，不存在竞态。
+        //
+        // 【V2 真失败时 M9 还起得来吗】能，而且不需要这里兜底：M9 的 `infer()` 内置
+        //   懒加载（`InferenceEngine.swift:297-300`：未加载就
+        //   `scheduleBackgroundLoadIfNeeded()` 然后 return），而 M9 的 infer 只在
+        //   "V2 未加载"的 else 分支被调用 ⟹ 需要它的时候它自己会在后台加载，
+        //   代价只是 V2 故障时的首帧晚几百毫秒（而这种场景本来就不开车）。
+        inferenceEngineV2.loadIfNeeded() // 首次启动加载 V2 新一代驾驶模型（缺失时优雅降级）
+        if !inferenceEngineV2.isLoaded {
+            inferenceEngine.loadIfNeeded()   // 仅 V2 不可用时：此时 M9 才是真司机
+        }
         assistEngine.loadIfNeeded()      // 首次启动加载第二套驾驶模型（YOLO接管档）
         // ── yolo26s 按档位加载（2026-10-19 用户拍板，goal-3279b59b 需求7）──
         //
@@ -7190,7 +7214,34 @@ final class DriveState {
         //   结论：引擎模式下两边都没人在用，加 `!isActive` 门控后：
         //     · 引擎进程：不再白跑（省 4.8% 单核）
         //     · UI 本地模式（未连引擎）：行为逐字不变（`isActive == false` → 照跑）
-        if AuroraFlags.questOCR, !EngineClient.shared.isActive, let cg = currentFrameCG {
+        //
+        // 🔴 2026-10-24 二次修复（本轮性能审计发现，原门控**完全无效**）：
+        //   上面那条 `!isActive` 门控对引擎进程**恒真**，等于没加。原因：
+        //   `EngineClient.shared.startup()` 全仓**只在 UI 进程**被调用
+        //   （`AuroraDriveApp.swift:217`），引擎进程从不调用它 →
+        //   `isActive` 永远是初值 `false`（`Core/EngineClient.swift:68`）。
+        //   所以引擎进程照样一路跑到底，以 0.7s/次 白跑 Vision `.accurate`。
+        //
+        //   【实测证据（2026-10-24，对生产运行的引擎 pid 采样 3s）】
+        //     `sample <engine-pid> 3` 抓到：
+        //       QuestPanelReader.ingest      6 次
+        //       QuestPanelReader.recognizeLines 6 次
+        //       VNRecognizeTextRequest        7 次
+        //       Vision* 相关帧合计 139 行，最深占该线程采样 12.1%
+        //     而引擎→UI 的消息类型只有 `heartbeat` 与 `ack` 两种
+        //     （`EngineMain.swift` 里 `"type"` 统计），**零 quest\* 字段** →
+        //     证实「跑完没人用」。
+        //
+        //   【修法】改用**进程身份**判定，而不是 `isActive`：`--engine` 是引擎进程
+        //     唯一且可靠的判据（`AuroraDriveApp.swift:830` 用它分流入口，
+        //     `Core/GameModeDefender.swift:60` 也用同一判据）。引擎进程恒不跑。
+        //     同时保留 `!isActive` —— UI 在引擎模式下已 `tickEngineMode(); return`
+        //     到不了这里，留着是防御（万一将来 tickEngineMode 早退被改动）。
+        //   【为什么这次能放心改】UI 本地模式（未连引擎）下 `--engine` 不成立 →
+        //     条件仍为真 → 行为逐字不变，零功能影响。
+        let isEngineProcess = CommandLine.arguments.contains("--engine")
+        if AuroraFlags.questOCR, !isEngineProcess,
+           !EngineClient.shared.isActive, let cg = currentFrameCG {
             questPanel.ingest(cgImage: cg)
         }
 

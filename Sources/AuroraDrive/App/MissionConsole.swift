@@ -2037,8 +2037,19 @@ struct MiniMapCanvas: View {
                         .rotationEffect(.degrees(state.locatorHeading))
 
                         Circle().fill(Aurora.ice.opacity(0.20)).frame(width: 24, height: 24)
+                        // ⚠️ 2026-10-24 修复「箭头时准时不准」的观感根因：
+                        //   原代码 `bodyHeadingDeg ?? locatorHeading` 在**读不到指针**时
+                        //   直接拿「视角朝向」（UE5 ControlRotation）冒充「车头朝向」，
+                        //   而两者外观完全一样（同一 Capsule + 同一 Aurora.ice）——
+                        //   用户看不出这是回退值，只会觉得「箭头烂到离谱」。
+                        //   实测证据：交接笔记 t=210s 那 300 帧（连续 10 秒）命中率 0%，
+                        //   原因是那 10 秒开着大地图、画面里根本没有箭头。
+                        //   → 现在：有真实读数=冰蓝实心（原样不变）；无读数=琥珀半透明。
+                        //   只改渲染样式，**不改任何角度计算、阈值与判据**。
                         Capsule()
-                            .fill(Aurora.ice)
+                            .fill(state.bodyHeadingDeg == nil
+                                  ? Aurora.amber.opacity(0.45)
+                                  : Aurora.ice)
                             .frame(width: 2.5, height: 11)
                             .offset(y: -10)
                             .rotationEffect(.degrees(state.bodyHeadingDeg ?? state.locatorHeading))

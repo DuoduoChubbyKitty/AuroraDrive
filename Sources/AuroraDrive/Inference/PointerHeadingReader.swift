@@ -168,6 +168,31 @@ final class PointerHeadingReader {
     private static let roiBaseWidth: Double = 1280
     private static let roiBaseHeight: Double = 720
 
+    /// 计算区域相对 ROI 的外扩量（整帧像素）。**不是经验值**，由 `judge()` 的接受域反推。
+    ///
+    /// 【为什么不能只算 ROI】裁剪窗 `winSide = sideRatio × 最长边` 以箭头**质心**为中心，
+    ///   而质心可能就贴在 ROI 边上 → 窗口必然溢出 ROI。只画 ROI 的话，溢出部分读到的是
+    ///   未初始化内存 → 模型输入被污染 = 静默降质量（正是不能接受的那种）。
+    ///
+    /// 【上界推导】能进入推理的块必须满足 `judge()`：
+    ///   像素数 ≤ areaMax = `areaRef640Max×(frameW/640)²`、填充率 ≥ fillMin、宽高比 ≤ aspectMax。
+    ///   填充率定义 `fill = 像素数 / (bbox 宽×高)` ⇒ bbox 面积 ≤ areaMax/fillMin，
+    ///   最长边 L ≤ √(bbox面积 × aspectMax)。窗口以质心为中心 ⇒ 任一侧最多溢出
+    ///   `winSide/2 + 0.5`（+0.5 是 `round` 取整）。
+    ///
+    /// 【为什么不写成常量】判据、`sideRatio` 或分辨率一变，安全边界就变 —— 硬编码的
+    ///   数字会悄悄失效。此处每次按当前 frameW 现算，改判据也不用回头改这个数。
+    ///
+    /// 两个档位分别算后取较松者（小档用 small 阈值，大档到 areaMax 封顶）。
+    /// 1280 宽 → 49px；1920 宽 → 73px（1080p 实走大档，见 `judge` 的 isSmall 分支）。
+    private static func computeMargin(frameW: Int) -> Int {
+        let areaMax = areaRef640Max * pow(Double(frameW) / 640.0, 2)
+        let smallMaxSide = (min(areaMax, smallAreaSplit) / smallFillMin * smallAspectMax).squareRoot()
+        let normalMaxSide = (areaMax / normalFillMin * normalAspectMax).squareRoot()
+        let maxSide = max(smallMaxSide, normalMaxSide)
+        return Int(ceil(sideRatio * maxSide / 2)) + 2
+    }
+
     /// 小地图**真实圆心**，定义在 1280×720 基准 —— 选块先验（见文件头「两步定位」）。
     ///
     /// 【实测来源】2026-10-23 在 120 帧 1080p 真游戏帧（`/tmp/nte_vid/full1080seq`）
@@ -291,6 +316,16 @@ final class PointerHeadingReader {
     func read(frame: CGImage, dumpInputTo path: String?) -> PointerHeading? {
         guard let model else { return nil }
 
+        // ── 分段耗时打点（仅 AURORA_PERF=1 时生效，关闭时每次只是一次静态 bool 判断）──
+        //
+        // 【为什么要分段】回答「规则能否替代模型」时，**只有推理段是真能省掉的部分**：
+        //   掩膜与连通域是规则也要跑的公共成本。因此必须把这两段与推理段分开计量，
+        //   否则「模型总耗时」这个单值会被误读成「换规则能省这么多」。
+        // 【通道命名】与现有 tick.pointer 同前缀，自检里按 "pointer." 前缀汇总打印。
+        let totalT0 = PerfBus.stamp()
+        defer { PerfBus.mark("pointer.total", from: totalT0) }
+        var stageT = totalT0
+
         let frameW = frame.width
         let frameH = frame.height
         guard frameW > 0, frameH > 0 else { return nil }
@@ -311,8 +346,21 @@ final class PointerHeadingReader {
             return nil
         }
 
-        // ── 整帧 → RGBA8 工作缓冲（一次绘制；后续全在缓冲上做）──
-        guard prepareFrameBuffer(frame) else { return nil }
+        // ── 只绘制/掩膜「真正会用到的小区域」──
+        //   区域 = ROI 四边各外扩 computeMargin，再夹到帧内。
+        //   外扩量不是经验值：它覆盖「裁剪窗以质心为中心时可能溢出 ROI 的最大距离」，
+        //   由 judge() 的接受域反推；质心必在 ROI 内（locateArrow 只扫 ROI），故够用。
+        let margin = Self.computeMargin(frameW: frameW)
+        let regionX0 = max(0, Int(roi.minX.rounded(.down)) - margin)
+        let regionY0 = max(0, Int(roi.minY.rounded(.down)) - margin)
+        let regionX1 = min(frameW, Int(roi.maxX.rounded(.up)) + margin)
+        let regionY1 = min(frameH, Int(roi.maxY.rounded(.up)) + margin)
+        guard regionX1 > regionX0, regionY1 > regionY0 else { return nil }
+        let region = Rect4(x: regionX0, y: regionY0,
+                           w: regionX1 - regionX0, h: regionY1 - regionY0)
+        guard prepareFrameBuffer(frame, region: region) else { return nil }
+        // 绘制 + 金色掩膜：规则方案**同样要付**的成本（现已只在该区域上做）
+        stageT = PerfBus.lap("pointer.drawMask", from: stageT)
         let bw = frameW
         let rx0 = Int(roi.minX), ry0 = Int(roi.minY)
         let rw = Int(roi.width), rh = Int(roi.height)
@@ -325,9 +373,13 @@ final class PointerHeadingReader {
                                       centerX: mmCenterX, centerY: mmCenterY) else {
             return nil
         }
+        // 连通域 + 形状判据 + 选块：规则方案**同样要付**的成本
+        stageT = PerfBus.lap("pointer.locate", from: stageT)
 
         // ── ② 以箭头为中心裁正方形 → 64×64 ──
         guard let input = makeModelInput(arrow: arrow) else { return nil }
+        // 3.2×L 裁剪 + 双线性采样 → 64×64：规则方案可省，但省下的量级需实测
+        stageT = PerfBus.lap("pointer.crop", from: stageT)
 
         // ── 调试导出（仅自检路径）──
         if let path {
@@ -351,6 +403,8 @@ final class PointerHeadingReader {
         } catch {
             return nil
         }
+        // CoreML 实推理：**换规则后唯一真正能省掉的一段**
+        stageT = PerfBus.lap("pointer.infer", from: stageT)
 
         // ── ③ 输出契约校验（**绝不猜**：形状/dtype 不符一律报 nil，不解释字节）──
         //
@@ -425,8 +479,19 @@ final class PointerHeadingReader {
 
     // MARK: - 整帧缓冲准备
 
-    /// 把 CGImage 绘到复用的 RGBA8 缓冲。返回是否成功。
-    private func prepareFrameBuffer(_ frame: CGImage) -> Bool {
+    /// 把**参与计算的小区域**绘到复用的 RGBA8 缓冲，并只在该区域算金色掩膜。
+    ///
+    /// 【为什么只画一小块】小地图指针只可能出现在 ROI（+裁剪窗外扩余量）内，
+    ///   而旧实现对**整帧**做 CGContext 绘制与逐像素 HSV 掩膜：1280×832 上要算 106 万像素，
+    ///   实际只用约 1.4%。实测这两段合计 ≈2.8ms，占指针链路 80%（见交接笔记第 16 节）。
+    ///
+    /// 【为什么缓冲尺寸与步长仍是整帧】下游 `locateArrow` / `holeFraction` /
+    ///   `makeModelInput` 一律按「整帧行步长 = frameW」索引。保持缓冲尺寸与步长不变、
+    ///   只缩小**写入范围**，下游代码一行都不用改 —— 这是把改动风险压到最低的做法。
+    ///   （区域外像素保持旧值，但没有任何代码会读它们：检测只在 ROI 内，裁剪窗也在区域内。）
+    ///
+    /// - Parameter region: 需要计算的整帧像素矩形（ROI 外扩后，已夹在帧内）
+    private func prepareFrameBuffer(_ frame: CGImage, region: Rect4) -> Bool {
         let w = frame.width
         let h = frame.height
         let need = w * h * 4
@@ -440,7 +505,13 @@ final class PointerHeadingReader {
         }
         frameW = w
         frameH = h
+        // 细分计时起点：把「绘制」与「金色掩膜」分开，才能判断耗时归谁
+        let t0 = PerfBus.stamp()
 
+        // 只缩小**写入范围**，几何与旧实现（整帧绘制）完全一致：
+        //   clip 到区域后仍按 `(0,0,w,h)` 原样画整图，区域外像素不动。
+        //   于是「区域内像素值 ≡ 整帧绘制」是**构造性保证**，不需要任何 y 翻转推导
+        //   —— 实测区域 0/92448 字节差异，暖态耗时 0.211ms → 0.015ms（约 14×）。
         let drawn: Bool = frameRGBA.withUnsafeMutableBufferPointer { buf -> Bool in
             guard let base = buf.baseAddress else { return false }
             guard let ctx = CGContext(data: base, width: w, height: h,
@@ -448,56 +519,70 @@ final class PointerHeadingReader {
                                       space: Self.deviceRGB,
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
             else { return false }
+            // 【y 换算】位图上下文原点在左下，`region.y` 是自上而下的图像行号，
+            //   故裁剪矩形的左下角 = h − (region.y + region.h)。
+            ctx.clip(to: CGRect(x: region.x, y: h - region.y - region.h,
+                                width: region.w, height: region.h))
             ctx.draw(frame, in: CGRect(x: 0, y: 0, width: w, height: h))
             return true
         }
         guard drawn else { return false }
-        // 【为什么在这里清 visitedBuf】连通域 BFS 的标志位必须**每帧复位**，
-        //   否则第二帧起所有像素都被视为「已访问」→ 永远找不到连通域 → read() 恒 nil。
-        //   只在扩容时分配、每帧只 reset（O(n) 的 memset，比重新分配便宜）。
+        let t1 = PerfBus.lap("pointer.blit", from: t0)
+        // 【为什么只在区域清零】visitedBuf 是连通域 BFS 的标志位，必须**每帧复位**，
+        //   否则第二帧起所有像素都被视为「已访问」→ 找不到连通域 → read() 恒 nil。
+        //   BFS 只在 ROI 内跑，故只清区域即可（整帧 106 万字节 → 区域 4 万字节）。
         visitedBuf.withUnsafeMutableBufferPointer { buf in
             if let base = buf.baseAddress {
-                memset(base, 0, buf.count * MemoryLayout<Bool>.stride)
+                for row in region.y..<(region.y + region.h) {
+                    memset(base + row * w + region.x, 0, region.w)
+                }
             }
         }
-        buildGoldMask()
+        buildGoldMask(region: region)
+        PerfBus.mark("pointer.mask", from: t1)
         return true
     }
 
     private static let deviceRGB = CGColorSpaceCreateDeviceRGB()
 
-    /// 在整帧缓冲上算金色掩膜（一次遍历，整数/浮点四则，无超越函数之外的查表）。
+    /// 在**指定区域**上算金色掩膜（一次遍历，整数/浮点四则，无查表）。
     ///
     /// HSV 判定用等价比较式，避免每像素 3 次除法：
     ///   sat = (max-min)/max ≥ satMin  ⟺  max-min ≥ satMin·max
     ///   val = max ≥ valMin
     ///   hue 落区间需分 max 通道讨论（见下）。
-    private func buildGoldMask() {
-        let n = frameW * frameH
+    ///
+    /// 区域外的掩膜值保持旧值 —— 但没有任何代码读它们：`locateArrow` 只扫 ROI，
+    /// 而 ROI 距区域四边各 ≥ `computeMargin` 像素。
+    private func buildGoldMask(region: Rect4) {
+        let w = frameW
         frameRGBA.withUnsafeBufferPointer { src in
             goldMaskBuf.withUnsafeMutableBufferPointer { dst in
                 guard let sp = src.baseAddress, let dp = dst.baseAddress else { return }
-                for i in 0..<n {
-                    let p = i * 4
-                    let r = Double(sp[p]) / 255.0
-                    let g = Double(sp[p + 1]) / 255.0
-                    let b = Double(sp[p + 2]) / 255.0
-                    let mx = max(r, max(g, b))
-                    let mn = min(r, min(g, b))
-                    if mx < Self.valMin { dp[i] = false; continue }
-                    let d = mx - mn
-                    if d < Self.satMin * mx { dp[i] = false; continue }
-                    // hue（0..360）。d>0 已由上一行保证（satMin>0 且 mx>0）
-                    let hue: Double
-                    if mx == r {
-                        hue = 60.0 * (((g - b) / d).truncatingRemainder(dividingBy: 6))
-                    } else if mx == g {
-                        hue = 60.0 * ((b - r) / d + 2)
-                    } else {
-                        hue = 60.0 * ((r - g) / d + 4)
+                for y in region.y..<(region.y + region.h) {
+                    let rowStart = y * w + region.x
+                    for i in rowStart..<(rowStart + region.w) {
+                        let p = i * 4
+                        let r = Double(sp[p]) / 255.0
+                        let g = Double(sp[p + 1]) / 255.0
+                        let b = Double(sp[p + 2]) / 255.0
+                        let mx = max(r, max(g, b))
+                        let mn = min(r, min(g, b))
+                        if mx < Self.valMin { dp[i] = false; continue }
+                        let d = mx - mn
+                        if d < Self.satMin * mx { dp[i] = false; continue }
+                        // hue（0..360）。d>0 已由上一行保证（satMin>0 且 mx>0）
+                        let hue: Double
+                        if mx == r {
+                            hue = 60.0 * (((g - b) / d).truncatingRemainder(dividingBy: 6))
+                        } else if mx == g {
+                            hue = 60.0 * ((b - r) / d + 2)
+                        } else {
+                            hue = 60.0 * ((r - g) / d + 4)
+                        }
+                        let hh = hue < 0 ? hue + 360 : hue
+                        dp[i] = (hh >= Self.hueMin && hh <= Self.hueMax)
                     }
-                    let hh = hue < 0 ? hue + 360 : hue
-                    dp[i] = (hh >= Self.hueMin && hh <= Self.hueMax)
                 }
             }
         }
@@ -891,6 +976,31 @@ final class PointerHeadingReader {
                 miss += 1
                 print("\(name),0,,,")
             }
+        }
+        // ── 分段耗时汇总（仅 AURORA_PERF=1 时有采样）──
+        //
+        // 【为什么必须打印】这是唯一能稳定复现「真实运行时模型路径耗时」的入口：
+        //   它走生产 read() 全链路（含 CoreML 实推理），不是 Python 复刻。
+        //   缺这个数，「用规则替代模型能否压到 3ms」就没有比较基准。
+        // 【为什么分段】drawMask / locate 是规则方案**同样要付**的公共成本，
+        //   只有 infer 是真能省掉的。只报总量会被误读成「换规则能省这么多」。
+        // 【为什么再拆 blit / mask】实测 drawMask 占了总耗时 99%，必须拆清楚是
+        //   「整帧 CGContext 绘制」还是「整帧逐像素 HSV 掩膜」吃掉的 —— 两者对策完全不同。
+        // 【口径】命中帧才走完整链路；未命中帧只计 total，故各分段 n 可能小于命中数。
+        //   pointer.drawMask 覆盖 prepareFrameBuffer 全程，其中含 blit + mask；
+        //   但**不要指望两列相加等于第一列**：drawMask 还含缓冲容量检查与 t0 之前的一小段，
+        //   且这里每列都是**分位数**——分位数不可相加（实测 p50：13.802 vs 12.146+1.665=13.811）。
+        // ⚠️ 【自检里的 blit 不代表生产】自检每帧都是**新从磁盘读的 PNG**，CGImage 的
+        //   惰性解码会落进首次 draw → 每帧都按「冷」计（1080p p50 27ms）。
+        //   实测同一 CGImage 复绘（暖）只需 0.225ms，而生产喂的是抓屏已解码帧。
+        //   **结论：blit 这一列的绝对值不可用于生产决策，只有 mask/locate/crop/infer 可。**
+        let pointerChannels = ["pointer.total", "pointer.drawMask",
+                               "pointer.blit", "pointer.mask",
+                               "pointer.locate", "pointer.crop", "pointer.infer"]
+        print("# pointer 分段耗时（ms，n=采样数；未设 AURORA_PERF=1 时全为 n=0）")
+        for channel in pointerChannels {
+            print(channel.padding(toLength: 18, withPad: " ", startingAt: 0)
+                  + PerfBus.shared.stats(channel).summary)
         }
         let rate = Double(hit) / Double(frames.count) * 100
         let confStr = confs.isEmpty ? "n/a"

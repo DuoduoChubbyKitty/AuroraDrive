@@ -204,7 +204,12 @@ final class SpeedOCRReader {
     @ObservationIgnored
     private var generation = 0
 
-    /// 5Hz 时间闸：上一次成功入队推理的时间
+    /// 推理时间闸：上一次成功入队推理的时间
+    ///
+    /// ⚠️ 2026-10-24 更正：原文写「5Hz 时间闸」，**与代码不符**。实际节流是
+    /// `Self.inferInterval = 1.0/15.0`（`SpeedOCRReader.swift:93`）= **15Hz**，
+    /// 即每个 tick 都跑一次。这条过时注释是 2 轮审计里反复被误导的源头
+    /// （用户「速度表一秒才更新几次」的印象也来自它），必须与代码保持一致。
     @ObservationIgnored
     private var lastInferTime: Date?
 
@@ -403,7 +408,29 @@ final class SpeedOCRReader {
     }
 
     /// 按候选顺序加载单个模型：`.mlmodelc` 直接加载，`.mlpackage` 先编译。
+    ///
+    /// ⚠️ 2026-10-24 补显式 computeUnits（本轮审计发现，见
+    ///   `docs/perf-audit-20261024/3-compute-units.md`）：
+    ///   本函数原先是**裸 `MLModel(contentsOf:)`**，全仓唯一没设档位的模型加载点。
+    ///   而 CoreML 不设档位时默认 `.all`（**含 GPU** 子系统）。实测证据：
+    ///   `swift tools/ane_dispatch_check.swift models/ppocrv6_tiny_ft_int8.mlmodelc`
+    ///   → 374 个算子里 **11 个 preferred=gpu（2.9%）**（sigmoid_hard/linear/
+    ///   thresholded_relu/mul/softmax/conv/transpose 各 1~2 个）。
+    ///   本项目铁律是「推理不抢游戏 GPU」（`CaptureEngine.swift:1152` 记录过
+    ///   CIContext 走 GPU 排队导致 40ms 卡顿的血案），故必须显式排除 GPU。
+    ///
+    ///   【为什么是 `.cpuAndNeuralEngine` 而不是 `.cpuOnly`】
+    ///   这两个模型都极小（PP-OCR 1.2M / CNN 2.3M）且以卷积为主 —— 正是 ANE 擅长的
+    ///   形状。且本模型是 **15Hz 每 tick 都跑**（不是低频），强制 `.cpuOnly` 等于把
+    ///   每帧的计算全压到 CPU，是拿 CPU 换 GPU、方向相反。
+    ///   `.cpuAndNeuralEngine` = CPU+ANE、**明确不含 GPU**（macOS 13+），
+    ///   与 `PointerHeadingReader.swift:290`、`InferenceEngineV2.swift:1818` 同纪律。
+    ///
+    ///   【质量影响】零（严格说极小）：同权重同算子图，只换执行设备；输出还要过
+    ///   CTC 解码 + 置信度门槛，跨设备 float 舍入差异远小于门槛。
     private static func loadOneModel(candidates: [String]) -> MLModel? {
+        let config = MLModelConfiguration()
+        config.computeUnits = .cpuAndNeuralEngine
         for path in candidates {
             guard FileManager.default.fileExists(atPath: path) else { continue }
             let url = URL(fileURLWithPath: path)
@@ -411,7 +438,7 @@ final class SpeedOCRReader {
                 let loadURL = path.hasSuffix(".mlmodelc")
                     ? url
                     : try MLModel.compileModel(at: url)
-                return try MLModel(contentsOf: loadURL)
+                return try MLModel(contentsOf: loadURL, configuration: config)
             } catch {
                 continue   // 换下一个候选；全失败则由调用方给提示
             }
@@ -538,7 +565,9 @@ final class SpeedOCRReader {
         let sh = CVPixelBufferGetHeight(nativePixelBuffer)
         lastNativeSize = CGSize(width: sw, height: sh)
 
-        // 闸 1：5Hz 时间节流（200ms 内不入队新推理）——正常现象，不记诊断
+        // 闸 1：15Hz 时间节流（66.7ms 内不入队新推理）——正常现象，不记诊断
+        //   ⚠️ 2026-10-24 更正：原文写「5Hz / 200ms」，与 `inferInterval` 实际值
+        //   （`1.0/15.0`）不符。15Hz 才对得上「每个 tick 都跑一次」的真实行为。
         guard lastInferTime == nil
                 || Date().timeIntervalSince(lastInferTime!) >= Self.inferInterval
         else { return }
@@ -978,7 +1007,9 @@ final class SpeedOCRReader {
     // 改前：每次推理都新建 MLMultiArray。
     //   · PP-OCR 主路径 [1,3,48,136] fp16 ≈ 39 KB
     //   · 模板匹配路径 [1,1,90,50] fp32 ≈ 18 KB，且**每槽一次**（3 槽 = 3 次分配）
-    // 本引擎已限流 5Hz，量不大（约 195 KB/s），但这是四个推理引擎里
+    // 本引擎已限流 **15Hz**（`inferInterval = 1.0/15.0`；⚠️ 原文「5Hz」是过时
+    // 数字，2026-10-24 更正），量不大（PP-OCR 主路径 39KB × 15 ≈ **585 KB/s**；
+    // 原文「195 KB/s」按 5Hz 估的，同样偏小 3 倍），但这是四个推理引擎里
     // **唯一**没做输入缓冲复用的（对照 InferenceEngine.swift:110 的
     // reusableImageBuffer / YoloEngine.swift:304 的 yoloInputBuffer /
     // YolopxEngine.swift:914 的 inputBuffer），属于顺手补齐的一致性修复。

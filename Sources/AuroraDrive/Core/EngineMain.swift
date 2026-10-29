@@ -650,6 +650,45 @@ enum EngineGlobals {
     /// 上一次发布时的掩码指纹（用于判断"掩码是否真的变了"）
     @MainActor static var lastMaskFingerprint: Int = 0
 
+    /// 上一次发布帧时，抓屏侧的累计帧计数（`CaptureEngine.capturedFrameCount`）。
+    ///
+    /// 【为什么需要】2026-10-24 实测证据：用户停止驾驶/关闭游戏后，抓屏 `stop()`
+    ///   已真正停止（日志最后一条「帧到达 #5100」），但 `publishTick` 仍以
+    ///   **15.0Hz** 无条件重发 `st.currentFrameCG` 里那张**陈帧**——
+    ///   同期日志 `seq` 从 225 一路涨到 59852（每 15s 精确 +225 = 15.0Hz），
+    ///   而 YOLOPX 推理计数恒为 5814（无新帧、无推理）。
+    ///   ⟹ 白搬一张 585KB 缩略图 15 次/秒（双向各 8.57 MiB/s），
+    ///     UI 侧连带 15 次/秒 Data 分配 + CGImage 重建 + WindowServer 提交。
+    ///   这就是「游戏不运行也能掉到 55 帧」的机制之一。
+    ///
+    /// 【修法】用抓屏侧**真实的累计帧计数**作为新鲜度判据：
+    ///   计数没变 = 没有新画面 = 没有重发的必要。
+    @MainActor static var lastPublishedCaptureCount: Int = -1
+
+    /// 连续跳过的发布次数（诊断用，进心跳日志的 `skip=` 字段）。
+    ///
+    /// 不只在内存里"省"，还要让它**可观测** —— 否则下次审计又得靠 `sample` 猜。
+    @MainActor static var skippedPublishTicks: UInt64 = 0
+
+    /// 上一次发布时的驾驶态 / 串流态 / 检测框（与帧计数一起构成"是否需要重发"的判据）。
+    ///
+    /// 【为什么不能只看帧有没有变】`publish` 除了像素，还写 flags（偏移 60 的
+    ///   `isDriving`/`isStreaming`）与检测框数组。这些量可以**不依赖新帧**而独立变化
+    ///   （驾驶开始/结束、应急接管切换检测源）。若只看帧计数，就会把这些状态变更
+    ///   一起丢掉 → UI 显示"还在驾驶"而实际已停车。故任一变化都必须发。
+    ///
+    /// 【为什么检测框比较是安全的】`Detection` 已 `Equatable`（`RuleController.swift:38`），
+    ///   且上限 `detCapacity` 很小；一次数组比较远低于 585KB 帧搬运的成本。
+    @MainActor static var lastPublishedDriving = false
+    @MainActor static var lastPublishedStreaming = false
+    @MainActor static var lastPublishedDetections: [Detection] = []
+
+    /// 上一次真正发布像素的 **单调时钟**时刻（纳秒），用于 1 秒保活兜底。
+    ///
+    /// 用 `DispatchTime.uptimeNanoseconds` 而不是 `Date()`：后者会被系统时间跳变
+    /// （NTP 校时 / 用户改表）影响，而这里只关心"过了多久"，单调钟才是正确时钟。
+    @MainActor static var lastPublishNanos: UInt64 = 0
+
     /// 指针朝向回传的帧相位（每 tick 自增；% 3 == 0 时发一条 pointer 消息）。
     ///
     /// 为什么用帧相位而不是时间戳：tick 基准 15Hz，÷3 = 5Hz 精确对齐，
@@ -1304,7 +1343,14 @@ enum EngineMain {
                             //    真机路径完全没有记录，导致「真机 385ms vs 空载 50ms」
                             //    这个 7.7 倍差距无从追溯）。lastLatencyMs 覆盖
                             //    「模型推理 + NMS + 掩码提取」，不含主线程 letterbox。
-                            + " 耗时=\(String(format: "%.1f", px?.lastLatencyMs ?? 0))ms")
+                            + " 耗时=\(String(format: "%.1f", px?.lastLatencyMs ?? 0))ms"
+                            // ── 2026-10-24 新增：无新帧短路计数 ──
+                            // 【为什么进日志】本轮最大的一处浪费就是「抓屏停了、seq 还在
+                            //   15Hz 涨」。跳过生效后，若只在内存里省，下次审计同样看不出来
+                            //   —— 必须让「跳了多少次」可直接观测。
+                            //   判读：`skip` 单调涨 + `帧数` 不动 = 短路正在生效；
+                            //         `skip` 不涨 = 有真实新帧（正常驾驶态就该如此）。
+                            + " skip=\(EngineGlobals.skippedPublishTicks)")
 
                         // ── 阶段1（2026-10-01）：生产 tick 分段统计导出 ──
                         // 【为什么在这里导出】`PerfBus` 是**进程内**单例，而生产 tick
@@ -1428,7 +1474,68 @@ enum EngineMain {
             full = EngineGlobals.latestFullFrame
             EngineGlobals.latestFullFrameLock.unlock()
         }
-        EngineGlobals.shm?.publish(
+
+        // ── 无新帧短路（2026-10-24）──
+        //
+        // 【问题】抓屏 `stop()` 之后（停驾驶 / 关游戏 / 换模式），`publishTick` 仍以
+        //   **15.0Hz** 把 `st.currentFrameCG` 里那张**同一个 CGImage** 整帧重发一遍。
+        //   实测证据（`~/Library/Logs/AuroraEngine.log`）：
+        //     · 抓屏侧最后一条「帧到达 #5100」之后，再无「帧到达」
+        //     · `seq` 却从 225 一路涨到 59852（每 15s 精确 +225 = 15.0Hz，零抖动）
+        //     · 同期 `帧数=5814` 冻结（YOLOPX 推理计数，无新帧即无推理）
+        //   ⟹ 每秒 15 次白搬 585KB（480×312×4，双向各 8.57 MiB/s）
+        //     + UI 侧每秒 15 次 `Data(bytes:)` 分配 + CGImage 重建
+        //     （`EngineClient.swift:673-688` 在 `seq` 变化时才做这三件事）。
+        //
+        // 【收益口径要说准（避免夸大）】省掉的是**引擎整帧搬运**与**UI 侧的
+        //   Data 分配 + CGImage 重建**。UI 每 tick 仍会把 `poll()` 返回的缓存帧
+        //   `frameHost.push` 一次（`AuroraDriveApp.swift:6693`，`seq` 未变时返回
+        //   `frameCache`），所以 **WindowServer 提交次数不变** —— 那部分不在此次
+        //   收益内，不能算进来。
+        //
+        // 【判据为什么用抓屏计数，而不是"图像对象不同"】
+        //   `CaptureEngine` 每帧都**新建** CGImage（`CaptureEngine.swift:1241`），
+        //   所以对象身份本可判重；但 `fullFrame` 走的是 CVPixelBuffer **池复用**
+        //   （同一块内存被反复填新内容），对象身份在那里恒等 → 会漏判。
+        //   `capturedFrameCount` 是"真实采到的帧数"，两种情况都单调递增、语义唯一。
+        //
+        // 【安全边界（为什么不会把画面卡死）】
+        //   1. `st.isDriving` 时不短路 —— 驾驶中每 tick 必须发，零风险；
+        //   2. `isStreaming` 变化时必发（UI 靠它决定是否显示画面）；
+        //   3. 检测框变化时必发（否则 UI 的框会陈旧）；
+        //   4. `wantFullFrame`（插帧/清晰档）时不短路 —— 该模式帧率要求最高；
+        //   5. **距上次发布超过 1 秒必发**（保活兜底）：即使以上判据全部误判，
+        //      画面最多陈旧 1 秒，且 UI 侧 `poll()` 的 `seq` 会重新推进，
+        //      不会出现"永久冻结"。
+        //   6. UI 侧无任何"帧不动即报警"的看门狗（已全仓核实），连接活性由
+        //      socket 心跳独立维护（`EngineClient.lastHeartbeat`），不依赖 `seq`。
+        let curCaptureCount = st.captureEngine.capturedFrameCount
+        let curDetections = st.yoloEngine.detections.isEmpty
+            ? st.yolopxEngine.detections
+            : st.yoloEngine.detections
+        let pixelsUnchanged = curCaptureCount == EngineGlobals.lastPublishedCaptureCount
+        let stateUnchanged = st.isDriving == EngineGlobals.lastPublishedDriving
+            && st.isStreaming == EngineGlobals.lastPublishedStreaming
+            && curDetections == EngineGlobals.lastPublishedDetections
+        let keepAliveDue = DispatchTime.now().uptimeNanoseconds
+            &- EngineGlobals.lastPublishNanos > 1_000_000_000
+        // ⚠️ 上面注释第 4 条要求「`wantFullFrame`（插帧档）时不短路」，所以这里
+        //   **必须显式判断 `!EngineGlobals.wantFullFrame`**，不能只判 `full == nil`：
+        //   `full` 是"本 tick 是否取到了待发布的全帧"，当插帧档刚开、UI 还没推来
+        //   第一张全帧时它仍为 nil —— 那时若跳过发布，插帧档的起播会被推迟。
+        //   显式判 `wantFullFrame` 后，插帧档任何时刻都不会短路，行为与改前完全一致。
+        if !st.isDriving, !EngineGlobals.wantFullFrame, full == nil,
+           pixelsUnchanged, stateUnchanged, !keepAliveDue {
+            EngineGlobals.skippedPublishTicks &+= 1
+            // ⚠️ 仍然要推进掩码/指针等**非像素**回传（它们在下方，不在此 return 之内），
+            //    所以这里不能 `return`，用 `else` 包住发布块。
+        } else {
+            EngineGlobals.lastPublishedCaptureCount = curCaptureCount
+            EngineGlobals.lastPublishedDriving = st.isDriving
+            EngineGlobals.lastPublishedStreaming = st.isStreaming
+            EngineGlobals.lastPublishedDetections = curDetections
+            EngineGlobals.lastPublishNanos = DispatchTime.now().uptimeNanoseconds
+            EngineGlobals.shm?.publish(
             image: st.currentFrameCG,
             // ── 检测框来源：26S 优先，空则回落小模型（2026-10-19，需求5 连带）──
             //
@@ -1452,6 +1559,7 @@ enum EngineMain {
             isDriving: st.isDriving,
             isStreaming: st.isStreaming,
             fullFrame: full)
+        }
 
         // ── 掩码回传（协议 v3）──
         //
@@ -1465,22 +1573,64 @@ enum EngineMain {
         //
         // ⚠️ 只在驾驶中发：没开始驾驶时引擎本来就没有掩码（模型未加载），
         //    发空网格等于让 UI 侧白跑一遍解析。
+        //
+        // 🔴 2026-10-24 修复（本轮性能审计发现）：指纹短路**从未生效**。
+        //   上面 :1461-1464 的注释与 `publishMasks` 的文档（:316-317「只有在掩码
+        //   世代号变化时才真正重写数据」）都声明「指纹不变就跳过重写」，但原代码
+        //   把 `publishMasks(...)` 写在了 `if fp != lastMaskFingerprint { }` 的
+        //   **花括号之外** → 每 tick 无条件重写两份掩码网格（清 6400B + 逐格比较
+        //   2×25600 次）—— 注释与实现相反，属纯浪费。
+        //
+        //   【为什么改后语义不变】UI 侧只靠世代号判断新鲜度：
+        //     `EngineClient.swift:750-752` —— 读偏移 80 的 `maskSeq`，
+        //     `if maskSeq != engineMaskSeq` 才解析。指纹不变 → seq 不变 →
+        //     UI 本来就不会消费这份重复数据。而 `metrics`/`isDegraded` 等标量
+        //     在掩码未变时也不会变（它们由同一次 YOLOPX 推理产出）。
+        //   【残留风险（如实记录）】指纹 = 前景格数 + 尺寸，存在「格数不变但形状变」
+        //     的极窄漏判窗口（作者在 :1462-1464 已自认）。漏判时 UI 少更新一帧，
+        //     下一帧形状/格数必变 → 立即补上。这与注释声明的设计意图一致，
+        //     不是新增风险。
         if st.isDriving {
             let da = st.yolopxEngine.drivableMask
             let ll = st.yolopxEngine.laneMask
-            let fp = da.positiveCount &* 1000003 &+ ll.positiveCount &* 31
-                &+ da.width &* 7 &+ ll.width
+            // 指纹里带上 letterbox 几何：UI 侧读掩码与 metrics 是**同一批次**的
+            // （`EngineClient.swift:751` 只有 maskSeq 变化才解析几何）。若只哈希
+            // 格数、不哈希几何，窗口尺寸变化而掩码格数恰好不变时，UI 会一直用
+            // 旧几何去摆掩码 → 掩码整体错位。带上几何后这类情况必然刷新。
+            // 代价是几次整数运算，远小于重写 2×25600 格的比较开销。
+            let mtx = st.yolopxEngine.metrics
+            // 降级标志也必须进指纹：`publishMasks` 会把它们写进 flags（偏移 104，
+            // bit0 总降级 / bit2 车道线 / bit3 可行驶区），UI 侧同样**只在 maskSeq
+            // 变化时**才刷新（`EngineClient.swift:751`）。若掩码网格不变而模型刚
+            // 塌陷，指纹不变 → UI 永远不知道要压暗，等于把"模型降级"这个信息吞掉。
+            // 那不是性能优化，是质量退化，必须排除。
+            var fp = da.positiveCount &* 1000003
+            fp = fp &+ ll.positiveCount &* 31
+            fp = fp &+ da.width &* 7
+            fp = fp &+ ll.width
+            fp = fp &+ mtx.padX &* 131
+            fp = fp &+ mtx.padY &* 17
+            fp = fp &+ mtx.padBottom &* 19
+            fp = fp &+ mtx.newW &* 3
+            fp = fp &+ mtx.newH &* 5
+            fp = fp &+ mtx.srcW &* 11
+            fp = fp &+ mtx.srcH &* 13
+            // ratio 是 Double（0.1 量级），量化到千分位避免浮点抖动误触发
+            fp = fp &+ Int((mtx.ratio * 1000).rounded()) &* 23
+            fp = fp &+ (st.yolopxEngine.isDegraded ? 1 << 16 : 0)
+            fp = fp &+ (st.yolopxEngine.laneDegraded ? 1 << 17 : 0)
+            fp = fp &+ (st.yolopxEngine.drivableDegraded ? 1 << 18 : 0)
             if fp != EngineGlobals.lastMaskFingerprint {
                 EngineGlobals.lastMaskFingerprint = fp
                 EngineGlobals.maskSeq &+= 1
+                EngineGlobals.shm?.publishMasks(
+                    drivable: da, lane: ll,
+                    metrics: mtx,
+                    isDegraded: st.yolopxEngine.isDegraded,
+                    laneDegraded: st.yolopxEngine.laneDegraded,
+                    drivableDegraded: st.yolopxEngine.drivableDegraded,
+                    seq: EngineGlobals.maskSeq)
             }
-            EngineGlobals.shm?.publishMasks(
-                drivable: da, lane: ll,
-                metrics: st.yolopxEngine.metrics,
-                isDegraded: st.yolopxEngine.isDegraded,
-                laneDegraded: st.yolopxEngine.laneDegraded,
-                drivableDegraded: st.yolopxEngine.drivableDegraded,
-                seq: EngineGlobals.maskSeq)
         } else if EngineGlobals.maskSeq != 0 {
             // 停车：清掉掩码，避免 UI 侧留着上一次驾驶的残影
             EngineGlobals.maskSeq = 0

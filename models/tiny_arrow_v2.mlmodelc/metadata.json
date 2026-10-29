@@ -61,12 +61,12 @@
       }
     ],
     "userDefinedMetadata" : {
-      "com.github.apple.coremltools.conversion_date" : "2026-10-23",
+      "com.github.apple.coremltools.conversion_date" : "2026-10-24",
       "com.github.apple.coremltools.source" : "torch==2.14.1",
       "com.github.apple.coremltools.version" : "9.0",
       "com.github.apple.coremltools.source_dialect" : "TorchScript"
     },
-    "generatedClassName" : "tiny_arrow_int8",
+    "generatedClassName" : "tiny_arrow_real_int8",
     "method" : "predict"
   }
 ]
