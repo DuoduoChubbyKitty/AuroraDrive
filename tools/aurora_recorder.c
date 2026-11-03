@@ -35,7 +35,15 @@
 #include <errno.h>
 
 // ── 全局配置 ──
-static int g_w = 640, g_h = 360, g_fps = 10, g_max_frames = 0;
+// fps 默认 15：**必须与部署端 tick 一致**，否则训练/部署的时序分布不一致。
+//   依据（均为实测，非推断）：
+//     · `Sources/AuroraDrive/Core/EngineMain.swift:709` 定档：
+//       「tick（推理+控制+录制）：15Hz（两档都是）」，`tickHz()` 两档都返回 15.0。
+//     · `src/model_v3.py:274`：V3 时序窗口按 15Hz 设计
+//       （24 帧 = 3 高清 + 21 低清 ≈ 1.6 秒）。
+//   若按旧的 10fps 录：同样 24 帧实际跨 2.4 秒，训练时每帧位移比部署时小
+//   → 模型学到"偏慢"的动态 → 部署时刹车偏晚。这是分布不一致，不是风格问题。
+static int g_w = 640, g_h = 360, g_fps = 15, g_max_frames = 0;
 static int g_skip_countdown = 0;
 static const char *g_display_spec = "builtin";
 static const char *g_source = "mixed";
@@ -138,26 +146,75 @@ static int capture_frame(CGDirectDisplayID did, const char *outpath) {
     return 1;
 }
 
+// ── 键盘事件处理（抽成独立函数，便于单测；见 test_recorder_derive.c）──
+//
+// ⚠️ 2026-11-03 安全级修复：**macOS 的修饰键（Shift）只走 flagsChanged 通道**
+//    实测证据（零风险探针，只读合成事件 type、不投递按键）：
+//        W(0x0D)      down/up → type=10 keyDown(2) / type=11 keyUp(3)
+//        A/S/Space/←  同上
+//        Shift(0x38)  down/up → type=12 **flagsChanged(12)**  ← 两个方向都是 12
+//    而旧代码只订阅 `kCGEventKeyDown | kCGEventKeyUp`，**永远收不到 Shift** →
+//    `shift` 列恒为 0 → handbrake / super_brake / ultimate 三个安全头
+//    **从训练第一天起就没有任何正样本**（且 loss 完全正常，看不出来）。
+//
+//    仓库内早有同类记录：`Sources/AuroraDrive/Agent/LLMSelfTest.swift:1940-1964`
+//    写明「修饰键只投 flagsChanged(12)。若 tap 只订阅 keyDown/keyUp 就收不到」，
+//    并已在该处同时订阅 flagsChanged —— 录制器此前没有照做。
+//
+// 为什么不靠 event 里的 keycode 判断 Shift 的按下/松开：
+//    flagsChanged 事件不带 "down/up"，只带**当前修饰键位图**（CGEventFlags）。
+//    唯一可靠的判据是读 flags 里有没有 kCGEventFlagMaskShift。
+//    另外：按下 Shift 后再按别的键，也会产生新的 flagsChanged，所以这里
+//    每次都按"当前 flags 全量刷新"，而不是翻转某个状态位（翻转会失控）。
+static void recorder_update_modifier_state(CGEventFlags flags) {
+    int shift_now = (flags & kCGEventFlagMaskShift) ? 1 : 0;
+    pthread_mutex_lock(&g_kb_lock);
+    g_pressed[0x38] = shift_now;   // 左 Shift = 手刹
+    pthread_mutex_unlock(&g_kb_lock);
+}
+
+static void recorder_handle_event(CGEventType type, int64_t keycode,
+                                  CGEventFlags flags, double t,
+                                  int *out_down) {
+    int down = -1;
+    if (type == kCGEventKeyDown || type == kCGEventKeyUp) {
+        down = (type == kCGEventKeyDown) ? 1 : 0;
+        pthread_mutex_lock(&g_kb_lock);
+        if (keycode >= 0 && keycode < 256) g_pressed[keycode] = down;
+        pthread_mutex_unlock(&g_kb_lock);
+    } else if (type == kCGEventFlagsChanged) {
+        recorder_update_modifier_state(flags);
+        // 修饰键的 down/up 由 flags 位反推（仅用于日志可读性）
+        down = (flags & kCGEventFlagMaskShift) ? 1 : 0;
+    }
+
+    if (down >= 0 && g_raw_keys) {
+        pthread_mutex_lock(&g_kb_lock);
+        fprintf(g_raw_keys, "%.4f,%lld,%s\n", t, (long long)keycode,
+                down ? "down" : "up");
+        fflush(g_raw_keys);
+        pthread_mutex_unlock(&g_kb_lock);
+    }
+    if (out_down) *out_down = down;
+}
+
 // ── 键盘事件回调 ──
 static CGEventRef tap_callback(CGEventTapProxy proxy, CGEventType type,
                                 CGEventRef event, void *refcon) {
-    if (type == kCGEventKeyDown || type == kCGEventKeyUp) {
+    if (type == kCGEventKeyDown || type == kCGEventKeyUp
+        || type == kCGEventFlagsChanged) {
         int64_t kc = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-        int down = (type == kCGEventKeyDown) ? 1 : 0;
-        double t = now_sec();
-        pthread_mutex_lock(&g_kb_lock);
-        if (kc >= 0 && kc < 256) g_pressed[kc] = down;
-        if (g_raw_keys) {
-            fprintf(g_raw_keys, "%.4f,%lld,%s\n", t, (long long)kc, down ? "down" : "up");
-            fflush(g_raw_keys);
-        }
-        pthread_mutex_unlock(&g_kb_lock);
+        CGEventFlags fl = CGEventGetFlags(event);
+        recorder_handle_event(type, kc, fl, now_sec(), NULL);
     }
     return event;
 }
 
 static void *kb_thread(void *arg) {
-    CGEventMask mask = CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventKeyUp);
+    // 必须同时订阅 flagsChanged，否则 Shift 永远收不到（见 recorder_handle_event 上方说明）
+    CGEventMask mask = CGEventMaskBit(kCGEventKeyDown)
+                     | CGEventMaskBit(kCGEventKeyUp)
+                     | CGEventMaskBit(kCGEventFlagsChanged);
     CFMachPortRef port = CGEventTapCreate(
         kCGSessionEventTap, kCGHeadInsertEventTap,
         kCGEventTapOptionDefault, mask, tap_callback, NULL);
@@ -228,6 +285,20 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--stop-file") == 0 && i + 1 < argc) { snprintf(g_stop_file, sizeof(g_stop_file), "%s", argv[++i]); }
         else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) { snprintf(g_out_dir, sizeof(g_out_dir), "%s", argv[++i]); }
         else if (strcmp(argv[i], "--view") == 0 && i + 1 < argc) { g_view = argv[++i]; }
+    }
+
+    // ── 参数合法性校验（fail-fast，必须在开始录制前）──
+    // 为什么必须有：`--fps abc` 经 atoi 得 0 → 后面的 `double interval = 1.0 / g_fps;`
+    // 除零（IEEE754 得 inf，再 usleep((useconds_t)(inf*1e6)) 是未定义行为）；
+    // `--width 0` 会让截屏尺寸为 0，写出的 jpg 全部无效。
+    // 这类错误若不在录制前炸掉，用户会录完一整场才发现数据不可用。
+    if (g_fps <= 0 || g_fps > 240) {
+        fprintf(stderr, "[error] --fps 必须在 1~240 之间，收到 %d\n", g_fps);
+        return 2;
+    }
+    if (g_w <= 0 || g_h <= 0) {
+        fprintf(stderr, "[error] --width/--height 必须为正数，收到 %d x %d\n", g_w, g_h);
+        return 2;
     }
 
     if (do_list) {

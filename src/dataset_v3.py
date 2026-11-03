@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import csv
 import random
+import statistics
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -76,6 +77,16 @@ NUM_HI_FRAMES = 3
 
 #: 窗口总帧数（高低清合计），用于与模型侧断言对齐。
 NUM_TOTAL_FRAMES = 24
+
+#: V3 时序设计假设的录制帧率。
+#: 依据：部署端 tick 定档 15Hz（EngineMain.swift:709「tick（推理+控制+录制）：15Hz」），
+#: V3 的 24 帧窗口按 15Hz 设计 = 1.6s（model_v3.py:274）。
+#: 录制成其他帧率会让「24 帧覆盖多长时间」与部署时不一致，
+#: 模型学到的时间动态尺度就是错的（10fps 下 24 帧跨 2.4s，动作看起来更慢）。
+EXPECTED_FPS = 15
+
+#: 允许的帧率偏差比例。真实录制会因截屏耗时抖动，实测 t_sec 差值不会严格等于 1/15。
+FPS_TOLERANCE = 0.15
 
 
 # ----------------------------------------------------------------------------
@@ -252,6 +263,7 @@ class V3KeyDataset(Dataset):
         view_filter: Optional[str] = None,
         skip_all_zero: bool = True,
         seed: int = 42,
+        expected_fps: Optional[float] = EXPECTED_FPS,
     ):
         if Image is None:
             raise RuntimeError("需要 Pillow：pip install pillow")
@@ -262,6 +274,7 @@ class V3KeyDataset(Dataset):
         self.history = history
         self.augment = augment
         self.rng = random.Random(seed)
+        self.expected_fps = expected_fps
 
         self.index: List[Tuple[Path, int]] = []
         self._rows_cache: Dict[Path, List[Dict[str, str]]] = {}
@@ -307,6 +320,9 @@ class V3KeyDataset(Dataset):
             if not rows:
                 continue
 
+            # 帧率校验：不一致会让 V3 的时间尺度学错，且训练日志看不出来
+            self._check_fps(clip, rows)
+
             for i, row in enumerate(rows):
                 if not (frames_dir / f"{i:06d}.jpg").exists():
                     continue
@@ -327,6 +343,48 @@ class V3KeyDataset(Dataset):
         # clip 数用 rows 缓存的键数量，二者不能混用（旧版在这里解包三元组崩过）。
         print(f"[V3KeyDataset] {len(self._rows_cache)} 个 clip，{len(self.index)} 个样本"
               f"（跳过全零帧 {n_skipped}）")
+
+    def _check_fps(self, clip: Path, rows: List[Dict[str, str]]) -> None:
+        """校验该 clip 的实际帧率是否与 V3 时序假设一致。
+
+        为什么必须在**加载阶段**炸掉、而不是训完再说：
+            V3 的 24 帧窗口按 15Hz 设计（部署端 tick 也是 15Hz，见
+            EngineMain.swift:709）。若数据实际是 10fps，同样 24 帧跨 2.4 秒
+            而不是 1.6 秒 —— 模型学到的时间尺度是错的，但 **loss 曲线完全正常**，
+            日志里看不出任何异常，只有上车后表现为"刹车偏晚"。这类错误无法在
+            训练过程中被发现，只能在数据入口拦。
+
+        为什么用 t_sec 实数差而不是 clip.json 里的 "fps" 字段：
+            clip.json 是录制器自己写的**声明值**，可能过时、可能被手改；
+            t_sec 是每帧真实时钟差值，造不了假。两者冲突时以 t_sec 为准。
+
+        Args:
+            clip: clip 目录（仅用于报错定位）
+            rows: 该 clip 的全部 CSV 行
+        """
+        if self.expected_fps is None or len(rows) < 2:
+            return  # 显式关闭校验 / 样本太少（如只录几帧）无法估计
+
+        try:
+            ts = [float(r["t_sec"]) for r in rows]
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{clip}/controls.csv 的 t_sec 列含非数值: {exc}") from exc
+
+        dts = [b - a for a, b in zip(ts, ts[1:]) if b > a]
+        if not dts:
+            return  # 时间戳未前进（异常，但由别处负责报），此处不重复抛
+        median_dt = statistics.median(dts)
+        if median_dt <= 0:
+            return
+
+        actual_fps = 1.0 / median_dt
+        if abs(actual_fps - self.expected_fps) / self.expected_fps > FPS_TOLERANCE:
+            raise ValueError(
+                f"{clip}/controls.csv 的实际帧率约 {actual_fps:.1f}fps，"
+                f"与 V3 假设的 {self.expected_fps:.0f}fps 不符（容差 {FPS_TOLERANCE:.0%}）。\n"
+                "  V3 的 24 帧窗口按 15Hz 设计（=1.6s）；帧率不同会让模型学到的时间尺度错误。\n"
+                "  处理：用 `--fps 15` 重录，或确认这是有意为之则传 expected_fps=None 关闭校验。"
+            )
 
     @staticmethod
     def _read_rows(csv_path: Path) -> List[Dict[str, str]]:

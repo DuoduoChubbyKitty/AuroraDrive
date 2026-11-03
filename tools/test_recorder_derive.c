@@ -185,12 +185,70 @@ static void test_no_state_leak(void) {
     CHECK(bad == 0, "10000 帧中有 %d 行错", bad);
 }
 
+// [5] 键盘事件层：Shift 只走 flagsChanged（这是 694 项断言覆盖不到的盲区）
+//
+// 为什么必须单独测这一层：上面的 test_all_combinations 等直接写
+// `g_pressed[0x38]=1`，**绕过了事件分发**。所以哪怕录制器根本没订阅
+// flagsChanged、真实 Shift 一帧都收不到，那些断言依然全部 PASS。
+// 这正是本次审查抓到的安全级 bug：shift 列恒 0 → 三个安全头零正样本。
+static void test_modifier_flags_changed(void) {
+    printf("[5] 修饰键事件层（flagsChanged）\n");
+
+    for (int i = 0; i < 256; i++) g_pressed[i] = 0;
+
+    // Shift 按下：flagsChanged + Shift 位 = 1
+    recorder_handle_event(kCGEventFlagsChanged, 0x38, kCGEventFlagMaskShift, 1.0, NULL);
+    CHECK(g_pressed[0x38] == 1, "flagsChanged 带 Shift 位后，g_pressed[0x38] 应为 1");
+
+    // 此时 derive 应输出 shift=1（即使没按空格，shift 单独就是手刹）
+    FILE *f = tmpfile();
+    if (!f) { printf("  [FAIL] tmpfile 失败\n"); g_fail++; return; }
+    derive_and_write(f, 1.0, 0);
+    rewind(f);
+    char line[512];
+    int v[8]; double t; long fr;
+    CHECK(fgets(line, sizeof line, f) != NULL, "读行失败");
+    CHECK(sscanf(line, "%lf,%ld,%d,%d,%d,%d,%d,%d,%d,%d",
+                 &t, &fr, &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7]) == 10,
+          "解析失败");
+    CHECK(v[4] == 1, "Shift 按下时 shift 列应为 1（实际 %d）", v[4]);
+    CHECK(v[6] == 0 && v[7] == 0, "只按 Shift 时组合键应为 0");
+
+    // Shift + Space → super_brake=1（此时 shift 位仍在）
+    recorder_handle_event(kCGEventKeyDown, 0x31, kCGEventFlagMaskShift, 2.0, NULL);
+    rewind(f); fclose(f); f = tmpfile();
+    derive_and_write(f, 2.0, 1);
+    rewind(f);
+    CHECK(fgets(line, sizeof line, f) != NULL, "读行失败");
+    sscanf(line, "%lf,%ld,%d,%d,%d,%d,%d,%d,%d,%d",
+           &t, &fr, &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7]);
+    CHECK(v[4] == 1 && v[5] == 1, "Shift+Space 时 shift/space 均应为 1");
+    CHECK(v[6] == 1, "Shift+Space 时 super_brake 应为 1");
+
+    // Shift 松开：flagsChanged 且 **不带** Shift 位 → 必须归 0
+    recorder_handle_event(kCGEventFlagsChanged, 0x38, 0, 3.0, NULL);
+    CHECK(g_pressed[0x38] == 0, "Shift 位清除后 g_pressed[0x38] 应为 0（不能粘滞）");
+
+    // 关键回归：按下 Shift 后再按普通键，也会产生 flagsChanged。
+    // 若用"翻转状态位"实现，这里会把 Shift 错误翻成 0 → 手刹丢失。
+    recorder_handle_event(kCGEventFlagsChanged, 0x38, kCGEventFlagMaskShift, 4.0, NULL);
+    recorder_handle_event(kCGEventKeyDown, 0x0D, kCGEventFlagMaskShift, 4.1, NULL);
+    recorder_handle_event(kCGEventFlagsChanged, 0x38, kCGEventFlagMaskShift, 4.2, NULL);
+    CHECK(g_pressed[0x38] == 1, "Shift 按住期间再按 W 产生的 flagsChanged 不应清掉 Shift");
+    CHECK(g_pressed[0x0D] == 1, "W 应处于按下状态");
+
+    // 清理
+    for (int i = 0; i < 256; i++) g_pressed[i] = 0;
+    fclose(f);
+}
+
 int main(void) {
     printf("================ 录制器按键推导 穷举压力测试 ================\n");
     test_all_combinations();
     test_arrow_keys();
     test_degenerate();
     test_no_state_leak();
+    test_modifier_flags_changed();
     printf("===========================================================\n");
     printf("共 %d 项断言，失败 %d 项\n", g_checks, g_fail);
     printf("%s\n", g_fail == 0 ? "PASS" : "FAIL");
