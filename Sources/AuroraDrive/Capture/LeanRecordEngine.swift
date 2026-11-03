@@ -187,6 +187,25 @@ final class LeanRecordEngine: @unchecked Sendable {
     /// `start()`/`closeSessionLocked()` 会置 nil，否则新会话第一帧会被上段的旧时刻误挡。
     private var lastAcceptedFrameTime: Date?
 
+    // MARK: - 帧率契约监视（stateLock 保护）
+
+    /// 最近若干个「被接受的帧间隔」。用它算 median，与 `dataset_v3` 同口径。
+    /// 只保留最近 `cadenceWindow` 个，既能跟上节奏变化，又不会被开头的冷启动拖累。
+    private var cadenceIntervals: [TimeInterval] = []
+    /// 窗口大小：120 帧 ≈ 8 秒 @15fps。太短会被单次抖动带偏，太长则反应迟钝。
+    private let cadenceWindow = 120
+    /// 连续多少次判据成立才认定"真的出界"（抗偶发抖动）。
+    private var contractBreachStreak = 0
+    /// 连续出界的认定阈值：45 次 ≈ 3 秒 @15fps。
+    /// 声明为 `var` 而非常量：自检需要缩短它，才能**确定性地**制造"持续出界"
+    /// 并断言监视器真的会触发（与 `maxSegmentSeconds` 同一惯例）。
+    /// 一个从未被证明会响的警报等于没写。
+    var contractBreachLimit = 45
+    /// 至少要有这么多间隔样本才下结论（避免开头几帧就误判）。同样为自检放开。
+    var contractMinSamples = 30
+    /// 容差：与 `dataset_v3.FPS_TOLERANCE` 保持一致（0.15）。
+    private let contractFpsTolerance = 0.15
+
     private let dirFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyyMMdd_HHmmss"
@@ -299,8 +318,20 @@ final class LeanRecordEngine: @unchecked Sendable {
         // 判据用 0.9 个周期（6.0ms 余量）而不是严格的 1/15：
         //   15fps 源的真实间隔会在 66.7ms 附近抖动，卡死 66.7ms 会把正常帧也挡掉，
         //   反而把有效帧率压低、同样掉出容差下界。
+        //
+        // 【单向闸的盲区（2026-11-03 外部审查指出，已在下游补监视器）】
+        //   这里只卡「不要太快」，管不了「太慢」：SCStream 卡顿/系统降频后若改成
+        //   ~10Hz 投递，帧间隔 ~100ms **每帧都能通过**下限检查，照单全收 →
+        //   median(dts) 跌出 12.75–17.25 → dataset_v3 整段 ValueError。
+        //   【为什么不能在这里"拒掉慢帧"】拒绝不解决慢：下一帧仍以"上次接受时刻"
+        //   为基准，间隔只会更长，导致持续拒帧直至一帧都录不到；而且拒帧并不能把
+        //   10Hz 的源变成 15Hz。
+        //   【正确做法】下面 `noteCadenceForContract` 直接照 dataset_v3 的判据监视
+        //   实际帧率，一旦持续出界就**明确停止录制并说明原因** —— 宁可少录一段并
+        //   告知，也不静默产出 10 分钟一帧都加载不了的废数据。
         let now = Date()
-        let minGap = 1.0 / fps * 0.9
+        let period = 1.0 / fps
+        let minGap = period * 0.9
         // 【为什么"在录判断"和"世代号"必须在同一次加锁里取】
         //   10 分钟自动分段是主线程 stop()→start()；而本函数在抓屏队列。若两者
         //   分开取，中间恰好切段，就会把**旧段的在途帧**带进新段：它随后按新段的
@@ -313,11 +344,27 @@ final class LeanRecordEngine: @unchecked Sendable {
         }
         let generation = sessionGeneration
         if let last = lastAcceptedFrameTime, now.timeIntervalSince(last) < minGap {
+            // 被限流挡掉的帧不参与节奏统计：它不是抓屏节奏的代表，
+            // 混进去会人为抬高"有效帧率"、掩盖真实降速。
             stateLock.unlock()
             return
         }
+        // 节奏样本：只记被接受的帧间隔，照 dataset_v3 的口径盯 median。
+        if let last = lastAcceptedFrameTime {
+            cadenceIntervals.append(now.timeIntervalSince(last))
+            if cadenceIntervals.count > cadenceWindow { cadenceIntervals.removeFirst() }
+        }
         lastAcceptedFrameTime = now
         stateLock.unlock()
+
+        // ── 帧率契约监视（照 dataset_v3 的真实判据）───────────────────
+        // dataset_v3 用 `actual_fps = 1/median(dts)` 判 15±15%（12.75–17.25），
+        // 超了直接 ValueError —— 整段 10 分钟数据一帧都加载不了，且录制期间毫无征兆。
+        // 这里在本地先算同一个数：一旦**持续**出界，就停下并告知原因。
+        // 为什么用"持续"而不是一帧就停：偶发抖动（一次掉帧=2×周期）是正常的，
+        // 一帧出界就停会让正常录制频繁中断。故要求连续 contractBreachLimit 次判据成立，
+        // 且窗口样本足够（>= contractMinSamples）才下结论。
+        noteCadenceForContract()
 
         // 时间戳与标签必须在**帧到达的这一刻**取，不能等到写盘时再取：
         // 写盘是异步的，晚取会把"下一帧的按键"贴到"这一帧的画面"上（标签错位）。
@@ -480,8 +527,20 @@ final class LeanRecordEngine: @unchecked Sendable {
         //   `FileHandle.write(_:)` 是非 throwing 的旧 API，出错时**raise ObjC 异常**
         //   （磁盘满 / IO 错误），Swift 的 do/catch 抓不到 → 直接崩掉整个 App。
         //   录制中崩溃还会留下未 flush 的 CSV，比"少一帧"严重得多。
+        //
+        // 【为什么必须先解包而不是 `try csvHandle?.write(...)`】
+        //   可选链在 handle 为 nil 时**不会抛错**，do 分支照常返回 true → 调用方
+        //   认为"行写成功了"，于是推进帧号、递增计数，但 CSV 里根本没有这一行，
+        //   frames/ 却多了一张图 ⇒ 「有图无行」，训练端按行号拼文件名整体错位。
+        //   当前 `framesDir` 与 `csvHandle` 永远在同一把锁内一起赋值/一起置空
+        //   （openSession:558-559 / closeSessionLocked），故这个状态**现在不可达**；
+        //   但这是一道代价为零的防线，不让它依赖"别处不会单独清 csvHandle"这个隐含前提。
+        guard let handle = csvHandle else {
+            recordFailure("CSV 句柄已关闭，行丢弃")
+            return false
+        }
         do {
-            try csvHandle?.write(contentsOf: data)
+            try handle.write(contentsOf: data)
             return true
         } catch {
             recordFailure("CSV 行写入失败：\(error.localizedDescription)")
@@ -495,6 +554,65 @@ final class LeanRecordEngine: @unchecked Sendable {
         let n = writeFailureCount
         stateLock.unlock()
         if n <= 3 { print("[lean] ⚠️ \(reason)（第 \(n) 次）") }
+    }
+
+    /// 照 `dataset_v3` 的真实判据监视帧率，持续出界时停止录制并说明原因。
+    ///
+    /// 【为什么需要】`appendFrame` 的限流只保证"不要太快"（单向闸）。SCStream
+    ///   卡顿或系统降频后若改成 ~10Hz 投递，每帧都能通过下限检查而被照单全收，
+    ///   于是 `median(dts)` 变大、`actual_fps` 跌出 12.75–17.25，
+    ///   `dataset_v3` 会对**整段**抛 ValueError —— 10 分钟录制一帧都用不上，
+    ///   而录制期间界面一切正常，用户毫无察觉。
+    ///
+    /// 【为什么是"停止"而不是"修补"】帧已经在到得慢，任何本地手段都无法把
+    ///   10Hz 变成 15Hz；丢掉慢帧只会让下一帧间隔更长。既然这段注定不达标，
+    ///   唯一负责的做法是**明确停下并告知原因**，而不是继续写一份废数据。
+    ///
+    /// 【为什么要求"连续 N 次"】偶发掉一帧会让单个间隔变成 2 倍周期，但 median
+    ///   不受影响。一帧出界就停会让正常录制频繁中断，故要求持续成立才判定。
+    private func noteCadenceForContract() {
+        stateLock.lock()
+        guard isRecording, cadenceIntervals.count >= contractMinSamples else {
+            stateLock.unlock()
+            return
+        }
+        let sorted = cadenceIntervals.sorted()
+        let mid = sorted.count / 2
+        let medianDt = sorted.count % 2 == 0
+            ? (sorted[mid - 1] + sorted[mid]) / 2
+            : sorted[mid]
+        guard medianDt > 0 else {
+            stateLock.unlock()
+            return
+        }
+        let actualFps = 1.0 / medianDt
+        let deviation = abs(actualFps - fps) / fps
+        let breached = deviation > contractFpsTolerance
+        if breached {
+            contractBreachStreak += 1
+        } else {
+            contractBreachStreak = 0
+        }
+        let streak = contractBreachStreak
+        stateLock.unlock()
+
+        guard breached, streak >= contractBreachLimit else { return }
+        // 只在**越过阈值的那一刻**报一次：本函数每帧都会被调用，否则会刷屏。
+        guard streak == contractBreachLimit else { return }
+
+        let msg = String(format: "实测 %.2ffps 已持续偏离 %.0ffps 超过 ±%.0f%%"
+                         + "（dataset_v3 会拒载整段），已停止录制",
+                         actualFps, fps, contractFpsTolerance * 100)
+        print("[lean] ❌ \(msg)")
+        // ⚠️ 绝不在本线程（抓屏队列）直接 stop()：`stop()` 内部有
+        //   `writeQueue.sync {}` 排空，会把抓屏队列阻塞在磁盘 I/O 上。
+        //   本项目已记录过同款事故：在该队列做同步重活曾把 capGap 从 11ms 抬到 2081ms。
+        //   故抛回主线程异步停 —— `stop()` 本就是主线程状态机（同自动分段）。
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isRecordingSnapshot else { return }
+            self.stop()
+            self.lastError = msg
+        }
     }
 
     // MARK: - 会话目录 / CSV
@@ -572,6 +690,12 @@ final class LeanRecordEngine: @unchecked Sendable {
         // ⚠️ 必须清零：限流用"距上一帧的时刻"判间隔，不清的话 10 分钟自动分段
         //    切到新会话后，第一帧会被上一段的旧时刻挡掉（每段开头稳定丢 1 帧）。
         lastAcceptedFrameTime = nil
+        // ⚠️ 节奏监视的状态也必须一起清：否则自动分段后新段会**继承上一段的帧间隔
+        //    样本**，可能在刚开录就因"样本里还留着上一段末尾的抖动"而立刻判定出界、
+        //    把好端端的新段停掉。契约是按段判的（dataset_v3 逐 clip 校验），
+        //    监视器也必须按段看。
+        cadenceIntervals.removeAll(keepingCapacity: true)
+        contractBreachStreak = 0
         lastError = nil
         stateLock.unlock()
         return true

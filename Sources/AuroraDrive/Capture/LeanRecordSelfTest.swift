@@ -358,6 +358,58 @@ enum LeanRecordSelfTest {
             check("第三段 clip 存在", false)
         }
 
+        // ── 第三段半：帧率契约监视（照 dataset_v3 的真实判据）──
+        // 【为什么必须测】`appendFrame` 的限流只保证"不要太快"，管不了"太慢"。
+        //   SCStream 卡顿后若改成 ~10Hz 投递，每帧都能通过下限检查而被照单全收，
+        //   于是 median(dts) 变大、actual_fps 跌出 12.75–17.25，dataset_v3 会对
+        //   **整段**抛 ValueError —— 10 分钟录制一帧都用不上，而界面一切正常。
+        //   监视器就是为那一刻准备的。
+        // 【为什么正反两面都测】只测"会停"可能把正常节奏也停掉（毁掉好数据）；
+        //   只测"不停"则等于没测监视器本身。两个方向都必须钉住。
+        // 【为什么缩短阈值】默认要 30 个样本、连续 45 次出界（≈5 秒），
+        //   自检不能真跑那么久；缩短后才能确定性地制造出"持续出界"。
+        print("  ── 第三段半：帧率契约监视（正反两面）──")
+
+        // 负例：15Hz 正常节奏**绝不能**误停
+        let cadenceOK = LeanRecordEngine()
+        cadenceOK.clipsRootOverride = root.appendingPathComponent("cadence_ok")
+        cadenceOK.keyProvider = { RawKeySample() }
+        cadenceOK.poseProvider = { (nil, nil) }
+        cadenceOK.contractMinSamples = 5
+        cadenceOK.contractBreachLimit = 3
+        check("契约监视·负例 start() 成功", cadenceOK.start(), cadenceOK.lastError ?? "")
+        for _ in 0..<12 {
+            cadenceOK.appendFrame(pixelBuffer: buffer)
+            usleep(66_667)                                      // ≈15Hz
+            // 必须 pump：停止是抛回主线程执行的，不转 runloop 就永远跑不到
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.002))
+        }
+        check("契约监视：15Hz 正常节奏不误停", cadenceOK.isRecording,
+              cadenceOK.lastError ?? "")
+        cadenceOK.stop()
+
+        // 正例：~10Hz 持续出界必须真的停下来并说明原因
+        let cadenceBad = LeanRecordEngine()
+        cadenceBad.clipsRootOverride = root.appendingPathComponent("cadence_bad")
+        cadenceBad.keyProvider = { RawKeySample() }
+        cadenceBad.poseProvider = { (nil, nil) }
+        cadenceBad.contractMinSamples = 5
+        cadenceBad.contractBreachLimit = 3
+        check("契约监视·正例 start() 成功", cadenceBad.start(), cadenceBad.lastError ?? "")
+        for _ in 0..<16 {
+            cadenceBad.appendFrame(pixelBuffer: buffer)
+            usleep(100_000)                                     // ≈10Hz → 偏差 33% > 15%
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.002))
+            if !cadenceBad.isRecording { break }
+        }
+        check("契约监视：持续 10Hz 出界必须停止录制", !cadenceBad.isRecording,
+              "isRecording=\(cadenceBad.isRecording)")
+        let cadenceErr = cadenceBad.lastError ?? ""
+        // 停下来的理由必须写清"实测多少 fps"：只说"帧率异常"用户无从判断是机器慢
+        // 还是抓屏被别的东西抢了。
+        check("契约监视：停止原因须含实测帧率", cadenceErr.contains("fps"), cadenceErr)
+        if cadenceBad.isRecording { cadenceBad.stop() }
+
         // ── 第四段：分段回调 onSegmentClosed（不变量 ⑧）──
         // 为什么需要这一段：10 分钟自动分段会把一次长录切成多段，若只有"最后一段"
         // 被标注，前面的中间段 speed_kmh 会永久为空 —— 训练端 speed_valid=0，
