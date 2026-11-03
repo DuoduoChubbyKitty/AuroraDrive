@@ -98,13 +98,37 @@ def _bit(row: Dict[str, str], key: str) -> int:
 
     录制器写的是整数 0/1，但历史上也可能出现 "0.0"/"1.0"（旧版用 %.1f）。
     两种情况都要接受；其余值视为数据损坏并**显式报错**，不静默当成 0。
+
+    ⚠️ 2026-11-03 修复（审查 P0-2）：旧实现用 `(row.get(key) or "")`，
+       于是「列不存在」（`None`）与「值为 0」无法区分，全都返回 0。
+
+       实测后果（审查报告）：表头写成 `t_sec,frame, w,a,...`（多空格）时，
+       DictReader 的键是 `' w'`，`row.get("w")` 恒 None → 真实按下的
+       W/A 全被读成「没按」→ vertical/horizontal 全变 NONE，
+       日志里没有任何异常；行被截断时同理。
+
+       本次改造的核心承诺就是「不要静默失败」，所以这里必须把
+       「缺失」与「合法 0」彻底分开：缺列 → 抛异常，不返回 0。
     """
-    raw = (row.get(key) or "").strip()
-    if raw in ("0", "0.0", ""):
+    if key not in row:
+        # 注意：不能用 sorted(row.keys()) —— DictReader 在行内字段多于表头时
+        # 会把多余字段塞进键 None，而 Python 3 的 sorted 对 None 与 str 混合会抛
+        # TypeError，从而把「缺列」这个真实原因掩盖掉。这里保持原顺序并转成 str。
+        actual = [str(k) for k in row.keys()][:12]
+        raise ValueError(
+            f"CSV 缺少列 {key!r}（实际列: {actual}）——"
+            "通常是表头含多余空格，或数据行字段数不足")
+    raw = row[key]
+    if raw is None:
+        raise ValueError(f"列 {key!r} 的值为 None（数据行字段数少于表头）")
+    raw = raw.strip()
+    if raw in ("0", "0.0"):
         return 0
     if raw in ("1", "1.0"):
         return 1
-    raise ValueError(f"列 {key} 的值非法: {raw!r}（应为 0/1）")
+    if raw == "":
+        raise ValueError(f"列 {key!r} 为空串（数据损坏；录制器不会写空串）")
+    raise ValueError(f"列 {key!r} 的值非法: {raw!r}（应为 0/1）")
 
 
 def vertical_from_keys(w: int, s: int) -> int:
@@ -404,6 +428,28 @@ class V3KeyDataset(Dataset):
 
         for i, row in enumerate(rows):
             validate_row(row, where=f"{csv_path.name} 第 {i + 2} 行")
+            # ── frame 列必须与行号严格一致（审查 P0-4）──
+            # 为什么必须有：__getitem__ 用**行号 i** 去拼 frames/{i:06d}.jpg，
+            # 却从不读 frame 列。若 CSV 行序与帧文件错位（合并/截断/人工修复/
+            # 非录制器产物），就会得到「图是第 k 帧、标签是第 m 帧」——
+            # **训练目标整体错位**且不报错。这是最隐蔽的数据污染形式。
+            #
+            # 实测反证（审查报告）：把 frame 列写成 99,98,97,96、文件名仍是
+            # 000000..000003，旧实现照样返回 4 个样本、无任何告警。
+            raw_frame = row.get("frame")
+            if raw_frame is None:
+                raise ValueError(f"{csv_path} 第 {i + 2} 行缺少 frame 列")
+            try:
+                frame_val = int(str(raw_frame).strip())
+            except ValueError as exc:
+                raise ValueError(
+                    f"{csv_path} 第 {i + 2} 行 frame 列非整数: {raw_frame!r}") from exc
+            if frame_val != i:
+                raise ValueError(
+                    f"{csv_path} 第 {i + 2} 行 frame={frame_val}，但它是第 {i} 个数据行"
+                    f"（0 基，应为 {i}）。\n"
+                    "  CSV 行序与帧文件编号已错位 → 图像与标签会整体错配。\n"
+                    "  这通常是文件被合并/截断/人工编辑过，不是录制器原始产物。")
         return rows
 
     # -- Dataset 协议 ------------------------------------------------------
@@ -466,16 +512,39 @@ class V3KeyDataset(Dataset):
         conf_all = _confidence_targets(cm)
         risk_all = _risk_targets(cm)
 
-        # 注意：vehicle_state 的 8 维语义见 model_v2.StateEncoder 的文档
-        #   [0]=speed [1]=accel [2]=heading [3]=heading_rate
-        #   [4]=curvature [5]=lateral_offset [6]=steer_angle [7]=reserved
-        # 录制数据里目前只能从按键推出一个极粗的 speed 代理（有无给油），
-        # 其余全部置 0 —— 这会让状态分支学到「几乎恒零」，是已知局限（未测项）。
-        speed_proxy = 1.0 if w else 0.0
-        steer_angle = -1.0 if a else (1.0 if d else 0.0)
+        # ── vehicle_state：只允许 t−1 及更早的信息，禁止当前帧标签泄漏 ──
+        #
+        # ⚠️ 2026-11-03 修复（审查 P0-5）：旧实现直接把**当前帧**的按键填进 state：
+        #       vehicle_state[6] = -1 if a else (1 if d else 0)   ← 就是 horizontal 标签
+        #       vehicle_state[0] = 1 if w else 0                   ← 就是 vertical 的一半
+        #    实测后果：`state[6]` 与 `horizontal` **完全一一对应**（确定性泄漏，
+        #    不是相关性）。模型只要读这一维就能 100% 猜出横向标签，根本不用看图。
+        #    更糟的是部署端这两维来自完全不同的来源（speed OCR / 上一帧决策输出，
+        #    见 InferenceEngineV2.swift:760-940），训练分布 ≠ 推理分布
+        #    → 训练指标虚高、上车即崩。
+        #
+        # 为什么改成 t−1 而不是全零：
+        #    论文的核心贡献就是 state-aware（把 t−1 的控制量做成 state token，
+        #    见 papers/state_aware.txt §IV.A）。t−1 的动作在部署时**真实可得**
+        #    ——它就是模型自己上一帧的输出。所以 t−1 既是合法的时序信息，
+        #    又不构成泄漏。全部置零会让这个核心机制彻底失效，故优先选 t−1。
+        #
+        # 8 维来源（语义见 model_v2.StateEncoder 的文档）：
+        #   [0] speed        → 录制数据里**没有**速度 → 恒 0
+        #                      不从 W 伪造：按 W ≠ 车在动，语义错且同样泄漏
+        #   [6] steer_angle  → t−1 的 A/D（上一帧转向指令），A→−1 / D→+1 / 其余→0
+        #   其余             → 0（录制数据未提供）
+        #
+        # 验证方式（tests 里已实跑）：把当前帧的 A/D 翻转，vehicle_state 必须**不变**。
         vehicle_state = np.zeros(8, dtype=np.float32)
-        vehicle_state[0] = speed_proxy
-        vehicle_state[6] = steer_angle
+        if frame_idx > 0:
+            prev = rows[frame_idx - 1]
+            prev_a, prev_d = _bit(prev, "a"), _bit(prev, "d")
+            # 与 horizontal_from_keys 同口径：A→−1，D→+1，同按或都不按→0
+            if prev_a and not prev_d:
+                vehicle_state[6] = -1.0
+            elif prev_d and not prev_a:
+                vehicle_state[6] = 1.0
 
         return {
             "image_hi": torch.from_numpy(image_hi),
