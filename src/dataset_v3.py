@@ -467,6 +467,81 @@ class V3KeyDataset(Dataset):
 
 
 # ----------------------------------------------------------------------------
+# 训练/验证划分
+# ----------------------------------------------------------------------------
+
+def make_train_val_split(
+    dataset: V3KeyDataset,
+    val_ratio: float = 0.1,
+    seed: int = 42,
+) -> Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+    """按 **clip 边界**划分训练/验证集。
+
+    为什么必须按 clip 而不是按帧随机切：
+        V3 的输入是 24 帧滑动窗口（3 高清 + 21 低清）。相邻帧的窗口有 23 帧重叠，
+        按帧随机切会让验证集里的几乎每一帧都在训练集中以"错开一帧"的形式出现过
+        —— 验证指标会虚高到接近 100%，完全失去早期停止/选模型的意义。
+        按 clip 切分保证验证集来自**整段独立的驾驶片段**，指标才是可信的。
+
+    为什么 clip 太少时退化为按帧切（mono_dataset.py 同策略）：
+        只有 2-3 个 clip 时按 clip 切会让 val 只剩极少样本、方差极大；
+        退化切分不理想但至少能跑起来，且**会在日志里明确标注是退化模式**，
+        不会让人误以为拿到了可信的验证指标。
+
+    实参约定见 mono_dataset.make_train_val_split（本项目既有实现，保持一致）。
+    """
+    # clip → 该 clip 在全局 index 中的样本数
+    clip_counts: Dict[Path, int] = {}
+    for clip, _ in dataset.index:
+        clip_counts[clip] = clip_counts.get(clip, 0) + 1
+
+    active_clips = [c for c, n in clip_counts.items() if n > 0]
+
+    if len(active_clips) >= 4:
+        rng = random.Random(seed)
+        shuffled = list(active_clips)
+        rng.shuffle(shuffled)
+        n_val = max(1, int(len(shuffled) * val_ratio))
+        # 保证 train 至少留 1 个 clip（避免 val 全取）
+        if n_val >= len(shuffled):
+            n_val = len(shuffled) - 1
+        val_clips = set(shuffled[:n_val])
+
+        train_idx = [i for i, (clip, _) in enumerate(dataset.index) if clip not in val_clips]
+        val_idx = [i for i, (clip, _) in enumerate(dataset.index) if clip in val_clips]
+
+        if not val_idx:  # 理论不该发生，纯兜底
+            return _fallback_frame_split(dataset, val_ratio, seed)
+
+        print(f"[V3KeyDataset] 按 clip 划分: train={len(train_idx)} val={len(val_idx)} "
+              f"(val_clips={len(val_clips)}/{len(active_clips)})")
+        return (torch.utils.data.Subset(dataset, train_idx),
+                torch.utils.data.Subset(dataset, val_idx))
+
+    print(f"[V3KeyDataset] ⚠ clip 数 {len(active_clips)} < 4，退化为按帧划分"
+          "（验证指标不可信，仅用于跑通流程）")
+    return _fallback_frame_split(dataset, val_ratio, seed)
+
+
+def _fallback_frame_split(
+    dataset: V3KeyDataset,
+    val_ratio: float,
+    seed: int,
+) -> Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+    """按帧随机划分（小数据集兜底，保证至少 1 条 val 样本）。"""
+    n = len(dataset)
+    n_val = max(1, int(n * val_ratio))
+    g = torch.Generator().manual_seed(seed)
+    perm = torch.randperm(n, generator=g).tolist()
+    val_idx_set = set(perm[:n_val])
+    train_idx = [i for i in range(n) if i not in val_idx_set]
+
+    print(f"[V3KeyDataset] 按帧随机划分: train={len(train_idx)} val={len(val_idx_set)}")
+    return (torch.utils.data.Subset(dataset, train_idx),
+            torch.utils.data.Subset(dataset, sorted(val_idx_set)))
+
+
+# ----------------------------------------------------------------------------
 # 统计 / 自检
 # ----------------------------------------------------------------------------
 
