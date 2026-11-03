@@ -508,6 +508,69 @@ enum LeanRecordSelfTest {
             check("拒绝测试副本创建成功", false)
         }
 
+        // ── 第六段：标注看门狗（子进程卡死必须能被杀）──
+        // 【为什么必须实测】卡死时 `terminationHandler` 永不触发：进度条永远停在某个
+        //   百分比、待标注队列被 pump 的门禁永久堵死，屏外表现为"像死机但不崩溃"。
+        //   看门狗的价值全在"卡死时能不能杀掉"，而这正是正常标注**不会发生**的情形 ——
+        //   不真跑一次就等于没写。
+        print("  ── 第六段：标注看门狗 ──")
+        func pumpRunLoop(until done: () -> Bool, timeout: TimeInterval) -> Bool {
+            let deadline = Date(timeIntervalSinceNow: timeout)
+            while Date() < deadline {
+                if done() { return true }
+                RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.02))
+            }
+            return done()
+        }
+
+        // ① 卡死场景：/bin/sleep 不产出任何进度 → 必须被看门狗杀掉。
+        //    用 30s 而非 300s：即便看门狗失效也不会留下长命孤儿进程。
+        do {
+            let runner = LeanAnnotateRunner()
+            runner.stallTimeout = 2
+            runner.executableOverride = URL(fileURLWithPath: "/bin/sleep")
+            runner.argumentsOverride = ["30"]
+            var finishedCode: Int32?
+            runner.onFinish = { code, _ in finishedCode = code }
+            let began = Date()
+            let started = runner.start(clipPath: "unused")
+            check("卡死场景：子进程成功拉起", started, runner.lastError ?? "")
+            // 看门狗失效时这里只会等到 pump 超时（下面断言失败），不会把自检卡死。
+            let ended = pumpRunLoop(until: { finishedCode != nil }, timeout: 15)
+            let waited = Date().timeIntervalSince(began)
+            check("卡死场景：子进程被终止并回报结束", ended, String(format: "%.1fs", waited))
+            check("卡死场景：被标记为停滞强杀", runner.didStallOut,
+                  "didStallOut=\(runner.didStallOut)")
+            check("卡死场景：结束后 isRunning 归 false（队列可继续）", !runner.isRunning)
+            check("卡死场景：在阈值附近被杀（1.5s ≤ 用时 < 10s）",
+                  waited >= 1.5 && waited < 10, String(format: "%.1fs", waited))
+        }
+
+        // ② 正常推进场景：持续吐进度，总时长远超 stallTimeout —— 不能被误杀。
+        //    这条比 ① 更重要：阈值设错会把"慢但活着"的正常标注杀掉。
+        do {
+            let runner = LeanAnnotateRunner()
+            runner.stallTimeout = 2
+            runner.executableOverride = URL(fileURLWithPath: "/bin/bash")
+            // 8 次 × 0.5s = 4s，远超 2s 阈值；只有"收到进度就重置"才能活到最后。
+            runner.argumentsOverride = ["-c",
+                "for i in 1 2 3 4 5 6 7 8; do echo \"PROGRESS|速度OCR|0.1\"; sleep 0.5; done; exit 0"]
+            var progressCount = 0
+            var finishedCode: Int32?
+            runner.onProgress = { _, _ in progressCount += 1 }
+            runner.onFinish = { code, _ in finishedCode = code }
+            let began = Date()
+            let started = runner.start(clipPath: "unused")
+            check("正常推进场景：子进程成功拉起", started, runner.lastError ?? "")
+            let ended = pumpRunLoop(until: { finishedCode != nil }, timeout: 20)
+            let waited = Date().timeIntervalSince(began)
+            check("正常推进场景：子进程正常结束", ended, String(format: "%.1fs", waited))
+            check("正常推进场景：持续出进度时不被误杀", !runner.didStallOut,
+                  "didStallOut=\(runner.didStallOut)")
+            check("正常推进场景：进度回调确有送达", progressCount >= 6, "收到 \(progressCount) 条")
+            check("正常推进场景：退出码 0", finishedCode == 0, "code=\(finishedCode ?? -1)")
+        }
+
         print("")
         print(failures == 0
               ? "✅ 精简录制器自检全部通过"

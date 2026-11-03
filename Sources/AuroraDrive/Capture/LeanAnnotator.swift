@@ -26,6 +26,7 @@
 //   写之前还校 `frame` 列必须等于数据行序号 —— 这是 `dataset_v3._read_rows` 的硬约束，
 //   一旦错位就应该**拒绝写**，而不是把错位数据写进去。
 
+import Darwin
 import Foundation
 
 enum LeanAnnotator {
@@ -295,16 +296,101 @@ enum LeanAnnotator {
 /// 【为什么必须把两条管道都读干】
 ///   子进程往 stderr 写汇总信息。若父进程不读，管道缓冲写满后子进程会**永久阻塞**在
 ///   写 stderr 上，表现为"标注永远不结束"。故 stderr 也挂 readabilityHandler 持续抽走。
+/// 管道文本缓冲：**只被后台 readabilityHandler 触碰**的纯数据。
+///
+/// 【为什么单独成类】`readabilityHandler` 由系统在后台队列回调，而 runner 是
+///   @MainActor。把 stdout 残行 / stderr 尾部直接放 runner 里，后台回调就得跨
+///   actor 改主线程隔离状态（Swift 6 语言模式下是错误，现在也已报 6 条警告）。
+///   收进这里后：盒内自带 NSLock 保证线程安全，盒外只暴露 Sendable 方法 ——
+///   这正是 `@unchecked Sendable` 的正当用法（安全性由内部锁而非类型系统保证）。
+private final class PipeBuffers: @unchecked Sendable {
+    private let lock = NSLock()
+    /// stdout 残行（PROGRESS 行可能被管道切成两半）
+    private var stdoutResidual = ""
+    /// stderr 尾部（失败时给人看）
+    private var stderrTail = ""
+
+    /// 追加 stderr，只保留尾部 4KB（异常时可能刷屏，不能无界增长）
+    func appendStderr(_ text: String) {
+        lock.lock(); defer { lock.unlock() }
+        stderrTail.append(text)
+        if stderrTail.count > 4096 { stderrTail = String(stderrTail.suffix(4096)) }
+    }
+
+    /// 直接设置 stderr（启动失败时用）
+    func setStderr(_ text: String) {
+        lock.lock(); defer { lock.unlock() }
+        stderrTail = text
+    }
+
+    /// 取 stderr 当前内容（进程退出时读一次）
+    var stderrSnapshot: String {
+        lock.lock(); defer { lock.unlock() }
+        return stderrTail
+    }
+
+    /// 喂入 stdout 文本，返回本次解析出的完整进度行 `(阶段, 0…1)`
+    func consumeStdout(_ chunk: Data) -> [(stage: String, pct: Double)] {
+        guard let text = String(data: chunk, encoding: .utf8) else { return [] }
+        lock.lock(); defer { lock.unlock() }
+        stdoutResidual.append(text)
+        // 残留超过 8KB 仍无换行说明协议异常，丢弃避免无界增长
+        if stdoutResidual.count > 8192 { stdoutResidual = ""; return [] }
+        var parsed: [(stage: String, pct: Double)] = []
+        while let nl = stdoutResidual.firstIndex(of: "\n") {
+            let line = String(stdoutResidual[stdoutResidual.startIndex..<nl])
+            stdoutResidual = String(stdoutResidual[stdoutResidual.index(after: nl)...])
+            let parts = line.components(separatedBy: "|")
+            guard parts.count == 3, parts[0] == "PROGRESS",
+                  let pct = Double(parts[2]) else { continue }
+            parsed.append((parts[1], pct))
+        }
+        return parsed
+    }
+
+    /// 新一轮标注开始前清空，避免上一轮的残行/错误信息串到本轮
+    func reset() {
+        lock.lock(); defer { lock.unlock() }
+        stdoutResidual = ""
+        stderrTail = ""
+    }
+}
+
 @MainActor
 final class LeanAnnotateRunner {
 
     private var process: Process?
-    /// stdout 残行缓冲（PROGRESS 行可能被管道切成两半）
-    private var stdoutResidual = ""
-    /// stderr 累积（只保留尾部，用于失败时给人看）
-    private var stderrTail = ""
-    /// 管道回调在后台队列，收口到这一条串行队列，避免多线程同改缓冲
-    private let ioQueue = DispatchQueue(label: "com.aurora.leanannotate.io")
+    /// 停滞看门狗：子进程超过 `stallTimeout` 没有任何进度就强杀。
+    ///
+    /// 【为什么是"停滞"而不是"总时长"】标注耗时随帧数线性增长（10 分钟素材约 9000 帧），
+    ///   按总时长设上限要么误杀慢机器，要么宽到形同没有。而"还能不能吐 PROGRESS 行"
+    ///   是**与机器快慢无关**的活性信号：只要还在推进就不该杀。
+    /// 【为什么必须有】`terminationHandler` 只在进程**退出**时触发。若模型加载卡住、
+    ///   或某帧 OCR 永久阻塞，进程既不退出也不报错 —— 于是 `isRunning` 恒 true、
+    ///   进度条永远停在某个百分比、待标注队列被 `pump` 的门禁永久堵死。
+    ///   屏外表现是"界面像死机但没有崩溃"，比直接报错更难排查。
+    private var watchdog: DispatchWorkItem?
+    /// 判定停滞的阈值（秒）。默认 120；自检会调小以在短时间内验证强杀路径。
+    var stallTimeout: TimeInterval = 120
+
+    // MARK: 自检注入点（生产路径恒为 nil，行为与不注入时逐字等价）
+    //
+    // 【为什么需要】看门狗的价值全在"进程卡死不退出时能不能杀掉"，而这正是
+    //   正常标注**不会发生**的情形 —— 没有注入点就只能靠推理，无法实测。
+    //   与 LeanRecordEngine.clipsRootOverride 同款思路：只加一个可覆盖入口，
+    //   不改任何生产逻辑分支。
+    /// 覆盖被拉起的可执行文件（自检用 `/bin/sleep` 造一个"永不结束"的子进程）
+    var executableOverride: URL?
+    /// 覆盖传给子进程的参数（自检用 `["300"]`）
+    var argumentsOverride: [String]?
+    /// 管道文本缓冲（stdout 残行 / stderr 尾部）。
+    ///
+    /// 【为什么放进自带锁的盒子，而不是本类的普通属性】`readabilityHandler` 由系统
+    ///   在**后台队列**回调，而本类是 @MainActor：直接读写 `stdoutResidual` /
+    ///   `stderrTail` 就是跨 actor 改状态（Swift 6 语言模式下会升级为错误）。
+    ///   把"只被后台碰的数据"收进一个 `@unchecked Sendable` 的盒子，盒内自带
+    ///   NSLock —— 这正是 `@unchecked` 的正当用法：线程安全由内部锁保证。
+    private let pipeBuffers = PipeBuffers()
 
     /// (阶段名, 0…1)
     var onProgress: ((String, Double) -> Void)?
@@ -318,16 +404,63 @@ final class LeanAnnotateRunner {
     /// 这个是连进程都没起来（可执行文件无效 / run 抛错）。UI 需要区分这两种。
     private(set) var lastError: String?
 
+    /// 是否因**停滞被强杀**（区别于子进程自己跑完但质检不合格）。
+    /// UI 靠它给出"卡住了"而不是"数据不合格"的提示 —— 两者的处理动作完全不同。
+    private(set) var didStallOut = false
+
+    /// 布防 / 重置停滞看门狗。每收到一条 PROGRESS 行就重置一次。
+    ///
+    /// 【为什么重置而不是只布一次】"还能不能吐进度"是与机器快慢无关的活性信号：
+    ///   慢机器上标注 9000 帧本身就久，只要还在推进就不该杀。
+    private func armStallWatchdog() {
+        watchdog?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            // 本闭包由 main queue 执行；@MainActor 类需要显式声明隔离。
+            MainActor.assumeIsolated { self?.watchdogFired() }
+        }
+        watchdog = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + stallTimeout, execute: item)
+    }
+
+    /// 看门狗到期：仍在运行就判为停滞并强杀。
+    private func watchdogFired() {
+        guard let p = process, p.isRunning else { return }
+        didStallOut = true
+        lastError = "标注子进程停滞超过 \(Int(stallTimeout)) 秒，已强制终止"
+        print("[lean] ⚠️ \(lastError ?? "")")
+        p.terminate()
+        // SIGTERM 可能被子进程忽略（或它卡在内核 IO 里）：5s 后仍在就 SIGKILL 兜底。
+        // 不兜底的话"强杀"本身也可能失效，看门狗就只是把一个 hang 换成了另一个 hang。
+        //
+        // 【为什么必须比对进程身份而不是只看 isRunning】这 5 秒里本轮可能已结束、
+        //   下一轮标注可能已拉起新进程。此时单看 isRunning 会命中新进程，而 pid
+        //   变量仍指向旧进程 —— pid 会被系统复用，kill 就打到无关进程上了。
+        //   故连同 pid 一起比对，两者都对才认为是同一个卡死进程。
+        let pid = p.processIdentifier
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let cur = self.process, cur.isRunning,
+                      cur.processIdentifier == pid else { return }
+                kill(pid, SIGKILL)
+                print("[lean] ⚠️ SIGTERM 未生效，已 SIGKILL 标注子进程 pid=\(pid)")
+            }
+        }
+    }
+
     /// 拉起标注子进程。
     /// - Returns: false 表示无法启动（可执行文件无效或 run 抛错），调用方应显示错误
     func start(clipPath: String) -> Bool {
         lastError = nil
+        didStallOut = false
+        // 清空上一轮的管道残留：否则上一段的 stderr（比如"速度覆盖率 0%"）
+        // 会挂在下一段的失败信息里，让人误判这段数据的问题。
+        pipeBuffers.reset()
         guard !isRunning else {
             lastError = "已有标注进程在跑"
             return false
         }
-        // 与 EngineClient 同款：用最开始的参数 0 定位自身
-        let exeURL = URL(fileURLWithPath: CommandLine.arguments[0])
+        // 与 EngineClient 同款：用最开始的参数 0 定位自身（自检可覆盖）
+        let exeURL = executableOverride ?? URL(fileURLWithPath: CommandLine.arguments[0])
             .standardizedFileURL.resolvingSymlinksInPath()
         guard FileManager.default.isExecutableFile(atPath: exeURL.path) else {
             lastError = "可执行文件路径无效: \(exeURL.path)"
@@ -336,78 +469,63 @@ final class LeanAnnotateRunner {
 
         let p = Process()
         p.executableURL = exeURL
-        p.arguments = ["--lean-annotate", clipPath]
+        p.arguments = argumentsOverride ?? ["--lean-annotate", clipPath]
 
         let outPipe = Pipe()
         let errPipe = Pipe()
         p.standardOutput = outPipe
         p.standardError = errPipe
 
+        // 读干 stdout。`pipeBuffers` 自带锁，后台回调只碰盒子、不碰本类状态；
+        // 解析出的进度行再回主线程刷新 UI（本方法已 @MainActor，闭包内直接调）。
         outPipe.fileHandleForReading.readabilityHandler = { [weak self] fh in
             let chunk = fh.availableData
-            guard !chunk.isEmpty else { return }
-            self?.ioQueue.async {
-                guard let self else { return }
-                self.consumeStdout(chunk)
+            guard !chunk.isEmpty, let self else { return }
+            let updates = self.pipeBuffers.consumeStdout(chunk)
+            guard !updates.isEmpty else { return }
+            DispatchQueue.main.async {
+                // 有进度 = 子进程还活着且在推进 → 重置停滞计时。
+                self.armStallWatchdog()
+                for u in updates { self.onProgress?(u.stage, u.pct) }
             }
         }
+        // 读干 stderr：不读的话管道缓冲写满会让子进程**永久阻塞**在写 stderr 上，
+        // 表现为"标注永远不结束"。
         errPipe.fileHandleForReading.readabilityHandler = { [weak self] fh in
             let chunk = fh.availableData
-            guard !chunk.isEmpty else { return }
-            self?.ioQueue.async {
-                guard let self else { return }
-                guard let text = String(data: chunk, encoding: .utf8) else { return }
-                self.stderrTail.append(text)
-                // 只留尾部 4KB：正常情况是汇总信息，异常情况（崩溃刷屏）不能无限增长
-                if self.stderrTail.count > 4096 {
-                    self.stderrTail = String(self.stderrTail.suffix(4096))
-                }
-            }
+            guard !chunk.isEmpty, let self else { return }
+            guard let text = String(data: chunk, encoding: .utf8) else { return }
+            self.pipeBuffers.appendStderr(text)
         }
 
         p.terminationHandler = { [weak self] proc in
             outPipe.fileHandleForReading.readabilityHandler = nil
             errPipe.fileHandleForReading.readabilityHandler = nil
             let code = proc.terminationStatus
-            self?.ioQueue.async {
-                guard let self else { return }
-                let tail = self.stderrTail
-                DispatchQueue.main.async {
-                    self.process = nil
-                    self.onFinish?(code, tail)
-                }
+            guard let self else { return }
+            let tail = self.pipeBuffers.stderrSnapshot
+            DispatchQueue.main.async {
+                // 进程已退出：拆掉看门狗，否则它会对着一个已结束的进程空跑
+                // （并可能在下一次 start() 后误杀新进程）。
+                self.watchdog?.cancel()
+                self.watchdog = nil
+                self.process = nil
+                self.onFinish?(code, tail)
             }
         }
 
         do {
             try p.run()
             process = p
+            // 布防：进程起来就开始计时；此后每收到一条 PROGRESS 行都会重置。
+            armStallWatchdog()
             return true
         } catch {
             outPipe.fileHandleForReading.readabilityHandler = nil
             errPipe.fileHandleForReading.readabilityHandler = nil
-            stderrTail = error.localizedDescription
+            pipeBuffers.setStderr(error.localizedDescription)
             lastError = "拉起标注子进程失败: \(error.localizedDescription)"
             return false
-        }
-    }
-
-    /// 解析 `PROGRESS|阶段|0.1234` 行（在 ioQueue 上调用）
-    private func consumeStdout(_ chunk: Data) {
-        guard let text = String(data: chunk, encoding: .utf8) else { return }
-        stdoutResidual.append(text)
-        // 残留超过 8KB 仍无换行说明协议异常，丢弃避免无界增长
-        if stdoutResidual.count > 8192 { stdoutResidual = "" ; return }
-        while let nl = stdoutResidual.firstIndex(of: "\n") {
-            let line = String(stdoutResidual[stdoutResidual.startIndex..<nl])
-            stdoutResidual = String(stdoutResidual[stdoutResidual.index(after: nl)...])
-            let parts = line.components(separatedBy: "|")
-            guard parts.count == 3, parts[0] == "PROGRESS",
-                  let pct = Double(parts[2]) else { continue }
-            let stage = parts[1]
-            DispatchQueue.main.async { [weak self] in
-                self?.onProgress?(stage, pct)
-            }
         }
     }
 }
