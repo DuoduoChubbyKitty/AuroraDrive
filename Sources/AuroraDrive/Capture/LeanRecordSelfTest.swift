@@ -309,6 +309,51 @@ enum LeanRecordSelfTest {
             check("恢复段 clip 存在", false)
         }
 
+        // ── 第三段：15fps 限流（不变量 ⑦）──
+        // 为什么需要这一段：限流是**唯一**会把正常帧丢掉的地方，丢错了会让整段
+        // 数据掉出 dataset_v3 的 15±15% 容差（屏外表现是"录制正常但训练端拒载"），
+        // 而这种缺陷在人工试用时完全看不出来 —— 必须由断言守住。
+        //
+        // 为什么不靠"按 15Hz 喂 30 帧再看 fps"来测：那样的结论取决于机器抖动，
+        // 机器慢一点就假失败。这里用**确定性**判据：
+        //   · 连灌 10 帧（间隔 ~微秒级，远小于 minGap=60ms）→ 只应接受第 1 帧
+        //   · 再 usleep(70ms)（> 60ms 判据）→ 应接受第 2 帧
+        // 两个方向都断言：该挡的挡住了，该放的也放行了（防止限流写死成"全挡"）。
+        print("  ── 第三段：15fps 限流 ──")
+        let throttleEngine = LeanRecordEngine()
+        throttleEngine.clipsRootOverride = root.appendingPathComponent("throttle")
+        throttleEngine.keyProvider = { RawKeySample() }
+        throttleEngine.poseProvider = { (nil, nil) }
+        check("第三段 start() 成功", throttleEngine.start(), throttleEngine.lastError ?? "")
+        for _ in 0..<10 { throttleEngine.appendFrame(pixelBuffer: buffer) }
+        usleep(70_000)                                    // 70ms > minGap 60ms
+        throttleEngine.appendFrame(pixelBuffer: buffer)   // 该被放行
+        throttleEngine.stop()                             // writeQueue.sync 确定性屏障
+
+        let throttleClips = clips(in: root.appendingPathComponent("throttle"))
+        if let throttleClip = throttleClips.first {
+            let throttleRows = ((try? String(contentsOf: throttleClip
+                .appendingPathComponent("controls.csv"), encoding: .utf8)) ?? "")
+                .split(separator: "\n", omittingEmptySubsequences: true).dropFirst()
+                .map { $0.split(separator: ",", omittingEmptySubsequences: false) }
+            check("连灌 10 帧 + 70ms 后 1 帧 → 共 2 行", throttleRows.count == 2,
+                  "实际 \(throttleRows.count) 行")
+            check("限流后 frame 列为 0,1",
+                  throttleRows.count == 2
+                    && throttleRows[0].count > 1 && throttleRows[0][1] == "0"
+                    && throttleRows[1].count > 1 && throttleRows[1][1] == "1",
+                  throttleRows.compactMap { $0.count > 1 ? String($0[1]) : nil }
+                      .joined(separator: ","))
+            let throttleJPGs = ((try? FileManager.default.contentsOfDirectory(
+                atPath: throttleClip.appendingPathComponent("frames").path))?
+                .filter { $0.hasSuffix(".jpg") }.sorted()) ?? []
+            check("限流后 JPEG 为 000000/000001",
+                  throttleJPGs == ["000000.jpg", "000001.jpg"],
+                  throttleJPGs.joined(separator: ","))
+        } else {
+            check("第三段 clip 存在", false)
+        }
+
         print("")
         print(failures == 0
               ? "✅ 精简录制器自检全部通过"
