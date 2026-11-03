@@ -3319,6 +3319,12 @@ struct HardwareBank: View {
                                    state.pushConfig(reason: "字形模式")
                                })
                 }
+
+                // ── 第 5 个控件：精简录制长条 ──
+                // 用户要求：四个大按钮**下面**加一条横跨整行的扁平按钮。
+                // 不能塞进上面的 LazyVGrid —— 那是 2×2 网格，放进去会被裁成半宽。
+                LeanRecordBar(state: state)
+                    .padding(.top, 8)
             }
         }
     }
@@ -3372,6 +3378,154 @@ struct BankSwitch: View {
         }
         .buttonStyle(.plain)
         .help(on ? "点击关闭" : "点击开启")
+    }
+}
+
+// ============================================================================
+// MARK: - 精简录制长条（第 5 个控件，2026-11-03 V3）
+// ============================================================================
+//
+// 【用户要求逐条落地】
+//   · 「四个按钮下面加一条长长的扁平按钮」→ 挂在 LazyVGrid **外面**的 VStack 里，
+//     横跨整行。塞进 2×2 网格会被裁成半宽，所以不能放进 grid。
+//   · 「名字叫精简录制模式」→ 就是这一条的标题。
+//   · 「看起来像计数器但实际上非常精简」→ 右端常驻帧数，像计数器；但整条只做
+//     一件事：开/停 LeanRecordEngine，不跑任何模型。
+//   · 「下面是一个预览框加一个进度条」→ 预览框复用上面**已有的** ViewportPanel
+//     （用户明确说「我们不是有预览框吗，和正常驾驶一样」），故本控件只画进度条，
+//     不再造第二个预览 —— 造了反而会多一路全屏渲染，并让用户看到两份画面。
+//
+// 【为什么进度条只在标注时出现】
+//   录制阶段没有"百分比"可言（用户随时可停）；只有录完后的离线标注有真实进度
+//   （速度 OCR / 坐标对表 / 按键整理 / 质量检查）。没有进度时不画空条，
+//   保持"非常精简"。
+struct LeanRecordBar: View {
+    @Bindable var state: DriveState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                state.toggleLeanRecording()
+            } label: {
+                row
+            }
+            .buttonStyle(.plain)
+            .help(state.leanIsRecording ? "点击停止并进入离线标注" : "点击开始精简录制")
+
+            Text(detailLine)
+                .font(.system(size: 8.5))
+                .foregroundStyle(detailColor)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // 离线标注进度（仅标注期间存在）
+            if let progress = state.leanAnnotateProgress {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.06))
+                        Capsule()
+                            .fill(Aurora.ice)
+                            .frame(width: max(2, geo.size.width * progress))
+                    }
+                }
+                .frame(height: 4)
+                .padding(.top, 1)
+            }
+        }
+    }
+
+    /// 长条本体：横跨整行的扁平按钮。
+    private var row: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: 6, height: 6)
+                .shadow(color: state.leanIsRecording ? Aurora.ok.opacity(0.9) : .clear,
+                        radius: 5)
+
+            Text("精简录制模式")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(state.leanIsRecording ? Aurora.t1 : Aurora.t2)
+
+            Spacer(minLength: 6)
+
+            // 右端"计数器"：录制中实时跳帧数
+            if state.leanIsRecording {
+                Text("\(state.leanFrameCount) 帧")
+                    .font(.system(size: 8.5, design: .monospaced))
+                    .foregroundStyle(Aurora.ok)
+            }
+
+            Text(badge)
+                .font(.system(size: 7.5, weight: .medium))
+                .foregroundStyle(badgeColor)
+                .padding(.horizontal, 5).padding(.vertical, 1.5)
+                .background(Capsule().fill(badgeFill))
+                .overlay(Capsule().strokeBorder(Aurora.hair1, lineWidth: 1))
+        }
+        .padding(.horizontal, 13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 34)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(state.leanIsRecording ? Aurora.okLo : Color.white.opacity(0.038))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(state.leanIsRecording ? Aurora.ok.opacity(0.42) : Aurora.hair1,
+                              lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var dotColor: Color {
+        if state.leanIsRecording { return Aurora.ok }
+        if state.leanAnnotateProgress != nil { return Aurora.ice }
+        if state.leanLastError != nil { return Aurora.danger }
+        return Aurora.t4
+    }
+
+    private var badge: String {
+        if state.leanIsRecording { return "REC" }
+        if state.leanAnnotateProgress != nil { return "标注" }
+        if state.leanLastError != nil { return "ERR" }
+        return "READY"
+    }
+
+    private var badgeColor: Color {
+        if state.leanIsRecording { return Aurora.ok }
+        if state.leanAnnotateProgress != nil { return Aurora.ice }
+        if state.leanLastError != nil { return Aurora.danger }
+        return Aurora.t4
+    }
+
+    private var badgeFill: Color {
+        if state.leanIsRecording { return Aurora.okLo }
+        return Aurora.iceWash
+    }
+
+    /// 副标题：永远只说当前真实状态，不写"预计"之类的假信息。
+    private var detailLine: String {
+        if let stage = state.leanAnnotateStage, let p = state.leanAnnotateProgress {
+            return "\(stage) · \(Int(p * 100))%"
+        }
+        if let err = state.leanLastError {
+            return "失败：\(err)"
+        }
+        if state.leanIsRecording {
+            return "录制中 · 19 列原生标签 · 速度列待离线回填"
+        }
+        if state.leanFrameCount > 0, state.leanLastClipPath != nil {
+            return "已录 \(state.leanFrameCount) 帧 · 待离线标注"
+        }
+        return "只录画面/按键/定位，模型全部移到离线"
+    }
+
+    private var detailColor: Color {
+        if state.leanLastError != nil { return Aurora.danger }
+        if state.leanIsRecording { return Aurora.ok }
+        if state.leanAnnotateProgress != nil { return Aurora.ice }
+        return Aurora.t4
     }
 }
 

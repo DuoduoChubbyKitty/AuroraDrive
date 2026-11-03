@@ -4314,6 +4314,95 @@ final class DriveState {
         return m
     }
 
+    /// 主线程拍一份「按键 + 定位」快照，供抓屏队列读取精简录制标签。
+    ///
+    /// 【为什么必须在主线程拍】（配合 leanSnapshotLock 的注释阅读）
+    ///   `onRecordFrame` 在 captureQueue 触发；而 keyboardMonitor.heldKeys 无锁、
+    ///   coordinateCapture 只在主线程赋值。让 30Hz 的 tick 在主线程拍快照，
+    ///   抓屏队列只读锁保护的值 —— 这是唯一不需要给 KeyboardMonitor 加锁的解法
+    ///   （给它加锁会动到驾驶主链路的既有行为，风险远大于收益）。
+    ///
+    /// 【为什么要在引擎模式早退之前调用】见 tick() 里的调用点注释。
+    func updateLeanSnapshot() {
+        // 未录制时零成本：不读键盘、不碰定位。
+        guard leanRecorder.wantsFrames else { return }
+
+        // 按键：引擎模式下 UI 进程收不到 NSEvent，只能读引擎回传的掩码
+        // （与 recordFrameIfNeeded 的既有分支同判据，保持两套录制器标签一致）。
+        let mask = isEngineHost ? remoteKeyMask : currentPhysicalKeyMask()
+        var keys = RawKeySample()
+        keys.w     = (mask >> 0) & 1
+        keys.a     = (mask >> 1) & 1
+        keys.s     = (mask >> 2) & 1
+        keys.d     = (mask >> 3) & 1
+        keys.shift = (mask >> 4) & 1
+        keys.space = (mask >> 5) & 1
+
+        // 定位：只采信 live/recent 两档。stale 档（18~90s 无新包）会把一个很旧的
+        // 坐标当成当前帧的标签写进去 —— 宁可留空（dataset_v3 判缺失），不可造假。
+        var pose: Pose?
+        var accel: Vec3?
+        if let cc = coordinateCapture {
+            let (tier, samplePose, _) = cc.readWithTier()
+            switch tier {
+            case .live, .recent:
+                pose = samplePose
+            case .stale, .lost:
+                pose = nil
+            }
+            // 加速度自带 maxAge 窗口，与坐标分级无关，独立取。
+            accel = cc.readAcceleration()
+        }
+
+        leanSnapshotLock.lock()
+        leanKeySnapshot = keys
+        leanPoseSnapshot = pose
+        leanAccelSnapshot = accel
+        leanSnapshotLock.unlock()
+    }
+
+    /// 把 `leanRecorder` 的内部状态镜像到 UI 可观察字段（主线程调用）。
+    ///
+    /// 【为什么需要镜像】`leanRecorder` 标了 `@ObservationIgnored`（它是个类实例，
+    ///  SwiftUI 不观察其内部属性），它自己的 frameCount 变化不会触发界面刷新。
+    /// 【为什么每个字段都先比后写】@Observable 赋值即通知，值不变反复赋值会让
+    ///  整棵视图树失效并重算 body —— 这是本项目已记录多次的性能坑。
+    func syncLeanMirror() {
+        let recording = leanRecorder.isRecording
+        if leanIsRecording != recording { leanIsRecording = recording }
+        let n = leanRecorder.frameCount
+        if leanFrameCount != n { leanFrameCount = n }
+    }
+
+    /// 精简录制开/关（第 5 个长条按钮的入口）。
+    ///
+    /// 【为什么停录后要留 lastClipPath】离线标注要用它定位刚录完的那一段；
+    ///  `stop()` 内部会清空 sessionDir，故引擎另存了 lastClipDir。
+    func toggleLeanRecording() {
+        if leanRecorder.isRecording {
+            leanRecorder.stop()
+            syncLeanMirror()
+            if let path = leanRecorder.lastClipPath { leanLastClipPath = path }
+            // 与开录时的键盘监听成对：非驾驶、且旧录制器也没在用 → 才停监听，
+            // 否则会把「录制」按钮（RecordEngine）需要的键盘状态一起关掉。
+            if !isDriving && !isRecording { keyboardMonitor.stop() }
+        } else {
+            guard leanRecorder.start() else {
+                leanLastError = leanRecorder.lastError
+                dlog("[LEAN] ❌ 开录失败：\(leanRecorder.lastError ?? "未知原因")")
+                return
+            }
+            leanLastError = nil
+            leanLastClipPath = nil
+            leanFrameCount = 0
+            leanIsRecording = true
+            // 与 isRecording 的 didSet 同判据：待机录制（没开车就点）走不到
+            // startDriving()，不在这里启动监听的话八列按键会全 0。
+            keyboardMonitor.start()
+            dlog("[LEAN] ▶ 精简录制开始（19 列原生标签，速度列待离线回填）")
+        }
+    }
+
     /// 把当前按键掩码转发给引擎进程（仅引擎模式、仅录制中、仅变化时）。
     /// 引擎侧收到后写入 `remoteKeyMask`，供其 recordFrameIfNeeded 生成 V3 标签。
     func forwardPhysicalKeysToEngineIfNeeded() {
@@ -5409,6 +5498,40 @@ final class DriveState {
     var upscaleEnabled: Bool = false
     var upscaleSupported = false
 
+    // ── 精简录制（V3 原生按键标签，19 列）──
+    // 只落盘画面/按键/定位，所有模型移到离线标注阶段。独立于引擎进程的
+    // 「录制 / 专家模式」链路 —— 那两个走 RecordEngine（17 列），互不影响。
+    @ObservationIgnored let leanRecorder = LeanRecordEngine()
+
+    /// 抓屏队列读、主线程写的按键/定位快照。
+    ///
+    /// 【为什么非要快照，不能直接读】
+    ///   `onRecordFrame` 在 **captureQueue**（SCStream 的 sampleHandlerQueue）触发
+    ///   （见 CaptureEngine.sampleHandler），而：
+    ///     · `keyboardMonitor.heldKeys` 是**无锁** Swift Set，由主线程事件回调写入；
+    ///     · `coordinateCapture` 是主线程才赋值的可选引用。
+    ///   在抓屏队列直接读它们 = 数据竞争（Set 并发读写可能在哈希表扩容时崩溃）。
+    ///   故由主线程 30Hz 拍一份快照，后台只读快照。
+    private nonisolated(unsafe) let leanSnapshotLock = NSLock()
+    private nonisolated(unsafe) var leanKeySnapshot = RawKeySample()
+    private nonisolated(unsafe) var leanPoseSnapshot: Pose?
+    private nonisolated(unsafe) var leanAccelSnapshot: Vec3?
+
+    // ── 精简录制：UI 可观察镜像 ──
+    // leanRecorder 是 @ObservationIgnored（类实例，SwiftUI 不观察其内部属性），
+    // 所以它自己的 isRecording/frameCount 变化不会让界面刷新。
+    // 这里在主线程 tick 里做一层轻量镜像：只有值真的变了才赋值（@Observable
+    // 赋值即通知，值不变反复赋值会让整棵视图树失效 —— 项目里已有同款教训）。
+    var leanIsRecording = false
+    var leanFrameCount = 0
+    var leanLastError: String?
+    /// 录制结束后的离线标注进度（0…1）；nil = 未在标注
+    var leanAnnotateProgress: Double?
+    /// 当前标注阶段名（"速度 OCR" / "坐标对表" / "质量检查"…）
+    var leanAnnotateStage: String?
+    /// 最近一段的产物目录（标注完成后供 UI 显示路径）
+    var leanLastClipPath: String?
+
     // ══════════════════════════════════════════════════════════════════════════
     // ⚠️ 2026-09-30 性能修复：这两个属性改为 @ObservationIgnored
     // ══════════════════════════════════════════════════════════════════════════
@@ -6246,6 +6369,30 @@ final class DriveState {
         captureEngine.isYoloWanted = { [weak self] in
             guard let self else { return true }   // self 已释放 → 保守放行（宁可多做不误伤）
             return Self.forceYolo26s || self.perceptionMode == .legacy
+        }
+        // ── 精简录制通道（V3 原生标签，19 列）──
+        // 全屏原始像素直通：门禁为假时 CaptureEngine 连 memcpy 都不做，
+        // 与新增该通道之前逐字等价（未录制时零成本）。
+        captureEngine.onRecordFrame = { [weak self] pb in
+            self?.leanRecorder.appendFrame(pixelBuffer: pb)
+        }
+        captureEngine.isRecordFrameWanted = { [weak self] in
+            self?.leanRecorder.wantsFrames ?? false
+        }
+        // 标签数据源：只读主线程拍好的加锁快照（见 updateLeanSnapshot 的注释）。
+        // 绝不能在这里直接读 keyboardMonitor / coordinateCapture —— 本闭包在
+        // captureQueue 上执行，而那两个对象由主线程维护、无锁。
+        leanRecorder.keyProvider = { [weak self] in
+            guard let self else { return RawKeySample() }
+            self.leanSnapshotLock.lock()
+            defer { self.leanSnapshotLock.unlock() }
+            return self.leanKeySnapshot
+        }
+        leanRecorder.poseProvider = { [weak self] in
+            guard let self else { return (nil, nil) }
+            self.leanSnapshotLock.lock()
+            defer { self.leanSnapshotLock.unlock() }
+            return (self.leanPoseSnapshot, self.leanAccelSnapshot)
         }
         captureEngine.onStatusChange = { [weak self] status in
             DispatchQueue.main.async {
@@ -7226,6 +7373,14 @@ final class DriveState {
         //   引擎进程侧由 engine-gate 队友用同名环境变量实现，语义一致。
         let detectGateB = decimateFallback
             || ((Self.forceYolo26s || perceptionMode == .legacy) && !parityEven)  // yolo26s：仅 legacy 档奇数帧
+
+        // ── 精简录制快照（必须早于引擎模式早退）──
+        // 引擎模式下 UI 进程走到 :7231 就 return 了，快照必须在那之前更新，
+        // 否则引擎模式下开精简录制会一直读到空按键（八列全 0）。
+        updateLeanSnapshot()
+        // leanRecorder 是 @ObservationIgnored 的类实例，其内部 isRecording/frameCount
+        // 变化不会触发 SwiftUI 刷新；这里镜像到可观察字段（内部先比后写，避免空转重绘）。
+        syncLeanMirror()
 
         // ── 引擎模式：只拉取显示数据，本地抓屏/推理/按键全部不跑 ──
         if EngineClient.shared.isActive {

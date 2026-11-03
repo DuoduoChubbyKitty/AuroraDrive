@@ -147,6 +147,8 @@ final class LeanRecordEngine: @unchecked Sendable {
     private let stateLock = NSLock()
 
     private var sessionDir: URL?
+    /// 最近一段的产物目录（stop() 清空 sessionDir 后仍保留，供 UI 显示/离线标注用）
+    private var lastClipDir: URL?
     private var framesDir: URL?
     private var csvHandle: FileHandle?
     private var sessionStart: Date?
@@ -436,6 +438,7 @@ final class LeanRecordEngine: @unchecked Sendable {
 
         stateLock.lock()
         sessionDir = dir
+        lastClipDir = dir
         framesDir = dir.appendingPathComponent("frames")
         csvHandle = handle
         sessionStart = Date()
@@ -505,6 +508,28 @@ final class LeanRecordEngine: @unchecked Sendable {
         stateLock.lock()
         defer { stateLock.unlock() }
         return isRecording
+    }
+
+    /// 供抓屏队列每帧求值的门禁（`CaptureEngine.isRecordFrameWanted`）。
+    ///
+    /// 为什么不直接读 `isRecording`：它是 `@Observable` 的存储属性，由主线程
+    /// `start()/stop()` 写、由**抓屏队列**每帧读 —— 跨线程裸读是数据竞争
+    /// （@Observable 的访问要走 observation 注册表，不是单纯读一个 Bool）。
+    /// 本属性内部走 `stateLock`，可安全跨线程调用。
+    var wantsFrames: Bool { isRecordingSnapshot }
+
+    /// 最近一段的产物目录路径（stop() 之后仍可读，供离线标注/UI 显示）。
+    var lastClipPath: String? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return lastClipDir?.path
+    }
+
+    /// 失败帧数（`writeFailureCount` 由 writeQueue 写，主线程裸读是数据竞争）。
+    var framesFailedSafe: Int {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return writeFailureCount
     }
 
     /// 最近一帧的宽高（写 meta 用；在 writeQueue 里更新）
