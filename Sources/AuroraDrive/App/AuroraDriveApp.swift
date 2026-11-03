@@ -4452,6 +4452,80 @@ final class DriveState {
         }
     }
 
+    /// 精简录制 ⟷ 引擎的**双向自动阶梯**，每 tick 主线程推进一步（幂等）。
+    ///
+    /// 上行（开录 → 让出引擎）：点开录后先由 UI 自己的抓屏接上，**必须等首帧真的
+    ///   落盘**才让引擎退场。判据用 `framesWrittenSafe`（落盘计数、锁保护），
+    ///   不能用 `frameCount` —— 后者是 @Observable、靠 main.async 更新，比真实
+    ///   落盘晚一个主线程回合；用它会在"看着有帧、其实还没写进盘"时就把引擎踢掉，
+    ///   正好落进「引擎已退、录制没接上」的双输窗口。
+    ///   等不到就**放弃开录并删掉空目录**，绝不让出引擎（引擎不受影响是底线）。
+    ///
+    /// 下行（停录 → 引擎接回）：录制结束后若当初确实是录制让出的引擎，延迟 1.5s
+    ///   再拉起 —— 让 UI 的 SCStream 真正释放完，避免与新引擎的流交错
+    ///   （本文件已记录过"停止后再选就没反应"的同款事故）。
+    ///
+    /// ⚠️ 调用点必须在 tick 的**引擎模式早退之前**：上行期间引擎仍是 active，
+    ///   早退之后就永远推不动这一步了。
+    func stepLeanEngineHandover() {
+        // ── 上行：等本地首帧落盘 ──
+        if let deadline = leanHandoverDeadline {
+            // 第二道保险：只剩 deadline 不代表还在录（可能已被别的路径停掉）。
+            // 不在录制却让出引擎 = 双输，所以先无条件取消交接。
+            guard leanRecorder.isRecording else {
+                leanHandoverDeadline = nil
+                return
+            }
+            if leanRecorder.framesWrittenSafe >= 1 {
+                leanHandoverDeadline = nil
+                // 【安全红线】驾驶中绝不让出引擎：引擎收到 SIGTERM 会走 stopDriving()
+                //   立即停车，等于在行驶中突然抽掉控制器。本项目对同类操作已有明文
+                //   规矩（`relaunchStaleEngine` 注释：「只在非驾驶状态调用（驾驶中突然
+                //   失去引擎比版本错配更危险）」），此处沿用同一口径。
+                //   驾驶中就让本地抓屏继续录着、引擎保持原样 —— 画面照样进 frames/，
+                //   只是这期间引擎仍在跑（多花 CPU，但不冒安全风险）。
+                if isDriving {
+                    dlog("[LEAN] 驾驶中：引擎保持运行（不执行让出），本次录制只做本地抓屏")
+                } else if EngineClient.shared.suspendForLeanRecording() {
+                    leanEngineSuspended = true
+                    dlog("[LEAN] ⏬ 本地已接住画面（首帧落盘），引擎让出")
+                } else {
+                    dlog("[LEAN] 本地模式：引擎本来未运行，无需让出")
+                }
+            } else if Date() >= deadline {
+                // 超时一帧都没落盘 = 本地抓屏没接住。此时让出引擎就是双输，故放弃开录。
+                leanHandoverDeadline = nil
+                let why = leanRecorder.lastError ?? "本地抓屏 3 秒内未产出任何帧"
+                leanRecorder.stop()
+                // 删掉刚亲手建出来的空目录（只有表头、没有帧）：留着会让 dataset_v3
+                // 扫到一个 0 样本 clip。onSegmentClosed 走 main.async，晚于本函数
+                // 同步返回；enqueueLeanAnnotation 里另有「目录不存在就不入队」兜底。
+                if let emptyClip = leanRecorder.lastClipPath {
+                    let framesDir = (emptyClip as NSString).appendingPathComponent("frames")
+                    let n = (try? FileManager.default.contentsOfDirectory(atPath: framesDir))?.count ?? 0
+                    if n == 0 { try? FileManager.default.removeItem(atPath: emptyClip) }
+                }
+                if !isDriving && !isRecording {
+                    captureEngine.stop()
+                    keyboardMonitor.stop()
+                }
+                syncLeanMirror()
+                leanLastError = "开录失败：\(why)（引擎保持运行，未受影响）"
+                dlog("[LEAN] ❌ 交接失败：\(why)")
+            }
+            // 交接未完成前不做下行，避免同一 tick 里又踢又拉
+            return
+        }
+
+        // ── 下行：把引擎接回来 ──
+        guard let resumeAt = leanEngineResumeAt, Date() >= resumeAt else { return }
+        leanEngineResumeAt = nil
+        guard leanEngineSuspended else { return }
+        leanEngineSuspended = false
+        EngineClient.shared.resumeAfterLeanRecording()
+        dlog("[LEAN] ⏫ 录制已结束，引擎自动接回")
+    }
+
     /// 精简录制开/关（第 5 个长条按钮的入口）。
     ///
     /// 【为什么停录后要留 lastClipPath】离线标注要用它定位刚录完的那一段；
@@ -4477,20 +4551,16 @@ final class DriveState {
                 captureEngine.stop()
                 keyboardMonitor.stop()
             }
-        } else {
-            // ── 引擎模式：UI 进程没有画面流，精简录制在这里**必然录 0 帧** ──
-            // 本文件 :5313-5316 已记录过同款事故：早先 recordEngine 在引擎模式下
-            // 照样本地 start()，结果「目录建了、文件建了，但录不进任何东西」——
-            // 因为帧只存在于引擎进程，UI 的 tick 在引擎模式下提前 return。
-            // 精简录制器同理（appendFrame 只由本地 CaptureEngine 驱动），
-            // 所以这里必须**明确拒绝**并说清原因，绝不能静默录出一个空 clip
-            // 让用户以为录上了（那会污染 data/lean_clips 且事后极难发现）。
-            if EngineClient.shared.isActive {
-                leanLastError = "引擎模式下无法精简录制：画面在引擎进程，UI 没有帧流。"
-                    + "请用本地模式（关闭引擎联动）后再录。"
-                dlog("[LEAN] ❌ 拒绝开录：引擎模式无本地帧流")
-                return
+            // 停录时**必须取消仍在等待的交接**：否则下一 tick 会看到"首帧已落盘"
+            // 而把引擎让出 —— 此时录制已经停了，且本分支判断 leanEngineSuspended
+            // 还是 false（尚未让出），不会排定接回 ⇒ 引擎永远回不来。
+            leanHandoverDeadline = nil
+            // 阶梯下行：录制结束 → 排定把引擎接回来（当初确实是录制让出的才接）。
+            // 必须等抓屏真正释放完再拉引擎，故交给 stepLeanEngineHandover 延迟执行。
+            if leanEngineSuspended {
+                leanEngineResumeAt = Date().addingTimeInterval(1.5)
             }
+        } else {
             guard leanRecorder.start() else {
                 leanLastError = leanRecorder.lastError
                 dlog("[LEAN] ❌ 开录失败：\(leanRecorder.lastError ?? "未知原因")")
@@ -4508,7 +4578,16 @@ final class DriveState {
             // 与 isRecording 的 didSet 同判据：待机录制（没开车就点）走不到
             // startDriving()，不在这里启动监听的话八列按键会全 0。
             keyboardMonitor.start()
-            dlog("[LEAN] ▶ 精简录制开始（19 列原生标签，速度列待离线回填）")
+            // 新一段录制 → 取消上一段遗留的「引擎接回」预约。
+            // 否则：上一段停录排定了 1.5s 后接回，用户在这窗口内又点开录，
+            // 本次交接走完后那个过期预约仍会把引擎拉起来，与本地抓屏抢同一条屏幕流。
+            leanEngineResumeAt = nil
+            // 阶梯上行起点：先让本地抓屏接上，**等首帧真的落盘**才让引擎退场。
+            // 设 3 秒上限：SCStream 建立通常 300~800ms，3 秒还没帧说明这台机器上
+            // 本地抓屏没接住（权限/窗口/被占），此时宁可放弃开录也不能让出引擎。
+            leanHandoverDeadline = Date().addingTimeInterval(3.0)
+            dlog("[LEAN] ▶ 精简录制开始（19 列原生标签，速度列待离线回填）"
+                 + (EngineClient.shared.isActive ? "；等本地首帧后引擎让出" : ""))
         }
     }
 
@@ -4573,6 +4652,16 @@ final class DriveState {
     /// 去重是必需的：`leanRecorder.stop()` 内部会经 `onSegmentClosed` 上报一次，
     /// 手动停录的调用方还会显式启动一次；不去重就会把整份 CSV 重写两遍。
     func enqueueLeanAnnotation(clipPath: String) {
+        // 目录不存在就直接跳过：交接失败时会把刚建出来的空目录删掉，而
+        // `onSegmentClosed` 走的是 main.async、晚于那次删除。不检查就会把一条
+        // **已被删除**的路径排进队列，标注子进程随即以 exit 2 报「缺少 controls.csv」，
+        // 界面上留下一条毫无意义的错误 —— 用户其实一次都没录成功。
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: clipPath, isDirectory: &isDir),
+              isDir.boolValue else {
+            dlog("[LEAN] 跳过标注登记（目录已不存在）：\(clipPath)")
+            return
+        }
         if leanPendingAnnotatePaths.contains(clipPath) { return }
         leanPendingAnnotatePaths.append(clipPath)
     }
@@ -5729,6 +5818,26 @@ final class DriveState {
     /// 【为什么录制期间不消费】OCR 与抓屏抢 CPU，帧率被挤出 dataset_v3 的
     ///   15±15% 容差会让正在录的这段整段作废。故只在停录后开始消费。
     @ObservationIgnored private var leanPendingAnnotatePaths: [String] = []
+
+    // ── 精简录制 ⟷ 引擎的双向自动阶梯（主线程状态）──────────────────────────
+    //
+    // 【用户要的语义】开录时本地抓屏先接上，确认真的接到画面之后引擎才缓慢退出；
+    //   而**彻底退出录制模式之后，引擎必须自动接回来**。两个方向都得自动，不能靠手动。
+    //
+    // 【为什么是两个字段】两个方向各需要一份在途标记，否则 30Hz tick 会把引擎
+    //   反复踢出去/反复拉起来：`leanHandoverDeadline` 管上行（等首帧），
+    //   `leanEngineSuspended` 管下行（引擎已被我们让出、必须收回）。
+    /// 非 nil = 正在等「本地首帧真的落盘」；等不到就放弃开录（绝不让出引擎）。
+    @ObservationIgnored private var leanHandoverDeadline: Date?
+    /// 引擎是否已被精简录制让出（SIGTERM 真退出）—— 停录后据此自动接回。
+    @ObservationIgnored private(set) var leanEngineSuspended = false
+    /// 引擎接回的排定时刻。非 nil = 录制已结束、正等抓屏释放后再拉起引擎。
+    ///
+    /// 【为什么要延迟而不是立刻】`captureEngine.stop()` 只把 `isCapturing` 同步置 false，
+    ///   底层 `stopCapture()` 还在异步跑。此时立刻拉起引擎，新引擎会去建自己的 SCStream，
+    ///   两个流的"停"与"启"在同一 SCStream 子系统上交错 —— 这正是本文件记录过的
+    ///   「停止后再选就没反应」事故。留 1.5s 让旧的真正释放完。
+    @ObservationIgnored private var leanEngineResumeAt: Date?
 
     // ══════════════════════════════════════════════════════════════════════════
     // ⚠️ 2026-09-30 性能修复：这两个属性改为 @ObservationIgnored
@@ -7586,6 +7695,10 @@ final class DriveState {
         // 标注队列兜底推进：录制中会被 pump 内部的门禁挡掉（不抢 CPU），
         // 停录后若 onFinish 因异常未触发，这里也能把队列接着跑下去。
         pumpLeanAnnotationQueue()
+        // 精简录制 ⟷ 引擎双向阶梯：**必须在下面的引擎模式早退之前**。
+        // 上行阶段引擎还是 active，早退之后就永远推不动这一步（会让引擎永远不退、
+        // 或者永远回不来）。
+        stepLeanEngineHandover()
 
         // ── 引擎模式：只拉取显示数据，本地抓屏/推理/按键全部不跑 ──
         if EngineClient.shared.isActive {

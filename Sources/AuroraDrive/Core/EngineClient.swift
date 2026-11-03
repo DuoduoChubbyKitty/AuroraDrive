@@ -977,4 +977,145 @@ final class EngineClient {
         }
         engineClientLog("UI 退出：已发送 bye（引擎继续运行，等待下次重连）")
     }
+
+    // MARK: - 精简录制的自动阶梯（先接手 → 引擎退 → 退出录制后引擎自动接回）
+
+    /// 是否因「精简录制」而主动让出了引擎。
+    /// 只有它为 true，`resumeAfterLeanRecording()` 才会把引擎拉回来 ——
+    /// 否则本地模式（`AURORA_UI_LOCAL=1`）用户的引擎本该是关的，不能被悄悄拉起。
+    private(set) var suspendedByLeanRecording = false
+
+    /// 让出时记下的引擎 pid —— `suspendForLeanRecording()` 会把 `enginePID` 清零，
+    /// 接回时必须靠这份记录轮询「旧引擎是否真的死透了」，否则新引擎会撞上 flock
+    /// 单例锁而直接 exit(0)（详见 `resumeAfterLeanRecording` 的注释）。
+    private var suspendedPID: Int32 = 0
+    /// 等待旧引擎退净的轮询定时器（接回流程持有）
+    private var resumePoll: DispatchSourceTimer?
+
+    /// 让出引擎，把画面交给 UI 进程自己的抓屏与精简录制器。
+    ///
+    /// 【为什么不能只发 `bye`】`bye` 只让引擎「保持运行、等下次重连」，**根本不会退出**；
+    ///   它继续以 20Hz 抓屏推理，与本地录制抢同一条屏幕流和 CPU。
+    /// 【为什么不能只断开连接】`handleConnectionLoss` 会按 `wantsEngineMode` 启动
+    ///   重连轮询，0.5 秒一轮，把引擎重新拉回来 —— 录制器立刻断流。
+    ///   所以必须先把「还想连」的开关关掉，断开才不会被自动撤销。
+    /// 【为什么用 SIGTERM 而不是 SIGKILL】引擎的 `performShutdown` 会先
+    ///   `releaseAll()` 释放全部按键，再 `stopDriving()`、排空录制元信息才 `exit(0)`。
+    ///   强杀会让游戏里某个键卡在按下状态 —— 角色一直跑/一直转，只能重启游戏。
+    ///
+    /// 调用前必须已确认本地抓屏**真的产出了帧**（见 `DriveState.startLeanEngineHandover`），
+    /// 否则会进入「引擎已退、录制也没接上」的双输状态。
+    ///
+    /// - Returns: 是否确实让出了引擎（引擎本来就没起来时返回 false）
+    @discardableResult
+    func suspendForLeanRecording() -> Bool {
+        // 先取消上一轮「引擎接回」的等待轮询（若有）。
+        // 【为什么必须在 guard **之前**】引擎正在退场时 isActive/enginePID 都已是空的，
+        //   guard 会直接 return false；若把取消写在 guard 之后，这条路径就漏掉了，
+        //   那枚轮询到点仍会 startup() 把引擎拉回来，与本地抓屏抢同一条屏幕流。
+        let hadPendingResume = resumePoll != nil
+        resumePoll?.cancel()
+        resumePoll = nil
+
+        // 【幂等：已经让出过就直接返回 true】
+        //   千万不能在这里再走一遍 SIGTERM：此时 enginePID 已清零，pid 只能取自
+        //   `suspendedPID` —— 而那个进程早已死透，该 pid 很可能已被系统复用给
+        //   无关进程，二次 kill 就是**误杀别人的进程**（本项目多处注释都警告过
+        //   pid 复用）。返回 true 是为了让调用方仍记住「这段录完要接回引擎」。
+        if suspendedByLeanRecording { return true }
+
+        // hadPendingResume 也算「引擎已被让出」：此时引擎正在死、接回流程在飞，
+        // 若不返回 true，调用方不会记住需要接回 ⇒ 停录后引擎永远回不来。
+        guard isActive || enginePID > 0 || hadPendingResume else { return false }
+        suspendedByLeanRecording = true
+        // ① 先关掉重连依据：否则下面断开连接后，重连轮询会把引擎重新拉起
+        wantsEngineMode = false
+        connectTimer?.cancel()
+        connectTimer = nil
+        // ② 先礼后兵：bye 让引擎知道是「主动断开」，不进 3 秒异常重连窗口
+        sendByeSync()
+        // 「接回流程在飞」时再让出：enginePID 已清零，必须沿用旧记录，否则接回时
+        // 会因 pid==0 跳过「等旧引擎死透」直接拉起 → 撞 flock 单例锁 exit(0)。
+        let pid = enginePID > 0 ? enginePID : suspendedPID
+        // 先把 pid 记进 suspendedPID：下面第 ③ 步会把 enginePID 清零，
+        // 接回时必须靠这份记录轮询「旧引擎是否真的死透了」。
+        suspendedPID = pid
+        // ③ 断开本端连接（shm 必须解映射，否则新引擎起来时还指着旧内存）
+        readSource?.cancel()
+        readSource = nil
+        if socketFD >= 0 { close(socketFD); socketFD = -1 }
+        detachShm()
+        isActive = false
+        isConnected = false
+        enginePID = 0
+        engineProtocol = 0
+        sawHeartbeat = false
+        lastHeartbeat = .distantPast
+        // ④ 优雅退出：引擎收到 SIGTERM → releaseAll → stopDriving → flushSync → exit(0)
+        if pid > 0 {
+            kill(pid, SIGTERM)
+            engineClientLog("⏬ 精简录制接管：已请引擎 pid=\(pid) 优雅退出（SIGTERM）")
+            // 兜底：15 秒还不退才强杀。强杀会丢「按键已释放」这个保证，只能是最后手段。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+                guard kill(pid, 0) == 0 else { return }
+                engineClientLog("⚠️ 引擎 pid=\(pid) 15 秒未退出，SIGKILL 兜底")
+                kill(pid, SIGKILL)
+            }
+        } else {
+            engineClientLog("⏬ 精简录制接管：引擎未回报 pid（未连接），仅断开连接")
+        }
+        return true
+    }
+
+    /// 把引擎接回来。退出精简录制模式后由阶梯自动调用。
+    ///
+    /// 【为什么要重新 startup 而不是只置回 wantsEngineMode】刚才是 SIGTERM 让引擎
+    ///   **退出进程**了；`wantsEngineMode=true` 只是恢复「想连」的意愿，还得真的
+    ///   连上去（引擎若已退出，`startup()` 会重新 spawn 一个）。
+    ///
+    /// 【为什么必须先等旧引擎死透再 startup】引擎收到 SIGTERM 后要走
+    ///   releaseAll → stopDriving → flushSync → exit(0)，需要几百毫秒。这段时间里
+    ///   socket 文件还在、flock 单例锁还被旧进程持有 —— 此刻拉起新引擎，新进程会
+    ///   因拿不到单例锁直接 `exit(0)`，表现为「引擎再也起不来」。
+    ///   `relaunchStaleEngine` 的注释里记着同款事故（«坑 2»），这里照同一套路处理。
+    ///
+    /// - Returns: 是否真的重新发起了连接/拉起（当初不是录制让出的引擎时返回 false）
+    @discardableResult
+    func resumeAfterLeanRecording() -> Bool {
+        guard suspendedByLeanRecording else { return false }
+        suspendedByLeanRecording = false
+        wantsEngineMode = true
+
+        // 上一轮让出时记下的 pid（suspendForLeanRecording 已把 enginePID 清零，
+        // 故这里用退出时留下的 suspendedPID）。
+        let pid = suspendedPID
+        suspendedPID = 0
+        engineClientLog("⏫ 精简录制结束：引擎自动接回"
+                        + (pid > 0 ? "（等待旧引擎 pid=\(pid) 退出）" : ""))
+
+        guard pid > 0 else {
+            startup()
+            return true
+        }
+        // 轮询等旧引擎退净，最多 8 秒；退净后立刻 startup。
+        var waited = 0.0
+        let poll = DispatchSource.makeTimerSource(queue: queue)
+        poll.schedule(deadline: .now() + 0.3, repeating: 0.3, leeway: .milliseconds(50))
+        poll.setEventHandler { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                waited += 0.3
+                let alive = kill(pid, 0) == 0
+                if !alive || waited >= 8.0 {
+                    poll.cancel()
+                    self.resumePoll = nil
+                    if alive { engineClientLog("⚠️ 旧引擎 pid=\(pid) 8 秒未退出，仍尝试拉起") }
+                    self.startup()
+                }
+            }
+        }
+        poll.resume()
+        resumePoll = poll
+        return true
+    }
 }

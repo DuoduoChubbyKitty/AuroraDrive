@@ -662,6 +662,18 @@ final class LeanRecordEngine: @unchecked Sendable {
         return writeFailureCount
     }
 
+    /// 已**成功落盘**的帧数（stateLock 保护，可跨线程读）。
+    ///
+    /// 【为什么要单独开这个口】引擎交接要用它判定「本地真的接到画面了」。
+    ///   不能用 `frameCount`：那是 @Observable 属性、只能主线程写，且靠
+    ///   `main.async` 更新，比真实落盘晚一个主线程回合。用它当判据会在
+    ///   「看起来有帧、实际还没写进盘」时就把引擎踢掉 —— 正好是双输窗口。
+    var framesWrittenSafe: Int {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return framesWrittenLocked
+    }
+
     /// 最近一帧的宽高（写 meta 用；在 writeQueue 里更新）
     private var lastFrameWidth = 0
     private var lastFrameHeight = 0
