@@ -242,6 +242,51 @@ static void test_modifier_flags_changed(void) {
     fclose(f);
 }
 
+// [6] 有标签帧计数（P1-4）：决定收尾会不会误判「零标签」而拒绝一份好数据
+//
+// 为什么必须测：main 的收尾健康检查用 g_labeled_frames == 0 判定「本场无任何按键」
+// 并返回 1。若计数实现写错（例如多键同帧重复累加、或全零帧也计数），
+// 后果分别是「好数据被误判成功」与「好数据被误报失败」，两者都会误导用户。
+static void test_labeled_counter(void) {
+    printf("[6] 有标签帧计数（g_labeled_frames）\n");
+    FILE *f = tmpfile();
+    if (!f) { printf("  [FAIL] tmpfile 失败\n"); g_fail++; return; }
+
+    // 全零帧：不应计数
+    g_labeled_frames = 0;
+    set_keys(0);
+    derive_and_write(f, 0.0, 0);
+    derive_and_write(f, 0.1, 1);
+    CHECK(g_labeled_frames == 0, "全零的 2 帧不应计入，实际 %ld", g_labeled_frames);
+
+    // 六个原子键各自单按 1 帧：应恰好计 6
+    g_labeled_frames = 0;
+    for (int bit = 0; bit < 6; bit++) {
+        set_keys(1 << bit);
+        derive_and_write(f, 1.0 + bit * 0.1, 2 + bit);
+    }
+    CHECK(g_labeled_frames == 6, "6 个原子键各 1 帧应计 6，实际 %ld", g_labeled_frames);
+
+    // 同帧多键：按「帧」计 1，不按「按键个数」重复累加
+    long before = (long)g_labeled_frames;
+    set_keys(63);
+    derive_and_write(f, 2.0, 8);
+    CHECK(g_labeled_frames == before + 1, "全按 1 帧应只计 1（多键不能重复计），实际 %ld",
+          g_labeled_frames);
+
+    // 64 种组合各 1 帧：0 号是全零（不计），其余 63 帧各计 1
+    g_labeled_frames = 0;
+    for (int m = 0; m < 64; m++) {
+        set_keys(m);
+        derive_and_write(f, 3.0 + m * 0.01, 9 + m);
+    }
+    CHECK(g_labeled_frames == 63, "64 种组合应恰好 63 帧有标签（全零不计），实际 %ld",
+          g_labeled_frames);
+
+    set_keys(0);
+    fclose(f);
+}
+
 int main(void) {
     printf("================ 录制器按键推导 穷举压力测试 ================\n");
     test_all_combinations();
@@ -249,6 +294,7 @@ int main(void) {
     test_degenerate();
     test_no_state_leak();
     test_modifier_flags_changed();
+    test_labeled_counter();
     printf("===========================================================\n");
     printf("共 %d 项断言，失败 %d 项\n", g_checks, g_fail);
     printf("%s\n", g_fail == 0 ? "PASS" : "FAIL");

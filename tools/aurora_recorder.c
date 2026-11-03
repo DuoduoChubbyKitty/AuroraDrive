@@ -55,6 +55,10 @@ static char g_stop_file[512] = "/tmp/aurora_video_stop";
 static pthread_mutex_t g_kb_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_pressed[256];        // keycode -> 1 表示当前按住
 static FILE *g_raw_keys = NULL;   // 原始按键边沿日志
+static int g_kb_ok = 0;           // 1=键盘 tap 已建立且未被系统禁用
+static int g_kb_disabled_count = 0;  // tap 被系统禁用的次数（超时/中断）
+static long g_labeled_frames = 0;    // 至少有一个原子键按下的帧数
+static CFMachPortRef g_kb_port = NULL;  // 保存 port，供被系统禁用后重新 Enable
 static CFRunLoopRef g_kb_rl = NULL;
 
 // 按键映射 (复用项目 collect.py 的 VK_MAP: W=0x0D A=0x00 S=0x01 D=0x02 SPACE=0x31 SHIFT(左)=0x38)
@@ -201,6 +205,19 @@ static void recorder_handle_event(CGEventType type, int64_t keycode,
 // ── 键盘事件回调 ──
 static CGEventRef tap_callback(CGEventTapProxy proxy, CGEventType type,
                                 CGEventRef event, void *refcon) {
+    // 系统在回调过慢或用户中断后可能**临时禁用 tap**，此后所有按键静默丢失。
+    // 必须显式重开，否则用户以为在录、其实键盘链路已死。
+    if (type == kCGEventTapDisabledByTimeout
+        || type == kCGEventTapDisabledByUserInput) {
+        pthread_mutex_lock(&g_kb_lock);
+        g_kb_disabled_count++;
+        int n = g_kb_disabled_count;
+        pthread_mutex_unlock(&g_kb_lock);
+        fprintf(stderr, "[warn] 键盘 tap 被系统禁用(type=%d)，已重新启用；累计 %d 次\n",
+                (int)type, n);
+        if (g_kb_port) CGEventTapEnable(g_kb_port, true);
+        return event;
+    }
     if (type == kCGEventKeyDown || type == kCGEventKeyUp
         || type == kCGEventFlagsChanged) {
         int64_t kc = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
@@ -219,13 +236,16 @@ static void *kb_thread(void *arg) {
         kCGSessionEventTap, kCGHeadInsertEventTap,
         kCGEventTapOptionDefault, mask, tap_callback, NULL);
     if (!port) {
-        fprintf(stderr, "[warn] 键盘 tap 创建失败 → 不会录到键盘。\n"
+        fprintf(stderr, "[error] 键盘 tap 创建失败 → 录不到任何按键。\n"
                         "       需: 系统设置→隐私与安全性→输入监控, 给\"终端\"打勾并重启终端。\n");
+        g_kb_ok = 0;     // 明确标记：本场数据的键盘标签不可用
         return NULL;
     }
     CFRunLoopSourceRef src = CFMachPortCreateRunLoopSource(NULL, port, 0);
     CFRunLoopAddSource(CFRunLoopGetCurrent(), src, kCFRunLoopCommonModes);
     CGEventTapEnable(port, true);
+    g_kb_port = port;
+    g_kb_ok = 1;
     g_kb_rl = CFRunLoopGetCurrent();
     CFRunLoopRun();
     return NULL;
@@ -266,6 +286,9 @@ static void derive_and_write(FILE *controls, double t, long frame) {
     int super_brake = (shift && space) ? 1 : 0;
     // Shift+空格+S = 极致刹车（S 同时是防翻车稳定键，见 03-output-head.md 安全约束）
     int ultimate_brake = (shift && space && s) ? 1 : 0;
+    // 「有标签帧」统计：任一原子键按下即算。用于收尾判断键盘链路是否真的在工作
+    // ——若整场 0 帧有按键，说明要么 tap 没建成、要么用户全程没操作，必须告警。
+    if (w || a || s || d || shift || space) g_labeled_frames++;
     fprintf(controls, "%.4f,%ld,%d,%d,%d,%d,%d,%d,%d,%d\n",
             t, frame, w, a, s, d, shift, space, super_brake, ultimate_brake);
 }
@@ -392,7 +415,14 @@ int main(int argc, char **argv) {
 
     // 启动键盘线程
     pthread_t kt;
-    pthread_create(&kt, NULL, kb_thread, NULL);
+    int th_rc = pthread_create(&kt, NULL, kb_thread, NULL);
+    if (th_rc != 0) {
+        // 线程起不来 = 键盘链路彻底不可用。以前这里不检查，于是照样录完整场、
+        // 写出全 0 的 controls.csv，收尾还打印「[完成]」，用户完全看不出白录了。
+        fprintf(stderr, "[error] 键盘线程创建失败(rc=%d): %s → 录不到任何按键\n",
+                th_rc, strerror(th_rc));
+        g_kb_ok = 0;
+    }
 
     // 倒计时
     if (now && !g_skip_countdown) {
@@ -433,6 +463,19 @@ int main(int argc, char **argv) {
     char *bname = strrchr(g_out_dir, '/');
     const char *clip_name = bname ? bname + 1 : g_out_dir;
 
+    // 生成真实创建时间（旧版传 ""，任何按时间筛选/排序的工具都会失效）
+    char created_at[64] = "";
+    {
+        time_t tnow = time(NULL);
+        struct tm *tmnow = localtime(&tnow);
+        if (tmnow) strftime(created_at, sizeof(created_at), "%Y-%m-%dT%H:%M:%S", tmnow);
+    }
+
+    // 键盘可用性判据：tap 建成 + 整场至少有一帧按了键。
+    // 为什么不能只看 g_kb_ok：tap 建成但用户全程没操作，数据同样没有训练价值，
+    // 下游需要能区分「键盘坏了」与「确实没按」。
+    int has_keyboard = (g_kb_ok && g_labeled_frames > 0) ? 1 : 0;
+
     FILE *jf = fopen(json_path, "w");
     // E3 根治：jf fopen 失败时跳过元数据写入，避免 fprintf(NULL) 段错误
     if (!jf) {
@@ -443,13 +486,42 @@ int main(int argc, char **argv) {
             "{\n  \"name\": \"%s\",\n  \"drive_source\": \"%s\",\n"
             "  \"fps\": %d,\n  \"width\": %d,\n  \"height\": %d,\n"
             "  \"total_frames\": %ld,\n  \"duration_seconds\": %.1f,\n"
-            "  \"has_keyboard\": true,\n  \"display\": \"%s\",\n"
-            "  \"created_at\": \"%s\"\n}\n",
-            clip_name, g_source, g_fps, g_w, g_h, frame, dur, g_display_spec, "");
+            "  \"has_keyboard\": %s,\n  \"keyboard_tap_ok\": %s,\n"
+            "  \"keyboard_disabled_count\": %d,\n  \"labeled_frames\": %ld,\n"
+            "  \"display\": \"%s\",\n  \"created_at\": \"%s\"\n}\n",
+            clip_name, g_source, g_fps, g_w, g_h, frame, dur,
+            has_keyboard ? "true" : "false",
+            g_kb_ok ? "true" : "false",
+            g_kb_disabled_count, g_labeled_frames, g_display_spec, created_at);
         fclose(jf);
     }
 
-    fprintf(stderr, "\n[完成] 帧数=%ld 时长=%.0fs\n  画面: %s/frames/\n  控制: %s\n  %s\n",
-            frame, dur, g_out_dir, ctrl_path, g_out_dir);
+    fprintf(stderr, "\n[完成] 帧数=%ld 时长=%.0fs  有按键帧=%ld\n"
+                    "  画面: %s/frames/\n  控制: %s\n  %s\n",
+            frame, dur, g_labeled_frames, g_out_dir, ctrl_path, g_out_dir);
+
+    // ── 收尾健康检查：键盘链路不通必须大声报错，不能假装成功 ──
+    // 旧版 tap 创建失败只打一句 warn 就继续录，写出整场全 0 的 controls.csv，
+    // 收尾照样打印「[完成]」→ 用户完全看不出白录一场。
+    if (!g_kb_ok) {
+        fprintf(stderr,
+            "\n[error] 键盘 tap 未建立 → 本场 controls.csv 的按键列全部为 0，"
+            "这份数据不能用来训练！\n"
+            "        修复: 系统设置→隐私与安全性→输入监控，给终端/本程序打勾后重启。\n");
+        return 1;
+    }
+    if (g_labeled_frames == 0) {
+        fprintf(stderr,
+            "\n[error] 整场录制中没有任何一帧检测到按键（tap 可用但全程无输入）\n"
+            "        → 要么是在倒计时/暂停期间没操作，要么输入监控权限只部分生效。\n"
+            "        这份数据的标签列全 0，训练价值为零。\n");
+        return 1;
+    }
+    if (g_kb_disabled_count > 0) {
+        fprintf(stderr,
+            "\n[warn] 录制期间键盘 tap 被系统禁用过 %d 次（已自动重开）。"
+            "若次数很多，说明回调过慢，部分按键可能已丢失，建议缩短单场时长。\n",
+            g_kb_disabled_count);
+    }
     return 0;
 }

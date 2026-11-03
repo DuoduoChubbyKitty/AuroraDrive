@@ -672,12 +672,26 @@ def _fallback_frame_split(
 # 统计 / 自检
 # ----------------------------------------------------------------------------
 
-def print_stats(clips_dir: str | Path) -> None:
+def print_stats(clips_dir: str | Path, skip_all_zero: bool = True) -> None:
     """统计真实数据的标签分布 —— 训练前必须跑，用它回填损失函数的类权重。
 
     为什么必须实测：03-output-head.md §5.1 实测过一个「永远输出 W」的平凡解
     准确率就有 80.8%，但 S 类一帧都不会。所以类权重不能拍脑袋，必须按真实
     分布算；模型选择也必须看 per-class recall 而不是总准确率。
+
+    ⚠️ 2026-11-03 修复（审查 P1-1）：统计口径必须与**训练时实际喂给模型的数据**一致。
+       训练用的 `V3KeyDataset` 默认 `skip_all_zero=True`（全零帧被丢弃），
+       而旧版 `print_stats` 统计的是**全部行**，于是：
+           实测（审查报告，同一份数据）
+             训练实际分布 vertical = {0:21, 1:5, 2:10} 共 36 帧
+             --stats 报告       vertical = {W:21, NONE:12, S:10} 共 43 帧
+             → NONE 被多计 7 帧（正是被丢弃的全零帧），占比虚高 19%
+       后果：按这份统计算出的类权重偏向 NONE，与训练实际分布不符，
+       等于在错误的分布上做不平衡校正。
+
+       现在默认按训练口径统计（跳过全零帧），并显式打印被跳过的帧数，
+       让「原始行数」与「训练帧数」两个数字都可见，不会再有隐性偏差。
+       需要看含全零帧的原始口径时传 `skip_all_zero=False`。
     """
     clips = sorted(
         p for p in Path(clips_dir).iterdir()
@@ -691,7 +705,9 @@ def print_stats(clips_dir: str | Path) -> None:
     vert = [0, 0, 0]
     horiz = [0, 0, 0]
     intent = [0, 0, 0]
-    total = 0
+    total = 0          # 参与统计的帧数（= 训练实际使用的帧数）
+    raw_total = 0      # CSV 原始行数
+    n_skipped = 0      # 被跳过的全零帧
 
     for clip in clips:
         csv_path = clip / "controls.csv"
@@ -699,7 +715,11 @@ def print_stats(clips_dir: str | Path) -> None:
             continue
         rows = V3KeyDataset._read_rows(csv_path)
         for row in rows:
+            raw_total += 1
             vals = {k: _bit(row, k) for k in ATOMIC_KEYS}
+            if skip_all_zero and not any(vals[k] for k in ATOMIC_KEYS):
+                n_skipped += 1
+                continue
             for k in ATOMIC_KEYS:
                 counts[k] += vals[k]
             vert[vertical_from_keys(vals["w"], vals["s"])] += 1
@@ -709,11 +729,19 @@ def print_stats(clips_dir: str | Path) -> None:
                 vals["shift"], vals["space"])] += 1
             total += 1
 
-    if total == 0:
+    if raw_total == 0:
         print("[错误] 没有读到任何数据行")
         sys.exit(1)
+    if total == 0:
+        print(f"[错误] {raw_total} 行数据在跳过全零帧后为空 —— "
+              "整场录制没有任何按键，无法训练。")
+        sys.exit(1)
 
-    print(f"总帧数: {total}")
+    scope = "训练口径（已跳过全零帧，与 V3KeyDataset 默认一致）" \
+        if skip_all_zero else "原始口径（含全零帧，非训练分布）"
+    print(f"统计口径: {scope}")
+    print(f"CSV 原始行数: {raw_total}    参与统计帧数: {total}    "
+          f"跳过全零帧: {n_skipped}")
     print()
     print("原子键按下率:")
     for k in ATOMIC_KEYS:
