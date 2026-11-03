@@ -169,6 +169,15 @@ final class LeanRecordEngine: @unchecked Sendable {
     private var sessionStart: Date?
     /// 下一帧要用的帧号（**只在 writeQueue 内读写**，保证与 CSV 行号一致）
     private var nextFrameIndex = 0
+    /// 会话世代号：每开一段新会话 +1（stateLock 保护）。
+    ///
+    /// 【为什么需要它】10 分钟自动分段是主线程 `stop()`→`start()`；抓屏队列上可能
+    ///   还有一帧已通过"在录"判断、正排队等着 `writeQueue.async` 写盘。它若落在
+    ///   `start()` 之后执行，就会用**新段**的 framesDir 和 nextFrameIndex=0 落盘，
+    ///   覆盖新段 000000.jpg：旧段少一帧、新段多一张旧画面，而帧号仍连续
+    ///   ⇒ `dataset_v3` 的 frame==i 校验照常通过，是**静默**的标签错配。
+    ///   写盘前比对世代号，不等就整帧丢弃（宁可少一帧，不可错一帧）。
+    private var sessionGeneration = 0
     /// 已成功落盘的帧数（**权威计数**，stateLock 保护）。
     /// 为什么不能直接用 @Observable 的 `frameCount`：它只能在主线程写，
     /// 而 stop() 排空队列那一刻主线程的更新可能还没跑到 → 日志/meta 会少报帧数。
@@ -292,7 +301,17 @@ final class LeanRecordEngine: @unchecked Sendable {
         //   反而把有效帧率压低、同样掉出容差下界。
         let now = Date()
         let minGap = 1.0 / fps * 0.9
+        // 【为什么"在录判断"和"世代号"必须在同一次加锁里取】
+        //   10 分钟自动分段是主线程 stop()→start()；而本函数在抓屏队列。若两者
+        //   分开取，中间恰好切段，就会把**旧段的在途帧**带进新段：它随后按新段的
+        //   framesDir + nextFrameIndex=0 落盘，覆盖新段 000000.jpg。旧段少一帧、
+        //   新段多一张旧画面，而帧号仍连续 ⇒ dataset_v3 不会报错，属静默错配。
         stateLock.lock()
+        guard isRecording else {
+            stateLock.unlock()
+            return
+        }
+        let generation = sessionGeneration
         if let last = lastAcceptedFrameTime, now.timeIntervalSince(last) < minGap {
             stateLock.unlock()
             return
@@ -316,7 +335,7 @@ final class LeanRecordEngine: @unchecked Sendable {
             guard let self else { return }
             autoreleasepool {
                 self.writeFrame(pixelBuffer: pixelBuffer, at: now, keys: keys,
-                                pose: pose, accel: accel)
+                                pose: pose, accel: accel, generation: generation)
             }
         }
 
@@ -338,7 +357,24 @@ final class LeanRecordEngine: @unchecked Sendable {
     // MARK: - 写盘（writeQueue 内执行）
 
     private func writeFrame(pixelBuffer: CVPixelBuffer, at date: Date,
-                            keys: RawKeySample, pose: Pose?, accel: Vec3?) {
+                            keys: RawKeySample, pose: Pose?, accel: Vec3?,
+                            generation: Int) {
+        // 世代校验必须在取 framesDir / nextFrameIndex **之前**：
+        //   本帧是在旧会话里取的快照，若期间已切段（自动分段 stop→start），
+        //   用新段的目录和帧号落盘 = 静默错配（详见 sessionGeneration 注释）。
+        //   这里在 writeQueue 内读，与 openSession 的写互斥于 stateLock。
+        //
+        // ⚠️ 这里**刻意不检查 isRecording**：stop() 是先置 isRecording=false、
+        //   再 writeQueue.sync 排空。若在这里要求 isRecording 为真，排空时
+        //   队列里的尾部帧会被全部丢弃 —— 恰恰丢掉每段最后几帧。世代号已经
+        //   足够区分"这是旧段的帧"，不需要第二个判据。
+        stateLock.lock()
+        guard generation == sessionGeneration else {
+            stateLock.unlock()
+            return
+        }
+        let framesDir = self.framesDir
+        stateLock.unlock()
         guard let framesDir else { return }
 
         // ── 1. 编码 ──
@@ -516,6 +552,8 @@ final class LeanRecordEngine: @unchecked Sendable {
         framesDir = dir.appendingPathComponent("frames")
         csvHandle = handle
         sessionStart = Date()
+        // 新段 = 新世代：在途的旧帧写盘时会因世代不符被丢弃，绝不污染本段。
+        sessionGeneration &+= 1
         frameCount = 0
         writeFailureCount = 0
         sawPose = false
@@ -574,9 +612,15 @@ final class LeanRecordEngine: @unchecked Sendable {
             options: [.prettyPrinted]) {
             try? data.write(to: dir.appendingPathComponent("meta.json"))
         }
+        // 三行置空必须放进 stateLock：`appendFrame`（抓屏队列）在**锁内**读
+        //   `sessionStart` 算 elapsed 来判自动分段。在锁外置 nil 就是跨线程无同步
+        //   读写 Optional<Date>，撕读可能拿到垃圾值 → needRestart 误判：多切一段
+        //   （凭空多出半截 clip）或漏切（单段超 10 分钟）。窗口窄但后果是数据错。
+        stateLock.lock()
         sessionDir = nil
         framesDir = nil
         sessionStart = nil
+        stateLock.unlock()
     }
 
     // MARK: - 辅助

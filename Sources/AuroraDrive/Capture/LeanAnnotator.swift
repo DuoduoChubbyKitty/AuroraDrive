@@ -213,6 +213,11 @@ enum LeanAnnotator {
 
         // ── 5. 原子替换写回 ───────────────────────────────────────────
         let tmpURL = clip.appendingPathComponent("controls.csv.tmp")
+        // 先清陈旧残留：上次若崩在「写 tmp」与「replaceItemAt」之间，或退出时被
+        // SIGKILL 打断，会留下一个 controls.csv.tmp。它本身无害（下面 .atomic 会
+        // 覆盖），但若该段之后被永久跳过，这个文件会一直留在产物目录里，
+        // 让人误以为"标注跑过一半"。
+        try? fm.removeItem(at: tmpURL)
         let outText = newLines.joined(separator: "\n") + "\n"
         guard let outData = outText.data(using: .utf8) else {
             return fail("回填结果编码失败", code: 2)
@@ -414,7 +419,17 @@ final class LeanAnnotateRunner {
     /// (退出码, stderr 尾部)；退出码 0 = 通过/警告，2 = 输入错误，3 = 质量不合格
     var onFinish: ((Int32, String) -> Void)?
 
-    var isRunning: Bool { process?.isRunning == true }
+    /// 是否占用着标注槽位。
+    ///
+    /// 【为什么是 `process != nil` 而不是 `process?.isRunning == true`】
+    ///   子进程一退出，`isRunning` 立刻变 false，但把 `process` 置空的
+    ///   `terminationHandler` 还要经一次 `main.async` 才执行。这个窗口里 30Hz 的
+    ///   tick 会调 pump → 队列 removeFirst → start() 拉起**新进程 B** 并写入
+    ///   `self.process`；随后旧进程 A 的 handler 才跑，无条件 `self.process = nil`
+    ///   —— 把 B 的引用和看门狗一起抹掉。后果：`shutdown()` 看不到 B，退出时杀不掉
+    ///   （孤儿进程继续改 CSV），且 B 退出时又会抹掉下一个，级联。
+    ///   改成看引用后：槽位只在 handler 处理完才释放，窗口被彻底关掉。
+    var isRunning: Bool { process != nil }
 
     /// 最近一次**启动失败**的原因（仅 `start()` 返回 false 时有效）。
     /// 与 `onFinish` 报的退出码失败是两回事：那个是子进程跑完但质检不合格，
@@ -469,13 +484,15 @@ final class LeanAnnotateRunner {
     func start(clipPath: String) -> Bool {
         lastError = nil
         didStallOut = false
-        // 清空上一轮的管道残留：否则上一段的 stderr（比如"速度覆盖率 0%"）
-        // 会挂在下一段的失败信息里，让人误判这段数据的问题。
-        pipeBuffers.reset()
         guard !isRunning else {
+            // 注意 reset() 必须在 guard **之后**：若这里有在跑的子进程，
+            // 提前清空会抹掉它的 stderr，失败信息退化成"子进程无输出"。
             lastError = "已有标注进程在跑"
             return false
         }
+        // 清空上一轮的管道残留：否则上一段的 stderr（比如"速度覆盖率 0%"）
+        // 会挂在下一段的失败信息里，让人误判这段数据的问题。
+        pipeBuffers.reset()
         // 与 EngineClient 同款：用最开始的参数 0 定位自身（自检可覆盖）
         let exeURL = executableOverride ?? URL(fileURLWithPath: CommandLine.arguments[0])
             .standardizedFileURL.resolvingSymlinksInPath()
@@ -519,14 +536,25 @@ final class LeanAnnotateRunner {
             outPipe.fileHandleForReading.readabilityHandler = nil
             errPipe.fileHandleForReading.readabilityHandler = nil
             let code = proc.terminationStatus
+            // 只带一个 Sendable 的身份标识过 async 边界，不把 Process 本身带过去。
+            let identity = ObjectIdentifier(proc)
             guard let self else { return }
             let tail = self.pipeBuffers.stderrSnapshot
             DispatchQueue.main.async {
-                // 进程已退出：拆掉看门狗，否则它会对着一个已结束的进程空跑
-                // （并可能在下一次 start() 后误杀新进程）。
-                self.watchdog?.cancel()
-                self.watchdog = nil
-                self.process = nil
+                // 【为什么必须先比对身份再清槽】子进程退出与它的 handler 之间隔着
+                //   一次 main.async。若期间已拉起**新进程**，无条件
+                //   `self.process = nil` 会把新进程的引用和看门狗一起抹掉：
+                //   shutdown() 再也看不到它 → 退出时杀不掉（孤儿继续改 CSV），
+                //   且它结束时又会抹掉下一个，级联。
+                //   只有确认退出的就是当前槽位里那个，才允许清槽。
+                let isCurrent = self.process.map(ObjectIdentifier.init) == identity
+                if isCurrent {
+                    self.watchdog?.cancel()
+                    self.watchdog = nil
+                    self.process = nil
+                }
+                // onFinish **必须无条件上报**：它是"这一段标完了"的唯一信号，
+                // 漏报会让该段 speed_kmh 永久为空、且待标注队列再也推不动。
                 self.onFinish?(code, tail)
             }
         }

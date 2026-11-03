@@ -564,8 +564,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 且不会把这次断开当作崩溃来处理（不触发看门狗停车）。
     func applicationWillTerminate(_ notification: Notification) {
         EngineClient.shared.sendByeSync()
-        // 标注子进程是独立进程，App 退出不会带走它：不收尾的话它会继续往
-        // controls.csv 回填，用户重开 App 再标同一段就变成两个进程同写一个文件。
+        // ── 顺序不能换 ──
+        // ① 先停录制器：只有 toggleLeanRecording 会调 stop()，退出路径原先没有它。
+        //    录像中退出 → meta.json 不写（帧数/分辨率/pcap_ok 全无）、CSV 不
+        //    synchronizeFile、onSegmentClosed 不触发 ⇒ 该段 speed_kmh 永久为空且
+        //    永不自动标注，而 frames/ 与 CSV 看起来都"完好"，事后极难发现。
+        //    stop() 内部有 writeQueue.sync，会等已入队帧写完再关句柄、写 meta。
+        // ② 再收标注子进程：它是独立进程，App 退出带不走；不收尾它会继续往
+        //    controls.csv 回填，用户重开 App 再标同一段就是两个进程同写一个文件。
+        DriveState.shared.leanRecorder.stop()
         DriveState.shared.leanAnnotateRunner.shutdown()
     }
 
