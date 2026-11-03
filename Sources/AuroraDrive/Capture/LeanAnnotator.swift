@@ -115,6 +115,23 @@ enum LeanAnnotator {
         let colCount = header.count
         let dataLines = Array(lines.dropFirst())
 
+        // ── 1.5 帧文件完整性（**必须在任何写盘之前**）──────────────────────
+        // 【为什么不能等质检那步】回填用「文件名数字 → 帧号」映射速度，却按**行号**
+        //   写回 CSV。一旦 frames/ 有洞（缺帧、人工删帧、半成品），文件号 ≠ 行号，
+        //   速度就被写到**错误的行**上；而原先这条校验排在原子替换**之后**，
+        //   等于先把错误数据固化、再报告失败。拒绝胜于固化。
+        // 判据不是"数量相等"而是"编号集合恰好 0..<total"：数量相等也可能错位。
+        let frameFilesOnDisk = ((try? fm.contentsOfDirectory(atPath: framesURL.path))?
+            .filter { $0.lowercased().hasSuffix(".jpg") || $0.lowercased().hasSuffix(".jpeg") }) ?? []
+        let frameIndexes = Set(frameFilesOnDisk.compactMap {
+            Int(($0 as NSString).deletingPathExtension)
+        })
+        if frameIndexes != Set(0..<dataLines.count) {
+            return fail("frames/ 的帧编号不连续（应有 0..<\(dataLines.count) 共 \(dataLines.count) 张，"
+                        + "实际 \(frameFilesOnDisk.count) 张）——回填会把速度写到错行，已拒绝",
+                        code: 2)
+        }
+
         // ── 2. 校验「第 i 个数据行 frame == i」这条硬约束 ────────────────
         // 不满足就直接退出：此时回填会把错位数据固化，比不标注糟糕得多。
         emit("校验", 0.05)

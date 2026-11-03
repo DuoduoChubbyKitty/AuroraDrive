@@ -6405,7 +6405,11 @@ struct ContentView: View {
         var idleSkip = 0
         timer.setEventHandler {
             // 这些读取都是常量级，且不写状态，不会触发重绘
-            let busy = state.isDriving || state.isRecording
+            // 精简录制**必须**算 busy：按键快照由 tick 里的 updateLeanSnapshot() 拍，
+            // 而录制帧率是 15Hz。若这里降到 1.9Hz，一帧会复用最多 ~525ms 前的旧按键,
+            // 短按（<500ms）整段丢失 → 八列标签与实际操作对不上，且 dataset_v3 的
+            // skip_all_zero 会把这些样本静默跳过，屏外完全看不出来。
+            let busy = state.isDriving || state.isRecording || state.leanIsRecording
             if !busy {
                 idleSkip += 1
                 if idleSkip < 8 { return }   // 15Hz / 8 ≈ 1.9Hz 待机刷新
@@ -6469,7 +6473,9 @@ struct ContentView: View {
         nlTimer.schedule(deadline: .now(), repeating: 1.0 / 10.0, leeway: .milliseconds(1))
         var nlIdleSkip = 0
         nlTimer.setEventHandler {
-            let busy = state.isDriving || state.isRecording
+            // 精简录制期间同理必须算 busy：每帧都要配一份定位快照（见 tick 定时器处注释），
+            // 降到 2Hz 会让 15Hz 的帧共用最多 500ms 前的坐标 → 帧号与定位错配。
+            let busy = state.isDriving || state.isRecording || state.leanIsRecording
             if !busy {
                 nlIdleSkip += 1
                 if nlIdleSkip < 5 { return }   // 10Hz / 5 ≈ 2Hz 空闲轮询

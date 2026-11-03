@@ -4450,10 +4450,29 @@ final class DriveState {
             // 这里只需把它推起来；不要再直接调 startLeanAnnotation —— 那会对同一段
             // 排两次队，把整份 CSV 无谓地重写一遍。
             pumpLeanAnnotationQueue()
-            // 与开录时的键盘监听成对：非驾驶、且旧录制器也没在用 → 才停监听，
-            // 否则会把「录制」按钮（RecordEngine）需要的键盘状态一起关掉。
-            if !isDriving && !isRecording { keyboardMonitor.stop() }
+            // 与开录时成对：待机开录是我们自己起的抓屏（开录分支里 isCapturing
+            // 为假才 start），停录后必须关掉 —— 否则 SCStream 会一直以 15fps
+            // 把全屏往管道里推，录制都结束了还在白烧 CPU/电。
+            // 判据与 isRecording 的 didSet 一致：开车由 stopDriving() 管，
+            // 专家录制由它自己的 didSet 管，两者都不会被这里误关。
+            if !isDriving && !isRecording {
+                captureEngine.stop()
+                keyboardMonitor.stop()
+            }
         } else {
+            // ── 引擎模式：UI 进程没有画面流，精简录制在这里**必然录 0 帧** ──
+            // 本文件 :5313-5316 已记录过同款事故：早先 recordEngine 在引擎模式下
+            // 照样本地 start()，结果「目录建了、文件建了，但录不进任何东西」——
+            // 因为帧只存在于引擎进程，UI 的 tick 在引擎模式下提前 return。
+            // 精简录制器同理（appendFrame 只由本地 CaptureEngine 驱动），
+            // 所以这里必须**明确拒绝**并说清原因，绝不能静默录出一个空 clip
+            // 让用户以为录上了（那会污染 data/lean_clips 且事后极难发现）。
+            if EngineClient.shared.isActive {
+                leanLastError = "引擎模式下无法精简录制：画面在引擎进程，UI 没有帧流。"
+                    + "请用本地模式（关闭引擎联动）后再录。"
+                dlog("[LEAN] ❌ 拒绝开录：引擎模式无本地帧流")
+                return
+            }
             guard leanRecorder.start() else {
                 leanLastError = leanRecorder.lastError
                 dlog("[LEAN] ❌ 开录失败：\(leanRecorder.lastError ?? "未知原因")")
@@ -4463,6 +4482,11 @@ final class DriveState {
             leanLastClipPath = nil
             leanFrameCount = 0
             leanIsRecording = true
+            // 与 isRecording 的 didSet 同款：待机录制（没开车就点）走不到
+            // startDriving()，不在这里起抓屏的话 appendFrame 永远不会被调用。
+            if !captureEngine.isCapturing {
+                captureEngine.start()
+            }
             // 与 isRecording 的 didSet 同判据：待机录制（没开车就点）走不到
             // startDriving()，不在这里启动监听的话八列按键会全 0。
             keyboardMonitor.start()

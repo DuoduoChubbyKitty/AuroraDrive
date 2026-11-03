@@ -145,9 +145,14 @@ final class LeanRecordEngine: @unchecked Sendable {
     /// 本次会话已成功落盘的帧数（= 当前 CSV 行数）
     private(set) var frameCount = 0
     /// 本次会话编码/写盘失败次数（>0 说明 frames/ 有过洞，但已被我们"不写行"守住配对）
-    private(set) var writeFailureCount = 0
-    /// 本会话是否存在过可用定位（任意一帧解析出坐标即 true）
-    private(set) var sawPose = false
+    ///
+    /// 【为什么 @ObservationIgnored】这两个值由 **writeQueue / captureQueue** 在锁内写，
+    ///   而 @Observable 的存储走 observation 注册表、不是单纯写一个字段：在非主线程
+    ///   写它会跨线程改注册表状态（本类 :375 附近的注释已就这一点警告过 frameCount）。
+    ///   界面从不直接观察它们（失败数走 `framesFailedSafe` 锁内读），故排除观察。
+    @ObservationIgnored private(set) var writeFailureCount = 0
+    /// 本会话是否存在过可用定位（任意一帧解析出坐标即 true）；同上，只在锁内读写
+    @ObservationIgnored private(set) var sawPose = false
     /// 当前段序号（0 起）
     private(set) var segmentIndex = 0
 
@@ -359,7 +364,18 @@ final class LeanRecordEngine: @unchecked Sendable {
 
         // ── 3. 图片已落盘，才写 CSV 行（保证 CSV 第 j 行 ⟷ 0000jj.jpg）──
         let t = date.timeIntervalSince(sessionStart ?? date)
-        appendCSVRow(index: idx, tSec: t, keys: keys, pose: pose, accel: accel)
+        guard appendCSVRow(index: idx, tSec: t, keys: keys, pose: pose, accel: accel) else {
+            // CSV 行没写进去 ⇒ 这张图**必须删**，否则就是「有图无行」：
+            //   frames/ 多一张、CSV 少一行，后续行号继续前进，
+            //   训练端按行号拼文件名会整体错位 → 整段一帧都加载不了。
+            // 帧号**不推进**，下一帧复用同一个 idx（Data.write .atomic 直接覆盖），
+            // 所以即便删除失败也不会在 frames/ 留下永久空洞。
+            try? FileManager.default.removeItem(at: url)
+            // 不重复 recordFailure：该次失败已在 appendCSVRow 内计过，再计会把
+            // "一帧写失败"报成两次，与自检「失败计数记为 1」的断言冲突。
+            print("[lean] ⚠️ CSV 行写入失败，已回滚帧 \(url.lastPathComponent)（帧号未推进）")
+            return
+        }
 
         nextFrameIndex = idx + 1
         let total = idx + 1
@@ -380,8 +396,15 @@ final class LeanRecordEngine: @unchecked Sendable {
         }
     }
 
+    /// 写一行 CSV。**返回是否真的写进去了** —— 调用方靠它决定要不要回滚该帧。
+    ///
+    /// 【为什么必须返回 Bool】此前失败时只记录计数就 return，但 `writeFrame` 接着
+    ///   把 `nextFrameIndex` 推进了：frames/ 留下一张图，CSV 却没有对应行，后续
+    ///   行号继续前进 ⇒ 训练端「按行号拼文件名」会整体错位，`dataset_v3` 的
+    ///   `frame == i` 校验直接抛 ValueError，**整段一帧都加载不了**。
+    @discardableResult
     private func appendCSVRow(index: Int, tSec: Double, keys: RawKeySample,
-                              pose: Pose?, accel: Vec3?) {
+                              pose: Pose?, accel: Vec3?) -> Bool {
         // 缺值一律写空串，不写 0：
         //   `dataset_v3` 对空串判 speed_valid=0；写 0 会被当成"真实值为 0"。
         //   定位同理 —— 写 0 会让人以为车正好在世界原点。
@@ -409,9 +432,19 @@ final class LeanRecordEngine: @unchecked Sendable {
 
         guard let data = line.data(using: .utf8) else {
             recordFailure("CSV 行编码失败")
-            return
+            return false
         }
-        csvHandle?.write(data)
+        // 【为什么用 try write(contentsOf:) 而不是 write(_:)】
+        //   `FileHandle.write(_:)` 是非 throwing 的旧 API，出错时**raise ObjC 异常**
+        //   （磁盘满 / IO 错误），Swift 的 do/catch 抓不到 → 直接崩掉整个 App。
+        //   录制中崩溃还会留下未 flush 的 CSV，比"少一帧"严重得多。
+        do {
+            try csvHandle?.write(contentsOf: data)
+            return true
+        } catch {
+            recordFailure("CSV 行写入失败：\(error.localizedDescription)")
+            return false
+        }
     }
 
     private func recordFailure(_ reason: String) {
