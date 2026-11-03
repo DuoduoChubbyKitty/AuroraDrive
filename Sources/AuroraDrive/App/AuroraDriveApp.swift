@@ -4260,6 +4260,56 @@ final class DriveState {
     /// 而非 AI 决策（currentCommand）。关 → 录 AI 决策（DAgger 自训练）。
     var expertMode      = false
 
+    /// UI 进程转发来的物理按键位掩码（V3 原生按键标签用）。
+    ///
+    /// 【为什么必须跨进程转发】默认运行路径是**引擎进程**（UI 启动即 spawn --engine），
+    ///   真正写盘的是引擎进程的 `RecordEngine`；而引擎进程主循环是 `dispatchMain()`
+    ///   （不 spin run loop）且从未申请 Input Monitoring → 它内部的 `KeyboardMonitor`
+    ///   **收不到任何物理按键**（EngineMain.swift:2073 的既有结论）。
+    ///   不转发的话，专家模式录出的 w/a/s/d/shift/space 八列**全为 0**，
+    ///   而文件照写、帧数照涨、不报错 —— 正是"录了整场但标签全废"的最坏情形。
+    ///
+    /// 【位定义】bit0=W bit1=A bit2=S bit3=D bit4=Shift bit5=Space
+    /// 【只在引擎侧有值】UI 进程直接读本地 keyboardMonitor，不用这个字段。
+    var remoteKeyMask: Int = 0
+
+    /// 本 DriveState 是否活在**引擎进程**里（EngineMain 创建时置 true）。
+    ///
+    /// 【为什么要这个标记】两个进程都有 DriveState，但环境完全不同：
+    ///   · UI 进程：有 run loop，KeyboardMonitor 能收到物理按键 → 直接读它；
+    ///   · 引擎进程：`dispatchMain()` 无 run loop → KeyboardMonitor 是死的
+    ///     → 只能读 UI 转发的 `remoteKeyMask`。
+    ///   `recordFrameIfNeeded` 两份共用，必须靠这个标记选数据源，
+    ///   否则引擎侧会一直录到全 0 按键。
+    var isEngineHost: Bool = false
+
+    /// 上一次已转发给引擎的按键掩码（只在变化时发 socket，不给 15Hz 热路径加压）
+    private var lastSentKeyMask: Int = -1
+
+    /// 采样本进程物理键盘 → V3 按键位掩码。
+    /// 位定义：bit0=W bit1=A bit2=S bit3=D bit4=Shift bit5=Space
+    /// 键码与 ControlEngine 注入表一致：W=13 A=0 S=1 D=2 Space=49 Shift=56
+    func currentPhysicalKeyMask() -> Int {
+        var m = 0
+        if keyboardMonitor.isHeld(13) { m |= 1 << 0 }
+        if keyboardMonitor.isHeld(0)  { m |= 1 << 1 }
+        if keyboardMonitor.isHeld(1)  { m |= 1 << 2 }
+        if keyboardMonitor.isHeld(2)  { m |= 1 << 3 }
+        if keyboardMonitor.isHeld(56) { m |= 1 << 4 }
+        if keyboardMonitor.isHeld(49) { m |= 1 << 5 }
+        return m
+    }
+
+    /// 把当前按键掩码转发给引擎进程（仅引擎模式、仅录制中、仅变化时）。
+    /// 引擎侧收到后写入 `remoteKeyMask`，供其 recordFrameIfNeeded 生成 V3 标签。
+    func forwardPhysicalKeysToEngineIfNeeded() {
+        guard EngineClient.shared.isActive, isRecording else { return }
+        let mask = currentPhysicalKeyMask()
+        guard mask != lastSentKeyMask else { return }
+        lastSentKeyMask = mask
+        _ = EngineClient.shared.sendCommand("config", extra: ["keyMask": mask])
+    }
+
     /// 字模模式：录制时输出原生分辨率速度表区域帧（供字模训练），
     /// 与专家模式/训练录制互不影响，仅影响 RecordEngine 的输出内容
     var glyphMode       = false
@@ -5029,6 +5079,21 @@ final class DriveState {
                     // 不传过去的话用户在 UI 选 TPV、引擎照旧录 FPV（静默不一致）。
                     "perspective": recordPerspective,
                 ])
+                // 下面两行都是「引擎模式下按键列才不会全 0」的必要条件：
+                //
+                // ① 必须让 **UI 进程**监听物理键盘：真正写盘的是引擎进程，而引擎
+                //    dispatchMain 无 run loop，收不到 NSEvent。开车时 startDriving()
+                //    已启动过监听，但**待机录制**（没开车就点录制）走不到那里，
+                //    不在这里启动的话转发永远读到空掩码 → 八列全 0。
+                // ② 必须重置 lastSentKeyMask：它是跨会话字段，上一场结束时的旧值
+                //    会让「掩码恰好等于旧值」时不发 socket，引擎就残留上一场的
+                //    按键状态（表现为录到用户没有按的键）。置 -1 保证下一 tick 必发。
+                lastSentKeyMask = -1
+                if isRecording {
+                    keyboardMonitor.start()
+                } else if !isDriving {
+                    keyboardMonitor.stop()
+                }
                 return
             }
             if isRecording {
@@ -6690,6 +6755,12 @@ final class DriveState {
         if engineModeActive != client.isActive { engineModeActive = client.isActive }
         if engineConnected != client.isConnected { engineConnected = client.isConnected }
 
+        // V3 按键标签：把本进程（UI，有 run loop、能收到 NSEvent）采到的物理按键
+        // 转发给引擎进程（无 run loop，KeyboardMonitor 是死的）。
+        // 不转发 → 引擎录出的 w/a/s/d/shift/space 八列全为 0，而文件照写、不报错。
+        // 内部已有守卫：非引擎模式 / 未录制 / 掩码未变化时立即返回，15Hz 下无额外开销。
+        forwardPhysicalKeysToEngineIfNeeded()
+
         // 档位：开插帧 → 引擎发全分辨率帧，UI 读成 CVPixelBuffer 喂 MetalGoose；
         //       否则 → 引擎发 480 宽缩略帧，UI 读成 CGImage 直绘。
         let useUpscale = upscaleEnabled && upscaleSupported
@@ -8272,6 +8343,48 @@ final class DriveState {
             let recSpeed: Double? = speedOCR.speedKmh >= 0 ? speedOCR.speedKmh : nil
             let recHeading: Double? = locatorFound ? locatorHeading : nil
             let recSpeedLimit: Double? = speedLimit > 0 ? speedLimit : nil
+
+            // ── V3 原生按键标签 ──
+            //
+            // 【数据源必须区分模式，否则标签是错的】
+            //   · 专家模式：要录**真人物理按键**（模仿学习的专家演示）。此时
+            //     `mayInjectKeys` 为假，`controlEngine.heldKeys` 是空的/不含用户
+            //     按键，必须读 `keyboardMonitor`（NSEvent 全局监听）。
+            //   · 非专家模式：录的是 AI 决策。按键来自 `controlEngine.heldKeys`
+            //     （本进程实际注入的键）。若此时读 keyboardMonitor，记录的是
+            //     "用户碰了键盘"，与画面里的车辆动作对不上。
+            //
+            // 【键码】A=0 / S=1 / D=2 / W=13 / Space=49 / Shift=56
+            //   （与 ControlEngine 注入表、KeyboardMonitor.controlledKeyCodes 一致）
+            //
+            // 【数据源必须按「进程 × 专家模式」四种组合分别选，否则标签是错的】
+            //   · 引擎进程 + 专家：本进程无 run loop（dispatchMain），KeyboardMonitor
+            //     收不到 NSEvent → 只能用 UI 转发的 remoteKeyMask。
+            //     若读本地 keyboardMonitor，八列会**全为 0**（文件照写、不报错）。
+            //   · 引擎进程 + 非专家：录 AI 决策，真正注入键的就是引擎进程本身
+            //     → 读 controlEngine.heldKeys。
+            //   · UI 进程 + 专家：本地录制，键盘监听活着 → 读 keyboardMonitor。
+            //   · UI 进程 + 非专家：本地模式才由本进程注入 → 读 controlEngine.heldKeys。
+            var keyMask = 0
+            if expertMode {
+                keyMask = isEngineHost ? remoteKeyMask : currentPhysicalKeyMask()
+            } else {
+                let held = controlEngine.heldKeys
+                if held.contains(13) { keyMask |= 1 << 0 }   // W
+                if held.contains(0)  { keyMask |= 1 << 1 }   // A
+                if held.contains(1)  { keyMask |= 1 << 2 }   // S
+                if held.contains(2)  { keyMask |= 1 << 3 }   // D
+                if held.contains(56) { keyMask |= 1 << 4 }   // Shift
+                if held.contains(49) { keyMask |= 1 << 5 }   // Space
+            }
+            var recKeys = RawKeySample()
+            recKeys.w     = (keyMask >> 0) & 1
+            recKeys.a     = (keyMask >> 1) & 1
+            recKeys.s     = (keyMask >> 2) & 1
+            recKeys.d     = (keyMask >> 3) & 1
+            recKeys.shift = (keyMask >> 4) & 1
+            recKeys.space = (keyMask >> 5) & 1
+
             recordEngine.appendFrame(image: image,
                                      steer: recSteer,
                                      throttle: recThrottle,
@@ -8279,7 +8392,8 @@ final class DriveState {
                                      speedKmh: recSpeed,
                                      headingDeg: recHeading,
                                      curvature: nil,
-                                     speedLimit: recSpeedLimit)
+                                     speedLimit: recSpeedLimit,
+                                     keys: recKeys)
             frames = recordEngine.frameCount
         }
     }

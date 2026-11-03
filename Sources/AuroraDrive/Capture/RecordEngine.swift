@@ -5,9 +5,12 @@
 //  RecordEngine.swift — 行驶录制引擎
 //  兼容现有 recordings/{perspective}_{timestamp}/ 格式：
 //    frames/00000.jpg   (640x360 JPEG)
-//    controls.csv       (t_sec,frame,steer,throttle,brake,speed_kmh,heading,curvature,speed_limit)
-//                       ⚠️ 9 列 v2 格式（2026-08 从 5 列扩容；原注释写 5 列已过期，
-//                          dataset_v2.py 期望 9 字段，缺 4 列会让模型把 0 当成真实状态学）
+//    controls.csv       17 列（2026-11-03 起）：
+//                       前 9 列 V2 连续量 t_sec,frame,steer,throttle,brake,
+//                       speed_kmh,heading,curvature,speed_limit（V2/Mono 训练用）
+//                       后 8 列 V3 原生按键 w,a,s,d,shift,space,super_brake,ultimate_brake
+//                       （V3 训练用；dataset_v3 按列名取值、忽略多余列，
+//                         dataset_v2 先判 speed_kmh+curvature → v2_new，故一份数据喂两条管道）
 //    meta.json          (录制元信息)
 //  设计要点：
 //    1) 异步写盘 —— 主线程只入队，后台串行队列做缩放+写文件
@@ -19,6 +22,40 @@ import AppKit
 import Foundation
 import Observation
 import CoreVideo
+
+/// 一帧的原始按键状态（V3 纯按键标签）
+///
+/// 【为什么要有它】V3 模型的输出是**离散按键**（vertical/horizontal/handbrake/
+///   brake/super_brake/ultimate 全部由这 6 个原子键决定），标签必须就是
+///   "当时按了哪些键"，而不能是 `RecordLabelMapper` 把按住时长平滑成的比例
+///   ——那是 V2/Mono 连续量模型的标签语义，V3 的训练端（`src/dataset_v3.py`）
+///   会直接拒收 9 列连续量格式。
+///
+/// 【为什么不直接写 8 个 Int 参数】appendFrame 已有 8 个参数，再加 8 个会失控；
+///   打包成一个值类型，调用方语义也更清楚（传"这一帧按了什么"）。
+///
+/// 【组合键为什么在这里算，而不是让调用方传】
+///   `dataset_v3.validate_row` 强制要求 super_brake == (shift and space)、
+///   ultimate == (shift and space and s)，不一致直接抛错。集中在这里推导，
+///   只有一处实现，杜绝调用方写错导致整批数据被拒。
+struct RawKeySample {
+    var w = 0
+    var a = 0
+    var s = 0
+    var d = 0
+    var shift = 0
+    var space = 0
+
+    /// Shift+空格 = 超级刹车（短按）；长按由下游按时长升格为极致刹车
+    var superBrake: Int { (shift == 1 && space == 1) ? 1 : 0 }
+    /// Shift+空格+S = 极致刹车。S 同时是**防翻车稳定键**（见 03-output-head.md 安全约束）
+    var ultimateBrake: Int { (shift == 1 && space == 1 && s == 1) ? 1 : 0 }
+
+    /// 是否有任何原子键按下（用于"本场有没有真的收到键盘"的健康检查）
+    var hasAnyKey: Bool {
+        w == 1 || a == 1 || s == 1 || d == 1 || shift == 1 || space == 1
+    }
+}
 
 /// 行驶录制引擎
 /// - @Observable：让 UI 观察录制状态与已录帧数
@@ -32,10 +69,17 @@ final class RecordEngine: @unchecked Sendable {
     /// 输出帧尺寸（16:9 横屏，与 m9_mono 输入 180×320 同比例；训练端 MonoClipsDataset 等比缩放）
     let targetSize = CGSize(width: 640, height: 360)
 
-    /// 录制帧率上限（Hz），与推理同频
-    /// 实际帧率以 appendFrame 调用频率为准，此值仅用于 meta 记录
-    /// ⚠️ 2026-10-11 用户定档：推理 20Hz（两档相同），故录制也 20
-    let targetFps: Double = 20
+    /// 录制帧率（Hz）。**必须与真实 tick 频率一致**，此值写进 meta.json 供下游反算时间轴。
+    ///
+    /// ⚠️ 2026-11-03 修正：原写 20（2026-10-11「推理 20Hz」定档），但该定档已于
+    ///   2026-10-22 被 15Hz 取代（`EngineMain.tickHz` 两档都返回 15.0，
+    ///   `captureHz(forPerceptionMode:)` 也是 15fps —— 见 EngineMain.swift:709 的定档说明）。
+    ///   因此实际 appendFrame 调用率是 15Hz，而 meta.json 一直谎报 20fps。
+    ///   影响是实打实的：`tools/auto_label.py:169` 用 `fps = meta["fps"]` 反算片段时长与
+    ///   抽帧下标 —— 40 秒的录制会被算成 30 秒，抽帧位置整体错位。
+    ///   同时 V3 数据集硬性要求 15fps（`dataset_v3.EXPECTED_FPS`，容差 15%），
+    ///   20 已超出容差会被拒收。
+    let targetFps: Double = 15
 
     /// 每类 clip 目录保留上限：只保留最近 N 个 clip（目录名 clip_<ts> 字典序≈时间序）。
     /// 录制启动时删除最旧目录，防 640×360 JPEG 20fps（像素量约 4.6×224²，估算日积约 153GB/天）无上限累积撑爆磁盘。
@@ -295,8 +339,23 @@ final class RecordEngine: @unchecked Sendable {
         //   返回 None → 该维 mask=0（"缺失补零"），模型可区分"真值 0 速度"与
         //   "读不到速度"。若写 0 就分不清了。
         let csvURL = sessionDir.appendingPathComponent("controls.csv")
+        // 9 列 v2 连续量（原有，V2/Mono 训练用）+ 8 列 v3 原生按键（追加在末尾）。
+        //
+        // 【为什么是"追加"而不是"换成 10 列纯按键"】
+        //   · 原有 9 列是 V2/Mono 训练管道在用的，删掉会直接废掉 V2 数据流；
+        //   · `dataset_v3.REQUIRED_COLUMNS` 只检查**必需列是否存在**、忽略多余列
+        //     （`_read_rows` 用 DictReader 按列名取值），所以追加即可被 V3 读取；
+        //   · `dataset_v2._detect_format` / `mono_dataset._detect_format` 都**先**判
+        //     `speed_kmh`+`curvature` → v2_new，所以带按键列的新文件仍走 V2 分支，
+        //     不会因为含 w/shift 被误判成 v3_keys 而拒收。
+        //   ⟹ 一份录制同时喂两条训练管道，不必二选一。
+        //
+        // 【V3 为什么还需要这 8 列】V3 输出的是离散按键标签，不是油门/转向连续量。
+        //   用 steer/throttle/brake 反推按键会丢信息（按住时长→比例是有损的），
+        //   而且用户明确要求"模型输出原生标签"。这 8 列就是原生标签。
         let header = "t_sec,frame,steer,throttle,brake,"
-            + "speed_kmh,heading,curvature,speed_limit\n"
+            + "speed_kmh,heading,curvature,speed_limit,"
+            + "w,a,s,d,shift,space,super_brake,ultimate_brake\n"
         FileManager.default.createFile(atPath: csvURL.path,
                                        contents: header.data(using: .utf8))
         csvHandle = FileHandle(forWritingAtPath: csvURL.path)
@@ -364,12 +423,13 @@ final class RecordEngine: @unchecked Sendable {
         //   判定阈值取 `labeledFrameCount == 0`（严格全零才报，避免误报）。
         if sessionExpertMode, totalFrames >= 30, labeledFrameCount == 0 {
             let warn = "[RecordEngine] 🚨🚨 专家模式标签全零告警：本会话 \(totalFrames) 帧，"
-                + "steer/throttle/brake **全部为 0**！\n"
-                + "     可能原因：① 引擎进程 KeyboardMonitor 收不到物理按键"
-                + "（dispatchMain 无 run loop / 未申请 Input Monitoring）；"
-                + "② 录制期间确实没按任何驾驶键。\n"
+                + "steer/throttle/brake 与 8 个按键列 **全部为 0**！\n"
+                + "     可能原因：① 物理按键没进到录制进程"
+                + "（引擎进程 dispatchMain 无 run loop，自身 KeyboardMonitor 收不到 NSEvent，"
+                + "  必须靠 UI 进程经 config/keyMask 转发）；"
+                + "② 输入监控权限缺失；③ 录制期间确实没按任何驾驶键。\n"
                 + "     ⟹ 该数据集**不可用于训练**（全是无效标签）。请先做「真按键验证」："
-                + "专家模式录 5 秒 + 物理按住 W，确认 CSV 的 throttle 非零。"
+                + "专家模式录 5 秒 + 物理按住 W，确认 CSV 的 throttle 与 w 列都非零。"
             print(warn)
         }
         // ── 2026-10-08 修复：meta.json 的 perspective 曾是**坏字段** ──
@@ -472,9 +532,12 @@ final class RecordEngine: @unchecked Sendable {
     ///   - headingDeg: 车头/相机朝向，**度**（dataset 侧期望口径；模型侧转弧度）
     ///   - curvature: 曲率（原始值，dataset 侧做归一）
     ///   - speedLimit: 限速 km/h
+    ///   - keys: 本帧的原始按键状态（V3 纯按键标签）。不传则全 0。
+    ///           V2 调用方（如 AIAgentPanel）只关心连续量，无需传。
     func appendFrame(image: NSImage, steer: Double, throttle: Double, brake: Double,
                      speedKmh: Double? = nil, headingDeg: Double? = nil,
-                     curvature: Double? = nil, speedLimit: Double? = nil) {
+                     curvature: Double? = nil, speedLimit: Double? = nil,
+                     keys: RawKeySample = RawKeySample()) {
         guard isRecording, let start = startTime, let url = sessionURL else { return }
 
         let timestamp = Date().timeIntervalSince(start)
@@ -490,9 +553,12 @@ final class RecordEngine: @unchecked Sendable {
 
         let idx = frameCount
         frameCount += 1
-        // 标签健康统计（w4-tools V4 发现的对策）：三个控制量任一非 0 即视为"有标签"。
+        // 标签健康统计（w4-tools V4 发现的对策）：任一标签非 0 即视为"有标签"。
         // 专家模式下若整场 labeledFrameCount == 0 → stop() 会大声报警（静默失效防线）。
-        if abs(steer) > 1e-9 || throttle > 1e-9 || brake > 1e-9 {
+        //
+        // 2026-11-03：按键也算标签。V3 的标签就是按键，若只看 steer/throttle/brake，
+        // 会出现"录到了按键但 labeledFrameCount 仍为 0"的误报警（反之亦然）。
+        if abs(steer) > 1e-9 || throttle > 1e-9 || brake > 1e-9 || keys.hasAnyKey {
             labeledFrameCount += 1
         }
         pendingLock.lock()
@@ -521,17 +587,28 @@ final class RecordEngine: @unchecked Sendable {
 
                     // ── 2. 追加 CSV 行 ──
                     //
-                    // 格式：t_sec,frame,steer,throttle,brake,speed_kmh,heading,curvature,speed_limit
-                    // 后 4 列为**可选车辆状态**：nil → 空串（dataset 侧 → None → mask=0）。
-                    // ⚠️ 不能写 0 代替缺失 —— 那样 dataset 分不清"真值 0 速度"与"读不到"。
+                    // 列序：t_sec,frame,steer,throttle,brake,speed_kmh,heading,
+                    //       curvature,speed_limit,w,a,s,d,shift,space,
+                    //       super_brake,ultimate_brake   （共 17 列）
+                    // 前 9 列：V2/Mono 连续量。后 4 列车辆状态 nil → 空串
+                    //   （dataset 侧 → None → mask=0）。⚠️ 不能写 0 代替缺失 ——
+                    //   那样 dataset 分不清"真值 0 速度"与"读不到"。
+                    // 后 8 列：V3 原生按键标签（super/ultimate 已在 RawKeySample 内推导）。
                     func fmtOpt(_ v: Double?) -> String {
                         guard let v, v.isFinite else { return "" }
                         return String(format: "%.4f", v)
                     }
-                    let line = String(format: "%.4f,%ld,%.4f,%.4f,%.4f,%@,%@,%@,%@\n",
+                    // 用拼接字符串走 %@，而不是 8 个 %d 占位符：
+                    // Swift 的 Int 在 CVarArg 里宽度与 C 的 %d 不匹配（%d 期望
+                    // Int32），混用会读到错位或垃圾值。%@ 传 String 没有这个问题。
+                    let keyCols = "\(keys.w),\(keys.a),\(keys.s),\(keys.d),"
+                        + "\(keys.shift),\(keys.space),"
+                        + "\(keys.superBrake),\(keys.ultimateBrake)"
+                    let line = String(format: "%.4f,%ld,%.4f,%.4f,%.4f,%@,%@,%@,%@,%@\n",
                                       timestamp, idx, steer, throttle, brake,
                                       fmtOpt(speedKmh), fmtOpt(headingDeg),
-                                      fmtOpt(curvature), fmtOpt(speedLimit))
+                                      fmtOpt(curvature), fmtOpt(speedLimit),
+                                      keyCols)
                     if let data = line.data(using: .utf8) {
                         self.csvHandle?.write(data)
                     }

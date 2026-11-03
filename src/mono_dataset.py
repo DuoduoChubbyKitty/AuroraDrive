@@ -139,10 +139,31 @@ def _load_controls_csv(csv_path: Path) -> Tuple[List[Dict], str]:
                 }
                 if fmt == "v2_new":
                     # 新格式：从 sidecar 物理量构造 6 维 vehicle_state
-                    speed_kmh = float(r.get("speed_kmh", 0.0))
-                    curvature = float(r.get("curvature", 0.0))
-                    heading = float(r.get("heading", 0.0))
-                    speed_limit = float(r.get("speed_limit", 60.0))
+                    #
+                    # ⚠️ 2026-11-03 修复（实测暴露的数据丢失）：
+                    #   录制器对读不到的车辆状态**写空串**（这是对的：空串 → 缺失 →
+                    #   mask=0，能区分"真值 0"与"读不到"；写 0 就分不清了）。
+                    #   但这里原先直接 float(r.get(...)) —— 空串会抛 ValueError，
+                    #   被外层 except 吞掉 → **整个样本被丢弃**，不只是丢掉车辆状态那几维。
+                    #   实测：17 列文件 5 行里有 3 行 speed/heading 为空 → 只解析出 2 行。
+                    #   速度读不到是录制常态（SpeedOCR 常失败），等于**大部分数据静默消失**。
+                    #   现在：空值/非数字 → 该维按缺失填 0（与旧格式零向量口径一致），
+                    #   绝不因为车辆状态缺一项就丢掉整帧控制标签。
+                    def _opt_float(v, default: float) -> float:
+                        if v is None:
+                            return default
+                        s = str(v).strip()
+                        if s == "":
+                            return default
+                        try:
+                            return float(s)
+                        except ValueError:
+                            return default
+
+                    speed_kmh = _opt_float(r.get("speed_kmh"), 0.0)
+                    curvature = _opt_float(r.get("curvature"), 0.0)
+                    heading = _opt_float(r.get("heading"), 0.0)
+                    speed_limit = _opt_float(r.get("speed_limit"), 60.0)
                     row["vehicle_state"] = np.array([
                         # 全部归一化到 [-1, 1] 或 [0, 1]，匹配 M9-Mono 训练分布
                         np.clip(speed_kmh / 120.0, 0.0, 1.0),         # speed_norm

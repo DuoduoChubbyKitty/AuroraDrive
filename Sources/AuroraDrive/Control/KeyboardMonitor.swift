@@ -75,6 +75,8 @@ final class KeyboardMonitor {
     /// 全局监听句柄（启动时保存，停止时移除）
     private var keyDownMonitor: Any?
     private var keyUpMonitor: Any?
+    /// 修饰键监听句柄（.flagsChanged）
+    private var flagsMonitor: Any?
 
     // MARK: - 启动 / 停止
 
@@ -100,6 +102,20 @@ final class KeyboardMonitor {
         keyUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyUp) { [weak self] event in
             self?.handleKeyUp(keyCode: event.keyCode)
         }
+
+        // 监听修饰键变化（.flagsChanged）
+        //
+        // 【为什么必须有】修饰键（Shift/Ctrl/Alt/Cmd）按下与松开**只产生
+        //   flagsChanged**，不产生 keyDown/keyUp（本机实测：合成为 Shift 时
+        //   down/up 两相的事件类型都是 12=flagsChanged）。
+        //   而 Shift 在本项目里是**手刹**（用户确认的键位语义），也是超级刹车
+        //   （Shift+Space）与极致刹车（Shift+Space+S）的前置条件。
+        //   没有这条监听 → heldKeys 永远不含 56 → 录制出的 controls.csv 里
+        //   shift 列全程为 0 → handbrake/super_brake/ultimate 三个安全头
+        //   一个正样本都拿不到，训练出来的模型永远不会拉手刹。
+        flagsMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            self?.handleModifierFlags(event)
+        }
     }
 
     /// 停止全局键盘监听
@@ -111,6 +127,10 @@ final class KeyboardMonitor {
         if let monitor = keyUpMonitor {
             NSEvent.removeMonitor(monitor)
             keyUpMonitor = nil
+        }
+        if let monitor = flagsMonitor {
+            NSEvent.removeMonitor(monitor)
+            flagsMonitor = nil
         }
         heldKeys.removeAll()
         keyDownTimes.removeAll()
@@ -137,6 +157,51 @@ final class KeyboardMonitor {
         // ET-2：松开同理（短路顺序同上）
         if let onUserKeyUp, Self.controlledKeyCodes.contains(keyCode) {
             onUserKeyUp()
+        }
+    }
+
+    /// 修饰键左/右键码 → 对应的 flags 位。
+    ///
+    /// 为什么统一映射到**左**键码：`modifierFlags` 里左右两侧共用同一位，
+    /// 无法区分；而项目（`ControlEngine.gameKeyToKeyCode`）只用左键码
+    /// （Shift=56、Ctrl=59）。统一到左键码，`isHeld(56)` 对左右 Shift
+    /// 都成立，语义是"Shift 是否按住"。
+    private static let modifierKeyCodes: [(keyCode: CGKeyCode, mask: NSEvent.ModifierFlags)] = [
+        (56, .shift),      // 左 Shift（56）；右 Shift=60，共用 .shift 位
+        (59, .control),    // 左 Ctrl （59）；右 Ctrl =62
+        (58, .option),     // 左 Option(58)；右 Option=61
+        (55, .command),    // 左 Cmd  （55）；右 Cmd  =54
+    ]
+
+    /// 修饰键状态变化处理（.flagsChanged）
+    ///
+    /// 【为什么不能翻转状态位】修饰键按住期间，按下任意其它键都会再派发一次
+    /// flagsChanged（带同样的修饰位）。若按"每次事件翻转"实现，第二次事件
+    /// 就会把 Shift 错误翻成松开 → 手刹丢失。录制器 C 版踩过同一个坑
+    /// （见 `tools/aurora_recorder.c` 中 `recorder_update_modifier_state` 的注释，
+    ///   `tools/test_recorder_derive.c` 有对应回归用例）。
+    /// 因此一律以事件携带的 `modifierFlags` **实际状态**为准，只在状态
+    /// 真正发生变化时才更新 heldKeys 与计时。
+    ///
+    /// 【为什么不复用 handleKeyDown / handleKeyUp】那两个方法会触发
+    /// `onUserKeyDown/Up` → UI 侧向引擎发 `takeover`（让位）信号。
+    ///   56/59 在 `controlledKeyCodes` 里，而 Shift 是本项目的**手刹**；
+    ///   若复用，按手刹就会变成"用户要接管" —— 这是本次改动**不应引入**的语义
+    ///   变化（加监听前 Shift 根本收不到，从不触发让位）。故这里只更新键状态。
+    private func handleModifierFlags(_ event: NSEvent) {
+        let flags = event.modifierFlags
+        for (keyCode, mask) in Self.modifierKeyCodes {
+            let isPhysicallyHeld = flags.contains(mask)
+            let wasHeld = heldKeys.contains(keyCode)
+            // 状态未变（含"按住期间按其它键"产生的重复事件）→ 不重置计时
+            guard isPhysicallyHeld != wasHeld else { continue }
+            if isPhysicallyHeld {
+                heldKeys.insert(keyCode)
+                keyDownTimes[keyCode] = Date()
+            } else {
+                heldKeys.remove(keyCode)
+                keyDownTimes.removeValue(forKey: keyCode)
+            }
         }
     }
 

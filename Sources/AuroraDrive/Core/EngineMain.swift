@@ -1232,6 +1232,9 @@ enum EngineMain {
         // ── 7. DriveState 闭环 + 45Hz tick（照搬 ContentView 驱动方式）──
         MainActor.assumeIsolated {
             EngineGlobals.state = DriveState()
+            // 标记本 DriveState 活在引擎进程：本进程无 run loop（dispatchMain），
+            // 收不到 NSEvent → 录制按键必须用 UI 转发的 remoteKeyMask。
+            EngineGlobals.state?.isEngineHost = true
             EngineGlobals.shm = shm
             EngineGlobals.socket = server
             // 全分辨率帧接线（供 UI 插帧 / 清晰显示）：
@@ -2066,6 +2069,9 @@ enum EngineMain {
             let cGlyph = obj["glyph"] as? Bool
             let cThresh = obj["degradeThreshold"] as? Double
             let cSpeedLimit = obj["speedLimit"] as? Double
+            // V3 原生按键位掩码（UI 进程采样物理键盘后转发）。引擎进程无 run loop
+            // （dispatchMain）→ 本进程 KeyboardMonitor 收不到 NSEvent，只能用这个。
+            let cKeyMask = obj["keyMask"] as? Int
             // ── ET-5：应急接管「用户接管让位」信号（2026-10-12，task-111）──
             //
             // 【为什么必须走 config 下发】ET-6 审计（§4）实测确认：
@@ -2099,6 +2105,10 @@ enum EngineMain {
                     if let v = cCtrlDisabled { st.controlDisabled = v }
                     if let v = cForceRule { st.forceRuleMode = v }
                     if let v = cExpert { st.expertMode = v }
+                    // V3 按键掩码：UI 进程采样物理键盘后转发。
+                    // 本进程（引擎）无 run loop → KeyboardMonitor 收不到 NSEvent，
+                    // 录制时的按键标签只能靠这个值，否则整场 8 列全为 0。
+                    if let v = cKeyMask { st.remoteKeyMask = v }
                     if let v = cGlyph { st.glyphMode = v }
                     if let v = cThresh { st.degradeThreshold = v }
                     // 消化模式：同步到引擎的 ControlEngine（唯一真注入方）
@@ -2145,6 +2155,9 @@ enum EngineMain {
                     if let v = cDigest { applied["digest"] = v }
                     // ET-5：takeover 也纳入回显（UI 可据此确认引擎真的收到了让位信号）
                     if let v = cTakeover { applied["takeover"] = v }
+                    // 按键掩码回显：录出来按键全 0 时，UI 侧可据此区分
+                    // 「UI 没采到键」与「引擎没收到转发」两种原因。
+                    if let v = cKeyMask { applied["keyMask"] = v }
 
                     // ── task-93：档位感知的动态 tick 频率 ──
                     // 立即生效 vs 录制中挂起，由 applyPerceptionMode 内部判定；
