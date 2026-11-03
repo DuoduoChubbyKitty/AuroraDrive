@@ -6,9 +6,14 @@
 #   controls.csv 表头 t_sec,frame,steer,throttle,brake → _load_controls_csv 读 steer/throttle/brake
 #   view.txt (FPV/TPV)         → _clip_view 视角过滤
 import csv
+import sys
 from pathlib import Path
 
+# 默认校验正式录制目录；可传目录参数校验任意位置（临时夹具、备份盘、导出盘）。
+# 用法: python3 tools/verify_recording.py [CLIPS_DIR]
 ROOT = Path("/Users/dupi/Desktop/自动驾驶系统/data/raw_clips")
+if len(sys.argv) > 1:
+    ROOT = Path(sys.argv[1])
 EXPECTED_HEADER = ["t_sec", "frame", "steer", "throttle", "brake"]
 
 def verify():
@@ -62,6 +67,58 @@ def verify():
                         n = sum(1 for r in rows if r.get(key) == "1")
                         stat.append(f"{label}={n}")
                     info.append(f"控制行={len(rows)}  " + " ".join(stat))
+
+                    # ── 以下三项是 V3KeyDataset 加载时的硬性校验，这里提前查 ──
+                    # 必须与 data 侧规则一致，否则本脚本报 OK、训练端却拒绝加载
+                    # （审查 P1 的教训：口径不一致会让人误以为数据没问题）。
+
+                    # (1) frame 列必须与行号严格一致
+                    bad_frame = [
+                        (i, r.get("frame")) for i, r in enumerate(rows)
+                        if str(r.get("frame", "")).strip() != str(i)
+                    ]
+                    if bad_frame:
+                        i0, f0 = bad_frame[0]
+                        issues.append(
+                            f"frame 列与行号不一致（共 {len(bad_frame)} 行，首个: 第{i0}行 frame={f0}）"
+                            " → 图像与标签会错配，训练端会拒绝加载")
+                    else:
+                        info.append("frame 列与行号严格一致")
+
+                    # (2) 实际帧率必须接近 15fps（用 t_sec 实数差，不看 clip.json 声明）
+                    try:
+                        ts = [float(r["t_sec"]) for r in rows]
+                        dts = sorted(b - a for a, b in zip(ts, ts[1:]) if b > a)
+                        if dts:
+                            med = dts[len(dts) // 2]
+                            fps = 1.0 / med if med > 0 else 0.0
+                            if abs(fps - 15.0) / 15.0 > 0.15:
+                                issues.append(
+                                    f"实际帧率约 {fps:.1f}fps，与 V3 假设的 15fps 不符"
+                                    "（V3 的 24 帧窗口按 15Hz=1.6s 设计），训练端会拒绝加载")
+                            else:
+                                info.append(f"实际帧率 {fps:.1f}fps（V3 要求 15fps）")
+                        else:
+                            issues.append("t_sec 无有效递增，无法判定帧率")
+                    except (KeyError, ValueError) as exc:
+                        issues.append(f"t_sec 解析失败: {exc}")
+
+                    # (3) 整场必须有按键（否则标签全 0，训练价值为零）
+                    labeled = sum(
+                        1 for r in rows
+                        if any(r.get(k) == "1" for k in
+                               ("w", "a", "s", "d", "shift", "space"))
+                    )
+                    if labeled == 0:
+                        issues.append("整场没有任何一帧检测到按键 → 标签列全 0，不能训练")
+                    else:
+                        info.append(f"有按键帧={labeled}/{len(rows)} "
+                                    f"({labeled / len(rows) * 100:.1f}%)")
+                        # Shift 是手刹/超级刹车/极致刹车的必要条件，零则三个安全头无正样本
+                        if not any(r.get("shift") == "1" for r in rows):
+                            issues.append(
+                                "整场 shift 从未为 1 → handbrake/super_brake/ultimate "
+                                "三个安全头不会有任何正样本（若确实没用手刹可忽略）")
             elif h[:5] == EXPECTED_HEADER:
                 if "reverse" in h:
                     info.append("controls.csv 表头 OK (v2 9 列格式，S/空格已分开)")
