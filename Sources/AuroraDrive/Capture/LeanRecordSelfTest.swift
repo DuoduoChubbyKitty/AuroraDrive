@@ -354,6 +354,57 @@ enum LeanRecordSelfTest {
             check("第三段 clip 存在", false)
         }
 
+        // ── 第四段：分段回调 onSegmentClosed（不变量 ⑧）──
+        // 为什么需要这一段：10 分钟自动分段会把一次长录切成多段，若只有"最后一段"
+        // 被标注，前面的中间段 speed_kmh 会永久为空 —— 训练端 speed_valid=0，
+        // 速度特征整路没数据，而录制日志一切正常、屏外完全看不出来。
+        // 判据：缩短 maxSegmentSeconds 触发真实轮转，断言回调**每段都触发一次**。
+        //
+        // ⚠️ 轮转块在主线程 `DispatchQueue.main.async` 里执行，而本自检也在主线程
+        //    同步跑 —— 不抽主运行循环的话那段永远不会执行（测试会假失败）。
+        print("  ── 第四段：分段回调（每段都要被标注）──")
+        let rotateEngine = LeanRecordEngine()
+        rotateEngine.clipsRootOverride = root.appendingPathComponent("rotation")
+        rotateEngine.keyProvider = { RawKeySample() }
+        rotateEngine.poseProvider = { (nil, nil) }
+        rotateEngine.maxSegmentSeconds = 0.05          // 70ms/帧 → 第 2 帧即触发轮转
+        var closedPaths: [String] = []
+        rotateEngine.onSegmentClosed = { closedPaths.append($0) }
+        check("第四段 start() 成功", rotateEngine.start(), rotateEngine.lastError ?? "")
+
+        rotateEngine.appendFrame(pixelBuffer: buffer)  // 第 1 帧：不触发
+        usleep(70_000)
+        rotateEngine.appendFrame(pixelBuffer: buffer)  // 第 2 帧：触发轮转 → main.async
+
+        // 抽主运行循环，让轮转块里的 stop()+start() 真正执行（有界等待，不靠盲睡）
+        let rotateDeadline = Date().addingTimeInterval(2.0)
+        while closedPaths.isEmpty && Date() < rotateDeadline {
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01))
+        }
+        check("轮转触发 onSegmentClosed", closedPaths.count == 1, "实际 \(closedPaths.count) 次")
+
+        // ⚠️ 必须把阈值调回去：新段沿用 0.05s 的话，下面 sleep 70ms 后再喂帧会
+        //    立刻再次触发轮转（elapsed 70ms ≥ 50ms），断言会变成 3 次/3 段而假失败。
+        rotateEngine.maxSegmentSeconds = 600
+        usleep(70_000)                                // 越过 minGap，让新段接受下一帧
+        rotateEngine.appendFrame(pixelBuffer: buffer)  // 新段 1 帧
+        rotateEngine.stop()                           // 收尾 → 再触发一次
+
+        check("停录也触发 onSegmentClosed（共 2 次）", closedPaths.count == 2,
+              "实际 \(closedPaths.count) 次")
+        let rotateClips = clips(in: root.appendingPathComponent("rotation"))
+        check("轮转产出 2 个 clip 目录", rotateClips.count == 2, "实际 \(rotateClips.count)")
+        // 每段都必须是"可直接标注的完整产物"：有 controls.csv 且 frames/ 可读
+        let usable = closedPaths.allSatisfy { p in
+            let u = URL(fileURLWithPath: p)
+            return FileManager.default.fileExists(atPath: u.appendingPathComponent("controls.csv").path)
+                && FileManager.default.fileExists(atPath: u.appendingPathComponent("meta.json").path)
+        }
+        check("回调路径都是完整产物（含 controls.csv + meta.json）", usable,
+              closedPaths.map { ($0 as NSString).lastPathComponent }.joined(separator: ","))
+        check("两段回调路径互不相同", Set(closedPaths).count == closedPaths.count,
+              closedPaths.map { ($0 as NSString).lastPathComponent }.joined(separator: ","))
+
         print("")
         print(failures == 0
               ? "✅ 精简录制器自检全部通过"

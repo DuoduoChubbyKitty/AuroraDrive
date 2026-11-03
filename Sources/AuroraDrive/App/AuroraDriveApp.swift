@@ -4406,10 +4406,12 @@ final class DriveState {
             syncLeanMirror()
             if let path = leanRecorder.lastClipPath {
                 leanLastClipPath = path
-                // 录完就自动标注（用户要求：「录完之后自动标注，带进度」）。
-                // 走子进程：速度 OCR 是 @MainActor 同步全量循环，同进程跑会冻界面。
-                startLeanAnnotation(clipPath: path)
             }
+            // 录完就自动标注（用户要求：「录完之后自动标注，带进度」）。
+            // 统一走队列入口：`stop()` 内部已通过 `onSegmentClosed` 把这一段入队，
+            // 这里只需把它推起来；不要再直接调 startLeanAnnotation —— 那会对同一段
+            // 排两次队，把整份 CSV 无谓地重写一遍。
+            pumpLeanAnnotationQueue()
             // 与开录时的键盘监听成对：非驾驶、且旧录制器也没在用 → 才停监听，
             // 否则会把「录制」按钮（RecordEngine）需要的键盘状态一起关掉。
             if !isDriving && !isRecording { keyboardMonitor.stop() }
@@ -4436,12 +4438,11 @@ final class DriveState {
     ///   见 LeanAnnotator.swift 头注释：速度 OCR 是 @MainActor 同步全量循环，
     ///   9000 帧在 UI 进程里跑会冻结界面几十秒。子进程有独立主线程与独立模型。
     ///
-    /// 【深度 1 待办队列】
-    ///   标注跑到一半又录完一段时，`start()` 会因已有进程在跑而返回 false。
-    ///   这里不丢任务：记下路径，等当前这轮结束再接着跑（10 分钟自动分段会连续产出多段）。
+    /// 【为什么还要队列】`start()` 只能有一个子进程在跑。10 分钟自动分段会连续
+    ///   产出多段，重复调用必须排队而不是互相覆盖（覆盖会让前面的段永久缺 speed_kmh）。
     func startLeanAnnotation(clipPath: String) {
         guard !leanAnnotateRunner.isRunning else {
-            leanPendingAnnotatePath = clipPath
+            enqueueLeanAnnotation(clipPath: clipPath)
             dlog("[LEAN] 上一段仍在标注，已排队：\(clipPath)")
             return
         }
@@ -4466,10 +4467,9 @@ final class DriveState {
                     + (detail.isEmpty ? "子进程无输出" : String(detail.suffix(200)))
                 dlog("[LEAN] ❌ 标注失败 code=\(code)")
             }
-            if let pending = self.leanPendingAnnotatePath {
-                self.leanPendingAnnotatePath = nil
-                self.startLeanAnnotation(clipPath: pending)
-            }
+            // 本轮结束：取队列下一段。仍然只在「停录后」才继续，
+            // 免得录制中途起 OCR 抢 CPU 把正在录的这段帧率挤出容差。
+            self.pumpLeanAnnotationQueue()
         }
         leanAnnotateProgress = 0
         leanAnnotateStage = "启动"
@@ -4483,6 +4483,29 @@ final class DriveState {
             return
         }
         dlog("[LEAN] ▶ 离线标注开始：\(clipPath)")
+    }
+
+    /// 登记一段待标注剪辑（去重后入队）。
+    ///
+    /// 去重是必需的：`leanRecorder.stop()` 内部会经 `onSegmentClosed` 上报一次，
+    /// 手动停录的调用方还会显式启动一次；不去重就会把整份 CSV 重写两遍。
+    func enqueueLeanAnnotation(clipPath: String) {
+        if leanPendingAnnotatePaths.contains(clipPath) { return }
+        leanPendingAnnotatePaths.append(clipPath)
+    }
+
+    /// 消费标注队列：**只在没在录制、且没有标注进程在跑时**启动下一段。
+    ///
+    /// 【为什么录制期间必须停手】速度 OCR 与抓屏争 CPU，正在录的那段一旦被拖到
+    ///   帧率偏离 15fps 超过 ±15%，`dataset_v3` 会直接拒载 —— 为标注旧段而毁掉
+    ///   正在录的新段，得不偿失。
+    /// 【为什么还要 tick 兜底】子进程异常退出时 `onFinish` 理论上必被调用，但
+    ///   多一个幂等入口可避免队列永久卡死（本函数只读几个标志，30Hz 调用可忽略）。
+    func pumpLeanAnnotationQueue() {
+        guard !leanRecorder.isRecording, !leanAnnotateRunner.isRunning else { return }
+        guard !leanPendingAnnotatePaths.isEmpty else { return }
+        let next = leanPendingAnnotatePaths.removeFirst()
+        startLeanAnnotation(clipPath: next)
     }
 
     /// 把当前按键掩码转发给引擎进程（仅引擎模式、仅录制中、仅变化时）。
@@ -5617,8 +5640,14 @@ final class DriveState {
     /// 离线标注子进程的运行器（停录后自动拉起）。
     /// 与 leanRecorder 同理是 @ObservationIgnored：进度靠上面的可观察字段镜像。
     @ObservationIgnored let leanAnnotateRunner = LeanAnnotateRunner()
-    /// 待标注的下一段（深度 1）。10 分钟自动分段会连续产出多段，标注一次只跑一个进程。
-    @ObservationIgnored private var leanPendingAnnotatePath: String?
+    /// 待标注剪辑的 FIFO 队列。
+    ///
+    /// 【为什么是队列而不是单个变量】10 分钟自动分段会把一次长录切成多段，每段
+    ///   收尾都要标注；单变量会让后一段**覆盖**前一段，前面的段永久缺失 speed_kmh
+    ///   （训练端 speed_valid=0，速度这一路等于没数据，而录制日志一切正常、屏外看不出）。
+    /// 【为什么录制期间不消费】OCR 与抓屏抢 CPU，帧率被挤出 dataset_v3 的
+    ///   15±15% 容差会让正在录的这段整段作废。故只在停录后开始消费。
+    @ObservationIgnored private var leanPendingAnnotatePaths: [String] = []
 
     // ══════════════════════════════════════════════════════════════════════════
     // ⚠️ 2026-09-30 性能修复：这两个属性改为 @ObservationIgnored
@@ -6481,6 +6510,14 @@ final class DriveState {
             self.leanSnapshotLock.lock()
             defer { self.leanSnapshotLock.unlock() }
             return (self.leanPoseSnapshot, self.leanAccelSnapshot)
+        }
+        // 每段收尾都登记待标注（含 10 分钟自动分段切出来的中间段）。
+        // stop() 在主动停录与轮转切段两种情形下都在主线程调用；这里再兜一次
+        // main.async，确保入队一定落在主线程 —— 队列与 runner 都是主线程状态。
+        leanRecorder.onSegmentClosed = { [weak self] path in
+            DispatchQueue.main.async {
+                self?.enqueueLeanAnnotation(clipPath: path)
+            }
         }
         captureEngine.onStatusChange = { [weak self] status in
             DispatchQueue.main.async {
@@ -7469,6 +7506,9 @@ final class DriveState {
         // leanRecorder 是 @ObservationIgnored 的类实例，其内部 isRecording/frameCount
         // 变化不会触发 SwiftUI 刷新；这里镜像到可观察字段（内部先比后写，避免空转重绘）。
         syncLeanMirror()
+        // 标注队列兜底推进：录制中会被 pump 内部的门禁挡掉（不抢 CPU），
+        // 停录后若 onFinish 因异常未触发，这里也能把队列接着跑下去。
+        pumpLeanAnnotationQueue()
 
         // ── 引擎模式：只拉取显示数据，本地抓屏/推理/按键全部不跑 ──
         if EngineClient.shared.isActive {

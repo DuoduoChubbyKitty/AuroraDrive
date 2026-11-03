@@ -129,6 +129,16 @@ final class LeanRecordEngine: @unchecked Sendable {
     /// 朝向语义是**相机朝向**（见 `headingIsCamera`）。
     var poseProvider: () -> (pose: Pose?, accel: Vec3?) = { (nil, nil) }
 
+    /// 每关闭一段就回调一次（含 10 分钟自动分段切出来的中间段），参数是产物目录路径。
+    ///
+    /// 【为什么需要它】一次长录会被切成多段，若只标注"最后一段"，前面的中间段
+    ///   `speed_kmh` 会永久为空 —— 训练端 `speed_valid=0`，速度这一路特征等于没数据，
+    ///   而且屏外完全看不出来（录制日志一切正常）。
+    /// 【为什么由被叫方决定何时标注】本类只在段收尾那一刻报告"这段完事了"，
+    ///   不做任何耗 CPU 的活：录制期间跑 OCR 会与抓屏抢 CPU，帧率被挤出
+    ///   `dataset_v3` 的 15±15% 容差会让整段数据作废。
+    var onSegmentClosed: ((String) -> Void)?
+
     // MARK: 可观察状态
 
     private(set) var isRecording = false
@@ -245,6 +255,13 @@ final class LeanRecordEngine: @unchecked Sendable {
         if !gotPose {
             print("[lean] ⚠️ 本段全程没有可用定位（抓包未锁上？游戏未开始？）"
                   + " → CSV 的 x/y/z/pitch/heading/accel 列为空，meta.json 已标记 pcap_ok=false")
+        }
+        // 报告"这一段收尾了"。放在所有收尾动作之后：此时 CSV 句柄已关、
+        // meta.json 已写，回调方拿到的是一份可直接标注的完整产物。
+        // 自动分段时本方法由轮转逻辑调用，随后立刻 start() 开新段 ——
+        // 所以回调**只能登记路径，不能在这里做标注**（会与新段抓屏抢 CPU）。
+        if let closedPath = lastClipPath {
+            onSegmentClosed?(closedPath)
         }
     }
 
