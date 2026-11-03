@@ -9,10 +9,21 @@
 //  实际跑起来太重、会拖慢采集。用户 2026-11-03 拍板：另做一套**极薄**的录制器，
 //  录制期**什么模型都不跑**，把重活全部推到录制结束后的离线标注。
 //
-//  ── 录制期做什么（有且只有三件）──────────────────────────────────────────
+//  ── 录制期做什么（有且只有两件）──────────────────────────────────────────
 //    1. 把抓屏层送来的**全分辨率**帧编码成 JPEG 落盘
 //    2. 按 15Hz 记时间戳与**按键快照**（按键就是 V3 的训练标签）
-//    3. 从抓包解析里取 位置 / 朝向 / 加速度（`CoordinateCapture`，libpcap）
+//
+//  ── 为什么**不**录定位（2026-11-03 用户否决；原设计确实多此一举）──────────
+//    最初这里还从 libpcap 解析位置/朝向/加速度，并按 19 列落盘。用户直接否掉：
+//    「定位他妈不是给人看的吗？为什么我们要把定位加进去？」
+//    理由站得住，我确实想多了：
+//      · V3 学的是 **画面 → 按键**。定位既不是模型输入，也不是监督信号；
+//        `dataset_v3` 的 REQUIRED_COLUMNS 只要求 t_sec/frame/8 个按键，
+//        它**一个字段都不读** x/y/z/pitch/heading/accel。
+//      · 定位是给人看的地图信息，属**展示层**，与训练数据无关。
+//      · 抓包要锁网卡、要权限，抓不到就整列留空 —— 为一个训练端不读的列，
+//        给录制器引入一条会失败、会告警、要维护的外部依赖，是净负担。
+//    ⟹ 整列删除。CSV 从 19 列缩到 11 列，`poseProvider` 接线一并移除。
 //
 //  ── 录制期**不**做什么（全部离线）────────────────────────────────────────
 //    · 速度 OCR：全屏原图里天然带着速度表，离线裁 `speedROINorm` 区域再识别。
@@ -46,7 +57,7 @@ import Observation
 
 /// 一次精简录制的元信息。
 /// 为什么要把这些写进 meta：录制期的"静默失效"事后无法从数据本身反推
-/// （例如抓包全程没锁上 → 定位列全空，但文件看起来完全正常）。
+/// （例如帧率被挤出容差 → 训练端整段拒载，但文件看起来完全正常）。
 struct LeanRecordMeta {
     var fps: Double
     var width: Int
@@ -55,10 +66,6 @@ struct LeanRecordMeta {
     var framesFailed: Int
     var durationSeconds: Double
     var segmentIndex: Int
-    /// 定位是否可用（抓包锁上网卡且解析出过坐标）
-    var pcapOK: Bool
-    /// 朝向语义：**相机朝向，不是车辆朝向**（用户 2026-11-03 确认的已知缺陷）
-    var headingIsCamera: Bool
     var note: String
 
     func jsonObject(createdAt: String) -> [String: Any] {
@@ -73,9 +80,6 @@ struct LeanRecordMeta {
             "frames_complete": framesFailed == 0,
             "duration_seconds": durationSeconds,
             "segment_index": segmentIndex,
-            "pcap_ok": pcapOK,
-            "heading_semantics": "camera",
-            "heading_is_camera_not_vehicle": headingIsCamera,
             "speed_source": "offline_ocr",
             "needs_annotation": true,
             "note": note,
@@ -125,10 +129,6 @@ final class LeanRecordEngine: @unchecked Sendable {
     /// 取当前按键快照。UI 进程注入 → `keyboardMonitor` 的实时状态。
     var keyProvider: () -> RawKeySample = { RawKeySample() }
 
-    /// 取当前定位与加速度。返回 nil 表示这一帧没有可用定位（抓包未锁上/未进游戏）。
-    /// 朝向语义是**相机朝向**（见 `headingIsCamera`）。
-    var poseProvider: () -> (pose: Pose?, accel: Vec3?) = { (nil, nil) }
-
     /// 每关闭一段就回调一次（含 10 分钟自动分段切出来的中间段），参数是产物目录路径。
     ///
     /// 【为什么需要它】一次长录会被切成多段，若只标注"最后一段"，前面的中间段
@@ -151,8 +151,6 @@ final class LeanRecordEngine: @unchecked Sendable {
     ///   写它会跨线程改注册表状态（本类 :375 附近的注释已就这一点警告过 frameCount）。
     ///   界面从不直接观察它们（失败数走 `framesFailedSafe` 锁内读），故排除观察。
     @ObservationIgnored private(set) var writeFailureCount = 0
-    /// 本会话是否存在过可用定位（任意一帧解析出坐标即 true）；同上，只在锁内读写
-    @ObservationIgnored private(set) var sawPose = false
     /// 当前段序号（0 起）
     private(set) var segmentIndex = 0
 
@@ -281,16 +279,11 @@ final class LeanRecordEngine: @unchecked Sendable {
         stateLock.lock()
         let written = framesWrittenLocked
         let failed = writeFailureCount
-        let gotPose = sawPose
         stateLock.unlock()
 
         print("[lean] ⏹ 停止精简录制：成功 \(written) 帧，失败 \(failed) 帧")
         if failed > 0 {
             print("[lean] ⚠️ 有 \(failed) 帧没能落盘（已跳过对应 CSV 行以保持帧号配对）")
-        }
-        if !gotPose {
-            print("[lean] ⚠️ 本段全程没有可用定位（抓包未锁上？游戏未开始？）"
-                  + " → CSV 的 x/y/z/pitch/heading/accel 列为空，meta.json 已标记 pcap_ok=false")
         }
         // 报告"这一段收尾了"。放在所有收尾动作之后：此时 CSV 句柄已关、
         // meta.json 已写，回调方拿到的是一份可直接标注的完整产物。
@@ -372,11 +365,9 @@ final class LeanRecordEngine: @unchecked Sendable {
         // 时间戳与标签必须在**帧到达的这一刻**取，不能等到写盘时再取：
         // 写盘是异步的，晚取会把"下一帧的按键"贴到"这一帧的画面"上（标签错位）。
         let keys = keyProvider()
-        let (pose, accel) = poseProvider()
 
         stateLock.lock()
         let elapsed = now.timeIntervalSince(sessionStart ?? now)
-        if pose != nil { sawPose = true }
         let needRestart = elapsed >= maxSegmentSeconds && !restartedPending
         if needRestart { restartedPending = true }
         stateLock.unlock()
@@ -385,7 +376,7 @@ final class LeanRecordEngine: @unchecked Sendable {
             guard let self else { return }
             autoreleasepool {
                 self.writeFrame(pixelBuffer: pixelBuffer, at: now, keys: keys,
-                                pose: pose, accel: accel, generation: generation)
+                                generation: generation)
             }
         }
 
@@ -413,8 +404,7 @@ final class LeanRecordEngine: @unchecked Sendable {
     // MARK: - 写盘（writeQueue 内执行）
 
     private func writeFrame(pixelBuffer: CVPixelBuffer, at date: Date,
-                            keys: RawKeySample, pose: Pose?, accel: Vec3?,
-                            generation: Int) {
+                            keys: RawKeySample, generation: Int) {
         // 世代校验必须在取 framesDir / nextFrameIndex **之前**：
         //   本帧是在旧会话里取的快照，若期间已切段（自动分段 stop→start），
         //   用新段的目录和帧号落盘 = 静默错配（详见 sessionGeneration 注释）。
@@ -456,7 +446,7 @@ final class LeanRecordEngine: @unchecked Sendable {
 
         // ── 3. 图片已落盘，才写 CSV 行（保证 CSV 第 j 行 ⟷ 0000jj.jpg）──
         let t = date.timeIntervalSince(sessionStart ?? date)
-        guard appendCSVRow(index: idx, tSec: t, keys: keys, pose: pose, accel: accel) else {
+        guard appendCSVRow(index: idx, tSec: t, keys: keys) else {
             // CSV 行没写进去 ⇒ 这张图**必须删**，否则就是「有图无行」：
             //   frames/ 多一张、CSV 少一行，后续行号继续前进，
             //   训练端按行号拼文件名会整体错位 → 整段一帧都加载不了。
@@ -495,27 +485,16 @@ final class LeanRecordEngine: @unchecked Sendable {
     ///   行号继续前进 ⇒ 训练端「按行号拼文件名」会整体错位，`dataset_v3` 的
     ///   `frame == i` 校验直接抛 ValueError，**整段一帧都加载不了**。
     @discardableResult
-    private func appendCSVRow(index: Int, tSec: Double, keys: RawKeySample,
-                              pose: Pose?, accel: Vec3?) -> Bool {
-        // 缺值一律写空串，不写 0：
-        //   `dataset_v3` 对空串判 speed_valid=0；写 0 会被当成"真实值为 0"。
-        //   定位同理 —— 写 0 会让人以为车正好在世界原点。
-        let x = pose.map { String(format: "%.3f", $0.0) } ?? ""
-        let y = pose.map { String(format: "%.3f", $0.1) } ?? ""
-        let z = pose.map { String(format: "%.3f", $0.2) } ?? ""
-        let pitch = pose.map { String(format: "%.3f", $0.3) } ?? ""
-        let heading = pose.map { String(format: "%.3f", $0.4) } ?? ""
-        let ax = accel.map { String(format: "%.3f", $0.0) } ?? ""
-        let ay = accel.map { String(format: "%.3f", $0.1) } ?? ""
-        let az = accel.map { String(format: "%.3f", $0.2) } ?? ""
-
+    private func appendCSVRow(index: Int, tSec: Double, keys: RawKeySample) -> Bool {
+        // speed_kmh 一律写空串（不是 0）：
+        //   `dataset_v3` 对空串判 speed_valid=0；写 0 会被当成"真实速度就是 0"，
+        //   那是错误监督信号。真正的速度由离线 OCR 回填。
+        //
         // 用拼接而不是 `String(format: "%.5f,%d,%@,…")`：
         // `%@` 依赖 String→NSString 的 CVarArg 桥接，一旦某个值是空串或含非 ASCII
         // 就可能产出不可预期的结果；拼接是确定性的，且列数一眼可数。
-        // 列序必须与 openSession 写的表头**逐字一致**（19 列）。
+        // 列序必须与 openSession 写的表头**逐字一致**（11 列）。
         let line = String(format: "%.5f", tSec) + "," + String(index) + ","
-            + x + "," + y + "," + z + "," + pitch + "," + heading + ","
-            + ax + "," + ay + "," + az + ","
             + ""                                    // speed_kmh：待离线 OCR 回填
             + "," + String(keys.w) + "," + String(keys.a) + ","
             + String(keys.s) + "," + String(keys.d) + ","
@@ -663,9 +642,11 @@ final class LeanRecordEngine: @unchecked Sendable {
             try? viewLabel.data(using: .utf8)?.write(to: viewURL, options: .atomic)
         }
         let csvURL = dir.appendingPathComponent("controls.csv")
-        // 19 列。前 10 列为定位/加速度（空=本帧无定位），第 11 列 speed_kmh
-        // **故意留空**（离线 OCR 后回填），后 8 列是 V3 的原生按键标签。
-        let header = "t_sec,frame,x,y,z,pitch,heading,ax,ay,az,speed_kmh,"
+        // 11 列 = 时间 + 帧号 + speed_kmh + 8 个 V3 原生按键标签。
+        // speed_kmh **故意留空**（离线 OCR 后回填）；
+        // 定位/朝向/加速度**不录**（用户 2026-11-03 否决：那是给人看的展示数据，
+        // dataset_v3 一个字段都不读，见文件头说明）。
+        let header = "t_sec,frame,speed_kmh,"
             + "w,a,s,d,shift,space,super_brake,ultimate_brake\n"
         guard fm.createFile(atPath: csvURL.path, contents: header.data(using: .utf8)) else {
             return false
@@ -683,7 +664,6 @@ final class LeanRecordEngine: @unchecked Sendable {
         sessionGeneration &+= 1
         frameCount = 0
         writeFailureCount = 0
-        sawPose = false
         nextFrameIndex = 0
         // ⚠️ 必须一起清零：这是**权威计数**，漏清会让第二段的日志/meta 继承上一段的帧数。
         framesWrittenLocked = 0
@@ -717,7 +697,6 @@ final class LeanRecordEngine: @unchecked Sendable {
         stateLock.lock()
         let totalFrames = framesWrittenLocked
         let failures = writeFailureCount
-        let gotPose = sawPose
         let fw = lastFrameWidth
         let fh = lastFrameHeight
         let segIdx = segmentIndex
@@ -732,20 +711,14 @@ final class LeanRecordEngine: @unchecked Sendable {
             framesFailed: failures,
             durationSeconds: Date().timeIntervalSince(startedAt),
             segmentIndex: segIdx,
-            pcapOK: gotPose,
-            headingIsCamera: true,
-            note: gotPose
-                ? "定位来自 libpcap 解析；heading 是**相机朝向**（非车辆朝向，已知缺陷）。"
-                    + "速度列为空，需跑离线标注回填。"
-                : "本段全程无定位（抓包未锁上/未进游戏），定位与加速度列全空。"
-                    + "画面与按键仍然可用。")
+            note: "只录画面与按键；speed_kmh 列为空，需跑离线标注回填。")
 
         if let data = try? JSONSerialization.data(
             withJSONObject: meta.jsonObject(createdAt: isoFormatter.string(from: Date())),
             options: [.prettyPrinted]) {
             // .atomic 不可省：崩溃/断电时留下半个 JSON，解析直接失败，而该段此时
-            // 已经通过 onSegmentClosed 交给标注器了 —— 事后查不到分辨率/帧数/
-            // pcap_ok，等于失去"这份数据能不能用"的唯一自述。
+            // 已经通过 onSegmentClosed 交给标注器了 —— 事后查不到分辨率/帧数，
+            // 等于失去"这份数据能不能用"的唯一自述。
             try? data.write(to: dir.appendingPathComponent("meta.json"), options: .atomic)
         }
         // 三行置空必须放进 stateLock：`appendFrame`（抓屏队列）在**锁内**读

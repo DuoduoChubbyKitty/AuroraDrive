@@ -15,8 +15,9 @@
 //       —— dataset_v3 用行号拼文件名却校验 frame 列，错位即整体标签错配。
 //    ② 写盘失败**不占用帧号、不写 CSV 行** —— 否则 frames/ 留洞而 CSV 连续，
 //       整份数据静默错位（这是本录制器最容易引入的致命缺陷）。
-//    ③ 表头 19 列，且每行字段数 == 19。
-//    ④ 缺失定位写空串而非 0（0 会被当成"车在世界原点"）。
+//    ③ 表头 11 列（t_sec/frame/speed_kmh + 8 键），且每行字段数 == 11。
+//       ⚠️ 定位/朝向/加速度**不录**（用户 2026-11-03 否决：那是给人看的展示数据，
+//       dataset_v3 一个字段都不读），故此处不再有"缺失定位写空串"这条不变量。
 //    ⑤ meta.json 的 width/height 是真实值（不是 0×0）。
 //    ⑥ 15Hz 节奏下 t_sec 反推 fps 在 dataset_v3 的 ±15% 容差内。
 //
@@ -68,19 +69,11 @@ enum LeanRecordSelfTest {
             sampleKey(s: 1, shift: 1, space: 1),           // 极致刹车（S 同时是防翻车稳定键）
         ]
 
-        var poseCursor = 0
         let engine = LeanRecordEngine()
         engine.clipsRootOverride = root.appendingPathComponent("normal")
         engine.keyProvider = {
             defer { keyCursor += 1 }
             return keySequence[keyCursor % keySequence.count]
-        }
-        engine.poseProvider = {
-            defer { poseCursor += 1 }
-            // 第 5..9 帧故意不给定位，验证"缺失写空串"
-            if (5...9).contains(poseCursor % 30) { return (nil, nil) }
-            return ((100.0 + Double(poseCursor), 200.0, 3.5, 1.25, 45.0),
-                    (0.3, -0.1, 9.8))
         }
 
         check("start() 成功", engine.start(), engine.lastError ?? "")
@@ -124,25 +117,32 @@ enum LeanRecordSelfTest {
         let allLines = csvText.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
         check("CSV 有内容", !allLines.isEmpty)
         let header = allLines.first?.split(separator: ",", omittingEmptySubsequences: false).map(String.init) ?? []
-        check("表头 19 列", header.count == 19, "实际 \(header.count)")
-        let expectedHeader = ["t_sec", "frame", "x", "y", "z", "pitch", "heading",
-                              "ax", "ay", "az", "speed_kmh",
+        check("表头 11 列", header.count == 11, "实际 \(header.count)")
+        let expectedHeader = ["t_sec", "frame", "speed_kmh",
                               "w", "a", "s", "d", "shift", "space",
                               "super_brake", "ultimate_brake"]
         check("表头列名与顺序正确", header == expectedHeader,
-              header.count == 19 ? "" : "列数不符")
+              header.count == 11 ? "" : "列数不符")
+        // 反向断言：定位列必须**不存在**。这条比"列数是 11"更强 ——
+        // 若将来有人把 x/y/z 加回来，列数断言可能被顺手改成 19 而蒙混过关，
+        // 这条会指名道姓地失败。
+        check("不再含定位列 x/y/z/pitch/heading/accel",
+              !header.contains("x") && !header.contains("y") && !header.contains("z")
+                  && !header.contains("pitch") && !header.contains("heading")
+                  && !header.contains("ax") && !header.contains("ay") && !header.contains("az"),
+              header.joined(separator: ","))
 
         let rows = allLines.dropFirst().map {
             $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
         }
         check("数据行数 == \(frameCount)", rows.count == frameCount, "实际 \(rows.count)")
-        check("每行 19 个字段", rows.allSatisfy { $0.count == 19 },
-              "异常行数 \(rows.filter { $0.count != 19 }.count)")
+        check("每行 11 个字段", rows.allSatisfy { $0.count == 11 },
+              "异常行数 \(rows.filter { $0.count != 11 }.count)")
 
         // ── 不变量 ①：frame 列与行号、文件名三者一致 ──
         print("  ── 不变量①：CSV 行号 ⟷ frame 列 ⟷ 文件名 ──")
         var frameMismatch: [String] = []
-        for (i, row) in rows.enumerated() where row.count == 19 {
+        for (i, row) in rows.enumerated() where row.count == 11 {
             if row[1] != String(i) { frameMismatch.append("行\(i):frame=\(row[1])") }
         }
         check("frame 列 == 行号（全部 \(frameCount) 行）", frameMismatch.isEmpty,
@@ -152,15 +152,6 @@ enum LeanRecordSelfTest {
                 .appendingPathComponent(String(format: "%06d.jpg", i)).path) ? nil : "缺 \(i)"
         }
         check("每行都有对应 JPEG", fileMismatch.isEmpty, fileMismatch.prefix(3).joined(separator: " "))
-
-        // ── 不变量 ④：缺失定位写空串 ──
-        print("  ── 不变量④：缺失定位写空串（不是 0）──")
-        let missingPoseRows = rows.filter { ($0.count == 19) && $0[2].isEmpty }
-        check("存在缺定位行（第5..9帧）", missingPoseRows.count == 5, "实际 \(missingPoseRows.count)")
-        check("缺定位行的 x/y/z 全为空串",
-              missingPoseRows.allSatisfy { $0[2].isEmpty && $0[3].isEmpty && $0[4].isEmpty })
-        let presentPoseRows = rows.filter { ($0.count == 19) && !$0[2].isEmpty }
-        check("有定位行的 x 非空且非 0", presentPoseRows.allSatisfy { $0[2] != "0.000" })
 
         // ── 按键标签 ──
         print("  ── 按键标签 ──")
@@ -173,7 +164,7 @@ enum LeanRecordSelfTest {
             guard let i = header.firstIndex(of: name), i < row.count else { return nil }
             return row[i]
         }
-        if rows.count > 4, rows[3].count == 19, rows[4].count == 19 {
+        if rows.count > 4, rows[3].count == 11, rows[4].count == 11 {
             check("第3帧 super_brake=1", col(rows[3], "super_brake") == "1",
                   col(rows[3], "super_brake") ?? "nil")
             check("第3帧 ultimate_brake=0", col(rows[3], "ultimate_brake") == "0",
@@ -192,7 +183,7 @@ enum LeanRecordSelfTest {
 
         // ── 不变量 ⑥：fps ──
         print("  ── 不变量⑥：15Hz ──")
-        let tSecs = rows.compactMap { $0.count == 19 ? Double($0[0]) : nil }
+        let tSecs = rows.compactMap { $0.count == 11 ? Double($0[0]) : nil }
         let deltas = zip(tSecs, tSecs.dropFirst()).map { $1 - $0 }.filter { $0 > 0 }.sorted()
         if let median = deltas.isEmpty ? nil : deltas[deltas.count / 2] {
             let actualFPS = 1.0 / median
@@ -230,11 +221,11 @@ enum LeanRecordSelfTest {
             check("meta.frames == \(frameCount)", (meta["total_frames"] as? Int) == frameCount,
                   "\(meta["total_frames"] ?? "nil")")
             check("meta.fps == 15", (meta["fps"] as? Double) == 15.0, "\(meta["fps"] ?? "nil")")
-            check("meta.heading_semantics == camera",
-                  (meta["heading_semantics"] as? String) == "camera",
-                  "\(meta["heading_semantics"] ?? "nil")")
-            check("meta.pcap_ok == true（本段有定位）",
-                  (meta["pcap_ok"] as? Bool) == true, "\(meta["pcap_ok"] ?? "nil")")
+            // 反向断言：定位相关字段必须不再出现（见文件头，用户已否决录定位）
+            check("meta 不再含定位字段 pcap_ok / heading_*",
+                  meta["pcap_ok"] == nil && meta["heading_semantics"] == nil
+                      && meta["heading_is_camera_not_vehicle"] == nil,
+                  "\(meta.keys.sorted())")
         } else {
             check("meta.json 可解析", false)
         }
@@ -244,7 +235,6 @@ enum LeanRecordSelfTest {
         let failEngine = LeanRecordEngine()
         failEngine.clipsRootOverride = root.appendingPathComponent("failure")
         failEngine.keyProvider = { RawKeySample() }
-        failEngine.poseProvider = { (nil, nil) }
         check("第二段 start() 成功", failEngine.start(), failEngine.lastError ?? "")
 
         let failClips = clips(in: root.appendingPathComponent("failure"))
@@ -327,7 +317,6 @@ enum LeanRecordSelfTest {
         let throttleEngine = LeanRecordEngine()
         throttleEngine.clipsRootOverride = root.appendingPathComponent("throttle")
         throttleEngine.keyProvider = { RawKeySample() }
-        throttleEngine.poseProvider = { (nil, nil) }
         check("第三段 start() 成功", throttleEngine.start(), throttleEngine.lastError ?? "")
         for _ in 0..<10 { throttleEngine.appendFrame(pixelBuffer: buffer) }
         usleep(70_000)                                    // 70ms > minGap 60ms
@@ -374,7 +363,6 @@ enum LeanRecordSelfTest {
         let cadenceOK = LeanRecordEngine()
         cadenceOK.clipsRootOverride = root.appendingPathComponent("cadence_ok")
         cadenceOK.keyProvider = { RawKeySample() }
-        cadenceOK.poseProvider = { (nil, nil) }
         cadenceOK.contractMinSamples = 5
         cadenceOK.contractBreachLimit = 3
         check("契约监视·负例 start() 成功", cadenceOK.start(), cadenceOK.lastError ?? "")
@@ -392,7 +380,6 @@ enum LeanRecordSelfTest {
         let cadenceBad = LeanRecordEngine()
         cadenceBad.clipsRootOverride = root.appendingPathComponent("cadence_bad")
         cadenceBad.keyProvider = { RawKeySample() }
-        cadenceBad.poseProvider = { (nil, nil) }
         cadenceBad.contractMinSamples = 5
         cadenceBad.contractBreachLimit = 3
         check("契约监视·正例 start() 成功", cadenceBad.start(), cadenceBad.lastError ?? "")
@@ -439,7 +426,6 @@ enum LeanRecordSelfTest {
         let rotateEngine = LeanRecordEngine()
         rotateEngine.clipsRootOverride = root.appendingPathComponent("rotation")
         rotateEngine.keyProvider = { RawKeySample() }
-        rotateEngine.poseProvider = { (nil, nil) }
         rotateEngine.maxSegmentSeconds = 0.05          // 70ms/帧 → 第 2 帧即触发轮转
         var closedPaths: [String] = []
         rotateEngine.onSegmentClosed = { closedPaths.append($0) }

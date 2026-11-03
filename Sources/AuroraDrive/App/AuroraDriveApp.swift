@@ -4207,8 +4207,8 @@ enum RecordLabelMapper {
 /// 【为什么单独成类，而不是 DriveState 上的三个属性】
 ///   DriveState 是 `@Observable`：可变存储属性会被宏包成 `@ObservationTracked`，
 ///   而 `nonisolated` **不能**加在可变存储属性上（宏展开直接报错）；退一步写
-///   `nonisolated(unsafe)` 虽能编过，却会被判为"没有效果" —— 因为 RawKeySample /
-///   Pose / Vec3 本身就是 Sendable 值类型，`unsafe` 那层承诺毫无意义，真正保证
+///   `nonisolated(unsafe)` 虽能编过，却会被判为"没有效果" —— 因为 RawKeySample
+///   本身就是 Sendable 值类型，`unsafe` 那层承诺毫无意义，真正保证
 ///   线程安全的是锁。收进一个 `let` 盒子后：不触发 @Observable、不必对属性撒谎，
 ///   锁就是唯一的约定，且读写都只能走盒子的方法，漏加锁在编译期就写不出来。
 ///
@@ -4217,27 +4217,17 @@ enum RecordLabelMapper {
 private final class LeanInputSnapshot: @unchecked Sendable {
     private let lock = NSLock()
     private var keys = RawKeySample()
-    private var pose: Pose?
-    private var accel: Vec3?
 
     /// 主线程 30Hz 唯一写入口
-    func store(keys: RawKeySample, pose: Pose?, accel: Vec3?) {
+    func store(keys: RawKeySample) {
         lock.lock(); defer { lock.unlock() }
         self.keys = keys
-        self.pose = pose
-        self.accel = accel
     }
 
     /// 抓屏队列读按键
     func readKeys() -> RawKeySample {
         lock.lock(); defer { lock.unlock() }
         return keys
-    }
-
-    /// 抓屏队列读定位。坐标与加速度**一次性取出**，保证同一帧内两者来自同一次快照。
-    func readPose() -> (Pose?, Vec3?) {
-        lock.lock(); defer { lock.unlock() }
-        return (pose, accel)
     }
 }
 
@@ -4385,17 +4375,26 @@ final class DriveState {
         return m
     }
 
-    /// 主线程拍一份「按键 + 定位」快照，供抓屏队列读取精简录制标签。
+    /// 主线程拍一份**按键**快照，供抓屏队列读取精简录制标签。
     ///
     /// 【为什么必须在主线程拍】（配合 `LeanInputSnapshot` 的注释阅读）
-    ///   `onRecordFrame` 在 captureQueue 触发；而 keyboardMonitor.heldKeys 无锁、
-    ///   coordinateCapture 只在主线程赋值。让 30Hz 的 tick 在主线程拍快照，
-    ///   抓屏队列只读锁保护的值 —— 这是唯一不需要给 KeyboardMonitor 加锁的解法
+    ///   `onRecordFrame` 在 captureQueue 触发；而 keyboardMonitor.heldKeys 无锁。
+    ///   让 30Hz 的 tick 在主线程拍快照，抓屏队列只读锁保护的值 ——
+    ///   这是唯一不需要给 KeyboardMonitor 加锁的解法
     ///   （给它加锁会动到驾驶主链路的既有行为，风险远大于收益）。
+    ///
+    /// 【这里为什么**不**拍定位（2026-11-03）】
+    ///   精简录制器只保存「画面 + 按键」两样；定位/朝向/加速度既不进 CSV，
+    ///   也不是 V3 的输入或监督信号（详见 LeanRecordEngine 文件头）。
+    ///   原先这里每 tick 还读一次 `coordinateCapture`，接线删掉后就成了纯白烧的
+    ///   30Hz 空转 —— 故一并移除。
+    ///   ⚠️ **驾驶用的定位完全不受影响**：地图、限速、弯道预判读的是
+    ///   `coordinateCapture` / `networkLocate*` 那条链路，与这份录制快照无关，
+    ///   本次改动一个字节都没碰它们。
     ///
     /// 【为什么要在引擎模式早退之前调用】见 tick() 里的调用点注释。
     func updateLeanSnapshot() {
-        // 未录制时零成本：不读键盘、不碰定位。
+        // 未录制时零成本：不读键盘。
         guard leanRecorder.wantsFrames else { return }
 
         // 按键：引擎模式下 UI 进程收不到 NSEvent，只能读引擎回传的掩码
@@ -4409,23 +4408,7 @@ final class DriveState {
         keys.shift = (mask >> 4) & 1
         keys.space = (mask >> 5) & 1
 
-        // 定位：只采信 live/recent 两档。stale 档（18~90s 无新包）会把一个很旧的
-        // 坐标当成当前帧的标签写进去 —— 宁可留空（dataset_v3 判缺失），不可造假。
-        var pose: Pose?
-        var accel: Vec3?
-        if let cc = coordinateCapture {
-            let (tier, samplePose, _) = cc.readWithTier()
-            switch tier {
-            case .live, .recent:
-                pose = samplePose
-            case .stale, .lost:
-                pose = nil
-            }
-            // 加速度自带 maxAge 窗口，与坐标分级无关，独立取。
-            accel = cc.readAcceleration()
-        }
-
-        leanSnapshot.store(keys: keys, pose: pose, accel: accel)
+        leanSnapshot.store(keys: keys)
     }
 
     /// 把 `leanRecorder` 的内部状态镜像到 UI 可观察字段（主线程调用）。
@@ -6692,10 +6675,6 @@ final class DriveState {
         leanRecorder.keyProvider = { [weak self] in
             guard let self else { return RawKeySample() }
             return self.leanSnapshot.readKeys()
-        }
-        leanRecorder.poseProvider = { [weak self] in
-            guard let self else { return (nil, nil) }
-            return self.leanSnapshot.readPose()
         }
         // 每段收尾都登记待标注（含 10 分钟自动分段切出来的中间段）。
         // stop() 在主动停录与轮转切段两种情形下都在主线程调用；这里再兜一次

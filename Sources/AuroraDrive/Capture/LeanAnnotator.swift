@@ -44,7 +44,6 @@ enum LeanAnnotator {
         /// 相邻两帧识别速度跳变超过 20km/h 的次数（OCR 误读的强信号）
         var speedJumpsOver20: Int
         var keyAllZeroFrames: Int
-        var poseMissingRows: Int
         var verdict: String
         var notes: [String]
     }
@@ -176,13 +175,11 @@ enum LeanAnnotator {
         var speedFilled = 0
         var speedMissing = 0
         var keyAllZero = 0
-        var poseMissing = 0
         var lastSpeed: Int?
         var jumps = 0
         let wCol = header.firstIndex(of: "w"), aCol = header.firstIndex(of: "a")
         let sCol = header.firstIndex(of: "s"), dCol = header.firstIndex(of: "d")
         let shiftCol = header.firstIndex(of: "shift"), spaceCol = header.firstIndex(of: "space")
-        let xCol = header.firstIndex(of: "x")
         var tSec: [Double] = []
         let tCol = header.firstIndex(of: "t_sec")
 
@@ -205,8 +202,6 @@ enum LeanAnnotator {
                cols[d] == "0", cols[sh] == "0", cols[spc] == "0" {
                 keyAllZero += 1
             }
-            // 定位缺失（缺 pcap 时录制器写空串，这里统计覆盖率）
-            if let xc = xCol, cols[xc].isEmpty { poseMissing += 1 }
             if let tc = tCol, tc < cols.count, let t = Double(cols[tc]) { tSec.append(t) }
             newLines.append(cols.joined(separator: ","))
         }
@@ -265,9 +260,6 @@ enum LeanAnnotator {
             verdict = "fail"
             notes.append(String(format: "实测帧率 %.2ffps，超出 V3 的 15fps±15%%", f))
         }
-        if poseMissing == total {
-            notes.append("全部帧缺定位（pcap 未抓到）")
-        }
         if jumps > 0 {
             notes.append("速度跳变 >20km/h 共 \(jumps) 次，建议抽查")
         }
@@ -286,7 +278,6 @@ enum LeanAnnotator {
             speedFillRatio: ratio,
             speedJumpsOver20: jumps,
             keyAllZeroFrames: keyAllZero,
-            poseMissingRows: poseMissing,
             verdict: verdict,
             notes: notes)
 
