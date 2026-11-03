@@ -978,7 +978,12 @@ struct AuroraDriveLauncher {
                               "--capture-selftest",
                                // 2026-10-23（小地图箭头）：离线跑真实帧，与 Python 参考实现
                                // runtime_detector.py 对拍，确认 Swift 检测/裁剪/归一化移植无误。
-                               "--pointer-selftest"]
+                               "--pointer-selftest",
+                               // 2026-11-03（V3 精简录制器）：端到端真跑一遍录制链路，
+                               // 断言 CSV 行号⟷frame 列⟷文件名三者一致、写失败不占用帧号、
+                               // 表头 19 列、缺失定位写空串、meta 宽高非 0。
+                               // ⚠️ 登记与分发必须同时存在（本项目第 4 次踩同款假绿陷阱）。
+                               "--lean-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -1033,6 +1038,15 @@ struct AuroraDriveLauncher {
         // 返回失败项数，0 = 全过（与其它自检同一约定）。
         if args.contains("--capture-selftest") {
             let failed = CaptureSelfTest.run()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+
+        // ── 精简录制器端到端自检（--lean-selftest，2026-11-03 V3）──
+        // 真跑录制链路（造帧→appendFrame→编码→落盘→CSV/meta），断言训练端硬约束：
+        // CSV 行号 ⟷ frame 列 ⟷ 文件名三者一致；写失败不占用帧号（防 frames/ 留洞
+        // 而 CSV 连续 → 整体标签静默错位）；表头 19 列；缺失定位写空串；meta 宽高真实。
+        if args.contains("--lean-selftest") {
+            let failed = LeanRecordSelfTest.run()
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
         }
 

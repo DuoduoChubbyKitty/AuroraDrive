@@ -1,0 +1,556 @@
+// SPDX-FileCopyrightText: 2026 DuoduoChubbyKitty
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// ============================================================================
+//  LeanRecordEngine.swift — 精简录制模式（只录画面 + 抓包数据，不跑任何模型）
+//
+//  【为什么要有它】App 里现有的 `RecordEngine` 专家模式在 UI 进程每帧要读
+//  键盘、生成连续量标签、缩放到 640×360、还要和 OCR/字形/插帧抢主线程，
+//  实际跑起来太重、会拖慢采集。用户 2026-11-03 拍板：另做一套**极薄**的录制器，
+//  录制期**什么模型都不跑**，把重活全部推到录制结束后的离线标注。
+//
+//  ── 录制期做什么（有且只有三件）──────────────────────────────────────────
+//    1. 把抓屏层送来的**全分辨率**帧编码成 JPEG 落盘
+//    2. 按 15Hz 记时间戳与**按键快照**（按键就是 V3 的训练标签）
+//    3. 从抓包解析里取 位置 / 朝向 / 加速度（`CoordinateCapture`，libpcap）
+//
+//  ── 录制期**不**做什么（全部离线）────────────────────────────────────────
+//    · 速度 OCR：全屏原图里天然带着速度表，离线裁 `speedROINorm` 区域再识别。
+//      ⟹ 所以**不需要**额外存「速度表长条」（用户明确否掉了这个设计）。
+//    · 超采样到 384×224：离线做（录制期存原图，保留全部信息，便于换输入尺寸重训）。
+//    · 坐标表 / 世界模型 / 任何感知模型。
+//
+//  ── 为什么帧号必须在**写盘队列**里分配（关键不变量）──────────────────────
+//    `dataset_v3._build_index` 里 `n_frames = len(rows)`，读图时按
+//    `frames/{j:06d}.jpg`（j = CSV 行序）找文件。也就是说
+//    **CSV 第 j 行 ⟷ frames/0000jj.jpg 必须严格对应**。
+//    若在主线程预先分配帧号、而某帧 JPEG 编码失败被丢弃，后面所有帧号就会
+//    整体错位一格 → 整批数据的标签与画面对不上，且**不会报错**。
+//    ⟹ 本文件的写法：帧号只在写盘成功后递增，失败则重试/丢帧且**不写 CSV 行**。
+//
+//  ── 线程模型 ─────────────────────────────────────────────────────────────
+//    · `start()` / `stop()`：主线程
+//    · `appendFrame(pixelBuffer:)`：**captureQueue**（CaptureEngine 帧回调）
+//      ⚠️ 这里绝不做 JPEG 编码！只做「取时间戳 + 按键快照 + 入队」。
+//         本仓库已有前例：在 captureQueue 上做同步重活曾把 capGap 从 11ms 抬到
+//         2081ms（见 CaptureEngine 里对 onYoloFrame 的注释）。
+//    · JPEG 编码 + 写盘 + CSV 追加：`writeQueue` 串行队列
+// ============================================================================
+
+import AppKit
+import CoreVideo
+import Foundation
+import Observation
+
+// MARK: - 会话元数据（写进 meta.json，事后可查这份数据能不能用）
+
+/// 一次精简录制的元信息。
+/// 为什么要把这些写进 meta：录制期的"静默失效"事后无法从数据本身反推
+/// （例如抓包全程没锁上 → 定位列全空，但文件看起来完全正常）。
+struct LeanRecordMeta {
+    var fps: Double
+    var width: Int
+    var height: Int
+    var frames: Int
+    var framesFailed: Int
+    var durationSeconds: Double
+    var segmentIndex: Int
+    /// 定位是否可用（抓包锁上网卡且解析出过坐标）
+    var pcapOK: Bool
+    /// 朝向语义：**相机朝向，不是车辆朝向**（用户 2026-11-03 确认的已知缺陷）
+    var headingIsCamera: Bool
+    var note: String
+
+    func jsonObject(createdAt: String) -> [String: Any] {
+        [
+            "mode": "lean",
+            "created_at": createdAt,
+            "fps": fps,
+            "width": width,
+            "height": height,
+            "total_frames": frames,
+            "frame_write_failures": framesFailed,
+            "frames_complete": framesFailed == 0,
+            "duration_seconds": durationSeconds,
+            "segment_index": segmentIndex,
+            "pcap_ok": pcapOK,
+            "heading_semantics": "camera",
+            "heading_is_camera_not_vehicle": headingIsCamera,
+            "speed_source": "offline_ocr",
+            "needs_annotation": true,
+            "note": note,
+        ]
+    }
+}
+
+// MARK: - 精简录制引擎
+
+/// 精简录制引擎：只负责落盘，不跑任何模型。
+///
+/// 输出目录（与训练用的 `data/raw_clips` 隔离，避免未标注数据混进训练扫描）：
+/// ```
+/// data/lean_clips/clip_<yyyyMMdd_HHmmss>/
+///   frames/00000.jpg …     全分辨率 JPEG（q92），文件名 = CSV 行号
+///   controls.csv           19 列：时间/定位/加速度/按键（speed_kmh 留空待离线填）
+///   meta.json              本会话的可信度自述
+/// ```
+@Observable
+final class LeanRecordEngine: @unchecked Sendable {
+
+    // MARK: 可配置项
+
+    /// 目标帧率。默认 15：V3 的 24 帧时序窗口按 15Hz 设计（=1.6s），
+    /// `dataset_v3` 对偏差 >15% 会直接 raise，不是警告。
+    var fps: Double = 15
+
+    /// JPEG 质量。q92 实测（真实游戏截图 1280 宽）156–279 KB/帧。
+    var jpegQuality: CGFloat = 0.92
+
+    /// 单段时长上限（秒）。到点自动切段，防单文件过大/一次录几十分钟难管理。
+    var maxSegmentSeconds: Double = 600
+
+    /// 剩余磁盘低于此值时停止录制（不删用户数据），返回警告。
+    var minFreeDiskBytes: Int64 = 2 * 1024 * 1024 * 1024
+
+    /// 视角标签（写进 view.txt）。《异环》本身就是第三视角，录制恒为 TPV。
+    /// 仅供 `--lean-selftest` 或将来切换视角用，正常录制不需要改。
+    var viewLabel: String = "TPV"
+
+    /// 录制根目录覆盖（仅自检用：让自检写到临时目录，不污染 data/lean_clips）。
+    /// nil = 用默认的 `data/lean_clips`。
+    var clipsRootOverride: URL?
+
+    // MARK: 数据源（由接线方注入，引擎自己不抓包也不监听键盘）
+
+    /// 取当前按键快照。UI 进程注入 → `keyboardMonitor` 的实时状态。
+    var keyProvider: () -> RawKeySample = { RawKeySample() }
+
+    /// 取当前定位与加速度。返回 nil 表示这一帧没有可用定位（抓包未锁上/未进游戏）。
+    /// 朝向语义是**相机朝向**（见 `headingIsCamera`）。
+    var poseProvider: () -> (pose: Pose?, accel: Vec3?) = { (nil, nil) }
+
+    // MARK: 可观察状态
+
+    private(set) var isRecording = false
+    /// 本次会话已成功落盘的帧数（= 当前 CSV 行数）
+    private(set) var frameCount = 0
+    /// 本次会话编码/写盘失败次数（>0 说明 frames/ 有过洞，但已被我们"不写行"守住配对）
+    private(set) var writeFailureCount = 0
+    /// 本会话是否存在过可用定位（任意一帧解析出坐标即 true）
+    private(set) var sawPose = false
+    /// 当前段序号（0 起）
+    private(set) var segmentIndex = 0
+
+    // MARK: 私有状态
+
+    private let writeQueue = DispatchQueue(label: "com.aurora.leanrecord.write")
+    private let stateLock = NSLock()
+
+    private var sessionDir: URL?
+    private var framesDir: URL?
+    private var csvHandle: FileHandle?
+    private var sessionStart: Date?
+    /// 下一帧要用的帧号（**只在 writeQueue 内读写**，保证与 CSV 行号一致）
+    private var nextFrameIndex = 0
+    /// 已成功落盘的帧数（**权威计数**，stateLock 保护）。
+    /// 为什么不能直接用 @Observable 的 `frameCount`：它只能在主线程写，
+    /// 而 stop() 排空队列那一刻主线程的更新可能还没跑到 → 日志/meta 会少报帧数。
+    private var framesWrittenLocked = 0
+    private var restartedPending = false
+
+    private let dirFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyyMMdd_HHmmss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    private let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    /// 录制根目录：data/lean_clips/
+    /// 刻意与 `data/raw_clips`（V2/V3 训练扫描目录）分开：
+    /// 未标注的速度列会让训练端把 speed 当"缺失"，混在一起容易被误当成品数据集。
+    private var clipsRoot: URL {
+        if let override = clipsRootOverride { return override }
+        return AuroraPaths.projectRoot()
+            .appendingPathComponent("data")
+            .appendingPathComponent("lean_clips")
+    }
+
+    // MARK: - 启停（主线程）
+
+    /// 开始录制。返回 false 表示没能开始（磁盘不足/目录创建失败），原因见 `lastError`。
+    @discardableResult
+    func start() -> Bool {
+        guard !isRecording else { return true }
+
+        if let free = Self.freeDiskBytes(), free < minFreeDiskBytes {
+            lastError = "磁盘剩余 \(free / 1024 / 1024 / 1024) GB，低于下限"
+                + " \(minFreeDiskBytes / 1024 / 1024 / 1024) GB，已拒绝开始录制"
+            print("[lean] ❌ \(lastError ?? "")")
+            return false
+        }
+
+        guard let dir = makeSessionDir() else {
+            lastError = "无法创建录制目录 \(clipsRoot.path)"
+            print("[lean] ❌ \(lastError ?? "")")
+            return false
+        }
+        guard openSession(at: dir) else {
+            lastError = "无法创建 controls.csv / frames/"
+            print("[lean] ❌ \(lastError ?? "")")
+            return false
+        }
+
+        stateLock.lock()
+        isRecording = true
+        stateLock.unlock()
+        print("[lean] ▶ 开始精简录制 → \(dir.lastPathComponent)（\(fps) fps，段 \(segmentIndex)）")
+        return true
+    }
+
+    /// 停止录制。会同步等待写盘队列排空，保证最后几帧与 meta.json 都落盘。
+    func stop() {
+        guard isRecording else { return }
+
+        stateLock.lock()
+        isRecording = false
+        stateLock.unlock()
+
+        // 同步排空：writeQueue 是串行队列，sync 会排在所有已入队帧之后执行，
+        // 从而保证「关闭 CSV 句柄」一定发生在最后一帧写完之后（否则尾部丢行）。
+        writeQueue.sync {
+            self.closeSessionLocked()
+        }
+
+        stateLock.lock()
+        let written = framesWrittenLocked
+        let failed = writeFailureCount
+        let gotPose = sawPose
+        stateLock.unlock()
+
+        print("[lean] ⏹ 停止精简录制：成功 \(written) 帧，失败 \(failed) 帧")
+        if failed > 0 {
+            print("[lean] ⚠️ 有 \(failed) 帧没能落盘（已跳过对应 CSV 行以保持帧号配对）")
+        }
+        if !gotPose {
+            print("[lean] ⚠️ 本段全程没有可用定位（抓包未锁上？游戏未开始？）"
+                  + " → CSV 的 x/y/z/pitch/heading/accel 列为空，meta.json 已标记 pcap_ok=false")
+        }
+    }
+
+    // MARK: - 帧追加（**captureQueue** 调用）
+
+    /// 追加一帧。**只做取快照 + 入队，绝不编码**（理由见文件头线程模型）。
+    /// - Parameter pixelBuffer: 全分辨率帧的**自持副本**（CaptureEngine.copyRecordFrame
+    ///   已经做过 memcpy，本类可以直接持有到写盘结束，不存在 use-after-release）。
+    func appendFrame(pixelBuffer: CVPixelBuffer) {
+        guard isRecordingSnapshot else { return }
+
+        // 时间戳与标签必须在**帧到达的这一刻**取，不能等到写盘时再取：
+        // 写盘是异步的，晚取会把"下一帧的按键"贴到"这一帧的画面"上（标签错位）。
+        let now = Date()
+        let keys = keyProvider()
+        let (pose, accel) = poseProvider()
+
+        stateLock.lock()
+        let elapsed = now.timeIntervalSince(sessionStart ?? now)
+        if pose != nil { sawPose = true }
+        let needRestart = elapsed >= maxSegmentSeconds && !restartedPending
+        if needRestart { restartedPending = true }
+        stateLock.unlock()
+
+        writeQueue.async { [weak self] in
+            guard let self else { return }
+            autoreleasepool {
+                self.writeFrame(pixelBuffer: pixelBuffer, at: now, keys: keys,
+                                pose: pose, accel: accel)
+            }
+        }
+
+        if needRestart {
+            // 切段在主线程做（改 sessionDir 等都是主线程状态）。
+            // 先 stop 再 start：stop 内部会 writeQueue.sync 排空，保证前一段完整。
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isRecordingSnapshot else { return }
+                self.stop()
+                self.stateLock.lock()
+                self.segmentIndex += 1
+                self.restartedPending = false
+                self.stateLock.unlock()
+                _ = self.start()
+            }
+        }
+    }
+
+    // MARK: - 写盘（writeQueue 内执行）
+
+    private func writeFrame(pixelBuffer: CVPixelBuffer, at date: Date,
+                            keys: RawKeySample, pose: Pose?, accel: Vec3?) {
+        guard let framesDir else { return }
+
+        // ── 1. 编码 ──
+        guard let data = Self.encodeJPEG(pixelBuffer, quality: jpegQuality) else {
+            recordFailure("JPEG 编码失败")
+            return
+        }
+
+        // ── 2. 帧号在**写盘成功前后**分配：失败就重试，绝不产生"有行无图" ──
+        let idx = nextFrameIndex
+        let url = framesDir.appendingPathComponent(String(format: "%06d.jpg", idx))
+        // ⚠️ 这里刻意**没有**「文件已存在就换下一个帧号」的重试分支，原因有二：
+        //   ① `Data.write(to:options:.atomic)` 本身就会覆盖已存在文件 → 该分支永远
+        //      进不去，是死代码；
+        //   ② 若它真被执行，`idx += 1` 会在 frames/ 留下空洞，而下面 CSV 行写的是
+        //      `idx` → 直接破坏「CSV 第 j 行 ⟷ 0000jj.jpg」这条硬约束，
+        //      整份数据的标签会与画面对不上，且**不会报错**。
+        //   正确做法：帧号只随「已成功落盘的帧数」前进；写失败就整帧丢弃、不写行。
+        guard (try? data.write(to: url, options: .atomic)) != nil else {
+            recordFailure("帧写入失败：\(url.lastPathComponent)")
+            return
+        }
+
+        // ── 3. 图片已落盘，才写 CSV 行（保证 CSV 第 j 行 ⟷ 0000jj.jpg）──
+        let t = date.timeIntervalSince(sessionStart ?? date)
+        appendCSVRow(index: idx, tSec: t, keys: keys, pose: pose, accel: accel)
+
+        nextFrameIndex = idx + 1
+        let total = idx + 1
+        // 宽高必须在这里从真实缓冲取值写进 meta：
+        // 否则 meta.json 会永远写着 0×0 —— 这是一条**错误信息**，事后分析会误判分辨率。
+        let fw = CVPixelBufferGetWidth(pixelBuffer)
+        let fh = CVPixelBufferGetHeight(pixelBuffer)
+        stateLock.lock()
+        framesWrittenLocked = total
+        lastFrameWidth = fw
+        lastFrameHeight = fh
+        stateLock.unlock()
+        // @Observable 的存储不是线程安全的，只能在主线程写；
+        // 权威计数用 `framesWrittenLocked`（stateLock 保护），日志与 meta 都读它，
+        // 因为 stop() 排空队列那一刻主线程的 frameCount 可能还没被更新。
+        DispatchQueue.main.async { [weak self] in
+            self?.frameCount = total
+        }
+    }
+
+    private func appendCSVRow(index: Int, tSec: Double, keys: RawKeySample,
+                              pose: Pose?, accel: Vec3?) {
+        // 缺值一律写空串，不写 0：
+        //   `dataset_v3` 对空串判 speed_valid=0；写 0 会被当成"真实值为 0"。
+        //   定位同理 —— 写 0 会让人以为车正好在世界原点。
+        let x = pose.map { String(format: "%.3f", $0.0) } ?? ""
+        let y = pose.map { String(format: "%.3f", $0.1) } ?? ""
+        let z = pose.map { String(format: "%.3f", $0.2) } ?? ""
+        let pitch = pose.map { String(format: "%.3f", $0.3) } ?? ""
+        let heading = pose.map { String(format: "%.3f", $0.4) } ?? ""
+        let ax = accel.map { String(format: "%.3f", $0.0) } ?? ""
+        let ay = accel.map { String(format: "%.3f", $0.1) } ?? ""
+        let az = accel.map { String(format: "%.3f", $0.2) } ?? ""
+
+        // 用拼接而不是 `String(format: "%.5f,%d,%@,…")`：
+        // `%@` 依赖 String→NSString 的 CVarArg 桥接，一旦某个值是空串或含非 ASCII
+        // 就可能产出不可预期的结果；拼接是确定性的，且列数一眼可数。
+        // 列序必须与 openSession 写的表头**逐字一致**（19 列）。
+        let line = String(format: "%.5f", tSec) + "," + String(index) + ","
+            + x + "," + y + "," + z + "," + pitch + "," + heading + ","
+            + ax + "," + ay + "," + az + ","
+            + ""                                    // speed_kmh：待离线 OCR 回填
+            + "," + String(keys.w) + "," + String(keys.a) + ","
+            + String(keys.s) + "," + String(keys.d) + ","
+            + String(keys.shift) + "," + String(keys.space) + ","
+            + String(keys.superBrake) + "," + String(keys.ultimateBrake) + "\n"
+
+        guard let data = line.data(using: .utf8) else {
+            recordFailure("CSV 行编码失败")
+            return
+        }
+        csvHandle?.write(data)
+    }
+
+    private func recordFailure(_ reason: String) {
+        stateLock.lock()
+        writeFailureCount += 1
+        let n = writeFailureCount
+        stateLock.unlock()
+        if n <= 3 { print("[lean] ⚠️ \(reason)（第 \(n) 次）") }
+    }
+
+    // MARK: - 会话目录 / CSV
+
+    private func makeSessionDir() -> URL? {
+        let fm = FileManager.default
+        do {
+            try fm.createDirectory(at: clipsRoot, withIntermediateDirectories: true)
+        } catch {
+            return nil
+        }
+        // 目录名沿用仓库既有约定 clip_<yyyyMMdd_HHmmss>（训练端只扫 clip_ 前缀、
+        // 保留清理按名字典序 ≈ 时间序）。
+        //
+        // ⚠️ 但**绝不接受重名复用**：名字只精确到秒，而自动切段就是 stop() 紧接
+        // start()（同一秒内必然撞名）；`createDirectory(withIntermediateDirectories:)`
+        // 对已存在目录**不报错**，紧接着 openSession 里的 createFile 会**截断**上一段
+        // controls.csv，帧又从 000000 覆盖 ⇒ 整段数据静默丢失且无任何报错。
+        // 出现重名时加数字后缀，保证每段独占一个目录。
+        let base = "clip_\(dirFormatter.string(from: Date()))"
+        var dir = clipsRoot.appendingPathComponent(base)
+        var suffix = 1
+        while fm.fileExists(atPath: dir.path) {
+            suffix += 1
+            guard suffix <= 999 else { return nil }
+            dir = clipsRoot.appendingPathComponent("\(base)_\(suffix)")
+        }
+        do {
+            try fm.createDirectory(at: dir.appendingPathComponent("frames"),
+                                   withIntermediateDirectories: true)
+        } catch {
+            return nil
+        }
+        return dir
+    }
+
+    private func openSession(at dir: URL) -> Bool {
+        let fm = FileManager.default
+        // view.txt：与仓库里其它 clip 保持一致（内容 "TPV"）。
+        // `dataset_v3` 只在显式传 view_filter 时才读它；train_v3.py:263 目前不传，
+        // 所以缺它不会静默丢段 —— 但保持文件集一致，避免将来开 view_filter 时
+        // 整批 clip 被静默跳过（那种跳过**不报错**，只是样本变少）。
+        let viewURL = dir.appendingPathComponent("view.txt")
+        if !fm.fileExists(atPath: viewURL.path) {
+            try? viewLabel.data(using: .utf8)?.write(to: viewURL, options: .atomic)
+        }
+        let csvURL = dir.appendingPathComponent("controls.csv")
+        // 19 列。前 10 列为定位/加速度（空=本帧无定位），第 11 列 speed_kmh
+        // **故意留空**（离线 OCR 后回填），后 8 列是 V3 的原生按键标签。
+        let header = "t_sec,frame,x,y,z,pitch,heading,ax,ay,az,speed_kmh,"
+            + "w,a,s,d,shift,space,super_brake,ultimate_brake\n"
+        guard fm.createFile(atPath: csvURL.path, contents: header.data(using: .utf8)) else {
+            return false
+        }
+        guard let handle = FileHandle(forWritingAtPath: csvURL.path) else { return false }
+        handle.seekToEndOfFile()
+
+        stateLock.lock()
+        sessionDir = dir
+        framesDir = dir.appendingPathComponent("frames")
+        csvHandle = handle
+        sessionStart = Date()
+        frameCount = 0
+        writeFailureCount = 0
+        sawPose = false
+        nextFrameIndex = 0
+        // ⚠️ 必须一起清零：这是**权威计数**，漏清会让第二段的日志/meta 继承上一段的帧数。
+        framesWrittenLocked = 0
+        lastFrameWidth = 0
+        lastFrameHeight = 0
+        restartedPending = false
+        lastError = nil
+        stateLock.unlock()
+        return true
+    }
+
+    /// 关闭句柄并写 meta.json。**只在 writeQueue.sync 里调用**（见 stop()）。
+    private func closeSessionLocked() {
+        guard let dir = sessionDir else { return }
+        csvHandle?.synchronizeFile()
+        csvHandle?.closeFile()
+        csvHandle = nil
+
+        // 读计数必须在锁内：这些值由 writeQueue 写、主线程读，直接读是数据竞争；
+        // 且必须读 `framesWrittenLocked`（权威值），不能用 @Observable 的 frameCount
+        // —— 后者靠 main.async 更新，此刻可能还没跑到，会把帧数报少。
+        stateLock.lock()
+        let totalFrames = framesWrittenLocked
+        let failures = writeFailureCount
+        let gotPose = sawPose
+        let fw = lastFrameWidth
+        let fh = lastFrameHeight
+        let segIdx = segmentIndex
+        let startedAt = sessionStart ?? Date()
+        stateLock.unlock()
+
+        let meta = LeanRecordMeta(
+            fps: fps,
+            width: fw,
+            height: fh,
+            frames: totalFrames,
+            framesFailed: failures,
+            durationSeconds: Date().timeIntervalSince(startedAt),
+            segmentIndex: segIdx,
+            pcapOK: gotPose,
+            headingIsCamera: true,
+            note: gotPose
+                ? "定位来自 libpcap 解析；heading 是**相机朝向**（非车辆朝向，已知缺陷）。"
+                    + "速度列为空，需跑离线标注回填。"
+                : "本段全程无定位（抓包未锁上/未进游戏），定位与加速度列全空。"
+                    + "画面与按键仍然可用。")
+
+        if let data = try? JSONSerialization.data(
+            withJSONObject: meta.jsonObject(createdAt: isoFormatter.string(from: Date())),
+            options: [.prettyPrinted]) {
+            try? data.write(to: dir.appendingPathComponent("meta.json"))
+        }
+        sessionDir = nil
+        framesDir = nil
+        sessionStart = nil
+    }
+
+    // MARK: - 辅助
+
+    private var isRecordingSnapshot: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return isRecording
+    }
+
+    /// 最近一帧的宽高（写 meta 用；在 writeQueue 里更新）
+    private var lastFrameWidth = 0
+    private var lastFrameHeight = 0
+
+    /// 最近一次失败原因（供 UI 展示）
+    private(set) var lastError: String?
+
+    /// 剩余磁盘容量（字节）。取不到返回 nil（视为未知，不阻塞录制）。
+    static func freeDiskBytes() -> Int64? {
+        let url = AuroraPaths.projectRoot()
+        guard let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
+              let free = values.volumeAvailableCapacityForImportantUsage else { return nil }
+        return Int64(free)
+    }
+
+    /// CVPixelBuffer(32BGRA) → JPEG。写法与 `RecordEngine` 的 PNG/JPEG 编码一致。
+    static func encodeJPEG(_ pixelBuffer: CVPixelBuffer, quality: CGFloat) -> Data? {
+        guard let cg = cgImage(from: pixelBuffer) else { return nil }
+        let rep = NSBitmapImageRep(cgImage: cg)
+        return rep.representation(using: .jpeg,
+                                  properties: [NSBitmapImageRep.PropertyKey.compressionFactor: quality])
+    }
+
+    /// CVPixelBuffer(32BGRA) → CGImage。
+    /// 32BGRA 对应 premultipliedFirst + byteOrder32Little（与 CaptureEngine 的
+    /// UI 渲染色序一致）；不翻转方向 —— 抓屏缓冲行序本就是 top-down。
+    static func cgImage(from pixelBuffer: CVPixelBuffer) -> CGImage? {
+        let w = CVPixelBufferGetWidth(pixelBuffer)
+        let h = CVPixelBufferGetHeight(pixelBuffer)
+        guard w > 0, h > 0 else { return nil }
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(pixelBuffer) else { return nil }
+
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue
+            | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let ctx = CGContext(data: base,
+                                  width: w,
+                                  height: h,
+                                  bitsPerComponent: 8,
+                                  bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: bitmapInfo) else { return nil }
+        return ctx.makeImage()
+    }
+}

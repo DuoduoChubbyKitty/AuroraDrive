@@ -137,6 +137,29 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     /// 模式（main 上赋值、captureQueue 上读）。
     var isUpscaleWanted: () -> Bool = { false }
 
+    /// 精简录制模式专用：**全分辨率**帧回调（2026-11-03 新增）
+    ///
+    /// 【为什么必须新开一条通道，而不是复用上面三条】实测三条都拿不到「全屏原生像素」：
+    ///
+    /// | 既有通道 | 实际交付 | 为什么录制用不了 |
+    /// |---|---|---|
+    /// | `onFrame` | 已缩到 **480 宽**的 UI 图 | 速度表 ROI 只剩 ≈38×16 px，离线 OCR 读不出数字 |
+    /// | `onNativeFrame` | **只有速度表 ROI**（`copyNativeFrame` 只拷 `speedROINorm`） | 不是全屏，画面部分丢失 |
+    /// | `onUpscaleFrame` | 确实全分辨率 | 被 `isUpscaleWanted()` 门控（UI 绑 `upscaleEnabled`），且已被插帧消费 |
+    ///
+    /// 【设计口径（用户 2026-11-03 拍板）】录制**只存全屏原始像素 + 抓包数据**，
+    /// 超采样到模型尺寸（384×224）与速度 OCR **全部放到录制结束后的离线后台**做。
+    /// 这样录制期不跑任何模型，画面里天然带着速度表 → 离线裁 `speedROINorm` 区域就能识别，
+    /// 因此**不需要**额外存「速度表长条」。
+    ///
+    /// 【零成本保证】回调为 nil（默认）时，下面 sampleHandler 的 `if let` 直接短路，
+    /// 连一次全分辨率拷贝都不做 —— 与新增本通道之前逐字等价。
+    var onRecordFrame: ((CVPixelBuffer) -> Void)?
+
+    /// 是否需要全分辨率录制帧（每次帧回调时求值；与 `isUpscaleWanted` 完全同款模式）。
+    /// 接线方：UI 进程 → `{ leanRecorder.isRecording }`。false 时不做拷贝。
+    var isRecordFrameWanted: () -> Bool = { false }
+
     /// 是否需要 YOLO 直通帧（每次帧回调时求值；与 `isUpscaleWanted` 完全同款模式）。
     ///
     /// ⚠️ 2026-10-22 新增（纯浪费清理）：
@@ -381,6 +404,12 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     private var upscalePool: CVPixelBufferPool?
     private var upscalePoolWidth = 0
     private var upscalePoolHeight = 0
+
+    /// 精简录制缓冲池（全分辨率、标准内存布局；尺寸随源分辨率固定）
+    /// 与上面四个池各自独立，理由见 `copyRecordFrame` 的注释。
+    private var recordPool: CVPixelBufferPool?
+    private var recordPoolWidth = 0
+    private var recordPoolHeight = 0
 
     // ── 诊断尺子（纯测量，定位延迟高在哪一环）──
     // capGap：相邻两帧捕获间隔(ms)，正常~33ms，变大/波动 = 捕获或处理慢
@@ -769,6 +798,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                 self.upscalePool = nil
                 self.upscalePoolWidth = 0
                 self.upscalePoolHeight = 0
+                // 第五个池：精简录制缓冲（同样每块数 MB，必须一并释放）
+                self.recordPool = nil
+                self.recordPoolWidth = 0
+                self.recordPoolHeight = 0
             }
             print("[cap-deep] stop() 清理完成（池已释放）")
             self.onStatusChange?(.stopped)
@@ -1132,6 +1165,16 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             onUpscaleFrame(upscaleCopy)
         }
 
+        // ── 精简录制直通：全分辨率帧交给录制器（超采样与速度 OCR 都在离线做）──
+        // 门禁先于拷贝求值：未录制时连全分辨率拷贝都不做（与上面两路同款）。
+        // 拷贝在 captureQueue 上同步完成（≈4MB memcpy，亚毫秒级）；
+        // JPEG 编码与写盘由录制器丢到自己的后台队列 —— **绝不可在 captureQueue 上编码**，
+        // 本文件已有先例：在该队列做同步重活曾把 capGap 从 11ms 抬到 2081ms。
+        if let onRecordFrame, isRecordFrameWanted(),
+           let recordCopy = copyRecordFrame(from: pixelBuffer) {
+            onRecordFrame(recordCopy)
+        }
+
         // ── YOLO 直通：CPU vImage 缩放到模型输入尺寸（YoloEngine.inputSize，640）──
         // 在源头完成缩放，绕开大图 → NSImage → CGImage → 再缩放的链路
         //
@@ -1441,6 +1484,76 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         upscalePool = pool
         upscalePoolWidth = width
         upscalePoolHeight = height
+        return pool
+    }
+
+    // MARK: - 精简录制帧自持拷贝（全分辨率，标准内存布局）
+
+    /// 同步拷贝全分辨率帧到自持缓冲（供离线录制落盘用）
+    ///
+    /// 【为什么单独一个池，不复用 `upscaleBufferPool`】
+    /// 两个消费者的生命周期差异极大：插帧/超分在**同一帧内**消费完就还池；
+    /// 录制则要把缓冲交给后台编码队列，直到 JPEG 编码结束才释放。
+    /// 共用一个池时，录制持有一块缓冲的这段时间会让插帧侧拿不到足够缓冲，
+    /// 表现为"开了录制后插帧掉帧"——属于典型的池饥饿，且不会报错。
+    ///
+    /// 【为什么按源分辨率建池】`sampleHandler` 收到的 `pixelBuffer` 由系统池管理，
+    /// 主线程稍慢就会被回收/覆写（use-after-release）。必须逐行 memcpy 一份自持副本，
+    /// 行序照抄 src 的 `bytesPerRow`、不解释方向（方向语义由下游负责）。
+    private func copyRecordFrame(from src: CVPixelBuffer) -> CVPixelBuffer? {
+        let w = CVPixelBufferGetWidth(src)
+        let h = CVPixelBufferGetHeight(src)
+        guard w > 0, h > 0 else { return nil }
+        guard let pool = recordBufferPool(width: w, height: h) else { return nil }
+
+        var dst: CVPixelBuffer?
+        let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &dst)
+        guard status == kCVReturnSuccess, let dst else { return nil }
+
+        CVPixelBufferLockBaseAddress(src, .readOnly)
+        CVPixelBufferLockBaseAddress(dst, [])
+        defer {
+            CVPixelBufferUnlockBaseAddress(src, .readOnly)
+            CVPixelBufferUnlockBaseAddress(dst, [])
+        }
+        guard let sBase = CVPixelBufferGetBaseAddress(src),
+              let dBase = CVPixelBufferGetBaseAddress(dst) else { return nil }
+
+        let sBPR = CVPixelBufferGetBytesPerRow(src)
+        let dBPR = CVPixelBufferGetBytesPerRow(dst)
+        let copyBytes = w * 4  // 32BGRA = 4 bytes/pixel
+        for r in 0..<h {
+            memcpy(dBase + r * dBPR, sBase + r * sBPR, copyBytes)
+        }
+        return dst
+    }
+
+    /// 惰性创建（或复用）全分辨率录制缓冲池（32BGRA，标准内存布局）
+    ///
+    /// `minimumBufferCount: 6` 比插帧池(4)多留两块：录制端"编码中"持有的缓冲
+    /// 通常比插帧端更久，池深不足会导致 `CVPixelBufferPoolCreatePixelBuffer`
+    /// 返回非 0 → 该帧被静默丢弃。6 是本机 15Hz + 亚毫秒编码下的经验值。
+    private func recordBufferPool(width: Int, height: Int) -> CVPixelBufferPool? {
+        if let pool = recordPool, recordPoolWidth == width, recordPoolHeight == height {
+            return pool
+        }
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey: width,
+            kCVPixelBufferHeightKey: height,
+            kCVPixelBufferCGImageCompatibilityKey: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+            // 不加 IOSurface：录制端只需要读基址做 CGImage/编码，IOSurface 反而可能让 BaseAddress 不可读
+        ]
+        var pool: CVPixelBufferPool?
+        let status = CVPixelBufferPoolCreate(
+            kCFAllocatorDefault,
+            [kCVPixelBufferPoolMinimumBufferCountKey: 6] as CFDictionary,
+            attrs as CFDictionary, &pool)
+        guard status == kCVReturnSuccess, let pool else { return nil }
+        recordPool = pool
+        recordPoolWidth = width
+        recordPoolHeight = height
         return pool
     }
 
