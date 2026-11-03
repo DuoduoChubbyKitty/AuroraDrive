@@ -282,6 +282,17 @@ enum AuroraFlags {
     /// 恢复"每帧无条件 `releaseAll()`"的旧行为（用于 ABBA 对比节流收益）。
     static let releaseAllEveryTick = bool("AURORA_RELEASE_ALL_EVERY_TICK", default: false)
 
+    /// assist 引擎的节流保活开关。`=0` 恢复「每帧都跑 assistEngine.infer」的旧行为。
+    ///
+    /// 默认开启：e2e 档每 5 帧跑一次保活心跳（维持 `lastResultTime` 新鲜，避免
+    /// 降级状态机把 `assistLive` 判死）；`.yolo` 档仍每帧跑（降级链要看真值）。
+    /// 与 `releaseAllEveryTick` 同属「节流 + ABBA 回退」一族。
+    ///
+    /// 本开关原先在 `DriveState.tick()` 里**每帧现读**环境变量（实测 17µs/次 →
+    /// 15Hz 下约 0.26ms/s 白烧），2026-11-02 收敛到本文件。语义逐字不变：
+    /// 原表达式 `!= "0"` 与 `boolNotZero` 等价（未设 → 开；仅 `"0"` → 关）。
+    static let assistKeepalive = boolNotZero("AURORA_ASSIST_KEEPALIVE", default: true)
+
     /// 零速持续多少秒后拉"请求人工介入"横幅。默认 30。
     static let stuckSeconds = dbl("AURORA_STUCK_SECONDS", default: 30)
 
@@ -455,6 +466,7 @@ enum AuroraFlags {
         // E. 驾驶 / 控制
         .init(key: "AURORA_LANEKEEP_TIERS", defaultValue: "rule,yolo", summary: "车道保持生效档位（rule / rule,yolo / e2e,…）", isDiagnostic: false, readBy: "App/AuroraDriveApp.swift"),
         .init(key: "AURORA_RELEASE_ALL_EVERY_TICK", defaultValue: "0", summary: "恢复每帧无条件 releaseAll 的旧行为", isDiagnostic: true, readBy: "App/AuroraDriveApp.swift"),
+        .init(key: "AURORA_ASSIST_KEEPALIVE", defaultValue: "1", summary: "assist 引擎节流保活（0=恢复每帧跑；原在 tick 内每帧现读环境变量）", isDiagnostic: true, readBy: "App/AuroraDriveApp.swift"),
         .init(key: "AURORA_KEY_REFRESH_HZ", defaultValue: "0", summary: "按住键重发频率 Hz（0=不节流，逐帧一致）；启用后必须真机验证", isDiagnostic: true, readBy: "Control/ControlEngine.swift"),
         .init(key: "AURORA_STUCK_SECONDS", defaultValue: "30", summary: "零速多少秒后拉人工介入横幅", isDiagnostic: false, readBy: "App/AuroraDriveApp.swift"),
         .init(key: "AURORA_ENABLE_BG_DRIFT", defaultValue: "0", summary: "主题背景漂移动画（持续动画，占 WindowServer）", isDiagnostic: true, readBy: "App/AuroraTheme.swift"),

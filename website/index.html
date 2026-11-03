@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="AuroraDrive —— macOS 上的第三方《异环》(NTE) 视角自动驾驶系统。屏幕捕获 → CoreML 推理 → 按键注入，附网络抓包定位、速度识别与 MetalFX 显示增强。三档降级保底，GPL-3.0 开源。"
+    />
+    <meta property="og:title" content="AuroraDrive · macOS 视角自动驾驶系统" />
+    <meta
+      property="og:description"
+      content="屏幕捕获 → CoreML 推理 → 按键注入。三档降级保底，15Hz 实时推理，OpenCV DIS 光流 1.91ms。"
+    />
+    <meta property="og:type" content="website" />
+
+    <!-- ⚠️ 防白闪：主题必须在首次绘制前确定。
+         这段脚本必须内联在 <head> 最前，不能外链、不能 defer。
+         否则深色模式用户会先看到一帧白底再跳变。 -->
+    <script>
+      (function () {
+        var t = localStorage.getItem('aurora-theme');
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: light)').matches
+            ? 'light'
+            : 'dark';
+        }
+        document.documentElement.dataset.theme = t;
+        document.documentElement.classList.toggle('dark', t === 'dark');
+      })();
+    </script>
+
+    <style>
+      /* 首屏兜底底色 —— 在 CSS 加载前也保持正确背景 */
+      html {
+        background-color: #070a0f;
+      }
+      html[data-theme='light'] {
+        background-color: #f6f8fb;
+      }
+      body {
+        margin: 0;
+        background-color: #070a0f;
+      }
+      html[data-theme='light'] body {
+        background-color: #f6f8fb;
+      }
+    </style>
+
+    <title>AuroraDrive · macOS 视角自动驾驶系统</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

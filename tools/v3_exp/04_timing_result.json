@@ -1,0 +1,227 @@
+{
+  "BB_1x180x320": {
+    "ALL": {
+      "p50_ms": 0.3861,
+      "p95_ms": 0.4536,
+      "mean_ms": 0.3976,
+      "min_ms": 0.3576
+    },
+    "CPU_ONLY": {
+      "p50_ms": 1.4116,
+      "p95_ms": 1.8853,
+      "mean_ms": 1.4732,
+      "min_ms": 1.3828
+    },
+    "speedup_cpu_over_all": 3.66
+  },
+  "BB_1x224x384": {
+    "ALL": {
+      "p50_ms": 0.4581,
+      "p95_ms": 0.5225,
+      "mean_ms": 0.4683,
+      "min_ms": 0.4272
+    },
+    "CPU_ONLY": {
+      "p50_ms": 1.7997,
+      "p95_ms": 2.288,
+      "mean_ms": 1.8748,
+      "min_ms": 1.7625
+    },
+    "speedup_cpu_over_all": 3.93
+  },
+  "BB_1x112x192": {
+    "ALL": {
+      "p50_ms": 0.2491,
+      "p95_ms": 0.3218,
+      "mean_ms": 0.2658,
+      "min_ms": 0.2214
+    },
+    "CPU_ONLY": {
+      "p50_ms": 0.7436,
+      "p95_ms": 1.0147,
+      "mean_ms": 0.7735,
+      "min_ms": 0.7295
+    },
+    "speedup_cpu_over_all": 2.99
+  },
+  "BB_3x224x384": {
+    "ALL": {
+      "p50_ms": 0.9686,
+      "p95_ms": 1.0529,
+      "mean_ms": 0.982,
+      "min_ms": 0.9186
+    },
+    "CPU_ONLY": {
+      "p50_ms": 5.5964,
+      "p95_ms": 6.2738,
+      "mean_ms": 5.7378,
+      "min_ms": 5.3822
+    },
+    "speedup_cpu_over_all": 5.78
+  },
+  "BB_21x112x192": {
+    "ALL": {
+      "p50_ms": 1.7786,
+      "p95_ms": 3.0436,
+      "mean_ms": 1.9539,
+      "min_ms": 1.4241
+    },
+    "CPU_ONLY": {
+      "p50_ms": 15.8926,
+      "p95_ms": 30.3252,
+      "mean_ms": 18.0238,
+      "min_ms": 14.7376
+    },
+    "speedup_cpu_over_all": 8.94
+  },
+  "BB_24x180x320(全帧过骨干)": {
+    "ALL": {
+      "p50_ms": 4.4569,
+      "p95_ms": 5.0091,
+      "mean_ms": 4.5415,
+      "min_ms": 4.2865
+    },
+    "CPU_ONLY": {
+      "p50_ms": 37.6425,
+      "p95_ms": 66.2863,
+      "mean_ms": 44.5673,
+      "min_ms": 34.7738
+    },
+    "speedup_cpu_over_all": 8.45
+  },
+  "LowRes_1x112x192": {
+    "ALL": {
+      "p50_ms": 0.1373,
+      "p95_ms": 0.2364,
+      "mean_ms": 0.1476,
+      "min_ms": 0.1316
+    },
+    "CPU_ONLY": {
+      "p50_ms": 0.1354,
+      "p95_ms": 0.1795,
+      "mean_ms": 0.1447,
+      "min_ms": 0.1308
+    },
+    "speedup_cpu_over_all": 0.99
+  },
+  "LowRes_21x112x192": {
+    "ALL": {
+      "p50_ms": 0.5352,
+      "p95_ms": 0.6503,
+      "mean_ms": 0.5509,
+      "min_ms": 0.466
+    },
+    "CPU_ONLY": {
+      "p50_ms": 2.0683,
+      "p95_ms": 2.4928,
+      "mean_ms": 2.1268,
+      "min_ms": 1.898
+    },
+    "speedup_cpu_over_all": 3.86
+  },
+  "V1_unrollGRU_24steps": {
+    "ALL": {
+      "p50_ms": 0.0659,
+      "p95_ms": 0.0923,
+      "mean_ms": 0.0717,
+      "min_ms": 0.0629
+    },
+    "CPU_ONLY": {
+      "p50_ms": 0.0679,
+      "p95_ms": 0.1667,
+      "mean_ms": 0.0859,
+      "min_ms": 0.0612
+    },
+    "speedup_cpu_over_all": 1.03
+  },
+  "V5_hier_conv+gru8": {
+    "ALL": {
+      "p50_ms": 0.0521,
+      "p95_ms": 0.0553,
+      "mean_ms": 0.0522,
+      "min_ms": 0.0486
+    },
+    "CPU_ONLY": {
+      "p50_ms": 0.0507,
+      "p95_ms": 0.0593,
+      "mean_ms": 0.0518,
+      "min_ms": 0.0485
+    },
+    "speedup_cpu_over_all": 0.97
+  },
+  "V4_hier_conv only": {
+    "ALL": {
+      "p50_ms": 0.0491,
+      "p95_ms": 0.0517,
+      "mean_ms": 0.0497,
+      "min_ms": 0.0458
+    },
+    "CPU_ONLY": {
+      "p50_ms": 0.0506,
+      "p95_ms": 0.0543,
+      "mean_ms": 0.0509,
+      "min_ms": 0.0485
+    },
+    "speedup_cpu_over_all": 1.03
+  },
+  "V3p_manualAttn_2layer": {
+    "ALL": {
+      "p50_ms": 0.2373,
+      "p95_ms": 0.3741,
+      "mean_ms": 0.2595,
+      "min_ms": 0.1862
+    },
+    "CPU_ONLY": {
+      "p50_ms": 0.0625,
+      "p95_ms": 0.0679,
+      "mean_ms": 0.0638,
+      "min_ms": 0.0578
+    },
+    "speedup_cpu_over_all": 0.26
+  },
+  "E2E_BB+GRU_8frames_180x320": {
+    "ALL": {
+      "p50_ms": 1.743,
+      "p95_ms": 2.0093,
+      "mean_ms": 1.7763,
+      "min_ms": 1.5966
+    },
+    "CPU_ONLY": {
+      "p50_ms": 12.5755,
+      "p95_ms": 20.8301,
+      "mean_ms": 14.2642,
+      "min_ms": 11.6412
+    },
+    "speedup_cpu_over_all": 7.21
+  },
+  "E2E_BB+GRU_24frames_180x320": {
+    "ALL": {
+      "p50_ms": 4.9314,
+      "p95_ms": 5.5323,
+      "mean_ms": 4.9639,
+      "min_ms": 4.4009
+    },
+    "CPU_ONLY": {
+      "p50_ms": 35.8626,
+      "p95_ms": 40.7964,
+      "mean_ms": 36.4688,
+      "min_ms": 34.554
+    },
+    "speedup_cpu_over_all": 7.27
+  },
+  "E2E_BB+GRU_3frames_224x384": {
+    "ALL": {
+      "p50_ms": 1.1383,
+      "p95_ms": 1.8404,
+      "mean_ms": 1.3458,
+      "min_ms": 0.9693
+    },
+    "CPU_ONLY": {
+      "p50_ms": 5.8899,
+      "p95_ms": 6.5276,
+      "mean_ms": 5.9058,
+      "min_ms": 5.4416
+    },
+    "speedup_cpu_over_all": 5.17
+  }
+}

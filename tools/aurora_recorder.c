@@ -13,7 +13,8 @@
 //
 // 输出: <项目>/data/raw_clips/clip_<ts>/
 //   frames/000000.jpg ...   画面帧 (0 基, 与 controls.csv 行号对齐, 喂 MonoClipsDataset)
-//   controls.csv            t_sec,frame,steer,throttle,brake,handbrake,strong_brake   (每帧一行, 直接喂训练)
+//   controls.csv            t_sec,frame,steer,throttle,brake,reverse,handbrake,super_brake,ultimate_brake
+//                           (每帧一行, 直接喂训练; 键位语义见下方 is_* 函数注释)
 //   keylog.csv              t_sec,keycode,event(down/up)       (原始按键边沿, 备用)
 //   clip.json               元数据
 //
@@ -49,12 +50,26 @@ static FILE *g_raw_keys = NULL;   // 原始按键边沿日志
 static CFRunLoopRef g_kb_rl = NULL;
 
 // 按键映射 (复用项目 collect.py 的 VK_MAP: W=0x0D A=0x00 S=0x01 D=0x02 SPACE=0x31 SHIFT(左)=0x38)
-// 同时支持方向键。Shift=手刹漂移; Shift+空格=强力刹车 (仅左Shift, 右Shift不绑)
+// 同时支持方向键。
+//
+// 【2026-11-03 修正】键位语义以用户口头确认为准（用户是实际驾驶者）：
+//   S(后退) 与 空格(正常刹车) 是**两个不同的键**，必须分列记录。
+// 旧实现把 S/↓/空格 全并进 is_brk，导致 controls.csv 的 brake 列
+// 无法区分「后退」和「刹车」—— 训练 V3 时 S 类与 space 头永远学不到。
+// 实测证据：只按 Space 与只按 S 会产出完全相同的行。
+//
+// 现在：
+//   S / ↓            → reverse 列（后退）
+//   空格             → space_brake 列（正常刹车）
+//   左 Shift         → handbrake 列（手刹）
+//   Shift + 空格     → super_brake 列（超级刹车；短按=超级，长按=极致）
+//   左 Shift+空格+S  → ultimate_brake 列（极致刹车，用户明确给出）
 static int is_left(int k)  { return k == 0x00 || k == 0x7B; } // A / LeftArrow
 static int is_right(int k) { return k == 0x02 || k == 0x7C; } // D / RightArrow
 static int is_thr(int k)   { return k == 0x0D || k == 0x7E; } // W / UpArrow
-static int is_brk(int k)   { return k == 0x01 || k == 0x7D || k == 0x31; } // S / DownArrow / Space
-static int is_shift(int k) { return k == 0x38; }              // 仅左 Shift = 手刹漂移 / 强力刹车
+static int is_reverse(int k) { return k == 0x01 || k == 0x7D; } // S / DownArrow（后退，不再含空格）
+static int is_space(int k) { return k == 0x31; }              // 空格 = 正常刹车
+static int is_shift(int k) { return k == 0x38; }              // 仅左 Shift = 手刹
 
 static double now_sec(void) {
     struct timeval tv;
@@ -154,26 +169,43 @@ static void *kb_thread(void *arg) {
     return NULL;
 }
 
-// 按帧推导 (steer,throttle,brake,handbrake,strong_brake)
+// 按帧推导控制量并写一行 CSV
+//
+// 【2026-11-03 修正】按用户确认的键位语义重写，列从 7 列扩到 9 列：
+//   steer          -1/0/+1   横向（A/D 互斥；同时按判 0）
+//   throttle        1/0      W
+//   brake           1/0      空格（正常刹车）
+//   reverse         1/0      S（后退）—— 与 brake 分开，旧版混为一列
+//   handbrake       1/0      左 Shift（手刹）
+//   super_brake     1/0      Shift+空格（超级刹车；长按由下游按时长升格为极致）
+//   ultimate_brake  1/0      Shift+空格+S（极致刹车）
+//
+// 为什么 brake 与 reverse 必须分开：用户确认 S=后退、空格=刹车是两个不同键。
+// 旧实现把 S/↓/空格 全并进一列，训练 V3 时 direction 头与 space 头永远学不到区别。
 static void derive_and_write(FILE *controls, double t, long frame) {
     pthread_mutex_lock(&g_kb_lock);
-    int left = 0, right = 0, thr = 0, brk = 0, shift = 0, space = 0;
+    int left = 0, right = 0, thr = 0, rev = 0, shift = 0, space = 0;
     for (int k = 0; k < 256; k++) {
         if (!g_pressed[k]) continue;
-        if (is_left(k))  left = 1;
-        if (is_right(k)) right = 1;
-        if (is_thr(k))   thr = 1;
-        if (is_brk(k))   brk = 1;
-        if (is_shift(k)) shift = 1;
-        if (k == 0x31)   space = 1;   // 空格键(区分手刹/强力刹车)
+        if (is_left(k))    left = 1;
+        if (is_right(k))   right = 1;
+        if (is_thr(k))     thr = 1;
+        if (is_reverse(k)) rev = 1;
+        if (is_shift(k))   shift = 1;
+        if (is_space(k))   space = 1;
     }
     pthread_mutex_unlock(&g_kb_lock);
     double steer = (left && !right) ? -1.0 : (right && !left) ? 1.0 : 0.0;
     double throttle = thr ? 1.0 : 0.0;
-    double brake = brk ? 1.0 : 0.0;
-    double handbrake = (shift && !space) ? 1.0 : 0.0;   // 手刹漂移: 仅 Shift(不按空格)
-    double strong_brake = (shift && space) ? 1.0 : 0.0; // 强力刹车: Shift+空格
-    fprintf(controls, "%.4f,%ld,%.1f,%.1f,%.1f,%.1f,%.1f\n", t, frame, steer, throttle, brake, handbrake, strong_brake);
+    double brake = space ? 1.0 : 0.0;          // 空格 = 正常刹车
+    double reverse = rev ? 1.0 : 0.0;          // S = 后退
+    double handbrake = shift ? 1.0 : 0.0;      // Shift = 手刹
+    // Shift+空格 = 超级刹车（短按）；长按由下游按时长升格为极致刹车
+    double super_brake = (shift && space) ? 1.0 : 0.0;
+    // Shift+空格+S = 极致刹车（用户明确给出的第三档）
+    double ultimate_brake = (shift && space && rev) ? 1.0 : 0.0;
+    fprintf(controls, "%.4f,%ld,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n",
+            t, frame, steer, throttle, brake, reverse, handbrake, super_brake, ultimate_brake);
 }
 
 int main(int argc, char **argv) {
@@ -273,7 +305,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[error] 无法创建 %s: %s\n", ctrl_path, strerror(errno));
         return 1;
     }
-    fprintf(controls, "t_sec,frame,steer,throttle,brake,handbrake,strong_brake\n");
+    fprintf(controls, "t_sec,frame,steer,throttle,brake,reverse,handbrake,super_brake,ultimate_brake\n");
     g_raw_keys = fopen(keylog_path, "w");
     if (!g_raw_keys) {
         fprintf(stderr, "[error] 无法创建 %s: %s\n", keylog_path, strerror(errno));

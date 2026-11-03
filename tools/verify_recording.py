@@ -11,7 +11,6 @@ from pathlib import Path
 ROOT = Path("/Users/dupi/Desktop/自动驾驶系统/data/raw_clips")
 EXPECTED_HEADER = ["t_sec", "frame", "steer", "throttle", "brake"]
 
-
 def verify():
     if not ROOT.exists():
         print(f"[!] {ROOT} 不存在 —— 还没有任何录制")
@@ -30,14 +29,29 @@ def verify():
         if csvp.exists():
             with open(csvp) as f:
                 h = next(csv.reader(f))
-            if h == EXPECTED_HEADER:
-                info.append("controls.csv 表头 OK (t_sec,frame,steer,throttle,brake)")
+            # 兼容两种格式：
+            #   旧（2026-11-03 前）：t_sec,frame,steer,throttle,brake,handbrake,strong_brake
+            #   新：t_sec,frame,steer,throttle,brake,reverse,handbrake,super_brake,ultimate_brake
+            # 新格式把 S(后退) 从 brake 列里拆出来，并新增极致刹车列。
+            if h[:5] == EXPECTED_HEADER:
+                if "reverse" in h:
+                    info.append(f"controls.csv 表头 OK (新 9 列格式，S/空格已分开)")
+                else:
+                    info.append("controls.csv 表头 OK (旧 7 列格式：S 与空格混在 brake 列)")
             else:
                 issues.append(f"controls.csv 表头不符: {h}")
             rows = list(csv.DictReader(open(csvp)))
             if rows:
                 r0 = rows[0]
                 info.append(f"控制行={len(rows)} 首行 steer={r0['steer']} throttle={r0['throttle']} brake={r0['brake']}")
+                if "reverse" in h:
+                    rev = sum(1 for r in rows if r.get("reverse", "0") not in ("0", "0.0", ""))
+                    sup = sum(1 for r in rows if r.get("super_brake", "0") not in ("0", "0.0", ""))
+                    ult = sum(1 for r in rows if r.get("ultimate_brake", "0") not in ("0", "0.0", ""))
+                    hb = sum(1 for r in rows if r.get("handbrake", "0") not in ("0", "0.0", ""))
+                    info.append(
+                        f"按键统计: 后退(S)={rev} 超级刹车={sup} 极致刹车={ult} 手刹(Shift)={hb}"
+                    )
         else:
             issues.append("缺少 controls.csv")
         vt = c / "view.txt"

@@ -1,0 +1,95 @@
+{
+  "V1_UnrollGRU24_1layer": {
+    "total_ops": 573,
+    "const_ops": 143,
+    "analyzed_ops": 430,
+    "by_device": {
+      "const": 143,
+      "cpu": 430
+    },
+    "ane_ops": 0,
+    "gpu_ops": 0,
+    "cpu_ops": 430,
+    "ane_ratio_of_analyzed": 0.0,
+    "out_shape": [
+      1,
+      128
+    ],
+    "finite": true
+  },
+  "V2_TCN_4layer": {
+    "total_ops": 69,
+    "const_ops": 52,
+    "analyzed_ops": 17,
+    "by_device": {
+      "const": 52,
+      "cpu": 17
+    },
+    "ane_ops": 0,
+    "gpu_ops": 0,
+    "cpu_ops": 17,
+    "ane_ratio_of_analyzed": 0.0,
+    "out_shape": [
+      1,
+      128
+    ],
+    "finite": true
+  },
+  "V3_TemporalAttn_2layer": {
+    "error": "NotImplementedError: PyTorch convert function for op '_transformer_encoder_layer_fwd' not implemented."
+  },
+  "V4_Hierarchical_conv": {
+    "total_ops": 65,
+    "const_ops": 49,
+    "analyzed_ops": 16,
+    "by_device": {
+      "const": 49,
+      "cpu": 16
+    },
+    "ane_ops": 0,
+    "gpu_ops": 0,
+    "cpu_ops": 16,
+    "ane_ratio_of_analyzed": 0.0,
+    "out_shape": [
+      1,
+      128
+    ],
+    "finite": true
+  },
+  "V5_Hierarchical_gru8": {
+    "total_ops": 218,
+    "const_ops": 72,
+    "analyzed_ops": 146,
+    "by_device": {
+      "const": 72,
+      "cpu": 146
+    },
+    "ane_ops": 0,
+    "gpu_ops": 0,
+    "cpu_ops": 146,
+    "ane_ratio_of_analyzed": 0.0,
+    "out_shape": [
+      1,
+      128
+    ],
+    "finite": true
+  },
+  "LowResEncoder": {
+    "total_ops": 70,
+    "const_ops": 53,
+    "analyzed_ops": 17,
+    "by_device": {
+      "const": 53,
+      "cpu": 17
+    },
+    "ane_ops": 0,
+    "gpu_ops": 0,
+    "cpu_ops": 17,
+    "ane_ratio_of_analyzed": 0.0,
+    "out_shape": [
+      1,
+      96
+    ],
+    "finite": true
+  }
+}

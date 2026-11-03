@@ -6063,7 +6063,7 @@ final class DriveState {
         //   「不能降品」。HUD 是既有功能（且承担 Game Mode 对抗的「可见窗口」
         //   职责，见其文档注释），**默认必须保持开启**；本开关只为实测服务，
         //   不设则行为与改动前逐字一致。与既有 9 个 `AURORA_*` 诊断开关同约定。
-        let hudDisabled = ProcessInfo.processInfo.environment["AURORA_DISABLE_HUD"] == "1"
+        let hudDisabled = AuroraFlags.disableHUD
         if !CommandLine.arguments.contains("--engine") {
             if hudDisabled {
                 dlog("[HUD] AURORA_DISABLE_HUD=1 → 跳过帧率 HUD 安装（仅用于 WindowServer 负载对照实验）")
@@ -6367,7 +6367,7 @@ final class DriveState {
         //   用户红线「不能加任何东西」。环境变量不改变任何既有 UI 与行为，
         //   与既有的 `AURORA_UI_LOCAL` / `AURORA_ENGINE_DIAG_SKIP_TCC` /
         //   `AURORA_DISABLE_OPTICAL_FLOW` 等 9 处诊断开关同一约定。
-        let observeOnly = ProcessInfo.processInfo.environment["AURORA_OBSERVE_ONLY"] == "1"
+        let observeOnly = AuroraFlags.observeOnly
         if observeOnly {
             controlDisabled = true
             dlog("[OBSERVE] AURORA_OBSERVE_ONLY=1 → 已强制 controlDisabled=true"
@@ -7539,7 +7539,7 @@ final class DriveState {
             //         不走本门禁 → 自检不受影响。
             //
             //   ⚠️ 回退开关：`AURORA_ASSIST_KEEPALIVE=0` 恢复每帧跑（出问题时一行回退）。
-            let assistKeepalive = ProcessInfo.processInfo.environment["AURORA_ASSIST_KEEPALIVE"] != "0"
+            let assistKeepalive = AuroraFlags.assistKeepalive
             if !assistKeepalive || mode == .yolo || adaptiveFrameCounter % 5 == 0 {
                 assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
             }

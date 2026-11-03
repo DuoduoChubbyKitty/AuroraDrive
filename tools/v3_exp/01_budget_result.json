@@ -1,0 +1,103 @@
+{
+  "image_encoder": [
+    {
+      "name": "180x320（现有基线）",
+      "h": 180,
+      "w": 320,
+      "macs": 902845440,
+      "params": 2519152
+    },
+    {
+      "name": "224x384（V3 高清）",
+      "h": 224,
+      "w": 384,
+      "macs": 1291272192,
+      "params": 2519152
+    },
+    {
+      "name": "112x192（V3 低清）",
+      "h": 112,
+      "w": 192,
+      "macs": 322818048,
+      "params": 2519152
+    }
+  ],
+  "low_res_encoder": [
+    {
+      "name": "tiny(16,32,64,96)",
+      "macs": 4553472,
+      "params": 10784
+    },
+    {
+      "name": "mid(24,48,96,128)",
+      "macs": 8120448,
+      "params": 21136
+    }
+  ],
+  "temporal_variants": [
+    {
+      "name": "V1 unroll-GRU x24 (1层)",
+      "macs": 2375680,
+      "params": 115840,
+      "by_type": {
+        "Linear": 2375680
+      }
+    },
+    {
+      "name": "V1b unroll-GRU x24 (2层)",
+      "macs": 4734976,
+      "params": 214912,
+      "by_type": {
+        "Linear": 4734976
+      }
+    },
+    {
+      "name": "V2 TCN 4层 d=1,2,4,8",
+      "macs": 4734976,
+      "params": 213888,
+      "by_type": {
+        "Linear": 16384,
+        "Conv1d": 4718592
+      }
+    },
+    {
+      "name": "V3 temporal-attn 2层/4头",
+      "macs": 147456,
+      "params": 284800,
+      "by_type": {
+        "Linear": 147456
+      }
+    },
+    {
+      "name": "V4 hierarchical 组内3+TCN3层",
+      "macs": 1589248,
+      "params": 213888,
+      "by_type": {
+        "Linear": 16384,
+        "Conv1d": 1572864
+      }
+    },
+    {
+      "name": "V5 hierarchical 组内3+GRU8步",
+      "macs": 1196032,
+      "params": 165120,
+      "by_type": {
+        "Linear": 802816,
+        "Conv1d": 393216
+      }
+    }
+  ],
+  "e2e_image": {
+    "baseline_24f_180x320_macs": 21668290560,
+    "hybrid_hi3_macs": 3873816576,
+    "hybrid_lo21_macs": 95622912,
+    "hybrid_total_macs": 3969439488,
+    "ratio_vs_baseline": 0.1832,
+    "image_encoder_params": 2519152,
+    "low_res_encoder_params": 10784
+  },
+  "e2e_8hi16lo": {
+    "macs": 10403033088,
+    "ratio_vs_3hi21lo": 2.6208
+  }
+}

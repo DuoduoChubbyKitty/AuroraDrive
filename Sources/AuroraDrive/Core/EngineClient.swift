@@ -20,24 +20,74 @@ import Darwin
 import CoreGraphics
 import AppKit
 
+/// engineClientLog 的时间戳格式器。
+///
+/// 【为什么提到文件级常量】`DateFormatter` 创建很重（解析格式串 + ICU 初始化），
+///   原实现每次调用都 `DateFormatter()` 新建一个。本日志虽是事件型（24 处调用点），
+///   但重连失败、心跳超时等场景会短时间内连续触发。
+/// 【为什么可以共享】macOS 10.9 起 `DateFormatter` 的格式化为线程安全；
+///   `static let` 是懒初始化，天然只构造一次。
+private enum EngineClientLogFormatter {
+    static let timestamp: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss.SSS"
+        return f
+    }()
+}
+
+// ── 日志上限与轮转 ────────────────────────────────────────────────────────
+// 【为什么加】原实现是**纯追加、无上限**：24/7 挂机场景下
+//   `~/Library/Logs/AuroraEngineClient.log` 会无限增长，而它是
+//   「UI ↔ 引擎连接 / 重连 / 协议不匹配」的排障入口，既不能删、
+//   也不能因为怕涨就不写。
+// 策略与 `engineLog`（EngineMain.swift）/ `pcapLog`（CoordinateCapture.swift）
+//   一致：单备份（`.old`，覆盖式）+ 每 64 次写入才 stat 一次（避免每次写都 stat）。
+// 【为什么是 2 MB】本日志调用量远低于 engineLog（后者实测 951 KB/h），
+//   2 MB 已能留存相当长时间的重连 / 协议不匹配排查窗口；
+//   峰值磁盘占用 = 2 MB（当前）+ 2 MB（`.old`）= 4 MB 封顶，可预测。
+private let engineClientLogMaxBytes: UInt64 = 2 * 1024 * 1024
+/// 每写这么多次检查一次文件大小（避免每次写日志都 stat）
+private let engineClientLogCheckEvery: UInt64 = 64
+private nonisolated(unsafe) var engineClientLogWriteCount: UInt64 = 0
+
+/// 超过上限则把当前日志改名为 `<path>.old`（覆盖旧备份）并重建空文件。
+/// 返回 true 表示发生了轮转。**只改名、不删日志、不改路径。**
+private func engineClientLogRotateIfNeeded(path: String) -> Bool {
+    let fm = FileManager.default
+    guard let attrs = try? fm.attributesOfItem(atPath: path),
+          let size = attrs[.size] as? UInt64,
+          size >= engineClientLogMaxBytes else { return false }
+    let backup = path + ".old"
+    try? fm.removeItem(atPath: backup)               // 单备份：旧 .old 直接覆盖
+    try? fm.moveItem(atPath: path, toPath: backup)   // 当前 → .old
+    fm.createFile(atPath: path, contents: nil)       // 重建空文件
+    return true
+}
+
 /// UI 侧引擎客户端日志：同时写 stdout 与 ~/Library/Logs/AuroraEngineClient.log
 /// （GUI 进程 stdout 常被缓冲，落盘才能在退出后复查）
 func engineClientLog(_ msg: String) {
-    let f = DateFormatter()
-    f.dateFormat = "HH:mm:ss.SSS"
-    let line = "[\(f.string(from: Date()))] [UI-CLIENT] \(msg)\n"
-    FileHandle.standardOutput.write(line.data(using: .utf8) ?? Data())
+    let line = "[\(EngineClientLogFormatter.timestamp.string(from: Date()))] [UI-CLIENT] \(msg)\n"
+    // 一次编码，stdout 与文件共用（原实现编码两次，写入内容完全一致）
+    let data = line.data(using: .utf8) ?? Data()
+    FileHandle.standardOutput.write(data)
     let path = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Logs/AuroraEngineClient.log").path
+    // 轮转检查（节流：每 64 次写入 stat 一次）。**放在写之前**，
+    // 让本轮就落到新文件里，不留「已超限却还在写旧文件」的窗口。
+    engineClientLogWriteCount &+= 1
+    if engineClientLogWriteCount % engineClientLogCheckEvery == 0 {
+        _ = engineClientLogRotateIfNeeded(path: path)
+    }
     if let fh = FileHandle(forWritingAtPath: path) {
         fh.seekToEndOfFile()
-        fh.write(line.data(using: .utf8) ?? Data())
+        fh.write(data)
         fh.closeFile()
     } else {
         FileManager.default.createFile(atPath: path, contents: nil)
         if let fh = FileHandle(forWritingAtPath: path) {
             fh.seekToEndOfFile()
-            fh.write(line.data(using: .utf8) ?? Data())
+            fh.write(data)
             fh.closeFile()
         }
     }

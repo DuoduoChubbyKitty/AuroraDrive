@@ -173,8 +173,13 @@ struct TopBar: View {
 }
 
 /// 品牌圆标（网页 .brand-mark：31px 圆 + 冰蓝辉光）
+///
+/// ⚠️ 2026-11-02（CPU 审计）：原有一个 `@State spin` + `.onAppear` 里的
+///   `withAnimation(.linear(duration: 9).repeatForever(autoreverses: false))`
+///   —— 但 `spin` 在**本 struct 内零读取**（没有任何 rotationEffect / scaleEffect /
+///   offset 引用它），动画不产生任何视觉变化，却留下一个**永不结束的 repeatForever
+///   动画驱动源**，让 SwiftUI 持续按帧调度。已删除，视觉逐像素不变。
 struct BrandMark: View {
-    @State private var spin = false
 
     var body: some View {
         ZStack {
@@ -190,9 +195,6 @@ struct BrandMark: View {
                 .shadow(color: Aurora.ice, radius: 7)
         }
         .shadow(color: Aurora.iceGlow, radius: 14)
-        .onAppear {
-            withAnimation(.linear(duration: 9).repeatForever(autoreverses: false)) { spin = true }
-        }
     }
 }
 
@@ -6230,7 +6232,11 @@ struct ContentView: View {
         //   保持一致。UI-local 模式（未连引擎）下 DriveState.tick() 由本定时器
         //   驱动，若两边频率不同，`dt` 与帧计数常量的实际时间会错。
         //   （历史：原 1.0/30.0 → 2026-10-12 改 20Hz → 2026-10-22 全链路降 15Hz）
-        timer.schedule(deadline: .now(), repeating: 1.0 / 15.0, leeway: .nanoseconds(0))
+        // ⚠️ 2026-11-02（CPU 审计）：`leeway` 由 `.nanoseconds(0)` 放宽到 1ms。
+        //   零 leeway 意味着 dispatch 框架**不允许合并唤醒**，每次都要精确到点唤醒；
+        //   对 66.7ms 周期的 tick 而言，1ms 抖动人眼无感（远小于帧间隔），
+        //   但能让内核把定时器唤醒与其他事件合并，省上下文切换。
+        timer.schedule(deadline: .now(), repeating: 1.0 / 15.0, leeway: .milliseconds(1))
         // ⚠️ 性能关键：不要无条件按满频往主线程投递 tick。
         //
         // 每次投递都会让 SwiftUI 走一遍事务 → 重新计算整棵视图树的布局
@@ -6306,7 +6312,7 @@ struct ContentView: View {
         // 10 次 —— 空闲时这些唤醒是纯浪费。
         let nlQueue = DispatchQueue(label: "com.aurora.netlocate", qos: .userInteractive)
         let nlTimer = DispatchSource.makeTimerSource(queue: nlQueue)
-        nlTimer.schedule(deadline: .now(), repeating: 1.0 / 10.0, leeway: .nanoseconds(0))
+        nlTimer.schedule(deadline: .now(), repeating: 1.0 / 10.0, leeway: .milliseconds(1))
         var nlIdleSkip = 0
         nlTimer.setEventHandler {
             let busy = state.isDriving || state.isRecording

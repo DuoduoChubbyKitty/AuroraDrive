@@ -1,0 +1,87 @@
+{
+  "state_token_plans": [
+    {
+      "plan": "A 只装 t-1 四标量（论文原样）",
+      "params": 640,
+      "macs": 512
+    },
+    {
+      "plan": "B t-1 四标量 + 24帧历史摘要",
+      "params": 17024,
+      "macs": 16896
+    },
+    {
+      "plan": "C 24帧完整状态序列(4→64→128)",
+      "params": 33600,
+      "macs": 604160
+    }
+  ],
+  "attn_token_scaling": [
+    {
+      "scenario": "论文式：72 视觉 + 1 state",
+      "tokens": 73,
+      "attn_macs": 21864960,
+      "x_vs_paper": 1.0
+    },
+    {
+      "scenario": "推荐：72 视觉 + 1 state + 1 temporal",
+      "tokens": 74,
+      "attn_macs": 22202368,
+      "x_vs_paper": 1.015
+    },
+    {
+      "scenario": "激进：72 视觉 + 1 state + 24 逐帧 temporal",
+      "tokens": 97,
+      "attn_macs": 30245376,
+      "x_vs_paper": 1.383
+    },
+    {
+      "scenario": "极端：72 视觉 + 24 帧全 flatten 成 token",
+      "tokens": 96,
+      "attn_macs": 29884416,
+      "x_vs_paper": 1.367
+    }
+  ],
+  "coverage": {
+    "① 单帧（无增广）": {
+      "occupied": 3153,
+      "dense": 2220,
+      "total": 32768,
+      "occupied_ratio": 0.0962,
+      "dense_ratio": 0.0677,
+      "mean_abs_acc": 0.1531,
+      "p95_abs_acc": 0.568,
+      "frac_abs_acc_gt_0.5": 0.0722
+    },
+    "② 单帧 + 论文式噪声(σ_ctrl=0.1, σ_speed=1)": {
+      "occupied": 5187,
+      "dense": 3399,
+      "total": 32768,
+      "occupied_ratio": 0.1583,
+      "dense_ratio": 0.1037,
+      "mean_abs_acc": 0.1928,
+      "p95_abs_acc": 0.62,
+      "frac_abs_acc_gt_0.5": 0.0936
+    },
+    "③ 24帧窗口（真实历史，物理自洽）": {
+      "occupied": 6853,
+      "dense": 5029,
+      "total": 32768,
+      "occupied_ratio": 0.2091,
+      "dense_ratio": 0.1535,
+      "mean_abs_acc": 0.1522,
+      "p95_abs_acc": 0.4345,
+      "frac_abs_acc_gt_0.5": 0.0325
+    },
+    "④ 24帧窗口 + 噪声注入": {
+      "occupied": 9310,
+      "dense": 6584,
+      "total": 32768,
+      "occupied_ratio": 0.2841,
+      "dense_ratio": 0.2009,
+      "mean_abs_acc": 0.2027,
+      "p95_abs_acc": 0.5281,
+      "frac_abs_acc_gt_0.5": 0.0614
+    }
+  }
+}

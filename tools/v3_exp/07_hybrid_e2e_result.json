@@ -1,0 +1,36 @@
+{
+  "params": {
+    "total": 2878068,
+    "backbone_shared": 2519152,
+    "temporal_new": 262912,
+    "lo_branch_new": 12544,
+    "state_token": 17024,
+    "hist_proj_and_head": 66307
+  },
+  "macs": {
+    "hybrid": 5191697280,
+    "ratio_vs_24f_full": 0.2396
+  },
+  "dispatch": {
+    "total_ops": 234,
+    "by_device": {
+      "const": 172,
+      "neuralEngine": 62
+    },
+    "analyzed": 62,
+    "ane_ratio": 1.0
+  },
+  "timing": {
+    "ALL": {
+      "p50": 1.8011,
+      "p95": 3.3297,
+      "min": 1.4387
+    },
+    "CPU_ONLY": {
+      "p50": 12.2134,
+      "p95": 12.4594,
+      "min": 11.8655
+    },
+    "speedup": 6.78
+  }
+}

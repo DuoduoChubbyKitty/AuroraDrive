@@ -1,0 +1,251 @@
+{
+  "ImageEncoder_1x224x384": {
+    "tag": "ImageEncoder_1x224x384",
+    "input_shape": [
+      1,
+      3,
+      224,
+      384
+    ],
+    "total_ops": 124,
+    "const_ops": 95,
+    "analyzed_ops": 29,
+    "ane": 29,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 95,
+      "ANE": 29
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      1,
+      256
+    ],
+    "finite": true
+  },
+  "ImageEncoder_3x224x384": {
+    "tag": "ImageEncoder_3x224x384",
+    "input_shape": [
+      3,
+      3,
+      224,
+      384
+    ],
+    "total_ops": 124,
+    "const_ops": 95,
+    "analyzed_ops": 29,
+    "ane": 29,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 95,
+      "ANE": 29
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      3,
+      256
+    ],
+    "finite": true
+  },
+  "ImageEncoder_1x180x320": {
+    "tag": "ImageEncoder_1x180x320",
+    "input_shape": [
+      1,
+      3,
+      180,
+      320
+    ],
+    "total_ops": 124,
+    "const_ops": 95,
+    "analyzed_ops": 29,
+    "ane": 29,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 95,
+      "ANE": 29
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      1,
+      256
+    ],
+    "finite": true
+  },
+  "ImageEncoder_21x112x192": {
+    "tag": "ImageEncoder_21x112x192",
+    "input_shape": [
+      21,
+      3,
+      112,
+      192
+    ],
+    "total_ops": 124,
+    "const_ops": 95,
+    "analyzed_ops": 29,
+    "ane": 29,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 95,
+      "ANE": 29
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      21,
+      256
+    ],
+    "finite": true
+  },
+  "ImageEncoder_1x112x192": {
+    "tag": "ImageEncoder_1x112x192",
+    "input_shape": [
+      1,
+      3,
+      112,
+      192
+    ],
+    "total_ops": 124,
+    "const_ops": 95,
+    "analyzed_ops": 29,
+    "ane": 29,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 95,
+      "ANE": 29
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      1,
+      256
+    ],
+    "finite": true
+  },
+  "V3p_ManualAttn_2layer": {
+    "tag": "V3p_ManualAttn_2layer",
+    "input_shape": [
+      1,
+      24,
+      128
+    ],
+    "total_ops": 113,
+    "const_ops": 65,
+    "analyzed_ops": 48,
+    "ane": 48,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 65,
+      "ANE": 48
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      1,
+      128
+    ],
+    "finite": true
+  },
+  "BB+V1gru24_3frames_224": {
+    "tag": "BB+V1gru24_3frames_224",
+    "input_shape": [
+      3,
+      3,
+      224,
+      384
+    ],
+    "total_ops": 215,
+    "const_ops": 133,
+    "analyzed_ops": 82,
+    "ane": 82,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 133,
+      "ANE": 82
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      1,
+      128
+    ],
+    "finite": true
+  },
+  "BB+V5hier24_3frames_224": {
+    "tag": "BB+V5hier24_3frames_224",
+    "input_shape": [
+      3,
+      3,
+      224,
+      384
+    ],
+    "total_ops": 176,
+    "const_ops": 126,
+    "analyzed_ops": 50,
+    "ane": 50,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 126,
+      "ANE": 50
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      1,
+      128
+    ],
+    "finite": true
+  },
+  "BB+V4tcn_3frames_224": {
+    "tag": "BB+V4tcn_3frames_224",
+    "input_shape": [
+      3,
+      3,
+      224,
+      384
+    ],
+    "total_ops": 192,
+    "const_ops": 146,
+    "analyzed_ops": 46,
+    "ane": 46,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 146,
+      "ANE": 46
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      1,
+      128
+    ],
+    "finite": true
+  },
+  "BB+V1gru24_8frames_180": {
+    "tag": "BB+V1gru24_8frames_180",
+    "input_shape": [
+      8,
+      3,
+      180,
+      320
+    ],
+    "total_ops": 325,
+    "const_ops": 153,
+    "analyzed_ops": 172,
+    "ane": 172,
+    "cpu": 0,
+    "gpu": 0,
+    "by_device": {
+      "const": 153,
+      "ANE": 172
+    },
+    "ane_ratio": 1.0,
+    "out_shape": [
+      1,
+      128
+    ],
+    "finite": true
+  }
+}

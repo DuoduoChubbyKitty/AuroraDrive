@@ -1326,27 +1326,56 @@ final class YolopxEngine {
         let vx1 = min(grid, Int(ceil(Double(metrics.padX + metrics.newW) / strideD)))
         let vy1 = min(grid, Int(ceil(Double(metrics.padY + metrics.newH) / strideD)))
 
+        // ══════════════════════════════════════════════════════════════════
+        // ★ SIMD4 向量化（2026-11-02）：内层「ch1 > ch0」由逐像素标量比较
+        //   改为 SIMD4<Float> 一次比较 4 个像素。
+        // ══════════════════════════════════════════════════════════════════
+        //
+        // 【为什么当年没合入、现在又做】
+        //   历史实测（`docs/老旧文档/已整合归档-2026-10-18/性能实测-2026-09-30-
+        //   卡顿与定位.md` §2.5「实测有效但未采用」）：
+        //     extractMask SIMD4 累加 3.98 → 1.64 ms（2.42×），0 格差异
+        //   未采用的原因写的是「仅占 prediction 的 3.3%，收益小」—— 是**优先级
+        //   判断**，不是精度/ABI/兼容性问题。git log 全库搜不到任何 SIMD 相关
+        //   提交，`git blame` 显示本函数一直来自 c3e1dd37（2026-10-02），即
+        //   SIMD4 版本**从未进过仓库**，也就不存在"被回退"的记录。
+        //
+        // 【为什么这次敢合入：逐位等价有数学保证，不只是"实测 0 格差异"】
+        //   · fp16 路径：Float16 → Float 是**精确无损**转换（Float 的尾数与指数
+        //     范围完全覆盖 Float16，无舍入），故 `Float(h1) > Float(h0)` 与
+        //     `h1 > h0` 的判定**逐位等价**；NaN 语义也一致（任一为 NaN 时比较
+        //     恒为 false，两条路径同样不加计数）。
+        //   · fp32 路径：SIMD4<Float32> 直接装载同一批内存，比较原样进行。
+        //   · 计数、多数表决阈值（positive*2 >= stride*stride）、valid 区域
+        //     统计（vx0/vy0/vx1/vy1）**一个字都没改**。
+        //   ⟹ cells/ratio 输出与原实现必然逐位相同，不依赖运气。
+        //
+        // 【dtype 分派位置】原来 dtype 判断在**最内层像素循环里**（每像素一次
+        //   分支，409600 次/帧）；现提到**块级**（每块一次，25600 次/帧），
+        //   分支预测稳定、且块扫描函数被 @inline(__always) 内联。
+        //   dtype 分派结构（f16 / f32 / readML 兜底）与语义完全保留。
         for gy in 0..<grid {
             for gx in 0..<grid {
-                var positive = 0
-                for dy in 0..<stride {
-                    let py = gy * stride + dy
-                    for dx in 0..<stride {
-                        let px = gx * stride + dx
-                        let i0 = py * width + px
-                        let i1 = height * width + i0
-
-                        let a: Float, b: Float
-                        if let f16 {
-                            a = Float(f16[i0]); b = Float(f16[i1])
-                        } else if let f32 {
-                            a = f32[i0]; b = f32[i1]
-                        } else {
-                            a = Float(readML(arr, [0, 0, py, px]))
-                            b = Float(readML(arr, [0, 1, py, px]))
-                        }
-                        if b > a { positive += 1 }
-                    }
+                let positive: Int
+                if let f16 {
+                    positive = blockPositiveF16(UnsafePointer(f16),
+                                                px0: gx * stride,
+                                                py0: gy * stride,
+                                                width: width,
+                                                planeSize: height * width,
+                                                stride: stride)
+                } else if let f32 {
+                    positive = blockPositiveF32(UnsafePointer(f32),
+                                                px0: gx * stride,
+                                                py0: gy * stride,
+                                                width: width,
+                                                planeSize: height * width,
+                                                stride: stride)
+                } else {
+                    positive = blockPositiveSlow(arr,
+                                                 px0: gx * stride,
+                                                 py0: gy * stride,
+                                                 stride: stride)
                 }
                 if positive * 2 >= stride * stride {   // 多数表决
                     cells[gy * grid + gx] = 1
@@ -1360,6 +1389,97 @@ final class YolopxEngine {
 
         let ratio = validTotal > 0 ? Double(validPositive) / Double(validTotal) : 0
         return (MaskGrid(width: grid, height: grid, cells: cells), ratio)
+    }
+
+    /// 单个 `stride × stride` 块的「ch1 > ch0」计数（fp16 快速路径，SIMD4）。
+    ///
+    /// **语义与标量版逐位等价**：`Float(Float16)` 是精确无损转换（Float 的指数与
+    /// 尾数范围完全覆盖 Float16），故 `Float(h1) > Float(h0)` ⟺ `h1 > h0`。
+    /// NaN 语义亦一致：任一为 NaN 时比较恒 false，此路径不加计数。
+    ///
+    /// - Parameters:
+    ///   - p: 两通道平面起点（ch0 在 offset 0，ch1 在 offset planeSize）
+    ///   - px0/py0: 块左上角在 640 坐标系下的像素坐标
+    ///   - planeSize: 单个通道的像素数（height*width）
+    @inline(__always)
+    private nonisolated static func blockPositiveF16(_ p: UnsafePointer<Float16>,
+                                                     px0: Int, py0: Int,
+                                                     width: Int, planeSize: Int,
+                                                     stride: Int) -> Int {
+        var positive = 0
+        for dy in 0..<stride {
+            let r0 = (py0 + dy) * width + px0
+            let r1 = r0 + planeSize
+            var dx = 0
+            // 主循环：一次比较 4 个像素
+            while dx + 4 <= stride {
+                let a = SIMD4<Float>(Float(p[r0 + dx]), Float(p[r0 + dx + 1]),
+                                     Float(p[r0 + dx + 2]), Float(p[r0 + dx + 3]))
+                let b = SIMD4<Float>(Float(p[r1 + dx]), Float(p[r1 + dx + 1]),
+                                     Float(p[r1 + dx + 2]), Float(p[r1 + dx + 3]))
+                let gt = b .> a
+                positive += (gt[0] ? 1 : 0) + (gt[1] ? 1 : 0)
+                          + (gt[2] ? 1 : 0) + (gt[3] ? 1 : 0)
+                dx += 4
+            }
+            // 尾巴：stride 不是 4 的倍数时逐像素补齐（当前 grid=160→stride=4 不走此路）
+            while dx < stride {
+                if p[r1 + dx] > p[r0 + dx] { positive += 1 }
+                dx += 1
+            }
+        }
+        return positive
+    }
+
+    /// 单个 `stride × stride` 块的「ch1 > ch0」计数（fp32 快速路径，SIMD4）。
+    ///
+    /// 与 fp16 版同构但无 dtype 转换开销，直接以 SIMD4<Float32> 装载比较。
+    @inline(__always)
+    private nonisolated static func blockPositiveF32(_ p: UnsafePointer<Float32>,
+                                                     px0: Int, py0: Int,
+                                                     width: Int, planeSize: Int,
+                                                     stride: Int) -> Int {
+        var positive = 0
+        for dy in 0..<stride {
+            let r0 = (py0 + dy) * width + px0
+            let r1 = r0 + planeSize
+            var dx = 0
+            while dx + 4 <= stride {
+                let a = SIMD4<Float>(p[r0 + dx], p[r0 + dx + 1],
+                                     p[r0 + dx + 2], p[r0 + dx + 3])
+                let b = SIMD4<Float>(p[r1 + dx], p[r1 + dx + 1],
+                                     p[r1 + dx + 2], p[r1 + dx + 3])
+                let gt = b .> a
+                positive += (gt[0] ? 1 : 0) + (gt[1] ? 1 : 0)
+                          + (gt[2] ? 1 : 0) + (gt[3] ? 1 : 0)
+                dx += 4
+            }
+            while dx < stride {
+                if p[r1 + dx] > p[r0 + dx] { positive += 1 }
+                dx += 1
+            }
+        }
+        return positive
+    }
+
+    /// 单个块的「ch1 > ch0」计数（兜底路径：非 float16/float32 或非连续内存）。
+    ///
+    /// 走 `readML` 下标读，正确但慢。语义与快速路径一致（含 NaN → 不计数）。
+    @inline(__always)
+    private nonisolated static func blockPositiveSlow(_ arr: MLMultiArray,
+                                                      px0: Int, py0: Int,
+                                                      stride: Int) -> Int {
+        var positive = 0
+        for dy in 0..<stride {
+            let py = py0 + dy
+            for dx in 0..<stride {
+                let px = px0 + dx
+                let a = Float(readML(arr, [0, 0, py, px]))
+                let b = Float(readML(arr, [0, 1, py, px]))
+                if b > a { positive += 1 }
+            }
+        }
+        return positive
     }
 
     /// 掩码 EMA 平滑：累加器按 EMA 更新，超过阈值判为前景。

@@ -1,0 +1,499 @@
+@import "tailwindcss";
+
+/* ============================================================
+   AuroraDrive 官网 · 设计令牌
+   规范来源：DESIGN_SYSTEM.md（Phase 1 视觉方向）
+   语义化主开关为 [data-theme]，class .dark 作为兼容兜底。
+   ============================================================ */
+
+@theme {
+  /* ── 字体栈（零 Web Font，全系统字体） ───────────────── */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-sans-cn:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Monaco,
+    "Cascadia Mono", "Roboto Mono", "Sarasa Mono SC", "Courier New", monospace;
+
+  /* ── 字号阶梯（9 级） ────────────────────────────────── */
+  --text-display: clamp(40px, 6.5vw, 72px);
+  --text-h1: clamp(32px, 4.5vw, 52px);
+  --text-h2: clamp(26px, 3vw, 34px);
+  --text-h3: clamp(21px, 2.2vw, 26px);
+  --text-lead: clamp(17px, 1.6vw, 20px);
+  --text-body: 16px;
+  --text-sm: 14px;
+  --text-xs: 12.5px;
+  --text-mono: 13px;
+  --text-mono-lg: 15px;
+  --text-label: 11px;
+
+  /* ── 间距阶梯（4/8 基数） ───────────────────────────── */
+  --spacing: 0.25rem;
+
+  /* ── 圆角（上限 6px，硬性） ─────────────────────────── */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  /* ── 动效令牌 ──────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.9, 0.5);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ── 布局 ──────────────────────────────────────────── */
+  --container-page: 1200px;
+  --container-prose: 34em;
+}
+
+/* ============================================================
+   颜色令牌 —— 深色（默认）
+   ============================================================ */
+[data-theme="dark"] {
+  --bg-base: #070a0f;
+  --bg-surface: #0b1017;
+  --bg-card: #101823;
+  --bg-elevated: #16202d;
+  --bg-inset: #0a0e14;
+  --bg-scrim: rgba(7, 10, 15, 0.72);
+
+  --text-primary: #e9eef7;
+  --text-secondary: #a9b4c4;
+  --text-tertiary: #8a97a8;
+  --text-disabled: #687484;
+  --text-inverse: #04120c;
+
+  --stroke-subtle: #18202b;
+  --stroke-default: #232e3d;
+  --stroke-strong: #3a4a60;
+  --stroke-input: #5f748f;
+  --stroke-focus: #35e0a1;
+
+  --accent: #35e0a1;
+  --accent-hover: #2ecb93;
+  --accent-fill: #35e0a1;
+  --accent-subtle: rgba(53, 224, 161, 0.12);
+  --accent-line: rgba(53, 224, 161, 0.32);
+  --accent-2: #7c8cf8;
+  --accent-3: #c56cf0;
+
+  --success: #3dd68c;
+  --warning: #f5a524;
+  --danger: #ff5a5f;
+  --info: #4ea8ff;
+  --success-bg: rgba(61, 214, 140, 0.12);
+  --warning-bg: rgba(245, 165, 36, 0.12);
+  --danger-bg: rgba(255, 90, 95, 0.12);
+  --info-bg: rgba(78, 168, 255, 0.12);
+
+  --tier-e2e: #35e0a1;
+  --tier-yolo: #7c8cf8;
+  --tier-rule: #8a97a8;
+  --tier-e2e-bg: rgba(53, 224, 161, 0.1);
+  --tier-yolo-bg: rgba(124, 140, 248, 0.1);
+  --tier-rule-bg: rgba(138, 151, 168, 0.1);
+
+  --fresh-live: #3dd68c;
+  --fresh-recent: #4ea8ff;
+  --fresh-stale: #f5a524;
+  --fresh-lost: #ff5a5f;
+
+  --syn-comment: #76849a;
+  --syn-keyword: #a78bfa;
+  --syn-string: #35e0a1;
+  --syn-number: #f5a524;
+  --syn-function: #4ea8ff;
+  --syn-type: #7c8cf8;
+  --syn-punct: #8a97a8;
+  --syn-path: #e9eef7;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 24px 64px -16px rgba(0, 0, 0, 0.7);
+  --glow-accent:
+    0 0 0 1px rgba(53, 224, 161, 0.3), 0 0 24px -6px rgba(53, 224, 161, 0.35);
+  --grid-line: rgba(233, 238, 247, 0.045);
+
+  /* Hero 极光光晕透明度（§2.7 允许 ≤0.18） */
+  --hero-glow-opacity: 0.18;
+}
+
+/* ============================================================
+   颜色令牌 —— 亮色
+   ============================================================ */
+[data-theme="light"] {
+  --bg-base: #f6f8fb;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-inset: #edf1f6;
+  --bg-scrim: rgba(11, 17, 25, 0.4);
+
+  --text-primary: #0b1119;
+  --text-secondary: #445061;
+  --text-tertiary: #5a6675;
+  --text-disabled: #7a8593;
+  --text-inverse: #ffffff;
+
+  --stroke-subtle: #e4e9f0;
+  --stroke-default: #d3dae4;
+  --stroke-strong: #aeb8c6;
+  --stroke-input: #7f8c9b;
+  --stroke-focus: #0a7a55;
+
+  --accent: #0a7a55;
+  --accent-hover: #08684a;
+  --accent-subtle: rgba(10, 122, 85, 0.1);
+  --accent-line: rgba(10, 122, 85, 0.28);
+  --accent-2: #4f5fd6;
+  --accent-3: #8e2fb0;
+  --accent-fill: #35e0a1;
+
+  --success: #0a7343;
+  --warning: #8f5b04;
+  --danger: #c62a2f;
+  --info: #1a5fbf;
+  --success-bg: rgba(10, 115, 67, 0.1);
+  --warning-bg: rgba(143, 91, 4, 0.1);
+  --danger-bg: rgba(198, 42, 47, 0.1);
+  --info-bg: rgba(26, 95, 191, 0.1);
+
+  --tier-e2e: #0a7a55;
+  --tier-yolo: #4f5fd6;
+  --tier-rule: #5a6675;
+  --tier-e2e-bg: rgba(10, 122, 85, 0.1);
+  --tier-yolo-bg: rgba(79, 95, 214, 0.1);
+  --tier-rule-bg: rgba(90, 102, 117, 0.1);
+
+  --fresh-live: #0a7343;
+  --fresh-recent: #1a5fbf;
+  --fresh-stale: #8f5b04;
+  --fresh-lost: #c62a2f;
+
+  --syn-comment: #5a6675;
+  --syn-keyword: #7a3fb0;
+  --syn-string: #0a7a55;
+  --syn-number: #8f5b04;
+  --syn-function: #1a5fbf;
+  --syn-type: #4f5fd6;
+  --syn-punct: #5a6675;
+  --syn-path: #0b1119;
+
+  --shadow-sm: 0 1px 2px rgba(11, 17, 25, 0.06);
+  --shadow-md: 0 8px 24px -8px rgba(11, 17, 25, 0.12);
+  --shadow-lg: 0 24px 64px -16px rgba(11, 17, 25, 0.16);
+  --glow-accent:
+    0 0 0 1px rgba(10, 122, 85, 0.24), 0 0 20px -6px rgba(10, 122, 85, 0.2);
+  --grid-line: rgba(11, 17, 25, 0.04);
+
+  /* 亮色底上极光光晕需压低，否则整片顶部泛紫 */
+  --hero-glow-opacity: 0.07;
+}
+
+/* ============================================================
+   基础层
+   ============================================================ */
+@layer base {
+  html {
+    background-color: var(--bg-base);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans-cn);
+    font-size: var(--text-body);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  /* ⚠️ 页面根禁止 scroll-behavior: smooth —— 与路由切换的
+     behavior:'instant' 归零冲突，会造成"淡出同时滑动"的廉价感。 */
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: var(--text-primary);
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* 焦点可见性 —— 全局统一 */
+  :focus-visible {
+    outline: 2px solid var(--stroke-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* 数字读数 —— 等宽 + 表格数字 */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* 章节眉标 */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* 仪表网格底纹 */
+  .grid-texture {
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg-base);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--stroke-strong);
+    border-radius: 99px;
+    border: 2px solid var(--bg-base);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+  }
+
+  ::selection {
+    background: var(--accent-subtle);
+    color: var(--text-primary);
+  }
+}
+
+/* ============================================================
+   组件层
+   ============================================================ */
+@layer components {
+  /* 页面容器 */
+  .container-page {
+    width: 100%;
+    max-width: var(--container-page);
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+  @media (max-width: 640px) {
+    .container-page {
+      padding-inline: 20px;
+    }
+  }
+
+  /* 正文列宽（中文 45-75 字） */
+  .prose-column {
+    max-width: var(--container-prose);
+  }
+
+  /* 锚点滚动偏移 —— 避开 64px 吸顶导航，否则标题会被盖住。
+     注意：区块（section）自身有 112px 顶部内边距，所以锚点定位到
+     区块内的标题元素上（见 PageTransition 的 hash 处理），
+     这里的偏移只针对标题类锚点。 */
+  html {
+    scroll-padding-top: 80px;
+  }
+
+  h2[id],
+  h3[id],
+  [id]:target:not(section) {
+    scroll-margin-top: 80px;
+  }
+
+  /* 区块垂直节奏 */
+  .section-y {
+    padding-block: 112px;
+  }
+  @media (max-width: 1024px) {
+    .section-y {
+      padding-block: 88px;
+    }
+  }
+  @media (max-width: 640px) {
+    .section-y {
+      padding-block: 64px;
+    }
+  }
+
+  /* 卡片 —— 圆角上限 6px，靠 1px 描边分层，不用阴影堆叠 */
+  .surface-card {
+    background: var(--bg-card);
+    border: 1px solid var(--stroke-default);
+    border-radius: var(--radius-lg);
+  }
+
+  /* 代码窗 */
+  .code-window {
+    background: var(--bg-inset);
+    border: 1px solid var(--stroke-default);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  /* 极光渐变文字 */
+  .aurora-text {
+    background: linear-gradient(
+      100deg,
+      var(--accent) 0%,
+      var(--accent-2) 55%,
+      var(--accent-3) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* 极光渐变分隔线 */
+  .aurora-rule {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--accent-line) 20%,
+      var(--accent-2) 60%,
+      transparent
+    );
+  }
+
+  /* 文字链接 —— 下划线从左展开 */
+  .link-underline {
+    background-image: linear-gradient(var(--accent), var(--accent));
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0% 1px;
+    transition:
+      background-size 160ms var(--ease-out),
+      color 160ms var(--ease-out);
+  }
+  .link-underline:hover,
+  .link-underline:focus-visible {
+    color: var(--accent);
+    background-size: 100% 1px;
+  }
+
+  /* 表格 */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  .data-table th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--stroke-default);
+  }
+  .data-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--stroke-subtle);
+    color: var(--text-secondary);
+    vertical-align: top;
+  }
+  .data-table tbody tr {
+    transition: background 120ms var(--ease-out);
+  }
+  .data-table tbody tr:hover {
+    background: var(--bg-surface);
+  }
+}
+
+/* ============================================================
+   动效工具类
+   ============================================================ */
+@layer utilities {
+  .dur-micro {
+    transition-duration: 120ms;
+  }
+  .dur-fast {
+    transition-duration: 160ms;
+  }
+  .dur-base {
+    transition-duration: 240ms;
+  }
+
+  /* 仅在真正支持 hover 的设备上挂悬停位移 */
+  @media (hover: hover) and (pointer: fine) {
+    .hover-lift {
+      transition:
+        transform 200ms var(--ease-out),
+        border-color 200ms var(--ease-out),
+        box-shadow 200ms var(--ease-out);
+    }
+    .hover-lift:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-line);
+      box-shadow: var(--shadow-md);
+    }
+  }
+
+  /* 状态灯脉冲 —— 全站唯一允许的无限循环动效 */
+  .pulse-dot {
+    animation: aurora-pulse 1600ms var(--ease-in-out) infinite;
+  }
+  @keyframes aurora-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+}
+
+/* ============================================================
+   Reduced motion 降级
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .pulse-dot {
+    opacity: 1 !important;
+  }
+}

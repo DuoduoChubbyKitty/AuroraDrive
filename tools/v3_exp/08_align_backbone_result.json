@@ -1,0 +1,95 @@
+{
+  "temporal_aligned": {
+    "层级 3段×8帧 + TCN段间": {
+      "params": 566400,
+      "macs": 1597440,
+      "total_ops": 52,
+      "by_device": {
+        "const": 39,
+        "cpu": 13
+      },
+      "ane_ratio": 0.0,
+      "all": {
+        "p50": 0.0615,
+        "p95": 0.065
+      },
+      "cpu": {
+        "p50": 0.063,
+        "p95": 0.1014
+      }
+    },
+    "层级 3段×8帧 + GRU3步": {
+      "params": 567168,
+      "macs": 1597440,
+      "total_ops": 103,
+      "by_device": {
+        "const": 47,
+        "cpu": 56
+      },
+      "ane_ratio": 0.0,
+      "all": {
+        "p50": 0.0568,
+        "p95": 0.0644
+      },
+      "cpu": {
+        "p50": 0.0602,
+        "p95": 0.0812
+      }
+    },
+    "24步逐帧 unroll GRU": {
+      "params": 272064,
+      "macs": 5357568,
+      "total_ops": 573,
+      "by_device": {
+        "const": 143,
+        "cpu": 430
+      },
+      "ane_ratio": 0.0,
+      "all": {
+        "p50": 0.0789,
+        "p95": 0.088
+      },
+      "cpu": {
+        "p50": 0.0791,
+        "p95": 0.0846
+      }
+    },
+    "4层因果 TCN": {
+      "params": 492864,
+      "macs": 10665984,
+      "total_ops": 69,
+      "by_device": {
+        "const": 52,
+        "neuralEngine": 17
+      },
+      "ane_ratio": 1.0,
+      "all": {
+        "p50": 0.246,
+        "p95": 0.277
+      },
+      "cpu": {
+        "p50": 0.0591,
+        "p95": 0.0667
+      }
+    }
+  },
+  "attn_scaling": {
+    "tokens_base": 337,
+    "macs_base": 1541508096,
+    "tokens_with_0_temporal": 337,
+    "macs_with_0_temporal": 1541508096,
+    "ratio_with_0_temporal": 1.0,
+    "tokens_with_1_temporal": 338,
+    "macs_with_1_temporal": 1547120640,
+    "ratio_with_1_temporal": 1.0036,
+    "tokens_with_3_temporal": 340,
+    "macs_with_3_temporal": 1558364160,
+    "ratio_with_3_temporal": 1.0109,
+    "tokens_with_8_temporal": 345,
+    "macs_with_8_temporal": 1586580480,
+    "ratio_with_8_temporal": 1.0292,
+    "tokens_with_24_temporal": 361,
+    "macs_with_24_temporal": 1677904896,
+    "ratio_with_24_temporal": 1.0885
+  }
+}
