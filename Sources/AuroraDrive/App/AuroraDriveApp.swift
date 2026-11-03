@@ -564,6 +564,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 且不会把这次断开当作崩溃来处理（不触发看门狗停车）。
     func applicationWillTerminate(_ notification: Notification) {
         EngineClient.shared.sendByeSync()
+        // 标注子进程是独立进程，App 退出不会带走它：不收尾的话它会继续往
+        // controls.csv 回填，用户重开 App 再标同一段就变成两个进程同写一个文件。
+        DriveState.shared.leanAnnotateRunner.shutdown()
     }
 
     deinit {

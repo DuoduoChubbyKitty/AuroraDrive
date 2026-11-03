@@ -528,4 +528,34 @@ final class LeanAnnotateRunner {
             return false
         }
     }
+
+    /// 应用退出时同步收尾：杀掉仍在跑的标注子进程。
+    ///
+    /// 【为什么必须做】子进程是**独立进程**，App 退出不会带走它。它若还在跑，会继续
+    ///   往同一份 controls.csv 回填；用户重开 App 再标同一段，就有两个进程同时改一个
+    ///   文件。孤儿进程还要等自己跑完才消失，期间 CPU 一直被占。
+    ///
+    /// 【为什么带等待而不是直接 SIGKILL】子进程可能正处在「写 tmp → 原子替换」中间，
+    ///   硬杀会留下 controls.csv.tmp。先 SIGTERM 给一点时间让它走到安全点，超时才
+    ///   SIGKILL —— 等待是有界的（默认 1.5s），不会把 App 退出卡住。
+    func shutdown(timeout: TimeInterval = 1.5) {
+        watchdog?.cancel()
+        watchdog = nil
+        guard let p = process, p.isRunning else {
+            process = nil
+            return
+        }
+        let pid = p.processIdentifier
+        p.terminate()
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        while p.isRunning && Date() < deadline {
+            usleep(50_000)  // 50ms
+        }
+        if p.isRunning {
+            kill(pid, SIGKILL)
+            print("[lean] ⚠️ 退出时标注子进程未响应 SIGTERM，已 SIGKILL pid=\(pid)")
+        }
+        process = nil
+        print("[lean] 退出前已收尾标注子进程 pid=\(pid)")
+    }
 }

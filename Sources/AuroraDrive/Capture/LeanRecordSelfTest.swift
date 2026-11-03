@@ -571,6 +571,39 @@ enum LeanRecordSelfTest {
             check("正常推进场景：退出码 0", finishedCode == 0, "code=\(finishedCode ?? -1)")
         }
 
+        print("  ── 第七段：App 退出时收尾标注子进程 ──")
+        // 【为什么必须测】子进程是独立进程，App 退出不会带走它。不收尾就会：
+        //   ① 孤儿进程继续往 controls.csv 回填；重开 App 再标同一段 = 两进程同写一文件
+        //   ② 孤儿要等自己跑完才消失，期间白占 CPU
+        //   而这段代码只在**退出那一刻**执行，平时完全看不见，不测就等于没写。
+        do {
+            let runner = LeanAnnotateRunner()
+            runner.stallTimeout = 600        // 故意调大：确保不是看门狗杀的，是 shutdown 杀的
+            runner.executableOverride = URL(fileURLWithPath: "/bin/sleep")
+            runner.argumentsOverride = ["30"]
+            runner.onFinish = { _, _ in }
+            let started = runner.start(clipPath: "unused")
+            check("退出收尾：子进程成功拉起", started, runner.lastError ?? "")
+            let beforeRunning = runner.isRunning
+            check("退出收尾：拉起后确实在运行", beforeRunning)
+
+            let began = Date()
+            runner.shutdown()
+            let waited = Date().timeIntervalSince(began)
+
+            check("退出收尾：shutdown 后进程已不在运行", !runner.isRunning)
+            check("退出收尾：shutdown 未长时间阻塞（< 3s）", waited < 3,
+                  String(format: "%.2fs", waited))
+            check("退出收尾：不是被停滞看门狗杀的", !runner.didStallOut,
+                  "didStallOut=\(runner.didStallOut)")
+
+            // 再来一次：无进程时必须是安全的空操作（退出路径可能被重复触发）。
+            let beganIdle = Date()
+            runner.shutdown()
+            check("退出收尾：无进程时 shutdown 为空操作且立即返回",
+                  Date().timeIntervalSince(beganIdle) < 0.5, "已返回")
+        }
+
         print("")
         print(failures == 0
               ? "✅ 精简录制器自检全部通过"
