@@ -347,13 +347,51 @@ class V3KeyDataset(Dataset):
             # 帧率校验：不一致会让 V3 的时间尺度学错，且训练日志看不出来
             self._check_fps(clip, rows)
 
+            # ── 帧存在性预扫描（2026-11-03 修复：缺帧会让训练中途崩）──
+            #
+            # ⚠️ 旧实现只检查**样本自身那一帧**是否存在（下行 if not exists: continue），
+            #    但 `__getitem__` 要回溯 24 帧窗口（t, t−1, …, t−23）去 `Image.open`。
+            #    只要窗口里**任何一帧**缺失，就会抛 FileNotFoundError 直接打断训练。
+            # 实测（构造缺第 10 帧的 clip）：索引里有 29 个样本、不含 10，
+            #    但 ds[11]/ds[12]/ds[20] 全部抛 FileNotFoundError —— 崩在训练循环里，
+            #    而不是加载时。缺失来源很现实：RecordEngine 的 JPEG 编码万一失败，
+            #    CSV 行照写、帧文件却没有。
+            #
+            # 修法：建索引时就按「整窗可用」判定，宁可少几个样本，也不在训练中途炸。
+            #   不伪造/复制缺失帧填充 —— 时序窗口里塞重复帧会教出错误的时间动态。
+            n_frames = len(rows)
+            # 真实回看深度必须按构造参数算，不能写死 NUM_TOTAL_FRAMES：
+            # __getitem__ 的窗口是 hi_idx(range(NUM_HI_FRAMES)) + lo_idx(range(self.history))，
+            # 最深回看到 frame_idx - (NUM_HI_FRAMES + self.history - 1)。
+            # history 是可配置参数（默认 21 → 深度 23），写死常量会在自定义 history 时误判。
+            window_span = NUM_HI_FRAMES + self.history - 1
+
+            # 一次扫描出全部缺失帧号（每个 clip 只 stat 一遍）
+            missing_frames = {
+                j for j in range(n_frames)
+                if not (frames_dir / f"{j:06d}.jpg").exists()
+            }
+
+            n_dropped_missing = 0
+            prev_missing = -1   # 截至第 i 帧（含）最近的一个缺失帧号
             for i, row in enumerate(rows):
-                if not (frames_dir / f"{i:06d}.jpg").exists():
+                if i in missing_frames:
+                    prev_missing = i
+                # 样本 i 的窗口是 [max(0, i-window_span), i]（历史不足时 clamp 到第 0 帧）。
+                # 判定必须用「截至 i 的最近缺失帧」，而不是全 clip 最后一个缺失帧 ——
+                # 后者会把「缺失发生在样本之后」的正常样本也误删。
+                if prev_missing >= 0 and prev_missing >= i - window_span:
+                    n_dropped_missing += 1
                     continue
                 if skip_all_zero and all(_bit(row, k) == 0 for k in ATOMIC_KEYS):
                     n_skipped += 1
                     continue
                 self.index.append((clip, i))   # i = 真实帧号
+
+            if n_dropped_missing:
+                print(f"[V3KeyDataset] {clip.name}: 因帧文件缺失跳过 "
+                      f"{n_dropped_missing}/{n_frames} 个样本"
+                      f"（缺帧会破坏其之后 {window_span} 帧的时序窗口）")
 
             self._rows_cache[clip] = rows
 

@@ -173,6 +173,18 @@ final class RecordEngine: @unchecked Sendable {
     /// 本会话是否为专家模式启动（决定 stop 时要不要做"标签全零"告警）
     private(set) var sessionExpertMode: Bool = false
 
+    // ══════════════════════════════════════════════════════════════════════════
+    //  2026-11-03 新增：**帧文件写盘失败计数**（另一条静默失效路径）
+    //
+    //  写盘路径原本有两个 `try?`：`resizeAndEncodeJPEG` 返回 nil、`jpgData.write` 抛错，
+    //  两者都被静默吞掉，但 CSV 行**照写**。结果是 CSV 有 N 行、frames/ 少几张图，
+    //  录制时毫无提示；训练时才炸 —— 实测过：缺 1 帧会让其后 23 个样本的 24 帧窗口
+    //  全部不可用（dataset_v3.__getitem__ 直接 FileNotFoundError 打断训练）。
+    //  ⟹ 这里计数 + stop() 告警，把"静默"变成"当场可见"。
+    // ══════════════════════════════════════════════════════════════════════════
+    /// 本会话帧编码/写盘失败的帧数（>0 说明该 clip 有洞，dataset_v3 会跳过受影响样本）
+    private(set) var frameWriteFailureCount: Int = 0
+
     /// 录制开始时间（用于时间戳）
     private var startTime: Date?
 
@@ -366,6 +378,7 @@ final class RecordEngine: @unchecked Sendable {
         startTime = Date()
         frameCount = 0
         labeledFrameCount = 0                      // 标签健康统计清零
+        frameWriteFailureCount = 0                 // 帧写盘失败统计清零（跨会话不能累加）
         sessionExpertMode = expertMode             // 记住本会话是否专家模式（stop 时告警用）
         isRecording = true
     }
@@ -432,6 +445,26 @@ final class RecordEngine: @unchecked Sendable {
                 + "专家模式录 5 秒 + 物理按住 W，确认 CSV 的 throttle 与 w 列都非零。"
             print(warn)
         }
+
+        // ── 2026-11-03 新增：**帧文件写盘失败告警**（与专家模式无关，任何录制都适用）──
+        //
+        // 【为什么必须有】CSV 行是必写的，帧文件却是"尽力写"。此前两个 `try?` 把
+        //   编码失败与写盘失败都吞掉 → 该 clip 出现「有行无图」的洞，录制时零提示。
+        //   洞的代价实测过：missing 1 帧会让其后 23 个样本的 24 帧窗口全部不可用
+        //   （dataset_v3.__getitem__ 抛 FileNotFoundError，训练跑几轮才崩）。
+        //   现在 dataset_v3 会跳过受影响样本并打印跳过数，但那是**事后补救**；
+        //   这里当场告警，用户能立刻知道"这次录制有洞，最好重录"。
+        if frameWriteFailureCount > 0 {
+            let warn = "[RecordEngine] 🚨 帧文件写入失败告警：本会话 \(totalFrames) 帧中，"
+                + "**\(frameWriteFailureCount) 帧没能落盘**（JPEG 编码失败或磁盘写入失败）！\n"
+                + "     ⟹ 该 clip 的 frames/ 有洞：CSV 有 \(totalFrames) 行，图却少 "
+                + "\(frameWriteFailureCount) 张。\n"
+                + "     后果：每个缺帧会破坏其后约 23 帧的时序窗口"
+                + "（V3 要回溯 24 帧：3 高清 + 21 低清），"
+                + "dataset_v3 会跳过这些样本（训练不会崩，但可用数据变少）。\n"
+                + "     建议：检查磁盘剩余空间后重录这段。"
+            print(warn)
+        }
         // ── 2026-10-08 修复：meta.json 的 perspective 曾是**坏字段** ──
         // 旧代码写的是 `url.lastPathComponent.components(separatedBy: "_").first`
         // —— 目录名是 `clip_20261008_132000`，首段恒为 `"clip"`，于是 meta.json
@@ -444,6 +477,9 @@ final class RecordEngine: @unchecked Sendable {
 
         let labeled = labeledFrameCount
         let wasExpert = sessionExpertMode
+        // 写盘失败数必须在进入 async 前捕获：闭包是异步执行的，届时属性可能已被
+        // 下一次 start() 清零；而且这里要把"本次会话"的定值写进 meta。
+        let writeFailures = frameWriteFailureCount
         writeQueue.async { [isoFormatter] in
             // 写 meta.json（与现有格式完全一致）
             // 2026-10-10 新增 3 个诊断字段（w2 曾指出"CSV/meta 不记 expertMode→分不清
@@ -462,7 +498,11 @@ final class RecordEngine: @unchecked Sendable {
                 "labeled_frames": labeled,
                 // 是否"有有效标签"：非专家模式恒 true（标签来自模型输出，可用）；
                 // 专家模式下必须至少有一帧非零标签才算 ok（否则是静默失效）。
-                "labeling_ok": wasExpert ? (labeled > 0) : true
+                "labeling_ok": wasExpert ? (labeled > 0) : true,
+                // 帧文件写盘失败数（>0 → frames/ 有洞，dataset_v3 会跳过受影响样本）。
+                // 事后可查：不用翻控制台日志也能判断这个 clip 该不该用。
+                "frame_write_failures": writeFailures,
+                "frames_complete": writeFailures == 0
             ]
             if let data = try? JSONSerialization.data(withJSONObject: meta,
                                                      options: [.prettyPrinted]) {
@@ -579,10 +619,31 @@ final class RecordEngine: @unchecked Sendable {
                 // 帧末及时释放临时对象，配合背压阈值降到 1 封顶内存。
                 autoreleasepool {
                     // ── 1. 缩放到目标尺寸并编码 JPEG（训练端读 .jpg）──
+                    //
+                    // ⚠️ 2026-11-03：这里原本是 `if let jpgData = ... { try? jpgData.write }`，
+                    //   编码失败（返回 nil）与写盘失败（try? 抛错）**都不计数、不提示**，
+                    //   但下面 CSV 行照写 → 该 clip 出现「有行无图」的洞。
+                    //   洞的代价很高：dataset_v3 里缺 1 帧会让其后 23 个样本的时序窗口
+                    //   全部不可用（实测 FileNotFoundError 直接打断训练）。
+                    //   ⟹ 现在两种失败都计入 frameWriteFailureCount，stop() 统一告警。
+                    let frameURL = url.appendingPathComponent("frames")
+                        .appendingPathComponent(String(format: "%06ld.jpg", idx))
                     if let jpgData = self.resizeAndEncodeJPEG(image: image, size: size) {
-                        let frameURL = url.appendingPathComponent("frames")
-                            .appendingPathComponent(String(format: "%06ld.jpg", idx))
-                        try? jpgData.write(to: frameURL)
+                        do {
+                            try jpgData.write(to: frameURL)
+                        } catch {
+                            self.frameWriteFailureCount += 1
+                            if self.frameWriteFailureCount <= 3 {
+                                print("[RecordEngine] ⚠️ 帧写盘失败 frame=\(idx)："
+                                      + "\(error.localizedDescription)")
+                            }
+                        }
+                    } else {
+                        self.frameWriteFailureCount += 1
+                        if self.frameWriteFailureCount <= 3 {
+                            print("[RecordEngine] ⚠️ 帧 JPEG 编码失败 frame=\(idx)"
+                                  + "（NSImage 转 CGImage 或位图上下文创建失败）")
+                        }
                     }
 
                     // ── 2. 追加 CSV 行 ──
