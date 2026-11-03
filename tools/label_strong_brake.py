@@ -102,6 +102,23 @@ def main():
         lines = f.read().splitlines()
     header = lines[0].split(",")
     idx = {h.strip(): i for i, h in enumerate(header)}
+
+    # 2026-11-03：录制器已改为「纯按键 10 列」格式
+    # (t_sec,frame,w,a,s,d,shift,space,super_brake,ultimate_brake)。
+    # 旧格式的 strong_brake 列已不存在，本脚本的回填逻辑无法工作。
+    # 直接明确报错退出，而不是 KeyError 崩在栈里、或悄悄写坏数据。
+    # 为什么不再需要本脚本：super_brake / ultimate_brake 现在是**录制时直接记录
+    # 的真实按键**，比用视觉模型猜「是否紧急」准确得多 —— 真实标签优于模型猜测。
+    if "strong_brake" not in idx:
+        print(
+            "[错误] 该 controls.csv 是纯按键格式（无 strong_brake 列）。\n"
+            "       录制器现在直接记录 super_brake / ultimate_brake 真实按键，\n"
+            "       不再需要用视觉模型猜测紧急刹车，本脚本已不适用。\n"
+            f"       表头: {header}",
+            flush=True,
+        )
+        sys.exit(2)
+
     fi, bi, si = idx["frame"], idx["brake"], idx["strong_brake"]
 
     brake_rows = []  # (line_index, frame)

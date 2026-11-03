@@ -13,8 +13,8 @@
 //
 // 输出: <项目>/data/raw_clips/clip_<ts>/
 //   frames/000000.jpg ...   画面帧 (0 基, 与 controls.csv 行号对齐, 喂 MonoClipsDataset)
-//   controls.csv            t_sec,frame,steer,throttle,brake,reverse,handbrake,super_brake,ultimate_brake
-//                           (每帧一行, 直接喂训练; 键位语义见下方 is_* 函数注释)
+//   controls.csv            t_sec,frame,w,a,s,d,shift,space,super_brake,ultimate_brake
+//                           (每帧一行, 直接喂训练; 列名即原始按键, 无物理量转换)
 //   keylog.csv              t_sec,keycode,event(down/up)       (原始按键边沿, 备用)
 //   clip.json               元数据
 //
@@ -52,22 +52,27 @@ static CFRunLoopRef g_kb_rl = NULL;
 // 按键映射 (复用项目 collect.py 的 VK_MAP: W=0x0D A=0x00 S=0x01 D=0x02 SPACE=0x31 SHIFT(左)=0x38)
 // 同时支持方向键。
 //
-// 【2026-11-03 修正】键位语义以用户口头确认为准（用户是实际驾驶者）：
-//   S(后退) 与 空格(正常刹车) 是**两个不同的键**，必须分列记录。
-// 旧实现把 S/↓/空格 全并进 is_brk，导致 controls.csv 的 brake 列
-// 无法区分「后退」和「刹车」—— 训练 V3 时 S 类与 space 头永远学不到。
-// 实测证据：只按 Space 与只按 S 会产出完全相同的行。
+// 【2026-11-03 定稿】键位语义以用户口头确认为准（用户是实际驾驶者）：
+//   Shift = 手刹；空格 = 正常刹车；Shift+空格 = 超级刹车；Shift+空格+S = 极致刹车。
+//   S 单独按 = 后退。
 //
-// 现在：
-//   S / ↓            → reverse 列（后退）
-//   空格             → space_brake 列（正常刹车）
-//   左 Shift         → handbrake 列（手刹）
-//   Shift + 空格     → super_brake 列（超级刹车；短按=超级，长按=极致）
-//   左 Shift+空格+S  → ultimate_brake 列（极致刹车，用户明确给出）
+// 旧实现的致命 bug：把 S/↓/空格 全并进一个 is_brk，导致 controls.csv 无法区分
+// 「后退」和「刹车」—— 训练 V3 时 S 类与 space 头永远学不到。实测证据：只按
+// Space 与只按 S 会产出完全相同的行。
+//
+// 现在每个键独立匹配，推导逻辑见 derive_and_write：
+//   W / ↑            → w 列
+//   A / ←            → a 列
+//   S / ↓            → s 列（后退）
+//   D / →            → d 列
+//   空格             → space 列（正常刹车）
+//   左 Shift         → shift 列（手刹）
+//   Shift+空格       → super_brake 列（超级刹车）
+//   左 Shift+空格+S  → ultimate_brake 列（极致刹车）
 static int is_left(int k)  { return k == 0x00 || k == 0x7B; } // A / LeftArrow
 static int is_right(int k) { return k == 0x02 || k == 0x7C; } // D / RightArrow
 static int is_thr(int k)   { return k == 0x0D || k == 0x7E; } // W / UpArrow
-static int is_reverse(int k) { return k == 0x01 || k == 0x7D; } // S / DownArrow（后退，不再含空格）
+static int is_reverse(int k) { return k == 0x01 || k == 0x7D; } // S / DownArrow（后退，不含空格）
 static int is_space(int k) { return k == 0x31; }              // 空格 = 正常刹车
 static int is_shift(int k) { return k == 0x38; }              // 仅左 Shift = 手刹
 
@@ -169,43 +174,43 @@ static void *kb_thread(void *arg) {
     return NULL;
 }
 
-// 按帧推导控制量并写一行 CSV
+// 按帧推导并按【原始按键】写一行 CSV
 //
-// 【2026-11-03 修正】按用户确认的键位语义重写，列从 7 列扩到 9 列：
-//   steer          -1/0/+1   横向（A/D 互斥；同时按判 0）
-//   throttle        1/0      W
-//   brake           1/0      空格（正常刹车）
-//   reverse         1/0      S（后退）—— 与 brake 分开，旧版混为一列
-//   handbrake       1/0      左 Shift（手刹）
-//   super_brake     1/0      Shift+空格（超级刹车；长按由下游按时长升格为极致）
-//   ultimate_brake  1/0      Shift+空格+S（极致刹车）
+// 列（共 10 列）：t_sec, frame, w, a, s, d, shift, space, super_brake, ultimate_brake
 //
-// 为什么 brake 与 reverse 必须分开：用户确认 S=后退、空格=刹车是两个不同键。
-// 旧实现把 S/↓/空格 全并进一列，训练 V3 时 direction 头与 space 头永远学不到区别。
+// 为什么用原始按键名而不是物理量：V3 输出本身就是离散按键标签，
+// 中间不需要「连续量→按键」的翻译层。CSV 直接记录「这一帧哪些键按着」，模型直接学。
+// 旧命名是 V2 连续量模型时代的遗留，会让人误以为还要做回归。
+// 旧实现还把 S/↓/空格 全并进 brake 一列，导致「后退」与「刹车」永远无法区分。
+//
+// 列（共 10 列）：t_sec, frame, w, a, s, d, shift, space, super_brake, ultimate_brake
+//
+// 为什么既留原子键又留组合键：模型有 8 个输出头，super_brake / ultimate 是独立头，
+// 需要直接监督信号；w/a/s/d/shift/space 是原子事实。两者都从同一份 g_pressed 推导，
+// 不可能不一致；verify_recording.py 再用「组合键 == 原子键的逻辑与」交叉校验，多一道保险。
+//
+// 为什么不在这里强制 a/d 互斥（旧版用 left && !right 强行二选一）：记录原始事实。
+// 真实操作里同时按 A+D 是退化情况，由训练侧构造标签时映射为 horizontal=NONE
+// （游戏内也是相互抵消），而不是在录制时静默改写用户输入。
 static void derive_and_write(FILE *controls, double t, long frame) {
     pthread_mutex_lock(&g_kb_lock);
-    int left = 0, right = 0, thr = 0, rev = 0, shift = 0, space = 0;
+    int w = 0, a = 0, s = 0, d = 0, shift = 0, space = 0;
     for (int k = 0; k < 256; k++) {
         if (!g_pressed[k]) continue;
-        if (is_left(k))    left = 1;
-        if (is_right(k))   right = 1;
-        if (is_thr(k))     thr = 1;
-        if (is_reverse(k)) rev = 1;
+        if (is_thr(k))     w = 1;   // W / 上箭头
+        if (is_left(k))    a = 1;   // A / 左箭头
+        if (is_reverse(k)) s = 1;   // S / 下箭头
+        if (is_right(k))   d = 1;   // D / 右箭头
         if (is_shift(k))   shift = 1;
         if (is_space(k))   space = 1;
     }
     pthread_mutex_unlock(&g_kb_lock);
-    double steer = (left && !right) ? -1.0 : (right && !left) ? 1.0 : 0.0;
-    double throttle = thr ? 1.0 : 0.0;
-    double brake = space ? 1.0 : 0.0;          // 空格 = 正常刹车
-    double reverse = rev ? 1.0 : 0.0;          // S = 后退
-    double handbrake = shift ? 1.0 : 0.0;      // Shift = 手刹
     // Shift+空格 = 超级刹车（短按）；长按由下游按时长升格为极致刹车
-    double super_brake = (shift && space) ? 1.0 : 0.0;
-    // Shift+空格+S = 极致刹车（用户明确给出的第三档）
-    double ultimate_brake = (shift && space && rev) ? 1.0 : 0.0;
-    fprintf(controls, "%.4f,%ld,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n",
-            t, frame, steer, throttle, brake, reverse, handbrake, super_brake, ultimate_brake);
+    int super_brake = (shift && space) ? 1 : 0;
+    // Shift+空格+S = 极致刹车（S 同时是防翻车稳定键，见 03-output-head.md 安全约束）
+    int ultimate_brake = (shift && space && s) ? 1 : 0;
+    fprintf(controls, "%.4f,%ld,%d,%d,%d,%d,%d,%d,%d,%d\n",
+            t, frame, w, a, s, d, shift, space, super_brake, ultimate_brake);
 }
 
 int main(int argc, char **argv) {
@@ -305,7 +310,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[error] 无法创建 %s: %s\n", ctrl_path, strerror(errno));
         return 1;
     }
-    fprintf(controls, "t_sec,frame,steer,throttle,brake,reverse,handbrake,super_brake,ultimate_brake\n");
+    fprintf(controls, "t_sec,frame,w,a,s,d,shift,space,super_brake,ultimate_brake\n");
     g_raw_keys = fopen(keylog_path, "w");
     if (!g_raw_keys) {
         fprintf(stderr, "[error] 无法创建 %s: %s\n", keylog_path, strerror(errno));

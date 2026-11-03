@@ -76,22 +76,40 @@ def _clip_view(clip_dir: Path) -> Optional[str]:
 
 def _detect_format(header: List[str]) -> str:
     """根据 controls.csv 表头判定录制格式。
-    返回 "v1_old"（Python 单 cam）或 "v2_new"（C++ 10 cam）。
+    返回 "v1_old"（Python 单 cam）、"v2_new"（C++ 10 cam）
+    或 "v3_keys"（2026-11-03 起的纯按键 10 列，V3 专用）。
     """
     h = [c.strip() for c in header]
     if "speed_kmh" in h and "curvature" in h:
         return "v2_new"
+    # V3 纯按键格式：没有 steer/throttle，只有原始按键列
+    if "w" in h and "shift" in h and "super_brake" in h:
+        return "v3_keys"
     return "v1_old"
 
 
 def _load_controls_csv(csv_path: Path) -> Tuple[List[Dict], str]:
     """读取 controls.csv，返回逐帧 dict 列表 + 格式标识。
     兼容新旧两种表头。
+
+    ⚠️ 2026-11-03：录制器已改为**纯按键 10 列**（v3_keys）。
+       本函数是 V2/Mono 连续量模型的加载器，**读不了 v3_keys 格式**——
+       它需要 steer/throttle/brake 三个连续量，而新格式只有按键 0/1。
+       以前的写法是 `except (ValueError, KeyError): continue` 静默跳过，
+       结果整批数据被吞成空列表且无任何告警（实测 4 行输入 → 返回 0 行）。
+       现在改为**显式报错**：宁可在数据加载阶段炸掉，也不要拿空数据集训一整天。
     """
     with open(csv_path, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         header = reader.fieldnames or []
         fmt = _detect_format(header)
+        if fmt == "v3_keys":
+            raise ValueError(
+                f"{csv_path} 是 V3 纯按键格式（w/a/s/d/shift/space/...），"
+                "mono_dataset 是 V2/Mono 连续量模型的数据集，无法读取。\n"
+                "  请用 V3 专用数据集（src/dataset_v3.py）训练 V3 模型，"
+                "或改用 V2 格式的录制数据训练 V2/Mono。"
+            )
         rows = []
         for r in reader:
             try:

@@ -36,7 +36,21 @@ def load_controls(clip):
         return []
     rows = []
     with open(p, encoding="utf-8") as f:
-        for row in csv.DictReader(f):
+        reader = csv.DictReader(f)
+        header = [c.strip() for c in (reader.fieldnames or [])]
+        # 2026-11-03：录制器已改为纯按键 10 列格式
+        # (t_sec,frame,w,a,s,d,shift,space,super_brake,ultimate_brake)。
+        # 本脚本是 V2 连续量(steer/throttle/brake → HDF5)专用，读不了新格式。
+        # 旧写法 `except (KeyError, ValueError): pass` 会**静默返回空列表**，
+        # 结果生成一个空 HDF5 却毫无告警（实测 4 行输入 → 返回 0 行）。
+        # 改为显式报错：宁可在转换阶段炸掉，也不要拿空数据集训一整天。
+        if "steer" not in header and "w" in header:
+            raise ValueError(
+                f"{p} 是 V3 纯按键格式（{header}），本脚本只支持 V2 连续量格式"
+                "（需 steer/throttle/brake 列）。\n"
+                "  训练 V3 请用 V3 专用数据集（src/dataset_v3.py），不要用 build_hdf5.py。"
+            )
+        for row in reader:
             try:
                 rows.append((float(row["steer"]),
                              float(row["throttle"]),

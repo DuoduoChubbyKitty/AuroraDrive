@@ -154,14 +154,27 @@ def output_coherence_loss(pred: Dict[str, torch.Tensor]) -> torch.Tensor:
 # 3. 实测
 # ============================================================================
 
-def make_vertical_logits(p_S: float, b: int = 1, scale: float = 8.0) -> torch.Tensor:
-    """构造让 P(vertical=S)=p_S 的 logits（其余概率均分给 W/NONE）。"""
-    # softmax([a,a,c]) 中 c 位为 p_S
+def make_vertical_logits(p_S: float, b: int = 1) -> torch.Tensor:
+    """构造让 P(vertical=S) 精确等于 p_S 的 logits（W/NONE 概率均分剩余质量）。
+
+    ⚠️ 2026-11-03 修正（本脚本第一版写错过，实测抓出）：
+       `softmax([a, a, c])` 的 S 位概率是 `e^c / (2 + e^c)`。
+       要求它 = p，解得 `c = log(2p / (1−p))`，
+       **不是** `log(p/(1−p))`（那是二分类 sigmoid 的公式，会得到偏小的概率）。
+       第一版还额外乘了 scale=8，使 p=0.05 实际变成 2.9e-11，
+       表格里却照印 0.05 —— 属于「打印值≠计算值」的假证据，已清除。
+
+    自检（脚本内 assert）：softmax 结果必须与入参 p_S 吻合到 1e-6。
+    """
     import math
-    c = math.log(p_S / (1 - p_S)) if 0 < p_S < 1 else (10.0 if p_S >= 1 else -10.0)
-    a = torch.zeros(1)
-    logits = torch.stack([a.expand(b), a.expand(b), torch.full((b,), c)], dim=-1)
-    return logits * scale
+    if not (0.0 < p_S < 1.0):
+        raise ValueError(f"p_S 必须在 (0,1) 开区间内，收到 {p_S}")
+    c = math.log(2.0 * p_S / (1.0 - p_S))
+    logits = torch.tensor([[0.0, 0.0, c]]).repeat(b, 1)
+    # 自检：实际概率必须等于目标（防止再次写出打印值与计算值不符的假证据）
+    got = float(torch.softmax(logits, dim=-1)[0, VERT_S])
+    assert abs(got - p_S) < 1e-6, f"make_vertical_logits 失效：目标 {p_S} 实际 {got}"
+    return logits
 
 
 def q1_values() -> None:
@@ -190,8 +203,8 @@ def q1_values() -> None:
     print("\n  ⇒ 数值行为符合用户约束：")
     print("     · 10 km/h（低于 v_low=20）惩罚 = 0 —— 低速不带 S 是允许的 ✓")
     print("     · 25 km/h 处于斜坡中段，惩罚介于 0 与满罚之间 ✓")
-    print("     · 40 km/h + 不带 S → 接近满罚（P(super)≈0.982 × (1−0.05)）✓")
-    print("     · 40 km/h + 带 S  → 惩罚 ≈ 0.05×0.98×0.05，几乎为 0 ✓")
+    print("     · 40 km/h + 不带 S → 0.933（满罚量级）✓")
+    print("     · 40 km/h + 带 S  → 0.049（仅为「不带S」的 5.3%），符合预期 ✓")
 
     # 硬阈值版 vs 斜坡版对比（解释为什么用斜坡）
     print("\n  为什么用「线性斜坡」而不是「硬阈值 v>30 就罚」：")
@@ -213,57 +226,56 @@ def q2_gradients() -> None:
     print("=" * 84)
     b = 1
     speed = torch.tensor([50.0])                      # 高速
-    sb_logit = torch.tensor([4.0], requires_grad=True)  # 很想按超级刹车
-    v_logits = make_vertical_logits(0.05).clone().requires_grad_(True)  # 不想按 S
-
+    # ★ 必须是「叶子张量」才能读到 .grad：`.clone().requires_grad_(True)` 产生的是
+    #   非叶子节点（clone 是可微运算），.grad 恒为 None —— 第一版踩过这个坑。
+    #   直接用 torch.tensor(..., requires_grad=True) 构造叶子。
     print("  初始状态：速度 50km/h，P(super_brake)=0.982，P(S)=0.05")
 
     # --- detach_super=True（推荐）---
-    # ★ 注意：detach 之后 super_logit 根本不参与计算图，.grad 恒为 None。
-    #   所以这里用「惩罚值对 super_logit 的数值偏导」来验证，而不是读 .grad。
-    sb1 = sb_logit.clone().requires_grad_(True)
-    v1 = v_logits.clone().requires_grad_(True)
+    # ★ 正确的检验方式（第一版写错过，实测抓出）：
+    #   detach **只切断梯度，不改变前向数值** —— 所以「扰动 sb 看输出变化」
+    #   或「比较 detach/不detach 的前向值」都无法证明 detach 生效。
+    #   唯一可靠的判据是**计算图**：detach 后 sb 不应有 .grad，
+    #   而 vertical（另一个乘数）必须仍有 .grad 且 S 位为负。
+    #   另一个坑：若 vertical 也不带 requires_grad，整个图没有可微节点，
+    #   backward() 会直接抛 "element 0 of tensors does not require grad" ——
+    #   那是测试写法问题，不是 detach 失效。
+    sb1 = torch.tensor([4.0], requires_grad=True)          # 叶子
+    v1 = make_vertical_logits(0.05).requires_grad_(True)   # 叶子（必须可微）
     pen1 = rollover_penalty(sb1, v1, speed, detach_super=True)
     pen1.backward()
-    # sb1.grad 为 None 是**预期**（detach 掉了）；用数值扰动确认偏导≈0
-    eps = 1e-4
-    with torch.no_grad():
-        p_plus = rollover_penalty(sb1 + eps, v1, speed, detach_super=True)
-        p_minus = rollover_penalty(sb1 - eps, v1, speed, detach_super=True)
-    g_sb1_numeric = float((p_plus - p_minus) / (2 * eps))
-    g_sb1_graph = 0.0 if sb1.grad is None else float(sb1.grad)
+    sb_is_detached = sb1.grad is None
     g_S1 = float(v1.grad[0, VERT_S])
     print(f"\n  【推荐 detach_super=True】")
-    print(f"    super_logit 梯度 = {g_sb1_graph:+.6f} "
-          f"（图中无梯度={sb1.grad is None}；数值偏导={g_sb1_numeric:+.6f}）")
-    print(f"    → 二者都应为 0：不动超级刹车 ✓")
+    print(f"    super_logit.grad is None = {sb_is_detached}   （应为 True：梯度已切断）")
     print(f"    vertical[S] 梯度 = {g_S1:+.6f}   （应为负：提升 P(S) 才能降 loss）")
-    ok1 = abs(g_sb1_numeric) < 1e-5 and g_S1 < 0
+    ok1 = sb_is_detached and g_S1 < 0
     print(f"    {'✓' if ok1 else '✗'} 梯度只流向 S（抬 S），完全不动 super_brake")
 
     # --- detach_super=False（不推荐，用于说明为什么）---
-    sb2 = sb_logit.clone().requires_grad_(True)
-    v2 = v_logits.clone().requires_grad_(True)
+    sb2 = torch.tensor([4.0], requires_grad=True)
+    v2 = make_vertical_logits(0.05).requires_grad_(True)
     pen2 = rollover_penalty(sb2, v2, speed, detach_super=False)
     pen2.backward()
     g_sb2 = float(sb2.grad)
     print(f"\n  【不 detach（对照）】")
-    print(f"    super_logit 梯度 = {g_sb2:+.6f}   （负值 = 会压低超级刹车概率）")
+    print(f"    super_logit 梯度 = {g_sb2:+.6f}   "
+          f"（正值 = 梯度下降会把它压低 → 减少超级刹车）")
     print(f"    ⚠️ 这等于教模型「高速时少按超级刹车」——从侧翻风险换成刹不住的风险")
 
     # 真跑一步 SGD，验证 detach 版确实抬高了 P(S)
     print(f"\n  真跑验证（对 vertical 做 30 步梯度下降，detach_super=True）：")
     v = make_vertical_logits(0.05).clone().requires_grad_(True)
     opt = torch.optim.SGD([v], lr=2.0)
-    p_before = float(torch.softmax(v, -1)[0, VERT_S])
-    pen_before = float(rollover_penalty(torch.tensor([4.0]), v, speed))
+    p_before = float(torch.softmax(v, -1)[0, VERT_S].detach())
+    pen_before = float(rollover_penalty(torch.tensor([4.0]), v, speed).detach())
     for _ in range(30):
         opt.zero_grad()
         loss = rollover_penalty(torch.tensor([4.0]), v, speed)
         loss.backward()
         opt.step()
-    p_after = float(torch.softmax(v, -1)[0, VERT_S])
-    pen_after = float(rollover_penalty(torch.tensor([4.0]), v, speed))
+    p_after = float(torch.softmax(v, -1)[0, VERT_S].detach())
+    pen_after = float(rollover_penalty(torch.tensor([4.0]), v, speed).detach())
     print(f"    P(S):    {p_before:.4f} → {p_after:.4f}")
     print(f"    惩罚值:  {pen_before:.5f} → {pen_after:.5f}")
     ok2 = p_after > p_before and pen_after < pen_before

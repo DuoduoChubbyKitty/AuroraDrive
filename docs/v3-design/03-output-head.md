@@ -20,12 +20,13 @@
 | 正则项 | 按键版 CCM，L1，权重 κ=**0.1**（沿用论文），**必须先独立训到收敛→冻结→再作正则** |
 | 不平衡 | 用**类加权 CE**（实测稀有类召回 44→51）；**Focal 实测无改善**（44→45），不采用 |
 | 长按超级刹车 | 推荐**方案 C（下游按连续帧数累积）为主 + 方案 B（可选辅助二分类）**；方案 A 不推荐 |
+| **★防侧翻安全约束** | **高速（>20–30km/h）下 `super_brake=1` 必须同时 `vertical=S`**；由 `L_rollover` 硬惩罚，实测不带 S 罚 0.933、带 S 仅 0.049（**§3.7**） |
 | 标签来源优先级 | **keylog.csv（无损，实测 60/60 帧全对）> controls.csv 七列（S 与 Space 不可区分）> 旧五列连续量（有损兜底）** |
 
-**两个需要拍板的分歧（见 §7，请务必看）**
+**待拍板的分歧（见 §7，请务必看）**
 
-1. **已确认的「4 类 softmax」在机制上表达不了「边给油边转向」**。实测：合法按键组合 9 种，4 类只能表示 4 种（44.4%），`W+A`／`W+D` 全部丢失。而录制器源码证明这两个键在真实驾驶里是同时按下的。建议改为**纵向 3 类 × 横向 3 类**（9/9 = 100%），参数量仅多 194 个。
-2. **`S`（后退）与 `Space`（刹车）在 `controls.csv` 七列里完全同形**，实测两行完全相同（`0,0,1,0,0`）。用户要求这是两个不同输出，因此**必须用 `keylog.csv` 构造标签**；只有七列的旧数据只能训练 `{W,A,D}` 三类方向 + 无法训练 Space 头。
+1. **已确认的「4 类 softmax」在机制上表达不了「边给油边转向」**。实测：合法按键组合 9 种，4 类只能表示 4 种（44.4%），`W+A`／`W+D` 全部丢失。而录制器源码证明这两个键在真实驾驶里是同时按下的。建议改为**纵向 3 类 × 横向 3 类**（9/9 = 100%），参数量仅多 194 个（`src/model_v3.py` 已按此实现）。
+2. ~~`S`（后退）与 `Space`（刹车）在七列数据里无法区分~~ → **已由录制器重写解决（2026-11-03 12:55）**：`controls.csv` 现为十列原生按键（`w,a,s,d,shift,space,super_brake,ultimate_brake`），`is_brk()` 已删除，S 与 Space 各自独立成列。**新数据无需反推**；但训练端 `src/dataset_v2.py` 的加载器**还不认识十列格式**（实测解析得 0 行），必须补解析器（见 §7.2）。旧 7 列/5 列历史数据仍按 §4.3 规则 B/C 降级使用。
 
 ---
 
@@ -179,11 +180,13 @@ emergency_logit     (2,)       ← Shift∧Space 辅助（可选）
 
 | 用户需求 | 本设计怎么产生 | 是否需要额外头 |
 |---|---|---|
-| W / A / S / D | `direction` 4 类 softmax | 不需要 |
-| Shift 手刹 | `shift` sigmoid | 不需要 |
-| Space 刹车 | `space` sigmoid | 不需要 |
-| **Shift+Space 紧急刹车** | `shift × space`（两个 sigmoid 同时高） | **不需要额外头**；可选加 `emergency_head` 显式监督 |
+| W / A / S / D | `vertical`（W/NONE/S）+ `horizontal`（A/NONE/D）两个 3 类 softmax（见 §7.1，4 类只能表达 9 种组合中的 4 种） | 不需要 |
+| Shift 手刹 | `handbrake` sigmoid | 不需要 |
+| Space 刹车 | `brake` sigmoid | 不需要 |
+| **Shift+Space 紧急刹车** | `handbrake × brake`（两个 sigmoid 同时高） | **不需要额外头**；`super_brake` 头亦可显式学 |
+| **Shift+空格+S 极致刹车** | `ultimate` sigmoid（= handbrake ∧ brake ∧ vertical=S） | 需要（`model_v3.py` 已实现） |
 | 长按=超级刹车 | 见 §6（推荐下游累积） | 推荐不需要；可选 `super_brake_head` |
+| **★高速超级刹车必带 S（防侧翻）** | **`L_rollover` 硬惩罚**（§3.7） | 不需要额外头，用损失约束 |
 
 **为什么「修饰键独立 sigmoid」是对的**：`src/risk_head.py:20-25` 已有明确先例——sigmoid 用于「单值自评/独立事件」，softmax 用于「多类互斥」。Shift 和 Space 是**可同时成立的独立事件**（手刹+刹车），必须用 sigmoid 而不是 softmax。这一点用户的判断是对的。
 
@@ -215,6 +218,7 @@ emergency_logit     (2,)       ← Shift∧Space 辅助（可选）
 
 ```
 L_total = λ · L_key  +  κ · L_ccm  +  τ · L_intent  +  λ_sb · L_super  +  λ_safe · L_safe
+        + λ_coh · L_coh  +  λ_roll · L_rollover
 ```
 
 | 项 | 权重 | 来源/理由 |
@@ -224,6 +228,8 @@ L_total = λ · L_key  +  κ · L_ccm  +  τ · L_intent  +  λ_sb · L_super  +
 | `L_intent`（中间监督） | **τ = 0.1** | 沿用论文 τ（stop/go 的对应物） |
 | `L_super`（长按辅助） | **λ_sb = 0.05** | 新增，小权重辅助，默认可关（§6） |
 | `L_safe`（安全头） | **λ_safe = 0.1** | 新增，与 `risk_head.py:1110` 的「建议先用 0.1 起调」一致 |
+| `L_coh`（输出自洽） | **λ_coh = 0.05** | 新增，防侧翻惩罚的前提（§3.7.5） |
+| **`L_rollover`（防侧翻）** | **λ_roll = 2.0** | **★用户 2026-11-03 硬约束**：高速超级刹车必须带 S（§3.7） |
 
 ### 3.2 三个主损失的具体形式
 
@@ -326,6 +332,188 @@ total       3.868675
 
 **不建议**因为论文用 Adam 就换掉项目的 AdamW——项目那套已有「BN/bias 参数组分离」的实测积累（`train_v2.py:142` 注释），换掉属于无理由改动。
 
+### 3.7 防侧翻安全惩罚项（★用户 2026-11-03 补充的硬约束）
+
+#### 3.7.1 用户原话与语义
+
+> 「但如果你不按S，没有及时刹车，可能会他过完时直接侧翻，导致车毁人亡。」
+
+**这条约束的地位与其它项不同**：其余损失项是「让模型开得更好」，这一项是「防止模型学出一个会翻车的动作」。用户明确要求**作为硬约束（不是建议）**，因此它在总损失里不是可调的小权重项，而是带独立系数的强惩罚。
+
+**S 键的三重角色（用户最终定论）**：
+
+| # | 角色 | 物理效果 |
+|---|---|---|
+| 1 | 单独按 S | 后退 |
+| 2 | **配合 Shift+空格（= 极致刹车）** | **防翻车稳定键**——制动力过猛时抵消侧翻力矩 |
+| 3 | 极致刹车持续到车速为 0 后继续按 S | 后退（同一按键，物理效果随车速变化） |
+
+**关键推论**：`vertical=S` 与 `ultimate_brake=1` **可以同帧共存，不冲突**（第 2、3 条角色说的是同一个 S）。冲突只在一种情形：
+
+```
+super_brake=1  ∧  speed > 阈值  ∧  vertical ≠ S     ← 唯一要罚的组合
+        （高速想按超级刹车）              （却没按防翻稳定键）
+```
+
+低速场景下 `super_brake=1` 但不按 S 是**允许的**（低速不会翻）。
+
+#### 3.7.2 惩罚项公式
+
+```python
+violation = w(speed) · P(super_brake) · (1 − P(S))
+
+w(speed) = clamp((speed − v_low) / (v_high − v_low), 0, 1)     # 线性斜坡
+L_rollover = mean(violation)
+```
+
+三项相乘的语义：**只有「高速」且「想按超级刹车」且「不想按 S」三者同时成立才重罚**。
+
+实现见 `tools/v3_exp/exp_rollover_guard.py`（`rollover_penalty`），已实测验证（见 3.7.4）。
+
+**为什么用线性斜坡而不是硬阈值**（实测对比）：
+
+| 速度 km/h | 斜坡版 | 硬阈值版（v>30） |
+|---|---|---|
+| 19.0 | 0.00000 | 0.00000 |
+| 20.0 | 0.00000 | 0.00000 |
+| 25.0 | 0.46646 | 0.00000 |
+| 29.9 | 0.92358 | 0.00000 |
+| 30.0 | 0.93291 | 0.00000 |
+| 31.0 | 0.93291 | 0.98201 |
+
+硬阈值在 29.9→30.0 之间从 0 **突跳**到满罚，梯度不连续、训练易震荡；斜坡版全程连续可导，且 `v ≤ v_low` 时**严格为 0**（不干扰低速正常操作）。
+
+**默认阈值**：`v_low = 20 km/h`、`v_high = 30 km/h`。**这两个值必须实测标定**——「多少 km/h 开始会翻」取决于车型/游戏物理，**未测**（§8）。
+
+#### 3.7.3 ★ 梯度只许流向 vertical，不许压 super_brake（最关键的设计决策）
+
+惩罚项里有两个可微输入：`super_logit` 和 `vertical_logits`。**必须把前者的梯度切断**（`p_super.detach()`）：
+
+| 做法 | 数学效果 | 现实后果 | 判定 |
+|---|---|---|---|
+| **detach_super=True（推荐）** | 只能通过「提升 P(S)」降 loss | 模型学会「高速踩超级刹车时必须带 S」✓ | ✅ 采用 |
+| detach_super=False | 也可通过「降低 P(super_brake)」降 loss | 模型学会「**高速时别踩超级刹车**」——从侧翻风险换成刹不住/撞车风险，同样致命 | ❌ 禁止 |
+
+**实测梯度证据**（`exp_rollover_guard.py` Q2，速度 50km/h、P(super)=0.982、P(S)=0.05）：
+
+```
+【推荐 detach_super=True】
+  super_logit.grad is None = True    ← 梯度已切断（计算图里没有它的梯度路径）
+  vertical[S] 梯度 = -0.046646       ← 负梯度 = 提升 P(S) 才能降 loss ✓
+
+【不 detach（对照，禁止使用）】
+  super_logit 梯度 = +0.016780
+  ← 正值意味着梯度下降会把它压低 → 减少超级刹车。从侧翻换成刹不住，一样死。
+```
+
+**真跑验证**（对 vertical 做 30 步梯度下降，detach_super=True）：
+
+```
+P(S):   0.0500 → 0.9828
+惩罚值: 0.93291 → 0.01689
+✓ 优化确实抬高了 P(S) 并降低了惩罚
+```
+
+**super_brake 头的校准由谁负责**：由它自己的 BCEWithLogits 监督（§3.2 的主任务）负责。安全项**不参与** super_brake 的校准，只负责把 vertical 拉向 S。职责分离，避免两个目标在同一参数上打架。
+
+#### 3.7.4 数值行为实测（`exp_rollover_guard.py` Q1）
+
+| 场景 | 速度 | P(super) | P(S) | 惩罚值 |
+|---|---|---|---|---|
+| 低速 10km/h + 超级刹车 + 不带S | 10.0 | 0.982 | 0.05 | **0.00000** ← 允许 |
+| 临界 20km/h + 超级刹车 + 不带S | 20.0 | 0.982 | 0.05 | **0.00000** ← 边界 |
+| 中速 25km/h + 超级刹车 + 不带S | 25.0 | 0.982 | 0.05 | 0.46646 ← 半罚 |
+| 高速 40km/h + 超级刹车 + 不带S | 40.0 | 0.982 | 0.05 | **0.93291** ← ★重罚 |
+| 高速 40km/h + 超级刹车 + **带S** | 40.0 | 0.982 | 0.95 | **0.04910** ← 仅为前者的 5.3% |
+| 高速 40km/h + 不按超级刹车 | 40.0 | 0.018 | 0.05 | 0.01709 ← 不罚 |
+| 高速 40km/h + 极致刹车（带S） | 40.0 | 0.982 | 0.95 | 0.04910 ← 不罚 |
+
+数值行为完全符合用户约束：**低速不罚、高速不带 S 重罚（0.933）、带 S 几乎不罚（0.049）**。
+
+#### 3.7.5 配套：输出一致性项 `L_coh`（防侧翻惩罚的前提）
+
+**为什么必须有它**：模型有 4 个**独立** sigmoid 头（handbrake / brake / super_brake / ultimate），彼此没有任何结构约束，完全可能输出
+
+```
+P(handbrake)=0.047, P(brake)=0.047, P(super_brake)=0.953
+```
+
+——「没按 Shift、没按空格，却按了 Shift+空格」，物理上不存在。而防侧翻惩罚判的是 `P(super_brake)`；一旦 super_brake 头与另两个头脱钩，**「高速想按超级刹车但不按 S」这个判断本身建立在不可信的数值上**。
+
+```python
+L_coh = MSE( P(super_brake),  P(handbrake)·P(brake) )
+      + MSE( P(ultimate),     P(handbrake)·P(brake)·P(S) )
+```
+
+约束来源是录制器的定义（`tools/aurora_recorder.c:209,211`，2026-11-03 定稿版）：
+`super_brake = shift ∧ space`、`ultimate_brake = shift ∧ space ∧ s`。
+
+**实测**（`exp_rollover_guard.py` Q3）：
+
+```
+矛盾输出（P(hb)=0.047, P(br)=0.047, P(sb)=0.953）→ L_coh = 0.90526
+自洽输出（三者都≈0.95, S≈0.9）                 → L_coh = 0.02051
+✓ 矛盾输出被惩罚约 44 倍
+
+梯度检查：handbrake 0.002086 / brake 0.002086 / super_brake 0.042932 /
+          ultimate 0.002092 / vertical 0.000032   全部非零 ✓
+```
+
+#### 3.7.6 更新后的总损失
+
+```
+L_total = λ·L_key + κ·L_ccm + τ·L_intent + λ_sb·L_super + λ_safe·L_safe
+        + λ_coh·L_coh          ← 新增（一致性，防侧翻的前提）
+        + λ_roll·L_rollover    ← 新增（★防侧翻硬约束）
+```
+
+| 项 | 建议权重 | 理由 |
+|---|---|---|
+| `L_coh` | **λ_coh = 0.05** | 软约束（逻辑自洽），小权重即可；实测矛盾时损失 0.905，×0.05 ≈ 0.045，量级合适 |
+| `L_rollover` | **λ_roll = 2.0** | ★硬约束。实测严重违规时 `L_rollover ≈ 0.41`（8 帧里 4 帧高速违规），×2.0 ≈ 0.82，**与主任务（实测 4.39）同量级**，构成「重罚」；轻度违规时→0，不干扰主任务 |
+
+**量级对照实测**（`exp_rollover_guard.py` Q4，主任务用 `src/model_v3.py` 的 `V3Loss` 真跑）：
+
+```
+主任务 total                                   4.3905
++ 2.0 × rollover（8帧里4帧高速违规=0.41029）   0.8206
++ 0.05 × coherence（人为矛盾=1.52553）         0.0763
+= 合计                                         5.2873
+```
+
+**λ_roll=2.0 是可调下限建议**：若实测发现高速违规仍频繁，应继续加大（安全项优先于性能指标）。
+
+#### 3.7.7 ⚠️ 落地前提：速度字段从哪里来（**当前存在数据链路缺口**）
+
+防侧翻惩罚依赖 **speed**，但 2026-11-03 的录制器**不记录速度**（实测核查）：
+
+| 录制器 | 表头 | 有速度吗 |
+|---|---|---|
+| `tools/aurora_recorder.c:313`（当前版） | `t_sec,frame,w,a,s,d,shift,space,super_brake,ultimate_brake` | ❌ **无任何速度列** |
+| `Sources/AuroraDrive/Capture/RecordEngine.swift:298` | `t_sec,frame,steer,throttle,brake,speed_kmh,heading,curvature,speed_limit` | ✅ 有 `speed_kmh`（但**没有按键列**） |
+
+**两个录制器各缺一半**：C 录制器有完整按键语义但没速度；Swift 录制器有速度但没有新按键列。模型输入 `vehicle_state[B,8]` 的第 0 维是 speed（`src/model_v3.py:1069` 确认），推理时速度由 `SpeedOCRReader` 提供（读不到时 `speedValid=False`）。
+
+**三条可行路线（需拍板）**：
+
+| 路线 | 做法 | 代价 |
+|---|---|---|
+| **① 录制器补速度列（推荐）** | 在 `aurora_recorder.c` 加 `speed_kmh` 列（复用 `SpeedOCRReader` 的读数） | 需改 C 录制器；改动小但要重录数据 |
+| ② 双录制器合并 | C 录按键、Swift 录速度，按 `t_sec` 对齐 | 两路时间戳对齐误差；工程复杂 |
+| ③ 训练期用模型输入的 state[0] | 从 `vehicle_state` 第 0 维取 speed（归一化 ×120 还原） | **与推理路径一致**，不需改录制器；但要求录制时 state 非零（现有数据全零，`dataset_v2.py:42`） |
+
+**速度缺失时的 fail-safe 行为（已实现并写明）**：`speed_valid=0` 时把 `w` 当作 **1（按高速处理，保守惩罚）**，而不是 0。理由：若当作 0，速度一缺失安全项就**永远不生效**，等于静默关掉——这与 `src/risk_head.py:654-657` 的「宁可早报警，不可漏报」同一原则。
+
+**另一处链路缺口（实测）**：当前 `dataset_v2.py` 的 `_load_controls_csv` **不认识**新 10 列按键格式 —— 用它解析新格式实测得到 **0 行**（旧 5 列格式正常解析 2 行），且格式被误判为 `v1_old`。所以「录制端已产出原生按键标签」与「训练端能读」之间还差一个加载器。**这是 v3-code / 数据管线负责范围内的必做项**，本报告只标注事实。
+
+#### 3.7.8 训练期无法覆盖的情形（诚实边界）
+
+惩罚项只约束「模型输出」，**不能替代物理正确性**：
+
+- 该惩罚不能证明「带 S 就一定不翻」——真正的防翻是游戏物理。它只保证**模型不会主动学出「高速超级刹车但不带 S」这个危险模式**。
+- 训练数据若**本身就没有**「高速 + Shift+空格 + S」的示范帧，模型没有正样本可学，惩罚只能把它推向「不敢按超级刹车」——这时应优先补数据，而不是无限加大 λ_roll。
+- 以上均**未测**（无数据）。
+
 ---
 
 ## §4 标签转换规则表
@@ -341,9 +529,17 @@ total       3.868675
 
 | 优先级 | 数据源 | 能还原什么 | 实测证据（合成序列上） |
 |---|---|---|---|
-| **① 最优先** | `keylog.csv`（`t_sec,keycode,event`） | **全部 6 键无损**：W/A/S/D/Shift/Space | `tools/v3_exp/exp_label_rules.py` Q2：**60/60 帧 = 100% 一致** |
-| ② 次选 | `controls.csv` **7 列**（`steer,throttle,brake,handbrake,strong_brake`） | W/A/D 精确、Shift 精确、emergency 精确；**S 与 Space 不可区分** | 同脚本 Q3：S 20 帧、SPACE 10 帧「信息缺失」；240 个「精确」断言全过 |
-| ③ 兜底 | 旧 **5 列**（`t_sec,frame,steer,throttle,brake`） | 仅 W/A/D + 有损 Space；**无任何 Shift 信息** | `src/dataset_v2.py:16`、`docs` 采集文档 :391 |
+| **① 最优先** | **`controls.csv` 十列原生按键**（`w,a,s,d,shift,space,super_brake,ultimate_brake`，2026-11-03 定稿版录制器直接产出） | **全部 6 键 + 两个组合键**，无需任何反推 | 列名即按键，`tools/aurora_recorder.c:313` 表头逐字核对 |
+| **② 次优先** | `keylog.csv`（`t_sec,keycode,event`） | **全部 6 键无损**：W/A/S/D/Shift/Space | `tools/v3_exp/exp_label_rules.py` Q2：**60/60 帧 = 100% 一致** |
+| ③ 历史 | `controls.csv` **旧 7 列**（`steer,throttle,brake,handbrake,strong_brake`） | W/A/D 精确、Shift 精确、super_brake 精确；**S 与 Space 不可区分**（旧版 `is_brk` 把三者合并） | 同脚本 Q3：S 20 帧、SPACE 10 帧「信息缺失」；240 个「精确」断言全过 |
+| ④ 兜底 | 旧 **5 列**（`t_sec,frame,steer,throttle,brake`） | 仅 W/A/D + 有损 Space；**无任何 Shift 信息** | `src/dataset_v2.py:16`、`docs` 采集文档 :391 |
+
+> **重要更新（2026-11-03）**：录制器已按用户确认的键位语义重写，`controls.csv` 现在是
+> **十列原生按键标签**（`t_sec,frame,w,a,s,d,shift,space,super_brake,ultimate_brake`），
+> 旧版的 `is_brk()`（把 S/↓/空格合并）**已被删除**，S 与 Space 各自独立成列。
+> 因此本节原先「必须用 keylog 才能区分 S 与 Space」的结论**只对旧 7 列/5 列历史数据成立**；
+> 新录数据直接用十列即可，无需反推、无信息损失。
+> 下面的 4.1 后半段与 4.2/4.3 保留旧格式分析，用于**历史数据抢救**，并作为「为什么必须拆列」的证据。
 
 **为什么 keylog 是无损的**：`tools/aurora_recorder.c:128-133` 把**每一次按键边沿**（含 keycode）逐条落盘，`t_sec,keycode,event(down/up)`。只要回放这些边沿，就能精确重建每一帧「哪些键是按住状态」。我在脚本里实现了回放并用合成序列验证：60 帧全部一致。
 
@@ -365,17 +561,20 @@ static int is_brk(int k) { return k == 0x01 || k == 0x7D || k == 0x31; } // S / 
 
 ### 4.2 键位事实（精确答案：`is_*` 各匹配哪些键）
 
-源码 `tools/aurora_recorder.c:52-57`，逐行核对：
+**当前版本（2026-11-03 定稿）** `tools/aurora_recorder.c:72-77`，逐行核对：
 
-| 判定函数 | 匹配的键码 | 语义键 |
+| 判定函数 | 匹配的键码 | 语义列 |
 |---|---|---|
-| `is_left` | `0x00`(A)、`0x7B`(←) | A |
-| `is_right` | `0x02`(D)、`0x7C`(→) | D |
-| `is_thr` | `0x0D`(W)、`0x7E`(↑) | W |
-| `is_brk` | `0x01`(S)、`0x7D`(↓)、`0x31`(Space) | **S 与 Space 合并** |
-| `is_shift` | `0x38`（**仅左 Shift**，右 Shift 不绑） | Shift |
+| `is_left` | `0x00`(A)、`0x7B`(←) | `a` |
+| `is_right` | `0x02`(D)、`0x7C`(→) | `d` |
+| `is_thr` | `0x0D`(W)、`0x7E`(↑) | `w` |
+| `is_reverse` | `0x01`(S)、`0x7D`(↓) | `s`（后退） |
+| `is_space` | `0x31`(Space) | `space`（正常刹车） |
+| `is_shift` | `0x38`（**仅左 Shift**，右 Shift 不绑） | `shift`（手刹） |
 
-**录制端的 7 列推导式**（`tools/aurora_recorder.c:171-176`，逐行核对）：
+> ⚠️ **历史版本（已废弃）**：旧实现有一个合并函数 `is_brk()`，匹配 `S(0x01) / ↓(0x7D) / Space(0x31)`，把三者并进同一个 `brake` 列 —— 这正是「S 与 Space 不可区分」的根源。该函数**已删除**（全文仅剩 `:59` 的注释在说明这个旧 bug）。下面 4.2 的旧推导式仅作为历史证据保留。
+
+**旧版 7 列推导式**（历史，`tools/aurora_recorder.c` 旧版 :171-176）：
 
 ```c
 steer       = (left && !right) ? -1.0 : (right && !left) ? 1.0 : 0.0;  // 左右互斥，同按判中立 0
@@ -385,14 +584,50 @@ handbrake   = (shift && !space) ? 1.0 : 0.0;         // 手刹漂移：仅 Shift
 strong_brake= (shift && space)  ? 1.0 : 0.0;         // 强力刹车：Shift+Space
 ```
 
+**当前版推导式**（`tools/aurora_recorder.c:195-213`）：
+
+```c
+w = is_thr(k) ? 1 : 0;      a = is_left(k) ? 1 : 0;
+s = is_reverse(k) ? 1 : 0;  d = is_right(k) ? 1 : 0;
+shift = is_shift(k) ? 1 : 0;  space = is_space(k) ? 1 : 0;
+super_brake    = (shift && space) ? 1 : 0;
+ultimate_brake = (shift && space && s) ? 1 : 0;   // ★ S 是防翻稳定键
+```
+
 **两条重要的语义事实**：
 
-1. **`steer` 天生就是互斥三值 `{-1, 0, +1}`** —— 录制器已经用 `left && !right` 强制了左右互斥。这直接支持「A/D 用一组互斥输出」。
-2. **`handbrake` 与 `strong_brake` 互斥**（`shift && !space` vs `shift && space`），且 **`brake` 与 `strong_brake` 可以同时为 1**（Shift+Space 时 `brake=1`（因含 Space）且 `strong_brake=1`）。所以 `space` 头的真值应该来自 `brake` 列，而 `emergency` 头来自 `strong_brake` 列——两者不是替代关系。
+1. **左右互斥**：当前版录制器**不再**在录制时强制 `a/d` 互斥（`:192-194` 注释：记录原始事实，训练侧把 `a=d=1` 映射为 `horizontal=NONE`）。旧版是用 `left && !right` 在录制端折叠的。两种做法都能保证「A/D 不同时有效」。
+2. **组合键由原子键算出，且可交叉校验**：`super_brake == shift ∧ space`、`ultimate_brake == shift ∧ space ∧ s`（`:209-211`）。录制器注释 `:190` 明确说由 `verify_recording.py` 再交叉校验一道。
 
 ### 4.3 转换规则表（完整，可直接据此写数据集脚本）
 
-#### 规则 A：从 `keylog.csv`（**推荐主路径，无损**）
+#### 规则 A′：从**十列原生按键** `controls.csv`（**2026-11-03 版录制器，最优先**）
+
+列名即答案，**不需要任何反推**。只需把列值转成模型要的标签：
+
+| 模型输出 | 直接来源列 | 说明 |
+|---|---|---|
+| `vertical`（W/NONE/S） | `w`、`s` 两列 | `w=1`→W(0)；`s=1`→S(2)；两者皆 0→NONE(1)。**若 `w=1 且 s=1`（非法）→ 按安全优先取 S** |
+| `horizontal`（A/NONE/D） | `a`、`d` 两列 | `a=1`→A(0)；`d=1`→D(2)；皆 0→NONE(1)。`a=d=1` → NONE（录制器记录原始事实，训练侧映射为中立，见 `aurora_recorder.c:192-194`） |
+| `handbrake` | `shift` | 直接取 |
+| `brake` | `space` | 直接取 |
+| `super_brake` | `super_brake` | 直接取（= shift ∧ space） |
+| `ultimate` | `ultimate_brake` | 直接取（= shift ∧ space ∧ s） |
+| `intent`（stage1） | 由上面各列推导 | 见 §3.3 停止/减速/前进定义 |
+| `confidence`/`risk` | 无直接列 | 用代理真值（§2.5） |
+
+**⚠️ 必须校验的两条不变量**（录制器注释 `aurora_recorder.c:190` 明说由 `verify_recording.py` 交叉校验）：
+
+```
+super_brake    == (shift ∧ space)
+ultimate_brake == (shift ∧ space ∧ s)
+```
+
+若某帧不满足，说明录制器的键位状态读取有问题（如丢失 up 事件导致键「粘住」），该 clip 应告警而非静默使用。
+
+**⚠️ 速度缺失**：十列格式**不含 speed**（`aurora_recorder.c:313` 表头逐字核对），而 §3.7 的防侧翻惩罚需要速度。见 §3.7.7 的三条补齐路线。
+
+#### 规则 A：从 `keylog.csv`（**次优先，无损；用于十列缺失或交叉校验**）
 
 | 输出 | 构造规则 |
 |---|---|
@@ -588,7 +823,12 @@ is_super_brake = (streak >= N)
 
 ---
 
-## §7 待拍板事项（两处与「已确认方案」的冲突，必须由用户/Lead 决定）
+## §7 待拍板事项与已知冲突
+
+> **状态更新（2026-11-03）**：
+> - **冲突一（4 类 softmax）** → 仍待拍板，但 `src/model_v3.py` 已按推荐的 3+3 实现。
+> - **冲突二（S 与 Space 不可区分）** → **已由录制器重写解决**（十列原生按键）；剩余待办是训练端加载器要跟上（§7.2）。
+> - 另有一项环境事实需记录：执行端 `ControlEngine.swift` 的键位仍是旧语义（§7.3）。
 
 ### 7.1 冲突一：4 类 softmax 表达不了「边给油边转向」
 
@@ -629,26 +869,43 @@ lateral_logits      [B,3] → softmax : 0=A(左转) 1=NONE 2=D(右转)
 
 **建议**：改方案 ②。但这是**对已确认设计的修改**，我不擅自改动——请用户/Lead 拍板。若坚持方案 ①，则 §4.4 的优先级归约必须接受「每帧丢一个轴」的损失，且上线后「边给油边转向」的场景表现会明显偏弱。
 
-### 7.2 冲突二：`S` 与 `Space` 在七列数据里无法区分
+### 7.2 冲突二：`S` 与 `Space` 无法区分 —— **已由录制器重写解决（2026-11-03 12:55）**
 
-已在 §4.1 用实测证明（两行完全相同）。**这不是设计选择，是数据事实**。
+**原问题**（旧 7 列格式）：`is_brk()` 把 S/↓/Space 合并进同一个 `brake` 列，实测「只按 Space」与「只按 S」产出的两行**完全相同**（`0,0,1,0,0`）。用户要求这是两个不同输出，旧数据因此无法训练 `S` 类与 `space` 头。
 
-**影响**：
-- 若用 `keylog.csv` → 无影响（无损）。
-- 若只有 `controls.csv` 七列 → `S` 类与 `space` 头**没有可用真值**，必须丢弃这两路监督，或重新录制。
+**现状（已修复）**：`tools/aurora_recorder.c` 已按用户确认的键位语义重写（`:55-70` 注释 + `:75-77` 键位函数 + `:195-213` 推导），现在：
 
-**请确认**：录制链路是否稳定产出 `keylog.csv`？`tools/aurora_recorder.c:277-283` 会创建它，但创建失败时**只打 stderr 警告然后继续录**（不中止）。这意味着可能产出「有 controls.csv 但没有 keylog.csv」的 clip——这类 clip 必须被识别并降级使用，不能静默当成无损数据。
+| 键 | 列 |
+|---|---|
+| W / ↑ | `w` |
+| A / ← | `a` |
+| S / ↓ | `s`（后退，**不再含空格**） |
+| D / → | `d` |
+| 空格 | `space`（正常刹车） |
+| 左 Shift | `shift`（手刹） |
+| Shift+空格 | `super_brake` |
+| Shift+空格+S | `ultimate_brake` |
 
-### 7.3 附：键位映射的口径冲突（已发现，需记录）
+`is_brk()` 已被删除（全文仅剩 `:59` 的一处注释在说明这个旧 bug）。**所以新录数据不再有 S/Space 混淆问题**，直接用十列即可（§4.3 规则 A′）。
 
-项目里存在**两套互相矛盾的键位定义**，我按「录制器为准」推进（因为它才是产出训练标签的地方），但必须记录：
+**仍存在的缺口**：
+1. **训练端加载器还没跟上**：`src/dataset_v2.py` 的 `_load_controls_csv` 不认识十列格式 —— 实测解析新格式得到 **0 行**（旧 5 列格式正常解析 2 行），且格式被误判为 `v1_old`。**必须补一个十列解析器**（v3-code / 数据管线范围内）。
+2. **旧数据无法救**：已有的 7 列/5 列历史 clip 仍然缺 S 与 Space 的真值，只能按 §4.3 规则 B/C 降级使用。
 
-| 来源 | Space | Shift |
-|---|---|---|
-| `tools/aurora_recorder.c:52-57`（**产出训练标签，我以此为准**） | 刹车（`is_brk` 含 Space） | 手刹 / 强力刹车 |
-| `Sources/AuroraDrive/Control/ControlEngine.swift:49,56`（**控制引擎**） | `handbrake`（手刹） | `boost`（极速） |
+**请确认**：录制链路是否稳定产出 `keylog.csv`？`tools/aurora_recorder.c:305-315` 会创建它，但创建失败时**只打 stderr 警告然后继续录**（不中止）。这意味着可能产出「有 controls.csv 但没有 keylog.csv」的 clip——这类 clip 必须被识别并降级使用，不能静默当成无损数据。
 
-**这两个文件对 Space/Shift 的语义是反的**。用户需求（Space=刹车、Shift=手刹）与**录制器一致**、与 `ControlEngine.swift` 相反。结论：**训练标签以录制器为准是对的**；但若后续要做「模型输出 → 实际按键」的闭环，`ControlEngine.swift` 的 KeyMap 必须改，否则模型学的和实际按的会错位。**这不在我的任务范围内（不改 Sources/），仅作事实标注上报。**
+### 7.3 附：键位映射的口径冲突（**已被录制器修复，但控制引擎仍是旧的**）
+
+| 来源 | Space | Shift | 状态 |
+|---|---|---|---|
+| `tools/aurora_recorder.c:72-77`（**产出训练标签，以此为准**） | `space` = 正常刹车 | `shift` = 手刹 | ✅ **已按用户语义重写（2026-11-03）** |
+| 旧版 `tools/aurora_recorder.c`（已废弃） | 并入 `brake`（与 S 混淆） | 手刹/强力刹车 | ❌ 已删除 |
+| `Sources/AuroraDrive/Control/ControlEngine.swift:52-53`（**控制引擎，执行端**） | `handbrake` = 空格 | `boost` = 左 Shift | ⚠️ **仍是旧语义，未改（mtime 2026-10-10）** |
+
+**结论**：
+- **训练标签以录制器为准是对的**——录制器现在与用户需求（Space=刹车、Shift=手刹）一致。
+- **但执行端 `ControlEngine.swift` 的 KeyMap 仍是反的**：它把空格当手刹、Shift 当 boost。若后续做「模型输出 → 实际按键」的闭环，这里必须改，否则**模型学的和实际按的会错位**。这不在本任务范围内（不改 `Sources/`），仅作事实标注上报。
+- 影响范围：只影响「模型驱动实际按键」的部署路径；纯离线训练/评估不受影响。
 
 ---
 
@@ -665,7 +922,11 @@ lateral_logits      [B,3] → softmax : 0=A(左转) 1=NONE 2=D(右转)
 | 7 | **ANE 算子兼容性** | 同上 | 注意 `src/risk_head.py:1122-1125` 的历史踩坑：双边 `clamp` 会编译成 `logical_and` → 整个模型被踢出 ANE。EMD 里的 `cumsum` 是否 ANE 友好 **未测**，需导出验证 |
 | 8 | **`confidence`/`risk` 真值的有效性** | 只有代理真值，无「人工接管/碰撞」标签 | 需要人工标注的接管帧；`src/risk_head.py:1101-1112` 的 TODO 未解决 |
 | 9 | **权重最优组合** | §3.5 只验证了「权重生效」，没做真实训练调参 | 需真实数据上的 grid search |
-| 10 | **`keylog.csv` 的实际覆盖率** | 没有任何真实 clip 可查 | 抽查现有/新录 clip，统计「有 keylog 的占比」与「keylog 回放 vs 七列对拍的不一致率」 |
+| 10 | **`keylog.csv` 的实际覆盖率** | 没有任何真实 clip 可查 | 抽查现有/新录 clip，统计「有 keylog 的占比」与「keylog 回放 vs 十列对拍的不一致率」 |
+| **11** | **★防侧翻的速度阈值 `v_low` / `v_high`** | 需实车/实游戏测定「多少 km/h 开始会翻」，当前用 20/30 km/h 是**假设值** | 在游戏里做受控实验：固定速度 + Shift+空格（不带 S），逐档升速记录是否侧翻；取「首次出现侧翻倾向」的速度作为 `v_low`，再加 10km/h 余量作 `v_high` |
+| **12** | **★速度字段的可获得性** | 当前十列录制器**不含 speed**（`aurora_recorder.c:313` 逐字核对）；`SpeedOCRReader` 读不到时 `speedValid=False` | 见 §3.7.7 三条路线；**这是防侧翻惩罚能否落地的先决条件** |
+| **13** | **★防侧翻惩罚的真实效果** | 无数据、无闭环环境 | 需对比实验：开/关 `L_rollover` 时「高速 super_brake 但 vertical≠S」的帧比例 |
+| **14** | **十列格式的数据加载器** | `src/dataset_v2.py` 实测解析十列格式得到 **0 行**（旧 5 列可解析 2 行） | 必须补 `_load_controls_csv` 的十列分支（含 `w/a/s/d/shift/space/super_brake/ultimate_brake`） |
 
 ---
 
@@ -674,20 +935,29 @@ lateral_logits      [B,3] → softmax : 0=A(左转) 1=NONE 2=D(右转)
 按这份报告写 `src/model_v3.py` 时需要注意的点：
 
 1. **输入**：`state_token [B, D]`（D 由主干定，建议 192）。
-2. **输出签名**（与 task-11 契约一致）：
+2. **输出签名**（与 task-11 契约一致，`src/model_v3.py` 已按此实现）：
    ```python
-   direction: [B, 4]   # 或改 3+3，见 §7.1 待拍板
-   shift:     [B, 1]
-   space:     [B, 1]
-   confidence:[B, 1]
-   risk:      [B, 1]
+   vertical:    [B, 3]   # W / NONE / S 三分类互斥 logits（§7.1 采用 3+3 而非 4 类）
+   horizontal:  [B, 3]   # A / NONE / D 三分类互斥 logits
+   handbrake:   [B, 1]   # Shift 手刹
+   brake:       [B, 1]   # Space 正常刹车
+   super_brake: [B, 1]   # Shift+Space 超级刹车（短按）
+   ultimate:    [B, 1]   # Shift+空格+S 极致刹车（★S 是防翻稳定键）
+   confidence:  [B, 1]
+   risk:        [B, 1]
    ```
-   同时提供 logits 版（训练用）与概率版（部署用），命名沿用 `train_v2.py` 的 `*_logit` 约定。
+   全部输出 logits（训练侧直接喂 CE / BCEWithLogits）。
 3. **stage1 意图头**：只在训练时构建，不进入导出图。
 4. **CCM**：`requires_grad_(False)` 显式冻结（§3.4 实测：不冻结会有 0.007066 的梯度漏进去）。
 5. **初始化**：全部 `fan_in` + 零 bias；`risk` bias=-2.197、`confidence` bias=0.405。
 6. **参数量预期**：主输出头 56,554（实测），占 12M 的 0.471% —— 与主干的 11.9M 不冲突。
 7. **不要引入动态循环**：本设计全是 `Linear`/激活，天然满足 ANE 要求。
+8. **★必须补防侧翻安全项（当前 `V3Loss` 里没有）**：
+   - 加 `rollover_penalty()`（§3.7.2，`tools/v3_exp/exp_rollover_guard.py` 有可直接抄的实现）
+   - 加 `output_coherence_loss()`（§3.7.5，约束 `super_brake == handbrake ∧ brake`、`ultimate == handbrake ∧ brake ∧ S`）
+   - **`p_super.detach()` 必须加**（§3.7.3：否则梯度会教模型「高速别踩超级刹车」）
+   - 权重 `λ_roll=2.0`、`λ_coh=0.05`（§3.7.6）
+   - 速度从 `vehicle_state[:, 0]`（归一化 ×120 还原 km/h）取；`speed_valid` 为 0 时按满罚处理（fail-safe）
 
 ---
 
@@ -707,6 +977,9 @@ cd /Users/dupi/Desktop/自动驾驶系统
 
 # 4) V3Loss 真跑（前向+反向+梯度检查）+ 权重敏感性 + 转换规则
 /usr/local/bin/python3.11 tools/v3_exp/exp_v3_loss.py
+
+# 5) ★防侧翻安全惩罚项（数值行为 + 梯度流向 + 一致性 + 量纲）
+/usr/local/bin/python3.11 tools/v3_exp/exp_rollover_guard.py
 ```
 
-四个脚本全部可独立运行、无联网、无副作用（纯本地计算）。
+五个脚本全部可独立运行、无联网、无副作用（纯本地计算）。
