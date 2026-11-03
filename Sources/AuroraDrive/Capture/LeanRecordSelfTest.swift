@@ -410,6 +410,23 @@ enum LeanRecordSelfTest {
         check("契约监视：停止原因须含实测帧率", cadenceErr.contains("fps"), cadenceErr)
         if cadenceBad.isRecording { cadenceBad.stop() }
 
+        // ── 磁盘容量探测 ──
+        // 【为什么必须测】start() 的磁盘下限检查是 `if let free = …`：探测返回 nil
+        //   就等于"未知"，检查被**静默跳过**，磁盘写满时才会在录到一半时发现。
+        //   而改成按实际写入卷（clipsRoot）探测后，"卷是否找得到"本身成了新前提，
+        //   必须钉住它确实能取到值，否则这次修复等于白做。
+        // 用**尚不存在**的目录探测，顺带验证"向上找已存在祖先"那段逻辑：
+        // 首次录制时 clipsRoot 就是还没创建的。
+        let probeFree = LeanRecordEngine.freeDiskBytes(at: root)
+        check("磁盘探测：能取到剩余容量（返回 nil 会让磁盘检查形同虚设）",
+              (probeFree ?? 0) > 0,
+              probeFree.map { "\($0 / 1024 / 1024 / 1024) GB" } ?? "nil")
+        let deepNonexistent = root.appendingPathComponent("a/b/c/not_created_yet")
+        check("磁盘探测：目录尚不存在时也能向上追溯到所在卷",
+              (LeanRecordEngine.freeDiskBytes(at: deepNonexistent) ?? 0) > 0,
+              LeanRecordEngine.freeDiskBytes(at: deepNonexistent)
+                  .map { "\($0 / 1024 / 1024 / 1024) GB" } ?? "nil")
+
         // ── 第四段：分段回调 onSegmentClosed（不变量 ⑧）──
         // 为什么需要这一段：10 分钟自动分段会把一次长录切成多段，若只有"最后一段"
         // 被标注，前面的中间段 speed_kmh 会永久为空 —— 训练端 speed_valid=0，

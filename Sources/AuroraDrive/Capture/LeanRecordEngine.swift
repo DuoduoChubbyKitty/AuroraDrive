@@ -236,7 +236,10 @@ final class LeanRecordEngine: @unchecked Sendable {
     func start() -> Bool {
         guard !isRecording else { return true }
 
-        if let free = Self.freeDiskBytes(), free < minFreeDiskBytes {
+        // 必须查**实际写入的卷**（clipsRoot），不能查 projectRoot：两者可能不同卷
+        // （切换录制盘 / 外置盘 / 自检的 clipsRootOverride），查错卷等于用 A 盘余量
+        // 给 B 盘写入发放许可，真正写满时整段作废。
+        if let free = Self.freeDiskBytes(at: clipsRoot), free < minFreeDiskBytes {
             lastError = "磁盘剩余 \(free / 1024 / 1024 / 1024) GB，低于下限"
                 + " \(minFreeDiskBytes / 1024 / 1024 / 1024) GB，已拒绝开始录制"
             print("[lean] ❌ \(lastError ?? "")")
@@ -806,11 +809,40 @@ final class LeanRecordEngine: @unchecked Sendable {
     private(set) var lastError: String?
 
     /// 剩余磁盘容量（字节）。取不到返回 nil（视为未知，不阻塞录制）。
-    static func freeDiskBytes() -> Int64? {
-        let url = AuroraPaths.projectRoot()
-        guard let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
-              let free = values.volumeAvailableCapacityForImportantUsage else { return nil }
-        return Int64(free)
+    ///
+    /// 【为什么必须传目标目录，不能写死 projectRoot（2026-11-03 外部审查发现）】
+    ///   录制写入的是 `clipsRoot`，而原实现查的是 `AuroraPaths.projectRoot()` 所在卷。
+    ///   两者**可能根本不是同一个卷**：`clipsRootOverride`（自检/切换录制盘）会把产物
+    ///   指到别处，用户也可能把 clips 放到外置盘。查错卷 = 用 A 盘的余量给 B 盘的写入
+    ///   发放许可 → 真正写满时才发现，而那通常发生在 10 分钟录制的后半段，
+    ///   整段数据作废。查对了卷才有意义。
+    ///
+    /// 【用 volumeAvailableCapacityKey 而非 …ForImportantUsageKey】
+    ///   后者会把 macOS「可回收/可清理」的空间也算进来（号称"重要用途可用容量"），
+    ///   是偏乐观的估计。录制要的是**现在就能写下去的字节数**，宁可用保守口径。
+    ///   （实测同一卷：available=57.2GB，importantUsage=71.9GB，差 14.7GB 的虚数。）
+    ///
+    /// 【为什么要 `Int64(exactly:)` 而不是直接 `Int64(free)`】
+    ///   实测这两个 API 的返回类型并不统一：`volumeAvailableCapacity` 是 `Int`，
+    ///   而 `volumeAvailableCapacityForImportantUsage` 是 `Int64`（另
+    ///   `volumeTotalCapacity` 是 `Int`）。今天走的是 `Int` 口径、64 位平台必不溢出，
+    ///   但这里刻意用 `exactly:` 表达"容量是外部输入，转换失败就按未知处理"，
+    ///   将来若换成无符号或被裁剪的口径也不会静默截断成负数（负值会让
+    ///   `free < minFreeDiskBytes` 恒成立 → 静默永久拒绝录制）。
+    static func freeDiskBytes(at directory: URL) -> Int64? {
+        // 目录可能尚未创建（首次录制）：向上找到第一个已存在的祖先再问卷信息。
+        // 否则 resourceValues 会直接抛错，返回 nil = "未知"，磁盘检查被静默跳过。
+        var probe = directory
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        while !(fm.fileExists(atPath: probe.path, isDirectory: &isDir) && isDir.boolValue) {
+            let parent = probe.deletingLastPathComponent()
+            if parent.path == probe.path { return nil }   // 到根了仍不存在
+            probe = parent
+        }
+        guard let values = try? probe.resourceValues(forKeys: [.volumeAvailableCapacityKey]),
+              let free = values.volumeAvailableCapacity else { return nil }
+        return Int64(exactly: free)
     }
 
     /// CVPixelBuffer(32BGRA) → JPEG。写法与 `RecordEngine` 的 PNG/JPEG 编码一致。
