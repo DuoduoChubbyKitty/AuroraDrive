@@ -159,6 +159,9 @@ final class LeanRecordEngine: @unchecked Sendable {
     /// 而 stop() 排空队列那一刻主线程的更新可能还没跑到 → 日志/meta 会少报帧数。
     private var framesWrittenLocked = 0
     private var restartedPending = false
+    /// 上一帧被接受的时刻（用于 15fps 限流；stateLock 保护）。
+    /// `start()`/`closeSessionLocked()` 会置 nil，否则新会话第一帧会被上段的旧时刻误挡。
+    private var lastAcceptedFrameTime: Date?
 
     private let dirFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -253,9 +256,30 @@ final class LeanRecordEngine: @unchecked Sendable {
     func appendFrame(pixelBuffer: CVPixelBuffer) {
         guard isRecordingSnapshot else { return }
 
+        // ── 15fps 限流（**必须在取时间戳之前**）────────────────────────────
+        // UI 进程的抓屏基准是 15fps（`CaptureEngine._targetCaptureHz` 初值 15，
+        // 且 AuroraDriveApp 只调 `start()`、从不调 `setCaptureHz` —— 20/45fps 是
+        // **引擎进程**按档位下发的值，与本录制器所处的 UI 进程无关）。
+        // 所以这里不是"把 20 压到 15"，而是**防御 SCStream 的额外推送**：
+        // 画面内容剧烈变化时系统会多发帧，若照单全收，t_sec 会被拉密，
+        // 而 dataset_v3 用 `actual_fps = 1/median(dts)` 校验 15±15%（12.75–17.25），
+        // 超了直接 ValueError，整份数据一帧都加载不了。
+        //
+        // 判据用 0.9 个周期（6.0ms 余量）而不是严格的 1/15：
+        //   15fps 源的真实间隔会在 66.7ms 附近抖动，卡死 66.7ms 会把正常帧也挡掉，
+        //   反而把有效帧率压低、同样掉出容差下界。
+        let now = Date()
+        let minGap = 1.0 / fps * 0.9
+        stateLock.lock()
+        if let last = lastAcceptedFrameTime, now.timeIntervalSince(last) < minGap {
+            stateLock.unlock()
+            return
+        }
+        lastAcceptedFrameTime = now
+        stateLock.unlock()
+
         // 时间戳与标签必须在**帧到达的这一刻**取，不能等到写盘时再取：
         // 写盘是异步的，晚取会把"下一帧的按键"贴到"这一帧的画面"上（标签错位）。
-        let now = Date()
         let keys = keyProvider()
         let (pose, accel) = poseProvider()
 
@@ -451,6 +475,9 @@ final class LeanRecordEngine: @unchecked Sendable {
         lastFrameWidth = 0
         lastFrameHeight = 0
         restartedPending = false
+        // ⚠️ 必须清零：限流用"距上一帧的时刻"判间隔，不清的话 10 分钟自动分段
+        //    切到新会话后，第一帧会被上一段的旧时刻挡掉（每段开头稳定丢 1 帧）。
+        lastAcceptedFrameTime = nil
         lastError = nil
         stateLock.unlock()
         return true
