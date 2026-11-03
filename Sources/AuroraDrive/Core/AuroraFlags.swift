@@ -189,6 +189,14 @@ enum AuroraFlags {
     /// OCR 调试打印。⚠️ 曾在每次推理现读 3 次（17µs×3），本文件已收敛。
     static let ocrDebug = bool("AURORA_OCR_DEBUG", default: false)
 
+    /// 离线标注的并行栅格化线程数。
+    ///
+    /// 默认 0 = 交给 `recognizeDirectory` 自算（留一核，上限 4）。
+    /// 显式设 1 即**纯串行**，用于两件事：
+    ///   ① 验收"AURORA_OCR_WORKERS=1 与默认并行的标注结果逐字节相同"；
+    ///   ② 万一某机型上并行有问题，一行环境变量即可回退，不必改代码。
+    static let ocrWorkers = int("AURORA_OCR_WORKERS", default: 0)
+
     /// 任务面板 OCR：读左侧任务面板文字 → 查 `models/quest_index.json` → 世界坐标目标。
     ///
     /// **默认开启**（2026-10-06 用户实测反馈改默认）。

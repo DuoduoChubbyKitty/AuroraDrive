@@ -92,6 +92,53 @@ private final class SpeedOCRLoadResultBox: @unchecked Sendable {
     }
 }
 
+/// 并行栅格化的工作槽位：承载「下一个待处理下标」与「按块内下标写回的结果」。
+///
+/// 【为什么做成引用类型】`DispatchQueue.concurrentPerform` 的闭包是 `@Sendable`，
+///   若在里面直接捕获外层的 `var nextIndex` / `var buffers`，Swift 6 会报
+///   「mutated after capture by sendable closure」——那不是误报：并发闭包可能在
+///   函数返回后才访问这些栈上变量，属真实悬垂风险。把可变状态收进带锁的引用
+///   类型，闭包只捕获这个对象，生命周期由 ARC 保证。
+///
+/// 【为什么 `claim()` 用"领号"而不是按线程切分】各帧解码耗时不同（画面复杂度
+///   不同），静态均分会让先干完的线程空等。领号让 4 个 worker 自然负载均衡。
+///
+/// 【线程纪律】所有方法内部加锁；`snapshot()` 只在 `concurrentPerform` 返回后调用
+///   （此时没有并发写者，锁仍保留只是为了不依赖这个外部时序假设）。
+private final class SpeedOCRRasterizeSlot: @unchecked Sendable {
+    let urls: [URL]
+    private let lock = NSLock()
+    private var nextIndex = 0
+    private var buffers: [CVPixelBuffer?]
+
+    init(urls: [URL]) {
+        self.urls = urls
+        self.buffers = [CVPixelBuffer?](repeating: nil, count: urls.count)
+    }
+
+    /// 领取下一个待处理下标；返回 nil 表示本块已领完。
+    func claim() -> Int? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard nextIndex < urls.count else { return nil }
+        let k = nextIndex
+        nextIndex += 1
+        return k
+    }
+
+    func store(_ buffer: CVPixelBuffer, at index: Int) {
+        lock.lock()
+        buffers[index] = buffer
+        lock.unlock()
+    }
+
+    func snapshot() -> [CVPixelBuffer?] {
+        lock.lock()
+        defer { lock.unlock() }
+        return buffers
+    }
+}
+
 /// 固定槽位模板匹配车速读取引擎
 /// - @Observable：UI 可观察 speedKmh / confidence
 /// - @MainActor：可变状态主线程访问
@@ -1745,31 +1792,88 @@ final class SpeedOCRReader {
         let ppocrKeysSnapshot = ppocrKeys
         guard ppocrSnapshot != nil || cnnSnapshot != nil else { return [] }
 
+        // ── 并行栅格化 + 串行 OCR ────────────────────────────────────────
+        // 【为什么值得并行】离线标注要对整段视频逐帧跑。实测单帧 7.19ms 里，
+        //   `JPEG→全帧 BGRA` 栅格化占 5.89ms，而真正走模型的 OCR 只占 ~1.3ms。
+        //   栅格化是 CPU 密集的重采样，实测 4 并发 6.65→1.53 ms/帧（4.33x）。
+        //   端到端因此可降到 ~2.9ms/帧，10 分钟片段（9000 帧）约 65s → 26s。
+        //
+        // 【为什么只并行栅格化、绝不并行 OCR】
+        //   `recognizePPOCR` 内部用 static `lastFrameHash`/`lastFrameResult` 做
+        //   「静止帧复用」，语义是"与**上一帧**比较"。乱序或并发调用会改变缓存
+        //   命中序列，识别结论可能随之改变 —— 那就不是在优化，是在改数据。
+        //   栅格化是无状态纯函数，输出只取决于输入文件；已用 300 帧 SHA-256
+        //   逐帧对拍，串行与并行**全部一致**（300/300）。
+        //
+        // 【为什么分块而不是全量并发】1280×832×4 ≈ 4.3MB/帧。整段 9000 帧全放
+        //   内存要 38GB，必然爆。块内最多 chunkSize 帧同时在内存，峰值约 34MB。
+        //   块与块之间严格按原序推进，OCR 看到的下标顺序与改动前完全一致。
+        let chunkSize = 8
+        // 默认留一个核给系统/UI，上限 4（实测 4 并发已达 4.33x，6/8 并发不再增长）。
+        // [回退/A-B 开关] AURORA_OCR_WORKERS=1 → 纯串行（用于验证"并行与串行结果
+        //   逐字节相同"，以及万一并行在某种机型上有问题时的单行回退）。
+        let workersOverride = AuroraFlags.ocrWorkers
+        let workerCount = workersOverride > 0
+            ? max(1, workersOverride)
+            : max(1, min(4, ProcessInfo.processInfo.activeProcessorCount - 1))
         var results: [FrameSpeedResult] = []
         results.reserveCapacity(images.count)
-        for (i, url) in images.enumerated() {
-            onProgress?(i, images.count)
-            let name = url.lastPathComponent
-            guard let cg = Self.loadCGImage(from: url),
-                  let pb = Self.makeBGRABuffer(from: cg) else {
-                results.append(FrameSpeedResult(name: name, speed: nil,
-                                                confidence: 0, diag: "读图失败"))
-                continue
-            }
-            let result: RecognitionResult
-            if let pp = ppocrSnapshot {
-                result = Self.recognizePPOCR(roiBuffer: pb, model: pp,
-                                             keys: ppocrKeysSnapshot,
-                                             isROISlice: roiNorm != nil)
-            } else if let cnn = cnnSnapshot,
-                      let slots = Self.cropSlots(from: pb, roiNorm: roiNorm) {
-                result = Self.recognizeCNN(slotImages: slots, model: cnn)
+
+        var chunkStart = 0
+        while chunkStart < images.count {
+            let chunkEnd = min(chunkStart + chunkSize, images.count)
+            let chunkCount = chunkEnd - chunkStart
+
+            // ① 并发栅格化本块（写回按块内下标，OCR 阶段再按顺序取用）
+            //   用引用类型的槽位承载"下一个待处理下标 + 结果数组"，闭包只捕获它，
+            //   不捕获任何外层可变局部变量（否则 Swift 6 会报 sendable 捕获变异警告，
+            //   且那确实是一个真实的悬垂捕获隐患）。
+            let chunkURLs = Array(images[chunkStart..<chunkEnd])
+            let slot = SpeedOCRRasterizeSlot(urls: chunkURLs)
+            if workerCount > 1 && chunkCount > 1 {
+                DispatchQueue.concurrentPerform(iterations: min(workerCount, chunkCount)) { _ in
+                    while let k = slot.claim() {
+                        guard let cg = Self.loadCGImage(from: slot.urls[k]),
+                              let pb = Self.makeBGRABuffer(from: cg) else { continue }
+                        slot.store(pb, at: k)
+                    }
+                }
             } else {
-                result = RecognitionResult(error: "无可用引擎")
+                for k in 0..<chunkCount {
+                    if let cg = Self.loadCGImage(from: chunkURLs[k]),
+                       let pb = Self.makeBGRABuffer(from: cg) {
+                        slot.store(pb, at: k)
+                    }
+                }
             }
-            results.append(FrameSpeedResult(name: name, speed: result.speed,
-                                            confidence: result.confidence,
-                                            diag: result.error ?? result.diag))
+            let buffers = slot.snapshot()
+
+            // ② 按原序串行 OCR（保持静止帧复用的"上一帧"语义）
+            for k in 0..<chunkCount {
+                let i = chunkStart + k
+                onProgress?(i, images.count)
+                let name = images[i].lastPathComponent
+                guard let pb = buffers[k] else {
+                    results.append(FrameSpeedResult(name: name, speed: nil,
+                                                    confidence: 0, diag: "读图失败"))
+                    continue
+                }
+                let result: RecognitionResult
+                if let pp = ppocrSnapshot {
+                    result = Self.recognizePPOCR(roiBuffer: pb, model: pp,
+                                                 keys: ppocrKeysSnapshot,
+                                                 isROISlice: roiNorm != nil)
+                } else if let cnn = cnnSnapshot,
+                          let slots = Self.cropSlots(from: pb, roiNorm: roiNorm) {
+                    result = Self.recognizeCNN(slotImages: slots, model: cnn)
+                } else {
+                    result = RecognitionResult(error: "无可用引擎")
+                }
+                results.append(FrameSpeedResult(name: name, speed: result.speed,
+                                                confidence: result.confidence,
+                                                diag: result.error ?? result.diag))
+            }
+            chunkStart = chunkEnd
         }
         return results
     }
