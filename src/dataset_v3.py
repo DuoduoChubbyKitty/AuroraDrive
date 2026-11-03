@@ -584,6 +584,27 @@ class V3KeyDataset(Dataset):
             elif prev_d and not prev_a:
                 vehicle_state[6] = 1.0
 
+        # ── 车速（只供 L_rollover，不进模型输入）──
+        # 逐帧解析 `speed_kmh` 列：空串 / 缺列 / 非数字 / 负数 → speed_valid=0。
+        # ⚠️ 为什么不复用 vehicle_state[0]：那一维是**模型输入**且当前恒 0，
+        #    改它要同步部署端（InferenceEngineV2 的 V2Kinematics），是另一件事。
+        #    这里只解决「安全项拿不到速度就会静默失效」。
+        # ⚠️ 负数：录制器对「读不到」写空串，但存量 9 列数据里 -1 是 OCR 哨兵，
+        #    两种都要按无效处理（拿 -1 去算 w 会被 clamp 成 0 → 高速也不罚）。
+        speed_kmh = 0.0
+        speed_valid = 0.0
+        raw_speed = rows[frame_idx].get("speed_kmh")
+        if raw_speed is not None:
+            text = str(raw_speed).strip()
+            if text != "":
+                try:
+                    value = float(text)
+                except ValueError:
+                    value = -1.0
+                if value >= 0.0:
+                    speed_kmh = value
+                    speed_valid = 1.0
+
         return {
             "image_hi": torch.from_numpy(image_hi),
             "image_lo": torch.from_numpy(image_lo),
@@ -591,6 +612,16 @@ class V3KeyDataset(Dataset):
             "dets": torch.zeros(20, 12, dtype=torch.float32),
             "det_mask": torch.zeros(20, dtype=torch.float32),
             "vehicle_state": torch.from_numpy(vehicle_state),
+            # ── 车速：只给 L_rollover 用（target 侧标量），不进模型输入 ──
+            # 数值是**原始 km/h**，不是归一化值 —— 防侧翻公式的 v_low/v_high
+            # 就是按 km/h 定义的（20/30），传归一化值会让阈值完全错位。
+            # ⚠️ 缺列/空串 → speed_valid=0，**不能拿 0 当速度**：那会把高速判成静止，
+            #    防侧翻惩罚静默失效（03-output-head.md §3.7 明令禁止）。
+            # ⚠️ 不填 vehicle_state[0]：那是**模型输入**，改了必须同步部署端
+            #    （InferenceEngineV2 的 V2Kinematics 构造），属于另一处改动，
+            #    不与本安全项混在一起做。
+            "speed_kmh": torch.tensor([speed_kmh], dtype=torch.float32),
+            "speed_valid": torch.tensor([speed_valid], dtype=torch.float32),
             # ---- 8 个 target ----
             "vertical": torch.tensor(vertical_from_keys(w, s), dtype=torch.long),
             "horizontal": torch.tensor(horizontal_from_keys(a, d), dtype=torch.long),

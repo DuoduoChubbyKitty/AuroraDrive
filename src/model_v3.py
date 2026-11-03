@@ -1197,6 +1197,9 @@ class V3Loss(nn.Module):
     def __init__(self, lambda_key: float = 0.8, kappa_ccm: float = 0.1,
                  tau_intent: float = 0.1, lambda_super: float = 0.05,
                  lambda_safe: float = 0.1,
+                 lambda_coh: float = 0.05, lambda_roll: float = 2.0,
+                 v_low: float = 20.0, v_high: float = 30.0,
+                 enable_safety: bool = True,
                  vertical_weights: Optional[torch.Tensor] = None,
                  horizontal_weights: Optional[torch.Tensor] = None,
                  pos_weight_handbrake: float = 1.0,
@@ -1211,6 +1214,18 @@ class V3Loss(nn.Module):
         self.tau_intent = tau_intent
         self.lambda_super = lambda_super
         self.lambda_safe = lambda_safe
+        # ── 安全项（03-output-head.md §3.7，★用户 2026-11-03 硬约束）──
+        #   λ_coh=0.05：四键头逻辑自洽（super_brake 必须 = handbrake∧brake）
+        #   λ_roll=2.0：防侧翻。高速想按超级刹车却不按 S → 重罚，与主任务同量级
+        self.lambda_coh = lambda_coh
+        self.lambda_roll = lambda_roll
+        self.v_low = v_low
+        self.v_high = v_high
+        self.enable_safety = enable_safety
+        # 「整批无有效车速」的告警只打一次 —— 必须是**实例级**标志。
+        # 写成类属性会让同一进程里第二个 V3Loss 实例的告警被第一个静默掉
+        # （例如先跑评测再跑训练，训练里真正的数据缺口就再也看不见了）。
+        self._rollover_disabled_warned = False
         self.enable_ccm = enable_ccm
         self.enable_intent = enable_intent
 
@@ -1310,8 +1325,100 @@ class V3Loss(nn.Module):
             total = total + self.tau_intent * loss_intent
             metrics["intent"] = loss_intent.item()
 
+        # ── 安全项（03-output-head.md §3.7）：一致性 + 防侧翻 ──
+        if self.enable_safety:
+            loss_coh, loss_roll = self._safety_losses(pred, target)
+            if loss_coh is not None:
+                total = total + self.lambda_coh * loss_coh
+                metrics["coh"] = loss_coh.item()
+            if loss_roll is not None:
+                total = total + self.lambda_roll * loss_roll
+                metrics["rollover"] = loss_roll.item()
+
         metrics["total"] = float(total.detach())
         return total, metrics
+
+    #: 纵向三分类里 S（制动/防翻稳定键）的下标。
+    #: 与 `dataset_v3.vertical_from_keys`（0=W 1=NONE 2=S）及
+    #: `tools/v3_exp/exp_rollover_guard.py:VERT_S` 严格一致，改一处必须改三处。
+    VERT_S_INDEX = 2
+
+    def _safety_losses(self, pred, target):
+        """一致性项 L_coh + 防侧翻项 L_rollover（03-output-head.md §3.7）。
+
+        L_coh（λ=0.05）：四个修饰键头是**独立** sigmoid，彼此无结构约束，
+            完全可能输出「没按 Shift、没按空格，却按了 Shift+空格」——物理上不存在。
+            约束来自录制器定义：super_brake = shift∧space、ultimate = shift∧space∧S。
+            用 MSE（概率空间）：这是**自洽性约束**，没有真值可做 BCE。
+
+        L_rollover（λ=2.0，★用户 2026-11-03 硬约束「不按 S 可能侧翻，车毁人亡」）：
+            violation = w(speed) · P(super_brake) · (1 − P(S))
+            三项相乘的语义：只有「高速」且「想按超级刹车」且「不想按 S」
+            三者同时成立才重罚。低速严格为 0（不干扰正常驾驶）。
+
+        ★ 梯度必须只流向 vertical（抬 P(S)），不许压 super_brake：
+            对 `p_super` 做 detach。否则模型会走另一条更省力的路——
+            「高速时别踩超级刹车」，把侧翻风险换成刹不住/撞车风险，一样致命。
+            实测梯度证据见 §3.7.3：不 detach 时 super_logit 梯度为 +0.0168
+            （正值 = 梯度下降会压低它）。
+
+        ★ 速度缺失的 fail-safe（两张情况严格区分，都是「不许静默」）：
+            ① 个别帧读不到速度 → w=1（按高速保守惩罚）。安全系统的通行原则是
+               宁可误报不可漏报；若按 0 处理，速度一缺失安全项就静默失效。
+            ② **整批都没有速度** → 关闭本轮 L_rollover 并告警一次。
+               为什么不也按 w=1：那会让所有帧都受同等重罚，等于教模型
+               「不管什么情况都踩 S」→ 永远刹车，同样是危险的方向。
+               注：录制数据接入 speed_kmh 列后会自动生效。
+
+        Returns:
+            (loss_coh 或 None, loss_rollover 或 None)
+        """
+        if "vertical" not in pred:
+            return None, None
+
+        p_S = torch.softmax(pred["vertical"], dim=-1)[..., self.VERT_S_INDEX]
+
+        # ── L_coh ──
+        loss_coh = None
+        if all(k in pred for k in ("handbrake", "brake", "super_brake", "ultimate")):
+            hb = torch.sigmoid(pred["handbrake"].reshape(-1))
+            br = torch.sigmoid(pred["brake"].reshape(-1))
+            sb = torch.sigmoid(pred["super_brake"].reshape(-1))
+            ul = torch.sigmoid(pred["ultimate"].reshape(-1))
+            loss_coh = (F.mse_loss(sb, hb * br)
+                        + F.mse_loss(ul, hb * br * p_S))
+
+        # ── L_rollover ──
+        if "super_brake" not in pred or "speed_kmh" not in target:
+            return loss_coh, None
+
+        speed = target["speed_kmh"].reshape(-1).to(p_S.dtype)
+        speed_valid = target.get("speed_valid")
+        valid = (speed_valid.reshape(-1).to(p_S.dtype) > 0.5
+                 if speed_valid is not None else torch.ones_like(speed) > 0.5)
+
+        # 整批无有效速度 → 本轮关闭（并只告警一次）。见上方 ①② 的区分。
+        if not bool(valid.any()):
+            if not self._rollover_disabled_warned:
+                self._rollover_disabled_warned = True
+                print("[V3Loss] ⚠ 本批数据没有任何有效车速（speed_kmh 全缺失）"
+                      "→ 本轮 L_rollover 关闭。\n"
+                      "          防侧翻约束需要速度；录制 CSV 含 speed_kmh 列后自动生效。"
+                      "（不是静默跳过：此消息只打一次）")
+            return loss_coh, None
+
+        # 线性斜坡：v ≤ v_low → 0；v ≥ v_high → 1；中间线性。
+        # 用斜坡而不是硬阈值：硬阈值在 v_high 处阶跃、梯度不连续，训练易震荡。
+        span = max(self.v_high - self.v_low, 1e-6)
+        w = ((speed - self.v_low) / span).clamp(0.0, 1.0)
+        # 个别帧缺失 → 该帧按满罚（保守）。缺失不能当作「速度 0」把安全项关掉。
+        w = torch.where(valid, w, torch.ones_like(w))
+
+        p_super_raw = torch.sigmoid(pred["super_brake"].reshape(-1))
+        # ★ 梯度切断（本设计最关键的一处安全考量，见 docstring）
+        p_super = p_super_raw.detach()
+
+        return loss_coh, (w * p_super * (1.0 - p_S)).mean()
 
     @staticmethod
     def _ordinal_emd_loss(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:

@@ -344,6 +344,9 @@ def train(
         model.train()
         run_loss = 0.0
         run_n = 0
+        # 安全项分项累计（coh / rollover）—— 不打印就无法确认防侧翻约束是否真的生效：
+        # 速度列缺失时 L_rollover 会关闭，只有这里能看出来（而不是以为它在工作）。
+        run_parts: dict = {}
 
         for batch in train_loader:
             batch = {k: v.to(dev) for k, v in batch.items()}
@@ -352,7 +355,10 @@ def train(
                         lane=batch["lane"], dets=batch["dets"],
                         det_mask=batch["det_mask"],
                         vehicle_state=batch["vehicle_state"], return_intent=True)
-            loss, _ = crit(out, batch)
+            loss, lm = crit(out, batch)
+            for part in ("coh", "rollover"):
+                if part in lm:
+                    run_parts[part] = run_parts.get(part, 0.0) + float(lm[part])
 
             if not torch.isfinite(loss):
                 raise RuntimeError(
@@ -380,6 +386,15 @@ def train(
               f"select={vm['select']:.4f} | "
               f"S召回={vm['recall_v_S']:.2f} D召回={vm['recall_h_D']:.2f} "
               f"A召回={vm['recall_h_A']:.2f} | {elapsed:.0f}s")
+        # 安全项单独一行。⚠️ 缺席时打印「未计算」而不是 0.0：
+        #   两者含义完全不同（0 = 算出来就是 0，没有任何违规；未计算 = 这一项没参与训练），
+        #   混为一谈会让人误以为防侧翻约束在工作。
+        n_batches = max(len(train_loader), 1)
+        coh_txt = (f"{run_parts['coh'] / n_batches:.4f}"
+                   if "coh" in run_parts else "未计算(无四键头)")
+        roll_txt = (f"{run_parts['rollover'] / n_batches:.4f}"
+                    if "rollover" in run_parts else "未计算(无车速)")
+        print(f"          安全项 L_coh={coh_txt} L_rollover={roll_txt}")
 
         if vm["select"] > best_select:
             best_select = vm["select"]
