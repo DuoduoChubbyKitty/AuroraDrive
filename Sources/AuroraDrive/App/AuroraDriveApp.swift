@@ -4439,6 +4439,17 @@ final class DriveState {
         if leanIsRecording != recording { leanIsRecording = recording }
         let n = leanRecorder.frameCount
         if leanFrameCount != n { leanFrameCount = n }
+        // 把录制器的失败原因镜像到界面。
+        // 【为什么必须在这里镜像】10 分钟自动分段失败时**没有** toggleLeanRecording
+        //   调用，那条路径只把原因写进 leanRecorder.lastError；不同步到 leanLastError，
+        //   用户看到的就只是"录制停了"，永远不知道是磁盘不足还是目录建不出来。
+        // 【为什么只在非空时覆盖】lastError 为 nil 不等于"没有错误"：它也可能是
+        //   刚被 openSession() 清空，而 leanLastError 上还挂着标注失败的提示，
+        //   无条件覆盖会把这个提示抹掉。
+        if let err = leanRecorder.lastError, leanLastError != err {
+            leanLastError = err
+            dlog("[LEAN] ❌ 录制器报错（已同步到界面）：\(err)")
+        }
     }
 
     /// 精简录制开/关（第 5 个长条按钮的入口）。

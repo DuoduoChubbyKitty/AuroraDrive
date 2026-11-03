@@ -670,6 +670,15 @@ final class CoordinateCapture {
     private let decoder = UE5Decoder()
     private var sample: Pose?
     private var sampleAt: Double = 0
+    /// 加速度快照（**由 `lock` 保护的副本**）。
+    ///
+    /// 【为什么不直接读 `decoder.lastAcceleration`】那个字段由抓包线程在 `decode()`
+    ///   里写入，而 `readAcceleration()` 由主线程调用 —— `Vec3?` 是 3 个 Double，
+    ///   并发读写是未定义行为（可能读到只更新了一半的中间值）。而且 `decode()` 的写入
+    ///   发生在 `lock.lock()` **之前**，光给读侧加锁并不能建立先后关系。
+    ///   故由抓包线程在自己的线程上取一次值、在锁内留档，读侧只碰这两个字段。
+    private var accelSample: Vec3?
+    private var accelSampleAt: Double = 0
     private var lastSampleWall: Double = 0
     private let interval: Double = 1.0 / 30.0
     private var running = false
@@ -1486,6 +1495,14 @@ final class CoordinateCapture {
                 sample = pose
                 sampleAt = timestamp
                 lastSampleWall = now
+                // 加速度同包留档：在**抓包线程**上取原始值（与 decode() 的写入同线程，
+                // 无竞争），再在锁内放进受锁保护的副本 —— 主线程只读副本。
+                // 直接取 `lastAcceleration` 而不走 `acceleration(maxAge:)`：
+                //   能走到这里说明上面这次 `decode()` 成功，而它必然在同一次调用里
+                //   刚写过加速度，所以这个值就是本包的，用 `now` 当时间戳才准确；
+                //   走 maxAge 反而要在这里凭空编一个阈值。
+                accelSample = decoder.lastAcceleration
+                accelSampleAt = now
                 lock.unlock()
                 // ══════════════════════════════════════════════════════════
                 // 样本落地诊断（定位链路的最后一环，2026-09-30 随方向修复迁至 C2S）
@@ -1662,7 +1679,12 @@ final class CoordinateCapture {
     /// 注意：坐标系尚未实测确认（世界系 vs 车体系），单位推测为 cm/s²。
     /// 目前仅供 UI 展示与后续标定，**不要**直接当作物理加速度喂给控制逻辑。
     func readAcceleration(maxAge: Double = 0.5) -> Vec3? {
-        decoder.acceleration(maxAge: maxAge)
+        // 只读受 `lock` 保护的副本，绝不直接碰 decoder 的可变字段：
+        // 那是抓包线程的写入目标，跨线程无同步读 `Vec3?`（3×Double）是未定义行为。
+        lock.lock()
+        defer { lock.unlock() }
+        guard let a = accelSample else { return nil }
+        return (Date().timeIntervalSince1970 - accelSampleAt) <= maxAge ? a : nil
     }
 
     /// 带新鲜度判定的坐标读取 —— 解决「定位闪断」而不引入「幽灵定位」。

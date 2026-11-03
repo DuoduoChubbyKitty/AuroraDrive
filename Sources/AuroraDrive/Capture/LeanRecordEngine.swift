@@ -349,7 +349,13 @@ final class LeanRecordEngine: @unchecked Sendable {
                 self.segmentIndex += 1
                 self.restartedPending = false
                 self.stateLock.unlock()
-                _ = self.start()
+                // 返回值不可丢弃：磁盘掉到下限（正是长时间连续录制最可能发生的情况）
+                // 时 start() 会返回 false，而此刻段号已 +1、restartedPending 已复位。
+                // 若静默吞掉，用户只看到"录制停止"却不知原因；lastError 由
+                // syncLeanMirror 镜像到界面。
+                if !self.start() {
+                    print("[lean] ❌ 自动分段失败，录制已停止：\(self.lastError ?? "未知原因")")
+                }
             }
         }
     }
@@ -610,7 +616,10 @@ final class LeanRecordEngine: @unchecked Sendable {
         if let data = try? JSONSerialization.data(
             withJSONObject: meta.jsonObject(createdAt: isoFormatter.string(from: Date())),
             options: [.prettyPrinted]) {
-            try? data.write(to: dir.appendingPathComponent("meta.json"))
+            // .atomic 不可省：崩溃/断电时留下半个 JSON，解析直接失败，而该段此时
+            // 已经通过 onSegmentClosed 交给标注器了 —— 事后查不到分辨率/帧数/
+            // pcap_ok，等于失去"这份数据能不能用"的唯一自述。
+            try? data.write(to: dir.appendingPathComponent("meta.json"), options: .atomic)
         }
         // 三行置空必须放进 stateLock：`appendFrame`（抓屏队列）在**锁内**读
         //   `sessionStart` 算 elapsed 来判自动分段。在锁外置 nil 就是跨线程无同步
