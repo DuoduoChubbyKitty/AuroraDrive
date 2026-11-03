@@ -31,6 +31,10 @@ import Foundation
 
 enum LeanRecordSelfTest {
 
+    /// 【为什么是 @MainActor】第五段要调用 `LeanAnnotator.run`（同样 @MainActor：
+    ///   速度 OCR 是主线程同步循环，靠子进程隔离而非在这里改隔离）。
+    ///   分发点 `applicationDidFinishLaunching` 本身就是 @MainActor，故无额外代价。
+    @MainActor
     static func run() -> Int {
         var failures = 0
         func check(_ name: String, _ condition: Bool, _ detail: String = "") {
@@ -404,6 +408,105 @@ enum LeanRecordSelfTest {
               closedPaths.map { ($0 as NSString).lastPathComponent }.joined(separator: ","))
         check("两段回调路径互不相同", Set(closedPaths).count == closedPaths.count,
               closedPaths.map { ($0 as NSString).lastPathComponent }.joined(separator: ","))
+
+        // ── 第五段：离线标注回写（不变量 ⑨）──
+        // 【为什么必须测】标注是**唯一会改动已落盘训练数据**的环节：它重写整份
+        //   controls.csv。一旦写错列序、丢行、或顺手改了按键列，训练端拿到的就是
+        //   错标签 —— 而录制日志一切正常，屏外完全看不出来。
+        //
+        // 判据全部是**确定性**的，不依赖 OCR 准不准（自检帧是合成图，画面里本来
+        // 就没有速度表，速度回填 0% 属预期）：
+        //   · 行数 / 表头 / frame 列不变
+        //   · 按键 8 列逐行不变（标注阶段**不允许**篡改原生按键标签）
+        //   · 不留 controls.csv.tmp
+        //   · frame 错位时必须**拒绝写**，且原 CSV 字节级不变
+        //
+        // ⚠️ 标注的是 normal 段的**副本**：原始产物要留给外部 Python 校验，
+        //    不能在原地重写（否则外部校验拿到的已不是录制器原始输出）。
+        print("  ── 第五段：离线标注回写 ──")
+        func csvRows(_ text: String) -> [[String]] {
+            text.split(separator: "\n", omittingEmptySubsequences: true)
+                .map { $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init) }
+        }
+        func readCSV(_ dir: URL) -> String {
+            (try? String(contentsOf: dir.appendingPathComponent("controls.csv"),
+                         encoding: .utf8)) ?? ""
+        }
+        func makeCopy(under sub: String) -> URL? {
+            let dst = root.appendingPathComponent(sub).appendingPathComponent(clip.lastPathComponent)
+            do {
+                try FileManager.default.createDirectory(
+                    at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try FileManager.default.copyItem(at: clip, to: dst)
+                return dst
+            } catch {
+                print("  ⚠️ 复制 clip 失败（\(sub)）: \(error.localizedDescription)")
+                return nil
+            }
+        }
+
+        if let annotateClip = makeCopy(under: "annotate") {
+            let csvBefore = readCSV(annotateClip)
+            let beforeRows = csvRows(csvBefore)
+            // 前置守卫：副本读不出来时下面所有"不变"断言都会空洞通过（假绿），故先断言基线。
+            check("标注前置：副本可读且有 31 行（1 表头 + 30 数据）",
+                  beforeRows.count == 31, "实际 \(beforeRows.count) 行")
+
+            let rcAnnotate = LeanAnnotator.run(clipDirPath: annotateClip.path, emitProgress: false)
+            let afterRows = csvRows(readCSV(annotateClip))
+            // 退出码 2 = 输入错误（绝不该出现）；3 = 质检不合格（合成帧没有速度表，预期）
+            check("标注未报输入错误（退出码 ≠ 2）", rcAnnotate != 2, "rc=\(rcAnnotate)")
+            check("标注后行数不变", beforeRows.count == afterRows.count,
+                  "\(beforeRows.count) → \(afterRows.count)")
+            check("标注后表头不变", beforeRows.first == afterRows.first)
+            check("标注后 frame 列仍等于行序",
+                  afterRows.dropFirst().enumerated().allSatisfy { i, r in
+                      r.count > 1 && r[1] == String(i)
+                  })
+
+            // 按键 8 列必须逐行不变：它们是录制时抓到的**原生标签**，标注阶段无权改。
+            let keyNames = ["w", "a", "s", "d", "shift", "space",
+                            "super_brake", "ultimate_brake"]
+            let headerRow = afterRows.first ?? []
+            let keyIdx = keyNames.compactMap { headerRow.firstIndex(of: $0) }
+            let keysUnchanged = keyIdx.count == 8
+                && beforeRows.count == afterRows.count
+                && zip(beforeRows.dropFirst(), afterRows.dropFirst()).allSatisfy { b, a in
+                    keyIdx.allSatisfy { $0 < b.count && $0 < a.count && b[$0] == a[$0] }
+                }
+            check("按键 8 列在标注后逐行不变", keysUnchanged,
+                  "找到列 \(keyIdx.count)/8")
+            check("标注不留 controls.csv.tmp", !FileManager.default.fileExists(
+                atPath: annotateClip.appendingPathComponent("controls.csv.tmp").path))
+        } else {
+            check("标注测试副本创建成功", false)
+        }
+
+        // 拒绝路径：frame 列与行序不符时必须拒绝写 —— 写进去就等于固化错位数据。
+        if let rejectClip = makeCopy(under: "annotate_reject") {
+            let csvBefore = readCSV(rejectClip)
+            var lines = csvBefore.split(separator: "\n", omittingEmptySubsequences: true)
+                .map(String.init)
+            var corrupted = csvBefore
+            if lines.count > 3 {
+                var cols = lines[3].components(separatedBy: ",")
+                if cols.count > 1 { cols[1] = "99" }
+                lines[3] = cols.joined(separator: ",")
+                corrupted = lines.joined(separator: "\n") + "\n"
+                // 写回损坏版本（用它当"输入"），并确认损坏确实生效，避免假测试。
+                try? corrupted.write(to: rejectClip.appendingPathComponent("controls.csv"),
+                                     atomically: true, encoding: .utf8)
+            }
+            let corruptedApplied = readCSV(rejectClip) == corrupted && corrupted != csvBefore
+            check("拒绝前置：frame 错位已注入", corruptedApplied)
+            let rcReject = LeanAnnotator.run(clipDirPath: rejectClip.path, emitProgress: false)
+            check("frame 错位时拒绝写（退出码 2）", rcReject == 2, "rc=\(rcReject)")
+            check("拒绝时原 CSV 字节级未改", readCSV(rejectClip) == corrupted)
+            check("拒绝时不留 controls.csv.tmp", !FileManager.default.fileExists(
+                atPath: rejectClip.appendingPathComponent("controls.csv.tmp").path))
+        } else {
+            check("拒绝测试副本创建成功", false)
+        }
 
         print("")
         print(failures == 0
