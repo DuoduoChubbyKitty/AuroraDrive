@@ -57,6 +57,41 @@ struct FrameSpeedResult {
     let diag: String?
 }
 
+/// 一次后台模型加载的产物（两个 CoreML 模型 + 词典 + PP-OCR 失败原因）。
+private typealias SpeedOCRLoadedModels =
+    (cnn: MLModel?, ppocr: MLModel?, keys: [String], ppocrFailure: String)
+
+/// 后台加载产物的「取走即清空」盒子。
+///
+/// 【为什么需要它】后台加载在专用串行队列上做完 CoreML I/O 后，必须回主线程才能
+///   落到 `@Observable` 状态上；而 `ensureModelsLoaded()` 是**主线程同步**等待，
+///   它阻塞主线程的这段时间里，那枚 `DispatchQueue.main.async` 根本排不上号，
+///   于是 `modelsLoadFinished` 恒为 false ⇒ 旧代码必然判定「还没加载完」，在主线程
+///   把 CoreML **完整重新加载一遍**。每次标注都白付一次全量模型 I/O。
+///   把产物先存进本盒子，主线程等待结束后直接取用，无需二次加载。
+///
+/// 【线程纪律】`store` 只在 `modelLoadQueue` 上调用，`take` 只在主线程调用；
+///   两者由锁互斥，且该队列的串行性保证 store 一定早于 sync 屏障之后的 take。
+private final class SpeedOCRLoadResultBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: SpeedOCRLoadedModels?
+
+    func store(_ loaded: SpeedOCRLoadedModels) {
+        lock.lock()
+        stored = loaded
+        lock.unlock()
+    }
+
+    /// 取走并清空 —— 保证同一份产物只被应用一次（主线程兜底与后台回调都可能来取）。
+    func take() -> SpeedOCRLoadedModels? {
+        lock.lock()
+        defer { lock.unlock() }
+        let out = stored
+        stored = nil
+        return out
+    }
+}
+
 /// 固定槽位模板匹配车速读取引擎
 /// - @Observable：UI 可观察 speedKmh / confidence
 /// - @MainActor：可变状态主线程访问
@@ -304,6 +339,10 @@ final class SpeedOCRReader {
     /// 是否正在后台加载模型（UI 可显示"模型加载中"）
     private(set) var modelsLoading = false
 
+    /// 后台加载产物的中转盒：后台队列存入，主线程取用（取走即清）。
+    /// 存在的唯一目的是让 `ensureModelsLoaded()` 的同步等待**不必二次加载模型**。
+    private nonisolated let loadResultBox = SpeedOCRLoadResultBox()
+
     /// 启动后台加载：在专用串行队列上做 CoreML I/O，完成后回主线程做状态审计。
     /// 幂等 —— 重复调用不会重复加载。
     private func startModelLoading() {
@@ -327,8 +366,14 @@ final class SpeedOCRReader {
             guard let self else { return }
             // 在后台队列上做纯 I/O：加载到局部变量，不碰任何 @Observable 状态
             let loaded = Self.loadModelsOnBackground()
+            // 产物先投进盒子：若此刻主线程正卡在 ensureModelsLoaded() 的 sync 屏障上，
+            // 它醒来后直接取走应用，**不必再加载一遍** CoreML。
+            self.loadResultBox.store(loaded)
             DispatchQueue.main.async {
-                self.applyLoadedModels(loaded)
+                // 取走即清：若主线程兜底已先取走并应用，这里拿到 nil，绝不重复应用。
+                if let pending = self.loadResultBox.take() {
+                    self.applyLoadedModels(pending)
+                }
                 self.modelsLoading = false
                 self.modelsLoadFinished = true
             }
@@ -339,11 +384,20 @@ final class SpeedOCRReader {
     /// 只在极端情况（启动后立刻就有帧）才会真正阻塞，且此时加载通常已完成。
     private func ensureModelsLoaded() {
         guard !modelsLoadFinished else { return }
-        // 等一次性加载结束（后台队列串行，最多等一轮 I/O）
+        // 等后台那一轮加载的 I/O 结束（串行队列屏障；store 必然早于本屏障）
         modelLoadQueue.sync { }
         if !modelsLoadFinished {
-            // 后台任务异常未回主线程（不应发生）：直接在主线程补一次，保证可用
-            applyLoadedModels(Self.loadModelsOnBackground())
+            // 【为什么先取盒子】后台的 `main.async` 回调此刻还没机会跑（主线程被本函数
+            //   占着），所以 modelsLoadFinished 仍是 false —— 这正是旧代码的判定漏洞：
+            //   它据此认为「没加载完」，随即在主线程把 CoreML **完整重载一遍**，每次
+            //   标注都白付一次全量模型 I/O。产物其实已在盒子里，取用即可。
+            //   盒子为空只有两种情况：`AURORA_SKIP_MODEL_LOAD=1`（按设计延迟加载）、
+            //   或后台加载异常未回投 —— 这两种才需要自己加载，行为与旧版一致。
+            if let pending = loadResultBox.take() {
+                applyLoadedModels(pending)
+            } else {
+                applyLoadedModels(Self.loadModelsOnBackground())
+            }
             modelsLoadFinished = true
             modelsLoading = false
         }
