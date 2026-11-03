@@ -651,14 +651,19 @@ class V3KeyDataset(Dataset):
         self._cm_cache[clip] = cm
         return cm
 
-    @staticmethod
-    def _augment_brightness(img: np.ndarray) -> np.ndarray:
+    def _augment_brightness(self, img: np.ndarray) -> np.ndarray:
         """仅亮度抖动。
 
         为什么不做水平翻转：翻转会改变左右转向的语义（A↔D），必须同时翻转标签，
         而本任务的方向键是**离散对称**的，误翻一次就把整段数据教反。收益不值得风险。
+
+        ⚠️ 2026-11-03 修复（审查 P2-2）：原实现是 `@staticmethod` + 全局 `np.random`，
+           而 `self.rng`（__init__ 里按 seed 建的 `random.Random`）根本没被用过。
+           后果：DataLoader 有多个 worker 时，各 worker 从同一全局流取数 →
+           亮度抖动高度相关，增强等于几乎没做（且不可复现）。
+           改成实例方法用 `self.rng`：同一 seed 下序列确定、可复现。
         """
-        delta = np.random.uniform(-0.08, 0.08)
+        delta = self.rng.uniform(-0.08, 0.08)
         return np.clip(img + delta, 0.0, 1.0).astype(np.float32)
 
 

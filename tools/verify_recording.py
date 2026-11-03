@@ -41,7 +41,8 @@ def verify():
             # v3 把列名改成原始按键名——V3 模型输出就是按键，不需要物理量翻译层。
             if "w" in h and "shift" in h:
                 info.append("controls.csv 表头 OK (v3 纯按键 10 列格式)")
-                rows = list(csv.DictReader(open(csvp)))
+                with open(csvp) as f:
+                    rows = list(csv.DictReader(f))
                 if rows:
                     # 交叉校验：组合键必须严格等于原子键的逻辑与，否则录制器有 bug
                     bad_super = sum(
@@ -124,7 +125,8 @@ def verify():
                     info.append("controls.csv 表头 OK (v2 9 列格式，S/空格已分开)")
                 else:
                     info.append("controls.csv 表头 OK (v1 旧 7 列格式：S 与空格混在 brake 列)")
-                rows = list(csv.DictReader(open(csvp)))
+                with open(csvp) as f:
+                    rows = list(csv.DictReader(f))
                 if rows:
                     r0 = rows[0]
                     info.append(f"控制行={len(rows)} 首行 steer={r0['steer']} throttle={r0['throttle']} brake={r0['brake']}")
