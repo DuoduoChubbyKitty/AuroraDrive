@@ -4192,6 +4192,45 @@ enum RecordLabelMapper {
     }
 }
 
+/// 抓屏队列读、主线程写的按键/定位快照（盒内自带锁）。
+///
+/// 【为什么单独成类，而不是 DriveState 上的三个属性】
+///   DriveState 是 `@Observable`：可变存储属性会被宏包成 `@ObservationTracked`，
+///   而 `nonisolated` **不能**加在可变存储属性上（宏展开直接报错）；退一步写
+///   `nonisolated(unsafe)` 虽能编过，却会被判为"没有效果" —— 因为 RawKeySample /
+///   Pose / Vec3 本身就是 Sendable 值类型，`unsafe` 那层承诺毫无意义，真正保证
+///   线程安全的是锁。收进一个 `let` 盒子后：不触发 @Observable、不必对属性撒谎，
+///   锁就是唯一的约定，且读写都只能走盒子的方法，漏加锁在编译期就写不出来。
+///
+/// 【为什么是 @unchecked Sendable】`Sendable` 由本类内部锁保证，编译器无法自动
+///   证明（它看不到锁的范围），故显式声明 unchecked —— 这是该标记的正当用法。
+private final class LeanInputSnapshot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var keys = RawKeySample()
+    private var pose: Pose?
+    private var accel: Vec3?
+
+    /// 主线程 30Hz 唯一写入口
+    func store(keys: RawKeySample, pose: Pose?, accel: Vec3?) {
+        lock.lock(); defer { lock.unlock() }
+        self.keys = keys
+        self.pose = pose
+        self.accel = accel
+    }
+
+    /// 抓屏队列读按键
+    func readKeys() -> RawKeySample {
+        lock.lock(); defer { lock.unlock() }
+        return keys
+    }
+
+    /// 抓屏队列读定位。坐标与加速度**一次性取出**，保证同一帧内两者来自同一次快照。
+    func readPose() -> (Pose?, Vec3?) {
+        lock.lock(); defer { lock.unlock() }
+        return (pose, accel)
+    }
+}
+
 @Observable
 @MainActor
 final class DriveState {
@@ -4338,7 +4377,7 @@ final class DriveState {
 
     /// 主线程拍一份「按键 + 定位」快照，供抓屏队列读取精简录制标签。
     ///
-    /// 【为什么必须在主线程拍】（配合 leanSnapshotLock 的注释阅读）
+    /// 【为什么必须在主线程拍】（配合 `LeanInputSnapshot` 的注释阅读）
     ///   `onRecordFrame` 在 captureQueue 触发；而 keyboardMonitor.heldKeys 无锁、
     ///   coordinateCapture 只在主线程赋值。让 30Hz 的 tick 在主线程拍快照，
     ///   抓屏队列只读锁保护的值 —— 这是唯一不需要给 KeyboardMonitor 加锁的解法
@@ -4376,11 +4415,7 @@ final class DriveState {
             accel = cc.readAcceleration()
         }
 
-        leanSnapshotLock.lock()
-        leanKeySnapshot = keys
-        leanPoseSnapshot = pose
-        leanAccelSnapshot = accel
-        leanSnapshotLock.unlock()
+        leanSnapshot.store(keys: keys, pose: pose, accel: accel)
     }
 
     /// 把 `leanRecorder` 的内部状态镜像到 UI 可观察字段（主线程调用）。
@@ -4463,9 +4498,12 @@ final class DriveState {
                 // 3 = 质检不合格，2 = 输入错误；把子进程 stderr 尾部原样带出来，
                 // 否则界面上只剩一个数字，用户无从判断是缺帧还是没速度表。
                 let detail = tail.trimmingCharacters(in: .whitespacesAndNewlines)
-                self.leanLastError = "标注失败(\(code))："
+                // 卡死被强杀必须单独说：它意味着"这段没标完"，直接重跑就行；
+                // 而质检不合格意味着"数据本身有问题"，重跑也没用。两者动作不同。
+                let didStall = self.leanAnnotateRunner.didStallOut
+                self.leanLastError = (didStall ? "标注卡死已终止(\(code))：" : "标注失败(\(code))：")
                     + (detail.isEmpty ? "子进程无输出" : String(detail.suffix(200)))
-                dlog("[LEAN] ❌ 标注失败 code=\(code)")
+                dlog("[LEAN] ❌ 标注失败 code=\(code) stall=\(didStall)")
             }
             // 本轮结束：取队列下一段。仍然只在「停录后」才继续，
             // 免得录制中途起 OCR 抢 CPU 把正在录的这段帧率挤出容差。
@@ -5617,10 +5655,8 @@ final class DriveState {
     ///     · `coordinateCapture` 是主线程才赋值的可选引用。
     ///   在抓屏队列直接读它们 = 数据竞争（Set 并发读写可能在哈希表扩容时崩溃）。
     ///   故由主线程 30Hz 拍一份快照，后台只读快照。
-    private nonisolated(unsafe) let leanSnapshotLock = NSLock()
-    private nonisolated(unsafe) var leanKeySnapshot = RawKeySample()
-    private nonisolated(unsafe) var leanPoseSnapshot: Pose?
-    private nonisolated(unsafe) var leanAccelSnapshot: Vec3?
+    /// 主线程 30Hz 拍快照、抓屏队列只读。盒内自带锁，见 `LeanInputSnapshot` 的注释。
+    private nonisolated let leanSnapshot = LeanInputSnapshot()
 
     // ── 精简录制：UI 可观察镜像 ──
     // leanRecorder 是 @ObservationIgnored（类实例，SwiftUI 不观察其内部属性），
@@ -6501,15 +6537,11 @@ final class DriveState {
         // captureQueue 上执行，而那两个对象由主线程维护、无锁。
         leanRecorder.keyProvider = { [weak self] in
             guard let self else { return RawKeySample() }
-            self.leanSnapshotLock.lock()
-            defer { self.leanSnapshotLock.unlock() }
-            return self.leanKeySnapshot
+            return self.leanSnapshot.readKeys()
         }
         leanRecorder.poseProvider = { [weak self] in
             guard let self else { return (nil, nil) }
-            self.leanSnapshotLock.lock()
-            defer { self.leanSnapshotLock.unlock() }
-            return (self.leanPoseSnapshot, self.leanAccelSnapshot)
+            return self.leanSnapshot.readPose()
         }
         // 每段收尾都登记待标注（含 10 分钟自动分段切出来的中间段）。
         // stop() 在主动停录与轮转切段两种情形下都在主线程调用；这里再兜一次
