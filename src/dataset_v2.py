@@ -325,12 +325,21 @@ def _load_controls_csv(
     }
 
     rows: List[Dict[str, Any]] = []
+    n_bad_rows = 0
+    first_bad = ""
     for i, r in enumerate(raw_rows):
         steer = _safe_float(r.get("steer"))
         throttle = _safe_float(r.get("throttle"))
         brake = _safe_float(r.get("brake"))
         if steer is None or throttle is None or brake is None:
-            continue  # 控制标签损坏的行直接跳过（其余字段再好也无法训练）
+            # 审查 P1-5/P1-6（2026-11-03）：以前这里静默 continue，若整批都缺
+            # steer/throttle/brake（例如表头换成未识别方言），结果是一个空 rows
+            # 却没有任何异常，调用方继续跑下去，直到训练时才发觉数据集是空的。
+            n_bad_rows += 1
+            if not first_bad:
+                first_bad = (f"第{i}行 steer={r.get('steer')!r} "
+                             f"throttle={r.get('throttle')!r} brake={r.get('brake')!r}")
+            continue
 
         # 帧号：优先 CSV 的 frame 列，缺失时回退行序号
         fno = _safe_float(r.get("frame"))
@@ -348,8 +357,25 @@ def _load_controls_csv(
             "speed_limit": _safe_float(r.get("speed_limit")),
         })
 
+    # 审查 P1-5（2026-11-03）：整批行都读不出控制标签时必须报错，不能返回空列表。
+    # 以前这里直接 `return rows, fmt, diag`，调用方拿到 0 行样本却毫无异常，
+    # 直到训练时才发现数据集是空的（白等一整轮）。
+    # 判据刻意区分两种情况：**有输入行却零行可用** 才是格式问题；
+    # 真正的空 CSV（只有表头）交给上层 `if not self.index` 汇总报错。
+    diag["n_bad_rows"] = n_bad_rows
     if not rows:
+        if n_bad_rows:
+            raise ValueError(
+                f"{csv_path} 的 {n_bad_rows} 行数据全部缺少可用的控制标签"
+                f"（steer/throttle/brake），首个问题行: {first_bad}\n"
+                f"  表头: {header}\n"
+                "  这通常意味着表头是未识别的格式（例如 V3 纯按键 10 列）。\n"
+                "  请先跑 `python3 tools/verify_recording.py <目录>` 检查录制产物格式。"
+            )
         return rows, fmt, diag
+    if n_bad_rows:
+        print(f"[warn] {csv_path.name}: 跳过 {n_bad_rows} 行缺少控制标签的数据"
+              f"（共 {len(rows) + n_bad_rows} 行），首个: {first_bad}")
 
     # ---- heading 单位统一（auto 判定，全 clip 统一，避免逐帧抖动）----
     hvals = [r["heading_raw"] for r in rows if r["heading_raw"] is not None]

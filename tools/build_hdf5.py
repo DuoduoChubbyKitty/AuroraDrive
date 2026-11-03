@@ -50,13 +50,32 @@ def load_controls(clip):
                 "（需 steer/throttle/brake 列）。\n"
                 "  训练 V3 请用 V3 专用数据集（src/dataset_v3.py），不要用 build_hdf5.py。"
             )
-        for row in reader:
+        # 审查 P1-5：只挡「有 w 没 steer」还不够 —— 任何**未知表头**（比如列名
+        # 拼错、导出工具换了方言）都会走到下面逐行 float(row["steer"]) 抛 KeyError
+        # 被 except 吞掉，最终返回空列表；调用方再按「controls 为空 → 记 0」处理，
+        # 于是写出一个 steer/throttle/brake 全 0 的 HDF5，且全程零告警。
+        if not all(k in header for k in ("steer", "throttle", "brake")):
+            raise ValueError(
+                f"{p} 表头无法识别，缺少 V2 必需的 steer/throttle/brake: {header}\n"
+                "  请先跑 `python3 tools/verify_recording.py <目录>` 检查录制产物格式。"
+            )
+        n_bad_rows = 0
+        first_bad = ""
+        for i, row in enumerate(reader):
             try:
                 rows.append((float(row["steer"]),
                              float(row["throttle"]),
                              float(row["brake"])))
-            except (KeyError, ValueError):
-                pass
+            except (KeyError, ValueError) as exc:
+                n_bad_rows += 1
+                if not first_bad:
+                    first_bad = f"第{i}行({type(exc).__name__}: {exc})"
+        if n_bad_rows:
+            if not rows:
+                raise ValueError(
+                    f"{p}: {n_bad_rows} 行全部无法解析，首个错误: {first_bad}")
+            print(f"[warn] {p}: 跳过 {n_bad_rows} 行无法解析的数据"
+                  f"（共 {len(rows) + n_bad_rows} 行），首个错误: {first_bad}")
     return rows
 
 

@@ -76,8 +76,14 @@ def _clip_view(clip_dir: Path) -> Optional[str]:
 
 def _detect_format(header: List[str]) -> str:
     """根据 controls.csv 表头判定录制格式。
-    返回 "v1_old"（Python 单 cam）、"v2_new"（C++ 10 cam）
-    或 "v3_keys"（2026-11-03 起的纯按键 10 列，V3 专用）。
+    返回 "v1_old"（Python 单 cam）、"v2_new"（C++ 10 cam）、
+    "v3_keys"（2026-11-03 起的纯按键 10 列，V3 专用）或 "unknown"。
+
+    ⚠️ 2026-11-03 修复（审查 P1-6）：旧实现最后一行是 `return "v1_old"`，
+       即**任何无法识别的表头都会被当成 v1_old 继续加载**。这层"看起来像什么
+       就当什么"的子集猜测，会让错格式的文件悄无声息地走进 V2 训练流程。
+       现在改为：必须真的具备 v1_old 的三列（steer/throttle/brake）才判 v1_old，
+       否则返回 "unknown"，由调用方显式报错（fail fast）。
     """
     h = [c.strip() for c in header]
     if "speed_kmh" in h and "curvature" in h:
@@ -85,7 +91,10 @@ def _detect_format(header: List[str]) -> str:
     # V3 纯按键格式：没有 steer/throttle，只有原始按键列
     if "w" in h and "shift" in h and "super_brake" in h:
         return "v3_keys"
-    return "v1_old"
+    # v1_old 的判别必须正向成立：连续量三列齐全
+    if all(k in h for k in ("steer", "throttle", "brake")):
+        return "v1_old"
+    return "unknown"
 
 
 def _load_controls_csv(csv_path: Path) -> Tuple[List[Dict], str]:
@@ -110,8 +119,18 @@ def _load_controls_csv(csv_path: Path) -> Tuple[List[Dict], str]:
                 "  请用 V3 专用数据集（src/dataset_v3.py）训练 V3 模型，"
                 "或改用 V2 格式的录制数据训练 V2/Mono。"
             )
+        if fmt == "unknown":
+            # 审查 P1-6：以前未知表头会被当成 v1_old 静默继续，最终产出空数据集
+            raise ValueError(
+                f"{csv_path} 的表头无法识别：{header}\n"
+                "  V2/Mono 需要 steer/throttle/brake 三列（v1_old），"
+                "或额外带 speed_kmh/curvature（v2_new）。\n"
+                "  请先跑 `python3 tools/verify_recording.py <目录>` 检查录制产物格式。"
+            )
         rows = []
-        for r in reader:
+        n_bad_rows = 0
+        first_bad = ""
+        for i, r in enumerate(reader):
             try:
                 row = {
                     "steer": float(r["steer"]),
@@ -137,8 +156,20 @@ def _load_controls_csv(csv_path: Path) -> Tuple[List[Dict], str]:
                     # 旧格式：无车辆状态，零向量填充（模型仍可从图像学习）
                     row["vehicle_state"] = np.zeros(6, dtype=np.float32)
                 rows.append(row)
-            except (ValueError, KeyError):
-                continue
+            except (ValueError, KeyError) as exc:
+                # 审查 P1-5：坏行不能静默丢弃。整批都是坏行时必须报错，
+                # 否则会得到一个空数据集却在训练时才发现（白等一整轮）。
+                n_bad_rows += 1
+                if not first_bad:
+                    first_bad = f"第{i}行({type(exc).__name__}: {exc})"
+        if n_bad_rows:
+            if not rows:
+                raise ValueError(
+                    f"{csv_path} 的 {n_bad_rows} 行数据全部无法解析，首个错误: {first_bad}\n"
+                    "  这通常意味着列名对但内容格式不对（如空值、非数字）。"
+                )
+            print(f"[warn] {csv_path.name}: 跳过 {n_bad_rows} 行无法解析的数据"
+                  f"（共 {len(rows) + n_bad_rows} 行），首个错误: {first_bad}")
         return rows, fmt
 
 
