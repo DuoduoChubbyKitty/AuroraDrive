@@ -40,6 +40,23 @@ import Foundation
 import ImageIO
 import Observation
 
+/// 单帧速度识别结果（离线标注用；`speed == nil` 表示该帧未识别出速度）
+///
+/// 【为什么单独定义成结构体而不是复用私有 RecognitionResult】
+///   `RecognitionResult` 是类内私有类型，且带 fgTotal/unknownSlots 等纯调试字段。
+///   离线标注只需要"帧名 → 速度"这一条可写回 CSV 的对应关系，用独立类型表达
+///   语义更清楚，也不会让内部调试字段泄漏到写盘格式里。
+struct FrameSpeedResult {
+    /// 帧文件名（如 "000123.jpg"）
+    let name: String
+    /// 识别出的速度（km/h）；nil = 未识别
+    let speed: Int?
+    /// 置信度（0…1；nil speed 时无意义）
+    let confidence: Double
+    /// 未识别原因（诊断用；识别成功时为 nil）
+    let diag: String?
+}
+
 /// 固定槽位模板匹配车速读取引擎
 /// - @Observable：UI 可观察 speedKmh / confidence
 /// - @MainActor：可变状态主线程访问
@@ -1636,6 +1653,71 @@ final class SpeedOCRReader {
         lines.append("")
         lines.append("汇总: \(passCount)/\(images.count) 通过, \(failCount) 失败")
         return lines.joined(separator: "\n")
+    }
+
+    // MARK: - 离线标注（--lean-annotate 用）
+
+    /// 批量识别目录内所有帧的速度，返回**结构化**结果供离线标注器写回 CSV。
+    ///
+    /// 与 `selfTestDirectory` 的关系：那个只产出人类可读报告（给人看），本方法产出
+    /// 结构化数据（给写盘用）。两者共用同一套模型加载闸门与识别路径
+    /// （`ensureModelsLoaded` / `recognizePPOCR` / `recognizeCNN`），故识别结论必然一致
+    /// —— 不需要各自维护一套预处理参数。
+    ///
+    /// - Parameter roiNorm: 输入帧是「速度表 ROI 切片」时传其归一化位置；
+    ///   全屏帧传 nil（内部按 `speedROINorm` 裁剪速度表区域）。
+    /// - Parameter onProgress: 每处理一帧回调一次 `(已完成, 总数)`，供上层刷新进度条。
+    ///   回调在主线程（本方法本就 @MainActor），实现方**不要**在里面做重活。
+    /// - Returns: 按文件名排序的逐帧结果；`speed == nil` 表示该帧未识别出速度。
+    @MainActor
+    func recognizeDirectory(_ dirPath: String,
+                            roiNorm: CGRect? = nil,
+                            onProgress: ((Int, Int) -> Void)? = nil) -> [FrameSpeedResult] {
+        let fm = FileManager.default
+        let dir = URL(fileURLWithPath: dirPath)
+        guard let files = try? fm.contentsOfDirectory(at: dir,
+                                                      includingPropertiesForKeys: nil) else {
+            return []
+        }
+        let images = files.filter {
+            let ext = $0.pathExtension.lowercased()
+            return ext == "png" || ext == "jpg" || ext == "jpeg"
+        }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+
+        // 与自检同款闸门：模型是异步加载的，不在这里兜底等待会「必然」报未加载。
+        ensureModelsLoaded()
+        let cnnSnapshot = cnnModel
+        let ppocrSnapshot = ppocrModel
+        let ppocrKeysSnapshot = ppocrKeys
+        guard ppocrSnapshot != nil || cnnSnapshot != nil else { return [] }
+
+        var results: [FrameSpeedResult] = []
+        results.reserveCapacity(images.count)
+        for (i, url) in images.enumerated() {
+            onProgress?(i, images.count)
+            let name = url.lastPathComponent
+            guard let cg = Self.loadCGImage(from: url),
+                  let pb = Self.makeBGRABuffer(from: cg) else {
+                results.append(FrameSpeedResult(name: name, speed: nil,
+                                                confidence: 0, diag: "读图失败"))
+                continue
+            }
+            let result: RecognitionResult
+            if let pp = ppocrSnapshot {
+                result = Self.recognizePPOCR(roiBuffer: pb, model: pp,
+                                             keys: ppocrKeysSnapshot,
+                                             isROISlice: roiNorm != nil)
+            } else if let cnn = cnnSnapshot,
+                      let slots = Self.cropSlots(from: pb, roiNorm: roiNorm) {
+                result = Self.recognizeCNN(slotImages: slots, model: cnn)
+            } else {
+                result = RecognitionResult(error: "无可用引擎")
+            }
+            results.append(FrameSpeedResult(name: name, speed: result.speed,
+                                            confidence: result.confidence,
+                                            diag: result.error ?? result.diag))
+        }
+        return results
     }
 
     /// 加载 PNG/JPG 文件为 CGImage（自检用）

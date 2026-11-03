@@ -210,6 +210,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             exit(0)
         }
 
+        // ── 精简录制离线标注（子进程入口）──
+        // UI 停录后以子进程方式拉起本可执行文件跑标注：速度 OCR 是 @MainActor 的
+        // 同步全量循环，放在 UI 进程里跑会把界面冻住几十秒。子进程有独立主线程。
+        // ⚠️ `--lean-annotate` 必须同时登记进 oneShotFlags，否则会被 UI 单实例锁
+        //    挡掉（直接 exit，且不报错 —— 表现为"标注永远不开始"）。
+        if let i = args.firstIndex(of: "--lean-annotate") {
+            guard i + 1 < args.count else {
+                FileHandle.standardError.write(
+                    "用法: --lean-annotate <clip 目录>\n".data(using: .utf8) ?? Data())
+                exit(2)
+            }
+            let code = LeanAnnotator.run(clipDirPath: args[i + 1], emitProgress: true)
+            exit(code)
+        }
+
         // ── 引擎模式启动（后台引擎拆分）──
         // 探测 engine.sock：已有健康引擎 → 直接连接；没有 → spawn 自己（--engine）。
         // 任一步失败自动回退本地模式（下方全部本地逻辑保持原样）。
@@ -964,6 +979,13 @@ struct AuroraDriveLauncher {
                               //   ⚠️ 与 --llm-selftest 同理：**登记与分发必须同时存在**，
                               //      只登记不分发 → 走到正常 UI 启动 → 假绿 exit 0。
                               "--v2-selftest",
+                              // 2026-11-03（V3 精简录制）：离线标注子进程入口。
+                              //   UI 停录后拉起 `--lean-annotate <clip>` 跑速度 OCR 回填，
+                              //   独立进程以免 @MainActor 同步 OCR 冻住界面。
+                              // ⚠️ 同款陷阱：漏登记 → 被 UI 单实例锁挡掉直接 exit，
+                              //    且不报错；登记与分发必须同时存在
+                              //    （分发见 applicationDidFinishLaunching 里的 --lean-annotate 块）。
+                              "--lean-annotate",
                               // 2026-10-07（S5 全量测试发现漏登记）：
                               //   这两个自检**早就有分发代码**，但从未登记进本数组
                               //   —— 一旦 UI 进程在跑（持 ui.lock），它们会被单实例锁
@@ -4382,7 +4404,12 @@ final class DriveState {
         if leanRecorder.isRecording {
             leanRecorder.stop()
             syncLeanMirror()
-            if let path = leanRecorder.lastClipPath { leanLastClipPath = path }
+            if let path = leanRecorder.lastClipPath {
+                leanLastClipPath = path
+                // 录完就自动标注（用户要求：「录完之后自动标注，带进度」）。
+                // 走子进程：速度 OCR 是 @MainActor 同步全量循环，同进程跑会冻界面。
+                startLeanAnnotation(clipPath: path)
+            }
             // 与开录时的键盘监听成对：非驾驶、且旧录制器也没在用 → 才停监听，
             // 否则会把「录制」按钮（RecordEngine）需要的键盘状态一起关掉。
             if !isDriving && !isRecording { keyboardMonitor.stop() }
@@ -4401,6 +4428,61 @@ final class DriveState {
             keyboardMonitor.start()
             dlog("[LEAN] ▶ 精简录制开始（19 列原生标签，速度列待离线回填）")
         }
+    }
+
+    /// 停录后自动标注：拉起子进程跑「速度 OCR 回填 + 质量检查」，进度镜像到界面。
+    ///
+    /// 【为什么用子进程而不是 await 一个后台任务】
+    ///   见 LeanAnnotator.swift 头注释：速度 OCR 是 @MainActor 同步全量循环，
+    ///   9000 帧在 UI 进程里跑会冻结界面几十秒。子进程有独立主线程与独立模型。
+    ///
+    /// 【深度 1 待办队列】
+    ///   标注跑到一半又录完一段时，`start()` 会因已有进程在跑而返回 false。
+    ///   这里不丢任务：记下路径，等当前这轮结束再接着跑（10 分钟自动分段会连续产出多段）。
+    func startLeanAnnotation(clipPath: String) {
+        guard !leanAnnotateRunner.isRunning else {
+            leanPendingAnnotatePath = clipPath
+            dlog("[LEAN] 上一段仍在标注，已排队：\(clipPath)")
+            return
+        }
+        leanAnnotateRunner.onProgress = { [weak self] stage, pct in
+            // Runner 已在主线程回调，可直接写 @Observable 字段（先比后写）
+            guard let self else { return }
+            if self.leanAnnotateStage != stage { self.leanAnnotateStage = stage }
+            if self.leanAnnotateProgress != pct { self.leanAnnotateProgress = pct }
+        }
+        leanAnnotateRunner.onFinish = { [weak self] code, tail in
+            guard let self else { return }
+            self.leanAnnotateProgress = nil
+            self.leanAnnotateStage = nil
+            if code == 0 {
+                self.leanLastError = nil
+                dlog("[LEAN] ✅ 离线标注完成：\(clipPath)")
+            } else {
+                // 3 = 质检不合格，2 = 输入错误；把子进程 stderr 尾部原样带出来，
+                // 否则界面上只剩一个数字，用户无从判断是缺帧还是没速度表。
+                let detail = tail.trimmingCharacters(in: .whitespacesAndNewlines)
+                self.leanLastError = "标注失败(\(code))："
+                    + (detail.isEmpty ? "子进程无输出" : String(detail.suffix(200)))
+                dlog("[LEAN] ❌ 标注失败 code=\(code)")
+            }
+            if let pending = self.leanPendingAnnotatePath {
+                self.leanPendingAnnotatePath = nil
+                self.startLeanAnnotation(clipPath: pending)
+            }
+        }
+        leanAnnotateProgress = 0
+        leanAnnotateStage = "启动"
+        leanLastError = nil
+        guard leanAnnotateRunner.start(clipPath: clipPath) else {
+            leanAnnotateProgress = nil
+            leanAnnotateStage = nil
+            leanLastError = "无法启动标注进程："
+                + (leanAnnotateRunner.lastError ?? "未知原因")
+            dlog("[LEAN] ❌ 无法启动标注进程：\(clipPath)")
+            return
+        }
+        dlog("[LEAN] ▶ 离线标注开始：\(clipPath)")
     }
 
     /// 把当前按键掩码转发给引擎进程（仅引擎模式、仅录制中、仅变化时）。
@@ -5531,6 +5613,12 @@ final class DriveState {
     var leanAnnotateStage: String?
     /// 最近一段的产物目录（标注完成后供 UI 显示路径）
     var leanLastClipPath: String?
+
+    /// 离线标注子进程的运行器（停录后自动拉起）。
+    /// 与 leanRecorder 同理是 @ObservationIgnored：进度靠上面的可观察字段镜像。
+    @ObservationIgnored let leanAnnotateRunner = LeanAnnotateRunner()
+    /// 待标注的下一段（深度 1）。10 分钟自动分段会连续产出多段，标注一次只跑一个进程。
+    @ObservationIgnored private var leanPendingAnnotatePath: String?
 
     // ══════════════════════════════════════════════════════════════════════════
     // ⚠️ 2026-09-30 性能修复：这两个属性改为 @ObservationIgnored
