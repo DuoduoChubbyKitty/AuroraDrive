@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // ============================================================================
-//  LeanRecordEngine.swift — 精简录制模式（只录画面 + 抓包数据，不跑任何模型）
+//  LeanRecordEngine.swift — 精简录制模式（只录画面 + 按键，不跑任何模型）
 //
 //  【为什么要有它】App 里现有的 `RecordEngine` 专家模式在 UI 进程每帧要读
 //  键盘、生成连续量标签、缩放到 640×360、还要和 OCR/字形/插帧抢主线程，
@@ -95,7 +95,7 @@ struct LeanRecordMeta {
 /// ```
 /// data/lean_clips/clip_<yyyyMMdd_HHmmss>/
 ///   frames/00000.jpg …     全分辨率 JPEG（q92），文件名 = CSV 行号
-///   controls.csv           19 列：时间/定位/加速度/按键（speed_kmh 留空待离线填）
+///   controls.csv           11 列：时间/帧号/speed_kmh/8 个按键（speed_kmh 留空待离线填）
 ///   meta.json              本会话的可信度自述
 /// ```
 @Observable

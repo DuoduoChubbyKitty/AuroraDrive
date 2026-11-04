@@ -147,7 +147,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     /// | `onNativeFrame` | **只有速度表 ROI**（`copyNativeFrame` 只拷 `speedROINorm`） | 不是全屏，画面部分丢失 |
     /// | `onUpscaleFrame` | 确实全分辨率 | 被 `isUpscaleWanted()` 门控（UI 绑 `upscaleEnabled`），且已被插帧消费 |
     ///
-    /// 【设计口径（用户 2026-11-03 拍板）】录制**只存全屏原始像素 + 抓包数据**，
+    /// 【设计口径（用户 2026-11-03 拍板）】录制**只存全屏原始像素 + 按键快照**，
     /// 超采样到模型尺寸（384×224）与速度 OCR **全部放到录制结束后的离线后台**做。
     /// 这样录制期不跑任何模型，画面里天然带着速度表 → 离线裁 `speedROINorm` 区域就能识别，
     /// 因此**不需要**额外存「速度表长条」。

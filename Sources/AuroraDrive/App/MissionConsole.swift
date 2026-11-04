@@ -3513,7 +3513,7 @@ struct LeanRecordBar: View {
             return "失败：\(err)"
         }
         if state.leanIsRecording {
-            return "录制中 · 19 列原生标签 · 速度列待离线回填"
+            return "录制中 · 11 列（画面 + 按键）· 速度列待离线回填"
         }
         if state.leanFrameCount > 0, state.leanLastClipPath != nil {
             return "已录 \(state.leanFrameCount) 帧 · 待离线标注"

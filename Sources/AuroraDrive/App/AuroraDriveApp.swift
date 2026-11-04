@@ -1013,7 +1013,7 @@ struct AuroraDriveLauncher {
                                "--pointer-selftest",
                                // 2026-11-03（V3 精简录制器）：端到端真跑一遍录制链路，
                                // 断言 CSV 行号⟷frame 列⟷文件名三者一致、写失败不占用帧号、
-                               // 表头 19 列、缺失定位写空串、meta 宽高非 0。
+                               // 表头 11 列、meta 宽高非 0。
                                // ⚠️ 登记与分发必须同时存在（本项目第 4 次踩同款假绿陷阱）。
                                "--lean-selftest"]
         // ── 性能基线自检（--perf-selftest）──
@@ -1076,7 +1076,7 @@ struct AuroraDriveLauncher {
         // ── 精简录制器端到端自检（--lean-selftest，2026-11-03 V3）──
         // 真跑录制链路（造帧→appendFrame→编码→落盘→CSV/meta），断言训练端硬约束：
         // CSV 行号 ⟷ frame 列 ⟷ 文件名三者一致；写失败不占用帧号（防 frames/ 留洞
-        // 而 CSV 连续 → 整体标签静默错位）；表头 19 列；缺失定位写空串；meta 宽高真实。
+        // 而 CSV 连续 → 整体标签静默错位）；表头 11 列；meta 宽高真实。
         if args.contains("--lean-selftest") {
             let failed = LeanRecordSelfTest.run()
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
@@ -4569,7 +4569,7 @@ final class DriveState {
             // 设 3 秒上限：SCStream 建立通常 300~800ms，3 秒还没帧说明这台机器上
             // 本地抓屏没接住（权限/窗口/被占），此时宁可放弃开录也不能让出引擎。
             leanHandoverDeadline = Date().addingTimeInterval(3.0)
-            dlog("[LEAN] ▶ 精简录制开始（19 列原生标签，速度列待离线回填）"
+            dlog("[LEAN] ▶ 精简录制开始（11 列：画面 + 按键，速度列待离线回填）"
                  + (EngineClient.shared.isActive ? "；等本地首帧后引擎让出" : ""))
         }
     }
@@ -5758,8 +5758,8 @@ final class DriveState {
     var upscaleEnabled: Bool = false
     var upscaleSupported = false
 
-    // ── 精简录制（V3 原生按键标签，19 列）──
-    // 只落盘画面/按键/定位，所有模型移到离线标注阶段。独立于引擎进程的
+    // ── 精简录制（V3 原生按键标签，11 列）──
+    // 只落盘画面 + 按键，所有模型移到离线标注阶段。独立于引擎进程的
     // 「录制 / 专家模式」链路 —— 那两个走 RecordEngine（17 列），互不影响。
     @ObservationIgnored let leanRecorder = LeanRecordEngine()
 
@@ -6660,7 +6660,7 @@ final class DriveState {
             guard let self else { return true }   // self 已释放 → 保守放行（宁可多做不误伤）
             return Self.forceYolo26s || self.perceptionMode == .legacy
         }
-        // ── 精简录制通道（V3 原生标签，19 列）──
+        // ── 精简录制通道（V3 原生标签，11 列）──
         // 全屏原始像素直通：门禁为假时 CaptureEngine 连 memcpy 都不做，
         // 与新增该通道之前逐字等价（未录制时零成本）。
         captureEngine.onRecordFrame = { [weak self] pb in
