@@ -205,7 +205,13 @@ enum LeanRecordSelfTest {
             // NSImage.size 是**点**尺寸，会随 DPI（72 以外的元数据）缩放，
             // 用它断言像素数可能在 DPI 非 72 时假通过/假失败。
             check("JPEG 可解码", true)
-            check("解码像素尺寸 1280×832", rep.pixelsWide == 1280 && rep.pixelsHigh == 832,
+            // 断言**落盘尺寸 = 模型输入尺寸**，不是源缓冲尺寸：
+            //   本段喂进去的是 1280×832 的源帧，录制器应缩到 storeWidth×storeHeight 再存。
+            //   若这里仍断言 1280×832，等于在断言"没缩放"，与设计相反。
+            let storeW = LeanRecordEngine.storeWidth
+            let storeH = LeanRecordEngine.storeHeight
+            check("解码像素尺寸 \(storeW)×\(storeH)",
+                  rep.pixelsWide == storeW && rep.pixelsHigh == storeH,
                   "\(rep.pixelsWide)×\(rep.pixelsHigh)")
         } else {
             check("JPEG 可解码", false)
@@ -216,8 +222,15 @@ enum LeanRecordSelfTest {
         let metaURL = clip.appendingPathComponent("meta.json")
         if let metaData = try? Data(contentsOf: metaURL),
            let meta = try? JSONSerialization.jsonObject(with: metaData) as? [String: Any] {
-            check("meta.width == 1280", (meta["width"] as? Int) == 1280, "\(meta["width"] ?? "nil")")
-            check("meta.height == 832", (meta["height"] as? Int) == 832, "\(meta["height"] ?? "nil")")
+            // meta 记录的是**落盘尺寸**（= 模型输入尺寸），不是源帧的 1280×832。
+            // 这条断言的用意：证明 meta 没在撒谎 —— 源是 1280×832、盘上是 384×224 时，
+            // 若 meta 仍写 1280×832，事后按 meta 判断分辨率就会得出错误结论。
+            check("meta.width == \(LeanRecordEngine.storeWidth)",
+                  (meta["width"] as? Int) == LeanRecordEngine.storeWidth,
+                  "\(meta["width"] ?? "nil")")
+            check("meta.height == \(LeanRecordEngine.storeHeight)",
+                  (meta["height"] as? Int) == LeanRecordEngine.storeHeight,
+                  "\(meta["height"] ?? "nil")")
             check("meta.frames == \(frameCount)", (meta["total_frames"] as? Int) == frameCount,
                   "\(meta["total_frames"] ?? "nil")")
             check("meta.fps == 15", (meta["fps"] as? Double) == 15.0, "\(meta["fps"] ?? "nil")")

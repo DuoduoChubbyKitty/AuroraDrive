@@ -26,10 +26,18 @@
 //    ⟹ 整列删除。CSV 从 19 列缩到 11 列，`poseProvider` 接线一并移除。
 //
 //  ── 录制期**不**做什么（全部离线）────────────────────────────────────────
-//    · 速度 OCR：全屏原图里天然带着速度表，离线裁 `speedROINorm` 区域再识别。
+//    · 速度 OCR：画面里天然带着速度表，离线裁 `speedROINorm` 区域再识别。
 //      ⟹ 所以**不需要**额外存「速度表长条」（用户明确否掉了这个设计）。
-//    · 超采样到 384×224：离线做（录制期存原图，保留全部信息，便于换输入尺寸重训）。
 //    · 坐标表 / 世界模型 / 任何感知模型。
+//
+//  ── 录制期**要**做什么（2026-11-04 用户拍板变更）────────────────────────
+//    · 缩放到 384×224 再存盘（`storeWidth/storeHeight`）。
+//      **原先是存 1280×832 原图**，理由是"保留全部信息，便于换输入尺寸重训"。
+//      实测该口径的代价：365 KB/帧 = **18.8 GB/小时**，而 `dataset_v3` 训练时
+//      第一件事就是 `resize((384, 224))` —— 存的像素里约 92% 训练时直接丢弃。
+//      用户明确要求「直接缩到模型实际需要的就行，不用留着，质量干到 0.9」。
+//      ⟹ 现在的取舍：放弃"以后能重新裁切大图"的后路，换来同空间存 13 倍时长。
+//        这是已知并接受的代价，不是疏漏。
 //
 //  ── 为什么帧号必须在**写盘队列**里分配（关键不变量）──────────────────────
 //    `dataset_v3._build_index` 里 `n_frames = len(rows)`，读图时按
@@ -48,6 +56,7 @@
 //    · JPEG 编码 + 写盘 + CSV 追加：`writeQueue` 串行队列
 // ============================================================================
 
+import Accelerate
 import AppKit
 import CoreVideo
 import Foundation
@@ -107,8 +116,25 @@ final class LeanRecordEngine: @unchecked Sendable {
     /// `dataset_v3` 对偏差 >15% 会直接 raise，不是警告。
     var fps: Double = 15
 
-    /// JPEG 质量。q92 实测（真实游戏截图 1280 宽）156–279 KB/帧。
-    var jpegQuality: CGFloat = 0.92
+    /// JPEG 质量。默认 0.90：在 384×224 下落盘实测 27 KB/帧（1.4 GB/小时）。
+    /// ⚠️ 原先是 q0.92 + 1280×832 原图，实测 365 KB/帧 = **18.8 GB/小时**，
+    ///   而 `dataset_v3` 训练时第一件事就是 `resize((384, 224))` —— 存了 12 倍的
+    ///   像素，其中 92% 训练时直接被丢掉。2026-11-04 用户拍板改为直接存模型尺寸。
+    var jpegQuality: CGFloat = 0.90
+
+    /// 落盘帧尺寸（宽×高）。**必须与训练端输入尺寸一致**：
+    /// `dataset_v3` 的 `image_size = (224, 384)`（H×W），`model_v3.IMG_HI_H/W` 同值。
+    ///
+    /// 【为什么直接存模型尺寸，而不是存原图留后路】
+    ///   用户 2026-11-04 明确要求「直接缩到模型实际需要的就行，不用留着」。
+    ///   代价是以后换更大输入尺寸重训时，无法从这批数据恢复原始细节 —— 这是
+    ///   用户已知并接受的取舍（换来的是同样空间能存 13 倍时长）。
+    ///
+    /// 【为什么宽高是 384×224 而不是 224×384】
+    ///   训练端写的是 `image_size = (H, W) = (224, 384)`，即高 224、宽 384。
+    ///   本常量按 (宽, 高) 书写，故为 384×224 —— 两者是同一个尺寸，勿混。
+    static let storeWidth = 384
+    static let storeHeight = 224
 
     /// 单段时长上限（秒）。到点自动切段，防单文件过大/一次录几十分钟难管理。
     var maxSegmentSeconds: Double = 600
@@ -423,8 +449,16 @@ final class LeanRecordEngine: @unchecked Sendable {
         stateLock.unlock()
         guard let framesDir else { return }
 
-        // ── 1. 编码 ──
-        guard let data = Self.encodeJPEG(pixelBuffer, quality: jpegQuality) else {
+        // ── 1. 缩放 + 编码 ──
+        // 先把全分辨率帧缩到模型输入尺寸再编码（见 storeWidth/storeHeight 注释）：
+        // 直接在 captureQueue 上做会抢抓屏，这里已在 writeQueue，是串行后台队列。
+        guard let scaled = Self.downscale(pixelBuffer,
+                                         width: Self.storeWidth,
+                                         height: Self.storeHeight) else {
+            recordFailure("帧缩放失败")
+            return
+        }
+        guard let data = Self.encodeJPEG(scaled, quality: jpegQuality) else {
             recordFailure("JPEG 编码失败")
             return
         }
@@ -463,8 +497,12 @@ final class LeanRecordEngine: @unchecked Sendable {
         let total = idx + 1
         // 宽高必须在这里从真实缓冲取值写进 meta：
         // 否则 meta.json 会永远写着 0×0 —— 这是一条**错误信息**，事后分析会误判分辨率。
-        let fw = CVPixelBufferGetWidth(pixelBuffer)
-        let fh = CVPixelBufferGetHeight(pixelBuffer)
+        // 宽高必须记录**实际落盘**的尺寸（不是源缓冲尺寸）：
+        // 现在写盘前已缩到 storeWidth×storeHeight，若这里仍取 pixelBuffer 的
+        // 1280×832，meta.json 会撒谎 —— 事后按 meta 判断分辨率会得出错误结论，
+        // 而 meta 的唯一用途就是"事后可查这份数据能不能用"。
+        let fw = Self.storeWidth
+        let fh = Self.storeHeight
         stateLock.lock()
         framesWrittenLocked = total
         lastFrameWidth = fw
@@ -816,6 +854,56 @@ final class LeanRecordEngine: @unchecked Sendable {
         guard let values = try? probe.resourceValues(forKeys: [.volumeAvailableCapacityKey]),
               let free = values.volumeAvailableCapacity else { return nil }
         return Int64(exactly: free)
+    }
+
+    /// 把 32BGRA 的 CVPixelBuffer 用 vImage 缩放到目标尺寸，返回新的 CVPixelBuffer。
+    ///
+    /// 【为什么用 vImage 而不是 CGContext】项目内已有同款用法
+    ///   （见 `CaptureEngine` 的 YOLO 直通路径）：CPU 双线性、不碰 GPU、
+    ///   方向与字节序与源一致，且不用构造 CGImage 再重绘。
+    /// 【为什么输出缓冲不用池】这里每帧新建一块 384×224×4 ≈ 344KB 的缓冲，
+    ///   由 autorelease/ARC 回收；编码完即释放，不需要跨帧复用。用池反而要额外
+    ///   维护池的尺寸生命周期（录制中途换尺寸会踩到旧池），收益不值这个复杂度。
+    /// - Returns: 缩放后的缓冲；源尺寸已等于目标尺寸时直接返回源缓冲（零拷贝）。
+    static func downscale(_ src: CVPixelBuffer, width: Int, height: Int) -> CVPixelBuffer? {
+        let srcW = CVPixelBufferGetWidth(src)
+        let srcH = CVPixelBufferGetHeight(src)
+        guard srcW > 0, srcH > 0, width > 0, height > 0 else { return nil }
+        if srcW == width && srcH == height { return src }
+
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+        ]
+        var dst: CVPixelBuffer?
+        let status = CVPixelBufferCreate(kCFAllocatorDefault, width, height,
+                                         kCVPixelFormatType_32BGRA,
+                                         attrs as CFDictionary, &dst)
+        guard status == kCVReturnSuccess, let dst else { return nil }
+
+        CVPixelBufferLockBaseAddress(src, .readOnly)
+        CVPixelBufferLockBaseAddress(dst, [])
+        defer {
+            CVPixelBufferUnlockBaseAddress(src, .readOnly)
+            CVPixelBufferUnlockBaseAddress(dst, [])
+        }
+        guard let sBase = CVPixelBufferGetBaseAddress(src),
+              let dBase = CVPixelBufferGetBaseAddress(dst) else { return nil }
+
+        var srcBuf = vImage_Buffer(data: sBase,
+                                   height: vImagePixelCount(srcH),
+                                   width: vImagePixelCount(srcW),
+                                   rowBytes: CVPixelBufferGetBytesPerRow(src))
+        var dstBuf = vImage_Buffer(data: dBase,
+                                   height: vImagePixelCount(height),
+                                   width: vImagePixelCount(width),
+                                   rowBytes: CVPixelBufferGetBytesPerRow(dst))
+        // 32BGRA = ARGB8888 小端序，vImageScale_ARGB8888 正确处理，通道顺序不变
+        guard vImageScale_ARGB8888(&srcBuf, &dstBuf, nil,
+                                   vImage_Flags(kvImageNoFlags)) == kvImageNoError else {
+            return nil
+        }
+        return dst
     }
 
     /// CVPixelBuffer(32BGRA) → JPEG。写法与 `RecordEngine` 的 PNG/JPEG 编码一致。
