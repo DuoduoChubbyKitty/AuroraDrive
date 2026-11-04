@@ -1784,7 +1784,21 @@ final class SpeedOCRReader {
             let ext = $0.pathExtension.lowercased()
             return ext == "png" || ext == "jpg" || ext == "jpeg"
         }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return recognizeImages(images, roiNorm: roiNorm, onProgress: onProgress)
+    }
 
+    /// 识别**显式给定的一批帧文件**，语义与 `recognizeDirectory` 完全一致。
+    ///
+    /// 【为什么需要这个入口】离线标注按段推进（`LeanAnnotator.segmentFrames`），
+    /// 每段只把本段文件名交进来识别，段与段之间天然断开了内存累积。
+    /// 若只保留"按目录识别"，标注器就只能整段一次性送进来 —— 那正是内存被吃爆的路径。
+    ///
+    /// - Parameter onProgress: 进度以**本批**为分母（`(本批已完成, 本批总数)`），
+    ///   调用方需要换算成全局百分比。
+    @MainActor
+    func recognizeImages(_ images: [URL],
+                         roiNorm: CGRect? = nil,
+                         onProgress: ((Int, Int) -> Void)? = nil) -> [FrameSpeedResult] {
         // 与自检同款闸门：模型是异步加载的，不在这里兜底等待会「必然」报未加载。
         ensureModelsLoaded()
         let cnnSnapshot = cnnModel

@@ -11,6 +11,8 @@
 //
 // 【它做什么】
 //   1) 速度 OCR：对 `frames/*.jpg` 逐帧识别速度表，回填 `controls.csv` 的 speed_kmh 列。
+//      **按 `segmentFrames` 分段推进，每段标完立刻写盘**（原因见该常量注释：
+//      整段一次性 OCR 会耗尽位图缓冲，8000+ 帧片段上必卡死）。
 //   2) 按键整理：统计全零帧、极致刹车列一致性（只统计，不改按键 —— 按键是原生标签，
 //      由录制时的物理键盘状态决定，标注阶段**不允许**篡改，否则标签就不是"原生"了）。
 //   3) 质量检查：帧率、帧数/行数一致性、定位缺失、速度跳变、识别覆盖率。
@@ -21,8 +23,9 @@
 //   而定位/按键在录制时就是权威值，标注阶段重算只会引入新错误。
 //
 // 【写盘安全】
-//   回填是"整表重写"，但先写 `controls.csv.tmp` 再 `replaceItemAt` 原子替换：
-//   中途崩溃只会留下 tmp，原 CSV 不会被截断成半个文件。
+//   每段回填是"整表重写"，但先写 `controls.csv.tmp` 再 `replaceItemAt` 原子替换：
+//   中途崩溃只会留下 tmp，原 CSV 不会被截断成半个文件；且已完成的段都已落盘，
+//   被强杀最多丢当前这一段。
 //   写之前还校 `frame` 列必须等于数据行序号 —— 这是 `dataset_v3._read_rows` 的硬约束，
 //   一旦错位就应该**拒绝写**，而不是把错位数据写进去。
 
@@ -54,6 +57,15 @@ enum LeanAnnotator {
     private static let requiredColumns = ["t_sec", "frame", "speed_kmh",
                                           "w", "a", "s", "d", "shift", "space",
                                           "super_brake", "ultimate_brake"]
+
+    /// 分段标注的段长（帧）。**必须保持分段**：整段一次性送 OCR 会把内存吃爆。
+    /// 实测量级：单个全屏帧的 BGRA 缓冲 1280×832×4 ≈ 4.3MB；这些位图靠
+    /// autorelease 回收，而标注子进程没有事件循环（主线程不回 runloop，池永不排空），
+    /// 于是整段帧的位图一路累积。2026-11-04 实测 8761 帧片段跑到第 8223 帧起
+    /// 连续 538 帧 `CVPixelBufferCreate` 失败（"像素缓冲创建失败"），进程卡死在同一
+    /// 帧不再前进，整机交换区被吃满（swap used 7.4GB / 8GB）。
+    /// 分段后峰值内存只与本段长度成正比，且每段写盘后即使被强杀也不丢已完成的部分。
+    static let segmentFrames = 1000
 
     // MARK: - 入口
 
@@ -145,33 +157,104 @@ enum LeanAnnotator {
             }
         }
 
-        // ── 3. 速度 OCR ────────────────────────────────────────────────
+        // ── 3. 速度 OCR：**分段**推进，每段写完立刻落盘 ──────────────────
+        // 【为什么必须分段】见 `segmentFrames` 注释：整段一次性 OCR 会让位图缓冲
+        //   一路累积，8000+ 帧的片段上必然耗尽 —— 实测第 8223 帧起连续
+        //   "像素缓冲创建失败"并卡死在同一帧，整机交换区被吃满。
+        // 【为什么每段都要写盘】旧实现是"全段跑完才写一次"，中途失败等于整段白跑；
+        //   分段写盘后，被强杀最多只丢当前这一段，已完成的部分已经落盘。
         emit("速度OCR", 0.10)
         let reader = SpeedOCRReader()
         let total = dataLines.count
-        let results = reader.recognizeDirectory(framesURL.path) { done, all in
-            // 10% → 80% 用于 OCR
-            let frac = all > 0 ? Double(done) / Double(all) : 1
-            emit("速度OCR", 0.10 + 0.70 * frac)
-        }
-        guard !results.isEmpty else {
-            return fail("速度 OCR 未产出任何结果（模型未加载或 frames/ 为空）", code: 3)
+
+        // 帧号 → 帧文件。`frames/` 的编号已在上一步校验为恰好 0..<total，
+        // 这里按编号取路径（不假设扩展名），缺一个就按输入错误退出。
+        var frameURLByIndex: [Int: URL] = [:]
+        for name in frameFilesOnDisk {
+            guard let idx = Int((name as NSString).deletingPathExtension) else { continue }
+            frameURLByIndex[idx] = framesURL.appendingPathComponent(name)
         }
 
-        // 文件名 → 帧号（`frames/000123.jpg` → 123），与 CSV 行序对齐的**唯一**依据
+        /// 帧号 → 已识别速度（跨段累加）
         var speedByFrame: [Int: Int] = [:]
-        for r in results {
-            guard let idx = Int((r.name as NSString).deletingPathExtension),
-                  let sp = r.speed, sp >= SpeedOCRReader.minSpeed, sp <= SpeedOCRReader.maxSpeed
-            else { continue }
-            speedByFrame[idx] = sp
+
+        /// 按当前 `speedByFrame` 重写整份 controls.csv（tmp + 原子替换）。
+        /// - Returns: 失败原因；nil 表示写成功。
+        func writeControls() -> String? {
+            var out: [String] = []
+            out.reserveCapacity(lines.count)
+            out.append(headerLine)
+            for (i, line) in dataLines.enumerated() {
+                var cols = line.components(separatedBy: ",")
+                // 未识别出速度时保持空串：dataset_v3 据此判 speed_valid=0，
+                // 不会把缺值当 0 速。
+                cols[speedCol] = speedByFrame[i].map { String($0) } ?? ""
+                out.append(cols.joined(separator: ","))
+            }
+            let tmpURL = clip.appendingPathComponent("controls.csv.tmp")
+            // 先清陈旧残留：上次若崩在「写 tmp」与「replaceItemAt」之间，
+            // 会留下 controls.csv.tmp，让人误以为"标注跑过一半"。
+            try? fm.removeItem(at: tmpURL)
+            guard let outData = (out.joined(separator: "\n") + "\n").data(using: .utf8) else {
+                return "回填结果编码失败"
+            }
+            do {
+                try outData.write(to: tmpURL, options: .atomic)
+                _ = try fm.replaceItemAt(csvURL, withItemAt: tmpURL)
+            } catch {
+                try? fm.removeItem(at: tmpURL)
+                return "controls.csv 回填写盘失败: \(error.localizedDescription)"
+            }
+            return nil
         }
 
-        // ── 4. 回填 speed_kmh 列 ───────────────────────────────────────
-        emit("回填", 0.82)
-        var newLines: [String] = []
-        newLines.reserveCapacity(lines.count)
-        newLines.append(headerLine)
+        let segmentCount = (total + segmentFrames - 1) / segmentFrames
+        var segmentStart = 0
+        var segmentIndex = 0
+        while segmentStart < total {
+            let segmentEnd = min(segmentStart + segmentFrames, total)
+            segmentIndex += 1
+            let segmentURLs: [URL] = (segmentStart..<segmentEnd).compactMap {
+                frameURLByIndex[$0]
+            }
+            guard segmentURLs.count == segmentEnd - segmentStart else {
+                return fail("第 \(segmentIndex) 段（帧 \(segmentStart)..<\(segmentEnd)）"
+                            + "帧文件缺失", code: 2)
+            }
+            // 本段包进 autoreleasepool：标注子进程没有事件循环，主线程的池不会
+            // 被自动排空，位图（1280×832×4 ≈ 4.3MB/帧）会一路累积 —— 这是本次
+            // 卡死的直接原因，分段之外还要显式排空。
+            let segmentResults = autoreleasepool { () -> [FrameSpeedResult] in
+                reader.recognizeImages(segmentURLs) { done, _ in
+                    let frac = Double(segmentStart + done) / Double(max(total, 1))
+                    emit("速度OCR", 0.10 + 0.70 * frac)
+                }
+            }
+            guard !segmentResults.isEmpty else {
+                return fail("第 \(segmentIndex) 段速度 OCR 未产出任何结果"
+                            + "（模型未加载或该段 frames/ 为空）", code: 3)
+            }
+            for r in segmentResults {
+                guard let idx = Int((r.name as NSString).deletingPathExtension),
+                      let sp = r.speed,
+                      sp >= SpeedOCRReader.minSpeed, sp <= SpeedOCRReader.maxSpeed
+                else { continue }
+                speedByFrame[idx] = sp
+            }
+            if let writeError = writeControls() {
+                return fail("第 \(segmentIndex) 段\(writeError)", code: 2)
+            }
+            FileHandle.standardError.write(
+                ("段 \(segmentIndex)/\(segmentCount)：本段 \(segmentResults.count) 帧，"
+                 + "累计填入 \(speedByFrame.count)/\(total)\n").data(using: .utf8) ?? Data())
+            segmentStart = segmentEnd
+        }
+
+        // ── 4. 统计 ───────────────────────────────────────────────────
+        // 回填与写盘已在上面**按段**完成，这里只统计、不再重写文件：
+        // 若在此处再整表重写一次，"每段标完立刻落盘"就退化成"最后才落盘"，
+        // 中途被强杀仍然会丢光已完成的段。
+        emit("统计", 0.82)
         var speedFilled = 0
         var speedMissing = 0
         var keyAllZero = 0
@@ -184,15 +267,13 @@ enum LeanAnnotator {
         let tCol = header.firstIndex(of: "t_sec")
 
         for (i, line) in dataLines.enumerated() {
-            var cols = line.components(separatedBy: ",")
+            // 读原始行（速度列在磁盘上已回填，但这里统计的是识别结果本身）
+            let cols = line.components(separatedBy: ",")
             if let sp = speedByFrame[i] {
-                cols[speedCol] = String(sp)
                 speedFilled += 1
                 if let prev = lastSpeed, abs(sp - prev) > 20 { jumps += 1 }
                 lastSpeed = sp
             } else {
-                // 保持空串：dataset_v3 据此判 speed_valid=0，不会把缺值当 0 速
-                cols[speedCol] = ""
                 speedMissing += 1
             }
             // 按键全零帧（数据集会 skip_all_zero，统计它是为了告知"这段路没按键"）
@@ -203,26 +284,6 @@ enum LeanAnnotator {
                 keyAllZero += 1
             }
             if let tc = tCol, tc < cols.count, let t = Double(cols[tc]) { tSec.append(t) }
-            newLines.append(cols.joined(separator: ","))
-        }
-
-        // ── 5. 原子替换写回 ───────────────────────────────────────────
-        let tmpURL = clip.appendingPathComponent("controls.csv.tmp")
-        // 先清陈旧残留：上次若崩在「写 tmp」与「replaceItemAt」之间，或退出时被
-        // SIGKILL 打断，会留下一个 controls.csv.tmp。它本身无害（下面 .atomic 会
-        // 覆盖），但若该段之后被永久跳过，这个文件会一直留在产物目录里，
-        // 让人误以为"标注跑过一半"。
-        try? fm.removeItem(at: tmpURL)
-        let outText = newLines.joined(separator: "\n") + "\n"
-        guard let outData = outText.data(using: .utf8) else {
-            return fail("回填结果编码失败", code: 2)
-        }
-        do {
-            try outData.write(to: tmpURL, options: .atomic)
-            _ = try fm.replaceItemAt(csvURL, withItemAt: tmpURL)
-        } catch {
-            try? fm.removeItem(at: tmpURL)
-            return fail("controls.csv 回填写盘失败: \(error.localizedDescription)", code: 2)
         }
 
         // ── 6. 质量检查 + 报告 ────────────────────────────────────────
