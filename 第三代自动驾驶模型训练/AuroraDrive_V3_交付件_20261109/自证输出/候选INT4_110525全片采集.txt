@@ -1,0 +1,41 @@
+==============================================================================
+采集溯源记录（provenance）
+==============================================================================
+  模型路径   : /Users/dupi/Desktop/AuroraDrive_V3_交付件_20261109/ft_freeze2_ep01_int4.mlpackage
+  weight.bin : md5 = 5c015019022e1b664a1119791822ea39
+  片段       : clip_20261107_110525
+  stride     : 1
+  计算单元   : CPU_ONLY（只读推理，不部署）
+  controls   : 8574 行（可用帧 8551）
+scikit-learn version 1.9.0 is not supported. Minimum required version: 0.17. Maximum required version: 1.5.1. Disabling scikit-learn conversion API.
+Torch version 2.13.0 has not been tested with coremltools. You may run into unexpected errors. Torch 2.7.0 is the most recent version that has been tested.
+  coremltools: 9.0
+  模型类型   : INT4 .mlpackage
+
+  开始采集 8551 帧 ...
+    … 500/8551
+    … 1000/8551
+    … 1500/8551
+    … 2000/8551
+    … 2500/8551
+    … 3000/8551
+    … 3500/8551
+    … 4000/8551
+    … 4500/8551
+    … 5000/8551
+    … 5500/8551
+    … 6000/8551
+    … 6500/8551
+    … 7000/8551
+    … 7500/8551
+    … 8000/8551
+    … 8500/8551
+
+✓ 已写出 /tmp/v3_lab/logits/ft_freeze2_int4_s1.npz  N=8551
+
+==============================================================================
+部署件完整性校验（证明本次只读、未修改生产模型）
+==============================================================================
+  采集前 weight.bin md5: 5c015019022e1b664a1119791822ea39
+  采集后 weight.bin md5: 5c015019022e1b664a1119791822ea39
+  ✓ 前后一致 → 生产模型未被修改

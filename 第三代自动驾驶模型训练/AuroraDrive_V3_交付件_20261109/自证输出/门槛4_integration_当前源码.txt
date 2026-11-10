@@ -1,0 +1,115 @@
+==============================================================================
+V3 集成夹具：真实 tick() 循环是否真的驱动 V3（零按键注入）
+==============================================================================
+[HUD] 无 NSApplication 上下文（引擎进程）→ 跳过 HUD 安装
+4:11:52 [upscale] 引擎初始化: 可用=true
+4:11:52 [network] 定位引擎初始化完成
+  ✅ 安全断言通过（controlDisabled + benchSuppressAllInjection 双重堵死）
+[v3] 模型加载成功：v3_int4.mlmodelc（INT4 / ANE）
+  ✓ V3 模型加载  — models/v3_int4.mlmodelc
+  预加载其余引擎（避免首帧 tick 阻塞）……
+[warmup.v2] m9_v2_enc 预热完成: 1.1ms
+[warmup.v2] m9_v2_ctl 预热完成: 30.1ms
+[yolopx] 模型加载: ayolom_n_int8.mlmodelc
+[yolopx]   ✓ ayolom_n_int8.mlmodelc — 加载成功
+[warmup] ayolom_n_int8.mlmodelc 预热完成: 8.7ms
+[warmup] yolo26s.mlmodelc 预热完成: 8.9ms  computeUnits=all(自动选 ANE/GPU/CPU)
+[v3] 预热完成
+[warmup] game_assist_control 预热完成: 1.9ms  computeUnits=all(自动选 ANE/GPU/CPU)
+  真实帧源：/tmp/v3_qc_multi/seg_d → 160 帧
+
+  驱动真实 tick()（与生产同构 15Hz）……
+4:11:53 tick: mode=端到端主驾 m9Live=false V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=false conf=1.00 img=true cmd=(s=0.00 t=0.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=102MB capGap=0ms capWork=0ms tickGap=511ms
+4:11:54 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=167MB capGap=0ms capWork=0ms tickGap=71ms
+4:11:55 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=178MB capGap=0ms capWork=0ms tickGap=73ms
+4:11:56 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=182MB capGap=0ms capWork=0ms tickGap=72ms
+[EmergencyTakeover] effectiveTickHz: 15.0 → 20.0
+[EmergencyTakeover] → 冲刺（20.0Hz）takeoverActive=true（请接管）
+4:11:57 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=188MB capGap=0ms capWork=0ms tickGap=74ms
+4:11:58 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=196MB capGap=0ms capWork=0ms tickGap=72ms
+4:11:59 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=198MB capGap=0ms capWork=0ms tickGap=67ms
+4:12:00 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=199MB capGap=0ms capWork=0ms tickGap=71ms
+4:12:01 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=1.00 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=182MB capGap=0ms capWork=0ms tickGap=75ms
+4:12:02 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=176MB capGap=0ms capWork=0ms tickGap=73ms
+4:12:03 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=164MB capGap=0ms capWork=0ms tickGap=68ms
+4:12:04 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=off digested=0 assistLive=true conf=1.00 img=true cmd=(s=0.00 t=0.00 b=0.00) held=0 ev=0 perm=false front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=165MB capGap=0ms capWork=0ms tickGap=68ms
+    tick 帧数=160  实际 13.6 Hz  V3 推理次数=160
+  ✓ tick() 真的被执行  — 160 帧
+  ✓ ★ V3 在真实 tick 中被驱动（推理次数 > 0）  — before=0 after=160
+  ✓ V3 推理次数与 tick 帧数同量级（接线未被门控挡住）  — tick=160 v3=160
+  ✓ V3 产出了有效结果  — steer=0.00 throttle=0.00 brake=0.00
+  ✓ V3 结果是新鲜的
+    决策分布 vertical(W/NONE/S)=[147, 13, 0]  horizontal(A/NONE/D)=[0, 160, 0]  brake_on=18/160
+    末 3 帧决策: v=W h=NONE brk=0 hb=0 conf=0.973 risk=0.091 | v=NONE h=NONE brk=1 hb=1 conf=0.985 risk=0.121 | v=NONE h=NONE brk=1 hb=1 conf=0.993 risk=0.156
+  ✓ 全程零按键注入（controlEngine.heldKeys 为空）  — held=空
+
+==============================================================================
+P1-3 完整控制路径回归：可记录事件后端（消化模式，零系统注入）
+==============================================================================
+[ControlEngine] 🧪 消化模式 ON —— 按键链路照跑，但不真发 CGEvent（不会打扰系统/游戏/聊天软件）
+  ✓ 可记录后端前置：hold/release 不产生系统注入  — postedDelta=0 digestedDelta=2 held=true
+  Phase B：真实 tick（帧源 160 帧，digest=ON）……
+4:12:05 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=17 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=1 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=171MB capGap=0ms capWork=0ms tickGap=71ms
+4:12:06 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=31 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=1 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=173MB capGap=0ms capWork=0ms tickGap=68ms
+4:12:07 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=45 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=1 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=175MB capGap=0ms capWork=0ms tickGap=84ms
+4:12:08 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=59 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=1 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=175MB capGap=0ms capWork=0ms tickGap=83ms
+4:12:09 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=73 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=1 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=179MB capGap=0ms capWork=0ms tickGap=75ms
+4:12:10 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=87 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=1 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=183MB capGap=0ms capWork=0ms tickGap=70ms
+4:12:11 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=101 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=1 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=185MB capGap=0ms capWork=0ms tickGap=67ms
+4:12:12 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=118 assistLive=true conf=0.99 img=true cmd=(s=0.00 t=1.00 b=0.00) held=1 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=185MB capGap=0ms capWork=0ms tickGap=69ms
+4:12:13 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=136 assistLive=true conf=1.00 img=true cmd=(s=0.00 t=1.00 b=0.00) held=2 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=188MB capGap=0ms capWork=0ms tickGap=73ms
+4:12:14 tick: mode=端到端主驾 m9Live=true V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=152 assistLive=true conf=1.00 img=true cmd=(s=0.00 t=1.00 b=0.00) held=1 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=191MB capGap=0ms capWork=0ms tickGap=76ms
+  ✓ Phase B：消化开关全程未被改写（每帧复核）  — 违规帧数=0
+  ✓ Phase B：全程零系统注入（postedEventCount 不变）  — 起始=0 结束=0  digested=169
+  ✓ Phase B：每一帧最终六键集合与契约推导一致  — 逐帧核对 120 帧
+  ✓ Phase B：产生了真实控制动作（非全程空集）  — 非空帧 120/120
+  ✓ Phase B：纵向/横向互斥不变量成立（无 W+S、无 A+D）  — 违规 0 帧
+  ✓ Phase B：Space/Shift 不残留（只在本帧决策要求时按住）  — 违规 0 帧
+
+  P0-1/P0-2 运行时反证：停喂画面 >1.0s 后再 tick
+4:12:17 tick: mode=YOLO接管 m9Live=false V2active=false V2loaded=true V2split=true wm=false track=0.0 digest=ON(不真发) digested=174 assistLive=false conf=0.00 img=true cmd=(s=0.00 t=0.00 b=0.00) held=0 ev=0 perm=true front=loginwindow native=0x0 ocr[PP-OCRv6]=-1.0/0.00[]  eff=0.0/vld=false lag=0ms mem=181MB capGap=0ms capWork=0ms tickGap=1542ms
+  ✓ P0-1：画面超龄（>1.0s）后不再推理  — 推理次数 308 → 308
+  ✓ P0-2：决策过期后六个键全部释放（含 Space/Shift）  — 超龄前[S(1) + Space(49) + Shift(56)] → 超龄后[∅（全松）]
+[v3] 帧间隔 1.61s 超阈值 0.5s，已清窗重建
+  ✓ P0-1：恢复新帧后立即恢复推理（闸门非卡死）  — 推理次数 308 → 309（恢复供帧 1 帧，mode=纯规则兜底）
+
+  Phase C：合成决策的事件顺序（A/D、super、ultimate 覆盖）
+[ControlEngine] 🧪 消化模式 ON —— 按键链路照跑，但不真发 CGEvent（不会打扰系统/游戏/聊天软件）
+  ✓ Phase C：W+A 场景按出 W 与 A  — 实际[A(0) + W(13)]
+  ✓ Phase C：切 D+S 时事件顺序与产品一致（先 +D 后 -A；先 +S 后 -W）  — 事件=0:+D(2) 0:-A(0) 0:+S(1) 0:-W(13)
+  ✓ Phase C：合成路径同样零系统注入  — postedDelta=0 digested=10
+  ✓ Phase C：ultimate 覆盖纵向 → S+Shift+Space（不得有 W）  — 最终[S(1) + Space(49) + Shift(56)] 事件=1:+S(1) 1:+Shift(56) 1:+Space(49)
+  ✓ Phase C：低速 super_brake → Shift+Space+W（兜底不介入）  — 事件=2:+W(13) 2:+Shift(56) 2:+Space(49)
+  ✓ Phase C：高速 super_brake → Shift+Space+S（兜底压掉给油）  — 事件=3:+S(1) 3:+Shift(56) 3:+Space(49)
+  ✓ Phase C：handbrake 头 → 物理 Shift(56)（不是 Space）  — 实际[Shift(56)]
+  ✓ Phase C：brake 头 → 物理 Space(49)（不是 Shift）  — 实际[Space(49)]
+  ✓ Phase C：进入 idle 后六键全部释放（事件顺序可回溯）  — 事件=4:-Space(49)
+
+  Phase D：源码级可判定断言（键位映射 + P0-1/P0-2/P0-3）
+  ✓ Phase D：applyCommand 横向右转 → hold(.steerRight)  — 死区 ±0.1 与左右互斥
+  ✓ Phase D：applyCommand 纵向油门优先于刹车（互斥）  — 阈值 >0.3
+  ✓ Phase D：needShift = handbrake∨super∨ultimate
+  ✓ Phase D：needSpace = brake∨super∨ultimate
+  ✓ Phase D：Shift 走 .boost（键码 56），不是 .handbrake
+  ✓ Phase D：Space 走 .handbrake（键码 49），不是 .boost
+  ✓ P0-1：新鲜度闸门用 currentFrameCGAt 且阈值 1.0s  — 超龄分支只打印、不推理
+  ✓ P0-1：infer 传入真实采集时刻与源帧序号（不再裸调 infer(image: cg)）
+  ✓ P0-1：v3MaxFrameAge 常量 = 1.0
+  ✓ P0-1：currentFrameCGAt 来自 pendingFrameTime（非 Date()）
+  ✓ P0-1：引擎侧按源帧序号判重（isDuplicate）
+  ✓ P0-1：环形缓冲携带并比对源帧序号
+  ✓ P0-2：v3DecisionFresh 由 lastResultTime < 1.0 计算
+  ✓ P0-2：刹车头门控含 v3Active && decided == .e2e && v3DecisionFresh
+  ✓ P0-2：注入前对最终命令套防侧翻兜底
+  ✓ P0-2：兜底仅在刹车头生效时介入（其他档位不改写纵向）
+  ✓ P0-3：finish() 不再覆盖 previousHorizontalClass  — finish 片段内零赋值
+  ✓ P0-3：noteExecutedSteer() 是唯一回填点
+  ✓ P0-3：tick 注入后回填**实际执行**的横向动作（读 heldKeys，非布尔推断）
+  ✓ P0-3：旧写法（由「允许注入」布尔值推断转向）已移除  — 布尔门控 ≠ 实际按键，已改为读实际状态
+  ✓ P0-3：限速早退路径回填转向 0  — 该分支在 applySpeedLimitBrake() 后直接 return
+
+  P1-3 完整控制路径：全部通过 ✓
+
+==============================================================================
+V3 集成夹具：全部通过 ✓
+==============================================================================

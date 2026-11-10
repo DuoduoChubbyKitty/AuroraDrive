@@ -1,0 +1,13 @@
+scikit-learn version 1.9.0 is not supported. Minimum required version: 0.17. Maximum required version: 1.5.1. Disabling scikit-learn conversion API.
+Torch version 2.13.0 has not been tested with coremltools. You may run into unexpected errors. Torch 2.7.0 is the most recent version that has been tested.
+[模式=CoreML INT4 .mlpackage] ft_freeze2_ep01_int4.mlpackage  （真实部署模型）
+
+片段         n    S假阳   Space假阳    漏刹车     六键不符  vMacro  hMacro    S召回
+------------------------------------------------------------------------------
+seg_d    137      0         0      0       32   1.000   0.805    n/a
+
+  ✓ 通过  seg_d S假阳性 ≤ 1  (实际 0)
+  ✓ 通过  seg_d Space假阳 ≤ 2  (实际 0)
+
+============================================================
+裁定: ✓ 通过验收门槛

@@ -1,0 +1,107 @@
+==============================================================================
+V3 引擎自检（INT4 / ANE / 24 帧双分辨率窗口）
+==============================================================================
+
+[T1] 帧窗口顺序：hi=[t,t−1,t−2] / lo=[t−3…t−23]（新→旧）
+  ✓ hi 窗口 [t, t−1, t−2]  — 期望 [29, 28, 27]，实际 [29, 28, 27]
+  ✓ lo 窗口 [t−3 … t−23]  — 首 3 帧 [26, 25, 24]，末 3 帧 [8, 7, 6]
+  ✓ 当前帧位于 hi 首索引（而非末位）  — 首索引=29
+
+[T2] 历史不足：按最早帧填充（对应训练侧 clamp_frame）
+  ✓ hi 窗口不足时钳位  — 期望 [1, 0, 0]，实际 [1, 0, 0]
+  ✓ lo 窗口全越界 → 全为最早帧  — 实际取值集合 [0]
+  ✓ 窗口就绪判定（1 帧即可推理）  — filled=2
+
+[T3] 图像预处理：/255 归一化 + RGB 平面顺序
+  ✓ R 通道 = 255/255  — 1.0000
+  ✓ G 通道 = 128/255  — 0.5020
+  ✓ B 通道 = 0/255  — 0.0000
+  ✓ 全部像素 ∈ [0,1]  — range=[0.000, 1.000]
+
+[T7] P0-1 源帧新鲜度：排队旧帧 / 采集停摆 / 重复帧
+  ✓ 排队旧帧：窗口跨度 = 真实采集间隔（2.0s，非消费节拍 1.53s）  — span=2.000s（应为 2.000s）
+  ✓ 采集停摆：同一源帧序号被判重（拒绝再次入窗）  — sequence=42 已入窗 → 再来必须拒绝
+  ✓ 采集停摆：新源帧序号不被误判为重  — sequence=43 是新帧
+  ✓ 未提供序号（自检压栈）一律不判重  — nil = 无序号语义 → 不拦
+  ✓ 重复帧：24 次重复提交只入窗 1 次  — accepted=1 rejected=23 filled=1
+  ✓ 重复帧后新序号仍能正常入窗（filled 增长且 101 不被判重）  — filled=2，isDuplicate(101)=false
+
+[T8] P2 平局 argmax：与 PyTorch/NumPy 对齐（取第一个最大值）
+  ✓ argmax3 [0,1,1] → 1（旧实现错返 2）  — 期望 1，实际 1
+  ✓ argmax3 [1,1,0] → 0  — 期望 0，实际 0
+  ✓ argmax3 [0,1,0] → 1（唯一最大）  — 期望 1，实际 1
+  ✓ argmax3 [1,0,1] → 0（首尾相等取首）  — 期望 0，实际 0
+  ✓ argmax3 全相等 → 0  — 期望 0，实际 0
+  ✓ argmax3 [0,0,1] → 2（唯一最大在末位）  — 期望 2，实际 2
+  ✓ argmax3 [5,0,0] → 0  — 期望 0，实际 0
+  ✓ argmax3 平局不取最后一个最大（回归 [0,1,1]≠2）  — 与 Python 离线评估同规则，避免 Swift/Python 解码分叉
+
+[T9] P0-2 防侧翻兜底：高速 super/ultimate 必须 S，不许给油
+  ✓ 高速 + super_brake：给油→S（throttle=0/brake=1）
+  ✓ 高速 + ultimate：给油→S
+  ✓ 车速未知 + super_brake：保守强制 S（不静默放行）
+  ✓ speedValid=false：数值不可信 → 按保守处理
+  ✓ 低速 + super_brake：兜底不介入（给油保留）
+  ✓ 无 super/ultimate：不干预纵向（不误伤普通刹车/给油）
+  ✓ 兜底只改纵向，横向 steer 原样保留
+
+[T4] 模型加载 + 真实训练帧端到端
+[v3] 模型加载成功：v3_int4.mlmodelc（INT4 / ANE）
+  ✓ 模型加载  — models/v3_int4.mlmodelc
+    尝试帧来源: /Users/dupi/Desktop/自动驾驶系统/data/lean_clips  存在=true
+    ✗ 枚举失败: The file “lean_clips” couldn’t be opened.
+    尝试帧来源: /tmp/v3_selftest_frames  存在=true
+    ✓ 取到 30 帧（平铺目录）
+  ✓ 找到真实连续帧  — 30 帧
+[v3] 预热完成
+  ✓ 端到端产出结果  — 成功 30/30 帧
+  ✓ 输出全部有限（非 NaN/Inf）
+  ✓ confidence ∈ [0,1]  — 0.9676
+  ✓ risk ∈ [0,1]  — 0.1061
+  ✓ 分类编号合法  — v=0 h=1
+    末帧决策: v=W h=NONE brk=0 hb=0 conf=0.968 risk=0.106
+    steer=0.00 throttle=1.00 brake=0.00
+
+[T5] 端到端延迟（预处理 + 推理，串行）
+    mean=8.92ms  p50=9.29ms  max=11.60ms  n=30
+  ✓ 满足 30FPS 预算（≤33.3ms）  — p50=9.29ms
+  ✓ 满足 15FPS 预算（≤66.7ms）  — p50=9.29ms
+
+[T6] 黑帧 vs 白帧：输出必须随输入变化（非恒定）
+[v3] 模型加载成功：v3_int4.mlmodelc（INT4 / ANE）
+[v3] 预热完成
+[v3] 模型加载成功：v3_int4.mlmodelc（INT4 / ANE）
+[v3] 预热完成
+    黑帧 conf=0.9208 risk=0.1082
+    白帧 conf=0.9952 risk=0.3955
+  ✓ 输出随输入变化（图像链路真的接通）  — Δconf=0.0744 Δrisk=0.2874
+
+[T10] P0-1 重复帧：infer() 层真正拒绝（不是只测 isDuplicate 零件）
+[v3] 模型加载成功：v3_int4.mlmodelc（INT4 / ANE）
+[v3] 预热完成
+  ✓ T10 首帧（序号 700）正常入窗并推理  — inferenceCount 0 → 1
+  ✓ T10 同序号重复提交被判重（duplicateFrameCount 递增）  — duplicateFrameCount 0 → 1
+  ✓ T10 同序号重复提交不产生新推理（关键：拒绝发生在推理前）  — inferenceCount 应保持 1，实际 1
+  ✓ T10 新序号必须真正推理（防『永远拒绝』的错误实现）  — inferenceCount 1 → 2
+  ✓ T10 未传序号不参与判重（保持旧语义）  — inferenceCount 2 → 3
+
+[T11] P0-3 执行反馈：noteExecutedSteer → vehicle_state[6]（−1/0/+1）
+[v3] 模型加载成功：v3_int4.mlmodelc（INT4 / ANE）
+[v3] 预热完成
+  ✓ T11 noteExecutedSteer(A → −1) → vehicle_state[6] == -1.0  — state[6]=-1.0（期望 -1.0），state 长度=8
+  ✓ T11 noteExecutedSteer(D → +1) → vehicle_state[6] == 1.0  — state[6]=1.0（期望 1.0），state 长度=8
+  ✓ T11 noteExecutedSteer(NONE → 0) → vehicle_state[6] == 0.0  — state[6]=0.0（期望 0.0），state 长度=8
+  ✓ T11 vehicle_state 其余 7 维恒 0（训练口径只写 [6]）  — 其余维=0:0.0,1:0.0,2:0.0,3:0.0,4:0.0,5:0.0,7:0.0
+
+[T12] P0-3 finish() 不覆写执行反馈（行为断言，非源码文本）
+[v3] 模型加载成功：v3_int4.mlmodelc（INT4 / ANE）
+[v3] 预热完成
+  ✓ T12 派发时 NONE → finish 前回填 D(+1)：finish() 后执行反馈仍为 D(2)  — 回填 D(2) → finish 后 D(2)，本帧预测 NONE(1)
+  ✓ T12 派发时 NONE → finish 前回填 A(−1)：finish() 后执行反馈仍为 A(0)  — 回填 A(0) → finish 后 A(0)，本帧预测 NONE(1)
+  ✓ T12 派发时 D → finish 前回填 A(−1)：finish() 后执行反馈仍为 A(0)  — 回填 A(0) → finish 后 A(0)，本帧预测 D(2)
+  ✓ T12 派发时 A → finish 前回填 D(+1)：finish() 后执行反馈仍为 D(2)  — 回填 D(2) → finish 后 D(2)，本帧预测 A(0)
+  ✓ T12 存在具备判别力的用例（预测类别 ≠ 回填类别）  — 有效用例：派发时 A → finish 前回填 D(+1)
+
+==============================================================================
+V3 引擎自检：55/55 通过  ✓ 全部通过
+==============================================================================

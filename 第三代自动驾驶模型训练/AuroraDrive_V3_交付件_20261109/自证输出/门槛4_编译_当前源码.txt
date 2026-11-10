@@ -1,0 +1,18 @@
+# 编译验证（当前源码树，独立 scratch-path）  生成于 2026-11-10 04:05:16
+# 命令: swift build --scratch-path /tmp/v3_lab/swiftbuild_verify --product AuroraDrive
+
+退出码: 0
+error 数: 0
+warning 数: 1338
+耗时: 75s（编译本身 61.98s）
+
+## 结论行
+Build of product 'AuroraDrive' complete! (61.98s)
+
+## 最后 6 个编译单元
+[85/93] Compiling AuroraDrive WebSearch.swift
+[86/93] Compiling AuroraDrive AuroraBrand.swift
+[87/93] Compiling AuroraDrive AuroraDriveApp.swift
+[88/93] Compiling AuroraDrive AuroraTheme.swift
+[89/93] Compiling AuroraDrive CategoryPanel.swift
+[90/93] Compiling AuroraDrive ControlWiring.swift

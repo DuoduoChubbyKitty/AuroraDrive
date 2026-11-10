@@ -1,0 +1,116 @@
+# AuroraDrive V3 交付件校验清单  2026-11-10 07:38
+# 共 78 条
+# 核心结论：无污染 7 折泛化 vMacro = 0.6069（fp16；测量权重 md5 6dfd2859a0ff9044ae9df959a9f68bd2）
+# 同后端对比：基线（生产件 INT4）0.7452 vs 候选 INT4 0.7240
+# 关键值：INT4 包编译后 weights md5 = 5c015019022e1b664a1119791822ea39
+# 预训练基线 epoch_15.pt md5 = b70abb5b5fbc9cb34f099f71ac0efa8d（val_clips=110525）
+# 云端 A100 长训 v3-a100-keepzero-freeze-v2 = finished（10 轮权重在云盘，不构成干净折证据）
+# 注：有 5 组同 md5 文件属设计如此（README §3.7），勿删
+# 规则：遍历全目录（排除自身/.bak/__pycache__；.mlpackage 内只收 weight.bin）
+
+## 顶层
+7ab918bb0f47c028e91b8e7c0f2e37cf  README.md
+2a8789b7b1bc0e23d8f29563abd6af86  bias_ceiling_2d.py
+567e268aee7c6161a6f4cd44bfd57a10  compare_datascale.py
+dcf18f7ae397f283dc24d36398def803  ft_boost_best_model.pt
+b9556726ff33b1c0e5f26ed9f681dc39  ft_freeze2_ep01_s1.npz
+5037b49e90eddf3a683499acd1963609  ft_freeze2_epoch_01.pt
+c4882cba5f314ce01a6c85c1b8dd93e8  ft_nb2_best_model.pt
+de98fc98b454cc971b35d8e59074a5a5  ft_scratch_best_model.pt
+6dfd2859a0ff9044ae9df959a9f68bd2  ft_scratch_long_best_ep6.pt
+9996af6d56f9eb65da490c3a59a2b2c2  ft_scratch_long_train.log
+27046785d627ce214c37c4da9b120ffc  ft_scratch_train.log
+df9bd16f98d2ac20388f6f8eaad7086a  gate1_clean_folds.py
+ba553b90b48d7cfa27a7aa84299711d6  loo_folds_eval.py
+06878ca27cb8da88e70e757dd58a212b  oracle_ceiling.py
+df4331b2f2c037e69b4e01cbc3697fc5  subclass_analysis.py
+58b0c13cb00532ce8d0aa25feb70bbc4  开发台账_早期快照_20261109.md
+
+## 验证脚本
+44aa51ad4355c377798eab4afb425c71  验证脚本/accept.py
+6e7436c659463ae1a743522cd0008b10  验证脚本/collect_pt_logits.py
+c458cc2769a0bc264840469c7202d222  验证脚本/evaluate_all.sh
+1fac7e2a73cbce1eabecf129c9207ee0  验证脚本/full_gate.py
+0d60d28b17649e6319cea9592e54df7c  验证脚本/gate2_ceiling.py
+241ba038c4a7d3a74a7d697b07b2741b  验证脚本/install_candidate.sh
+b2987a1e421a8d05c3c8bb35507dff69  验证脚本/int4_fp16_consistency.py
+7b144d3992734a973c97bc6be5e97807  验证脚本/sweep_any.py
+53f54d2c734330e8e674c8a0548efaa0  验证脚本/t6_int4_probe.py
+7a20f52aae1956043ebb15d0a5a97aff  验证脚本/t6_sigmoid_check.py
+
+## 自证输出
+c734c68ceb1222927b841f8b0b486d61  自证输出/README四条命令_逐字实跑.txt
+307321d4b1f0afb0eaaec502bb4986b4  自证输出/T6_离线筛查.txt
+f5bdfca8059338c84c5ab006a5bac546  自证输出/候选INT4_110525全片采集.txt
+fd3fe8d904b802d92df4701bc23abd1a  自证输出/基线溯源_生产模型全片采集.txt
+9932ff233aae25a272d1d8fa78fb9650  自证输出/开发台账_LEDGER.md
+6be93bb03fd5a307e49d60cba034bf61  自证输出/权重溯源_7折缓存采集日志_131750.txt
+f922d77770c13941771fc2d89f773cf2  自证输出/权重溯源_ft_scratch_long_ep6_元数据.json
+463e46ba819542424f148452eb07c9e0  自证输出/门槛1_seg_d.txt
+44c7d6140c82a9e132e5245cb491f07e  自证输出/门槛1_干净7折_2轮版ep2对照.txt
+091247500101970327f64017efa4d6c5  自证输出/门槛1_干净7折凭空刹车_全帧口径.txt
+15aefe29b5f8df5e28c70cb8a03abcef  自证输出/门槛1_真机QC_freeze2_segd.log
+e7b213670b460db3c2c5164155802d24  自证输出/门槛1_真机QC_segd_baseline.log
+10d38309702a0402bd3adc64d448efbb  自证输出/门槛2_oracle上界_ep6_7折.txt
+1c83a2018a31380ea00dff97612ea94c  自证输出/门槛2_偏置上界_ep6_7折.txt
+690ccbdf4d9ed5a050e1c9bb2d020528  自证输出/门槛2_子类分解_ep6_7折.txt
+e5fc1d56d0b0f4c31676782caa8a9654  自证输出/门槛2_污染五折子类分解_ft_freeze2.txt
+720bc564a55c21f47a3cef950bfde84e  自证输出/门槛3_一致率.txt
+affc476052536d179c8eb9ed2b5309f7  自证输出/门槛4_integration_当前源码.txt
+d3a2f8e17b7729d915c6fb2c144b0510  自证输出/门槛4_selftest_当前源码.txt
+1200fc903fa014388703511376e4c673  自证输出/门槛4_编译_当前源码.txt
+
+## 最终7折缓存_ep6
+4ce7e67f22a23ca0e25ed19e77f829c6  最终7折缓存_ep6/ft_best7_clip_20261104_131750.npz
+b36fd370fa38f2b97486f09cbe455c6c  最终7折缓存_ep6/ft_best7_clip_20261104_211247.npz
+93a2ca6afbe1ce2526b57838d381b792  最终7折缓存_ep6/ft_best7_clip_20261104_212247.npz
+2e45d30ac2181ac4c7b9afca56514da8  最终7折缓存_ep6/ft_best7_clip_20261105_212945.npz
+915708a01506be49547850db55fff80d  最终7折缓存_ep6/ft_best7_clip_20261105_213945.npz
+19b638b014349a18c04ad138b9cff041  最终7折缓存_ep6/ft_best7_clip_20261107_113645.npz
+01600aad86b6e6db2e2832c2d0841cd2  最终7折缓存_ep6/ft_best7_clip_20261107_115514.npz
+
+## 包内元数据
+ba3a73791f285fbd98d44ff60281c683  包内元数据/allzero_masks.npz
+
+## 选模集缓存_110525
+f6cfa06f14c6d00b1dbed3fe8ef9a40d  选模集缓存_110525/ft_best7_clip_20261107_110525.npz
+
+## 基线缓存_110525
+2e1490ed6b682ccdfff777dc9b0b1cf5  基线缓存_110525/deployed_s1.npz
+
+## 候选INT4缓存_110525
+2240142d236bf8bf8bfe0f36ec7ba1e1  候选INT4缓存_110525/ft_freeze2_int4_s1.npz
+
+## 预训练基线
+b70abb5b5fbc9cb34f099f71ac0efa8d  预训练基线/epoch_15.pt
+b92760ef7b2bc5552658208c511dd2a9  预训练基线/epoch_15_元数据.json
+
+## 无污染泛化_7折缓存
+fe908a66cf43088ed3bfedaa18e287ac  无污染泛化_7折缓存/ft_scratch_ep02_clip_20261104_131750.npz
+527dae6f2f62fb50a27fe389c9d706cd  无污染泛化_7折缓存/ft_scratch_ep02_clip_20261104_211247.npz
+bbc61fdb4cb54bc324538b22b0fedaa1  无污染泛化_7折缓存/ft_scratch_ep02_clip_20261104_212247.npz
+0b7a6049fc72c6987d16105d9c6481fc  无污染泛化_7折缓存/ft_scratch_ep02_clip_20261105_212945.npz
+4e10d8711f5d86db6d98808c89a3f10b  无污染泛化_7折缓存/ft_scratch_ep02_clip_20261105_213945.npz
+da8fd544bbace76c731c10418a6ad1e9  无污染泛化_7折缓存/ft_scratch_ep02_clip_20261107_113645.npz
+b86ba1291f7993e50f2205f35eb3035b  无污染泛化_7折缓存/ft_scratch_ep02_clip_20261107_115514.npz
+
+## 无污染泛化_4折缓存
+b1eeb6ad504dc83ee1a2919e474046a0  无污染泛化_4折缓存/README.txt
+fe908a66cf43088ed3bfedaa18e287ac  无污染泛化_4折缓存/ft_scratch_ep02_clip_20261104_131750.npz
+527dae6f2f62fb50a27fe389c9d706cd  无污染泛化_4折缓存/ft_scratch_ep02_clip_20261104_211247.npz
+bbc61fdb4cb54bc324538b22b0fedaa1  无污染泛化_4折缓存/ft_scratch_ep02_clip_20261104_212247.npz
+0b7a6049fc72c6987d16105d9c6481fc  无污染泛化_4折缓存/ft_scratch_ep02_clip_20261105_212945.npz
+
+## 五折logits缓存
+b093c98ac0f198e2cc4eb8fc2347f05e  五折logits缓存/ft_freeze2_ep01_clip_20261104_131750.npz
+b862c2e2cf7c0e1b908ac7cc81af378d  五折logits缓存/ft_freeze2_ep01_clip_20261104_211247.npz
+82c4467a267afb72d62778ce0d322140  五折logits缓存/ft_freeze2_ep01_clip_20261104_212247.npz
+dd4f17f426d5628b3acf7ae962265c20  五折logits缓存/ft_freeze2_ep01_clip_20261105_212945.npz
+b9556726ff33b1c0e5f26ed9f681dc39  五折logits缓存/ft_freeze2_ep01_s1.npz
+
+## ft_freeze2_ep01_fp16.mlpackage
+909431d8c0de5fc92c20cc51410f935e  ft_freeze2_ep01_fp16.mlpackage/Data/com.apple.CoreML/weights/weight.bin
+
+## ft_freeze2_ep01_int4.mlpackage
+5c015019022e1b664a1119791822ea39  ft_freeze2_ep01_int4.mlpackage/Data/com.apple.CoreML/weights/weight.bin
+
