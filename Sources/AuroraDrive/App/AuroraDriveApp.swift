@@ -8960,10 +8960,10 @@ final class DriveState {
             var segmentUsed = false
             if let pose = readPose(),
                let segDecision = segmentDecisionForRule(pose: pose) {
-                if let lim = segDecision.speedLimitKmh {
-                    // 限速建议与转向独立；速度未知/超出建议时松油门，绝不新增 S。
-                    currentCommand.throttle = speedValid && effectiveSpeed < lim
-                        ? min(currentCommand.throttle, 0.35) : 0
+                if segDecision.speedLimitKmh != nil {
+                    // 分段建议只保留既有油门上限，不因 OCR 丢读额外清零。
+                    // 实际设定限速仍由 SpeedLimitGuard 执行；这里不新增刹车或给油。
+                    currentCommand.throttle = min(currentCommand.throttle, 0.35)
                 }
                 if segDecision.overridesVision, let ms = segDecision.mapSteer {
                     // 地图段/回正段：地图指引**覆盖**视觉转向（避障稍后仍会覆盖它）

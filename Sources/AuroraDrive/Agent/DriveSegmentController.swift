@@ -222,6 +222,8 @@ final class DriveSegmentController {
         // 到达判定：距离 < 提前量的一半 且 车头大致指向目标（说明拐过来了）
         let arrived = dist < 12.0 && mag < 30.0
         if arrived {
+            // 弯道命中只服务地图转向段；回正仍保留 targetCorner 的出口朝向。
+            targetCornerHit = nil
             // 进回正段
             segment = .straighten
             segmentSince = Date()
