@@ -5816,7 +5816,7 @@ struct DecisionRail: View {
                     .font(.caption2).foregroundStyle(Aurora.t4)
                     .fixedSize(horizontal: false, vertical: true)
                 if state.e2ePerceptionPaused {
-                    Text("主驾仅 V3 + 速度OCR；检测框、车道/可行驶区、指针识别暂停")
+                    Text("主驾仅 V3 + 速度OCR；检测框、车道/可行驶区、指针识别暂停；自动路况暂停，保留设定限速")
                         .font(.caption2).foregroundStyle(Aurora.amber)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -6342,7 +6342,7 @@ struct ContentView: View {
                 TopBar(state: state)
 
                 VStack(spacing: 0) {
-                    RCBar(condition: $state.roadCondition,
+                    RCBar(condition: Binding(get: { state.roadCondition }, set: { state.applyRoadCondition($0) }),
                           autoSpeedOn: state.autoSpeedEnabled,
                           detectedBoxCount: state.detectedBoxCount)
                         .padding(.horizontal, 13)

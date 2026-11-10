@@ -415,6 +415,7 @@ final class YolopxEngine {
     private(set) var lastLatencyMs: Double = 0
 
     /// 累计推理帧数
+    @ObservationIgnored private(set) var lastResultTime: Date?
     private(set) var inferenceCount = 0
 
     /// 可行驶区前景占比（本帧，valid 区域内）
@@ -1088,6 +1089,7 @@ final class YolopxEngine {
         lastLatencyMs = latency
         drivableRatio = daSm > 0 ? daSm : daRatio
         laneRatio = llSm > 0 ? llSm : llRatio
+        lastResultTime = Date()
         inferenceCount += 1
         // A20（2026-10-04）：真实推理耗时汇进 PerfBus（对照 submit.yolopx
         // 只测 DispatchQueue.async 的提交开销 p50 ≈ 0.026ms）。
@@ -1113,6 +1115,7 @@ final class YolopxEngine {
 
     /// 停止驾驶时清空
     func reset() {
+        lastResultTime = nil
         generation += 1
         detections = []
         drivableMask = .empty

@@ -591,6 +591,18 @@ func runV3EngineSelfTest() -> Int {
         ledger.check("低健康度仍触发降级", step(true, true, 0.4) == .yolo)
     }
 
+    ledger.section("[T14] 空感知不能当空路")
+    ledger.check("暂停感知时即使缓存新鲜也不可用",
+        !DriveState.perceptionReady(paused: true, resultAge: 0.1, imageAge: 0.1))
+    ledger.check("副驾冷启动无检测结果时不可用",
+        !DriveState.perceptionReady(paused: false, resultAge: nil, imageAge: 0.1))
+    ledger.check("新鲜的零检测结果可用（不以框数量判失联）",
+        DriveState.perceptionReady(paused: false, resultAge: 0.1, imageAge: 0.1))
+    ledger.check("旧检测不可用于规则驾驶",
+        !DriveState.perceptionReady(paused: false, resultAge: 1.1, imageAge: 0.1))
+    ledger.check("新结果但旧画面不可用于规则驾驶",
+        !DriveState.perceptionReady(paused: false, resultAge: 0.1, imageAge: 1.1))
+
     // ── T4/T5/T6：真实模型与真实训练帧 ──
     ledger.section("[T4] 模型加载 + 真实训练帧端到端")
     let engine = InferenceEngineV3()
@@ -1501,6 +1513,21 @@ private func runV3ControlPathChecks(state: DriveState, realFrames: [CGImage]) ->
           "推理次数 \(countBeforeStale) → \(countAfterStale)")
     check("P0-2：决策过期后六个键全部释放（含 Space/Shift）", heldAfterStale.isEmpty,
           "超龄前[\(V3SixKey.describe(heldBeforeStale))] → 超龄后[\(V3SixKey.describe(heldAfterStale))]")
+
+    let savedRoad = state.roadCondition
+    let savedLimit = state.speedLimit
+    state.roadCondition = .busy
+    state.speedLimit = 60
+    state.forceRuleMode = true
+    for _ in 0..<12 { v3DriveOneTick(state, frame: nil) }
+    check("空感知不能将复杂路况和60限速改为简单/不限速",
+          state.roadCondition == .busy && state.speedLimit == 60)
+    state.roadCondition = savedRoad
+    state.speedLimit = savedLimit
+    check("空感知规则兜底：旧画面下不注入 W/S/A/D/Shift/Space",
+          state.mode == .rule && state.currentCommand == .idle && state.controlEngine.heldKeys.isEmpty,
+          "mode=\(state.mode.rawValue) command=\(state.currentCommand)")
+    state.forceRuleMode = false
 
     // 恢复供帧：必须重新开始推理（证明上面的"不推理"是新鲜度闸门，不是引擎卡死）
     //

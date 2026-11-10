@@ -5544,12 +5544,32 @@ final class DriveState {
     var e2ePerceptionPaused: Bool {
         isDriving && mode == .e2e && AuroraFlags.e2eMinimalInference
     }
+    // 未推理/过期不等于“识别到零障碍”。规则驾驶和自动路况必须使用新鲜感知。
+    var rulePerceptionReady: Bool {
+        let stamp: Date?
+        if preferYolopxDetections, yolopxEngine.isLoaded, !yolopxEngine.detections.isEmpty {
+            stamp = yolopxEngine.lastResultTime
+        } else if yoloEngine.isLoaded, !yoloEngine.detections.isEmpty {
+            stamp = yoloEngine.lastResultTime
+        } else {
+            stamp = [yolopxEngine.lastResultTime, yoloEngine.lastResultTime].compactMap { $0 }.max()
+        }
+        return Self.perceptionReady(paused: e2ePerceptionPaused,
+            resultAge: stamp.map { Date().timeIntervalSince($0) },
+            imageAge: currentFrameCGAt.map { Date().timeIntervalSince($0) })
+    }
+
+    static func perceptionReady(paused: Bool, resultAge: TimeInterval?, imageAge: TimeInterval?) -> Bool {
+        guard !paused, let resultAge, let imageAge else { return false }
+        return resultAge >= 0 && resultAge < 1 && imageAge >= 0 && imageAge < 1
+    }
     @ObservationIgnored private var perceptionWasPaused = false
     @ObservationIgnored private var brakeAuditFrames = 0
     @ObservationIgnored private var brakeAuditSpeedValid = 0
     @ObservationIgnored private var brakeAuditModelS = 0
     @ObservationIgnored private var brakeAuditUltimate = 0
     @ObservationIgnored private var brakeAuditGuardAddedS = 0
+    @ObservationIgnored private var brakeAuditGuardApplied = 0
     @ObservationIgnored private var brakeAuditRuleCoast = 0
     @ObservationIgnored private var brakeAuditUnknownAvoidedS = 0
     @ObservationIgnored private var brakeAuditSpace = 0
@@ -6195,13 +6215,7 @@ final class DriveState {
     /// 检测网降频周期（帧）：2 = 每 2 帧提交 1 次（30Hz tick → 15Hz 真值）。
     /// 值 ≥1；1 = 不降频（与改动前逐字一致）。环境变量覆盖，进程内只读一次。
     @ObservationIgnored
-    private static let detectDecimate: UInt64 = {
-        if let raw = ProcessInfo.processInfo.environment["AURORA_DETECT_DECIMATE"],
-           let v = UInt64(raw), v >= 1 {
-            return v
-        }
-        return 2   // P1 默认：检测网 2 帧 1 次（15Hz）
-    }()
+    private static let detectDecimate = AuroraFlags.detectDecimate
 
     /// yolo26s 强制加载开关（2026-10-19 用户拍板，goal-3279b59b 需求8 的回退开关）。
     ///
@@ -6222,9 +6236,7 @@ final class DriveState {
     /// 【引擎进程侧】engine-gate 队友在 EngineMain.swift 用同名环境变量实现同语义，
     ///   因为引擎是独立进程、读不到这里的静态属性。两处必须语义一致。
     @ObservationIgnored
-    private static let forceYolo26s: Bool = {
-        ProcessInfo.processInfo.environment["AURORA_FORCE_YOLO26S"] == "1"
-    }()
+    private static let forceYolo26s = AuroraFlags.forceYolo26s
 
     /// 主循环帧计数（检测网降频相位源；tick 每入一次推进一次，进位自然回绕）。
     @ObservationIgnored
@@ -7170,6 +7182,19 @@ final class DriveState {
         inferenceEngineV2.reset()   // V2 也要重置（清时序环形缓冲 + 冷启动门控）
         inferenceEngineV3.reset()   // V3 清 24 帧窗口（换场景后避免上一局帧污染）
         assistEngine.reset()
+        driveSegment.fullReset()
+        laneFallback.reset()
+        motionPredictor.reset()
+        laneBridge.reset()
+        predictorDetections = []
+        extrapolatedLaneMask = .empty
+        perceptionWasPaused = false
+        stuckZeroSince = nil
+        needsManualIntervention = false
+        speedValid = false
+        speedLimitGuard.reset()
+        speedLimitBrakeLatched = false
+        yolopxEngine.reset()
         yoloEngine.reset()
         speedOCR.reset()
         currentCommand = .idle
@@ -7465,7 +7490,10 @@ final class DriveState {
         if confidence != client.engineConfidence { confidence = client.engineConfidence }
         if remoteSpeedKmh != client.engineSpeedKmh { remoteSpeedKmh = client.engineSpeedKmh }
         if effectiveSpeed != client.engineSpeed { effectiveSpeed = client.engineSpeed }
-        let sv = client.engineSpeedKmh >= 0 && client.engineSpeed > 0.5
+        if needsManualIntervention != client.engineNeedsManualIntervention {
+            needsManualIntervention = client.engineNeedsManualIntervention
+        }
+        let sv = client.engineSpeedValid
         if speedValid != sv { speedValid = sv }   // 逐帧无条件赋值也会触发 SwiftUI 刷新 → 只在变化时写
         // 锁定目标追踪：本地模式下由推理流程逐帧推进；引擎模式下必须用引擎回传的检测框推进，
         // 否则锁定框冻在原地不动、目标离开也不会自动解除。
@@ -7635,7 +7663,7 @@ final class DriveState {
     /// 把「只在 tick() 里被读」的驾驶参数推给引擎（引擎模式下 tick 跑在引擎进程）。
     /// 覆盖：极速模式 / 禁用控制 / 紧急切纯规则 / 专家模式 / 字模模式 / 降级阈值 / 速度上限。
     private func pushEngineConfigIfChanged() {
-        let snap = "\(sportMode)|\(controlDisabled)|\(forceRuleMode)|\(expertMode)|\(glyphMode)|\(String(format: "%.3f", degradeThreshold))|\(String(format: "%.1f", speedLimit))"
+        let snap = "\(sportMode)|\(controlDisabled)|\(forceRuleMode)|\(expertMode)|\(glyphMode)|\(String(format: "%.3f", degradeThreshold))|\(String(format: "%.1f", speedLimit))|\(roadCondition.rawValue)|\(autoSpeedEnabled)|\(unlimitedSource.rawValue)"
         guard snap != lastPushedEngineConfig else { return }
         // ★★★ 2026-10-02 核心修复：**只有真的发出去才记账**。
         //
@@ -7659,6 +7687,9 @@ final class DriveState {
             "degradeThreshold": degradeThreshold,
             // 速度上限直接进 vehicle_state[4]，不是显示项
             "speedLimit": speedLimit,
+            "roadCondition": roadCondition.rawValue,
+            "autoSpeedEnabled": autoSpeedEnabled,
+            "unlimitedSource": unlimitedSource.rawValue,
         ])
         if ok {
             lastPushedEngineConfig = snap
@@ -8340,7 +8371,8 @@ final class DriveState {
             // 冷启动副驾尚无结果时安全链可继续落 rule；新鲜结果回来再按原滞回恢复。
             let assistKeepalive = AuroraFlags.assistKeepaliveConfigured ? AuroraFlags.assistKeepalive : !AuroraFlags.e2eMinimalInference
             let assistInE2E = AuroraFlags.assistKeepaliveConfigured || !AuroraFlags.e2eMinimalInference
-            if mode != .e2e || (assistInE2E && (!assistKeepalive || adaptiveFrameCounter % 5 == 0)) {
+            let assistImageFresh = currentFrameCGAt.map { Date().timeIntervalSince($0) < 1.0 } ?? false
+            if assistImageFresh && (mode != .e2e || (assistInE2E && (!assistKeepalive || adaptiveFrameCounter % 5 == 0))) {
                 assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
             }
 
@@ -8360,6 +8392,7 @@ final class DriveState {
             //   YOLO 接管档/规则档的检测网与直通帧的后备；都砍会静默降品（掩码/框
             //   任一来源断供）。错开成偶数/奇数帧后每网各自 15Hz，既不重复提交也不
             //   破坏任何一档语义。这是**减冗余**（去同帧重复）而非**删功能**。
+            // 上述调度仅用于感知启用时；精简 e2e 的暂停门优先，降级后恢复。
             // 【注意】ll（车道线）+ da（可行驶区）只有 yolopx 偶数帧才刷新 → 15Hz，
             //   这正是 E2/E5 "车道线外推"要解决的场景。
             //   （两个 `detectGateA/B` 相位门已在 tick 开头统一计算，此处直接复用。）
@@ -8702,7 +8735,7 @@ final class DriveState {
         //    用户的"不限速"依旧不可侵犯：限速不会被改，只是路况照常观测、
         //    接管告警照常亮。§4.4 的"不限速=取消速度表"语义完全保留。
         if DriveState.shouldObserveRoadCondition(autoSpeedEnabled: autoSpeedEnabled,
-                                                 isDriving: isDriving) {
+                                                 isDriving: isDriving), rulePerceptionReady {
             // 判定源必须与 UI 显示、规则档决策**同源**：引擎模式下用引擎回传的检测结果，
             // 本地模式用本地 YoloEngine。若这里读 yoloEngine.detections 而 UI 读
             // effectiveDetections，两者在引擎模式下会不一致 ——
@@ -8867,7 +8900,11 @@ final class DriveState {
 
         case .rule:
             // 档3 纯规则兜底：YOLO 检测 → 手写规则开车（最后防线）
-            let ruleCmd = ruleController.decide(detections: detections)
+            // 副驾冷启动或感知失联期间只松键，不把空缓存当空路给 0.8 油门。
+            let ruleCmd: ControlCommand = rulePerceptionReady ? ruleController.decide(detections: detections) : .idle
+            if !rulePerceptionReady && (modeChanged || driveAuditFrames % 60 == 0) {
+                dlog("[DRIVE-BRAKE] source=ruleWaitingForPerception throttle=0 brake=0")
+            }
             if currentCommand != ruleCmd { currentCommand = ruleCmd }
         }
         }   // ← 闭合 P0-2 新增的 v3ReadyForControl else 块
@@ -8908,7 +8945,7 @@ final class DriveState {
         //   默认 `rule,yolo`；`AURORA_LANEKEEP_TIERS=rule` 一键退回改前行为。
         // 精简主驾不使用车道建议；降级档保留既有辅助。
         // 显式旧硬切开关停控时，同步停掉车道/地图改写，避免 idle 仍被加方向。
-        let laneAssistAllowed = !e2ePerceptionPaused && (!AuroraFlags.v3HardCutIdle || forceRuleMode || mayDriveByV3)
+        let laneAssistAllowed = rulePerceptionReady && (!AuroraFlags.v3HardCutIdle || forceRuleMode || mayDriveByV3)
         if laneAssistAllowed && Self.laneKeepTiers.contains(decided) {
             // ── 5.4 驾驶分段（地图段 / 回正段 优先于视觉）──
             // 用户要求：车道线识别不可靠（"就算没有失效也经常出问题"），
@@ -8923,15 +8960,15 @@ final class DriveState {
             var segmentUsed = false
             if let pose = readPose(),
                let segDecision = segmentDecisionForRule(pose: pose) {
+                if let lim = segDecision.speedLimitKmh {
+                    // 限速建议与转向独立；速度未知/超出建议时松油门，绝不新增 S。
+                    currentCommand.throttle = speedValid && effectiveSpeed < lim
+                        ? min(currentCommand.throttle, 0.35) : 0
+                }
                 if segDecision.overridesVision, let ms = segDecision.mapSteer {
                     // 地图段/回正段：地图指引**覆盖**视觉转向（避障稍后仍会覆盖它）
                     let before = currentCommand
                     currentCommand.steer = max(-1.0, min(1.0, ms))
-                    if let lim = segDecision.speedLimitKmh {
-                        let cap = lim / 3.6
-                        currentCommand.throttle = max(0.0, min(currentCommand.throttle,
-                                                               max(0.0, min(0.35, cap * 0.12))))
-                    }
                     segmentUsed = true
                     logSegmentIfNeeded(segDecision, before: before)
                 } else {
@@ -9118,13 +9155,14 @@ final class DriveState {
         if auditV3 && auditDecision.verticalClass == 2 { brakeAuditModelS += 1 }
         if auditV3 && auditDecision.ultimatePressed && auditDecision.verticalClass != 2 { brakeAuditUltimate += 1 }
         if guardAddedS { brakeAuditGuardAddedS += 1 }
+        if rolloverGuardApplied { brakeAuditGuardApplied += 1 }
         if auditV3 && !speedValid && (auditDecision.superBrakePressed || auditDecision.ultimatePressed)
             && m9Command.brake < 1 && !AuroraFlags.rolloverUnknownBrake {
             brakeAuditUnknownAvoidedS += 1
         }
         if decided == .rule && currentCommand.throttle == 0 { brakeAuditRuleCoast += 1 }
         if brakeAuditFrames % 60 == 0 {
-            let source = decided == .rule ? "rule(coast不是S)" : decided == .yolo ? "assist"
+            let source = decided == .rule ? (currentCommand.throttle > 0 ? "rule.drive" : rulePerceptionReady ? "rule.coast" : "rule.waitPerception") : decided == .yolo ? "assist"
                 : !auditV3 ? "noFreshV3" : auditDecision.verticalClass == 2 ? "model.vertical=S"
                 : auditDecision.ultimatePressed ? "ultimate" : guardAddedS ? "rolloverGuard" : "noS"
             dlog("[DRIVE-BRAKE] mode=\(decided.rawValue) verticalClass=\(auditDecision.verticalClass) "
@@ -9135,11 +9173,12 @@ final class DriveState {
                  + "source=\(source) commandBrake=\(currentCommand.brake) plannedBrake=\(auditGuarded.brake) "
                  + "injectionEnabled=\(!controlDisabled && !expertMode && !benchSuppressAllInjection && !EmergencyTakeover.shared.userHoldingKey) "
                  + "last60 speedValid=\(brakeAuditSpeedValid)/60 modelS=\(brakeAuditModelS) "
-                 + "ultimateOnly=\(brakeAuditUltimate) guardAddedS=\(brakeAuditGuardAddedS) ruleCoast=\(brakeAuditRuleCoast) unknownAvoidedS=\(brakeAuditUnknownAvoidedS) modelSpace=\(brakeAuditSpace)")
+                 + "ultimateOnly=\(brakeAuditUltimate) guardApplied=\(brakeAuditGuardApplied) guardAddedS=\(brakeAuditGuardAddedS) ruleCoast=\(brakeAuditRuleCoast) unknownAvoidedS=\(brakeAuditUnknownAvoidedS) modelSpace=\(brakeAuditSpace)")
             brakeAuditSpeedValid = 0
             brakeAuditModelS = 0
             brakeAuditUltimate = 0
             brakeAuditGuardAddedS = 0
+            brakeAuditGuardApplied = 0
             brakeAuditRuleCoast = 0
             brakeAuditUnknownAvoidedS = 0
             brakeAuditSpace = 0

@@ -57,7 +57,7 @@ extension RoadCondition {
 }
 
 /// 限速指令的来源，用于解决「不限速 vs 自动速度」的优先级冲突。
-enum SpeedLimitSource {
+enum SpeedLimitSource: String {
     /// 用户手动（拖滑块 / 点预设 / 点路况按钮）
     case user
     /// 自动速度按路况判定下发
@@ -108,6 +108,7 @@ extension DriveState {
     func applyRoadCondition(_ rc: RoadCondition) {
         guard rc != roadCondition else { return }
         roadCondition = rc
+        defer { pushConfig(reason: "路况同步") }
 
         // 极复杂 / 等待介入 → 引擎侧强制纯规则（安全优先，不等降级链慢慢降）
         // 离开极复杂 → 解除强制，让降级链自己回升
@@ -157,6 +158,7 @@ extension DriveState {
     /// 开/关自动速度。开启时立刻按当前路况下发一次限速。
     func setAutoSpeed(_ on: Bool) {
         autoSpeedEnabled = on
+        defer { pushConfig(reason: "自动速度同步") }
         // 用户手动设的不限速优先于自动速度，不覆盖
         if let target = Self.autoSpeedTarget(for: roadCondition,
                                              currentLimit: speedLimit,
@@ -272,6 +274,9 @@ extension DriveState {
             "glyph":             glyphMode,
             "degradeThreshold":  degradeThreshold,
             "speedLimit":        speedLimit,
+            "roadCondition":     roadCondition.rawValue,
+            "autoSpeedEnabled":  autoSpeedEnabled,
+            "unlimitedSource":   unlimitedSource.rawValue,
             // 消化模式：**必须下发到引擎** —— 真正注入按键的是引擎进程，
             //   只在 UI 侧改开关等于没改（用户实测事故：AI 驱动引擎测试时
             //   真的注入了按键，刷屏到工作群被禁言）。见 DriveState.digestMode。

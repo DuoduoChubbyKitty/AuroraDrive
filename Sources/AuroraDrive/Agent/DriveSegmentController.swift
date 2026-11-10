@@ -86,6 +86,7 @@ final class DriveSegmentController {
     private(set) var segment: DriveSegment = .vision
 
     /// 当前地图段/回正段所跟踪的弯道点（世界坐标，cm）
+    private var targetCornerHit: CornerHit?
     private var targetCorner: (x: Double, y: Double, headingOut: Double, grade: String)?
     /// 当前路口段跟踪的路口点 + 选定的出口
     private var targetJunction: (x: Double, y: Double, exitHeading: Double, confidence: Double)?
@@ -186,6 +187,7 @@ final class DriveSegmentController {
         }
 
         // 进入地图段
+        targetCornerHit = hit
         targetCorner = (hit.corner.worldX, hit.corner.worldY,
                         hit.corner.headingOut ?? hit.corner.headingIn ?? hdg,
                         hit.corner.grade)
@@ -234,7 +236,7 @@ final class DriveSegmentController {
             let norm = min(1.0, (mag - straightenDoneDeg) / span)
             steer = (diff > 0 ? 1.0 : -1.0) * max(0.12, norm * 0.5)
         }
-        let lim = speedLimitForCorner(nil, spd, radius: nil)
+        let lim = speedLimitForCorner(targetCornerHit, spd)
         lastReason = String(format: "地图段：目标 %.0fm，需向%@ %@%.0f°",
                             dist, diff > 0 ? "右" : "左",
                             mag > 8 ? "" : "（已对齐）", mag)
@@ -403,7 +405,7 @@ final class DriveSegmentController {
         if consumedCorners.count > 64 { consumedCorners.removeFirst() }
     }
 
-    private func speedLimitForCorner(_ hit: CornerHit?, _ spd: Double?, radius: Double? = nil) -> Double? {
+    private func speedLimitForCorner(_ hit: CornerHit?, _ spd: Double?) -> Double? {
         if let h = hit {
             return RoadCornerGuide.shared.speedAdviceForCorner(h, speedKmh: spd)
         }
@@ -415,6 +417,7 @@ final class DriveSegmentController {
         segment = seg
         segmentSince = Date()
         targetCorner = nil
+        targetCornerHit = nil
         targetJunction = nil
         handoverOrigin = nil
         handoverFrames = 0

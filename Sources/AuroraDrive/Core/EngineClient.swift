@@ -112,7 +112,8 @@ final class EngineClient {
     ///     新旧混跑时旧 UI 会把掩码区当像素读 → 花屏，所以必须升版本，
     ///     让版本守卫强制重启引擎（`isEngineStale` 的 stale 判据，见 `:265`；
     ///     原写 `EngineClient:227` 是旧行号，2026-10-18 修正）。
-    nonisolated static let protocolVersion = 3
+    // 4 = 路况配置、真实零速有效性与卡死横幅同步；旧引擎须重启。
+    nonisolated static let protocolVersion = 4
 
     // ── UI 读取的状态 ──
     private(set) var isActive = false          // 引擎模式已激活（连接成功）
@@ -179,6 +180,8 @@ final class EngineClient {
     private(set) var engineSpeed: Double = 0
     /// 车速表 OCR 读数（km/h；-1 = 未读到）
     private(set) var engineSpeedKmh: Double = -1
+    private(set) var engineSpeedValid = false
+    private(set) var engineNeedsManualIntervention = false
     /// 驾驶置信度（0~1）
     private(set) var engineConfidence: Double = 0
     /// 引擎录制状态（引擎是权威源：帧在引擎进程里，UI 只负责显示与转发开关）
@@ -500,6 +503,8 @@ final class EngineClient {
         if let s = obj["modeRaw"] as? String, let m = DriveMode(rawValue: s) { engineMode = m }
         if let v = obj["speed"] as? Double { engineSpeed = v }
         if let v = obj["speedKmh"] as? Double { engineSpeedKmh = v }
+        engineSpeedValid = obj["speedValid"] as? Bool ?? false
+        engineNeedsManualIntervention = obj["needsManualIntervention"] as? Bool ?? false
         if let v = obj["confidence"] as? Double { engineConfidence = v }
         if let v = obj["driveDiagnostic"] as? String { engineDriveDiagnostic = v }
         // 录制状态回传（引擎模式下真正的写盘在引擎进程，UI 只负责显示）

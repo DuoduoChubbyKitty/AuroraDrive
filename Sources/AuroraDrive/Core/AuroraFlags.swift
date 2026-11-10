@@ -297,6 +297,11 @@ enum AuroraFlags {
     /// 主驾保活默认不跑；显式 =1 恢复每5帧，=0 恢复旧的每帧行为。
     /// 未设置时由精简开关决定，降级档始终每帧跑以支持恢复。
     static let assistKeepalive = boolNotZero("AURORA_ASSIST_KEEPALIVE", default: false)
+    static let detectDecimate: UInt64 = {
+        guard let raw = str("AURORA_DETECT_DECIMATE"), let value = UInt64(raw), value >= 1 else { return 2 }
+        return value
+    }()
+    static let forceYolo26s = str("AURORA_FORCE_YOLO26S") == "1"
     static let assistKeepaliveConfigured = ProcessInfo.processInfo.environment["AURORA_ASSIST_KEEPALIVE"] != nil
     /// =1 恢复未知速度按高速强制 S；不改变模型自身的 S / ultimate。
     static let rolloverUnknownBrake = bool("AURORA_ROLLOVER_UNKNOWN_BRAKE", default: legacyDriveBehavior)
@@ -477,6 +482,8 @@ enum AuroraFlags {
         .init(key: "AURORA_LANEKEEP_TIERS", defaultValue: "rule,yolo", summary: "车道保持生效档位（rule / rule,yolo / e2e,…）", isDiagnostic: false, readBy: "App/AuroraDriveApp.swift"),
         .init(key: "AURORA_RELEASE_ALL_EVERY_TICK", defaultValue: "0", summary: "恢复每帧无条件 releaseAll 的旧行为", isDiagnostic: true, readBy: "App/AuroraDriveApp.swift"),
         .init(key: "AURORA_ASSIST_KEEPALIVE", defaultValue: "未设", summary: "精简主驾默认不跑；显式1=每5帧，0=每帧；降级档每帧", isDiagnostic: true, readBy: "App/AuroraDriveApp.swift"),
+        .init(key: "AURORA_DETECT_DECIMATE", defaultValue: "2", summary: "检测网提交周期；1恢复每帧提交，主驾精简门优先", isDiagnostic: true, readBy: "Core/AuroraFlags.swift"),
+        .init(key: "AURORA_FORCE_YOLO26S", defaultValue: "0", summary: "1强制加载26S；主驾精简门仍优先", isDiagnostic: true, readBy: "Core/AuroraFlags.swift"),
         .init(key: "AURORA_LEGACY_DRIVE_BEHAVIOR", defaultValue: "0", summary: "恢复旧主驾推理调度、未知速度强制S、降级硬切idle", isDiagnostic: true, readBy: "Core/AuroraFlags.swift"),
         .init(key: "AURORA_E2E_MINIMAL_INFERENCE", defaultValue: "1", summary: "主驾只推V3+速度OCR；0恢复辅助模型（默认随legacy开关）", isDiagnostic: true, readBy: "App/AuroraDriveApp.swift"),
         .init(key: "AURORA_ROLLOVER_UNKNOWN_BRAKE", defaultValue: "0", summary: "1恢复未知速度强制S（默认随legacy开关）", isDiagnostic: true, readBy: "Inference/InferenceEngineV3.swift"),

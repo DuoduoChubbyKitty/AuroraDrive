@@ -101,6 +101,7 @@ final class YoloEngine {
     private(set) var lastLatencyMs: Double = 0
 
     /// 累计推理帧数
+    @ObservationIgnored private(set) var lastResultTime: Date?
     private(set) var inferenceCount: Int = 0
 
     private(set) var errorMessage: String?
@@ -425,6 +426,7 @@ final class YoloEngine {
             lastFrame = smoothed
             detections = smoothed
             lastLatencyMs = latency
+            lastResultTime = Date()
             inferenceCount += 1
             // A20（2026-10-04）：真实推理耗时汇进 PerfBus（对照 submit.yolo26s
             // 只测 DispatchQueue.async 的提交开销 p50 ≈ 0.012ms）。
@@ -477,6 +479,7 @@ final class YoloEngine {
 
     /// 停止驾驶时清空
     func reset() {
+        lastResultTime = nil
         generation += 1      // 在途检测结果过期
         detections = []
         isInferencing = false
@@ -515,6 +518,7 @@ final class YoloEngine {
     ///
     /// 【幂等】未加载时调用是安全的（model 置 nil 无副作用），切档重复调用不崩。
     func unload() {
+        lastResultTime = nil
         generation += 1
         model = nil
         isLoaded = false

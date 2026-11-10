@@ -931,9 +931,7 @@ enum EngineMain {
     }
 
     /// yolo26s 强制加载开关（引擎侧；与 UI 侧 `DriveState.forceYolo26s` 同语义）
-    private static let forceYolo26s: Bool = {
-        ProcessInfo.processInfo.environment["AURORA_FORCE_YOLO26S"] == "1"
-    }()
+    private static let forceYolo26s = AuroraFlags.forceYolo26s
 
     /// 按档位装卸 yolo26s（引擎侧唯一入口，由 `applyPerceptionMode` 调用）。
     ///
@@ -2071,6 +2069,9 @@ enum EngineMain {
             let cGlyph = obj["glyph"] as? Bool
             let cThresh = obj["degradeThreshold"] as? Double
             let cSpeedLimit = obj["speedLimit"] as? Double
+            let cRoadCondition = (obj["roadCondition"] as? String).flatMap(RoadCondition.init(rawValue:))
+            let cAutoSpeed = obj["autoSpeedEnabled"] as? Bool
+            let cLimitSource = (obj["unlimitedSource"] as? String).flatMap(SpeedLimitSource.init(rawValue:))
             // V3 原生按键位掩码（UI 进程采样物理键盘后转发）。引擎进程无 run loop
             // （dispatchMain）→ 本进程 KeyboardMonitor 收不到 NSEvent，只能用这个。
             let cKeyMask = obj["keyMask"] as? Int
@@ -2129,6 +2130,10 @@ enum EngineMain {
                     // vehicle_state[4] = speed_limit_norm 直接参与推理，不同步会
                     // 让 UI 显示 40 而模型仍按 120 决策。
                     if let v = cSpeedLimit { st.speedLimit = v }
+                    // UI 已应用路况副作用；原样同步，避免重算覆盖用户限速。
+                    if let v = cRoadCondition { st.roadCondition = v }
+                    if let v = cAutoSpeed { st.autoSpeedEnabled = v }
+                    if let v = cLimitSource { st.unlimitedSource = v }
                     // ── ET-5：转发「用户接管让位」信号给状态机（2026-10-12）──
                     // 在 applied 回显**之前**处理，这样反降级信号也算"已应用的键"。
                     // noteUserKeyDown/Up 内部有状态守卫（非冲刺态按键无意义、
@@ -2153,6 +2158,9 @@ enum EngineMain {
                     if let v = cGlyph { applied["glyph"] = v }
                     if let v = cThresh { applied["degradeThreshold"] = v }
                     if let v = cSpeedLimit { applied["speedLimit"] = v }
+                    if let v = cRoadCondition { applied["roadCondition"] = v.rawValue }
+                    if let v = cAutoSpeed { applied["autoSpeedEnabled"] = v }
+                    if let v = cLimitSource { applied["unlimitedSource"] = v.rawValue }
                     // Lead 新增的消化模式（digest）也一并回显，保持 applied 是"真实写入全量"
                     if let v = cDigest { applied["digest"] = v }
                     // ET-5：takeover 也纳入回显（UI 可据此确认引擎真的收到了让位信号）
@@ -2311,6 +2319,8 @@ enum EngineMain {
         // JSONSerialization 转义诊断文本，避免原因含引号时破坏心跳。
         if var payload = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] {
             payload["driveDiagnostic"] = st.driveDiagnostic
+            payload["speedValid"] = st.speedValid
+            payload["needsManualIntervention"] = st.needsManualIntervention
             if let data = try? JSONSerialization.data(withJSONObject: payload),
                let enriched = String(data: data, encoding: .utf8) {
                 EngineGlobals.socket?.send(enriched)
