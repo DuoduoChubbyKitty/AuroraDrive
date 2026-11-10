@@ -5812,6 +5812,14 @@ struct DecisionRail: View {
             }
             section("决策电路", "逐帧") {
                 mini("主驾档位", state.mode.rawValue, Aurora.ice)
+                Text(state.driveDiagnostic)
+                    .font(.caption2).foregroundStyle(Aurora.t4)
+                    .fixedSize(horizontal: false, vertical: true)
+                if state.e2ePerceptionPaused {
+                    Text("主驾仅 V3 + 速度OCR；检测框、车道/可行驶区、指针识别暂停")
+                        .font(.caption2).foregroundStyle(Aurora.amber)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 mini("置信度", state.confidence > 0 ? String(format: "%.2f", state.confidence) : "—",
                      state.confidence > 0 ? Aurora.ok : Aurora.t4)
                 mini("降级阈值", String(format: "%.2f", state.degradeThreshold), Aurora.amber)

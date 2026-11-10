@@ -173,6 +173,7 @@ final class EngineClient {
 
     // ── 引擎回传的驾驶状态（引擎模式下 UI 不跑推理，面板显示靠这些）──
     /// 降级档位（引擎是权威源）
+    private(set) var engineDriveDiagnostic = "等待引擎驾驶诊断"
     private(set) var engineMode: DriveMode = .e2e
     /// 有效车速（km/h）
     private(set) var engineSpeed: Double = 0
@@ -500,6 +501,7 @@ final class EngineClient {
         if let v = obj["speed"] as? Double { engineSpeed = v }
         if let v = obj["speedKmh"] as? Double { engineSpeedKmh = v }
         if let v = obj["confidence"] as? Double { engineConfidence = v }
+        if let v = obj["driveDiagnostic"] as? String { engineDriveDiagnostic = v }
         // 录制状态回传（引擎模式下真正的写盘在引擎进程，UI 只负责显示）
         if let v = obj["recording"] as? Bool { engineRecording = v }
         if let v = obj["frames"] as? Int { engineRecordFrames = v }

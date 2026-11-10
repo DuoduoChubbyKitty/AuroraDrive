@@ -1513,9 +1513,9 @@ enum EngineMain {
         //   6. UI 侧无任何"帧不动即报警"的看门狗（已全仓核实），连接活性由
         //      socket 心跳独立维护（`EngineClient.lastHeartbeat`），不依赖 `seq`。
         let curCaptureCount = st.captureEngine.capturedFrameCount
-        let curDetections = st.yoloEngine.detections.isEmpty
+        let curDetections = st.e2ePerceptionPaused ? [] : (st.yoloEngine.detections.isEmpty
             ? st.yolopxEngine.detections
-            : st.yoloEngine.detections
+            : st.yoloEngine.detections)
         let pixelsUnchanged = curCaptureCount == EngineGlobals.lastPublishedCaptureCount
         let stateUnchanged = st.isDriving == EngineGlobals.lastPublishedDriving
             && st.isStreaming == EngineGlobals.lastPublishedStreaming
@@ -1555,9 +1555,7 @@ enum EngineMain {
             //
             // 【legacy 档行为是否变了】没变。legacy 档下 26S 每两帧出框，`yoloEngine.detections`
             //   非空 → 取的就是它；只有 26S 恰好空的那一帧才顶一下，与改前"偶有真空帧"同性质。
-            detections: st.yoloEngine.detections.isEmpty
-                ? st.yolopxEngine.detections
-                : st.yoloEngine.detections,
+            detections: curDetections,
             fps: st.captureEngine.captureFPS > 0 ? st.captureEngine.captureFPS : st.fps,
             isDriving: st.isDriving,
             isStreaming: st.isStreaming,
@@ -1594,8 +1592,8 @@ enum EngineMain {
         //     下一帧形状/格数必变 → 立即补上。这与注释声明的设计意图一致，
         //     不是新增风险。
         if st.isDriving {
-            let da = st.yolopxEngine.drivableMask
-            let ll = st.yolopxEngine.laneMask
+            let da = st.e2ePerceptionPaused ? MaskGrid.empty : st.yolopxEngine.drivableMask
+            let ll = st.e2ePerceptionPaused ? MaskGrid.empty : st.yolopxEngine.laneMask
             // 指纹里带上 letterbox 几何：UI 侧读掩码与 metrics 是**同一批次**的
             // （`EngineClient.swift:751` 只有 maskSeq 变化才解析几何）。若只哈希
             // 格数、不哈希几何，窗口尺寸变化而掩码格数恰好不变时，UI 会一直用
@@ -1620,6 +1618,7 @@ enum EngineMain {
             fp = fp &+ mtx.srcH &* 13
             // ratio 是 Double（0.1 量级），量化到千分位避免浮点抖动误触发
             fp = fp &+ Int((mtx.ratio * 1000).rounded()) &* 23
+            fp = fp &+ (st.e2ePerceptionPaused ? 1 << 19 : 0)
             fp = fp &+ (st.yolopxEngine.isDegraded ? 1 << 16 : 0)
             fp = fp &+ (st.yolopxEngine.laneDegraded ? 1 << 17 : 0)
             fp = fp &+ (st.yolopxEngine.drivableDegraded ? 1 << 18 : 0)
@@ -1629,9 +1628,9 @@ enum EngineMain {
                 EngineGlobals.shm?.publishMasks(
                     drivable: da, lane: ll,
                     metrics: mtx,
-                    isDegraded: st.yolopxEngine.isDegraded,
-                    laneDegraded: st.yolopxEngine.laneDegraded,
-                    drivableDegraded: st.yolopxEngine.drivableDegraded,
+                    isDegraded: st.e2ePerceptionPaused || st.yolopxEngine.isDegraded,
+                    laneDegraded: st.e2ePerceptionPaused || st.yolopxEngine.laneDegraded,
+                    drivableDegraded: st.e2ePerceptionPaused || st.yolopxEngine.drivableDegraded,
                     seq: EngineGlobals.maskSeq)
             }
         } else if EngineGlobals.maskSeq != 0 {
@@ -2038,7 +2037,10 @@ enum EngineMain {
                     st.inferenceEngine.reloadModel()
                     st.assistEngine.reloadModel()
                     st.yoloEngine.reloadModel()
-                    engineLog("[ENGINE] 模型热替换：主驾/副驾/YOLO 三引擎已置空，下次推理重读磁盘")
+                    // V3 主驾也必须一起重载（评审 P1-3：原清单漏了它，
+                    // 导致训练完点「应用模型」后界面提示成功、实际 V3 仍跑旧权重）
+                    st.inferenceEngineV3.reloadModel()
+                    engineLog("[ENGINE] 模型热替换：主驾/副驾/YOLO/V3 四引擎已置空，下次推理重读磁盘")
                     // ── A 模型档下把 26S 一起卸掉（2026-10-19，goal-3279b59b 需求5）──
                     //
                     // 【为什么必须补这一步】`reloadModel()` 只把 model 置 nil + isLoaded=false，
@@ -2306,6 +2308,15 @@ enum EngineMain {
         let json = """
         {"type":"heartbeat","proto":\(EngineClient.protocolVersion),"ts":\(Int(Date().timeIntervalSince1970)),"fps":\(String(format: "%.1f", fps)),"detections":\(detCount),"isDriving":\(st.isDriving),"isStreaming":\(st.isStreaming),"mode":"\(st.mode)","modeRaw":"\(st.mode.rawValue)","speed":\(String(format: "%.1f", st.effectiveSpeed)),"speedKmh":\(String(format: "%.1f", st.speedKmh)),"confidence":\(String(format: "%.3f", st.confidence)),"recording":\(st.isRecording),"frames":\(st.recordEngine.frameCount),"pid":\(getpid()),"takeover":\(et.takeoverActive),"userHolding":\(et.userHoldingKey),"reason":"\(reason)"}
         """
+        // JSONSerialization 转义诊断文本，避免原因含引号时破坏心跳。
+        if var payload = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] {
+            payload["driveDiagnostic"] = st.driveDiagnostic
+            if let data = try? JSONSerialization.data(withJSONObject: payload),
+               let enriched = String(data: data, encoding: .utf8) {
+                EngineGlobals.socket?.send(enriched)
+                return
+            }
+        }
         EngineGlobals.socket?.send(json)
     }
 

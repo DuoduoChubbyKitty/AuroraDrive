@@ -1284,6 +1284,46 @@ struct AuroraDriveLauncher {
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
         }
 
+        // ── V3 引擎自检：帧窗口顺序 + 归一化 + 端到端 + 延迟 ──
+        // 为什么必须自检：V3 的帧窗口顺序写反、输入 dtype 写错这两类错误**都不报错**，
+        //   模型照常输出、数值看着也正常，但语义已经错了。训练侧
+        //   `src/dataset_v3.py:551-573` 就记录过"窗口写成旧→新、因果学反"的事故；
+        //   引擎侧实测过 float32 输入静默得到完全不同输出的反例（见
+        //   InferenceEngineV3.swift 文件头红线 1）。这两类只能靠可判定的自检兜住。
+        // 用法：./AuroraDrive --v3-selftest
+        if args.contains("--v3-selftest") {
+            let failed = runV3EngineSelfTest()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+
+        // ── V3 集成夹具：验证 V3 真的在**真实 tick() 循环**里被驱动 ──
+        // 与 --v3-selftest 的分工：后者直接调 engine.infer()（只证引擎能算），
+        // 本夹具驱动真实 tick()（证接线生效）。全程零按键注入。
+        // 用法：./AuroraDrive --v3-integration
+        if args.contains("--v3-integration") {
+            // 可选 --dir <训练帧目录>：用真实训练帧驱动真实 tick()（而非合成图）
+            var frameDir: String? = nil
+            if let idx = args.firstIndex(of: "--dir"), idx + 1 < args.count {
+                frameDir = args[idx + 1]
+            }
+            let failed = runV3IntegrationTest(frameDir: frameDir)
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+
+        // ── V3 模型质检：真实训练帧 vs 真人按键标签（--v3-qc --dir <目录>）──
+        // 目录里需同时有 *.jpg 与 labels.csv（controls.csv 复制而来）。
+        // 关键：同时给「多数类基线」——否则"永远预测 NONE"也能刷出高准确率，
+        //       看着像成功、实则完全没用。
+        // 用法：./AuroraDrive --v3-qc --dir /tmp/v3_qc_frames
+        if args.contains("--v3-qc") {
+            var qcDir = "/tmp/v3_qc_frames"
+            if let idx = args.firstIndex(of: "--dir"), idx + 1 < args.count {
+                qcDir = args[idx + 1]
+            }
+            let failed = runV3QualityCheck(dir: qcDir)
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+
         // ── 自适应网卡自检：探测 → 锁定 → 失流重探（真实 UDP 30031 包注入验证）──
         // ── 新协议解码自检：用固化样本验证 protobuf 移动包解坐标 ──
         if args.contains("--proto-selftest") {
@@ -4301,6 +4341,7 @@ final class DriveState {
     /// （nc=1 只有车；**legacy 档** YOLOPX 未加载/降级时自动回落到 yolo26s，
     /// 不会变瞎；A 模型档无此回落路径，见上一段）。
     var displayDetections: [Detection] {
+        if e2ePerceptionPaused { return [] }
         let base = EngineClient.shared.isActive ? remoteDetections : yoloEngine.detections
         if preferYolopxDetections, yolopxEngine.isLoaded, !yolopxEngine.detections.isEmpty {
             // 优先用「预测器外推后」的框（30Hz），它已把 YOLOPX 的低频真值
@@ -5499,6 +5540,45 @@ final class DriveState {
     /// 当前驾驶模式（由降级状态机计算，每帧 tick 同步）
     /// UI 观察此属性刷新模式芯片高亮
     var mode: DriveMode = .e2e
+    var driveDiagnostic = "等待驾驶诊断"
+    var e2ePerceptionPaused: Bool {
+        isDriving && mode == .e2e && AuroraFlags.e2eMinimalInference
+    }
+    @ObservationIgnored private var perceptionWasPaused = false
+    @ObservationIgnored private var brakeAuditFrames = 0
+    @ObservationIgnored private var brakeAuditSpeedValid = 0
+    @ObservationIgnored private var brakeAuditModelS = 0
+    @ObservationIgnored private var brakeAuditUltimate = 0
+    @ObservationIgnored private var brakeAuditGuardAddedS = 0
+    @ObservationIgnored private var brakeAuditRuleCoast = 0
+    @ObservationIgnored private var brakeAuditUnknownAvoidedS = 0
+    @ObservationIgnored private var brakeAuditSpace = 0
+    @ObservationIgnored private var driveAuditE2EFrames = 0
+    // 异步完成计数，不把 busy/重复帧时直接返回的 infer 调用算作推理。
+    @ObservationIgnored private var driveAuditFrames = 0
+    @ObservationIgnored private var driveAuditPrevious = [Int](repeating: 0, count: 6)
+    @ObservationIgnored private var driveAuditWindow = [Int](repeating: 0, count: 6)
+
+    private func auditDriveInference() {
+        let counts = [inferenceEngineV3.inferenceCount, inferenceEngineV2.inferenceCount,
+                      inferenceEngine.inferenceCount, assistEngine.inferenceCount,
+                      yoloEngine.inferenceCount, yolopxEngine.inferenceCount]
+        let delta = zip(counts, driveAuditPrevious).map { max(0, $0 - $1) }
+        driveAuditPrevious = counts
+        driveAuditWindow = zip(driveAuditWindow, delta).map(+)
+        driveAuditFrames += 1
+        if mode == .e2e { driveAuditE2EFrames += 1 }
+        if driveAuditFrames % 60 == 0 {
+            let names = ["V3", "V2", "M9", "assist", "yolo26s", "yolopx"]
+            let tick = zip(names, delta).map { "\($0)=\($1)" }.joined(separator: " ")
+            let window = zip(names, driveAuditWindow).map { "\($0)=\($1)" }.joined(separator: " ")
+            dlog("[DRIVE-INFER] mode=\(mode.rawValue) frame=\(driveAuditFrames) "
+                 + "completedSincePreviousTick={\(tick)} last60={\(window)} "
+                 + "activeEngines=\(driveAuditWindow.filter { $0 > 0 }.count) e2eTicks=\(driveAuditE2EFrames)/60 (不含速度OCR；异步完成，非提交/加载)")
+            driveAuditWindow = [Int](repeating: 0, count: 6)
+            driveAuditE2EFrames = 0
+        }
+    }
     /// 主驾置信度。0 = 引擎尚未上报（UI 显示「—」）。
     /// 初值刻意不用 0.92 这类"看起来真实"的数字冒充读数。
     var confidence: Double = 0          // 0~1
@@ -5619,6 +5699,39 @@ final class DriveState {
     // UI 显示已改走 frameHost 直绘（绕开 SwiftUI diff），故两者均标 @ObservationIgnored。
     @ObservationIgnored var currentScreenImage: NSImage? = nil
     @ObservationIgnored var currentFrameCG: CGImage? = nil
+
+    /// `currentFrameCG` 的**采集时刻**，用于输入新鲜度判定。
+    ///
+    /// ⚠️【为什么必须有它】（评审 P0-1，已逐行确认为真）
+    ///   `currentFrameCG` 全文**没有任何置 nil 的地方** —— 抓屏停止/报错时只是
+    ///   "不再更新"，旧图会一直保留。而 tick 只要 `currentFrameCG` 非空就会继续
+    ///   调 V3 推理 → 每次推理成功都刷新 `lastResultTime` → 存活判据（1s 内）
+    ///   永远满足 → **抓屏失效被"推理成功"掩盖，停控永不触发**；
+    ///   同一张旧图还会被反复写进 24 帧窗口，伪装成一段静止视频。
+    ///   有了采集时刻，才能区分"模型刚算过"与"刚算的是新画面"。
+    @ObservationIgnored var currentFrameCGAt: Date? = nil
+
+    /// `currentFrameCG` 的**源帧序号**（与 `currentFrameCGAt` 成对，P0-1）。
+    ///
+    /// 语义：**每采纳一张真正的新画面就换成新序号**，同一张画面被后续 tick 反复
+    /// 取用时保持不变。传给 `InferenceEngineV3.infer(image:capturedAt:sequence:)`
+    /// 后，引擎据此拒绝「同一源帧重复入窗」：
+    ///   旧实现没有这个判据，主线程卡顿期间同一张旧图每 tick 再入窗一次，
+    ///   24 帧窗口被同一帧刷满，看上去像在滚动、实际是一段静止视频。
+    @ObservationIgnored private var currentFrameSeq = 0
+    /// 源帧序号发号器（**只在 `pendingFrameLock` 临界区内读写**，故无需再加锁）。
+    ///
+    /// ⚠️【必须 `@ObservationIgnored`】本类有过真实 SIGSEGV（`exit=139`）事故：
+    ///   后台 `queue.async` 访问未加该标记的属性 → 被 `@Observable` 包成
+    ///   `_ManagedCriticalState` → `EXC_BAD_ACCESS`。本字段会被抓屏回调
+    ///   （`captureQueue`）在持锁状态下自增，属同一类后台访问，必须同样标注。
+    @ObservationIgnored private nonisolated(unsafe) var frameSequenceCounter = 0
+
+    /// V3 输入画面的最大允许年龄（秒）。超过则不推理（避免用旧图驱动）。
+    /// 取 1.0s：与既有 `lastResultTime < 1.0` 的存活判据同一尺度 ——
+    /// 画面比这更旧时，其推理结果本来也过不了时效门，推理纯属浪费。
+    /// 正常游戏内 15Hz 抓屏间隔约 66ms，远小于该阈值。
+    private static let v3MaxFrameAge: TimeInterval = 1.0
     @ObservationIgnored var frameHost = FrameHost()
     // 源画面尺寸（普通 @Observable，驱动 ObstacleOverlay 的 aspect-fill 对齐）。
     // 不能从 @ObservationIgnored 的 frameHost.latestSize 读，否则尺寸变化不触发
@@ -6027,6 +6140,15 @@ final class DriveState {
     private nonisolated(unsafe) var pendingFrameCG: CGImage?
     @ObservationIgnored
     private nonisolated(unsafe) var pendingFrameTime: Date?
+    /// 待显示帧的**源帧序号**（与 `pendingFrameTime` 同临界区写入，P0-1）。
+    ///
+    /// 抓屏回调（`captureQueue`）自增 `frameSequenceCounter` 后写这里；tick 消费时
+    /// 取走转存到 `currentFrameSeq`，随 `infer` 传给引擎做重复帧判据。
+    /// ⚠️ 必须在 `pendingFrameLock` 临界区内读写，且**必须** `@ObservationIgnored`
+    ///   （本类 SIGSEGV 事故同款：后台队列访问未标注属性会被 `@Observable` 包成
+    ///   `_ManagedCriticalState` → `EXC_BAD_ACCESS`）。
+    @ObservationIgnored
+    private nonisolated(unsafe) var pendingFrameSeq: Int = 0
     @ObservationIgnored
     private nonisolated(unsafe) let pendingFrameLock = NSLock()
 
@@ -6042,8 +6164,13 @@ final class DriveState {
     @ObservationIgnored
     private nonisolated(unsafe) let pendingNativeLock = NSLock()
 
-    // ── 诊断：主线程 tick 实际间隔(ms)（>33ms = 主线程掉拍/被卡）──
-    // tick 由 30Hz Timer 驱动，间隔应稳定 ~33ms；出现 66/99ms 或更大 = 主线程被阻塞
+    // ── 诊断：主线程 tick 实际间隔(ms)（>66ms = 主线程掉拍/被卡）──
+    // ⚠️ tick 是 **15Hz**，不是 30Hz：`Core/EngineMain.swift:771` engineTickHz=15.0
+    //   （:868-871 两档均 15.0），UI-local 见 `MissionConsole.swift:6393` 的 1.0/15.0。
+    //   历史上这句写的是「30Hz、~33ms」，2026-10-22 全链路降到 15Hz 后没同步改，
+    //   结果把后来的维护者（包括我）误导成"tick 是 30Hz"、给 V3 错加了 `% 2` 节流
+    //   → 实际只喂 7.5Hz、24 帧窗口张成 3.2s。故此处按真实频率订正并留痕。
+    //   判据：间隔应稳定 ~66.7ms；出现 133/200ms 或更大 = 主线程被阻塞。
     @ObservationIgnored
     private var lastTickTime = Date()
     @ObservationIgnored
@@ -6282,6 +6409,21 @@ final class DriveState {
     // 【模型文件】默认 "m9_v2"（export 脚本产出名）；不存在时优雅降级。
     let inferenceEngineV2 = InferenceEngineV2(modelFileName: "m9_v2")
 
+    // ── V3 新一代驾驶引擎（INT4 4-bit / ANE / 24 帧双分辨率窗口）──
+    //
+    // 【为什么独立成类而不复用 V2】V2 吃单帧图像序列 `[8,3,180,320]`，V3 吃
+    //   **双分辨率 24 帧窗口**（3 帧 224×384 高清 + 21 帧 112×192 低清）。
+    //   输入形状、帧序、state 语义全不同；且 V2 承载拆分/多模型等既有路径，
+    //   往里塞分支会破坏它的稳定性。详见 `InferenceEngineV3.swift` 文件头。
+    //
+    // 【模型】`models/v3_int4.mlmodelc`：4-bit 权重（93 个 LUT 算子），6.08 MiB
+    //   （fp16 为 23.42 MiB）。M3 实测 ANE 4.80ms / CPU 21.75ms / GPU 18.62ms。
+    //
+    // 【接线策略（用户明确要求"硬切 V3、不做自动降级"）】
+    //   · 启动时只加载 V3；V3 加载失败 → 如实报错并停机，不静默回退 V2
+    //   · V2 实例与代码保留，但不再驱动驾驶（降级备份，供人工切回）
+    let inferenceEngineV3 = InferenceEngineV3()
+
     // ── 第二套驾驶模型（game_assist_control，YOLO接管档的司机）──
     // 与 M9 同架构（画面+车辆状态→steer/throttle/brake），独立权重文件。
     // 档2 YOLO接管 用它的输出开车；当前与 M9 同权重，后续可换训练权重。
@@ -6458,11 +6600,13 @@ final class DriveState {
     //    引擎实例，在引擎模式下从没被喂过数据，永远是 .empty。
     //    这正是"预览框里看不到可行驶区"的根因（2026-09-27 排查确认）。
     var displayDrivableMask: MaskGrid {
-        EngineClient.shared.isActive ? EngineClient.shared.engineDrivableMask
+        if e2ePerceptionPaused { return .empty }
+        return EngineClient.shared.isActive ? EngineClient.shared.engineDrivableMask
                                      : yolopxEngine.drivableMask
     }
     var displayLaneMask: MaskGrid {
-        EngineClient.shared.isActive ? EngineClient.shared.engineLaneMask
+        if e2ePerceptionPaused { return .empty }
+        return EngineClient.shared.isActive ? EngineClient.shared.engineLaneMask
                                      : yolopxEngine.laneMask
     }
     var displayMaskMetrics: LetterboxMetrics {
@@ -6592,7 +6736,12 @@ final class DriveState {
             self.pendingFrameLock.lock()
             self.pendingFrame = image
             self.pendingFrameCG = cgImage
+            // 采集时刻 + 源帧序号必须在此（持锁）原子写入：
+            //   它们描述的是"这一张画面"，与画面本体同生命周期；
+            //   在锁外写会与 tick 的消费构成撕裂（拿到新图却配旧时刻，反之亦然）。
             self.pendingFrameTime = Date()
+            self.frameSequenceCounter += 1
+            self.pendingFrameSeq = self.frameSequenceCounter
             self.pendingFrameLock.unlock()
         }
         // YOLO 直通：CaptureEngine 源头 **CPU vImage** 缩放好的 640×640 缓冲，
@@ -6735,6 +6884,7 @@ final class DriveState {
                     self?.pendingFrame = nil
                     self?.pendingFrameCG = nil
                     self?.pendingFrameTime = nil
+                    self?.pendingFrameSeq = 0
                     self?.pendingFrameLock.unlock()
                     // 清残留 YOLO/原生 ROI 直通帧
                     self?.pendingYoloLock.lock()
@@ -6902,6 +7052,21 @@ final class DriveState {
 
         isDriving = true
         drivingStartTime = Date()
+        driveAuditFrames = 0
+        driveAuditPrevious = [inferenceEngineV3.inferenceCount, inferenceEngineV2.inferenceCount,
+                              inferenceEngine.inferenceCount, assistEngine.inferenceCount,
+                              yoloEngine.inferenceCount, yolopxEngine.inferenceCount]
+        driveAuditWindow = [Int](repeating: 0, count: 6)
+        brakeAuditFrames = 0
+        brakeAuditSpeedValid = 0
+        brakeAuditModelS = 0
+        brakeAuditUltimate = 0
+        brakeAuditGuardAddedS = 0
+        brakeAuditRuleCoast = 0
+        brakeAuditUnknownAvoidedS = 0
+        brakeAuditSpace = 0
+        driveAuditE2EFrames = 0
+
         keyboardMonitor.start()   // 启动物理键盘监听（KeyboardBar 显示用 + 录制用）
         // ★ ET-4（2026-10-12）：把 UI 进程的物理按键事件经 socket 通知引擎。
         //
@@ -6944,7 +7109,13 @@ final class DriveState {
         //   `scheduleBackgroundLoadIfNeeded()` 然后 return），而 M9 的 infer 只在
         //   "V2 未加载"的 else 分支被调用 ⟹ 需要它的时候它自己会在后台加载，
         //   代价只是 V2 故障时的首帧晚几百毫秒（而这种场景本来就不开车）。
-        inferenceEngineV2.loadIfNeeded() // 首次启动加载 V2 新一代驾驶模型（缺失时优雅降级）
+        // 硬切 V3：只加载 V3；失败则如实报错（用户要求不做自动降级）
+        inferenceEngineV3.loadIfNeeded()
+        if !inferenceEngineV3.isLoaded {
+            dlog("[V3] 模型未就绪：\(inferenceEngineV3.errorMessage ?? "未知原因")")
+        }
+        // ⚠️ V2 仍加载但其结果不再驱动驾驶（保留为降级备份，见实例声明处注释）
+        inferenceEngineV2.loadIfNeeded()
         if !inferenceEngineV2.isLoaded {
             inferenceEngine.loadIfNeeded()   // 仅 V2 不可用时：此时 M9 才是真司机
         }
@@ -6969,7 +7140,7 @@ final class DriveState {
         }
         yolopxEngine.loadIfNeeded()      // 首次启动加载三合一感知模型（A 模型档内为 ayolom_n_int8）
         dlog("启动开车: 辅助功能权限=\(controlEngine.hasAccessibilityPermission) 专家模式=\(expertMode) 禁用控制=\(controlDisabled)")
-        dlog("模型加载: M9=\(inferenceEngine.isLoaded) V2=\(inferenceEngineV2.isLoaded) V2拆分=\(inferenceEngineV2.useSplitModels) 第二司机=\(assistEngine.isLoaded) YOLO=\(yoloEngine.isLoaded) YOLOPX=\(yolopxEngine.isLoaded) M9错误=\(inferenceEngine.errorMessage ?? "-") V2错误=\(inferenceEngineV2.errorMessage ?? "-") 世界模型=\(inferenceEngineV2.worldModelLoaded)")
+        dlog("模型加载: V3=\(inferenceEngineV3.isLoaded) M9=\(inferenceEngine.isLoaded) V2=\(inferenceEngineV2.isLoaded) V2拆分=\(inferenceEngineV2.useSplitModels) 第二司机=\(assistEngine.isLoaded) YOLO=\(yoloEngine.isLoaded) YOLOPX=\(yolopxEngine.isLoaded) M9错误=\(inferenceEngine.errorMessage ?? "-") V2错误=\(inferenceEngineV2.errorMessage ?? "-") 世界模型=\(inferenceEngineV2.worldModelLoaded)")
     }
 
     /// 停止自动驾驶：
@@ -6997,6 +7168,7 @@ final class DriveState {
         confidenceEst.reset()
         inferenceEngine.reset()
         inferenceEngineV2.reset()   // V2 也要重置（清时序环形缓冲 + 冷启动门控）
+        inferenceEngineV3.reset()   // V3 清 24 帧窗口（换场景后避免上一局帧污染）
         assistEngine.reset()
         yoloEngine.reset()
         speedOCR.reset()
@@ -7164,12 +7336,14 @@ final class DriveState {
                 EngineClient.shared.sendCommand("reloadmodel")
                 inferenceEngine.reloadModel()
                 inferenceEngineV2.reloadModel()   // V2 同步热替换（新导出的 m9_v2）
+                inferenceEngineV3.reloadModel()   // V3 主驾同步热替换（否则仍跑旧权重）
                 trainingLog = "已应用新模型（引擎侧已通知重载）: \(src.lastPathComponent)"
             } else {
                 inferenceEngine.reloadModel()
                 inferenceEngineV2.reloadModel()
                 assistEngine.reloadModel()
                 yoloEngine.reloadModel()
+                inferenceEngineV3.reloadModel()   // V3 主驾同步热替换
                 trainingLog = "已应用新模型: \(src.lastPathComponent)"
             }
             return true
@@ -7232,7 +7406,20 @@ final class DriveState {
                 if screenSize != sz { screenSize = sz }
             }
         } else if let cg {
-            currentFrameCG = cg
+            // 【P0-1 同款漏洞：引擎模式】`EngineClient.poll()` 在**没有新帧**时
+            //   返回的是缓存的 `frameCache`（同一个 CGImage 对象，见其 `:696-733`）。
+            //   旧实现无条件 `currentFrameCGAt = Date()` —— 等于把一张几秒前的旧画面
+            //   每 tick 重新贴上"刚刚采集"的标签，新鲜度判定彻底失效。
+            //   → 只有对象身份变化（真正收到新帧）才刷新采集时刻与序号。
+            //   不改 `EngineClient`（不在本次改动范围）：它返回缓存帧这一行为是既有设计，
+            //   在调用侧用身份比较判别即可，零侵入。
+            if cg !== currentFrameCG {
+                currentFrameCG = cg
+                currentFrameCGAt = Date()      // 真·新帧到达时刻（引擎侧无更早的采集戳）
+                // 序号同样只在真新帧上推进，与采集时刻成对。
+                frameSequenceCounter += 1
+                currentFrameSeq = frameSequenceCounter
+            }
             let sz = CGSize(width: cg.width, height: cg.height)
             if screenSize != sz { screenSize = sz }
             if !isStreaming { isStreaming = true }
@@ -7274,6 +7461,7 @@ final class DriveState {
         // 引擎模式下 UI 不跑推理，面板/状态栏依赖的驾驶状态由引擎心跳回传后落到这里：
         // 档位、车速（含车速表读数）、置信度、有效车速。缺了这些，右侧状态栏与自车信息会「空掉」。
         if mode != client.engineMode { mode = client.engineMode }
+        if driveDiagnostic != client.engineDriveDiagnostic { driveDiagnostic = client.engineDriveDiagnostic }
         if confidence != client.engineConfidence { confidence = client.engineConfidence }
         if remoteSpeedKmh != client.engineSpeedKmh { remoteSpeedKmh = client.engineSpeedKmh }
         if effectiveSpeed != client.engineSpeed { effectiveSpeed = client.engineSpeed }
@@ -7390,6 +7578,7 @@ final class DriveState {
     /// 光流失败（缓冲未就绪 / OpenCV 返回 valid=0）→ 不更新自车运动，
     /// 预测器退化为"只用真值、不外推"。绝不因光流问题影响主链路。
     private func updateMotionPipeline(dt: Double) {
+        if e2ePerceptionPaused { return }
         // ── a) 真值：YOLOPX 优先（三合一），无结果时用 yolo26s ──
         //
         // 注意这里刻意**不**用 effectiveDetections —— 那是"决策层最终用哪份框"，
@@ -7522,6 +7711,11 @@ final class DriveState {
         pendingFrame = display
         pendingFrameCG = displayCG
         pendingFrameTime = Date()
+        // 与生产 onFrame 同款：夹具每推一帧也是"一张新画面"，必须发新序号。
+        // 否则 `pendingFrameSeq` 恒为初值 → 第二帧起被测重逻辑拒绝入窗 →
+        // integration 的 24 帧窗口永远只有 1 帧，全部断言假红。
+        frameSequenceCounter += 1
+        pendingFrameSeq = frameSequenceCounter
         pendingFrameLock.unlock()
 
         pendingYoloLock.lock()
@@ -7566,6 +7760,7 @@ final class DriveState {
     /// 每帧推进（30Hz，由 ContentView 的 Timer 驱动）
     /// 完整决策管线：CoreML推理 → 置信度估计 → 状态机决策 → 按态输出控制量 → 录制
     func tick() {
+        defer { if isDriving && !EngineClient.shared.isActive { auditDriveInference() } }
         // 诊断：tick 实际间隔（>33ms = 主线程掉拍/被卡；配合 capGap/capWork 定位延迟）
         let tickNow = Date()
         tickGapMs = tickNow.timeIntervalSince(lastTickTime) * 1000
@@ -7634,7 +7829,7 @@ final class DriveState {
         let decimateFallback = Self.detectDecimate == 1
         // ayolom（默认小模型）每帧跑，不做错开降频。
         let isAyolom = (yolopxEngine.family == .ayolom)
-        let detectGateA = decimateFallback || isAyolom || parityEven    // yolopx：ayolom 恒跑 / legacy 偶数帧
+        let detectGateA = !e2ePerceptionPaused && (decimateFallback || isAyolom || parityEven)    // yolopx：ayolom 恒跑 / legacy 偶数帧
 
         // ── yolo26s 档位门（2026-10-19 用户拍板，见 goal-3279b59b）──
         //
@@ -7661,8 +7856,23 @@ final class DriveState {
         //   并跑 26S（完全回到 2026-10-19 之前），供排查对照。
         //   开关本身是 DriveState 上的静态属性（与开机加载处 :6304 共用同一份），
         //   引擎进程侧由 engine-gate 队友用同名环境变量实现，语义一致。
-        let detectGateB = decimateFallback
-            || ((Self.forceYolo26s || perceptionMode == .legacy) && !parityEven)  // yolo26s：仅 legacy 档奇数帧
+        let detectGateB = !e2ePerceptionPaused && (decimateFallback
+            || ((Self.forceYolo26s || perceptionMode == .legacy) && !parityEven))  // yolo26s：仅 legacy 档奇数帧
+
+        if !EngineClient.shared.isActive, perceptionWasPaused != e2ePerceptionPaused {
+            perceptionWasPaused = e2ePerceptionPaused
+            if perceptionWasPaused {
+                yoloEngine.reset()
+                yolopxEngine.reset()
+                motionPredictor.reset()
+                laneBridge.reset()
+                predictorDetections = []
+                extrapolatedLaneMask = .empty
+                bodyHeadingDeg = nil
+                bodyHeadingConf = 0
+                dlog("[DRIVE-INFER] 精简主驾：仅 V3 + 速度OCR；检测框/车道/可行驶区/指针模型暂停，降级档恢复")
+            }
+        }
 
         // ── 精简录制快照（必须早于引擎模式早退）──
         // 引擎模式下 UI 进程走到 :7231 就 return 了，快照必须在那之前更新，
@@ -7717,12 +7927,24 @@ final class DriveState {
             pendingFrame = nil
             let latestCG = pendingFrameCG
             pendingFrameCG = nil
+            // 【P0-1】采集时刻必须是**这张画面真实被抓到的时刻**（onFrame 里的
+            //   `pendingFrameTime`），而不是本 tick 消费它的时刻。
+            //   旧实现写 `Date()`：主线程一卡顿，恢复后送来的是一张几十~几百 ms
+            //   前的旧图，却被贴上"刚刚"的新鲜标签 → 绕过新鲜度门控继续开车。
+            //   这里改用源帧时刻后，画面越旧 `frameAge` 越大、越早被判定超龄。
+            let captureMoment = pendingFrameTime
+            let captureSeq = pendingFrameSeq
             if let t = pendingFrameTime {
                 frameDeliveryLagMs = Date().timeIntervalSince(t) * 1000
             }
             pendingFrameTime = nil
             currentScreenImage = latest
             currentFrameCG = latestCG
+            // 采集时刻与源帧序号成对写入（同一张画面）。
+            //   captureMoment 为 nil 的极端情形（未走 onFrame 的夹具直推）→
+            //   退回本 tick 时刻，避免把"时间未知"误当"永远新鲜"（.infinity 的反面）。
+            currentFrameCGAt = captureMoment ?? Date()
+            currentFrameSeq = captureSeq
             if isStreaming { latestCGToPush = latestCG }
             if screenSize != latest.size { screenSize = latest.size }
         }
@@ -7777,7 +7999,7 @@ final class DriveState {
         //   【为什么这次能放心改】UI 本地模式（未连引擎）下 `--engine` 不成立 →
         //     条件仍为真 → 行为逐字不变，零功能影响。
         let isEngineProcess = CommandLine.arguments.contains("--engine")
-        if AuroraFlags.questOCR, !isEngineProcess,
+        if AuroraFlags.questOCR, !e2ePerceptionPaused, !isEngineProcess,
            !EngineClient.shared.isActive, let cg = currentFrameCG {
             questPanel.ingest(cgImage: cg)
         }
@@ -7892,7 +8114,7 @@ final class DriveState {
             //   这是**有意的**（该档每帧有真值，无需外推否决），
             //   但它确实是一处行为变化，不是纯性能优化 —— 见报告与
             //   `--motion-selftest` 的 egoBlocked 两项断言。
-            if !Self.opticalFlowDisabled, perceptionMode.needsOpticalFlow {
+            if !e2ePerceptionPaused, !Self.opticalFlowDisabled, perceptionMode.needsOpticalFlow {
                 runOpticalFlow(on: yoloFrame)
                 // ★ 阶段1 打点：光流全链路（convertToGray + compute）。
                 //   注意本段只在**有直通帧**时才产生样本 —— 样本数低于 tick 数属正常。
@@ -7979,7 +8201,7 @@ final class DriveState {
             //   **不参与任何控制决策** → 与主链路解耦，降到 5Hz（15Hz ÷ 3）。
             //   朝向是低频量（角色转向持续数百毫秒），5Hz 视觉上足够平滑。
             // nil = 模型未加载/推理失败/置信度过低 → UI 回退用视角朝向显示。
-            if pointerReader.isAvailable, adaptiveFrameCounter % 3 == 0 {
+            if !e2ePerceptionPaused, pointerReader.isAvailable, adaptiveFrameCounter % 3 == 0 {
                 let ptrStart = PerfBus.stamp()
                 if let h = pointerReader.read(frame: cg) {
                     bodyHeadingDeg = h.headingDeg
@@ -8002,7 +8224,8 @@ final class DriveState {
                 //
                 // 【为什么 V2 用上一帧的检测/车道线】见 inferenceEngineV2 声明处注释：
                 //   检测推理在本行之后，V2 用上一帧结果（与异步语义一致）。
-                inferenceEngineV2.loadIfNeeded()   // V2 lazy 加载（模型缺失时 isLoaded=false）
+                // 启动已同步加载；精简主驾无 V2 消费者，不再逐帧触发加载检查。
+                if !e2ePerceptionPaused { inferenceEngineV2.loadIfNeeded() }
                 // ⚠️ 2026-10-09 修复死锁：原条件 `isLoaded && timelineReady`
                 //   → timeline 需要 infer 攒帧，infer 需要 timelineReady → 死锁
                 //   → V2 infer 从不被调 → V2 永远不激活 → 旧 M9（throttle=0.94）永远在开车
@@ -8010,7 +8233,11 @@ final class DriveState {
                 //   内部 push 帧但不产结果，v2CommandOf 有 timelineReady 守卫兜底）。
                 // ⚠️ 消化模式同步已上移到 `guard isDriving` 之前（无条件每帧执行），
                 //   此处不再重复 —— 覆盖待机 + M9 回退 + V2 三条路径。
-                if inferenceEngineV2.isLoaded {
+                // 【V3 硬切生效 → 停跑 V2】两者都吃 ANE，同时跑只会互相排队、
+                //   把 V3 的 p95 抬上去（V3 本身 p50≈22.9ms 已够 30FPS）。
+                //   V2 实例保留（降级备份），但 V3 可用时不再喂帧。
+                let v3DrivingNow = inferenceEngineV3.isLoaded
+                if !e2ePerceptionPaused && inferenceEngineV2.isLoaded && !v3DrivingNow {
                     // ── V2 路径：构造 5 路输入 ──
                     var k2 = V2Kinematics()
                     k2.speedKmh = speedKmh
@@ -8045,39 +8272,75 @@ final class DriveState {
                                             detections: effectiveDetections,
                                             laneMask: yolopxEngine.laneMask)
                     inferenceEngineV2.noteSteerCommand(currentCommand.steer)
+                }
+                // ── V3 主驾：硬切（V3 加载成功时由 V3 驱动，不再跑 M9/V2）──
+                //
+                // 【帧率必须与训练的 15 FPS 对齐 —— 实测结论，勿再改成二分频】
+                //   V3 训练数据是 15 FPS（`src/dataset_v3.py:88` `EXPECTED_FPS = 15`），
+                //   24 帧窗口 = 1.6s。
+                //   ⚠️ 本 tick **本来就是 15Hz**，不是 30Hz：
+                //     · `Core/EngineMain.swift:771` `engineTickHz = 15.0`
+                //     · 同文件 :868-871 两档感知模式均返回 15.0，:1285 用它调度 timer
+                //     · `App/MissionConsole.swift:6393` UI-local 也是 `1.0 / 15.0`
+                //   本文件 :6058 那句「tick 由 30Hz Timer 驱动」是**过时注释**
+                //   （`MissionConsole.swift:6388` 记录"2026-10-22 全链路降 15Hz"），
+                //   曾被它误导而在早期版本加了 `% 2` —— 那会让 V3 实际只跑 **7.5Hz**，
+                //   24 帧窗口张成 3.2s，时序尺度错一倍（比不节流更隐蔽）。
+                //   → 这里**每帧都喂**，与训练帧率严格一致。
+                //   （应急接管 20Hz / 让位 5Hz 的临时提降频属既有机制，
+                //     此处不为其单独补偿，因为窗口语义以常规巡航为准。）
+                //
+                // 【为什么不做自动降级】用户明确要求硬切 V3、不做自动降级
+                //   （接线确认时的选择）。V3 未加载时宁可**如实报错并松开按键
+                //   停车**，也不静默换成 V2 —— 那样会在用户不知情时变成另一套
+                //   驾驶策略，是更危险的行为。
+                if inferenceEngineV3.isLoaded {
+                    // ── 输入新鲜度门（评审 P0-1，已确认为真）──
+                    //
+                    // 只判"模型最近算过"是不够的：抓屏停了以后 currentFrameCG 不置空，
+                    // 旧图会被持续推理并刷新 lastResultTime，使存活判据永远为真。
+                    // 这里额外要求"画面本身足够新"，才能把抓屏失效暴露出来
+                    // （停推 → lastResultTime 变旧 → v3ReadyForControl 转 false → 硬切 idle）。
+                    //
+                    // ⚠️ 不做静默兜底：超龄时**明确跳过并限频报错**，不拿旧图继续驱动。
+                    let frameAge = currentFrameCGAt.map { Date().timeIntervalSince($0) } ?? .infinity
+                    if frameAge <= Self.v3MaxFrameAge {
+                        // 【P0-1】把**真实采集时刻 + 源帧序号**交给引擎：
+                        //   · 采集时刻用于结果时效（`lastResultTime` 取它而非完成时刻），
+                        //     画面越旧结果越早过期，主线程卡顿不再把旧图刷成新鲜；
+                        //   · 源帧序号用于判重，同一张画面被重复送时引擎拒绝入窗，
+                        //     24 帧窗口不会退化成"同一帧重复 24 次"的静止视频。
+                        //   capturedAt 这里必非 nil（`currentFrameCG` 非空即已随帧写入）。
+                        inferenceEngineV3.infer(image: cg,
+                                                capturedAt: currentFrameCGAt,
+                                                sequence: currentFrameSeq)
+                    } else if adaptiveFrameCounter % 30 == 0 {
+                        dlog(String(format: "[V3] 输入画面已 %.2fs 未更新（阈值 %.1fs），本帧不推理",
+                                    frameAge, Self.v3MaxFrameAge))
+                    }
                 } else {
-                    // ── 回退旧 M9（冷启动 / V2 缺失）──
-                    inferenceEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)
+                    // ── 重试加载（评审 P1-3，已确认为真）──
+                    // V3 的 `infer()` 内部虽有 `loadIfNeeded()`，但**只有 isLoaded
+                    // 时才会被调用**（上面的 if）→ 一旦启动时加载失败，
+                    // 这条重试路径就成了死代码，模型即使恢复可用也永远等不到它。
+                    // 这里在失败分支直接调 `loadIfNeeded()`：
+                    // 它自身带 5s 冷却（`loadRetryCooldown`），每帧调用也只会
+                    // 每 5 秒真正尝试一次，不会形成加载风暴。
+                    inferenceEngineV3.loadIfNeeded()
+
+                    // V3 不可用 → 本帧不产生主驾命令（上层退化为 .idle）。
+                    // ⚠️ 措辞如实：不是说"全车停控"，而是"主驾不产命令，
+                    //   控制权交由既有降级链（.yolo/.rule）"。见 v3CommandOf 上方说明。
+                    if adaptiveFrameCounter % 30 == 0 {
+                        dlog("[V3] 引擎不可用，主驾无命令（交给降级链）：\(inferenceEngineV3.errorMessage ?? "未知原因")")
+                    }
                 }
             }
-            // ⚠️ 2026-10-11 性能优化（w4-tools 审计发现，省 ~160ms/s CPU）：
-            //   原：每帧无条件调 `assistEngine.infer()`——但 e2e 模式下它的输出**不被消费**
-            //   （`:7330` 用 m9Command 不用 assistCommand；`:7496` 只在 .yolo 才消费）
-            //   → 每秒白跑 20 次 × ~8ms = ~160ms CPU 白干（占一核 ~16%）
-            //
-            //   降级链安全论证（本小姐逐行读 DegradeStateMachine.swift + isAlive）：
-            //   · isAlive() 看 `lastResultTime` 在 1.0s 内（`:7233-7235`）
-            //   · e2e 档降级检查 `!m9Live || health < degradeHealth`（DegradeStateMachine:118）
-            //     → **不看 assistLive** → e2e 档停跑 assistEngine 不触发降级 ✅
-            //   · .yolo 档降级检查 `!assistLive`（DegradeStateMachine:124）
-            //     → **看 assistLive** → 若完全停跑，1s 后 assistLive=false → 误降 .rule
-            //
-            //   方案：**保活心跳**——e2e 时每 5 帧跑一次（保持 lastResultTime < 1.0s），
-            //         .yolo 时每帧跑（降级档需要真值）。省 e2e 档 80% 的白跑量。
-            //
-            //   【为什么不用 w4 的 `mode == .yolo || confidence < threshold*1.5`】
-            //     那会在 e2e 降到 .yolo 的瞬间因 lastResultTime 过期 → assistLive=false
-            //     → 立刻被降 .rule → 连跳两级。保活心跳避免这个窗口期。
-            //
-            //   【代价】e2e 档每 5 帧（=每 250ms@20Hz）跑一次 ~8ms → 每秒 ~32ms（原 160ms）
-            //         省 80%。降级第一帧已有新鲜 lastResult → 无跳级风险。
-            //
-            //   【自检路径】`--*selftest` 仍调 `assistEngine.infer(image: testImage)`，
-            //         不走本门禁 → 自检不受影响。
-            //
-            //   ⚠️ 回退开关：`AURORA_ASSIST_KEEPALIVE=0` 恢复每帧跑（出问题时一行回退）。
-            let assistKeepalive = AuroraFlags.assistKeepalive
-            if !assistKeepalive || mode == .yolo || adaptiveFrameCounter % 5 == 0 {
+            // 退出 e2e 后每帧推副驾（包括 rule，保证能恢复），不伪造 assistLive。
+            // 冷启动副驾尚无结果时安全链可继续落 rule；新鲜结果回来再按原滞回恢复。
+            let assistKeepalive = AuroraFlags.assistKeepaliveConfigured ? AuroraFlags.assistKeepalive : !AuroraFlags.e2eMinimalInference
+            let assistInE2E = AuroraFlags.assistKeepaliveConfigured || !AuroraFlags.e2eMinimalInference
+            if mode != .e2e || (assistInE2E && (!assistKeepalive || adaptiveFrameCounter % 5 == 0)) {
                 assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
             }
 
@@ -8140,7 +8403,9 @@ final class DriveState {
 
         // 读取两个驾驶模型的输出，无结果时用 idle 占位（首次推理未完成）
         func commandOf(_ engine: InferenceEngine) -> ControlCommand {
-            guard let result = engine.lastResult else { return .idle }
+            guard let result = engine.lastResult,
+                  let time = engine.lastResultTime,
+                  Date().timeIntervalSince(time) < 1.0 else { return .idle }
             return ControlCommand(steer: result.steer,
                                   throttle: result.throttle,
                                   brake: result.brake,
@@ -8166,7 +8431,60 @@ final class DriveState {
                                   confidence: engine.lastConfidence ?? 0.9)
         }
         let v2Active = inferenceEngineV2.isLoaded && inferenceEngineV2.timelineReady
-        let m9Command = v2CommandOf(inferenceEngineV2) ?? commandOf(inferenceEngine)
+        // ── V3 命令：硬切后主驾只认 V3 ──
+        //
+        // 【为什么单独写一个 v3CommandOf 而不复用 v2CommandOf】两者都产出
+        //   ControlCommand（steer/throttle/brake/confidence），但**来源语义不同**：
+        //   V2 输出连续回归量，V3 输出三分类 + 四个 sigmoid 头。V3 的分类已在
+        //   引擎内映射成 ±1/0 的连续量（`InferenceEngineV3.steerValue`），
+        //   这里只负责附加 confidence。
+        //
+        // 【confidence 用 V3 的 confidence 头】它是 sigmoid 后的 ∈[0,1]。
+        //   ⚠️ 修正一处此前的错误说法：本字段**并不被** `ConfidenceEstimator` 消费
+        //   （已实测：该类全文无 `command.confidence` 引用），降级判据用的是
+        //   估计器自己算的 `confidence`（一致性/极端度/画面三分量加权）。
+        //   `ControlCommand.confidence` 的真实消费者是：
+        //     · `EngineMain.swift:372` 写入共享内存
+        //     · 心跳上报 `EngineMain.swift:2307`、shm 快照 `:1840`（UI/诊断）
+        //   保留填真值仍有价值（诊断不再显示占位 0.9），但不要误以为它驱动降级。
+        func v3CommandOf(_ engine: InferenceEngineV3) -> ControlCommand? {
+            guard engine.isLoaded, engine.timelineReady,
+                  let result = engine.lastResult else { return nil }
+            // ⚠️【必须校验结果新鲜度】（评审 P0-3）
+            //   `lastResult` 一旦写出就**永久保留**；若模型停摆（推理异常/
+            //   模型被卸载），它会一直是最后一帧的值。而极速模式
+            //   （`DegradeStateMachine.swift:101-103`）在检查存活**之前**就直接
+            //   `return .e2e` —— 也就是说：**开启 sportMode 后，陈旧结果会被
+            //   无限期当作有效命令执行**（例如永远按着 W）。
+            //   这里按与 `isAlive` 一致的 1.0s 阈值判新鲜度，过期即返回 nil
+            //   → 上层命令退化为 `.idle`（松开按键），不会拿旧决策继续开。
+            guard let t = engine.lastResultTime,
+                  Date().timeIntervalSince(t) < 1.0 else { return nil }
+            return ControlCommand(steer: result.steer,
+                                  throttle: result.throttle,
+                                  brake: result.brake,
+                                  confidence: engine.lastDecision.confidence)
+        }
+        // V3 是唯一主驾来源：V3 不可用/结果过期 → `.idle`（松开四向键）。
+        // ⚠️ 但要如实说明边界（评审 P0-3）：`.idle` 只是"不注入"，**不是**保证停车。
+        //   之后仍会走既有降级状态机（`decided`）：`.e2e` 失联 → `.yolo`（副驾）
+        //   → `.rule`（纯规则兜底）。这是项目**既有的安全链**，属产品级设计，
+        //   我不擅自删除。若要求"V3 一死就彻底停控、连规则档也不接管"，
+        //   需另行明确授权后再改（那会移除最后防线）。
+        let v3Active = inferenceEngineV3.isLoaded && inferenceEngineV3.timelineReady
+        // ── 决策新鲜度（评审 P0-2，已逐行确认为真）──
+        //
+        // 【为什么必须单独抽出】原先存在两套判据：
+        //   · 四向命令走 `v3CommandOf()` —— **内含** 1.0s 时效检查
+        //   · 四个刹车头走 `v3Active`    —— **不含**任何时间检查
+        // 后果（正常异步调度即可复现）：推理持续失败但模型仍 loaded、timeline 仍 ready，
+        //   1 秒后四向命令变 idle（松开 W/A/S/D），
+        //   而 Shift/Space 仍按**过期**的 lastDecision 持续注入；
+        //   `sportMode` 下状态机更是在存活判断**之前**直接返回 .e2e，窗口长期敞着。
+        // 语义要求：六键必须来自**同一份有效决策快照**。故这里用与 v3CommandOf 相同的 1.0s 阈值。
+        let v3DecisionFresh = inferenceEngineV3.isLoaded
+            && (inferenceEngineV3.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
+        let m9Command = v3CommandOf(inferenceEngineV3) ?? .idle
         let assistCommand = commandOf(assistEngine)
 
         // 模型链路存活：加载成功 && 有结果 && 结果 1s 内新鲜
@@ -8180,11 +8498,16 @@ final class DriveState {
         //   （互斥推理，见 infer 那段），它的 lastResultTime 会一直变旧
         //   → 若 UI 仍读 `isAlive(inferenceEngine)` 会显示"M9失联"告警，
         //   而实际主驾活得很好（V2 在跑）。故这里按 v2Active 分派。
-        func isAliveV2(_ engine: InferenceEngineV2) -> Bool {
+        // 【为什么这里必须判 V3】硬切后 `m9Command` 完全来自 V3（V3 无结果 → .idle）。
+        //   若存活仍按 V2 判 → V3 停摆时：命令已是 .idle（车停下不动），
+        //   但 m9Live 仍报"主驾活着" → 降级状态机不告警、UI 不提示异常，
+        //   用户只会看到"车莫名其妙不走了"，且日志里没有任何原因。
+        //   如实判 V3，才能把"模型停摆"暴露成可观测的失联告警。
+        func isAliveV3(_ engine: InferenceEngineV3) -> Bool {
             engine.isLoaded && engine.lastResult != nil
                 && (engine.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
         }
-        let m9Live = v2Active ? isAliveV2(inferenceEngineV2) : isAlive(inferenceEngine)
+        let m9Live = isAliveV3(inferenceEngineV3)
         let assistLive = isAlive(assistEngine)
 
         // ── 纯规则档（.rule）的检测框来源 ──
@@ -8272,7 +8595,13 @@ final class DriveState {
         // ── 3. 降级状态机决策（三档梯子：模型存活 + 健康度驱动）──
         // （原写「四档梯子」，脱困档 .recover 已于 2026-09-30 删除，2026-10-18 修正）
         // 暖机期（开车头几秒还没出推理结果）保持档位不降级
-        let warmingUp = inferenceEngine.lastResult == nil
+        //
+        // ⚠️ 必须判 V3 而非旧 M9：硬切 V3 后 `inferenceEngine`（M9）**已完全停跑**
+        //    （全文 `inferenceEngine.infer(` 出现 0 次），它的 `lastResult` 恒为 nil
+        //    → 用 M9 判会让 `warmingUp` **永远为 true**，语义彻底失真
+        //    （本意是"头几秒还没结果"，实际变成"只要在 3 秒内就无条件暖机"）。
+        //    判 V3 才符合原意：V3 出过结果即为已暖机。
+        let warmingUp = inferenceEngineV3.lastResult == nil
             && Date().timeIntervalSince(drivingStartTime) < 3.0
         let decided = degradeStm.update(m9Live: m9Live,
                                         assistLive: assistLive,
@@ -8285,6 +8614,15 @@ final class DriveState {
                                         forceRule: forceRuleMode)
         // 先比后写：档位不变时跳过 @Observable 写入（省 UI 观察者通知，
         // mode 有 7 处 UI 读取）。
+        let modeChanged = mode != decided
+        if modeChanged || driveAuditFrames % 60 == 0 {
+            let detail = "mode=\(decided.rawValue) health=\(String(format: "%.3f", confidence)) "
+                + "threshold=\(String(format: "%.3f", degradeStm.degradeHealth)) "
+                + "m9Live=\(m9Live) assistLive=\(assistLive) warmup=\(warmingUp) "
+                + "forceRule=\(forceRuleMode) sport=\(sportMode) reason=\(degradeStm.lastTransitionReason)"
+            if driveDiagnostic != detail { driveDiagnostic = detail }
+            dlog("[DRIVE-MODE] " + detail)
+        }
         if mode != decided { mode = decided }   // 同步给 UI
         perfT = PerfBus.lap("tick.degrade", from: perfT)   // ★ 阶段1 打点（§3）
 
@@ -8299,9 +8637,32 @@ final class DriveState {
         } else {
             let healthCommand: ControlCommand = (mode == .e2e) ? m9Command : assistCommand
             let healthLive: Bool = (mode == .e2e) ? m9Live : assistLive
+            // ⚠️ V3 是**三分类**输出（steer 映射后 ∈ {-1, 0, +1}），±1 表示"正在打方向"，
+            //   不是"打满失控"。估计器默认判据 `|steer| > 0.95 → 极端` 是为**连续回归**
+            //   输出设计的；套到 V3 上，连续两个 A/D 决策就让极端占比冲到 100%，
+            //   长窗口（90 帧）后必越 0.7 阈值 → 置信度被压到 0.30
+            //   → 低于 `degradeHealth = 0.65` → **合法转向被误判成退化并强制降档**。
+            //   故 e2e 档（命令来自 V3）关闭该判据；`.yolo` 档的 assistEngine
+            //   仍是连续回归输出，保持原判据不变。
+            confidenceEst.usesDiscreteSteering = (mode == .e2e)
+            // 【confidence 的定位】它是**辅助信号**，不是健康度来源：
+            //   训练侧语义是 `exp(-0.15 × 相邻帧变化键数)`（`dataset_v3.py:203-224`），
+            //   属"场景动态度代理"——实测 41,411 帧里 90.9% 恒为 1.0，
+            //   而连续变键（diff=3）会掉到 0.638，本身就会击穿降级线 0.65。
+            //   故它只与「输入结构分」做**有界融合**（权重 0.3，见
+            //   `ConfidenceEstimator`：输入通过硬门控时结构分=1.0 ⇒ 健康度下限 0.70 > 0.65，
+            //   即 confidence 单独再低也不会触发降级）。
+            //
+            // 【imageAge 必须传】`isLive` 判的是"推理结果新鲜"，**不是"画面新鲜"**：
+            //   抓屏停摆时 `currentFrameCG` 不置 nil，旧图会被反复推理并刷新
+            //   `lastResultTime` → 结果永远"新鲜"。画面采集时刻是**另一类**失效，
+            //   必须单独作为硬门控输入（判据见 `currentFrameCGAt` 处注释）。
             confidenceEst.update(command: healthCommand,
                                  image: currentFrameCG,
-                                 isLive: healthLive)
+                                 isLive: healthLive,
+                                 modelConfidence: (mode == .e2e)
+                                     ? inferenceEngineV3.lastDecision.confidence : nil,
+                                 imageAge: currentFrameCGAt.map { Date().timeIntervalSince($0) })
             // 先比后写：置信度不变时跳过 @Observable 写入。
             let newConf = confidenceEst.confidence
             if confidence != newConf { confidence = newConf }   // 同步给 UI
@@ -8381,7 +8742,14 @@ final class DriveState {
         //    专家模式（真人物理键独占驾驶）/ 控制禁用 / 未启动驾驶 这三种情况下
         //    一律不得注入 —— 否则会自动跟真人抢方向盘、或在没开车时乱按键。
         //    （这个 gate 漏了就是「专家模式下 AI 偷偷踩刹车」的严重 bug。）
+        // ⚠️ 必须含 `!EmergencyTakeover.shared.userHoldingKey`（评审 P0-6，已确认为真）：
+        //   限速刹车在下面**提前 return**（走到 `applySpeedLimitBrake()` 后即返回），
+        //   而下方的"人工让位"检查在更后面才执行 → 用户按住应急键时，
+        //   限速分支仍会松油门 / 松方向 / 按 Space，人工接管形同虚设。
+        //   加进本条件后：接管期间限速策略不启动（并走 !mayInjectKeys 分支
+        //   复位 guard、释放手刹），用户释放后自然恢复。
         let mayInjectKeys = isDriving && !expertMode && !controlDisabled
+            && !EmergencyTakeover.shared.userHoldingKey
         let limitBraking = mayInjectKeys
             && speedLimitGuard.update(speedKmh: effectiveSpeed,
                                       speedValid: speedValid,
@@ -8399,6 +8767,9 @@ final class DriveState {
             }
         }
         if limitBraking {
+            if driveAuditFrames % 60 == 0 {
+                dlog("[DRIVE-BRAKE] source=speedLimit mode=\(decided.rawValue) speedValid=\(speedValid) speed=\(effectiveSpeed) limit=\(speedLimit)")
+            }
             // 刹车优先级最高：只执行限速键，跳过下面的档位决策
             if !speedLimitBrakeLatched {
                 speedLimitBrakeLatched = true
@@ -8426,6 +8797,17 @@ final class DriveState {
             //   现在只作诊断留档、没有边沿检测消费者；但「值不变就不通知」
             //   这条约定与消费者无关，仍是热路径的正确写法。
             if lastDecided != decided { lastDecided = decided }
+            // ── P0-3：限速早退前**必须回填执行反馈**（否则 vehicle_state[6] 漂移）──
+            //
+            // 【为什么要在这里补】（评审 P0-3，已逐行确认为真）
+            //   本分支在 `applySpeedLimitBrake()` 之后**直接 return**，永远走不到
+            //   唯一的正常回填点（主路径末尾的 `noteExecutedSteer(...)`）。
+            //   而 `applySpeedLimitBrake()`（约 :9244-9245）会主动
+            //   `release(.steerLeft/.steerRight)` —— 也就是说限速期间**物理转向已归零**。
+            //   若不回填，模型 `vehicle_state[6]` 会持续收到**进入限速前的旧转向值**，
+            //   退出限速时带着错误的"上一帧仍在打方向"反馈 → 与训练口径分叉。
+            //   → 限速策略保证转向为 0，故如实回填 0。
+            inferenceEngineV3.noteExecutedSteer(0)
             recordFrameIfNeeded()
             PerfBus.mark("tick.brakeTail", from: perfT)   // ★ 阶段1 打点（限速刹车早退分支）
             return
@@ -8458,6 +8840,22 @@ final class DriveState {
         //
         //   行为等价性：`ControlCommand: Equatable`（EscapeController.swift:28），
         //   相等则本就不需要通知；不等则照常写入并通知，下游读取到的值不变。
+        // 保留三档安全链；只有显式回退开关才把自动降级输出压成 idle。
+        let v3ReadyForControl = inferenceEngineV3.isLoaded
+            && inferenceEngineV3.lastResult != nil
+            && (inferenceEngineV3.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
+
+        let mayDriveByV3 = v3ReadyForControl && decided == .e2e
+
+        // 显式紧急纯规则（forceRuleMode）优先于硬切停机 —— 见上方注释
+        if AuroraFlags.v3HardCutIdle && !forceRuleMode && !mayDriveByV3 {
+            // 硬切：V3 不可用 → 停车（不换司机）
+            if currentCommand != .idle { currentCommand = .idle }
+            if adaptiveFrameCounter % 30 == 0 {
+                dlog("[V3] 硬切：V3 未就绪，强制 idle（不降级到 assist/rule）"
+                     + "；原因=\(driveDiagnostic) error=\(inferenceEngineV3.errorMessage ?? "-")")
+            }
+        } else {
         switch decided {
         case .e2e:
             // 档1 端到端主驾：M9 直接开车
@@ -8472,6 +8870,7 @@ final class DriveState {
             let ruleCmd = ruleController.decide(detections: detections)
             if currentCommand != ruleCmd { currentCommand = ruleCmd }
         }
+        }   // ← 闭合 P0-2 新增的 v3ReadyForControl else 块
 
         // 记录本帧决策（诊断留档；脱困档已删除，不再做边沿检测）
         //
@@ -8507,7 +8906,10 @@ final class DriveState {
         // ★ 2026-10-02 改：档位门从**硬编码 `== .rule`** 改为 `Self.laneKeepTiers`。
         //   改前 `.e2e` / `.yolo` 两档车道保持完全不工作（详见 laneKeepTiers 声明处）。
         //   默认 `rule,yolo`；`AURORA_LANEKEEP_TIERS=rule` 一键退回改前行为。
-        if Self.laneKeepTiers.contains(decided) {
+        // 精简主驾不使用车道建议；降级档保留既有辅助。
+        // 显式旧硬切开关停控时，同步停掉车道/地图改写，避免 idle 仍被加方向。
+        let laneAssistAllowed = !e2ePerceptionPaused && (!AuroraFlags.v3HardCutIdle || forceRuleMode || mayDriveByV3)
+        if laneAssistAllowed && Self.laneKeepTiers.contains(decided) {
             // ── 5.4 驾驶分段（地图段 / 回正段 优先于视觉）──
             // 用户要求：车道线识别不可靠（"就算没有失效也经常出问题"），
             // 因此到了地图打过点的弯道处，**由地图指引转向**；拐过去后先回正，
@@ -8592,6 +8994,7 @@ final class DriveState {
         // ⚠️ `fallbackGuard` 实例与 `FallbackGuard` 类型保留（仅做诊断/自检，
         //    不再参与控制），以免动到 Package 与自检代码。此处不再有任何施加。
 
+        var rolloverGuardApplied = false
         // ── 6. 按键注入（AI 决策 → 游戏控制）──
         // 专家模式：不注入 AI 键，让真人物理键独占驾驶；
         // 录制的控制量即纯专家演示，画面与标签一致（避免 AI/真人键冲突）。
@@ -8635,8 +9038,141 @@ final class DriveState {
             //   了，走不到本行 → 只有引擎进程执行（真正注入按键的那方）。
             controlEngine.releaseAll()
         } else {
-            applyCommand(currentCommand)
+            // ── P0-2：防侧翻兜底（在**最终物理键集合**上约束，不是改模型输出）──
+            //
+            // 【为什么必须在这里再做一次】（评审 P0-2，已逐行确认为真）
+            //   训练侧 `L_rollover` 已收紧为「只在真实减速时生效」（`src/model_v3.py`
+            //   的 `decel_ok` 门），于是「高速准备发 Shift+Space、但**还没有** S」
+            //   这种**首次急刹起始段**不再受训练约束。
+            //   而引擎 `finish()` 只对 `ultimate` 强制 S，`super_brake` 单独触发时
+            //   纵向仍可能是 W/NONE —— 也就是"高速一脚 Shift+Space 却没踩 S"，
+            //   正是侧翻那一步。故在执行前对纵向做兜底。
+            //
+            // 【判据与刹车头门控保持一致】只有「本帧真的会用 V3 的刹车头」时才有
+            //   Shift+Space 被按住；其他档位下面会主动 release 两个键，不存在侧翻组合，
+            //   也就无需（也不应）改写它们的纵向。
+            let brakeHeadsActive = v3Active && decided == .e2e && v3DecisionFresh
+            var injectCommand = currentCommand
+            if brakeHeadsActive {
+                injectCommand = InferenceEngineV3.applyRolloverGuard(
+                    to: currentCommand,
+                    decision: inferenceEngineV3.lastDecision,
+                    speedKmh: effectiveSpeed,
+                    speedValid: speedValid)
+                // 兜底真的改写了纵向时，同步回 currentCommand：
+                //   后面「回填实际执行动作」与「行驶录制」读的都是它，
+                //   不让它们记下"其实没执行"的给油动作。
+                //   先比后写（@Observable 赋值即通知），值不变不写。
+                rolloverGuardApplied = injectCommand != currentCommand
+                if injectCommand != currentCommand { currentCommand = injectCommand }
+            }
+            applyCommand(injectCommand)
+            // ── V3 的四个刹车头 → 物理按键 ──
+            //
+            // 【为什么必须单独接】`applyCommand` 只管理 W/S/A/D 四键（见其实现），
+            //   模型另有 4 个独立 sigmoid 头（handbrake/brake/super_brake/ultimate）。
+            //   只接方向与纵向分类 = 模型学到的刹车能力**丢了四个**，
+            //   不满足"所有自动驾驶功能可用"。
+            //
+            // 【键位必须按物理键而非同名枚举】训练标签口径
+            //   （`src/dataset_v3.py:684-687`）：
+            //     handbrake 头  ← `shift` 列  → 物理 **Shift**
+            //     brake 头      ← `space` 列  → 物理 **Space**
+            //   而 `ControlEngine.Action` 的命名与物理键**是反的**：
+            //     `.handbrake` → 键码 49 = **Space**
+            //     `.boost`     → 键码 56 = **Shift**
+            //   故：模型的 handbrake 头必须发 `.boost`(Shift)，brake 头发
+            //   `.handbrake`(Space)。按枚举名直觉接会**把空格与 Shift 对调**，
+            //   不报错、但手刹与极速互换 —— 正是必须显式注明的原因。
+            //
+            // 【门控必须同时判 `decided == .e2e`，不能只判 v3Active】——这是 P0。
+            //
+            // 只判 v3Active 的失败模式（会让人以为"车突然死了"）：
+            //   降级状态机把档位降到 `.rule`/`.yolo` 后，`currentCommand` 已改由
+            //   `ruleController` / `assistCommand` 产出，但 V3 的 brake 头仍在
+            //   按 Space/Shift；而 `applyCommand`（:9100-9129）**只管 W/S/A/D 四键、
+            //   从不碰这两个键** → 切换后它们被永久按住，车再也动不了。
+            //   项目内 `releaseSpeedLimitBrake` 的注释（:8896-8902）记录的
+            //   正是这一失败模式（"手刹会被永久按住，车从此再也动不了"）。
+            //
+            // 故：轮到别的档位开车时，必须**主动松开**这两个键，而不是不碰。
+            // 门控三条件：V3 就绪 + 归档位 + **决策未过期**（P0-2：与四向命令同一判据）
+            if brakeHeadsActive {
+                applyV3BrakeHeads(inferenceEngineV3.lastDecision)
+            } else {
+                controlEngine.release(.boost)      // 物理 Shift
+                controlEngine.release(.handbrake)  // 物理 Space
+            }
         }
+
+        let auditDecision = inferenceEngineV3.lastDecision
+        let auditV3 = v3Active && decided == .e2e && v3DecisionFresh
+        let auditGuarded = auditV3 ? InferenceEngineV3.applyRolloverGuard(
+            to: m9Command, decision: auditDecision, speedKmh: effectiveSpeed,
+            speedValid: speedValid) : currentCommand
+        let guardChanged = auditV3 && auditGuarded != m9Command
+        let guardAddedS = auditV3 && m9Command.brake < 1 && auditGuarded.brake == 1
+        brakeAuditFrames += 1
+        if speedValid { brakeAuditSpeedValid += 1 }
+        if auditV3 && auditDecision.brakePressed { brakeAuditSpace += 1 }
+        if auditV3 && auditDecision.verticalClass == 2 { brakeAuditModelS += 1 }
+        if auditV3 && auditDecision.ultimatePressed && auditDecision.verticalClass != 2 { brakeAuditUltimate += 1 }
+        if guardAddedS { brakeAuditGuardAddedS += 1 }
+        if auditV3 && !speedValid && (auditDecision.superBrakePressed || auditDecision.ultimatePressed)
+            && m9Command.brake < 1 && !AuroraFlags.rolloverUnknownBrake {
+            brakeAuditUnknownAvoidedS += 1
+        }
+        if decided == .rule && currentCommand.throttle == 0 { brakeAuditRuleCoast += 1 }
+        if brakeAuditFrames % 60 == 0 {
+            let source = decided == .rule ? "rule(coast不是S)" : decided == .yolo ? "assist"
+                : !auditV3 ? "noFreshV3" : auditDecision.verticalClass == 2 ? "model.vertical=S"
+                : auditDecision.ultimatePressed ? "ultimate" : guardAddedS ? "rolloverGuard" : "noS"
+            dlog("[DRIVE-BRAKE] mode=\(decided.rawValue) verticalClass=\(auditDecision.verticalClass) "
+                 + "superBrakePressed=\(auditDecision.superBrakePressed) ultimatePressed=\(auditDecision.ultimatePressed) "
+                 + "shift=\(auditDecision.handbrakePressed) space=\(auditDecision.brakePressed) "
+                 + "speedValid=\(speedValid) guardWouldChange=\(guardChanged) guardApplied=\(rolloverGuardApplied) guardAddedS=\(guardAddedS) "
+                 + "unknownPolicy=\(AuroraFlags.rolloverUnknownBrake ? "forceS" : "coast-preserve-model-brake") "
+                 + "source=\(source) commandBrake=\(currentCommand.brake) plannedBrake=\(auditGuarded.brake) "
+                 + "injectionEnabled=\(!controlDisabled && !expertMode && !benchSuppressAllInjection && !EmergencyTakeover.shared.userHoldingKey) "
+                 + "last60 speedValid=\(brakeAuditSpeedValid)/60 modelS=\(brakeAuditModelS) "
+                 + "ultimateOnly=\(brakeAuditUltimate) guardAddedS=\(brakeAuditGuardAddedS) ruleCoast=\(brakeAuditRuleCoast) unknownAvoidedS=\(brakeAuditUnknownAvoidedS) modelSpace=\(brakeAuditSpace)")
+            brakeAuditSpeedValid = 0
+            brakeAuditModelS = 0
+            brakeAuditUltimate = 0
+            brakeAuditGuardAddedS = 0
+            brakeAuditRuleCoast = 0
+            brakeAuditUnknownAvoidedS = 0
+            brakeAuditSpace = 0
+        }
+
+        // ── 回填「本帧实际执行」的横向动作给 V3（vehicle_state[6] 口径对齐）──
+        //
+        // 训练侧 `vehicle_state[6]` 读的是上一帧 `controls.csv` 里**实际按下**的
+        // a/d 位（`src/dataset_v3.py:630-638`），不是"模型想按什么"。
+        //
+        // 【P0-3：取值必须来自实际执行状态，不能由布尔门控推断】
+        //   旧实现写的是 `v3InjectedKeys ? currentCommand.steer : 0` —— 即拿
+        //   「允许注入」这个布尔值去推断「实际按了什么」。两者并不等价：
+        //     · 限速刹车 / 人工接管 / 专家模式会主动 `release(.steerLeft/.steerRight)`，
+        //       此时 `currentCommand.steer` 仍可能是 ±1，但**物理上方向键是松的**；
+        //       旧写法只要门控为真就会把这个未执行的 ±1 回填进去 → 反馈与事实不符。
+        //   现在直接读 `controlEngine.heldKeys`（AI 真实按住的物理键码）来判定：
+        //   这才是训练侧标签的本义（"实际按下"），也是录制链路用的同一份事实。
+        //
+        // 【为什么 benchSuppress 分支单独写 0】该分支既不发按下也不发松开（见上方
+        //   注释），`heldKeys` 可能保留上一帧残留 → 不能拿来推断，如实回填 0。
+        let executedSteer: Double
+        if benchSuppressAllInjection {
+            executedSteer = 0
+        } else if controlEngine.heldKeys.contains(controlEngine.keyMap.steerLeft) {
+            executedSteer = -1        // A
+        } else if controlEngine.heldKeys.contains(controlEngine.keyMap.steerRight) {
+            executedSteer = 1         // D
+        } else {
+            executedSteer = 0
+        }
+        inferenceEngineV3.noteExecutedSteer(executedSteer)
+
         perfT = PerfBus.lap("tick.inject", from: perfT)   // ★ 阶段1 打点（§6 按键注入）
 
         // ── 7. 行驶录制（画面 + 控制量）──
@@ -8889,7 +9425,19 @@ final class DriveState {
         controlEngine.release(.steerLeft)
         controlEngine.release(.steerRight)
 
-        // ④ 持续重发按下事件，否则游戏只收到一次 keyDown（其输入层只认新按下）
+        // ④ 纵向 S 键：本策略不使用，**必须显式释放**。
+        //   ⚠️ 既有缺陷（评审 P0-7，已逐行确认为真）：
+        //   本函数原来只松 W / Shift / Space / A / D，**漏了 `.brake`（S，键码 1）**。
+        //   而 `applyCommand` 会为 V3 的 `vertical=S` 按住 S；
+        //   限速刹车一旦触发就在本段**提前 return**，`applyCommand` 不再执行 →
+        //   S 会被本策略末尾的 `refreshHeldKeys()` 持续重发。
+        //   后果：本该"松油门 + 点刹"的限速阶段，车一直踩着 S（倒车/制动语义），
+        //   实际按键集合 ≠ 限速策略。
+        //   为什么必须现在修：V3 是**离散三分类**输出，S 可能连续多帧保持不变，
+        //   这个漏洞被显著放大；旧的连续回归模型输出很少长期钉在 S 上。
+        controlEngine.release(.brake)
+
+        // ⑤ 持续重发按下事件，否则游戏只收到一次 keyDown（其输入层只认新按下）
         controlEngine.refreshHeldKeys()
     }
 
@@ -9020,6 +9568,41 @@ final class DriveState {
         // 缺了这一步，控制量稳定时（E2E 直道恒定油门）整段驾驶只会产生一个
         // keyDown，游戏收不到任何后续事件 —— 表现为「UI 显示按住、车不动」。
         controlEngine.refreshHeldKeys()
+    }
+
+    /// 把 V3 的四个 sigmoid 刹车头映射到物理按键。
+    ///
+    /// 【键位对应（训练口径 → 物理键 → ControlEngine 枚举）】
+    ///   handbrake 头（`shift` 列） → 物理 Shift → `.boost`（键码 56）
+    ///   brake 头（`space` 列）     → 物理 Space → `.handbrake`（键码 49）
+    ///   super_brake 头 = Shift+Space → 同时按两键
+    ///   ultimate 头    = Shift+Space+S → 两键 + 纵向已由 vertical 分类给 S
+    ///
+    /// ⚠️ 枚举名与物理键是**反的**，按名字直觉接会把空格/Shift 对调。
+    ///   此处以物理键为准，并保留该注释防止后续被"改正"回去。
+    private func applyV3BrakeHeads(_ d: V3Decision) {
+        // 物理 Shift（模型 handbrake 头）：super/ultimate 触发时也必须按住，
+        // 因为二者在训练标签里都蕴含 shift=1（`shift and space`）。
+        let needShift = d.handbrakePressed || d.superBrakePressed || d.ultimatePressed
+        // 物理 Space（模型 brake 头）：同理 super/ultimate 蕴含 space=1。
+        let needSpace = d.brakePressed || d.superBrakePressed || d.ultimatePressed
+
+        if needShift {
+            controlEngine.hold(.boost)
+        } else {
+            controlEngine.release(.boost)
+        }
+        if needSpace {
+            controlEngine.hold(.handbrake)
+        } else {
+            controlEngine.release(.handbrake)
+        }
+        // 【不在这里 refreshHeldKeys】评审 P2-2 指出同一 tick 会重发两轮：
+        //   本函数唯一调用点在 `applyCommand(currentCommand)` 之后（同一 tick），
+        //   而 applyCommand 末尾已经调过一次；`keyRefreshInterval` 默认为 0
+        //   （`AuroraFlags.keyRefreshHz` 默认 0 → 不节流），即真的会各发一轮。
+        //   去掉这里这一次，键集合已由前面那次统一重发，行为等价且少一轮事件。
+        //   （若将来本函数被移到 applyCommand 之外调用，需自行补一次 refresh。）
     }
 }
 
