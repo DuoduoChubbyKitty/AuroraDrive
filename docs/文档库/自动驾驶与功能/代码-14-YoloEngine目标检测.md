@@ -1,5 +1,5 @@
 # 代码-14 YoloEngine 目标检测
-> 覆盖源文件：`Sources/AuroraDrive/Inference/YoloEngine.swift`（**866 行**，2026-09-29 实测；原文写 818 行）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Inference/YoloEngine.swift`（**922 行**，2026-11-10 实测；原文写 818 行）。基于当前仓库逐单元编写。
 >
 > **2026-09-25 深度复核记录**（807→818 行，+11 行）：9-24 改动 4 落地「fastPathActive 前置修复 + 超时回退」——`fastPathActive` 改为**只在确实开始走直通时才置位**（若放在 guard 之前，模型未加载时也会置 true → tick 的 `if !fastPathActive` 永远不再回退慢路径 → YOLO 彻底停摆），并新增 `lastFastPathTime` 时间戳供调用方做 1s 超时回退判断。其余架构（双路径推理/帧间平滑/锁定追踪/parse/CocoLabels）与上版一致。
 
@@ -7,7 +7,7 @@
 
 ## ♻️ 行号已按 9097 行版重基准（2026-10-18 收尾批次）
 
-> `YoloEngine.swift` **866 行，lead 确认未改动**——本次逐条实测 30 处区间，**零漂移**（无一处需要平移）。
+> `YoloEngine.swift` **922 行**（2026-11-10 `wc -l` 实测；旧记 866 行已过期）。
 > 仅修正 6 处**首/尾边界偏差**（属历史书写精度问题，非代码变更）：
 >
 > | 符号 | 旧区间 | 新区间 | 说明 |

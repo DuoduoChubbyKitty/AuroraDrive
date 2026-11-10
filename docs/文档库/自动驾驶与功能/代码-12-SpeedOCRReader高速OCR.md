@@ -1,11 +1,11 @@
 # 代码-12 SpeedOCRReader 高速 OCR
-> 覆盖源文件：`Sources/AuroraDrive/Inference/SpeedOCRReader.swift`（**1633 行**，2026-10-06 `wc -l` 实测重核；本篇原按 1452 行版本编写，行号已按当前快照校正，含 2026-09-30「模型加载移出 init」改造）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Inference/SpeedOCRReader.swift`（**1939 行**，2026-11-10 `wc -l` 实测重核；本篇原按 1452 行版本编写，行号已按当前快照校正，含 2026-11-10「模型加载移出 init」改造）。基于当前仓库逐单元编写。
 >
 > **✅ 行号已按当前版重基准（2026-10-18，源码冻结）**：逐条 `sed -n` 复核 **129 条**引用（含 51 个常量/成员/方法锚点 + 78 个区间端点），`SpeedOCRReader.swift` 实测 **1634 行**（文档记 1633，差 1 行为末行空行口径，不算错）。修正 **2 条**：
 > - **类声明 `第 47–50 行` → `第 48–50 行`**：`:47` 是 docstring 尾行（「槽位坐标经 speedROINorm 换算…」），`@Observable` 才是 `:48`、`final class` 在 `:50`
 > - **`cropSlots` 定义在 `:741`**（文档 §七 写 `:728-740 注释`是对的，但那只是 docstring；已在文中补明函数定义行 741）
 > - **判定为准确、零改动的 127 条**：全部常量/成员/方法行号（`:55/:61/:65/:71/:75/:79/:81/:84-85/:93/:96/:99-101/:105/:109/:114/:117/:121/:125/:132-133/:136/:140/:143/:148/:152/:157/:160/:163/:168/:171/:175/:182/:186/:191/:195/:204-205/:209/:213/:217/:223-224/:287/:318/:466/:476/:516-518/:531/:534/:536-539/:542-544/:547/:548-552/:554-562/:568-596/:603-611/:615/:624-636/:638-673/:698-702/:720/:751-772/:785/:887-889/:895-918/:920-967/:929-943/:950/:953-963/:1130/:1210/:1346/:1360/:1438/:1447`）逐条 `sed -n` 命中
-> - **跨文件 1 条**：`AuroraFlags.swift:443-444` 实测确为 `AURORA_SKIP_MODEL_LOAD` + `AURORA_OCR_DEBUG`（R4 结论「`AURORA_OCR_CI` 未注册」仍成立）
+> - **跨文件 1 条**：`AuroraFlags.swift` 实测确为 `AURORA_SKIP_MODEL_LOAD` + `AURORA_OCR_DEBUG`（R4 结论「`AURORA_OCR_CI` 未注册」仍成立）
 
 ---
 
@@ -227,7 +227,7 @@ let yMax    = (yMaxNorm * CGFloat(sh)).rounded(.toNearestOrEven)
 >
 > **影响**：主路径（PP-OCR，生产常态）已零 GPU；但一旦降级到 CNN 备用路径，每帧会触发 Metal 提交（`cropSlots` 1 次 + `lanczosResize` 3 次），与「绝不与游戏抢 GPU」铁律冲突。**这是已知未修项**，非本文档笔误。
 >
-> **`AURORA_OCR_CI` 回退开关**（`:941`）是裸 `ProcessInfo.processInfo.environment` 现读，**不在 `AuroraFlags` 注册表**（注册表只收录了 `AURORA_SKIP_MODEL_LOAD` / `AURORA_OCR_DEBUG`，见 `AuroraFlags.swift:443-444`）。
+> **`AURORA_OCR_CI` 回退开关**（`:941`）是裸 `ProcessInfo.processInfo.environment` 现读，**不在 `AuroraFlags` 注册表**（注册表只收录了 `AURORA_SKIP_MODEL_LOAD` / `AURORA_OCR_DEBUG`，见 `AuroraFlags.swift`）。
 
 **`RecognitionResult`（private struct，第 869 行起）——单次识别结果：**
 
@@ -419,7 +419,7 @@ return (String(chars), confs.reduce(0, +) / Double(confs.count))
 
 补充：`git status --porcelain Sources/AuroraDrive/Inference/SpeedOCRReader.swift` **输出为空** ⟹ 工作区也无未提交改动（`md5` 实测 `43076a68cfb34ed1ed3c498ec0d64336`）。`wc -l` 实测仍为 **1540 行**，与上文口径一致。
 
-**整个 `Inference/` 目录本次均未改动**（`git diff --stat HEAD~5..HEAD -- Sources/AuroraDrive/Inference/` 输出为空）：`InferenceEngine.swift` 仍 522 行、`QuestPanelReader.swift` 仍 1160 行、`YoloEngine.swift` 仍 843 行、`YolopxEngine.swift` 仍 1666 行——即 [代码-13](代码-13-InferenceEngine端到端推理.md) 上半部分的全部行号同样**继续有效**。
+**整个 `Inference/` 目录本次均未改动**（`git diff --stat HEAD~5..HEAD -- Sources/AuroraDrive/Inference/` 输出为空）：`InferenceEngine.swift` 仍 522 行、`QuestPanelReader.swift` 仍 1160 行、`YoloEngine.swift` 现 922 行、`YolopxEngine.swift` 现 1817 行——即 [代码-13](代码-13-InferenceEngine端到端推理.md) 上半部分的全部行号同样**继续有效**。
 
 **⚠️ 一处需要读者注意的措辞校正（非本次改动，是上文的口径）**：上文末尾提到的「任务面板 OCR 同层姊妹模块」即 `QuestPanelReader`——**两者是两条独立的 OCR 链路**（SpeedOCRReader 读速度表数字 → `DriveState.speedKmh`；QuestPanelReader 读任务面板文字 → `setLocatorTarget`）。2026-10-07 新增的**第三条**「看图」链路是 AI 助手（把整帧发给远端多模态 LLM），它与前两者**无任何代码/数据通道**——详见 代码-13 §9.1 的三链路对照。
 

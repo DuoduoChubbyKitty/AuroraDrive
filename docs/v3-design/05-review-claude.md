@@ -8,6 +8,12 @@
 > 并新增未跟踪文件 `src/train_v3.py`。**本报告一律以 `git show 9ab3f6b:<file>` 抽出的快照为准**
 > （存放于 `/tmp/v3t/audit/`），不评审工作区的未提交内容。下文行号均指 **commit 9ab3f6b 版本**。
 
+> ⚠️ **2026-11-10 现状注记（以当前代码为准，不改动本报告历史结论）**：以下 P0 已在当前工作区代码中修复——
+> · **P0-1**（shift 录不到）：录制器现写 8 列原生按键 `w,a,s,d,shift,space,super_brake,ultimate_brake`（`Capture/RecordEngine.swift:11,46,370`、`LeanRecordEngine.swift:688`）；
+> · **P0-2**（`_bit()` 缺列静默读 0）：现对缺列/None/空串**显式抛 ValueError**（`src/dataset_v3.py:153-190`，注释标「2026-11-03 修复（审查 P0-2）」）；
+> · **P0-3**（`make_train_val_split` 缺失）：现已在 `src/dataset_v3.py:956` 定义（按 clip 划分）。
+> 其余 P0/P1 条目未在本轮逐个复核。
+
 ---
 
 ## 1. 结论摘要

@@ -19,7 +19,7 @@
 
 | 项目 / Resource | 用途 / Purpose | 许可证 / License |
 |---|---|---|
-| [**MaaNTE**](https://github.com/1bananachicken/MaaNTE) | 网络定位算法蓝本（UE5 移动包位流解析、坐标标定，移植自其 `nte_coordinate_api.py`）；全收集地图图源 | AGPL-3.0 |
+| [**MaaNTE**](https://github.com/1bananachicken/MaaNTE) | 网络定位算法蓝本（UE5 移动包位流解析移植自其 `nte_coordinate_api.py`；坐标标定常量取自其 `coordinate_position.py`，与本项目 `kCalibA/B/TX/TY` 逐位一致）；全收集地图图源（MaaNTE-Map 13056×13056 扩图） | AGPL-3.0 |
 | [**MetalGoose**](https://github.com/Stallion77RepoOfficial/MetalGoose) | MetalFX 超分 + 插帧引擎（`Vendor/MetalGoose`，仅作用于显示层） | GPL-3.0 |
 | [**nteguide.com**](https://nteguide.com) | 全收集地图标记数据 | 经作者许可 |
 
@@ -31,7 +31,7 @@
 - **端到端自动驾驶**：M9 单目模型直接从画面输出操控量，**三档降级**保底（端到端 → YOLO 接管 → 规则兜底）
 - **网络抓包定位**：libpcap 捕获 UE5 移动同步包（tcp/30031），位流解码出世界坐标 + 朝向，映射到 13056×13056 大地图像素（map-2026-08，2026-09-13 升级）
 - **速度识别**：PP-OCRv6 微调整行模型（`models/ppocrv6_tiny_ft_int8.mlpackage`，int8 量化，GPU 推理）为主路径，逐位 CNN（`speed_digit_cnn_v4*`）为备用，三层校验
-- **BPF 权限自动安装**：App 内输入一次管理员密码，自动安装 LaunchDaemon，每次开机自动恢复 `/dev/bpf*` 读写权
+- **系统权限安装**：App 内输入当前账户的管理员密码，通过 `sudo -S` 安装两个 root LaunchDaemon：`com.aurora.bpf-setup` 每 3 秒修正 `/dev/bpf*` 权限，`com.aurora.priority` 每 5 秒为 AuroraDrive 进程执行 `renice -20`。密码不硬编码、不落盘；详见下方安全提示
 - **AI 助手（真对话 + 自主操作）**：接大模型**真对话**（流式输出，增量按 15Hz 节流；候选链最多尝试 4 个，全链失败才回退本地套话并标注「离线回复」）；助手可**自主调工具**（共 **30 个**）；操作游戏界面走**「ESC → 截图 → 鼠标点击」唯一可靠路径**。会话带**滑动窗口**（上限 200 条 ≈100 轮）
 - **任务面板 OCR**：读游戏左侧任务面板文字 → 查 `models/quest_index.json` → 世界坐标目标（**默认开启**，每 0.7s 一次 Vision OCR）
 - **全收集交互地图**：多图层开关（传送点/材料/宝箱/谕石），实时玩家位置 + 朝向
@@ -77,44 +77,40 @@ cd AuroraDrive
 **系统权限**：屏幕录制 + 辅助功能（系统设置 → 隐私与安全）
 *macOS permissions required: Screen Recording + Accessibility.*
 
-**BPF 权限（网络定位必需）**：首次启动会弹出 App 内密码窗（默认 `123456`），输入后自动安装 `com.aurora.bpf-setup` LaunchDaemon——之后每次重启自动恢复权限，永不再输。
+**系统权限（网络定位必需）**：首次安装时在 App 内输入**当前 macOS 管理员密码**（没有默认密码）。密码只经 `sudo -S` 的标准输入传给系统，不写入参数、文件或日志。安装会创建 `com.aurora.bpf-setup` 与 `com.aurora.priority` 两个 root LaunchDaemon；它们会在开机后常驻运行。
+
+> ⚠️ **安全边界**：BPF 守护会把 `/dev/bpf*` 设置为 `0666`，即本机所有用户进程均可读写抓包设备；性能守护会周期性把 AuroraDrive 调整到 `nice -20`。这是功能设计，不是临时测试行为。多用户或高安全要求的机器请先阅读 [`bpf-daemon.md`](docs/文档库/自动驾驶与功能/bpf-daemon.md)，确认风险后再安装。
 
 ## 🏗️ 架构 / Architecture
 
 ```
-┌─ 捕获层 Capture ──────┐   ┌─ 推理层 Inference ───────┐   ┌─ 执行层 Actuate ───┐
-│ ScreenCaptureKit      │ → │ E2E(m9_mono) 20Hz        │ → │ CGEvent 按键注入    │
-│ 20fps CVPixelBuffer   │   │ YOLO(yolo26s) 检测        │   │ (ControlEngine)     │
-├─ 定位层 Locate ───────┤   │ 速度OCR(PP-OCRv6) 20Hz  │   ├─ 显示层 Display ───┤
-│ libpcap tcp/30031     │   ├─ 决策层 Decide ──────────┤   │ MetalFX 超分+插帧   │
-│ UE5位流→世界坐标       │   │ 三档降级状态机             │   │ 全收集交互地图      │
-│ →13056px 地图像素     │   │ e2e/yolo/rule             │   │ (仅人眼观看)        │
-└───────────────────────┘   └───────────────────────────┘   └────────────────────┘
+┌─ UI 进程 ─────────────┐    共享内存 v3     ┌─ 引擎进程 ──────────────────────┐
+│ SwiftUI 控制台/地图    │ ← /aurora_frame_v1 → │ ScreenCaptureKit 15fps          │
+│ 检测框/掩码/状态显示   │   帧、检测、掩码、心跳 │ E2E + YOLOPX + OCR（tick 15Hz） │
+│ MetalFX 超分+插帧      │                    │ 三档降级 e2e/yolo/rule          │
+└───────────────────────┘                    │ CGEvent 键鼠注入                 │
+                                             └──────────────┬───────────────────┘
+                                                            │
+                                      libpcap tcp/30031 → 世界坐标/朝向
 ```
 
-> 📌 **频率口径（2026-10-18 核实）**：tick（推理+控制+录制）与抓屏**都已是 20Hz/20fps**
-> （`EngineMain.engineTickHz = 20.0`；`tickHz/captureHz(forPerceptionMode:)` 两档都返回 20）。
-> 历史沿革：45 → 30 → 20；应急冲刺（sprint）时两者一起提到 45。
-> 上图原写「30Hz」，是 20Hz 定档前的口径，已按实况更新。
+> 📌 **当前频率口径（2026-11-08 按源码复核）**：正常状态下 tick（推理+控制+录制）为 **15Hz**，抓屏为 **15fps**；应急冲刺为 **20Hz/20fps**。权威值见 `EngineMain.engineTickHz`、`tickHz(forPerceptionMode:)`、`captureHz(forPerceptionMode:)`、`CaptureEngine._targetCaptureHz` 与 `RecordEngine.targetFps`。历史文档中的 20Hz、30Hz、45Hz 若没有明确标成历史，均不代表当前默认值。
 
 **架构红线**：插帧/超分只作用于显示叠加层，绝不进入决策链路。
 *Frame interpolation / upscaling ONLY applies to the display overlay — never to the capture → inference → key-injection decision path.*
 
-### ⚠️ 上图为早期形态（2026-09-29 复核提示）
+### 当前架构补充
 
-上方架构图描述的是**单进程早期形态**。项目此后演进出**四大支柱**，本图尚未反映。
-**权威文档请以 `docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md` 为准。**
+上图已更新为当前的双进程形态。更细的源码级说明以 `docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md` 为准。
 
-| 支柱 | 说明 | 为何本图未体现 |
+| 支柱 | 说明 | 当前定位 |
 |---|---|---|
-| **① 双进程 + 共享内存 v3** | UI 与引擎是两个长驻进程，经 `/aurora_frame_v1` 共享内存（72MB）传帧与检测；`EngineClient.protocolVersion = 3` | 写作时还是单进程 |
-| **② YOLOPX 三合一感知** | `YolopxEngine`：一个模型同时出 `det`（检测）/ `da`（可行驶区）/ `ll`（车道线）。频率随档位：**ayolom 档每 tick 都跑（20Hz）**、**legacy 档偶数帧跑（10Hz）**。**★核心资产，模型一个字节都不能换** | 写作时只有 `yolo26s` |
-| **③ 光流 + 运动预测** | OpenCV DIS 光流（`Vendor/OpenCVFlow`，≤5ms 红线）把 10Hz（20Hz tick 下的偶奇帧门）检测补成 20Hz（α-β 滤波外推）。⚠️ 原写「15Hz 补成 30Hz」是 30Hz 时代口径 | 写作后新增 |
-| **④ 掩码可视化** | 可行驶区/车道线掩码经共享内存传回 UI 叠加显示（bit-pack，160×160 网格） | 写作后新增 |
+| **① 双进程 + 共享内存 v3** | UI 与引擎是两个长驻进程，经 `/aurora_frame_v1` 共享内存（约 72MB）传帧与检测；`EngineClient.protocolVersion = 3` | 当前主架构 |
+| **② YOLOPX 三合一感知** | `YolopxEngine`：一个模型同时输出 `det`（检测）/ `da`（可行驶区）/ `ll`（车道线）。正常 tick 当前为 15Hz，具体门控以 `EngineMain` 和 `YolopxEngine` 源码为准 | 核心感知资产 |
+| **③ 光流 + 运动预测** | OpenCV DIS 光流（`Vendor/OpenCVFlow`，≤5ms 红线）在模型未产生新检测的 tick 上做 α-β 滤波外推；不要再用旧文档的“补成 20/30Hz”固定口径描述 | 帧间补偿 |
+| **④ 掩码可视化** | 可行驶区/车道线掩码经共享内存传回 UI 叠加显示（bit-pack，160×160 网格） | 显示与诊断 |
 
-> 另注：架构图中 `YOLO(yolo26s) 检测` 的表述需留意——`yolo26s` 在项目中**主要用于预测侧**，
-> 而游戏内目标检测的主路径是 **YOLOPX 的 `det` 头**。详见 [`代码-14-YoloEngine目标检测.md`](docs/文档库/自动驾驶与功能/代码-14-YoloEngine目标检测.md)
-> 与 [`代码-13-InferenceEngine端到端推理.md`](docs/文档库/自动驾驶与功能/代码-13-InferenceEngine端到端推理.md)（原引的 `04-vision-inference.md` §4.8 已随 2026-10-17 清理删除）。
+> 目标检测主路径是 **YOLOPX 的 `det` 头**；`yolo26s` 主要用于预测侧。详见 [`代码-14-YoloEngine目标检测.md`](docs/文档库/自动驾驶与功能/代码-14-YoloEngine目标检测.md) 与 [`代码-13-InferenceEngine端到端推理.md`](docs/文档库/自动驾驶与功能/代码-13-InferenceEngine端到端推理.md)。
 
 ## 🧹 2026-09-19 磁盘清理 / Disk cleanup
 
@@ -163,7 +159,7 @@ cd AuroraDrive
 | 网络坐标采集 | [代码-04-CoordinateCapture网络坐标采集](docs/文档库/自动驾驶与功能/代码-04-CoordinateCapture网络坐标采集.md) |
 | 速度 OCR | [代码-12-SpeedOCRReader高速OCR](docs/文档库/自动驾驶与功能/代码-12-SpeedOCRReader高速OCR.md) |
 | 降级状态机（三档） | [代码-20-DegradeStateMachine降级状态机](docs/文档库/自动驾驶与功能/代码-20-DegradeStateMachine降级状态机.md) |
-| AI 助手面板 | [代码-23-AIAgentPanel与17技能](docs/文档库/自动驾驶与功能/代码-23-AIAgentPanel与17技能.md) |
+| AI 助手面板 | [代码-23-AIAgentPanel与18技能](docs/文档库/自动驾驶与功能/代码-23-AIAgentPanel与17技能.md) |
 | 进程间通信 | [代码-07-EngineClient进程间通信](docs/文档库/自动驾驶与功能/代码-07-EngineClient进程间通信.md) |
 | 路网先验 | [代码-36-RoadMapPrior路网先验](docs/文档库/自动驾驶与功能/代码-36-RoadMapPrior路网先验.md) |
 | BPF 权限与 LaunchDaemon | [bpf-daemon](docs/文档库/自动驾驶与功能/bpf-daemon.md) |

@@ -7,6 +7,8 @@
 > **本报告所有数字的来源**：全部由 `tools/v3_exp/` 下 4 个脚本实跑产出，可复现。
 > 凡未实测的内容一律标注「未测」，不做推测性填写。
 
+> ⚠️ **2026-11-10 现状注记（以代码为准）**：本文为**设计阶段**报告（输出头参数量 56,554 等均按 D=192 设计配置计）。最终 `src/model_v3.py` 用 **D=256**，`V3OutputHead` 的 trunk 输入维度随之是 256，输出头实参数量与本文数字不同，**以 `tools/v3_exp/v3code_count.py` 实测为准**。结构决策（纵向 3 类 × 横向 3 类 = 9/9 组合、修饰键独立 sigmoid、super_brake/ultimate 由原子键派生不设独立头）与 `model_v3.py:698-808` 一致。
+
 ---
 
 ## §0 结论摘要（先看这一段）
@@ -32,7 +34,7 @@
 
 ## §1 我读到了什么（论文精读笔记）
 
-论文：*Addressing Limitations of State-Aware Imitation Learning for Autonomous Driving*（`docs/v3-design/papers/state_aware.txt`，arXiv:2310.20650v1）。
+论文：*Addressing Limitations of State-Aware Imitation Learning for Autonomous Driving*（arXiv:2310.20650v1）。⚠️ 2026-11-10 文档清理：原本地全文 `docs/v3-design/papers/state_aware.txt` 已随 `papers/` 目录删除（按 arXiv 编号自查）。
 
 ### 1.1 论文的 stop/go 中间阶段，为什么能解决 inertia（惯性）问题
 

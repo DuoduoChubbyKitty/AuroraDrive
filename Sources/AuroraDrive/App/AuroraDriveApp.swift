@@ -5959,18 +5959,22 @@ final class DriveState {
     // ⚠️ 2026-09-30 性能修复：这两个属性改为 @ObservationIgnored
     // ══════════════════════════════════════════════════════════════════════════
     //
-    // 【为什么】它们在 `tick()` 里被**每帧无条件赋值**（见 tick 尾部：
+    // 【为什么】它们原本在 `tick()` 里被**每帧无条件赋值**（见 tick 尾部：
     //   `upscaleLive = "产出 …"` / `upscaleLive = nil` /
-    //    `upscaleEngineError = err` / `upscaleEngineError = nil`），
+    //    `upscaleEngineError = err` / `upscaleEngineError = nil`）。
+    //   ⚠️ 2026-10-22 起该赋值已收敛为 **1Hz 节流 + 先比后写**（仅在值变化时才写，
+    //      见 `:9225-9243`），不再是每帧无条件写；下面「空转」的结论仍成立，
+    //      但频率已由 30Hz 降为 15Hz × 1Hz 节流。
     //   而 `@Observable` 的语义是「赋值即通知所有观察者」——
     //   每次通知都会让读到它们的 SwiftUI 视图失效并重算 body。
     //
     // 【但没有任何 UI 消费它们】全仓库核实：
-    //   · `upscaleLive`         —— **零读取方**（唯一提及是它自己的赋值语句）
-    //   · `upscaleEngineError`  —— 仅被 `:4706` 的诊断字符串拼接读取，
+    //   · `upscaleLive`         —— **无任何消费者**（唯一读取是 `:9238` 自己的等值比较，
+    //                              不属于「消费」；无 View body 读取）
+    //   · `upscaleEngineError`  —— 仅被 `:9335`（upscaleStatLine）的诊断字符串拼接读取，
     //                              不在任何 View body 中
     //   ⟹ 每帧都在做一次「通知全体观察者 → 无人响应」的空转。
-    //     在 30Hz tick 下等于每秒 60 次无效的视图失效判定。
+    //     在现行 15Hz tick 下（历史注释写的 30Hz 已过时）等于每秒 30 次无效的视图失效判定。
     //
     // 【为什么标 @ObservationIgnored 是安全的】
     //   本类的这些值是**写给自己看的诊断状态**，不是视图数据源。
@@ -6390,7 +6394,9 @@ final class DriveState {
     // ── 网络抓包定位引擎（NetworkExtension，UE5 移动包解析）──
     // TCP 30031 端口抓包，解析 UE5 移动包 bit-packed 格式
     // 输出游戏世界坐标 + 相机位姿，坐标变换到地图像素
-    // 旧NetworkPacketCapture已移除（不编译），使用移植的NetworkLocator
+    // 旧 NetworkPacketCapture 已移除（不编译）；现行网络定位由下方懒初始化的
+    // CoordinateCapture（BPF 抓包）承担，见 runNetworkLocateStep()。
+    // （注：移植的 NetworkLocator 类型存在但从未实例化，不是本字段的实际实现。）
     // @ObservationIgnored let networkLocator = NetworkPacketCapture()
 
     // ── 三段胶水代码（接模型输出 → 状态机 → 按键注入）──
@@ -7535,7 +7541,7 @@ final class DriveState {
         // ⚠️ 2026-10-22 删除「插帧实时统计」的每 tick 字符串拼接（纯浪费）：
         //   原代码 `upscaleLive = "产出 … · 透传 … · 输入 …fps → 输出 …fps"`，
         //   含 2 次 String(format:) + 4 次数值插值，在 15Hz 的 tickEngineMode 里
-        //   **无节流**执行。而 `upscaleLive` 全仓**零读取方**（声明处注释 :5333
+        //   **无节流**执行。而 `upscaleLive` 全仓**无任何消费者**（声明处注释 :5983
         //   自己也写明了「零读取方（唯一提及是它自己的赋值语句）」）。
         //   真正的插帧统计走另一条路（:8027 的 1Hz 节流路径写日志），功能不受影响。
     }
@@ -8286,7 +8292,7 @@ final class DriveState {
                     //   ⟹ **compass 度 [0,360)**，与 `V2FeatureBuilder.buildCameraHeadingRad`
                     //      的期望口径完全一致（内部转 rad）。
                     //   ⚠️ 早期草稿曾引用 `networkLocator.lastResult?.cameraHeading`，
-                    //      但 `networkLocator` 已随"旧网络抓包定位移除"（:6166 注释）
+                    //      但 `networkLocator` 已随"旧网络抓包定位移除"（:6393 注释）
                     //      而**不存在**——改用现存的 `locatorHeading`。
                     //
                     // 有效性判据：`locatorFound`（定位成功）且 score 达门槛

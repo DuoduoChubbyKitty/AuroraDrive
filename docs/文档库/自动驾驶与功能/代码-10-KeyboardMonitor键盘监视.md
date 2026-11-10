@@ -1,15 +1,15 @@
 # 代码-10 KeyboardMonitor 键盘监视与打标签
-> 覆盖源文件：`Sources/AuroraDrive/Control/KeyboardMonitor.swift`（**166 行**，2026-10-18 `wc -l` 实测）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Control/KeyboardMonitor.swift`（**231 行**，2026-11-10 `wc -l` 实测）。基于当前仓库逐单元编写。
 
 > ♻️ **行号已按 9097 行版重基准（2026-10-18，sys-reader）**：检查 **6 条**跨文件引用（`AuroraDriveApp.swift` 2 + `EngineMain.swift` 4），**全部准确、修正 0 条**：
 >
 > | 引用 | 行号 | 实测 |
 > |---|---|---|
-> | `keyboardMonitor.onUserKeyDown` 接线 | `AuroraDriveApp.swift:6277-6281` | ✅ `:6277` onUserKeyDown `{` / `:6280` onUserKeyUp `{` / `:6281` `takeover: false` —— 逐行命中 |
-> | ET-4 接线段（§三标题引用） | `AuroraDriveApp.swift:6277-6281` | ✅ 同上 |
-> | `cTakeover` 解析 | `EngineMain.swift:1710` | ✅ `let cTakeover = obj["takeover"] as? Bool` |
-> | `noteUserKeyDown()` 调用 | `EngineMain.swift:1754` | ✅ 逐行命中 |
-> | ET-5 语义注释段 | `EngineMain.swift:1705-1707` | ✅ `:1705` takeover=true 语义 / `:1706` takeover=false / `:1707` 状态守卫说明 |
+> | `keyboardMonitor.onUserKeyDown` 接线 | `AuroraDriveApp.swift` | ✅ `:6277` onUserKeyDown `{` / `:6280` onUserKeyUp `{` / `:6281` `takeover: false` —— 逐行命中 |
+> | ET-4 接线段（§三标题引用） | `AuroraDriveApp.swift` | ✅ 同上 |
+> | `cTakeover` 解析 | `EngineMain.swift` | ✅ `let cTakeover = obj["takeover"] as? Bool` |
+> | `noteUserKeyDown()` 调用 | `EngineMain.swift` | ✅ 逐行命中 |
+> | ET-5 语义注释段 | `EngineMain.swift` | ✅ `:1705` takeover=true 语义 / `:1706` takeover=false / `:1707` 状态守卫说明 |
 >
 > ⚠️ **本轮发现 1 处本文内部锚点小瑕疵（非跨文件）**：本文 §一 写「`:32-43` 的 `onUserKeyDown`/`onUserKeyUp`」——`:32` 实际是 `// MARK: - 用户按键回调（ET-2 · 应急接管用）` 标记行，**`onUserKeyDown` 声明在 `:40`**（`:43` 是 `onUserKeyUp`，这两条是对的）。`:32-43` 作为「区块范围」描述可接受，但精确到符号应写 `:40`/`:43`。
 >
@@ -82,7 +82,7 @@ private static let controlledKeyCodes: Set<CGKeyCode> = [
 - `handleKeyDown`（:128-130）：`if let onUserKeyDown, Self.controlledKeyCodes.contains(keyCode) { onUserKeyDown() }`
 - `handleKeyUp`（:138-140）：`if let onUserKeyUp, Self.controlledKeyCodes.contains(keyCode) { onUserKeyUp() }`
 
-### ET-4 跨进程接线（2026-10-12，`AuroraDriveApp.swift:6277-6281`）
+### ET-4 跨进程接线（2026-10-12，`AuroraDriveApp.swift`）
 
 ```
 UI 进程：KeyboardMonitor.onUserKeyDown = { EngineClient.shared.sendCommand("config", extra: ["takeover": true]) }
@@ -93,7 +93,7 @@ UI 进程：KeyboardMonitor.onUserKeyDown = { EngineClient.shared.sendCommand("c
           （引擎侧内部有状态守卫：只在 sprinting 冲刺态生效）
 ```
 
-**语义**（EngineMain.swift:1705-1707 注释）：`takeover=true` = 用户按下受控键 → 让位（5Hz，把算力让给用户）；`takeover=false` = 用户松开 → 回巡航（20Hz）。
+**语义**（EngineMain.swift 注释）：`takeover=true` = 用户按下受控键 → 让位（5Hz，把算力让给用户）；`takeover=false` = 用户松开 → 回巡航（20Hz）。
 
 **跨进程架构原因**（:6266-6270 注释）：KeyboardMonitor 只在 **UI 进程**（引擎进程是后台无 GUI，收不到 NSEvent）；而真正注入按键、需要"让位"的是引擎进程。故 UI 监听按键 → socket config → 引擎设 takeover 状态。
 

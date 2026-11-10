@@ -5,7 +5,7 @@
 > **本文描述的整条「XPC Agent 服务链」已废弃**（详见 §四），这是本次复核最重要的修正。
 > - ① `DaemonSetup.swift`（Core/）第 9-14 行注释原文：*「原『用户会话 XPC Agent』方案**已废弃**——实测 launchd 拉起的后台进程拿不到 TCC 权限（ax=false、screen=false），驾驶引擎改为由主程序 spawn 的子进程承担」*。
 > - ② `isRunningAsDaemon()` 恒 `false`、`isDaemonInstalled()` 恒 `false`（`DaemonSetup.swift:22` / `:25`，空壳兼容入口）；`needsInstall() = !isBPFAvailable()`（:28）——**daemon 安装路径已从"装 Agent"变成"装 BPF 权限守护"**。
-> - ③ 全仓 `Sources/` 内 **`com.aurora.drive.agent` 只出现在 AuroraDriveShared.swift:8-9 两行常量定义里**；`NSXPCConnection` / `AuroraDriveUserAgentProtocol` 在 `AuroraDrive` 主 target **零引用**（`grep -rn` 实测，输出为空）；`ping` / `startDriving` / `stopDriving` 三个 XPC 方法**没有任何客户端调用**（`EngineMain.swift:1513/1525` 与 `EngineGlobals.state?.startDriving()` 是驾驶引擎的同名方法，与 XPC 协议无关）。
+> - ③ 全仓 `Sources/` 内 **`com.aurora.drive.agent` 只出现在 AuroraDriveShared.swift:8-9 两行常量定义里**；`NSXPCConnection` / `AuroraDriveUserAgentProtocol` 在 `AuroraDrive` 主 target **零引用**（`grep -rn` 实测，输出为空）；`ping` / `startDriving` / `stopDriving` 三个 XPC 方法**没有任何客户端调用**（`EngineMain.swift/1525` 与 `EngineGlobals.state?.startDriving()` 是驾驶引擎的同名方法，与 XPC 协议无关）。
 > - ④ 机器现状：`launchctl list | grep com.aurora.drive.agent` → **0 命中**（Agent 未注册）；`~/Library/LaunchAgents/` 无该 label；`/Library/LaunchDaemons/` 里只有 `com.aurora.bpf-fix.plist` / `com.aurora.bpf-setup.plist` / `com.aurora.drive.daemon.plist` / `com.aurora.priority.plist` —— 其中 `com.aurora.drive.daemon.plist` 的 Label 是 `com.aurora.drive.daemon`（**不是** `.agent`）、`ProgramArguments` 指向 `/usr/local/bin/aurora-drive-daemon --daemon`（即 AuroraDriveUI 二进制本身）、**且无 `MachServices` key**，与 XPC Agent 无关。
 > - ⑤ `drivingRequested` 置位后确实无任何读取（`main.swift:9/17/24` 三处，grep 全仓只有这三行）——原文此结论仍成立。
 >

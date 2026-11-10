@@ -1,5 +1,5 @@
 # 代码-15 ConfidenceEstimator 置信度估计
-> 覆盖源文件：`Sources/AuroraDrive/Inference/ConfidenceEstimator.swift`（**357 行**，2026-10-18 `wc -l` 实测）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Inference/ConfidenceEstimator.swift`（**558 行**，2026-11-10 `wc -l` 实测）。基于当前仓库逐单元编写。
 >
 > **✅ 2026-10-18 复核（T6）**：本次逐条 `read` 源码核对，**全部单元行号已按当前 357 行版重测**（旧版按 348 行编写，源文件在 :75-84 新增「20Hz 口径漂移」注释块后整体下移 9 行）。
 > 三处实质修正：

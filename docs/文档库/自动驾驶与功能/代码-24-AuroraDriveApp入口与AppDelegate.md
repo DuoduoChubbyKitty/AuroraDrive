@@ -1,10 +1,10 @@
 # 代码-24 AuroraDriveApp 入口与 AppDelegate
 
 > ✅ **2026-10-18 行号重基准（9097 行版，源码已冻结）**：逐条 `sed -n 'Np'` 查现状 + 语义比对（未用统一 +N 平移——实测偏移分段不同：前部 0、尾部 +2~+3）。
-> 本轮修正 8 处：`lastDecided` 两处先比后写 `:7559/:7619`→**:7560/:7621**；悬空引用注释 `:7587`→**:7589**（其内引用的 `:4740`→**:5118**，实测 `lastDecided` 声明仍在 `:5116`）；尾部对象族 `:8128/:8229/:8449/:8594/:8688/:8714/:8730/:8899/:8956`→**:8130/:8231/:8451/:8596/:8690/:8716/:8732/:8901/:8958**（+2）；跨文件 `MissionConsole.swift:6886`→**:6891**；`EngineMain.swift:1957-1969`→**:1970 起**。
+> 本轮修正 8 处：`lastDecided` 两处先比后写 `:7559/:7619`→**:7560/:7621**；悬空引用注释 `:7587`→**:7589**（其内引用的 `:4740`→**:5118**，实测 `lastDecided` 声明仍在 `:5116`）；尾部对象族 `:8128/:8229/:8449/:8594/:8688/:8714/:8730/:8899/:8956`→**:8130/:8231/:8451/:8596/:8690/:8716/:8732/:8901/:8958**（+2）；跨文件 `MissionConsole.swift`→**:6891**；`EngineMain.swift`→**:1970 起**。
 > 未修正（已核实准确）：头部 20 条锚点 + 46 条 CLI 分支 + 全部区间端点 **逐条命中**。
 
-> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（**9097 行**，2026-10-18 `wc -l` 实测，源码已冻结）之上部：AppDelegate + Launcher + App Scene + WindowConfigurator + DragHandleView。中部 DriveState 见 [代码-25](代码-25-DriveState状态主体.md)；下部 BPF 弹窗/FrameHost 见本文第九节。
+> 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（**10636 行**，2026-11-10 `wc -l` 实测，源码已冻结）之上部：AppDelegate + Launcher + App Scene + WindowConfigurator + DragHandleView。中部 DriveState 见 [代码-25](代码-25-DriveState状态主体.md)；下部 BPF 弹窗/FrameHost 见本文第九节。
 >
 > ✅ **2026-10-17 复核（T7）**：全文行号按当前 9088 行版逐条 `grep -n` / `awk NR` 实测修正（正文数字全部为实测值）；历史遗留的补丁式阅读提示**已全部移除**——行号已修对，不再需要任何替代阅读方式。
 >
@@ -281,11 +281,11 @@
 
 ### 6.1 任务重点夹具
 
-**`--quest-selftest`**（分流 :1014-1017 → `QuestPanelReader.runSelfTest()`，`Inference/QuestPanelReader.swift:929`，`@MainActor`、返回失败项数）
-- 数据源：`models/quest_index.json`（1372 个精确文本 → 2938 条带坐标的目标，`QuestPanelReader.swift:11`）；
+**`--quest-selftest`**（分流 :1014-1017 → `QuestPanelReader.runSelfTest()`，`Inference/QuestPanelReader.swift`，`@MainActor`、返回失败项数）
+- 数据源：`models/quest_index.json`（1372 个精确文本 → 2938 条带坐标的目标，`QuestPanelReader.swift`）；
   8 条真实面板文字回归（:909、:916-）、另加反向用例（假阳性）、投票缓冲、链消歧、坐标语义、
   ROI 提示行过滤（文件头 :72-73）。
-- 分流处注释补一句模糊匹配与节流（`AuroraDriveApp.swift:1009-1013`）。
+- 分流处注释补一句模糊匹配与节流（`AuroraDriveApp.swift`）。
 - **2026-10-18 实测 PASS**（`./.build/scratch/release/AuroraDrive --quest-selftest`）：确认到正确任务与坐标
   `qid=L110302_M target=(30757,65971)`；quest 名为空时回退 desc；「与薄荷对话」判 ambiguous（23 候选）→
   锚点 WJ101302 唯一后继 WJ101303 走链消歧；「与龙叔交谈」3 候选坐标相同走 coord-equivalent 放行；
@@ -304,24 +304,24 @@
 
 **`--route-selftest`**（分流 :1268-1270 → `runRouteSelfTest()` :2100-2298）——见第七节。
 
-**`--wire-selftest`**（分流 :990 → `runWireSelfTest()`，`Core/WireSelfTest.swift:47`）
-- 验证 2026-10-02 修复的四处「手切档位静默失效」缺陷（`WireSelfTest.swift:12-30`）：
+**`--wire-selftest`**（分流 :990 → `runWireSelfTest()`，`Core/WireSelfTest.swift`）
+- 验证 2026-10-02 修复的四处「手切档位静默失效」缺陷（`WireSelfTest.swift`）：
   ① `EngineClient.sendCommand` 静默失败（:14-17）② `ControlWiring.pushConfig` 日志说谎（:19-21）
   ③ `pushEngineConfigIfChanged` 先记账后发送 → 永不重试（:23-26）④ 心跳超时只置 `isConnected`
   → 僵尸引擎模式（:28-30）。
 - 全部断言基于**可观测行为**，不做源码字符串匹配（:32-33）。
-- **必须 `AURORA_UI_LOCAL=1` 下跑**（`WireSelfTest.swift:36`；A1 用例就依赖本地模式必然未连引擎，:65）。
+- **必须 `AURORA_UI_LOCAL=1` 下跑**（`WireSelfTest.swift`；A1 用例就依赖本地模式必然未连引擎，:65）。
 
 ### 6.2 `--mc-*` 离屏出图夹具（均在 Launcher 无 GUI 阶段同步跑完）
 
-- 为什么必须在 `main()` 同步跑：注释 `AuroraDriveApp.swift:754-757`——「截图是纯离屏 ImageRenderer
+- 为什么必须在 `main()` 同步跑：注释 `AuroraDriveApp.swift`——「截图是纯离屏 ImageRenderer
   渲染，若放到 ContentView.onAppear 里，无窗口时 view 不 layout → onAppear 永不触发，进程卡 240s」。
 - `--mc-map` :758 / `--mc-map-offline` :763 / `--mc-route` :770 / `--mc-route-loading` :775 /
   `--mc-map-bench` :782（`--iters N` 可调，默认 12，:783-787，配 `AURORA_MAP_LEGACY_MARKERS=1` 做 A/B）
   / `--mc-shot [condition w h]` :792 / `--mc-quest [w h]` :810。
 - `--mc-quest`（2026-10-06 新增，task-2 验收）：必须走真实 ViewportPanel——
-  `MissionControlShot.renderQuestCardNow(canvas:)`（`MissionConsole.swift:6891`，默认画布 1470×560），
-  把 questName 与真实世界坐标塞进 state，不依赖 OCR 真跑通（`AuroraDriveApp.swift:807-809` 注释）。
+  `MissionControlShot.renderQuestCardNow(canvas:)`（`MissionConsole.swift`，默认画布 1470×560），
+  把 questName 与真实世界坐标塞进 state，不依赖 OCR 真跑通（`AuroraDriveApp.swift` 注释）。
 - `--mc-route`/`--mc-route-loading` 注释：数字自检证明算法对，这两个夹具证明**画对**（:768-769 注释）。
 
 ### 6.3 其余夹具一句话职责（出处均为分流处实测注释）
@@ -341,12 +341,12 @@
 - `--tcc-selftest` :156-171（AppDelegate）：权限预检 = 未来 `--engine` 模式的真实权限状态
   （同执行文件路径 + 签名）。
 
-## 七、route-selftest 冻结基线明细（`AuroraDriveApp.swift:2100–2298`）
+## 七、route-selftest 冻结基线明细（`AuroraDriveApp.swift`）
 
 2026-10-06 基线更新原因：**路网数据被修好**（`tools/roadnet/fix_roadnet.py`，删自环/极短边、
 删重复边、断头吸附、分叉合并——`fix_roadnet.py:1-24`）——删自环 7 条、重复边 5 条、分叉合并 14 处、
 断头吸附 80 个（迭代到收敛）、保留 36 个 >30m 远端断头；断头 118(19.3%)→36(5.4%)，
-节点 612→664，边 825→932（`AuroraDriveApp.swift:2124-2137` 注释）。
+节点 612→664，边 825→932（`AuroraDriveApp.swift` 注释）。
 
 - 图规模：`节点=664`（:2139）、`边=932`（:2140）、`米/像素=0.61`（:2141）
 - 坐标往返：4 个世界坐标探针往返误差 < 0.5 px（:2155）；3 个像素探针正向→反向→正向
@@ -371,11 +371,11 @@
 
 - 生命周期/通道/共享内存布局**逐行实测已迁入 代码-33「2026-10-06 复核块」**，本篇不再重复。
 - UI 侧镜像点（`EngineClient.shared.isActive` 时全部取引擎数据，本地取本地引擎）：
-  `AuroraDriveApp.swift:4206`（`displayDetections` 检测框）、`6600-6608`（录制命令回声抑制，
+  `AuroraDriveApp.swift`（`displayDetections` 检测框）、`6600-6608`（录制命令回声抑制，
   `applyingRemoteRecord`）、`5104`（`e2eLatencyMs`）、`6586-6588`（速度）、
   `5867-5880`（`displayDrivableMask` / `displayMaskMetrics` / `displayMaskDegraded` 三对 display× 访问器）。
 - 退出时 `applicationWillTerminate` → `EngineClient.shared.sendByeSync()`（:542-544）；
-  引擎侧 `pauseDriving` 释放按键但保持抓屏推理（`Core/EngineMain.swift:1970` 起，函数定义；调用点 :1538 bye / :1928 watchdog）。
+  引擎侧 `pauseDriving` 释放按键但保持抓屏推理（`Core/EngineMain.swift` 起，函数定义；调用点 :1538 bye / :1928 watchdog）。
 
 ## 八·补、tick 内两个 2026-10-18 更新点（20Hz 定档 / lastDecided 两处）
 

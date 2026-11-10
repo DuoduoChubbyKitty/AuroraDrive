@@ -1,10 +1,12 @@
 # 代码-22 LoginAssistant 登录助手
 
-> 覆盖源文件：`Sources/AuroraDrive/Agent/LoginAssistant.swift`（**166 行**，2026-10-18 `wc -l` 实测）。基于当前仓库逐单元编写。
+> ⚠️ **频率勘误（2026-11-08）**：当前画面流正常为 **15fps**，不是 20fps 或 30fps；登录助手本身按需读取 `currentFrame`，不依赖固定频率。
+
+> 覆盖源文件：`Sources/AuroraDrive/Agent/LoginAssistant.swift`（**166 行**，2026-11-10 `wc -l` 实测）。基于当前仓库逐单元编写。
 >
 > **✅ 2026-10-18 复核（T6）**：逐条 `read` 源码核对，166 行声明正确，内部行号全部命中（Result :30-35 / buttonKeywords :40-43 / recognizeText :46-62 / locateButton 通用版 :72-96 / cgImage :103-106 / runAutoLogin :115-155 / dryRunLocate :160-165）。两处标注：
 > 1. 🔴 **`:78` OCR 失败被吞成「没按钮」**（lead 已知问题）：`locateButton` 通用版 :78 用 `guard let texts = try? recognizeText(in: image) else { return nil }` —— `try?` 把 Vision OCR 的 throw 吞成 nil → `locateButton` 返回 nil → `runAutoLogin` :130 的 `if let hit` 不命中 → :146-151 走 else 分支 → 日志打「屏幕未发现登录按钮（可能已进入游戏）」+ 返回 `.noMatchingText`。即 **OCR 引擎失败与「屏幕上确实没有关键词」完全不可区分**——两者都报「可能已进入游戏」。详见下文 §一 locateButton 段。
-> 2. ⚠️ **头注释 :9 的「30fps」过时**：源文件 :9 写「引擎已在跑 30fps 流」，实际 tick 已定档 20Hz（`EngineMain.swift:686`）。属源注释过时，不影响 LoginAssistant 逻辑（它按需取 `capture?.currentFrame`，不绑频率）。
+> 2. ⚠️ **头注释 :9 的「30fps」过时**：当前画面流正常为 15fps。属源注释过时，不影响 LoginAssistant 逻辑（它按需取 `capture?.currentFrame`，不绑频率）。
 >
 > **✅ 2026-10-18 复核（sys-reader 二次核，与 T6 独立）**：独立逐条核对 **22 条锚点全部命中、零漂移**（:9/:30/:40/:46/:48/:49/:50/:66/:72/:78/:82/:85/:87/:89/:103/:115/:118/:119/:130/:136/:145/:160），并交叉确认 `MouseController.screenPoint` 实际声明在 **`MouseController.swift:208`**（本文 §一 第 63 行引用「见 代码-09」无误）。**T6 的两条标注与本轮独立核对结论一致**，其中 `:78` 错误吞掉的后果链已完整、修法建议正确，无需重复。本轮只补记 2 处 T6 未覆盖的项（见下），不覆盖 T6 原文：
 
@@ -16,7 +18,7 @@
 
 **定位（4–20 行头注释）**：游戏自动登录引擎——解决"异环 NTE 每次启动都停在登录界面，此前每次都要用户手动点登录"。
 
-**工作原理（全真实感知闭环，无盲点击）**：① 从 CaptureEngine 拿当前屏幕帧（整屏截图，引擎已在跑 30fps 流）→ ② Vision 框架 VNRecognizeTextRequest 做中英文 OCR，拿到所有文字块 → ③ 按优先级匹配登录按钮关键词 → ④ 命中 → 文字框归一化坐标 → 截图像素坐标 → 屏幕点坐标 → 鼠标单击 → ⑤ 2 秒后重新截图验证：按钮文字消失 = 登录成功；仍在 = 换下一关键词再试（**有界 3 轮，每轮换关键词，不是无脑死循环**）。
+**工作原理（全真实感知闭环，无盲点击）**：① 从 CaptureEngine 按需拿当前屏幕帧（正常画面流当前为 15fps）→ ② Vision 框架 VNRecognizeTextRequest 做中英文 OCR，拿到所有文字块 → ③ 按优先级匹配登录按钮关键词 → ④ 命中 → 文字框归一化坐标 → 截图像素坐标 → 屏幕点坐标 → 鼠标单击 → ⑤ 2 秒后重新截图验证：按钮文字消失 = 登录成功；仍在 = 换下一关键词再试（**有界 3 轮，每轮换关键词，不是无脑死循环**）。
 
 **坐标换算链（三段，16–19 行注释）：**
 

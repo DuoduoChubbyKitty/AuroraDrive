@@ -4,7 +4,7 @@
 >
 > | 引用 | 旧值 | 新值 | 判定依据 |
 > |---|---|---|---|
-> | `runNetworkLocateStep()` | `AuroraDriveApp.swift:4544` | **`:4546`** | `sed` 实测 :4544 是 `}`，`:4546` 才是 `func runNetworkLocateStep()` |
+> | `runNetworkLocateStep()` | `AuroraDriveApp.swift` | **`:4546`** | `sed` 实测 :4544 是 `}`，`:4546` 才是 `func runNetworkLocateStep()` |
 > | 懒初始化块（`cc.start()` / 双检锁 / `networkReady` / 锁声明） | `:4547–4553` / `:4548–4549` / `:4493` / `:4555` | **`:4549–4555` / `:4550–4551` / `:4495` / `:4557`** | `grep -n` 逐个定位 |
 > | `locateSource()` | `:4537–4542` | **`:4538–4543`** | doc-comment :4538、声明 :4539、body 至 :4543 |
 > | `readWithTier()` 消费点 | `:4632` | **`:4634`** | `:4632` 是注释行，`:4634` 才是 `let tierRead = cc.readWithTier()` |
@@ -57,7 +57,7 @@
 > | `streamLostWindow` | 22.0s | :788 | 实测周期 15s + 7s 余量 |
 > | `trafficFreshWindow` | 20.0s | :803 | = poseFreshWindow(18)+2s，保持 traffic > pose 层级 |
 > | `poseFreshWindow` | 18.0s | :839 | 实测周期 15s + 3s 余量（15s 窗口与周期临界相撞必然闪断） |
-> | `poseRecentWindow` / `poseStaleWindow` | 40s / 90s | :1725–1726 | 分级新鲜度（live/recent/stale/lost 四档，`PoseTier` :1716） |
+> | `poseRecentWindow` / `poseStaleWindow` | 40s / 90s | :1747–1748 | 分级新鲜度（live/recent/stale/lost 四档，`PoseTier` :1738） |
 > | BPF 过滤器 | `"(tcp port 30031) or udp"` | :1107（表达式构造 :1100–1107） | 09-30 第二次根因修复：UDP 移动包端口随服务器变（30212→30160），**永不写死**；甄别交给解码器 + 游戏流量标记 |
 >
 > ### 2026-09-30 / 10-04 其它落地项（本档此前完全未覆盖）
@@ -66,7 +66,7 @@
 > - **游戏流量标记**（:1556 `markGameTraffic`，processPacket 内调用点 :1462–1464）：裸 UDP 下 `lastPacketWall` 只由「端口 30031 或已解出真样本的端口」（`learnGamePort` :1585 / `isGamePort` :1596，上限 8 个）刷新；`probe`（:1189–1231）的命中判据也改为「窗口内 `lastPacketWall` 被刷新」——系统 UDP（QUIC/DNS/mDNS）不再误判成游戏流量。`lastPacketWall` 初值为 0（:868，「从未收到过包」哨兵；:1611 `hasRecentTraffic` 有显式 `guard lastPacketWall > 0`），收到首个包前 `hasRecentTraffic` 恒 false。
 > - **链路层头长自适应**（`linkLayerHeaderLength(forDLT:)` :902 / 使用处 :1068 与 processPacket 内）：按 `pcap_datalink` 决定链路层头长（以太网 14 / 回环 DLT_NULL·DLT_LOOP 4），修系统代理场景（游戏流量经 127.0.0.1 回环转发时按 14 跳会切错 IP 头，静默零坐标）。候选网卡中回环排在全部物理网卡之后（:1173–1178）。
 > - **空闲指数退避**（supervisorLoop 内 :1307–1337）：连续无流量轮按 2s→4s→…→30s 放大重探间隔（:1337 `probeFailStreak = 0` 复位，:1326–1327 递增与退避计算），命中即复位 2s（修空闲态单核 ~17.9% CPU）。
-> - **新读取 API**：`readWithFreshness`（:1753，fresh/stale 两级，stale 不再返回 nil）、`readWithTier`（:1731，live≤18s/recent≤40s/stale≤90s/lost 四档，`PoseTier` :1716，消费者按档位决定态度）、`diagnostics()`（:1650，把 `read()` nil 的两种原因——从未有样本 vs 过期——分开）、`PoseRead` 枚举（:1691）。消费方：AuroraDriveApp.swift :4616 注释 / :4632 `readWithTier` 调用 / :4801 注释 / :4813 `diagnostics` 调用。
+> - **新读取 API**：`readWithTier`（:1753，live≤18s/recent≤40s/stale≤90s/lost 四档，`PoseTier` :1738，消费者按档位决定态度）、`readWithFreshness`（:1775，fresh/stale 两级，stale 不再返回 nil）、`diagnostics()`（:1667，把 `read()` nil 的两种原因——从未有样本 vs 过期——分开）。消费方：AuroraDriveApp.swift :4616 注释 / :4632 `readWithTier` 调用 / :4801 注释 / :4813 `diagnostics` 调用。
 >
 > ---
 >
@@ -438,11 +438,11 @@ let mapY = kCalibA * wy - kCalibB * wx + kCalibTY
 
 ### 启动调用链（谁调 `start()`）
 
-- **生产路径（懒初始化）**：MissionConsole 的**网络定位定时器**（`MissionConsole.swift:6185–6204`，`DispatchSourceTimer repeating 1.0/10.0` 在 **:6193**，on `com.aurora.netlocate` 队列 **:6191**，事件 main.async 调 `state.runNetworkLocateStep()` 在 **:6204**）→ `runNetworkLocateStep()`（**AuroraDriveApp.swift:4546**）首次执行时创建 `CoordinateCapture()` 并 `cc.start()`（**:4549–4555**，双检锁 `healerInitLock` **:4550–4551**，锁声明 **:4495**），`start()` 返回 true 才置 `locateCtx.networkReady = true`（**:4557**）。
+- **生产路径（懒初始化）**：MissionConsole 的**网络定位定时器**（`MissionConsole.swift`，`DispatchSourceTimer repeating 1.0/10.0` 在 **:6193**，on `com.aurora.netlocate` 队列 **:6191**，事件 main.async 调 `state.runNetworkLocateStep()` 在 **:6204**）→ `runNetworkLocateStep()`（**AuroraDriveApp.swift**）首次执行时创建 `CoordinateCapture()` 并 `cc.start()`（**:4549–4555**，双检锁 `healerInitLock` **:4550–4551**，锁声明 **:4495**），`start()` 返回 true 才置 `locateCtx.networkReady = true`（**:4557**）。
   - ♻️ **2026-10-18 重基准**：原记 `:6186–6200` / `:6188` / `:4544` / `:4547–4553` / `:4548–4549` / `:4493` / `:4555` 均已漂移，以上为新值。
   - ⚠️ **同时修正一处行为描述（不只是行号）**：原文称「网络定位定时器 **10Hz**」，但当前已改为**空闲降频**——`MissionConsole.swift:6187` 注释「空闲态降到 2Hz（10Hz / 5），只在开车/录制时才保持 10Hz 实时性」，实现见 `:6194–6200` 的 `nlIdleSkip < 5` 早退。**即：开车/录制时 10Hz，空闲时约 2Hz**。
 - `start()`（CoordinateCapture.swift:1357–1367）只是置 `running = true` 并起专属线程 `supervisorThread`（名字 `com.aurora.coordinate-capture`，:1360–1364）跑 `supervisorLoop()`——**抓包线程自成一个 Thread，不在 captureQueue 也不在主线程**，与 CaptureEngine（SCStream/aurora.capture 队列）完全独立。
-- **自检路径**：`--nic-autotest` 自建实例 `cc.start()`（AuroraDriveApp.swift:1604–1605）——♻️ 2026-10-18 复核：**此条行号准确、未漂移**（`:1604` `let cc = CoordinateCapture()` / `:1605` `let started = cc.start()`，逐行实测一致）。
+- **自检路径**：`--nic-autotest` 自建实例 `cc.start()`（AuroraDriveApp.swift）——♻️ 2026-10-18 复核：**此条行号准确、未漂移**（`:1604` `let cc = CoordinateCapture()` / `:1605` `let started = cc.start()`，逐行实测一致）。
 
 ### 数据状态与消费方
 

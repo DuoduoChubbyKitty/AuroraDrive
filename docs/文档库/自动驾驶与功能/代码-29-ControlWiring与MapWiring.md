@@ -3,14 +3,14 @@
 >
 > ✅ **2026-10-18 复核（agent-reader）**：逐条 `read` + `grep -n` 核对。本次修订：
 > - **修正 `pushConfig` 字段数**（§一③）：原文写「**7 字段**」，实测 **9 字段**（sport/controlDisabled/forceRule/expert/glyph/degradeThreshold/speedLimit + **digest** + **perceptionMode**）。后两个是后续追加的（digest 防误注入、perceptionMode 档位 IPC），原文未同步。
-> - **新增 `takeover` 发送路径说明**：`takeover` 字段**不在 `pushConfig` 里**——它由 `AuroraDriveApp.swift:6278/6281` 的 KeyboardMonitor 回调**独立 `sendCommand("config", extra: ["takeover": true/false])`** 发送，经 `EngineMain.swift:1710` 的 `case "config"` 解析。故 config IPC 的完整字段集是 **10 个**（9 在 pushConfig + 1 独立发 takeover），但 pushConfig 本身只有 9 个。
+> - **新增 `takeover` 发送路径说明**：`takeover` 字段**不在 `pushConfig` 里**——它由 `AuroraDriveApp.swift/6281` 的 KeyboardMonitor 回调**独立 `sendCommand("config", extra: ["takeover": true/false])`** 发送，经 `EngineMain.swift:892` 的 `case "config"` 解析。故 config IPC 的完整字段集是 **10 个**（9 在 pushConfig + 1 独立发 takeover），但 pushConfig 本身只有 9 个。
 > - **修正 SpeedLimitGuard 与 AutoRoadCondition 行号范围**（§一④⑤）：原文 SpeedLimitGuard「333–463 行」→ 实测 **334–~505**（`final class SpeedLimitGuard` 在 :334，紧接 `enum AutoRoadCondition` 在 :507）；原文 AutoRoadCondition「465–542 行」→ **507–542**。文件已从 450 行增至 542 行，两段均向后漂移。
 > - **修正 `regionName` 遍历数**（§二）：原文「遍历 **5677** 标记一次」→ **1777**（2026-10-04 换源到 `map_locations.json` 后，`MapDatabase.markers` 只有 1777 个点；源码注释里的 5677 是旧库 `FINAL_complete_map_database.json` 的历史引用）。
 > - **确认无误**：`stabilityFrames = 10`（:541，20Hz 下约 0.5 秒）属实；6 档路况阈值（>70/>50/>30/>20/≤10 + 11–20 滞回带）属实；`speedLimitRange = 20...200` / `unlimitedThreshold = 200` 属实；`minimapSpanMeters = 160` 属实；`MapDatabase` 1777 点属实；三级刹车时间窗属实。
 >
-> **✅ 行号已按当前版重基准（2026-10-18 二次，merge-tools）**：`ControlWiring.swift`(542) / `MapWiring.swift`(613) / `LocateRuntime.swift`(35) 三文件**均未改动**，逐条 `sed -n` 复核 **42 条**引用 —— **41 条全部命中、零漂移**（含 §一全部区间 1-16/24-57/48-53/59-67/73-259/208-217/218-229/:233/189-193/323-332/:334/339-341/342-356/431-451/507-542/510-515/:541，§二 29-36/148-601/264-292/482-503/:509/547-568/:453/:467/:602/605-612，§三 12-26/29-35）。**修正 1 条**：`EngineMain.swift:1684` → **`:1685`**（`case "config":` 实际在 :1685，:1684 是上一分支的闭括号）。另 **2 条复核确认正确**：`EngineMain.swift:1710`（`let cTakeover = obj["takeover"] as? Bool` ✓）、`AuroraDriveApp.swift:6278/6281`（两行 `sendCommand("config", extra: ["takeover": true/false])` ✓）。
+> **✅ 行号已按当前版重基准（2026-10-18 二次，merge-tools）**：`ControlWiring.swift`(542) / `MapWiring.swift`(613) / `LocateRuntime.swift`(35) 三文件**均未改动**，逐条 `sed -n` 复核 **42 条**引用 —— **41 条全部命中、零漂移**（含 §一全部区间 1-16/24-57/48-53/59-67/73-259/208-217/218-229/:233/189-193/323-332/:334/339-341/342-356/431-451/507-542/510-515/:541，§二 29-36/148-601/264-292/482-503/:509/547-568/:453/:467/:602/605-612，§三 12-26/29-35）。**修正 1 条**：`EngineMain.swift` → **`:1685`**（`case "config":` 实际在 :1685，:1684 是上一分支的闭括号）。另 **2 条复核确认正确**：`EngineMain.swift`（`let cTakeover = obj["takeover"] as? Bool` ✓）、`AuroraDriveApp.swift:6278/6281`（两行 `sendCommand("config", extra: ["takeover": true/false])` ✓）。
 >
-> 覆盖源文件：`Sources/AuroraDrive/App/ControlWiring.swift`（**542 行**，2026-10-02 `wc -l` 实测；原文写 450 行）+ `MapWiring.swift`（**613 行**，2026-10-02 `wc -l` 实测）+ `LocateRuntime.swift`（**35 行**）。
+> 覆盖源文件：`Sources/AuroraDrive/App/ControlWiring.swift`（**547 行**，2026-11-10 `wc -l` 实测；原文写 450 行）+ `MapWiring.swift`（**613 行**，2026-11-10 `wc -l` 实测）+ `LocateRuntime.swift`（**35 行**）。
 > ✅ **2026-10-17 复核**：`ControlWiring.swift` 实测 **542 行**（`wc -l`），`MapWiring.swift` 613 行、`LocateRuntime.swift` 35 行 —— 与上方覆盖行数一致。原文「现为 475 行」为 2026-09-29 旧值，**已作废**。正文行号已按当前源码逐条 `grep -n` 重测（见各节标注）。
 >
 > **⚠️ 2026-09-25 重建说明**：本档原覆盖 `App/MinimapLocatorView.swift`（196 行）——该文件已在 UI 大改版中删除，纯逻辑类型（LocateGate/LocateContext）被析出到 `LocateRuntime.swift` 单独留存（源码头注释实录），UI 侧由 MissionConsole 的 MiniMapCard/MiniMapCanvas 承载。本档现按三个新文件的实际内容重写。
@@ -44,7 +44,7 @@
 - **`pushConfig(reason:)`**（config 下发唯一出口）：**9 字段**（✅ 2026-10-18 修正，原文写「7 字段」）——`sport` / `controlDisabled` / `forceRule` / `expert` / `glyph` / `degradeThreshold` / `speedLimit` / **`digest`** / **`perceptionMode`** → `EngineClient.sendCommand("config")`——引擎端对应 EngineMain 的 `case "config"`（**:1685** 起；原写 :1684 是上一分支的闭括号）；**speedLimit 直接进推理**（vehicle_state[4]），不同步=UI 显示 40 模型按 120 决策
   - **`digest`**：消化模式（引擎侧唯一注入点截住，`postedEventCount` 不增）——不同步 = UI 开了「不真发按键」但引擎照旧真注入（源码注释记录了真实事故）
   - **`perceptionMode`**：`"ayolom"` / `"legacy"` 字符串 IPC 协议字段，**显式映射**而非用枚举 rawValue（`PerceptionMode.rawValue` 是中文显示名、`PerceptionModelFamily.rawValue` 无 `legacy`），见 task-95 注释
-  - ⚠️ **`takeover` 不在本函数内**（第 10 个 config 字段，独立发送）：由 `AuroraDriveApp.swift:6278/6281` 的 KeyboardMonitor 回调直接 `sendCommand("config", extra: ["takeover": true/false])`，引擎侧 `EngineMain.swift:1710` 解析 → `EmergencyTakeover.noteUserKeyDown/Up`。**故 config IPC 全字段集 = 10，而 pushConfig 只发其中 9 个。**
+  - ⚠️ **`takeover` 不在本函数内**（第 10 个 config 字段，独立发送）：由 `AuroraDriveApp.swift/6281` 的 KeyboardMonitor 回调直接 `sendCommand("config", extra: ["takeover": true/false])`，引擎侧 `EngineMain.swift` 解析 → `EmergencyTakeover.noteUserKeyDown/Up`。**故 config IPC 全字段集 = 10，而 pushConfig 只发其中 9 个。**
 - **`driveBars`**：四条控制量归一化快照（steer ±1 / throttle 0-1 / brake 0-1 / speed 相对限速）→ UI 底部四条进度条
 
 ### ④ SpeedLimitGuard — 限速闭环执行器（**334–505 行**，三级刹车；✅ 2026-10-18 修正：原写「333–463 行」，文件已增至 542 行，该类实际从 :334 起、到 :507 的 `enum AutoRoadCondition` 之前止）

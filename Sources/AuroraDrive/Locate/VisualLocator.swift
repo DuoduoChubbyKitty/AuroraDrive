@@ -24,6 +24,9 @@ struct LocateResult {
     var scaleIndex: Int = 0
 }
 
+/// 视觉定位器（地图模板匹配）。
+/// ⚠️ 2026-11 核实：本类**未被任何代码实例化**（全仓无 `VisualLocator(` 构造点），
+///   属未接线的死代码（仅 `LocateContext.visualLocator` 有个恒 nil 的可选字段）。
 final class VisualLocator {
 
     private let mapPath: String

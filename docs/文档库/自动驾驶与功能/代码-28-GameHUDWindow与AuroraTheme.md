@@ -69,18 +69,18 @@
 > ✅ 2026-10-17 复核：正文 `App:NNNN` 行号已按当前 `AuroraDriveApp.swift`（9088 行）逐条 `grep -n` 复测（DriveState.init=5911 / install=5963 / --engine=5959 / AURORA_DISABLE_HUD 块=5958-5965 / fpsProvider=5926 / 实例声明=5530）；MissionConsole 侧的辉光行号亦已重测。覆盖源文件 GameHUDWindow.swift 123 行 / AuroraTheme.swift 773 行不变。
 > ✅ **文件名已修正（2026-10-17）**：原名中的 `AutomationPanel` 已在 UI 大改版删除（`grep -rn "AutomationPanel" Sources/` 零命中），本文已改名为 `代码-28-GameHUDWindow与AuroraTheme.md`，与内容一致。
 >
-> 覆盖源文件：`Sources/AuroraDrive/App/GameHUDWindow.swift`（**123 行**）+ `AuroraTheme.swift`（**773 行**，2026-10-07 `wc -l` 实测）。
+> 覆盖源文件：`Sources/AuroraDrive/App/GameHUDWindow.swift`（**123 行**）+ `AuroraTheme.swift`（**773 行**，2026-11-10 `wc -l` 实测）。
 > ⚠️ **2026-10-07 行数勘误（E4 实测）**：`AuroraTheme.swift` 现为 **773 行**。本文旧头部同时写着「419 行（2026-10-02 实测）」与「373 行（2026-09-29 实测）」两个数字，**均已过时**（419 那次实测之后文件又涨了 354 行）；正文第二节标题「AuroraTheme 主题令牌（345 行）」更是三手旧数——三处本次一并改正为 773。
 >
 > **⚠️ 2026-09-25 重建说明**：本档原覆盖 GameHUDWindow.swift（120 行；2026-10-16 复核实测 **123 行**）+ `App/AutomationPanel.swift`（251 行）——**AutomationPanel 已在 UI 大改版中删除**（其"驾驶开关/状态"职责由 MissionConsole 的 AutomationBigButton + RunStatusCard 承载，自动化技能入口由 SkillOverlay 承载）。本档现补上同为大改版产物的 AuroraTheme（全项目视觉令牌的唯一权威源）。
 
 ## 一、GameHUDWindow 帧率 HUD（123 行全文）
 
-**双重用途（头注释 GameHUDWindow.swift:7-12）**：
+**双重用途（头注释 GameHUDWindow.swift）**：
 1. **实用**：游戏全屏时实时显示两行数据——「辅助帧率（AuroraDrive 处理帧率）」+「游戏帧率（ScreenCaptureKit 实际捕获合成帧率）」，**用来判断 Game Mode 是否在压制本进程（掉到个位数 = 被压制）**（:7-10）
 2. **对抗 Game Mode**：一个持续可见的真实窗口比 1×1 隐形锚点更难被 gamepolicyd 归入「无可见窗口的纯后台」桶（:11-12）
 
-**关键实现（GameHUDWindow.swift:14-18 注释；`.screenSaver` 实际赋值在 :69）**：
+**关键实现（GameHUDWindow.swift 注释；`.screenSaver` 实际赋值在 :69）**：
 - `window.level = .screenSaver`——压过游戏全屏窗口
 - `collectionBehavior 含 .fullScreenAuxiliary`——游戏进全屏 Space 后依然可见
 - `ignoresMouseEvents = true`——**绝不拦截游戏操作**
@@ -94,9 +94,9 @@
 
 **这是什么**：任务控制中心全部视觉规范的**唯一权威源**——从网页原型 CSS 变量逐一等价翻译（`--void`/`--s0..--s3`/`--ice`/`--txt` 等），任何 MissionConsole 子视图取色只准从这里取，**禁止散落硬编码色值**。
 
-**`Color.init(hex:alpha:)`（AuroraTheme.swift:20-28，extension 自 :18 起）**：`0xRRGGBB` 字面量构造（比 Color(red:green:blue:) 好读）。
+**`Color.init(hex:alpha:)`（AuroraTheme.swift，extension 自 :18 起）**：`0xRRGGBB` 字面量构造（比 Color(red:green:blue:) 好读）。
 
-**`enum Aurora` 令牌总表（AuroraTheme.swift:32 起）**：
+**`enum Aurora` 令牌总表（AuroraTheme.swift 起）**：
 
 | 组 | 令牌 | 值 | 网页对应 |
 |---|---|---|---|
@@ -135,8 +135,8 @@
 | `hair` | 0xE4E9F2 α0.22 | :769 | 分隔线/标签 |
 | `radius` | `Aurora.radiusCard` = 12 | :772（radiusCard 定义 AuroraTheme.swift:108） | 卡片圆角（注释「小方框不要用面板级 16」） |
 
-- **实测修正注释（AuroraTheme.swift:723-738）**：首版把卡片底做成白色（0xFFFFFF α0.16），亮底复测文字对比度仅 1.57:1（WCAG AA 要 4.5:1）→ 改回深色玻璃 `scrimHi → scrim` 渐变；银白只保留在描边与外侧辉光上。
-- 辉光的用法（在 QuestCard 侧）：两层 `.background` + `.blur` + `.blendMode(.plusLighter)` 加法发光（MissionConsole.swift:1373 为 `.fill(AuroraSilver.glowNear)`、:1380 为 `.fill(AuroraSilver.glowFar)`，`.blendMode(.plusLighter)` 分别在 :1375 / :1382；混合模型长注释起点 :1355）——`.shadow` 的 alpha lerp 在亮背景上会压暗，详见 代码-27「三-A」节 4。
-  > ✅ **2026-10-18 lead 实测命中**：上述 5 个 MissionConsole 行号经 lead 逐条 `grep -n` 复测——`:1373` `.fill(AuroraSilver.glowNear)` / `:1375` `.blendMode(.plusLighter)` / `:1380` `.fill(AuroraSilver.glowFar)` / `:1382` `.blendMode(.plusLighter)` / `:1355` 注释「【根因 —— 不是颜色错，是混合模型错】」**全部准确，无需改**。原因：2026-10-18 的 UI tick 30→20Hz 改动在 `MissionConsole.swift:6117` 附近（文件很后面），不影响 `:1355-1382` 这批。
+- **实测修正注释（AuroraTheme.swift）**：首版把卡片底做成白色（0xFFFFFF α0.16），亮底复测文字对比度仅 1.57:1（WCAG AA 要 4.5:1）→ 改回深色玻璃 `scrimHi → scrim` 渐变；银白只保留在描边与外侧辉光上。
+- 辉光的用法（在 QuestCard 侧）：两层 `.background` + `.blur` + `.blendMode(.plusLighter)` 加法发光（MissionConsole.swift 为 `.fill(AuroraSilver.glowNear)`、:1380 为 `.fill(AuroraSilver.glowFar)`，`.blendMode(.plusLighter)` 分别在 :1375 / :1382；混合模型长注释起点 :1355）——`.shadow` 的 alpha lerp 在亮背景上会压暗，详见 代码-27「三-A」节 4。
+  > ✅ **2026-10-18 lead 实测命中**：上述 5 个 MissionConsole 行号经 lead 逐条 `grep -n` 复测——`:1373` `.fill(AuroraSilver.glowNear)` / `:1375` `.blendMode(.plusLighter)` / `:1380` `.fill(AuroraSilver.glowFar)` / `:1382` `.blendMode(.plusLighter)` / `:1355` 注释「【根因 —— 不是颜色错，是混合模型错】」**全部准确，无需改**。原因：2026-10-18 的 UI tick 30→20Hz 改动在 `MissionConsole.swift` 附近（文件很后面），不影响 `:1355-1382` 这批。
 
 **GameHUDWindow 与 AuroraTheme 文档至此完整**。

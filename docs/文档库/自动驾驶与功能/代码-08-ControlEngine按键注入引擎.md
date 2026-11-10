@@ -125,7 +125,7 @@ func refreshHeldKeys() {
 
 **`releaseAll()`（第 436–449 行）**：**无条件对所有映射键发释放事件**——即使本会话没记录按过（例如上次进程异常退出残留的系统级卡键），也主动清掉，保证系统键盘状态干净。六个映射键全部 post keyDown=false（:437-444），然后 `heldKeys.removeAll()`（:445）；末尾记录 `lastFullReleaseAt`（:448）供节流版判断。
 
-**`releaseAllIfNeeded()`（第 486–496 行，2026-10-01 阶段4 性能折叠）**：节流版全量释放。背景（:458-471）：生产 tick 分段剖析实测 `tick.inject` p50=0.15ms 占整帧 71%——根因是 `expertMode || controlDisabled` 分支每帧无条件对 6 键各发一次 CGEvent。语义：有按住键 → 必须完整清扫（:487-491）；无按住键 → 同一秒内已清扫过就跳过（:492-495）。安全边界（:473-481）：1 秒内不可能凭空出现新的系统级残留；`applyCommand` 走 `release(_:)`、停止驾驶走 `releaseAll()`，都不受影响。回退开关 `AURORA_RELEASE_ALL_EVERY_TICK=1`（消费端 AuroraDriveApp.swift:5842-5843、AuroraFlags.swift:283）。
+**`releaseAllIfNeeded()`（第 486–496 行，2026-10-01 阶段4 性能折叠）**：节流版全量释放。背景（:458-471）：生产 tick 分段剖析实测 `tick.inject` p50=0.15ms 占整帧 71%——根因是 `expertMode || controlDisabled` 分支每帧无条件对 6 键各发一次 CGEvent。语义：有按住键 → 必须完整清扫（:487-491）；无按住键 → 同一秒内已清扫过就跳过（:492-495）。安全边界（:473-481）：1 秒内不可能凭空出现新的系统级残留；`applyCommand` 走 `release(_:)`、停止驾驶走 `releaseAll()`，都不受影响。回退开关 `AURORA_RELEASE_ALL_EVERY_TICK=1`（消费端 AuroraDriveApp.swift、AuroraFlags.swift）。
 
 **`postKeyEvent(keyCode:keyDown:autorepeat: Bool = false)`（private，第 508–539 行）**——底层 CGEvent 注入：
 
@@ -199,12 +199,12 @@ postedEventCount &+= 2
 
 **核心结论（已逐条查证）**：**RoutePlan（A* 结果）不直接产生任何按键**。它只是地图折线 + 距离信息，消费点全部在显示/提示层；真正进入 ControlEngine 的控制量来自「感知 → 降级状态机 → ControlCommand → applyCommand」这条链。
 
-1. **路线规划（显示/提示层）**：`RoutePlanner.route()` A* + 拐弯惩罚（`App/RouteGraph.swift:404-540`，手写二叉堆 :427-456，拐弯惩罚 `cost = 边长 + W×(角度/90°)` :492-495），输出 `RoutePlan{distanceMeters, turns, segments, points, …}`（结构体 `RouteGraph.swift:352-369`）。像素入口 `route(graph:fromPixel:toPixel:)` :543-553。触发点：`App/MissionConsole.swift:6438`（任务面板规划，`RoutePlanner.route` 调用点）与 `App/AuroraDriveApp.swift:4479-4481`（遮罩规划）。
+1. **路线规划（显示/提示层）**：`RoutePlanner.route()` A* + 拐弯惩罚（`App/RouteGraph.swift:404-540`，手写二叉堆 :427-456，拐弯惩罚 `cost = 边长 + W×(角度/90°)` :492-495），输出 `RoutePlan{distanceMeters, turns, segments, points, …}`（结构体 `RouteGraph.swift`）。像素入口 `route(graph:fromPixel:toPixel:)` :543-553。触发点：`App/MissionConsole.swift`（任务面板规划，`RoutePlanner.route` 调用点）与 `App/AuroraDriveApp.swift`（遮罩规划）。
 2. **RoutePlan 的实际消费（均为显示层）**：
-   - 小地图画路网折线 — `App/MissionConsole.swift:4489-4519`（`plan.points` 逐点 `addLine`）；
-   - 任务卡片弯道距离（米）— `App/MissionConsole.swift:642-650`（`state.routePlan?.distanceMeters`）与 :6909-6911（夹具日志）。
+   - 小地图画路网折线 — `App/MissionConsole.swift`（`plan.points` 逐点 `addLine`）；
+   - 任务卡片弯道距离（米）— `App/MissionConsole.swift`（`state.routePlan?.distanceMeters`）与 :6909-6911（夹具日志）。
    - **未验证**：未发现 `routePlan.points` 被直接喂给转向控制。真实路径引导走的是另一条独立链路：`RoadCornerGuide`（`road_corners_v3b.json` 打点集，**非 RoutePlan**）+ `DriveSegmentController`（见第 5 步）。若 RoutePlan 未来要接管方向，目前是断开的（未验证有其它接线）。
-3. **感知**（`DriveState.tick()`，`App/AuroraDriveApp.swift:6865` 起，20Hz）：M9 端到端主驾 V2 `inferenceEngineV2.infer` :7205-7209、旧 M9 回退 `inferenceEngine.infer` :7212；第二套驾驶模型 `assistEngine.infer` :7239-7242；YOLO 检测 `yoloEngine.infer` :7270-7275；YOLOPX 三合一 `yolopxEngine.infer` :7287-7289；光流+运动预测 `updateMotionPipeline` **:7299**（调用点；`:7297` 是它的注释行，函数定义在 :6689）。
+3. **感知**（`DriveState.tick()`，`App/AuroraDriveApp.swift` 起，20Hz）：M9 端到端主驾 V2 `inferenceEngineV2.infer` :7205-7209、旧 M9 回退 `inferenceEngine.infer` :7212；第二套驾驶模型 `assistEngine.infer` :7239-7242；YOLO 检测 `yoloEngine.infer` :7270-7275；YOLOPX 三合一 `yolopxEngine.infer` :7287-7289；光流+运动预测 `updateMotionPipeline` **:7299**（调用点；`:7297` 是它的注释行，函数定义在 :6689）。
 4. **决策**：模型输出 → `ControlCommand`（`commandOf` :7303-7309 / `v2CommandOf` :7321-7328）；降级状态机 `degradeStm.update()` :7409-7417 决定档位（`Agent/DegradeStateMachine.swift:74-139`：e2e→yolo→rule 三档梯子，健康度 <0.65 降级 :118/:124，滞回 +0.15 恢复 :114，极速模式强制 e2e :101-104，`forceRule` 最高优先 :92-97）。档位选择控制量 :7588-7601（e2e=m9Command :7586-7588 / yolo=assistCommand :7590-7592 / rule=`ruleController.decide(detections:)` :7594-7597）。
 5. **车道保持 / 地图分段覆盖**（门 = `Self.laneKeepTiers`，:7642；声明 :5832-5833 默认 `rule,yolo`，`AURORA_LANEKEEP_TIERS` 可改，回退值见 `AuroraFlags.swift:280`/`:456`）：
    - 分段优先：`readPose()`（定位位姿，**`locatorScore >= 0.4` 门** :7654 调用、实现 :8030-8038，门槛 :8034；新鲜度档位分 :4658-4662 + `locatorScoreForTier` :8029-8036 只有 live=1.0 过门槛）→ `segmentDecisionForRule()` :8047-8063（`RoadMapPrior.isOnRoad` + `DriveSegmentController.update`）→ 地图段/回正段用 `mapSteer` **覆盖**视觉转向并压油门 :7650-7660。弯道点来自 `RoadCornerGuide.cornerAhead`（`Agent/DriveSegmentController.swift:157`），**不是 RoutePlan**。
@@ -215,19 +215,19 @@ postedEventCount &+= 2
 
 ## 五、driving=false 的判定条件（引擎日志 driving 字段）
 
-日志字段来源：`Core/EngineMain.swift:1123` `driving=\(EngineGlobals.state?.isDriving ?? false)`，即**引擎进程内 DriveState.isDriving**。它由以下路径写定：
+日志字段来源：`Core/EngineMain.swift` `driving=\(EngineGlobals.state?.isDriving ?? false)`，即**引擎进程内 DriveState.isDriving**。它由以下路径写定：
 
 - **置 true**：仅 `startDriving()` — 引擎模式发命令成功后 :6206，本地模式通过辅助功能权限守卫后 :6261。守卫 `guard controlEngine.requestAccessibilityPermission() || controlDisabled else { return }` :6252（观测模式 `AURORA_OBSERVE_ONLY=1` 强制 `controlDisabled=true` :6211-6248，可无权限启动但不注入）。
 - **置 false（四条路径）**：
   1. `stopDriving()`：UI 点停止（引擎模式 :6300-6306 / 本地 :6310），并 `controlEngine.releaseAll()` :6307。
-  2. `EngineMain.pauseDriving()`：`st.isDriving = false` + `releaseAll()` — `Core/EngineMain.swift:1970-1982`（:1972 / :1973）。触发源：UI 断开（bye，:1521-1525）与**看门狗超时**（"watchdog"，:1928，重连窗口 3 秒 :1922-1933）。
+  2. `EngineMain.pauseDriving()`：`st.isDriving = false` + `releaseAll()` — `Core/EngineMain.swift`（:1972 / :1973）。触发源：UI 断开（bye，:1521-1525）与**看门狗超时**（"watchdog"，:1928，重连窗口 3 秒 :1922-1933）。
   3. 引擎自动退出 `performShutdown`（`performShutdown` :1987 起；idle-exit 的 `idleExitWorkItem` :1957、取消 :1963-1964；任何退出路径都先 releaseAll，:1990-1996）。
-  4. 引擎模式下 UI 侧镜像回写：心跳 `engineIsDriving` 不一致且命令后超过 1 秒 → `isDriving = client.engineIsDriving` — `AuroraDriveApp.swift:6599`。
+  4. 引擎模式下 UI 侧镜像回写：心跳 `engineIsDriving` 不一致且命令后超过 1 秒 → `isDriving = client.engineIsDriving` — `AuroraDriveApp.swift`。
 - 注意区分：`isDriving=false` 只是停掉决策与注入主路径（tick 待机分支 :7117-7133 清空决策）；权限拒绝**不是** driving=false 的来源——被守卫挡回时 `isDriving` 根本不会被置 true（:6252-6253 直接 return）。
 
 ## 六、da / ll / maskSeq / 降级 的确切含义与计算处
 
-统计日志出处：`Core/EngineMain.swift:1123-1131`（每 5 秒心跳，:1108 `heartbeatCount % 5 == 0`）。
+统计日志出处：`Core/EngineMain.swift`（每 5 秒心跳，:1108 `heartbeatCount % 5 == 0`）。
 
 | 字段 | 含义 | 计算处 |
 |---|---|---|
@@ -241,32 +241,32 @@ postedEventCount &+= 2
 ## 七、键鼠模拟机制与安全护栏
 
 ### 机制（合规：CGEvent 模拟输入）
-- 键盘：`CGEvent(virtualKey:keyDown:)` + `event.post(tap: .cghidEventTap)` — ControlEngine.swift:508-539。事件源 `.hidSystemState`（:183-195），autorepeat 恒 false（:519-524，游戏只认「新按下」）。坐标/文本注入：`typeText` 用 `keyboardSetUnicodeString` **:677-698**（`:687-688` 两次 `keyboardSetUnicodeString`、`:697` 计数 +2）。
-- 鼠标：`CGEvent(mouseEventSource:mouseType:mouseCursorPosition:)` 同 tap 投递 — MouseController.swift:60-170（move :60-78、click :87-122、doubleClick :126-170）；滚轮 :178-200；像素→点换算 `screenPoint(fromPixel:scale:)` :208-210。
+- 键盘：`CGEvent(virtualKey:keyDown:)` + `event.post(tap: .cghidEventTap)` — ControlEngine.swift。事件源 `.hidSystemState`（:183-195），autorepeat 恒 false（:519-524，游戏只认「新按下」）。坐标/文本注入：`typeText` 用 `keyboardSetUnicodeString` **:677-698**（`:687-688` 两次 `keyboardSetUnicodeString`、`:697` 计数 +2）。
+- 鼠标：`CGEvent(mouseEventSource:mouseType:mouseCursorPosition:)` 同 tap 投递 — MouseController.swift（move :60-78、click :87-122、doubleClick :126-170）；滚轮 :178-200；像素→点换算 `screenPoint(fromPixel:scale:)` :208-210。
 - 读屏（合规：ScreenCaptureKit 截屏）：`CaptureEngine.start()`（tick 消费帧 :7149 起）；键盘只读监听 `NSEvent.addGlobalMonitorForEvents` — KeyboardMonitor.swift:93-105（过滤 auto-repeat :94）。
-- 权限面：辅助功能（注入必需，ControlEngine.swift:204-258）+ 屏幕录制（ControlEngine.swift:295-349）。
+- 权限面：辅助功能（注入必需，ControlEngine.swift）+ 屏幕录制（ControlEngine.swift）。
 - **合规声明（红线）**：本项目硬约束为**只做读屏 + 系统事件合成**——禁止内存读取、禁止进程注入、禁止反作弊规避。以上机制均为 ScreenCaptureKit 截屏 + CGEvent 模拟输入路径；未发现内存读取/进程注入/反作弊检测规避代码（`postToPid` 仅注释提及未使用，ControlEngine.swift:526-528；`AURORA_KEY_REFRESH_HZ` 节流+抖动 :165-167 只挪事件时刻，注释自证「抖动本身不降频」）。注意 :193 注释自称该方案「可突破该游戏反作弊拦截」，这是对「游戏输入层只认 HID 层合成事件」这一兼容性事实的描述，未见任何主动对抗反作弊的代码。
 
 ### 护栏（有急停语义，无独立热键急停）
-- **停止/暂停即松键**：`stopDriving()` → `controlEngine.releaseAll()`（AuroraDriveApp.swift:6302-6311）；引擎看门狗/UI 断开 → `pauseDriving` EngineMain.swift:1970-1982；30s 无人 → idle-exit 先 releaseAll :1973；进程启动/开始驾驶前清残留卡键 :6261-6263。
+- **停止/暂停即松键**：`stopDriving()` → `controlEngine.releaseAll()`（AuroraDriveApp.swift）；引擎看门狗/UI 断开 → `pauseDriving` EngineMain.swift；30s 无人 → idle-exit 先 releaseAll :1973；进程启动/开始驾驶前清残留卡键 :6261-6263。
 - **专家模式**（`expertMode`）：真人物理键独占，AI 不注入 :7740-7755（物理键由 KeyboardMonitor 只读采集用于录制标签 :7899-7909）。
 - **控制禁用 / 观测模式**：`controlDisabled`（`AURORA_OBSERVE_ONLY=1` 强制置真，:6211-6248）全注入路径关闭 :7740-7755（同走 :7734 分支）。
 - **夹具硬开关** `benchSuppressAllInjection`：连松键事件都不发 :7734-7736。
 - **限速硬闸**：超速 → 纯规则刹车（松 W/Shift + 手刹），优先于一切模型 :7502-7557；准入条件与主注入同一道 `mayInjectKeys` 门 :7513；退出必须松手刹防卡键 :7562-7564。
 - **卡死保护**：连续 30s 速度≈0（需 `isDriving && speedValid`，:7392）→ 拉横幅**请求人工介入，AI 不自行挣扎** :7377-7403（用户原话与设计要点见注释）。
-- **脱困已删除**：EscapeController 恢复档 2026-09-30 整体删除（EscapeController.swift:12-15），避免 AI 与用户抢控制权（tick :6731-6742 取证注释：第三视角自车入框 → 框叠加误判碰撞 → brake 即倒车抢控制权，原理不成立）。
+- **脱困已删除**：EscapeController 恢复档 2026-09-30 整体删除（EscapeController.swift），避免 AI 与用户抢控制权（tick :6731-6742 取证注释：第三视角自车入框 → 框叠加误判碰撞 → brake 即倒车抢控制权，原理不成立）。
 - **车道建议单向安全**：转向 ±0.25 限幅、油门只压不抬、刹车只加不减、fail-open（:7627-7631 注释；applyLaneAdvice :8380）。
-- **权限死锁防御**：屏幕录制申请从 startDriving 解耦到启动期（ControlEngine.swift:321-349）。
+- **权限死锁防御**：屏幕录制申请从 startDriving 解耦到启动期（ControlEngine.swift）。
 - **缺口（诚实记录）**：未发现独立的「急停热键」（panic key）；急停语义由 UI 停止按钮 + 上述被动护栏构成（未验证有其它入口）。
 
 ## 附：一处命名陷阱
-`Control/EscapeController.swift` 如今**不含**脱困逻辑，只有 `ControlCommand` 类型（44 行，2026-10-17 复测；`steer/throttle/brake/confidence` 字段 :29-32，`.idle` 空操作 :35）。查脱困相关历史请看文件头注释 :12-15 与 `AuroraDriveApp.swift:6731-6742` 的删除取证。
+`Control/EscapeController.swift` 如今**不含**脱困逻辑，只有 `ControlCommand` 类型（44 行，2026-10-17 复测；`steer/throttle/brake/confidence` 字段 :29-32，`.idle` 空操作 :35）。查脱困相关历史请看文件头注释 :12-15 与 `AuroraDriveApp.swift` 的删除取证。
 
 ---
 
 ## 八、★ GameKey 键码表 35/38 项缺陷修复（2026-10-06 发现并修复，2026-10-07 记录）
 
-> 本节是本次（10-07）增量的核心。所有事实均来自**当前源码**（`ControlEngine.swift:541-636`）、**git 提交**与**仓库内原始取证文件**；行号为 718 行版实测。
+> 本节是本次（10-07）增量的核心。所有事实均来自**当前源码**（`ControlEngine.swift`）、**git 提交**与**仓库内原始取证文件**；行号为 718 行版实测。
 
 ### 8.1 一句话结论
 
@@ -360,7 +360,7 @@ postedEventCount &+= 2
 
 - **改动**：`gameKeyToKeyCode` 全表（:624-636 共 38 条）+ `GameKey` 枚举注释（:549-598）+ 新增 23 行缺陷记录注释（:600-623）。**未改动**注入机制本身（`postKeyEvent` :508-539、`.hidSystemState` :183-195、`.cghidEventTap` 投递语义全部原样）。
 - **提交**：`2c0459a`（2026-10-06 23:42，`feat(AI助手): 真对话 + 自主按键 + 自主调工具（7渠道聚合 + 降级链 + 30工具挂载）`）——修复与 AI 助手施工在**同一个提交**内落地（`git log -S".w: 13, .a: 0" -- Sources/AuroraDrive/Control/ControlEngine.swift` 实测）。
-- **验证**：`--control-selftest` 四证据链（权限 / 计数 / 自建 tap / NSEvent）逐键断言 Unicode 翻译；`LLMSelfTest.swift:1110-1112`、`LLMSelfTest.swift:1199`、`LLMSelfTest.swift:1245-1248` 均引本缺陷为回归对象。
+- **验证**：`--control-selftest` 四证据链（权限 / 计数 / 自建 tap / NSEvent）逐键断言 Unicode 翻译；`LLMSelfTest.swift`、`LLMSelfTest.swift`、`LLMSelfTest.swift` 均引本缺陷为回归对象。
 - **回归矩阵（提交信息自述，本次未独立复跑）**：A1 99/0 · A2 32/0 · A3 146/0 · 端到端 9/0 · 4 回归 EXIT=0。**「未验证」提示**：以上数字取自提交信息与源码注释，本轮文档复核**未在真机重跑自检**（本机无游戏）；如需权威结论请重跑 `./AuroraDriveUI --control-selftest`。
 
 ### 8.7 AI 工具面排除 F1–F12（macOS 系统功能键）
@@ -370,14 +370,14 @@ postedEventCount &+= 2
 - **过滤实现**：`ToolRegistry.gameKeyNames`（`Agent/ToolRegistry.swift:934-943`）——判据 `n.count >= 2 && n.first == "F" && n.dropFirst().allSatisfy(\.isNumber)`（`ToolRegistry.swift:939`），命中即剔除；**保留 `"F"` 交互键**（rawValue 恰为 1 个字符，不命中判据，`ToolRegistry.swift:936` 注释）。
 - **过滤覆盖的三个工具**：`press_key`（`ToolRegistry.swift:164-180`）、`hold_key`（`:181-194`）、`release_key`（`:195-207`）——三者的 `key.enum` 全部取自 `gameKeyNames`（`ToolRegistry.swift:172` / `:190` / `:203`），描述文案里的"可用键"取自 `gameKeyListText`（`ToolRegistry.swift:163`、`ToolRegistry.swift:945-947`）。**注意键名解析 `resolveGameKey`（`ToolRegistry.swift:888-892`）走的是 `gameKeyAliases`（`ToolRegistry.swift:950-962`，由 `GameKey.allCases` 构造，即 F 键在其中）**——即模型若硬造 `"f1"` 参数字符串，schema 层会被 `enum` 挡下；`enum` 是主要防线（**这是设计意图的推断，未逐条实测越权路径**）。
 - **为什么排除（源码理由，`ToolRegistry.swift:921-933`）**：macOS 上 F1–F12 默认是**系统功能键**（F1/F2 亮度、F3 调度中心、F4 聚焦、F5 听写、F10–F12 音量）；除非用户在「系统设置 → 键盘」勾选「将 F1、F2 等键用作标准功能键」，否则 `CGEvent` 发过去只会触发**系统动作**（改亮度 / 弹窗口），**游戏进程根本收不到**——对 AI 来说是"按了但没作用于游戏"的**假能力，会骗到模型**。
-- **根因溯源**：`GameKey.f1/f2/f4` 的注释写「异环 HUD 功能热键（实测 F3=卡布罗集市 F4=活动页）」，那是**照抄 MaaNTE（Windows 版）**的结论——Windows 上 F 键是普通功能键，游戏能收；**macOS 不是一回事**（`ToolRegistry.swift:928-930`）。
+- **根因溯源**：`GameKey.f1/f2/f4` 的注释写「异环 HUD 功能热键（实测 F3=卡布罗集市 F4=活动页）」，那是**照抄 MaaNTE（Windows 版）**的结论——Windows 上 F 键是普通功能键，游戏能收；**macOS 不是一回事**（`ToolRegistry.swift`）。
 - **提交**：`d9675ab`（2026-10-06 23:50，`fix(AI工具面): 排除 F1–F12 —— macOS 系统功能键不该暴露给 AI`）。
 - **自检断言（`Agent/LLMSelfTest.swift`）**：
-  - `LLMSelfTest.swift:1418-1433`「press_key schema 的 key enum = 全部键 − F1–F12」；
-  - `LLMSelfTest.swift:1434-1436`「press_key 不暴露 F1–F12」（`functionKeys.isDisjoint(with: Set(enumValues))`）；
-  - `LLMSelfTest.swift:1437-1438`「press_key 仍保留 F 交互键」（`Set(enumValues).contains("F")`）；
+  - `LLMSelfTest.swift`「press_key schema 的 key enum = 全部键 − F1–F12」；
+  - `LLMSelfTest.swift`「press_key 不暴露 F1–F12」（`functionKeys.isDisjoint(with: Set(enumValues))`）；
+  - `LLMSelfTest.swift`「press_key 仍保留 F 交互键」（`Set(enumValues).contains("F")`）；
   - 提交信息记：A3 工具自检 144 → **146 通过 / 0 失败**（新增两条 F 键断言）；后续 `22a6604` 又增至 150。
-- **`--tool-selftest` 工具总数复核**：`LLMSelfTest.swift:1448-1449` 断言「工具条目总数 = 30」（技能18 + 键位4 + 鼠标3 + 文本1 + 搜索2 + 观察2）——**与 F 键过滤无关，排除 F 键不减少工具条目数**。
+- **`--tool-selftest` 工具总数复核**：`LLMSelfTest.swift` 断言「工具条目总数 = 30」（技能18 + 键位4 + 鼠标3 + 文本1 + 搜索2 + 观察2）——**与 F 键过滤无关，排除 F 键不减少工具条目数**。
 
 ### 8.8 本节自检清单（哪些已核 / 哪些未核）
 
@@ -389,7 +389,7 @@ postedEventCount &+= 2
 | 修复落地于提交 `2c0459a`、F 键排除落地于 `d9675ab` | ✅ `git log -S` 实测 |
 | 四个哈希/证据可追溯 | ✅ 2026-10-07 `shasum -a 256` 实测 |
 | 自检回归数字（99/0、32/0、146/0、9/0） | ⚠️ **未验证**——取自提交信息/源码注释，本轮未真机复跑 |
-| `--control-selftest` 的"四证据链"具体四类 | ⚠️ **未验证**——四类名称取自 `AuroraDriveApp.swift:944` 注释与 `LLMSelfTest.swift:1087-1108` 分段（`:1079-1086` 是 docstring，`static func runControl` 在 :1087），`runControl` 内部未逐行通读 |
+| `--control-selftest` 的"四证据链"具体四类 | ⚠️ **未验证**——四类名称取自 `AuroraDriveApp.swift:1135` 注释与 `LLMSelfTest.swift:1087-1108` 分段（`:1079-1086` 是 docstring，`static func runControl` 在 :1087），`runControl` 内部未逐行通读 |
 | 绕过 `enum` 硬造 `"f1"` 字符串是否会被 `resolveGameKey` 放行 | ⚠️ **未验证**——代码路径推断为"schema enum 挡下"（见 8.7），未实测 |
 | `--control-selftest` 的"四证据链"注释行号 | ✅ 2026-10-17 实测：四类名称出自 `AuroraDriveApp.swift:944` 的 flag 登记注释——原文「`--control-selftest` 按键四证据链（**权限/计数/自建tap/NSEvent**）」（**四类内部实现仍未逐行通读**，见上行）；`LLMSelfTest.swift:1110-1112` 亦自述本缺陷（"旧表 87 → \"5\" 是坏的，新表 13 → \"w\" 是对的"） |
 

@@ -1074,7 +1074,7 @@ enum V2FeatureBuilder {
     /// 【单位铁律 —— 本项目最容易出错的地方之一】
     /// ══════════════════════════════════════════════════════════════════════
     /// 抓包侧两个来源**都是罗盘度 [0,360)**：
-    ///   · `NetworkLocator.cameraHeading`（NetworkLocator.swift:310,560-562）：
+    ///   · `NetworkLocator.cameraHeading`（NetworkLocator.swift:320,620-629）：
     ///     `(atan2(east, north) * 180/π + 360) % 360`
     ///   · `CoordinateCapture` 的 `compass_heading`（rotation.yaw）
     /// 而模型期望 **rad**。直接喂度数会让 90° 被当成 90 rad（差 57 倍）。

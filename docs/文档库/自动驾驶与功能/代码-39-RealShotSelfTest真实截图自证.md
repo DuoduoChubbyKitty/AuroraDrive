@@ -7,7 +7,7 @@
 >
 > 🔴 **本次还实跑了自检（原文说"未运行"）**：`--realshot-selftest --dir data/nte_test_frames` → **EXIT=1 / FAIL**，R2 平均 1.0 框、R3 平均 1.78% / 0.465%。根因是**模型换代**（今天加载 `ayolom_n_int8`，历史真值来自旧档），**不是回归**。实跑数据与判读见 **§四 的「2026-10-18 实跑」小节**。
 
-> 覆盖源文件：`Sources/AuroraDrive/App/RealShotSelfTest.swift`（**257 行**，2026-10-02 实测）
+> 覆盖源文件：`Sources/AuroraDrive/App/RealShotSelfTest.swift`（**257 行**，2026-11-10 实测）
 > 关联：[`代码-38-PerfSelfTest性能自检.md`](代码-38-PerfSelfTest性能自检.md)、
 > [`性能实测-2026-09-30-卡顿与定位.md`](性能实测-2026-09-30-卡顿与定位.md)
 

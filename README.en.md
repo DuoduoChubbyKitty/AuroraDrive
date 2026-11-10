@@ -37,7 +37,7 @@ Screen capture → CoreML inference → key injection, with packet-capture local
 - **In-game AI assistant**: a real conversational agent that drives the game on your behalf — it answers questions and, on request, calls its own tools (key presses, typing, mouse, screenshots) to complete tasks. Streaming replies are throttled to 15 Hz so token-by-token updates never saturate the main thread, and the candidate chain tries up to 4 providers before falling back to a clearly-labelled "offline reply". **30 tools** are registered (18 skills + 4 key primitives + 1 text + 3 mouse + 2 observation + 2 web); 7 provider channels cover a keyless tier (OVHcloud / OpenCode Zen / Pollinations) and a registered-free tier (Zhipu GLM / Groq / OpenRouter), plus any OpenAI-compatible custom endpoint, behind an automatic health-checked fallback chain. Chat history slides at 200 messages (~100 turns)
 - **Quest-panel OCR**: `QuestPanelReader` reads the on-screen quest title every 0.7 s, looks it up in `models/quest_index.json`, and resolves it to a world coordinate that feeds the navigation card. **On by default**; set `AURORA_QUEST_OCR=0` to disable
 - **Repaired road network**: the routing graph was rebuilt on 2026-10-06 — dead ends cut from 118 (19.3%) to 36 (5.4%), yielding **664 nodes / 932 edges** at 0.61 m per pixel, driving turn-by-turn routing and curvature lookahead
-- **Zero-friction BPF setup**: enter the admin password once in-app; a LaunchDaemon restores `/dev/bpf*` read/write permissions on every reboot
+- **System privilege setup**: enter the current macOS administrator password in-app to install two root LaunchDaemons. `com.aurora.bpf-setup` repairs `/dev/bpf*` permissions every 3 seconds, while `com.aurora.priority` periodically applies `renice -20` to AuroraDrive. The password is not hard-coded or stored
 - **Interactive collection map**: toggleable layers (exploration / resources / teleports / monsters) over 1777 markers in 42 categories, with live player position + heading
 - **MetalFX display enhancement**: upscaling + frame interpolation on the display overlay ONLY — it **never** touches the capture → inference → key-injection decision path
   > ⚠️ **Removed claim (2026-10-07)**: an earlier version of this file advertised "self-healing localization — visual template matching takes over, 8 background diagnoses repair and switch back automatically". That entry has been **deleted**: the `NetworkHealer` engine was retired in 76e9027, `VisualLocator` exists but is **never instantiated** (`grep "VisualLocator("` returns zero hits repo-wide), and no "8 diagnoses" implementation exists in the source. **Claims that cannot be verified are not kept.** The current behaviour is network localization plus the four freshness tiers described above.
@@ -55,36 +55,38 @@ cd AuroraDrive
 
 **macOS permissions required**: Screen Recording + Accessibility (System Settings → Privacy & Security). Fully restart the app after re-signing.
 
-**BPF permissions (required for network localization)**: on first launch an in-app password sheet appears (default `123456`). After installing, the `com.aurora.bpf-setup` LaunchDaemon restores permissions on every reboot — you never enter it again.
+**System privileges (required for network localization)**: enter the **current macOS administrator password** in the in-app sheet; there is no default password. It is passed to `sudo -S` through standard input and is not written to arguments, files, or logs. Installation creates two root LaunchDaemons that remain active after reboot.
+
+> ⚠️ **Security boundary**: the BPF daemon changes `/dev/bpf*` to mode `0666`, allowing every local user process to access packet-capture devices. The priority daemon periodically applies `nice -20` to AuroraDrive. Review [`bpf-daemon.md`](docs/文档库/自动驾驶与功能/bpf-daemon.md) before installing on a multi-user or security-sensitive Mac.
 
 ## 🏗️ Architecture
 
 ```
-┌─ Capture ─────────────┐   ┌─ Inference ──────────────┐   ┌─ Actuate ─────────┐
-│ ScreenCaptureKit      │ → │ E2E (m9_mono) 30Hz       │ → │ CGEvent key        │
-│ 30Hz CVPixelBuffer    │   │ YOLO (yolo26s) detection │   │ injection          │
-├─ Locate ──────────────┤   │ Speed OCR (PP-OCR) 30Hz │   ├─ Display ──────────┤
-│ libpcap tcp/30031     │   ├─ Decide ────────────────┤   │ MetalFX upscale +  │
-│ UE5 bitstream → world │   │ 3-tier degrade state     │   │ frame interp       │
-│ → 13056px map pixels  │   │ machine e2e/yolo/rule    │   │ Collection map     │
-└───────────────────────┘   └───────────────────────────┘   └────────────────────┘
+┌─ UI process ──────────┐    shared memory v3   ┌─ Engine process ────────────────┐
+│ SwiftUI console/map   │ ← /aurora_frame_v1 → │ ScreenCaptureKit 15 fps         │
+│ boxes/masks/telemetry │   frames + heartbeat  │ E2E + YOLOPX + OCR, 15 Hz tick  │
+│ MetalFX display path  │                       │ e2e/yolo/rule + CGEvent output  │
+└───────────────────────┘                       └──────────────┬──────────────────┘
+                                                              │
+                                         libpcap tcp/30031 → position/heading
 ```
 
 **Architecture red line**: frame interpolation / upscaling applies ONLY to the display overlay. It never enters the capture → inference → key-injection decision path.
 
-### ⚠️ The diagram above shows the early, single-process shape
+### Current architecture notes
 
-Since it was drawn, the project has grown **four pillars** that the diagram does not yet reflect.
-**The authoritative description lives in the Chinese overview `docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md`.**
+The diagram now reflects the dual-process design. The source-level Chinese overview remains authoritative: `docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md`.
 
-| Pillar | What it is | Why the diagram misses it |
+| Pillar | What it is | Current role |
 |---|---|---|
-| **① Dual process + shared memory v3** | The UI and the engine are two long-lived processes exchanging frames and detections through `/aurora_frame_v1` shared memory (~72 MB); `EngineClient.protocolVersion = 3` | Written while the app was still single-process |
-| **② YOLOPX three-in-one perception** | `YolopxEngine` emits `det` (detection) / `da` (drivable area) / `ll` (lane lines) from one model | Only `yolo26s` existed at the time |
-| **③ Optical flow + motion prediction** | OpenCV DIS optical flow (`Vendor/OpenCVFlow`, ≤5 ms red line) extrapolates low-rate detections to 30 Hz via an α-β filter | Added later |
-| **④ Mask visualization** | Drivable-area / lane-line masks return to the UI over shared memory (bit-packed, 160×160 grid) | Added later |
+| **① Dual process + shared memory v3** | The UI and engine exchange frames, detections and telemetry through `/aurora_frame_v1` (~72 MB); `EngineClient.protocolVersion = 3` | Current primary architecture |
+| **② YOLOPX three-in-one perception** | `YolopxEngine` emits `det` (detection), `da` (drivable area) and `ll` (lane lines) from one model | Core perception asset |
+| **③ Optical flow + motion prediction** | OpenCV DIS optical flow (`Vendor/OpenCVFlow`, ≤5 ms target) and an α-β predictor fill ticks without a fresh model result. Old fixed claims about “restoring 20/30 Hz” are no longer current | Inter-frame compensation |
+| **④ Mask visualization** | Drivable-area and lane-line masks return to the UI over shared memory (bit-packed, 160×160 grid) | Display and diagnostics |
 
-> Note: the diagram's `YOLO (yolo26s) detection` label deserves a caveat — `yolo26s` is used mainly on the *prediction* side, while in-game object detection runs through the **YOLOPX `det` head**. See `04-vision-inference` §4.8.
+**Current timing (verified from source on 2026-11-08)**: normal engine tick / capture / recording are **15 Hz / 15 fps**; emergency sprint uses **20 Hz / 20 fps**. Older 20, 30 and 45 Hz figures are historical unless explicitly labelled as such.
+
+> In-game object detection primarily runs through the **YOLOPX `det` head**; `yolo26s` is used mainly on the prediction side. See the Chinese `代码-14-YoloEngine目标检测.md` and `代码-13-InferenceEngine端到端推理.md`.
 
 ## 🤖 AI Assistant
 

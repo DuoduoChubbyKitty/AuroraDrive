@@ -1,14 +1,14 @@
 # 代码-21 RuleController 规则控制器
-> 覆盖源文件：`Sources/AuroraDrive/Agent/RuleController.swift`（**200 行**，2026-10-18 `wc -l` 实测，与旧记一致）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Agent/RuleController.swift`（**209 行**，2026-11-10 `wc -l` 实测，与旧记一致）。基于当前仓库逐单元编写。
 >
 > ♻️ **行号已按 9097 行版重基准（2026-10-18）**：`AuroraDriveApp.swift` 9088→**9097**（+9）。
 > 逐条 `sed -n 'Np'` 核对语义（未做统一平移），结果：**36 项引用中 4 项需改**——
 > ① `applyCommand` 区间 :8082-8111 → **:8083-8112**（+1）；
 > ② 文件行数口径 9096→**9097**；
 > ③ 车道保持叠加区 :7639-7693 → **:7642-7693**（:7639 是注释行，代码块本体从 `if Self.laneKeepTiers…` 起）；
-> ④ 补 `AuroraFlags.swift:456`（`AURORA_LANEKEEP_TIERS` 默认值 `rule,yolo` 的登记处，:280 只是 `static let`）。
+> ④ 补 `AuroraFlags.swift`（`AURORA_LANEKEEP_TIERS` 默认值 `rule,yolo` 的登记处，:280 只是 `static let`）。
 > **其余全部命中**：tick :6865 ✓、degradeStm.update :7409 ✓、decide :7604 ✓、detections :7353 ✓、
-> laneKeepTiers 声明 :5832 ✓、门控 :7642 ✓、`AuroraFlags.swift:280` ✓；RuleController.swift 本体 27 处内部行号全部未变。
+> laneKeepTiers 声明 :5832 ✓、门控 :7642 ✓、`AuroraFlags.swift` ✓；RuleController.swift 本体 27 处内部行号全部未变。
 > `AuroraFlags.swift` 行数 543 未变，本次 lead 只改了 :445 的 `AURORA_QUEST_OCR` 内容，本文未引用该行。
 >
 > **✅ 2026-10-18 复核（T6）**：逐条 `read` 源码核对。RuleController.swift 本体 200 行未变，内部行号（Detection :29-70、isInDangerZone :58-61、urgency :65-69、五个阈值 :84/:87/:90/:93/:96、decide :116-175、fuse :182-199）**全部命中**，无需改动。两处修订：
@@ -113,11 +113,11 @@ case .danger, .critical: return ruleCmd             // 危险/急刹：规则覆
 - ⚠️ 与上面 2026-10-02 变更联动：`.danger/.critical` 时 fuse 返回的 ruleCmd 现在 **brake 恒 0**——规则覆盖也不会按 S 倒车。
 
 🔴 **⚠️ 2026-10-18 复核标注：`fuse` 是死代码——全仓零调用**（`grep -rn "\.fuse(" Sources/` 无任何外部调用方，仅本文件 :182 的定义）。原文档把它写成「`.rule` 态现役逻辑」**不成立**：
-- `.rule` 档实际走的是 `ruleController.decide(detections:)`（`AuroraDriveApp.swift:7604`），**不经过 fuse**
+- `.rule` 档实际走的是 `ruleController.decide(detections:)`（`AuroraDriveApp.swift`），**不经过 fuse**
 - `fuse` 的融合语义（safe 信 E2E / caution 对半 / danger 覆盖）在当前代码里**没有任何执行路径**——E2E+规则的协同改由降级状态机的档位切换（`.e2e`→`.yolo`→`.rule`）实现，不再有单帧内「E2E 输出与规则输出按 dangerLevel 加权混合」的路径
 - `dangerLevel` 作为 `private(set)` 状态由 `decide` 写入（:154/:161/:168），`fuse` 读它——但既然 `fuse` 不被调用，`dangerLevel` 实际只供 **UI 观察**（:108 的 `dangerLevel` 是 @Observable），不参与控制决策
 - ⚠️ **待确认（产品决策）**：`fuse` 是保留为未来 E2E+规则帧内融合的预留接口，还是应删除？当前状态是「定义完好、逻辑自洽、但无执行路径」的死代码
 
-**调用链（2026-10-18 按 9097 行版重测）**：`DriveState.tick()`（AuroraDriveApp.swift:6865）→ 降级状态机 `degradeStm.update()`（:7409）选定档位 → `.rule` 档时 `ruleController.decide(detections:)`（:7604，`detections` 来自 `yoloEngine.detections` :7353）；车道保持/分段覆盖可再叠加在 rule/yolo 档输出上（叠加区 :7642-7693，门控 `Self.laneKeepTiers.contains(decided)` :7642）→ `applyCommand`（:8083-8112）→ ControlEngine 按键映射。
+**调用链（2026-10-18 按 9097 行版重测）**：`DriveState.tick()`（AuroraDriveApp.swift）→ 降级状态机 `degradeStm.update()`（:7409）选定档位 → `.rule` 档时 `ruleController.decide(detections:)`（:7604，`detections` 来自 `yoloEngine.detections` :7353）；车道保持/分段覆盖可再叠加在 rule/yolo 档输出上（叠加区 :7642-7693，门控 `Self.laneKeepTiers.contains(decided)` :7642）→ `applyCommand`（:8083-8112）→ ControlEngine 按键映射。
 
 **RuleController 文档至此完整**（200 行全覆盖：Detection 类型 → decide 决策 → fuse 死代码标注）。

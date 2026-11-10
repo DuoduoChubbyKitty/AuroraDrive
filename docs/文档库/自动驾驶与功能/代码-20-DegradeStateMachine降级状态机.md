@@ -9,11 +9,11 @@
 > - **修正第四节 App 行号**（详见 §四 表头，含三列对照 9088→9094→**9097 冻结版**）：tick 6862→**6865**、update 7403-7411→**7409-7417**、mode 同步 7414→**7420**、degradeHealth 7102→**7105**、暖机 7401-7402→**7407-7408**、switch 7585-7598→**7593-7606**、rule 7596→**7604**、lane 7634→**7642**、reset 6311→**6314**、卡死块 7386-7397→**7391-7402**、字段 5350-5372→**5352/5356/5368/5374**、持有 5651→**5653**。
 > - **确认无误**：`.recover` 已删除的描述（§一 :12、§二 层 0、§三 reset、文末提示）与源码 :7-8/:36-38/:86-89 完全一致，**无需改动**；三档梯子、九参数、优先级链、P0-1 死锁注释全部属实。
 
-> 覆盖源文件：`Sources/AuroraDrive/Agent/DegradeStateMachine.swift`（**165 行**，2026-10-07 `wc -l` 复测，与旧记一致）。
+> 覆盖源文件：`Sources/AuroraDrive/Agent/DegradeStateMachine.swift`（**165 行**，2026-11-10 `wc -l` 复测，与旧记一致）。
 > 本文 2026-10-06 由文档更新代理 A5 全文按当前源码重写：旧文基于含 `.recover` 脱困档的四档版本（250 行），该档已于 **2026-09-30 整体删除**——现为**三档梯子**，卡住检测计时/脱困超时等机制一并移除。
 > **2026-10-07 由文档核对代理 E4 复核**：源文件 165 行与三档梯子描述**全部属实**；仅**第四节「调用现场」的 AuroraDriveApp.swift 行号整体漂移**（因为 App 主文件当时已增至 8456 行）。**2026-10-17（T7）**：第四节 App 引用已按 9088 行版全部重测，正文遗留的 :6558/:5866 两处旧值已修正为 :7102/:6311。
 
-## 一、三档梯子与可调阈值（DegradeStateMachine.swift:1-56）
+## 一、三档梯子与可调阈值（DegradeStateMachine.swift）
 
 **定位（:4-15 头注释）**：降级状态机——**三档梯子：端到端主驾(E2E) → YOLO接管(第二套神经网) → 纯规则兜底**。
 
@@ -131,7 +131,7 @@ let recov = min(0.99, degradeHealth + recoverHysteresis)    // :114 恢复阈值
 - 决策结果消费：`switch decided` 按档取控制量（App:**7593-7606**）——`.rule` 档即 `ruleController.decide(detections:)`（App:**7604**）；档位门控见 `Self.laneKeepTiers`（App:**7642**）。
 - 停止驾驶时复位：`degradeStm.reset()`（App:**6314**）。
 
-> ✅ **`DriveMode` 枚举位置（♻️ 2026-10-18 二次校准）**：`enum DriveMode` 在 **`AuroraDriveApp.swift:4047`**（`:4047` 是 `enum DriveMode: String, CaseIterable, Identifiable {`）；**`:4050-4052` 是它的三个 case**（`case e2e` / `case yolo` / `case rule`），不是 enum 本身的声明行。两种引法都对，但勿混为一谈。
+> ✅ **`DriveMode` 枚举位置（♻️ 2026-10-18 二次校准）**：`enum DriveMode` 在 **`AuroraDriveApp.swift`**（`:4047` 是 `enum DriveMode: String, CaseIterable, Identifiable {`）；**`:4050-4052` 是它的三个 case**（`case e2e` / `case yolo` / `case rule`），不是 enum 本身的声明行。两种引法都对，但勿混为一谈。
 > ✅ **原先记录的「分节注释写四档梯子」已不存在（2026-10-18 已修）**：`App:7404` 现为「降级状态机决策（**三档**梯子：模型存活 + 健康度驱动）」，`App:7405` 补了一行「（原写「四档梯子」，脱困档 .recover 已于 2026-09-30 删除，2026-10-18 修正）」。同类 `App:4069`「规则组只剩 .rule 一个成员」与 `App:4048`「**3 个**档位」均正确。
 
 **DegradeStateMachine 文档至此完整**（165 行全覆盖：三档梯子 → update 优先级链 → transition/reset）。给别的 AI 的最关键提示：**forceRule > 极速 > 暖机 > 健康度梯子**的优先级顺序不能颠倒（forceRule 是紧急安全开关，必须压过一切）；**脱困档与卡住计时已于 2026-09-30 整体删除，不要再按四档模型理解本文件**；卡死（零速 30s）现在走 DriveState 的 `needsManualIntervention` 人工介入横幅（判定块 AuroraDriveApp.swift:**7391-7402**，字段声明 App:**5352-5377**），与状态机完全解耦。

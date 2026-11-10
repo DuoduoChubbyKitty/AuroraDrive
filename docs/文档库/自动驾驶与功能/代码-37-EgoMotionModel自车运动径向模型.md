@@ -10,7 +10,7 @@
 > - **`maskShift(for:ego:)`（:336）零调用**——`grep -rn 'maskShift' Sources/` 排除定义行后为空，是**死代码**。API 表原先漏列此方法，现补入并标注。
 > - ~~**源码注释 `:181` 的 `1/30s`**~~——✅ **已由 Lead 修正**（现为「**1/20s**，tick 定档 20Hz；原写 1/30s 是 30Hz 时代口径」）。此条闭环，不再是遗留。
 
-> 覆盖源文件：`Sources/AuroraDrive/Inference/EgoMotionModel.swift`（**399 行**，2026-10-18 `wc -l` 实测；398 为 10-02 旧基准）
+> 覆盖源文件：`Sources/AuroraDrive/Inference/EgoMotionModel.swift`（**399 行**，2026-11-10 `wc -l` 实测；398 为 10-02 旧基准）
 > 2026-10-01 新增（性能文档 §6.45「光流接线 · 路线2」的实现），当前 **git 已跟踪**（`git ls-files` 命中，历史见 `git log --follow`）。
 > 关联：[`代码-38-PerfSelfTest性能自检.md`](代码-38-PerfSelfTest性能自检.md)（`--motion-selftest` 在 `PerfSelfTest` 侧）
 
@@ -57,7 +57,7 @@ v_ego(px, py) = forwardRate · r_y
 
 ### ★ 非等比拉伸 —— 本项目的关键几何事实（文件头注释 `:35–40`）
 
-`CaptureEngine.swift:1124` 明确注释：直通帧是
+`CaptureEngine.swift` 明确注释：直通帧是
 「**非等比拉伸到 640×640**（与训练/慢路径一致，不保持宽高比）」。故：
 
 - x/y 两方向**焦距不同**（`fx ≠ fy`），需按屏幕宽高比拆分

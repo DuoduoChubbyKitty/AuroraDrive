@@ -16,7 +16,7 @@
 //   3) beginActivity      —— 防 App Nap 冻结
 //   4) Unix domain socket —— 命令/心跳（~/Library/Application Support/AuroraDrive/engine.sock）
 //   5) 共享内存帧管道     —— 帧头 + 检测结果 + BGRA 双缓冲（引擎写 / UI 读）
-//   6) DriveState 闭环    —— 照搬主程序组装（同一份类代码）+ 20Hz DispatchSource tick
+//   6) DriveState 闭环    —— 照搬主程序组装（同一份类代码）+ 15Hz DispatchSource tick
 //   7) 信号处理           —— SIGTERM/SIGINT 退出前必先 releaseAll（防游戏内键卡死）
 //
 //  ⚠️ YOLOPX 在引擎模式下的行为（2026-09-26 核实，勿误判为"白烧算力"）：
@@ -854,7 +854,7 @@ enum EngineMain {
     ///
     /// key 名与取值（**W5 交叉验证以此为准**）：
     ///   · 命令字段名：**`perceptionMode`**
-    ///   · 取值：**`"ayolom"`** → 20Hz ／ **`"legacy"`** → 20Hz
+    ///   · 取值：**`"ayolom"`** → 15Hz ／ **`"legacy"`** → 15Hz
     ///     额外接受 **`"yolopx"`** 作为 `"legacy"` 的等价别名 ——
     ///     `PerceptionModelFamily` 的 case 是 `.yolopx`/`.ayolom`，而 UI 侧把
     ///     大模型档叫 "legacy"；两侧拼写不一致会导致**静默不切**，故两个都认。
@@ -999,16 +999,16 @@ enum EngineMain {
         // ── ET-5 冲突处理（2026-10-12，task-111）：应急期间跳过档位频率应用 ──
         //
         // 【为什么需要这道 guard】
-        //   applyPerceptionMode 会 setTickHz(20)（两档当前都是 20Hz）+ setCaptureHz。
-        //   若应急冲刺（45Hz）或让位（5Hz）期间用户切档，档位频率会把应急频率覆盖掉。
+        //   applyPerceptionMode 会 setTickHz(15)（两档当前都是 15Hz）+ setCaptureHz。
+        //   若应急冲刺（20Hz）或让位（5Hz）期间用户切档，档位频率会把应急频率覆盖掉。
         //
         // 【为什么选"从源头拦"而不是"只靠 tickOnce 每帧覆盖"】
         //   tickOnce 的每帧检测能兜住 tick 和抓屏频率，但档位切档会先跑一次
-        //   setCaptureHz(20) 再被 tickOnce 覆盖回 sprint(45)——多一次无谓停启流。
+        //   setCaptureHz(15) 再被 tickOnce 覆盖回 sprint(20)——多一次无谓停启流。
         //   从源头拦更干净。
         //
         // 【失败模式】应急结束后（enterCruise），tickOnce 会读到 effectiveTickHz=20
-        //   并 setTickHz(20)——与档位要求的 20Hz 一致，无需"补切"。
+        //   并 setTickHz(15)——与档位要求的 15Hz 一致，无需"补切"。
         //   若档位将来改成非 20Hz（如 legacy=30），则应急期间被跳过的档位会
         //   停在应急前的频率——**这是已知取舍**，如实回执说明让 UI 知情（见下）。
         guard !EmergencyTakeover.shared.takeoverActive else {
@@ -1227,7 +1227,7 @@ enum EngineMain {
             exit(5)
         }
 
-        // ── 7. DriveState 闭环 + 45Hz tick（照搬 ContentView 驱动方式）──
+        // ── 7. DriveState 闭环 + 15Hz tick（照搬 ContentView 驱动方式）──
         MainActor.assumeIsolated {
             EngineGlobals.state = DriveState()
             // 标记本 DriveState 活在引擎进程：本进程无 run loop（dispatchMain），
@@ -1271,9 +1271,9 @@ enum EngineMain {
 
         let tickQueue = DispatchQueue(label: "aurora.engine.tick", qos: .userInteractive)
         let tickTimer = DispatchSource.makeTimerSource(queue: tickQueue)
-        // ⚠️ task-93（2026-10-11）：初始频率取 `engineTickHz`（默认 **30Hz**），
+        // ⚠️ task-93（2026-10-11）：初始频率取 `engineTickHz`（默认 **15Hz**），
         //   之后由 `setTickHz(_:)` 按 `perceptionMode` 档位动态重调度：
-        //     "ayolom" → 45Hz ／ "legacy" → 30Hz
+        //     "ayolom" → 15Hz ／ "legacy" → 15Hz
         //   这**一处**决定推理 / 控制 / 录制三条路径的 tick 速率（它们都挂在
         //   `tickOnce()` 上），故改这里即全链路生效。
         //   注：`leeway` 保持 0 —— 主循环要求准点，不引入调度抖动。
@@ -1419,17 +1419,17 @@ enum EngineMain {
 
         // ── ET-5 应急频率接线（2026-10-12，task-111）──
         //
-        // EmergencyTakeover 状态机算出的频率（20巡航 / 45冲刺 / 5让位）。
+        // EmergencyTakeover 状态机算出的频率（15巡航 / 20冲刺 / 5让位）。
         // 每帧检查：变了就 setTickHz（setTickHz 内有 0.01 容差防抖，同值不重排）。
         //
         // 【为什么放这里（st.tick() 之后、shm publish 之前）】
         //   st.tick() 里 ET-4 已喂了 noteTickGap / noteModelDegraded →
         //   EmergencyTakeover 的 effectiveTickHz 可能在此刻发生变化（如连续 3 帧
-        //   >80ms → enterSprint → 45Hz）。紧跟着读，能在本帧就切频，不等到下一帧。
+        //   >80ms → enterSprint → 20Hz）。紧跟着读，能在本帧就切频，不等到下一帧。
         //
         // 【与 applyPerceptionMode 的冲突怎么处理】
-        //   applyPerceptionMode 也会调 setTickHz(20)（当前两档都是 20Hz）。
-        //   应急期间若它先跑了 setTickHz(20)，本帧 tickOnce 会立刻覆盖回 45/5。
+        //   applyPerceptionMode 也会调 setTickHz(15)（当前两档都是 15Hz）。
+        //   应急期间若它先跑了 setTickHz(15)，本帧 tickOnce 会立刻覆盖回 20/5。
         //   但更稳的做法是**从源头拦**：applyPerceptionMode 开头加了
         //   `guard !EmergencyTakeover.shared.takeoverActive`（见该函数），
         //   应急期间整个函数直接 return，连 setCaptureHz 都不碰。
@@ -1442,14 +1442,14 @@ enum EngineMain {
         // ── 应急爆发：抓屏跟着一起冲（2026-10-12 用户要求）──
         //
         // 【为什么需要】原本 EmergencyTakeover「只提推理 tick，抓屏不动」（见上）。
-        //   但用户指出：正常态抓屏与推理都该是 20（抓屏 45 时每 tick 只消费 1 帧，
-        //   多出的 25 帧被跳帧丢弃，纯浪费带宽/CPU）。既然正常态对齐到 20，
-        //   爆发态就该两个一起冲 45 —— 否则"爆发"只是 tick 空转、画面供给没跟上。
+        //   但用户指出：正常态抓屏与推理都该是 15（抓屏帧率高于推理时每 tick 只消费 1 帧，
+        //   多出的帧被跳帧丢弃，纯浪费带宽/CPU）。既然正常态对齐到 15，
+        //   爆发态就该两个一起冲 20 —— 否则"爆发"只是 tick 空转、画面供给没跟上。
         //
         // 【状态对应】
-        //   cruise(sprinting=false) → tick 20 / 抓屏 20（对齐，不浪费）
-        //   sprint(sprinting=true)  → tick 45 / 抓屏 45（一起冲，抗系统）
-        //   yield (userHolding)     → tick  5 / 抓屏 20（用户接管，预览不卡）
+        //   cruise(sprinting=false) → tick 15 / 抓屏 15（对齐，不浪费）
+        //   sprint(sprinting=true)  → tick 20 / 抓屏 20（一起冲，抗系统）
+        //   yield (userHolding)     → tick  5 / 抓屏 15（用户接管，预览不卡）
         //   注意用 `sprinting` 而非 `takeoverActive`：让位态 takeoverActive 仍为 true，
         //   但那时 AI 已让位、不该再抢抓屏带宽。
         //
@@ -2084,7 +2084,7 @@ enum EngineMain {
             //   KeyboardMonitor 能收到系统键盘事件）经 config 命令转发到这里。
             //
             // 【语义】takeover=true = 用户按下受控键 → 让位（5Hz，把算力让给用户）
-            //         takeover=false = 用户松开 → 回巡航（20Hz）
+            //         takeover=false = 用户松开 → 回巡航（15Hz）
             //   EmergencyTakeover.noteUserKeyDown()/noteUserKeyUp() 内部自带状态守卫
             //   （只在冲刺态响应 keyDown、只在让位态响应 keyUp），故这里无条件转发即可，
             //   不需要引擎侧再做状态判断 —— 语义单一，好核对。
@@ -2094,7 +2094,7 @@ enum EngineMain {
             let cDigest = obj["digest"] as? Bool
             // task-93：档位感知的动态 tick 频率。
             //   key 名 **`perceptionMode`**，取值 **"ayolom" / "legacy"**（W4 下发、W5 对拍）。
-            //   两档：ayolom → 20Hz ／ legacy → 20Hz（映射见 tickHz(forPerceptionMode:)）。
+            //   两档：ayolom → 15Hz ／ legacy → 15Hz（映射见 tickHz(forPerceptionMode:)）。
             let cPerceptionMode = obj["perceptionMode"] as? String
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -2301,11 +2301,11 @@ enum EngineMain {
         let fps = st.captureEngine.captureFPS > 0 ? st.captureEngine.captureFPS : st.fps
         // ⚠️ 2026-10-12 ET-9 修复（Lead 发现的致命缺陷）：
         //   应急接管状态机（EmergencyTakeover）在**两个进程各有一个实例**，互不相通。
-        //   · 引擎进程 isActive=false → 跑完整 tick → 实例能触发冲刺（45Hz 生效 ✅）
+        //   · 引擎进程 isActive=false → 跑完整 tick → 实例能触发冲刺（20Hz 生效 ✅）
         //   · UI 进程   isActive=true  → tickEngineMode() 早退 → 实例**永不触发** ❌
         //   而 ET-3 的「请接管」横幅读的是 **UI 实例** → 横幅永不显示（安全功能失效）。
         //   修法：引擎把真实的 takeover 状态经 heartbeat（1Hz）回传，UI 侧解析后同步到
-        //   自己的实例。1Hz 延迟可接受——引擎侧的 45Hz 冲刺是**零延迟**生效的，
+        //   自己的实例。1Hz 延迟可接受——引擎侧的 20Hz 冲刺是**零延迟**生效的，
         //   heartbeat 只负责让 UI 把横幅显示出来。
         let et = EmergencyTakeover.shared
         // ⚠️ 2026-10-21：指针朝向回传（与 ET-9 同理：UI 进程 tickEngineMode 早退，

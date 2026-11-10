@@ -533,6 +533,11 @@ private final class LocalPoseSocketClient: @unchecked Sendable {
 
 // MARK: - 网络定位器
 
+/// 网络定位器（WS 位姿桥接消费端）。
+/// ⚠️ 2026-11 核实：本类**未被任何代码实例化**（全仓无 `NetworkLocator(` 构造点），
+///   属未接线的参考实现。现行网络定位由 `CoordinateCapture`（BPF 抓包）承担。
+///   本文件当前真正被外部消费的是 `CoordinateTransform` 与顶部校准常量
+///   （`CoordinateCapture.swift` 以同名常量保持同步，见其 :105 注释）。
 final class NetworkLocator {
     var ready: Bool = false
     private var isConnected = false
@@ -603,7 +608,7 @@ final class NetworkLocator {
         //   （8 方向里 6 个是反的：正北↔正南对调、东北↔东南对调，
         //    正东/正西是镜面不动点恰好不错 —— 用户"朝东西走看着对、
         //    一拐南北就反"的实测症状即由此来）。
-        //   权威公式：`MissionConsole.swift:3007`（2026-09-30 已修复并实测）
+        //   权威公式：`MissionConsole.swift:3238`（2026-09-30 已修复并实测）
         //     `atan2(Δx, −Δy)`
         var motionHeading: Double? = lastMotionHeading
         if let last = lastLocPos {

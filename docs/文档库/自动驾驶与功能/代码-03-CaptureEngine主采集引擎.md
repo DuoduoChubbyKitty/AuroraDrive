@@ -1,6 +1,8 @@
 # 代码-03 CaptureEngine 主采集引擎
 
-> 覆盖源文件：`Sources/AuroraDrive/Capture/CaptureEngine.swift`（**1584 行**，2026-10-18 `wc -l` 实测）。基于当前仓库逐单元编写。
+> ⚠️ **当前值勘误（2026-11-08）**：`CaptureEngine._targetCaptureHz = 15.0`，正常抓屏为 **15fps**，应急冲刺为 **20fps**。下文的默认 20fps / 应急 45fps 是 2026-10-18 版本快照，仅作演进记录，不再代表当前值。
+
+> 覆盖源文件：`Sources/AuroraDrive/Capture/CaptureEngine.swift`（**1748 行**，2026-11-10 `wc -l` 实测）。基于当前仓库逐单元编写。
 >
 > **✅ 2026-10-17 复核（T6）**：正文全部行号已按当前源码（1584 行版）`grep -n` / `sed -n` 逐条实测重写，均为当前真实值；旧版复核沿革与行号换算说明不再保留。精确锚点见文末「2026-10-17 实测锚点表」。
 >
@@ -252,8 +254,8 @@ if let onUpscaleFrame, isUpscaleWanted(),
 
 ### 8.1 SCStream 的启动者与帧队列
 
-- **SCStream 由 `CaptureEngine.startStream(display:content:)` 创建并启动**：`SCStream(filter:configuration:delegate:nil)`（CaptureEngine.swift:521）→ `addStreamOutput(self, type: .screen, sampleHandlerQueue: captureQueue)`（:526）→ `try await stream.startCapture()`（:537）。启动成功后置 `isCapturing = true`（:553）、回调 `.started`（:557）。
-- **帧队列**：系统把 CMSampleBuffer 推到 `captureQueue = DispatchQueue(label: "aurora.capture", qos: .userInteractive)`（:165，注册点 :526）。**这条队列就是 SCStream 的采样队列**（`config.queueDepth = 3`，:601）——在上面做同步重活会推迟帧消费 → 3 帧缓冲填满 → capGap 拉长（AuroraDriveApp.swift:6020–6024 的回退注释实测过 11ms→2081ms 的雪崩）。
+- **SCStream 由 `CaptureEngine.startStream(display:content:)` 创建并启动**：`SCStream(filter:configuration:delegate:nil)`（CaptureEngine.swift）→ `addStreamOutput(self, type: .screen, sampleHandlerQueue: captureQueue)`（:526）→ `try await stream.startCapture()`（:537）。启动成功后置 `isCapturing = true`（:553）、回调 `.started`（:557）。
+- **帧队列**：系统把 CMSampleBuffer 推到 `captureQueue = DispatchQueue(label: "aurora.capture", qos: .userInteractive)`（:165，注册点 :526）。**这条队列就是 SCStream 的采样队列**（`config.queueDepth = 3`，:601）——在上面做同步重活会推迟帧消费 → 3 帧缓冲填满 → capGap 拉长（AuroraDriveApp.swift 的回退注释实测过 11ms→2081ms 的雪崩）。
 - **帧回调**：`stream(_:didOutputSampleBuffer:of:)`（:1061）在 captureQueue 上执行，进入 `autoreleasepool`（:1076）后依次走：诊断（:1080–1090）→ onNativeFrame 直通（:1092–1100）→ onUpscaleFrame 直通（:1102–1109）→ onYoloFrame 直通（:1111–1149）→ 480px UI 渲染 + `onFrame?(nsImage, cgImage)`（:1151–1228）。
 
 ### 8.2 引擎模式（`--engine`）的帧路径
@@ -270,10 +272,10 @@ if let onUpscaleFrame, isUpscaleWanted(),
 
 ### 8.3 本地模式（`AURORA_UI_LOCAL=1` 或无引擎可连）的帧路径
 
-- `AuroraFlags.uiLocal`（AuroraFlags.swift:138）→ `EngineClient.startup()` 直接不连不 spawn（EngineClient.swift:166–172（本次复核：:166 即 `func startup()`、:167 即 `if AuroraFlags.uiLocal`，准确））；连接失败/断开也回落本地（isActive=false，EngineClient.swift:180–183 spawn 失败回退、:552–566 `handleConnectionLoss`（本次复核：:552 即函数定义，准确））。
-- UI 进程自己的 DriveState 在 `init()` 里完成四路接线：`onFrame` → pendingFrame/pendingFrameCG 覆盖写（AuroraDriveApp.swift:5988–6000）、`onYoloFrame` → pendingYoloFrame（:6003–6030）、`onNativeFrame` → pendingNativeFrame（:6032–6039）、`onUpscaleFrame` → `upscaleHost.push`（:6041–6044）、`isUpscaleWanted = { upscaleEnabled }`（:6046）。
-- 启动：`startDriving()` 本地分支 `captureEngine.start()`（AuroraDriveApp.swift:6283）；录制也会拉起（`isRecording.didSet` → `captureEngine.start()`，:5016）。
-- 消费：UI 进程 `tick()`（AuroraDriveApp.swift:6865 起）：消费 pendingFrame → `currentScreenImage`/`currentFrameCG`（:6946–6962，本次复核：:6946 注释起、:6959 赋 `currentFrameCG`）→ 任务面板 OCR（:6974）→ 消费 YOLO 帧推理+光流（:6986 起）→ 消费 native ROI 帧给 speedOCR/字模录制（:7087–7099，本次复核：:7092 即 `pendingNativeLock.lock()`，区间准确）→ `if let cg = currentFrameCG` 跑 M9/assist/YOLO/YOLOPX 推理（:7154 起，本次复核：:7154 即 `if let cg = currentFrameCG {`）。
+- `AuroraFlags.uiLocal`（AuroraFlags.swift:138）→ `EngineClient.startup()` 直接不连不 spawn（EngineClient.swift（本次复核：:166 即 `func startup()`、:167 即 `if AuroraFlags.uiLocal`，准确））；连接失败/断开也回落本地（isActive=false，EngineClient.swift spawn 失败回退、:552–566 `handleConnectionLoss`（本次复核：:552 即函数定义，准确））。
+- UI 进程自己的 DriveState 在 `init()` 里完成四路接线：`onFrame` → pendingFrame/pendingFrameCG 覆盖写（AuroraDriveApp.swift）、`onYoloFrame` → pendingYoloFrame（:6003–6030）、`onNativeFrame` → pendingNativeFrame（:6032–6039）、`onUpscaleFrame` → `upscaleHost.push`（:6041–6044）、`isUpscaleWanted = { upscaleEnabled }`（:6046）。
+- 启动：`startDriving()` 本地分支 `captureEngine.start()`（AuroraDriveApp.swift）；录制也会拉起（`isRecording.didSet` → `captureEngine.start()`，:5016）。
+- 消费：UI 进程 `tick()`（AuroraDriveApp.swift 起）：消费 pendingFrame → `currentScreenImage`/`currentFrameCG`（:6946–6962，本次复核：:6946 注释起、:6959 赋 `currentFrameCG`）→ 任务面板 OCR（:6974）→ 消费 YOLO 帧推理+光流（:6986 起）→ 消费 native ROI 帧给 speedOCR/字模录制（:7087–7099，本次复核：:7092 即 `pendingNativeLock.lock()`，区间准确）→ `if let cg = currentFrameCG` 跑 M9/assist/YOLO/YOLOPX 推理（:7154 起，本次复核：:7154 即 `if let cg = currentFrameCG {`）。
 
 ### 8.4 两种模式帧路径差异小结
 
@@ -288,16 +290,16 @@ if let onUpscaleFrame, isUpscaleWanted(),
 
 ### 8.5 引擎进程的 tick 语义（⚠️ 关键且反直觉）
 
-`EngineMain.tickOnce()`（EngineMain.swift:1193–1195）调的是 **`st.tick()`——与 UI 本地模式完全同一份 `DriveState.tick()` 代码**（AuroraDriveApp.swift:6865 起）。而引擎进程从 `--engine` 入口直接进 `EngineMain.run()`（AuroraDriveApp.swift:822–824，本次复核：:822 确为 `if args.contains("--engine")`，准确），**不跑** `EngineClient.startup()`（:209 仅非 daemon UI 进程执行，且 --engine 在 :822 已提前 `exit` 分流），因此引擎进程内 `EngineClient.shared.isActive` **恒为 false**——tick 不走 `tickEngineMode` 提前 return（:6938–6940），**完整本地管线（含推理、按键注入、任务面板 OCR 喂帧 :6974）在引擎进程内全部执行**。`tickEngineMode()`（AuroraDriveApp.swift:6522）只存在于 UI 进程。
+`EngineMain.tickOnce()`（EngineMain.swift）调的是 **`st.tick()`——与 UI 本地模式完全同一份 `DriveState.tick()` 代码**（AuroraDriveApp.swift 起）。而引擎进程从 `--engine` 入口直接进 `EngineMain.run()`（AuroraDriveApp.swift:822–824，本次复核：:822 确为 `if args.contains("--engine")`，准确），**不跑** `EngineClient.startup()`（:209 仅非 daemon UI 进程执行，且 --engine 在 :822 已提前 `exit` 分流），因此引擎进程内 `EngineClient.shared.isActive` **恒为 false**——tick 不走 `tickEngineMode` 提前 return（:6938–6940），**完整本地管线（含推理、按键注入、任务面板 OCR 喂帧 :6974）在引擎进程内全部执行**。`tickEngineMode()`（AuroraDriveApp.swift）只存在于 UI 进程。
 
-_driveState 单例说明_：`DriveState.shared` 是**每进程一个**的单例（`static let shared = DriveState()` @AuroraDriveApp.swift:4180；:4149–4177 注释明确「引擎进程与 UI 进程各自持有自己的实例，互不影响」）。另有第三种独立实例：`--agent-command` 命令模式由 AppDelegate 在 `applicationDidFinishLaunching`（:133）里单独创建 ControlEngine + CaptureEngine（:529–536，`cap.start()` :534，不走 DriveState）。
+_driveState 单例说明_：`DriveState.shared` 是**每进程一个**的单例（`static let shared = DriveState()` @AuroraDriveApp.swift；:4149–4177 注释明确「引擎进程与 UI 进程各自持有自己的实例，互不影响」）。另有第三种独立实例：`--agent-command` 命令模式由 AppDelegate 在 `applicationDidFinishLaunching`（:133）里单独创建 ControlEngine + CaptureEngine（:529–536，`cap.start()` :534，不走 DriveState）。
 
 ## 九、引擎日志「有帧=false 帧数=0」的代码判定
 
-**日志出处**：EngineMain.swift:1105–1130（本次复核：:1108 即 `heartbeatCount % 5 == 0`，:1110 即 `let hasFrame =`，:1123 即 `统计:` 日志行，区间准确），心跳计时器每 5 秒输出一条 `[ENGINE] 统计: seq=… 有帧=… det=… … yolopx:加载=… 帧数=…`（`heartbeatCount % 5 == 0` 门控，:1108）。
+**日志出处**：EngineMain.swift（本次复核：:1108 即 `heartbeatCount % 5 == 0`，:1110 即 `let hasFrame =`，:1123 即 `统计:` 日志行，区间准确），心跳计时器每 5 秒输出一条 `[ENGINE] 统计: seq=… 有帧=… det=… … yolopx:加载=… 帧数=…`（`heartbeatCount % 5 == 0` 门控，:1108）。
 
-- **`有帧` 的判定（:1110）**：`let hasFrame = EngineGlobals.state?.currentFrameCG != nil`。`currentFrameCG` 在引擎进程内的唯一写点是 tick 消费 pendingFrame 时（AuroraDriveApp.swift:6959，8.5 节已证该段代码在引擎进程执行）——因此 `有帧=false` ⇔ 引擎进程的 SCStream 从未成功产出一帧走到 `onFrame` 末尾，或 captureEngine 根本没启动。
-- **`帧数` 的判定（:1124）**：`px?.inferenceCount ?? 0`，即 yolopxEngine 累计推理次数。它只在 `currentFrameCG != nil` 时才会增长（推理入口 `if let cg = currentFrameCG`，AuroraDriveApp.swift:7154；`yolopxEngine.infer(image: cg)` :7290）。**有帧=false ⇒ 帧数必然=0**：两者是同一条因果链（无帧 → 推理从未触发），不是两个独立故障。
+- **`有帧` 的判定（:1110）**：`let hasFrame = EngineGlobals.state?.currentFrameCG != nil`。`currentFrameCG` 在引擎进程内的唯一写点是 tick 消费 pendingFrame 时（AuroraDriveApp.swift，8.5 节已证该段代码在引擎进程执行）——因此 `有帧=false` ⇔ 引擎进程的 SCStream 从未成功产出一帧走到 `onFrame` 末尾，或 captureEngine 根本没启动。
+- **`帧数` 的判定（:1124）**：`px?.inferenceCount ?? 0`，即 yolopxEngine 累计推理次数。它只在 `currentFrameCG != nil` 时才会增长（推理入口 `if let cg = currentFrameCG`，AuroraDriveApp.swift；`yolopxEngine.infer(image: cg)` :7290）。**有帧=false ⇒ 帧数必然=0**：两者是同一条因果链（无帧 → 推理从未触发），不是两个独立故障。
 
 **`有帧=false` 的全部分支排查表**（按数据流上游顺序）：
 
@@ -312,11 +314,11 @@ _driveState 单例说明_：`DriveState.shared` 是**每进程一个**的单例�
 | 6 | **onFrame 接线缺失**：接线在 DriveState `init()`（AuroraDriveApp.swift:5988–6000），引擎进程创建 DriveState（EngineMain.swift:1042）时同样执行——已排除漏接线；仅当 `EngineGlobals.state` 指向其它实例（如夹具）才可能错位 | |
 | 7 | **tick 没跑**：tickTimer 未建/未 resume（EngineMain.swift:1067–1081）、`EngineGlobals.state == nil`（:1194 guard，state 启动即创建，正常不触发——未验证存在触发路径） | EngineMain.swift:1067–1081 / :1194 |
 
-> **当前现场就是 false 的定位顺序建议**：日志里若有 `收到命令: start`（EngineMain.swift:1504）→ 看 1b：出现 `startDriving → isDriving=false` 即坐实权限守卫拦截；若连 `收到命令: start` 都没有 → 1a；若两者都有且无 `[CAPTURE] ❌`（AuroraDriveApp.swift:6086）却仍 false → 按 3→4→5 查。此为基于代码的推断，需对照引擎日志具体行确认（未验证）。
+> **当前现场就是 false 的定位顺序建议**：日志里若有 `收到命令: start`（EngineMain.swift）→ 看 1b：出现 `startDriving → isDriving=false` 即坐实权限守卫拦截；若连 `收到命令: start` 都没有 → 1a；若两者都有且无 `[CAPTURE] ❌`（AuroraDriveApp.swift）却仍 false → 按 3→4→5 查。此为基于代码的推断，需对照引擎日志具体行确认（未验证）。
 
 ## 十、修复方向：任务面板 OCR 挪引擎进程 vs UI 进程保本地采集
 
-**现状（2026-10-17 按当前源码复核）**：任务面板 OCR（QuestPanelReader，QuestPanelReader.swift:415–416 `@MainActor final class`，入口 `ingest(cgImage:)` :541，本次复核：:541 即入口）的**唯一生产喂帧点**是 `if AuroraFlags.questOCR, let cg = currentFrameCG { questPanel.ingest(cgImage: cg) }`（AuroraDriveApp.swift:6974；0.7s 节流 `minInterval` QuestPanelReader.swift:431、防重入在 Reader 内部）。**结合 8.5 节：这段代码在引擎进程内本来就在执行**（引擎 tick 跑同一份 `st.tick()`），`questPanel` 也是引擎 DriveState 的成员（AuroraDriveApp.swift:5908，本次复核：`@ObservationIgnored let questPanel = QuestPanelReader()` 即该行，准确）。所以问题不是「引擎不跑 OCR」，而是**结果回传缺失**：`onConfirmed` 接线（:5981–5983，`questPanel.onConfirmed = { [weak self] reading in` 即 :5981）写的是引擎进程自己的 `questName`/`setLocatorTarget`，UI 进程看不见。**全分辨率前提**：questROI（QuestPanelReader.swift:424，归一化 0.030/0.240/0.370/0.070）按归一化裁剪，引擎帧是原生像素，OCR 输入质量与本地模式一致。
+**现状（2026-10-17 按当前源码复核）**：任务面板 OCR（QuestPanelReader，QuestPanelReader.swift:415–416 `@MainActor final class`，入口 `ingest(cgImage:)` :541，本次复核：:541 即入口）的**唯一生产喂帧点**是 `if AuroraFlags.questOCR, let cg = currentFrameCG { questPanel.ingest(cgImage: cg) }`（AuroraDriveApp.swift；0.7s 节流 `minInterval` QuestPanelReader.swift:431、防重入在 Reader 内部）。**结合 8.5 节：这段代码在引擎进程内本来就在执行**（引擎 tick 跑同一份 `st.tick()`），`questPanel` 也是引擎 DriveState 的成员（AuroraDriveApp.swift，本次复核：`@ObservationIgnored let questPanel = QuestPanelReader()` 即该行，准确）。所以问题不是「引擎不跑 OCR」，而是**结果回传缺失**：`onConfirmed` 接线（:5981–5983，`questPanel.onConfirmed = { [weak self] reading in` 即 :5981）写的是引擎进程自己的 `questName`/`setLocatorTarget`，UI 进程看不见。**全分辨率前提**：questROI（QuestPanelReader.swift:424，归一化 0.030/0.240/0.370/0.070）按归一化裁剪，引擎帧是原生像素，OCR 输入质量与本地模式一致。
 
 ### 方向 A：OCR 留在引擎进程，把结果回传 UI（推荐、改动最小）
 
@@ -324,20 +326,20 @@ _driveState 单例说明_：`DriveState.shared` 是**每进程一个**的单例�
 
 1. **心跳加字段**：`sendHeartbeat` 的 JSON（EngineMain.swift:1900–1902，函数定义 :1900——本次复核确认 :1900 正是函数定义行，原「:1887」有误）追加 `questName` / `locatorTargetX` / `locatorTargetY`，来源 `EngineGlobals.state?.questName` 与引擎侧 locatorTarget（onConfirmed 落库值）。
 2. **UI 解析**：EngineClient 心跳解析区新增 `engineQuestName` / `engineLocatorTarget` 镜像属性。
-3. **UI 消费**：`tickEngineMode()`（AuroraDriveApp.swift:6577–6598 的状态镜像区，本次实测：:6577 起为 `engineVersionWarning` 镜像，:6598 止于 `isDriving != client.engineIsDriving`）先比后写回 `self.questName` / `setLocatorTarget(x:y:)`（与 onConfirmed :5981–5983 同款落库规则：@Observable 先比后写）。
-4. **引擎侧 onConfirmed 保持现状**（AuroraDriveApp.swift:5981–5983 在引擎进程落库引擎 state 即可）；UI 进程的同一接线只在本地模式生效。
-5. **开关**：`AURORA_QUEST_OCR` 默认已开（AuroraFlags.swift:201）；注意 AuroraFlags.swift:445 的 flags 清单仍写「默认关」——**两处描述不一致，以 :201 代码为准**（未验证文档化时机）。运行时开关如需 UI 控制再经命令下发（参照 `record` 命令带 extra 的模式，AuroraDriveApp.swift:4990–4994）。
+3. **UI 消费**：`tickEngineMode()`（AuroraDriveApp.swift 的状态镜像区，本次实测：:6577 起为 `engineVersionWarning` 镜像，:6598 止于 `isDriving != client.engineIsDriving`）先比后写回 `self.questName` / `setLocatorTarget(x:y:)`（与 onConfirmed :5981–5983 同款落库规则：@Observable 先比后写）。
+4. **引擎侧 onConfirmed 保持现状**（AuroraDriveApp.swift 在引擎进程落库引擎 state 即可）；UI 进程的同一接线只在本地模式生效。
+5. **开关**：`AURORA_QUEST_OCR` 默认已开（AuroraFlags.swift:201）；注意 AuroraFlags.swift 的 flags 清单仍写「默认关」——**两处描述不一致，以 :201 代码为准**（未验证文档化时机）。运行时开关如需 UI 控制再经命令下发（参照 `record` 命令带 extra 的模式，AuroraDriveApp.swift）。
 6. **前置依赖**：先解决第九节的「有帧=false」——引擎无帧时 OCR 同样无输入。
-7. **新鲜度**：quest 结果经 1Hz 心跳回传（EngineMain.swift:1105 `sendHeartbeat(reason: "periodic")`），任务名变化最多滞后 ~1s——可接受（未验证用户感知）。
+7. **新鲜度**：quest 结果经 1Hz 心跳回传（EngineMain.swift `sendHeartbeat(reason: "periodic")`），任务名变化最多滞后 ~1s——可接受（未验证用户感知）。
 
 ### 方向 B：UI 进程保本地采集（引擎模式照旧，UI 另起一路采集/消费供 OCR）
 
 改动点清单：
 
-1. **真·第二路 SCStream 变体**：引擎模式激活时 UI 也启动本地 captureEngine（`EngineClient.onActivated` 回调处 AuroraDriveApp.swift:6146 起，或参照录制 didSet 的 `if !captureEngine.isCapturing { captureEngine.start() }` 写法 :5013–5015，本次复核：:5016 即 `captureEngine.start()`，准确）。UI 消费本地 pendingFrame 喂 questPanel（:6946–6960 + :6974 的逻辑不变，但 :6938–6940 的引擎模式提前 return 要改为放行 OCR 子集）。
-2. **TCC 与成本**：UI 进程需自己的屏幕录制授权（本地模式已证明拿得到）；引擎+UI 双流 = 每帧四路拷贝 ×2（CaptureEngine.swift:1092–1228），CPU/内存带宽翻倍（未验证实测代价）；引擎 nice=-20 与 UI 的 captureQueue 并存需评估。
-3. **显示源二选一**：UI 画面用本地 480 宽流还是引擎 shm 帧要拍板——frameHost/upscaleHost 只能吃一路（AuroraDriveApp.swift:6530–6551，本次复核：`client.poll()` 在 :6533、`takePixelBuffer()` 在 :6535、`upscaleHost.push` 在 :6536），两路同喂会打架。
-4. **状态机冲突**：AuroraDriveApp.swift:6558–6563（本次复核仍准确） 的「引擎停抓 → UI 收尾」会把 isStreaming 复位，本地流启动后该判据需区分「引擎流」与「本地流」。
+1. **真·第二路 SCStream 变体**：引擎模式激活时 UI 也启动本地 captureEngine（`EngineClient.onActivated` 回调处 AuroraDriveApp.swift:6954 起，或参照录制 didSet 的 `if !captureEngine.isCapturing { captureEngine.start() }` 写法 :5013–5015，本次复核：:5016 即 `captureEngine.start()`，准确）。UI 消费本地 pendingFrame 喂 questPanel（:6946–6960 + :6974 的逻辑不变，但 :6938–6940 的引擎模式提前 return 要改为放行 OCR 子集）。
+2. **TCC 与成本**：UI 进程需自己的屏幕录制授权（本地模式已证明拿得到）；引擎+UI 双流 = 每帧四路拷贝 ×2（CaptureEngine.swift），CPU/内存带宽翻倍（未验证实测代价）；引擎 nice=-20 与 UI 的 captureQueue 并存需评估。
+3. **显示源二选一**：UI 画面用本地 480 宽流还是引擎 shm 帧要拍板——frameHost/upscaleHost 只能吃一路（AuroraDriveApp.swift，本次复核：`client.poll()` 在 :6533、`takePixelBuffer()` 在 :6535、`upscaleHost.push` 在 :6536），两路同喂会打架。
+4. **状态机冲突**：AuroraDriveApp.swift（本次复核仍准确） 的「引擎停抓 → UI 收尾」会把 isStreaming 复位，本地流启动后该判据需区分「引擎流」与「本地流」。
 5. **优点**：OCR/预览帧源与本地模式完全一致（全分辨率、不依赖引擎 shm 档位）；缺点：双采集开销 + 产品决策 + 两处状态机耦合。
 
 **结论**：**方向 A 是首选**——OCR 已经在引擎进程跑着，只缺心跳回传三个字段，UI 侧一次解析即可；方向 B 的任何变体都意味着双采集或显示源重构，仅在「引擎侧 OCR 无法满足实时性/精度」时再评估。两方向都需先解决第九节的「有帧=false」（引擎无帧则一切无输入）。
@@ -346,7 +348,7 @@ _driveState 单例说明_：`DriveState.shared` 是**每进程一个**的单例�
 
 ## 附：实测锚点表（2026-10-18 `grep -n` / `sed -n` 逐条实测，含 10-18 复核修订）
 
-> 覆盖文件 `Sources/AuroraDrive/Capture/CaptureEngine.swift`（1584 行）。本次逐条核对了 CaptureEngine 28 条、EngineMain 18 条、AuroraDriveApp 12 条、EngineClient 2 条、AuroraFlags 3 条、QuestPanelReader 6 条引用。
+> 覆盖文件 `Sources/AuroraDrive/Capture/CaptureEngine.swift`（1748 行）。本次逐条核对了 CaptureEngine 28 条、EngineMain 18 条、AuroraDriveApp 12 条、EngineClient 2 条、AuroraFlags 3 条、QuestPanelReader 6 条引用。
 
 | 符号 / 单元 | 行号 |
 |---|---|

@@ -2,7 +2,7 @@
 
 ## ♻️ 行号已按 9097 行版重基准（2026-10-18 收尾批次）
 
-> **`CaptureEngine.swift` 1584 行未变，本文档对所有 CaptureEngine 引用零修正。**
+> **本文档引用 `CaptureEngine.swift`（现 1748 行）；旧记 1584 行已过期。**
 >
 > lead 同日改的 `:479`/`:654` 两处是**同位置注释文字替换**（`:479` 频段说明 1280×832@20fps、`:654` `setCaptureHz` 接线状态），行数不变——且**本文档不引用这两行**（`grep "479\|654"` 零命中），故零影响。
 >
@@ -10,7 +10,7 @@
 >
 > | 引用 | 语义 | 复核 |
 > |---|---|---|
-> | `CaptureEngine.swift:130` | `var onUpscaleFrame: ((CVPixelBuffer) -> Void)?` 单向回调 | ✅ |
+> | `CaptureEngine.swift` | `var onUpscaleFrame: ((CVPixelBuffer) -> Void)?` 单向回调 | ✅ |
 > | `:138` | `var isUpscaleWanted: () -> Bool = { false }` 门禁默认 false | ✅ |
 > | `:1104` | 「门禁先于拷贝求值」注释 | ✅ |
 > | `:1106-1109` | `if let onUpscaleFrame, isUpscaleWanted(), ... { onUpscaleFrame(...) }` | ✅ |

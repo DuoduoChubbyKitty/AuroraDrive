@@ -1,5 +1,5 @@
 # 代码-06 EngineMain 引擎进程主循环
-> 覆盖源文件：`Sources/AuroraDrive/Core/EngineMain.swift`（**2002 行**，2026-10-18 `wc -l` 实测；原文写 876/1082/1989 行均为旧基准）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Core/EngineMain.swift`（**2416 行**，2026-11-10 `wc -l` 实测；原文写 876/1082/1989 行均为旧基准）。基于当前仓库逐单元编写。
 >
 > ♻️ **行号已按 9097 行版重基准（2026-10-18）**——本篇对应 `EngineMain.swift` **2002 行**（lead 同日 +13 行：重写 `engineTickHz` 上方注释 `:628-651`、改 `run()` 末尾启动日志 `:1170-1178`）。
 >

@@ -6,17 +6,17 @@
 // ============================================================================
 //
 //  【职责】当系统掉拍（tickGap > 80ms 连续 3 帧）或模型降级时，
-//  自动把推理 tick 提速到 45Hz（冲刺），并弹「请接管」横幅；
-//  用户按下受控键后让位到 5Hz（用户接管），松手回 20Hz（巡航）。
+//  自动把推理 tick 提速到 20Hz（冲刺），并弹「请接管」横幅；
+//  用户按下受控键后让位到 5Hz（用户接管），松手回 15Hz（巡航）。
 //
 //  【状态机】（冻结契约，见 task-105 描述）
 //
 //    ┌──────────────────────────────────────────────────────────┐
-//    │ [巡航] hz=20  takeoverActive=false                       │
+//    │ [巡航] hz=15  takeoverActive=false                       │
 //    │   │                                                      │
 //    │   │ 连续3帧 tickGap>80ms  或  noteModelDegraded(true)    │
 //    │   ▼                                                      │
-//    │ [冲刺] hz=45  takeoverActive=true  sprinting=true        │
+//    │ [冲刺] hz=20  takeoverActive=true  sprinting=true        │
 //    │   │  记录 sprintStart                                    │
 //    │   │                                                      │
 //    │   ├── noteUserKeyDown ──→ [让位] hz=5  userHoldingKey=true│
@@ -53,7 +53,7 @@ final class EmergencyTakeover {
     /// 正常巡航（当前 engineTickHz 默认值）
     /// ⚠️ 2026-10-22：20→15（用户实测 20Hz 已导致游戏降到 8-14Hz，性能不够用）
     static let normalHz: Double = 15.0
-    /// 抗系统冲刺（只提推理 tick，抓屏不动）
+    /// 抗系统冲刺目标频率（推理 tick；应急期 EngineMain 亦把抓屏对齐到此值）
     /// ⚠️ 2026-10-22：45→20（旧 45Hz 在系统降频时根本跑不完，反而更卡）
     static let sprintHz: Double = 20.0
     /// 用户接管让位
@@ -184,7 +184,7 @@ final class EmergencyTakeover {
     /// ⚠️ 为什么需要这个方法（Lead 发现的致命缺陷）：
     ///   状态机在**两个进程各有一个实例**，互不相通：
     ///   · 引擎进程 `isActive=false` → 跑完整 tick → 本实例能触发冲刺
-    ///     → `setTickHz(45)` 生效 ✅
+    ///     → `setTickHz(20)` 生效 ✅
     ///   · UI 进程 `isActive=true` → `tickEngineMode(); return` 早退
     ///     → tick 稳定 50ms（永不 >80ms）→ **本实例永不触发** ❌
     ///   而 UI 的「请接管」横幅读的是 **UI 实例** → 横幅永不显示（安全功能失效）。
@@ -206,7 +206,7 @@ final class EmergencyTakeover {
 
     // MARK: - 状态转换（private，内部调用）
 
-    /// → [冲刺] hz=45  takeoverActive=true  sprinting=true
+    /// → [冲刺] hz=20  takeoverActive=true  sprinting=true
     private func enterSprint() {
         sprinting = true
         takeoverActive = true
@@ -220,13 +220,13 @@ final class EmergencyTakeover {
     /// → [让位] hz=5  userHoldingKey=true  sprinting=false
     /// takeoverActive 保持 true（横幅可转「已接管」态，UI 用 userHoldingKey 区分）
     private func enterYield() {
-        sprinting = false           // 退出 45Hz 冲刺期
+        sprinting = false           // 退出 20Hz 冲刺期
         userHoldingKey = true
         effectiveTickHz = Self.yieldHz
         print("[EmergencyTakeover] → 让位（\(Self.yieldHz)Hz）用户已接管")
     }
 
-    /// → [巡航] hz=20  全部状态归零
+    /// → [巡航] hz=15  全部状态归零
     private func enterCruise() {
         sprinting = false
         takeoverActive = false

@@ -8,7 +8,7 @@
 > **✅ 行号已按当前版重基准（2026-10-18 二次）**：`AuroraPaths.swift` 118 行**未变**，§一全部区间引用（8-107 / :46 / :41 / 49-95 / 97-103 / 105-107 / 109-117 / :52-57 / :59-60 / :62-65 / :88-95 / :67-87 / :110-112 / :115-117）逐条 `sed -n` **全部命中、零漂移**。
 > §二调用方清单修正 5 条：`RecordEngine :85/:175→:89/:179`（原引的是属性声明行）、`CategoryPanel` 补 `:177`、`MissionConsole` 补 `:2973`、文件数 `16→17`、真实代码调用行数 `48→45`（6 行是注释提及）。
 
-> 覆盖源文件：`Sources/AuroraDrive/Core/AuroraPaths.swift`（**118 行**，2026-10-17 `wc -l` 实测）。基于当前仓库逐单元编写（**2026-10-17 复核**：正文行号已按当前 118 行版 `grep -n` 逐条实测校正，与源码一致）。
+> 覆盖源文件：`Sources/AuroraDrive/Core/AuroraPaths.swift`（**118 行**，2026-11-10 `wc -l` 实测）。基于当前仓库逐单元编写（**2026-11-10 复核**：正文行号已按当前 118 行版 `grep -n` 逐条实测校正，与源码一致）。
 
 ## 一、projectRoot() 多候选根目录解析（第 8–107 行）
 
@@ -45,7 +45,7 @@ static func dataDir() -> URL    { projectRoot().appendingPathComponent("data") }
 - `modelsDir()` → `models/`（CoreML 模型 .mlmodelc/.mlpackage、字模库、地图资源）
 - `dataDir()` → `data/`（raw_clips / glyph_clips 训练数据）
 
-**实测调用方清单（2026-10-18 二次重基准 `grep -rn "AuroraPaths\." Sources/`：**17 文件 51 行**，其中 6 行是注释/散文提及（`AuroraPaths.swift:52`、`AuroraBrand.swift:31/:37`、`MapWiring.swift:324`、`SpeedOCRReader.swift:384`、`AuroraDriveApp.swift:5248`）→ **真实代码调用 45 行**）——绝大多数直接调 `projectRoot()` 后自行 append 子路径；`modelsDir()` 已有 8 处调用，`dataDir()` 仍无人调用（预留 API）：**
+**实测调用方清单（2026-10-18 二次重基准 `grep -rn "AuroraPaths\." Sources/`：**17 文件 51 行**，其中 6 行是注释/散文提及（`AuroraPaths.swift`、`AuroraBrand.swift/:37`、`MapWiring.swift`、`SpeedOCRReader.swift`、`AuroraDriveApp.swift`）→ **真实代码调用 45 行**）——绝大多数直接调 `projectRoot()` 后自行 append 子路径；`modelsDir()` 已有 8 处调用，`dataDir()` 仍无人调用（预留 API）：**
 
 > ⚠️ 2026-10-18 复核：原写「16 文件 49 处」，今日实测 **51 行**（含 6 行为注释/散文提及，真实代码调用 45 行）；其中 `App/AuroraDriveApp.swift` 由 6 处增至 13 处、新增 `Inference/QuestPanelReader.swift` 3 处。
 > 下表 AuroraDriveApp 的 4 个行号原指向注释/函数声明（:5249/:5263/:6454/:6502），已更正为真实的 `AuroraPaths.` 调出行。

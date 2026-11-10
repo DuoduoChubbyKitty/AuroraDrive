@@ -1,88 +1,80 @@
-# 四级 · BPF 权限与 LaunchDaemon 自动安装
+# 四级 · BPF 与性能 LaunchDaemon
 
-> 实现于 `Sources/AuroraDrive/Core/BPFSetup.swift`（**134 行**，2026-09-29 实测；本文原写 162 行，另正文有 125 行之说——**两个数字均已过期**）+ `AuroraDriveApp.swift` 的 `BPFPasswordSheet`
->
-> ⚠️ **2026-09-29 复核提示**：`代码-30-系统配置四件套.md` 记载「**BPF 检测改动态枚举**」
-> （旧实现只看 `/dev/bpf0` 恒 666 → 假绿状态，是「小药丸弹不出来」的根因），
-> 这是本文写成之后的改动。**行数减少是因为旧实现被移除、改为动态枚举**——属正常演进。
-> 上级：[网络定位子系统](../神秘乱七八糟的文档/历史归档/05-自动驾驶与功能-早期稿/02-network-locate.md) ｜ English: [BPF & LaunchDaemon](../英文版/bpf-daemon.en.md)
+> **当前实现复核：2026-11-08**
+> 权威源码：`Sources/AuroraDrive/Core/PrivilegePill.swift`、`BPFSetup.swift`、`PrioritySetup.swift`。旧版基于 AppleScript/`osascript`、默认密码 `123456`、一次性 `RunAtLoad` chmod 的说明均已失效。
 
-> **档案标注（2026-09-19 核对更新，基线 7b7d2db）**：`BPFSetup.swift` 由 125 行增至 162 行——新增 `isLaunchDaemonLoaded()`（`launchctl list | grep` 判断）、`needsLoad()`（已装未载）与 `loadDaemonIfNeeded()`（`launchctl load` + `start` 补载）三个 API（后两者目前无调用方，属预留能力）；启动路径仍为：BPF 可用 → 通过；否则 Daemon 未装 → 弹密码窗；Daemon 已装 → `tryImmediateChmod()` 重测。脚本内容、路径与判定表未变，正文各节核对仍成立。
+## 1. 当前安装内容
 
-## 1. 问题
+用户在 App 内输入当前 macOS 管理员密码后，`PrivilegePill.install(password:)` 将一次性脚本写到 `/tmp/aurora_privilege_install.sh`，再通过 `sudo -S` 执行。密码只从标准输入传给 `sudo`，不写入命令参数、安装脚本或日志。
 
-libpcap 抓包需要 `/dev/bpf*` 设备可读写，但 macOS **每次重启**都会把这些节点重置为 root-only（`crw-------`）。这意味着任何依赖 pcap 的程序在普通用户下每次开机都会失效。
+安装会创建以下常驻服务：
 
-## 2. 方案总览
+| 服务 | 程序 | 当前行为 |
+|---|---|---|
+| `com.aurora.bpf-setup` | `/usr/local/bin/aurora-bpf-setup.sh` | root 身份每 3 秒枚举 `/dev/bpf*`；权限不是 `666` 时执行 `chmod 666` |
+| `com.aurora.priority` | `/usr/local/bin/aurora-priority.sh` | root 身份每 5 秒寻找名为 `AuroraDriveUI` 的进程并执行 `renice -20` |
 
-```
-App 启动
-  → BPFSetupManager.needsInstall()
-      = !isBPFAvailable() && !isLaunchDaemonInstalled()
-  → true: TopToolbar 显示 BPF 药丸 + 自动弹 BPFPasswordSheet（默认密码 123456）
-  → 用户点击「安装」→ install(password:)：
-      1. 生成 shell 脚本写入 /tmp/aurora_bpf_setup.sh（0o755）
-      2. osascript: do shell script "bash /tmp/..." password "<pwd>"
-         with administrator privileges        ← 密码经参数传入，不弹系统密码窗
-      3. 脚本内容：
-         - 写 /usr/local/bin/aurora-bpf-setup.sh（chmod 666 /dev/bpf*）
-         - 写 /Library/LaunchDaemons/com.aurora.bpf-setup.plist（RunAtLoad=true）
-         - launchctl load 该 plist
-         - 立即 chmod 666 /dev/bpf*（本次会话立即生效）
-         - echo "BPF_SETUP_DONE"（成功标志）
-      4. terminationStatus==0 且 isBPFAvailable() → 成功
-```
+两个 plist 位于 `/Library/LaunchDaemons/`，均设置 `RunAtLoad=true` 与 `KeepAlive=true`，所以安装后会随系统启动并持续运行，不要求 AuroraDrive UI 已打开。
 
-**效果**：用户只输一次密码。之后每次重启，launchd 自动跑 setup 脚本恢复 BPF 权限，App 无感。
+## 2. 为什么需要 BPF 服务
 
-## 3. 关键实现细节
+网络定位通过 libpcap 读取 UE5 移动同步流。macOS 的 `/dev/bpfN` 由内核按需创建，初始通常只有 root 能访问。只在开机时 chmod 一次无法覆盖稍后新建的设备，因此当前脚本采用常驻轮询。
 
-### 3.1 密码经 AppleScript 参数传递（不弹系统窗）
+`BPFSetupManager.isBPFAvailable()` 会动态枚举最多 64 个 BPF 设备，并用 `access(O_RDWR)` 判断普通用户进程是否真的能读写；不再只检查 `/dev/bpf0`。
 
-```swift
-let escapedPwd = password.replacingOccurrences(of: "\\", with: "\\\\")
-    .replacingOccurrences(of: "\"", with: "\\\"")
-let appleScript = "do shell script \"bash \(scriptPath)\" password \"\(escapedPwd)\" with administrator privileges"
+## 3. 安装流程
+
+```text
+App 内 SecureField 输入管理员密码
+  → PrivilegePill.install(password:)
+  → 写临时安装脚本（0700）
+  → sudo -S -p '' /bin/bash -c '/bin/bash /tmp/aurora_privilege_install.sh'
+  → 写两个 /usr/local/bin/aurora-*.sh
+  → 写两个 /Library/LaunchDaemons/com.aurora.*.plist
+  → launchctl bootstrap + kickstart
+  → 立即 chmod 666 /dev/bpf*
+  → 删除临时安装脚本并复核权限状态
 ```
 
-先转义 `\` 再转义 `"`（顺序不能反），防止密码含特殊字符破坏 AppleScript 字符串。osascript 以 `Process` 方式运行并捕获 stdout/stderr。
+没有默认密码。旧文档里的 `123456` 是已经删除的开发期临时值。
 
-### 3.2 结果判定
+## 4. 安全边界
 
-| 情况 | 判定 |
+- `chmod 666 /dev/bpf*` 会允许**本机所有用户进程**访问抓包设备，而不是只授权 AuroraDrive。单用户实验机风险相对可控，多用户或高安全要求设备不建议使用这一权限模型。
+- 两个脚本均以 root 身份无限循环，并由 launchd `KeepAlive`。脚本被替换或路径被非预期修改会扩大风险，因此 `/usr/local/bin/aurora-*.sh` 必须保持 `root:wheel` 所有权且不可由普通用户写入。
+- `renice -20` 会提高 AuroraDrive 调度优先级，可能进一步挤压游戏或其他前台任务。它不是网络定位的必要条件，只是当前统一安装脚本的一部分。
+- 密码虽然不落盘、不进 argv，但会短暂存在于 App 与 `sudo` 的进程内存中。用户必须信任当前源码和实际运行的构建产物。
+
+## 5. 当前状态检查
+
+```sh
+sudo launchctl print system/com.aurora.bpf-setup
+sudo launchctl print system/com.aurora.priority
+ls -l /Library/LaunchDaemons/com.aurora.*.plist
+ls -l /usr/local/bin/aurora-*.sh
+ls -l /dev/bpf*
+```
+
+正常情况下，两个服务显示 `state = running`，BPF 设备显示 `crw-rw-rw-`。
+
+## 6. 排障
+
+| 症状 | 检查与处理 |
 |---|---|
-| 退出码 0 + `isBPFAvailable()` | 「BPF权限已安装，开机自动生效」 |
-| 退出码 0 但 BPF 仍不可用 | 「LaunchDaemon已安装，请重启电脑后生效」（launchd 加载有时序） |
-| stderr 含 Authentication/password | 「密码错误」 |
-| 其他非零退出 | 「安装失败: <stderr>」 |
+| App 显示 BPF 不可用 | 检查服务状态与 `/dev/bpf*` 权限；游戏或抓包程序未启动时设备可能尚未创建 |
+| plist 存在但服务未运行 | `sudo launchctl kickstart -k system/com.aurora.bpf-setup`，再检查 launchd 输出 |
+| 密码错误 | App 会识别 `incorrect password` / `sorry, try again` 并要求重新输入 |
+| 权限显示已安装但定位无数据 | 权限只解决“能打开 BPF”；还需确认接口选择、tcp/30031 流量和 UE5 数据解析 |
+| 旧服务仍存在 | 早期版本可能遗留 `com.aurora.bpf-fix.plist`；它不属于当前安装脚本，应单独审查后再决定是否移除 |
 
-### 3.3 launchd 时序兜底（tryImmediateChmod）
+## 7. 文档口径
 
-开机早期 launchd 可能还没跑到我们的 plist。`tryImmediateChmod()` 用 `launchctl start com.aurora.bpf-setup` 手动 kickstart，`sleep 1` 后 `test -r /dev/bpf0` 验证——App 启动时若 LaunchDaemon 已装但 BPF 仍不可用就走这条路，不用重启电脑。
+当前实现是“`sudo -S` + 两个常驻 LaunchDaemon”，不是：
 
-### 3.4 状态机（AuroraDriveApp 侧）
+- 默认密码 `123456`；
+- `osascript ... with administrator privileges`；
+- 把密码拼进 AppleScript 或进程参数；
+- 只在开机时执行一次 chmod；
+- 只安装 `com.aurora.bpf-setup` 一个服务。
 
-```
-BPFSetupManager.needsInstall() 或 提权 Daemon(PrioritySetup) 未装?
-├─ 是 → showBPFPasswordSheet=true → 同一密码窗一次装齐 BPF + 性能提权
-│       （注意代码注释：必须并入首条件，否则被 isBPFAvailable 分支截胡，提权器永远装不上）
-└─ 否 → BPFSetupManager.isBPFAvailable()?
-    ├─ 是 → bpfAuthorized=true，药丸不显示
-    └─ 否 → BPFSetupManager.isLaunchDaemonInstalled()?
-        ├─ true → tryImmediateChmod() → 重测
-        └─ false → 保持 bpfAuthorized=false
-```
-
-## 4. 安全权衡（如实说明）
-
-- 密码**不落盘**：只在 osascript 参数里用一次，进程结束即消失；但会出现在该进程的启动参数里（`ps` 可见瞬间）——单用户个人机可接受
-- LaunchDaemon 脚本以 root 跑 `chmod 666 /dev/bpf*`：把包捕获设备开放给所有用户——这是 pcap 类工具（Wireshark 同款方案）的标准做法，但在多用户机器上意味着任何本地用户都能抓包
-- plist 固定路径 `/Library/LaunchDaemons/com.aurora.bpf-setup.plist`，`isLaunchDaemonInstalled()` 用文件存在性判断
-
-## 5. 排障
-
-| 症状 | 原因与处理 |
-|---|---|
-| 装完显示「请重启电脑后生效」 | launchd 加载时序，重启或 `sudo launchctl kickstart -k system/com.aurora.bpf-setup` |
-| 重启后 BPF 又不可用 | 检查 plist 是否存在：`ls /Library/LaunchDaemons/com.aurora.bpf-setup.plist`；被安全软件清除则重装 |
-| 密码窗重复弹出 | `isBPFAvailable()` 失败 + Daemon 未装；先手动 `sudo chmod 666 /dev/bpf*` 验证 BPF 本身可用 |
+后续若权限方案改变，应优先同步本文、根目录中英文 README 与 `00-文档索引.md`。

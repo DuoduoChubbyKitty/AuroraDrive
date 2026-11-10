@@ -800,7 +800,7 @@ final class CoordinateCapture {
     ///
     /// **与 streamLostWindow 同源**（都是"容忍突发静默间隙"的语义）：
     /// 实测游戏同步突发间隔最长 9s，若用旧的 3s 窗口，UI 会在静默期间误报
-    /// 「游戏未运行」把小地图打回空白（忽明忽暗）。12s 覆盖最长间隙 + 余量。
+    /// 「游戏未运行」把小地图打回空白（忽明忽暗）。20s 覆盖最长间隙 + 余量。
     /// 消费方：DriveState.locateSource / runNetworkLocateStep 前置门。
     ///
     /// ⚠️ 2026-09-30 终测：与 `poseFreshWindow` 同步调整（12 → 20）—— 两者必须
@@ -1544,7 +1544,7 @@ final class CoordinateCapture {
     ///
     /// ⚠️ 实测修正（2026-09-25，tcpdump 30 秒采样）：游戏同步包**不是持续流**，
     /// 而是突发式——1 秒内 5-6 包，然后静默 6-9 秒。旧注释"几十 Hz 持续"是错的，
-    /// 默认窗口已从 3s 改为 `trafficFreshWindow`（12s，覆盖最长间隙）。
+    /// 默认窗口已从 3s 改为 `trafficFreshWindow`（20s，覆盖最长间隙）。
     // ══════════════════════════════════════════════════════════════════════
     //  游戏流量标记（2026-09-30，配合裸 UDP 过滤器）
     // ══════════════════════════════════════════════════════════════════════
@@ -1638,10 +1638,10 @@ final class CoordinateCapture {
         return statPacketsTotal
     }
 
-    /// 读取最新坐标。默认新鲜窗口按实测突发间隔设为 12s（见 poseFreshWindow）——
+    /// 读取最新坐标。默认新鲜窗口按实测突发间隔设为 18s（见 poseFreshWindow）——
     /// 旧默认 1s 会让坐标在静默间隙频繁"过期"，小地图跟着停更。
     ///
-    /// ⚠️ 2026-09-30：窗口已按新实测改为 `poseFreshWindow`(=15s)，见其注释。
+    /// ⚠️ 2026-09-30：窗口已按新实测改为 `poseFreshWindow`(=18s)，见其注释。
     func read(maxAge: Double = CoordinateCapture.poseFreshWindow) -> Pose? {
         lock.lock()
         defer { lock.unlock() }

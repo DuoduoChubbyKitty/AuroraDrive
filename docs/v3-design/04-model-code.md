@@ -1,7 +1,7 @@
 # V3 模型代码实现报告
 
 > 任务：`task-11` ｜ 作者：v3-code ｜ 日期：2026-11-03
-> 产出：`src/model_v3.py`（1,541 行，可运行）、本报告
+> 产出：`src/model_v3.py`（1,846 行，可运行；行数 2026-11-10 `wc -l` 实测）、本报告
 > 上游设计：`docs/v3-design/01-backbone.md`、`02-temporal.md`、`03-output-head.md`
 > 验证脚本：`tools/v3_exp/v3code_count.py`、`tools/v3_exp/v3code_export.py`
 > 环境：Apple M3 / macOS / Python 3.11.9 / torch 2.13.0 / coremltools 9.0（全部本地实测，未联网）
@@ -12,7 +12,7 @@
 
 ## §1 我读到了什么（论文精读复述）
 
-我先完整通读了 `docs/v3-design/papers/state_aware.txt` 全部 746 行（含 §III、§IV.A–D、§V、§VI、§VII 与表 I–VII），再动手写代码。这篇论文要解决模仿学习（IL）做自动驾驶的两个顽疾——**惯性问题（inertia）** 与 **离线/在线性能差距**——它的解法是一套「把车辆自身状态做成 Transformer 的一个 token，并在多阶段之间传递」的架构。我读到的核心有五点：
+我先完整通读了论文 *Addressing Limitations of State-Aware Imitation Learning for Autonomous Driving*（arXiv:2310.20650，原文 746 行；本地 txt/pdf 已于 2026-11-10 随 `papers/` 目录清理删除）全文（含 §III、§IV.A–D、§V、§VI、§VII 与表 I–VII），再动手写代码。这篇论文要解决模仿学习（IL）做自动驾驶的两个顽疾——**惯性问题（inertia）** 与 **离线/在线性能差距**——它的解法是一套「把车辆自身状态做成 Transformer 的一个 token，并在多阶段之间传递」的架构。我读到的核心有五点：
 
 **1）state token 怎么初始化：用 t−1 的四个物理量，并且是各自升维再拼。**
 初始状态 token 装的是 **t−1 时刻的 steer、throttle、brake、speed** 四个标量（原文 :196-197 "The initial state token is the embedding of steer, throttle, brake and speed at time t − 1"）。实现上不是简单拼接后一次线性投影，而是**四个标量各自升到 D/4 维再拼成 D 维**（原文 :225-226）。它扮演的角色与标准 ViT 的 CLS token 完全相同（:193），区别在于 CLS 是学出来的、内容由图像决定，而 state token 一开始就装着**车辆的真实测量值**。
@@ -41,7 +41,7 @@ steer/throttle/brake 若各自独立回归，就缺少「把车从当前状态�
 
 | 文件 | 行数 | 说明 |
 |---|---|---|
-| `src/model_v3.py` | 1,541 | 模型 + 损失 + 导出工具，可 `python3 src/model_v3.py` 自检 |
+| `src/model_v3.py` | 1,846 | 模型 + 损失 + 导出工具，可 `python3 src/model_v3.py` 自检（行数 2026-11-10 实测；原记 1,541 为提交时快照） |
 | `tools/v3_exp/v3code_count.py` | 231 | 参数量 / forward shape 脚手架（带 `--selftest` 自校验） |
 | `tools/v3_exp/v3code_export.py` | 412 | CoreML 导出 + 体积 / ANE 派发 / 延迟 / 数值一致性实测 |
 | `docs/v3-design/04-model-code.md` | 本文件 | 实测报告 |

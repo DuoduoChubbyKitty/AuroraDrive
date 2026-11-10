@@ -3165,7 +3165,8 @@ struct NavLine: View {
 // ============================================================================
 // MARK: - 导航指引（真实数据派生，无假值）
 // ============================================================================
-// 由 DriveState 的实时定位（NetworkLocator/CoordinateCapture）+ 目标点推导。
+// 由 DriveState 的实时定位（CoordinateCapture，经 locatorHeading/locatorX/Y 派生）+ 目标点推导。
+// （注：NetworkLocator 并未接线/实例化，不参与该推导，勿被旧注释误导。）
 // 没有目标点、或定位未锁定时，如实显示「未设目标 / 定位中」，绝不编造地名与剩余时间。
 
 struct NavGuidance {

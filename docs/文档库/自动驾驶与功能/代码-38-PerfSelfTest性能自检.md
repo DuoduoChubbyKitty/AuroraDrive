@@ -26,14 +26,14 @@
 >
 > **结论**：这三处是**测量方法学的固定基线**，跟随 20Hz 反而会让历史基线数据（§九 的 2026-10-02 实测表）失去可比性。**文档 §九 的历史数据也基于 30Hz 节拍**。⚠️ 后续若有人要改成 20Hz，必须同时重测并作废旧基线——否则是「用新尺子量旧数据」。
 >
-> **§八 14 段清单核实**：文档称「14 段清单 `:7862`」——实际 `AuroraDriveApp.swift:7867-7871` 列出的正是这 14 个通道名（:7866 是「与上方摘要共用同一个 1Hz 闸门」注释；`let seg = [` 起于 :7867、`"tick.total"]` 止于 :7871），**逐个比对完全一致**（`tick.consumeFrame` / `yoloFast` / `opticalflow` / `nativeROI` / `motion` / `speed` / `degrade` / `confidence` / `ruleDecision` / `laneFallback` / `inject` / `record` / `debugSummary` / `total`）。全仓 `PerfBus` 通道名共 30 个（含 `submit.*` 4 个 / `map.*` 4 个 / `cache.*` 4 个 / `dlog.*` 2 个 / `infer.*` 2 个 / `opticalflow` / `tick.loop` + 14 段）。
+> **§八 14 段清单核实**：文档称「14 段清单 `:7862`」——实际 `AuroraDriveApp.swift` 列出的正是这 14 个通道名（:7866 是「与上方摘要共用同一个 1Hz 闸门」注释；`let seg = [` 起于 :7867、`"tick.total"]` 止于 :7871），**逐个比对完全一致**（`tick.consumeFrame` / `yoloFast` / `opticalflow` / `nativeROI` / `motion` / `speed` / `degrade` / `confidence` / `ruleDecision` / `laneFallback` / `inject` / `record` / `debugSummary` / `total`）。全仓 `PerfBus` 通道名共 30 个（含 `submit.*` 4 个 / `map.*` 4 个 / `cache.*` 4 个 / `dlog.*` 2 个 / `infer.*` 2 个 / `opticalflow` / `tick.loop` + 14 段）。
 >
 > **§八 两条导出路径核实**（⚠️ 本条被 agent-reader 于同日**二次校准**，见 §八 末修正注）：
 > · UI 侧 `AuroraDriveApp.swift` —— 闸门与 14 段数组位置正确（`:7865` `PerfBus.enabled, didLogThisSecond`、`:7867-7871` 14 段），**整体块范围 `:7864–7885`**；`dlog` 在 **`:7880`**、`reset()` 在 `:7882`。⚠️ 本条曾被我写成 `dlog :7879`／块尾 `:7884`，**均错**（`:7879` 是 `if !parts.isEmpty {`；`:7884` 只是 `if` 的闭括号），已按 Lead 亲测裁决改正。
 > · 引擎侧 `EngineMain.swift` —— 内部行号正确（`:1142` `PerfBus.enabled` ✓、`:1143-1147` 同一份 14 段 ✓、`:1160` `reset()` ✓），但**整体块范围应为 `:1133–1162`**，原写 `:1137-1157` 错（`:1133` 才是块首注释、`:1157` 不是块尾）。
 > · 「两处段清单完全相同」这条**成立**（14 个通道名逐字一致），符合「两条路径各覆盖一半场景」的设计。
 
-> 覆盖源文件：`Sources/AuroraDrive/App/PerfSelfTest.swift`（**984 行**，2026-10-17 `wc -l` 实测；2026-10-02 初建时同为 984 行）
+> 覆盖源文件：`Sources/AuroraDrive/App/PerfSelfTest.swift`（**992 行**，2026-11-10 `wc -l` 实测；2026-11-10 初建时同为 984 行）
 > 该文件**已在 git 跟踪中**（`git ls-files` 可查到；旧版「未在 git 跟踪（untracked）」的记录已过时）。
 > 关联：[`性能实测-2026-09-30-卡顿与定位.md`](性能实测-2026-09-30-卡顿与定位.md)（测量结果记录处）、
 > [`代码-37-EgoMotionModel自车运动径向模型.md`](代码-37-EgoMotionModel自车运动径向模型.md)
@@ -132,8 +132,8 @@ static var enabled: Bool =
 > （实测 `--tick-profile` 独立跑确实**全 0**）。
 
 **对策**：把分段数据**写进日志**，用零新机制的方式在真实负载下取数。
-- UI 侧导出：`AuroraDriveApp.swift:7864–7885`（`:7865` `if PerfBus.enabled, didLogThisSecond` 1Hz 闸门；14 段清单数组 `:7867–7871`；`dlog("[PERF] …")` **:7880**；`PerfBus.shared.reset()` **:7882**；`:7884` 是 `if` 的闭括号、**块尾 `}` `:7885`**）
-- 引擎侧导出：`EngineMain.swift:1133–1162`（块首注释 `:1133`；`:1142` `if PerfBus.enabled`；14 段清单 `:1143–1147`；`engineLog("[PERF] …")` :1159；`PerfBus.shared.reset()` :1160；块尾 `:1162`）
+- UI 侧导出：`AuroraDriveApp.swift`（`:7865` `if PerfBus.enabled, didLogThisSecond` 1Hz 闸门；14 段清单数组 `:7867–7871`；`dlog("[PERF] …")` **:7880**；`PerfBus.shared.reset()` **:7882**；`:7884` 是 `if` 的闭括号、**块尾 `}` `:7885`**）
+- 引擎侧导出：`EngineMain.swift`（块首注释 `:1133`；`:1142` `if PerfBus.enabled`；14 段清单 `:1143–1147`；`engineLog("[PERF] …")` :1159；`PerfBus.shared.reset()` :1160；块尾 `:1162`）
 
 > 🔧 **2026-10-18 复核修正（T6 三次校准，最终值）**：本节此前多版数字都不准，`awk 'NR>=…'` 逐行实测后的**最终口径**：
 > · **UI 侧整体块 `:7864–7885`**（`:7864` 是「零成本」注释、`:7865` 才是 `if PerfBus.enabled`；`:7884` 是 `if` 的闭括号、**`:7885` 才是外层块尾 `}`**——Lead 2026-10-18 亲测裁决）；

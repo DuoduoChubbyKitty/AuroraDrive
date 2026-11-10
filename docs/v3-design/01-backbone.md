@@ -1,10 +1,12 @@
 # V3 视觉骨干 + 多阶段 Transformer 主干设计
 
 > 任务：`task-8` ｜ 作者：v3-backbone ｜ 日期：2026-11-03
-> 论文：*Addressing Limitations of State-Aware Imitation Learning for Autonomous Driving*（arXiv:2310.20650），本地全文 `docs/v3-design/papers/state_aware.txt`（746 行）
+> 论文：*Addressing Limitations of State-Aware Imitation Learning for Autonomous Driving*（arXiv:2310.20650）。⚠️ 2026-11-10 文档清理：原本地全文 `docs/v3-design/papers/state_aware.txt`（746 行）及同目录 PDF 已随 `papers/` 目录删除，论文内容不再随仓库分发（按 arXiv 编号自查）。
 > 配套代码：`tools/v3_exp/backbone_v3.py`（结构）、`tools/v3_exp/measure_backbone_v3.py`（实测）、`tools/v3_exp/measure_ane_threshold.py`、`tools/v3_exp/measure_quant_v3.py`、`tools/v3_exp/measure_conv_5x5_vs_3x3.py`、`tools/v3_exp/measure_report_tables.py`
 
 **一句话结论**：推荐 **D=192 / 每 stage 深度 4 / 6 头 / 14×24=336 token / RepVGG 重参数化骨干**，部署态 **6.166M 参数**、**6.126 GFLOPs**、**218 个计算算子 100% 派到 ANE**、**ABBA 实测 2.114 ms**（本机 Apple M3）；4-bit palettize 后 **3.23 MB**，计算算子仍 **100% 在 ANE**。
+
+> ⚠️ **2026-11-10 现状注记（以代码为准）**：本文是**设计阶段**报告，推荐配置 D=192 / 每 stage 深度 4 / 6 头 / 6.166M。最终整合实现 `src/model_v3.py` 实为 **D=256（`MODEL_DIM=256`）/ stage1 深度 5、stage2 深度 6 / 8 头 / 12.187M**（`model_v3.py:275-322`，详见 `04-model-code.md` §5.3）。本文的参数量与 ANE 延迟结论仅对应「单帧骨干+主干 D=192/depth4×2」这一设计配置，**不适用于最终整合模型**。
 
 ---
 

@@ -1,9 +1,9 @@
 # 代码-13 InferenceEngine 端到端推理
 
-> 覆盖源文件：`Sources/AuroraDrive/Inference/InferenceEngine.swift`（**522 行**，2026-10-18 `wc -l` 实测）+ `Sources/AuroraDrive/Inference/QuestPanelReader.swift`（**1160 行**，2026-10-18 `wc -l` 实测）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Inference/InferenceEngine.swift`（**522 行**，2026-11-10 `wc -l` 实测）+ `Sources/AuroraDrive/Inference/QuestPanelReader.swift`（**1160 行**，2026-11-10 `wc -l` 实测）。基于当前仓库逐单元编写。
 >
 > **✅ 2026-10-18 复核（T6）**：正文 `文件:行号` 引用已逐条 `read` ±3 行核对，InferenceEngine.swift / QuestPanelReader.swift 两文件行号引用全部命中。本次复核修正三处与当前源码/产物不符的断言：
-> 1. **30Hz → 20Hz**：正文多处引用源注释里的「30Hz tick」，但 `EngineMain.engineTickHz = 20.0`（EngineMain.swift:686，2026-10-12 定档）已把全链路 tick 降到 20Hz。源注释（InferenceEngine.swift:19/:68/:159/:185、QuestPanelReader.swift:430/:528）仍写 30Hz——**这些是过时注释，不代表当前运行频率**。下文凡引用 30Hz 处已就地标注「⚠️ 源注释过时，实际 20Hz」。
+> 1. **30Hz → 20Hz**：正文多处引用源注释里的「30Hz tick」，但 `EngineMain.engineTickHz = 20.0`（EngineMain.swift，2026-10-12 定档）已把全链路 tick 降到 20Hz。源注释（InferenceEngine.swift/:68/:159/:185、QuestPanelReader.swift/:528）仍写 30Hz——**这些是过时注释，不代表当前运行频率**。下文凡引用 30Hz 处已就地标注「⚠️ 源注释过时，实际 20Hz」。
 > 2. **preprocessImage 的 `&pixelData` 未定义行为（P0）**：`InferenceEngine.swift:455`（`CGContext(data: &pixelData, …)`）与 `:464`（`context.draw`）把 Swift `[UInt8]` 数组的 `&` 指针直接交给 CGContext——**数组存储在 draw 期间不保证被钉住，属未定义行为**（可能读到已回收内存）。V2 引擎已修：`InferenceEngineV2.swift:3056` 改用 `withUnsafeMutableBufferPointer` 取稳定指针（闭包内有效，draw 完成后数据已写入）。详见下文 §四 preprocessImage 段新增的 P0 标注。
 > 3. **`camera_heading` 契约空转**：`InferenceEngineV2.swift:271` 声明了 `static let cameraHeading = "camera_heading"`，但导出脚本（`tools/export_m9_v2_coreml.py:480`）trace 时传 `camera_heading=None`，且 `models/m9_v2.mlmodelc` / `m9_v2_ctl.mlmodelc` / `m9_v2_enc.mlmodelc` 的 inputSchema 里**均无 `camera_heading` 输入**（2026-10-18 `metadata.json` 实测确认）。即 Swift 侧常量声明了但 CoreML 侧从未接收——**车头朝向头的 Δ 主路径在部署态完全失效**（只能走纯视觉绝对预测兜底）。本篇主述旧引擎 InferenceEngine（契约只有 image/vehicle_state 两输入），camera_heading 空转属于 V2 链路问题，此处仅作交叉标注。
 >
@@ -245,7 +245,7 @@ AuroraDriveApp.swift:5981-5986（接线在 DriveState，2026-10-18 重基准校�
 
 ## 5.2 为什么 OCR 必须走后台队列 aurora.quest.ocr（实测数字）
 
-- ROI 暖机后 n=120 实测（:521-533 注释）：`.accurate` p50 **33.6ms** / p95 40.7ms，读出 **4/4 全对**；`.fast` p50 4.2ms / p95 7.2ms，读出 **0/4 全错**。⟹ 中文 UI 文字**只能**用 `.accurate`（`.fast` 完全读不出中文，不是"慢一点但能用"的关系）；⟹ 源注释（QuestPanelReader.swift:528）写「33.6ms ≈ 一整个 30Hz 帧预算（33.3ms）」，**⚠️ 源注释过时**：tick 已降到 20Hz（EngineMain.swift:686），20Hz 帧预算 = 50ms，33.6ms < 50ms（约占 67%），虽不再吃掉整帧但同步跑仍会显著卡顿——故仍必须丢后台队列。
+- ROI 暖机后 n=120 实测（:521-533 注释）：`.accurate` p50 **33.6ms** / p95 40.7ms，读出 **4/4 全对**；`.fast` p50 4.2ms / p95 7.2ms，读出 **0/4 全错**。⟹ 中文 UI 文字**只能**用 `.accurate`（`.fast` 完全读不出中文，不是"慢一点但能用"的关系）；⟹ 源注释（QuestPanelReader.swift）写「33.6ms ≈ 一整个 30Hz 帧预算（33.3ms）」，**⚠️ 源注释过时**：tick 已降到 20Hz（EngineMain.swift），20Hz 帧预算 = 50ms，33.6ms < 50ms（约占 67%），虽不再吃掉整帧但同步跑仍会显著卡顿——故仍必须丢后台队列。
 - 故：ROI 裁剪在主线程（微秒级，:634-642），**Vision OCR 丢到专用后台队列** `aurora.quest.ocr`（.utility，:483、:555），完成后回主线程投票+匹配（:557）。
 - **绝不复用 captureQueue**：那是 SCStream 的 sampleHandlerQueue（queueDepth=3），上面做同步计算会推迟帧消费并引发雪崩——项目已有实测记录（capGap 11ms → 2081ms，:477-482 注释）。
 - 并发保护：`ocrInFlight`（:486、:544、:559）——上一次没回来就不再发起，任务面板文字变化远慢于 0.7s，丢弃中间帧无信息损失。
@@ -318,18 +318,18 @@ AuroraDriveApp.swift:5981-5986（接线在 DriveState，2026-10-18 重基准校�
 
 - 全文件的 `print(...)` 全部位于 `runSelfTest()`（--quest-selftest 自检路径）：:932、:936、:939-940、:943、:947-950、:955-1157。无 dlog / Logger / os_log。
 - 运行时可观测性只有**状态字段**：`lastDiagnostic`（:496，在 :549 ROI 裁剪失败、:561 无可读文字、:589 未命中、:593 置信不足、:599 歧义未消解、:615 确认、:628 复位、:674 索引加载失败处更新）和统计计数（ocrRuns/ocrCompletions/confirmedCount/missCount/ambiguousCount，:499-503）。这些字段**自身不输出任何东西**。
-- 唯一进入日志文件的路径在**调用方 App 层**：AuroraDriveApp.swift:5985 的 `dlog("[QUEST-OCR] …")`（2026-10-18 重基准校正），但它只在 `onConfirmed` 触发（投票达标 + verdict=ok/消歧成功）时打一行——**miss / low / 歧义未消解 / 节流跳过 / OCR 在途全部无日志**（grep 全仓库仅此一处消费 lastDiagnostic；未验证是否有其它隐性消费方）。
+- 唯一进入日志文件的路径在**调用方 App 层**：AuroraDriveApp.swift 的 `dlog("[QUEST-OCR] …")`（2026-10-18 重基准校正），但它只在 `onConfirmed` 触发（投票达标 + verdict=ok/消歧成功）时打一行——**miss / low / 歧义未消解 / 节流跳过 / OCR 在途全部无日志**（grep 全仓库仅此一处消费 lastDiagnostic；未验证是否有其它隐性消费方）。
 
 **最小改动方案（每 5 秒一条运行时日志：hasFrame/OCR文本/verdict/耗时），两条路线：**
 
 - **方案 A（最小，推荐）**：全改在 QuestPanelReader.swift。① 新增常量 `logInterval = 5.0`（放 :431 旁）；② 新增状态 `lastLogTime/ocrStart/lastLines`（放 :473-475 附近）；③ 在 `ingest(cgImage:)` 记 `ocrStart`（:542-552 之间），在 `DispatchQueue.main.async` 回调里（:557-568，lines/ocrCompletions 都在手）做 5s 节流输出。注意 :560-563 空文本 early-return 分支也要记，否则丢 verdict=nil 情形。输出原语二选一：直接 `print`（与 YoloEngine.swift:**213**、YolopxEngine.swift:**807** 的 `[warmup]`/`[yolopx]` 前缀同款；2026-10-18 重基准校正），或仿 `onConfirmed`（:489）加 `var onLog: ((String) -> Void)?` 由 App 层接 dlog 落 `/tmp/aurora_debug.log`。局限：只打印真实发起的 OCR（≥0.7s 一次），被节流跳过的帧不打印（本来也无 OCR 信息）。
-- **方案 B（零改 QuestPanelReader）**：在 AuroraDriveApp.swift:6973-6974 喂帧点外包 5s 节流打印（仿 lastTickLog 1Hz 节流模式，AuroraDriveApp.swift:**4871** 声明 / **:7807-7808** 使用，2026-10-18 重基准校正），输出 `currentFrameCG != nil` + `questPanel.lastDiagnostic` + `questPanel.lastMatch?.verdict`。局限：拿不到**本次 OCR 耗时**（:499-503 统计里没有耗时字段），OCR 文本只能从 `lastMatch?.query`（:134/:828）间接拿，且 miss/low 的 query 是清洗后文本而非原始 OCR 行。若「耗时」是硬需求，只能走方案 A。
+- **方案 B（零改 QuestPanelReader）**：在 AuroraDriveApp.swift 喂帧点外包 5s 节流打印（仿 lastTickLog 1Hz 节流模式，AuroraDriveApp.swift:**4871** 声明 / **:7807-7808** 使用，2026-10-18 重基准校正），输出 `currentFrameCG != nil` + `questPanel.lastDiagnostic` + `questPanel.lastMatch?.verdict`。局限：拿不到**本次 OCR 耗时**（:499-503 统计里没有耗时字段），OCR 文本只能从 `lastMatch?.query`（:134/:828）间接拿，且 miss/low 的 query 是清洗后文本而非原始 OCR 行。若「耗时」是硬需求，只能走方案 A。
 
 ## 5.7 models/quest_index.json：磁盘结构、加载与内存形态
 
 **磁盘结构（2026-10-06 python3 实测，文件 2,693,278 字节 ≈ 2.57MB）**：顶层键 `version(=1) / source / stats / exact / core / byname`。stats = `{files:39, objectives:3819, with_coord:2938, with_desc:3086, exact_keys:1372, core_keys:1984, name_keys:1128}`（与文件头注释 :10-11「39 张表 / 1372 精确文本 / 2938 带坐标」一致）。exact/core/byname 均为 `key → [entry]`，entry 字段 = `qid/quest/desc/otype/x/y/z/force/src`（实测示例：「『渣土车』驾驶车辆至指定点位」→ qid=C101007、x=-192934.36 等 6 个候选）。
 
-**加载**：`QuestIndex.load(url:)` QuestPanelReader.swift:213-249。
+**加载**：`QuestIndex.load(url:)` QuestPanelReader.swift。
 
 - `Data(contentsOf:)` + `JSONSerialization`（:214-216），非 Codable，手工解析。
 - `parse(_:)`（:218-237）：每个 entry 只读 `qid/quest/desc/x/y/z` 六个字段（:228-232）；磁盘里的 `otype/force/src` **被丢弃**（本文件内确实不读；未验证是否有其他读取方）。
@@ -345,7 +345,7 @@ AuroraDriveApp.swift:5981-5986（接线在 DriveState，2026-10-18 重基准校�
 ## 5.8 自检与开关
 
 - 自检入口 `--quest-selftest`（runSelfTest :928-1159）：8 条真实面板文字回归（5 ok/2 ambiguous/1 low，:916-925；可寻路 6/8 :988）、反向假阳性用例（:993-1013）、投票（:1016-1041）、链消歧+坐标等价（:1043-1066）、坐标零换算（:1069-1081）、ROI+提示行过滤（:1084-1109）、fuzzy 阈值区间 [0.62,0.75) 判 low（:1139-1143）、节流（:1146-1154）。退出码 = 失败项数。
-- 开关：`AuroraFlags.questOCR`（AuroraFlags.swift:201）默认 **true**（AuroraFlags.swift:192-200 注释：2026-10-06 应用户要求改默认开）。✅ **2026-10-17 已修元数据滞后**：AuroraFlags.swift:445 的 flag 注册表现改为 `defaultValue: "1"` / summary「默认开」（与 :201 实际默认值一致）。仍滞后一处：AuroraDriveApp.swift **:6963** 的调用点注释写「默认关：AURORA_QUEST_OCR=1 打开」（该注释描述的是改默认前的历史行为，不影响运行）——行为一律以 AuroraFlags.swift:201 为准（代码层面确认，运行时行为未验证）。
+- 开关：`AuroraFlags.questOCR`（AuroraFlags.swift:201）默认 **true**（AuroraFlags.swift:192-200 注释：2026-10-06 应用户要求改默认开）。✅ **2026-10-17 已修元数据滞后**：AuroraFlags.swift:209 的 flag 注册表现改为 `defaultValue: "1"` / summary「默认开」（与 :201 实际默认值一致）。仍滞后一处：AuroraDriveApp.swift **:6963** 的调用点注释写「默认关：AURORA_QUEST_OCR=1 打开」（该注释描述的是改默认前的历史行为，不影响运行）——行为一律以 AuroraFlags.swift:201 为准（代码层面确认，运行时行为未验证）。
 
 ### 相邻 OCR/检测文件速览（非重点，仅定位）
 

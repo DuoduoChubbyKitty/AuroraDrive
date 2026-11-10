@@ -1,5 +1,5 @@
 # 代码-09 MouseController 鼠标控制
-> 覆盖源文件：`Sources/AuroraDrive/Control/MouseController.swift`（**219 行**，2026-10-18 `wc -l` 实测）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Control/MouseController.swift`（**219 行**，2026-11-10 `wc -l` 实测）。基于当前仓库逐单元编写。
 >
 > **✅ 2026-10-18 复核（T6）**：逐条 `read` 源码核对，全部行号区间与关键常量命中。两处修正：
 > 1. **补记「消化模式（digest）」机制**：四个注入方法（move/click/doubleClick/scrollWheel）都有 `if ControlEngine.globalDigest { digestedEventCount &+= N; return true }` 早退分支——开关为 true 时**不真发事件**、只累计 `digestedEventCount` 并返回 true。这是全仓共用的「干跑」能力（`ControlEngine.swift:106` 由 `digestMode.didSet` 同步、`:133` 默认跟随 `AURORA_DIGEST` 环境变量）。原文档完全漏了这条，会让读者误以为这些方法无条件注入。详见下文各方法段。

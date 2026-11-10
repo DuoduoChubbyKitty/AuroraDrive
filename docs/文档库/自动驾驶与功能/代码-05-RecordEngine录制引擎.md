@@ -1,5 +1,7 @@
 # 代码-05 RecordEngine 录制引擎
 
+> ⚠️ **当前值勘误（2026-11-08）**：`RecordEngine.targetFps` 现为 **15**，与正常引擎 tick 同频。下文 `targetFps = 20` 及其存储量推算是 2026-10-18 版本快照，不再代表当前默认值；按同画质线性估算时，应使用 15fps。
+
 > ✅ **2026-10-18 复核**（`wc -l` = 623 行）：逐条 `read` 核实全部行号锚点 + 参数值，发现并修正以下问题：
 > 1. 🔴 **CSV 列数错误**：文档原写「5 列 `t_sec,frame,steer,throttle,brake`」——实际为 **9 列 v2 格式**（`:288` 表头 `t_sec,frame,steer,throttle,brake,speed_kmh,heading,curvature,speed_limit`，`:521` 数据行同 9 列）。源码注释 `:278-281` 明确记录：原 5 列 → 缺 4 列车辆状态 → `dataset_v2.py` 的 `vehicle_state[10]` 里 speed/accel/heading/curvature 全为 0 → **模型把 0 当真实状态学** → 新增 4 列追加在末尾（向后兼容）。已修正三处引用。
 > 2. `targetFps = 20`（`:36`，✅ 已对齐 20Hz 定档，注释「2026-10-11 用户定档：推理 20Hz，故录制也 20」）。
@@ -29,7 +31,7 @@
 >
 > **未决 0**。文中三处「源码注释本身有误」的记录（`:8` 旧 5 列、`:41` 30fps→20fps、`:583` 拉伸非裁切）**仍然成立**，已随行号更新。
 
-> > 覆盖源文件：`Sources/AuroraDrive/Capture/RecordEngine.swift`（**627 行**，2026-10-18 `wc -l` 实测；lead 同日 +4 行）。基于当前仓库逐单元编写。
+> > 覆盖源文件：`Sources/AuroraDrive/Capture/RecordEngine.swift`（**771 行**，2026-11-10 `wc -l` 实测；lead 同日 +4 行）。基于当前仓库逐单元编写。
 
 ## 一、录制参数、模式与输出格式（第 1–178 行）
 

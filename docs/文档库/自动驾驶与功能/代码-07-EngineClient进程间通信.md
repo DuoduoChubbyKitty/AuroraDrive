@@ -35,7 +35,7 @@
 
 > 另：正文 `:64` 注释里引用的 `EngineClient:227`（stale 判据）——`isEngineStale` 实际在 **`:265`**。源码自己的注释写错了，非本文档问题，已加注。
 
-### C. 逐条行号实测结果（`EngineClient.swift` **895 行**，未变）
+### C. 逐条行号实测结果（`EngineClient.swift` 现 1128 行）
 
 | 引用项 | 文档值 | 实测 | 判定 |
 |---|---|---|---|
@@ -67,7 +67,7 @@
 - 「版本号是约定，长度是事实」的物理边界防线 —— 设计论证原文在 `:704-712`，准确 ✅
 
 ---
-> 覆盖源文件：`Sources/AuroraDrive/Core/EngineClient.swift`（**895 行**，2026-09-29 实测；本文原按 613 行编写）。基于当前仓库逐单元编写。
+> 覆盖源文件：`Sources/AuroraDrive/Core/EngineClient.swift`（**1128 行**，2026-11-10 实测；本文原按 613 行编写）。基于当前仓库逐单元编写。
 >
 > ---
 >
@@ -94,10 +94,10 @@
 > | 版本号 | 位置 | 当前值 | 含义 |
 > |---|---|---|---|
 > | shm header `version` | `EngineMain.swift:217`（2026-10-18 实测订正，原写 :216）`storeU32(4, 1)` | **1** | 共享内存**结构版本**，极稳定 |
-> | `EngineClient.protocolVersion` | `EngineClient.swift:65` | **3** | socket **命令/心跳协议版本**（♻️ 原 `:64`） |
+> | `EngineClient.protocolVersion` | `EngineClient.swift` | **3** | socket **命令/心跳协议版本**（♻️ 原 `:64`） |
 >
 
-> **以 `EngineClient.swift:65` 的 `= 3` 为准**（♻️ 原 `:64`），注释里的「2」是历史残留。
+> **以 `EngineClient.swift` 的 `= 3` 为准**（♻️ 原 `:64`），注释里的「2」是历史残留。
 >
 > ### 三、v3 新增：shm 掩码区布局
 >

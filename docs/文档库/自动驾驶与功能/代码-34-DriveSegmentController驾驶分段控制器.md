@@ -7,7 +7,7 @@
 > 方法：逐条 `sed -n 'Np'` 看该行现在是什么 → 判断语义是否匹配 → 不匹配则 `grep -n '符号名'` 找真值。
 > **未做统一平移**（同文件内偏移有 +1/+2/+3/+9 分段差异）。**只改文档，未动 Sources/**。
 
-### 权威行号表（`AuroraDriveApp.swift` = **9097 行**，本轮实测）
+### 权威行号表（`AuroraDriveApp.swift` = **10636 行**，本轮实测）
 
 | 引用项 | 上一版（9095 行） | **本轮实测（9097 行）** | 判定依据 |
 |---|---|---|---|
@@ -38,7 +38,7 @@
 
 ### 未改动（逐条确认命中）
 
-`DriveSegmentController.swift` 本体 **430 行未变**，27 处内部行号全部有效；`AuroraFlags.swift` **543 行未变**，
+`DriveSegmentController.swift` 本体 **435 行**，27 处内部行号全部有效；`AuroraFlags.swift` **576 行**,
 8 处引用（:280 / :292 / :294 / :296 / :298 / :300 / :302 / :461-466）全部有效（lead 只改了 :445 的
 `AURORA_QUEST_OCR`，与本篇无关）。`RoadCornerGuide.swift` 3 处（:307 / :460-466 / :639-644）、
 `RouteGraph.swift` 2 处（:404-540 / :543-553）、`MissionConsole.swift` 2 处（:4489-4542 / :1203-1224）全部命中。
@@ -71,7 +71,7 @@
 | `locatorScoreForTier` | :8015-8022 | :8022-8030 | **:8024-8031** ⬅ 本轮 +2 |
 | `applyCommand` | —（上一版未列） | :8074-8103 | **:8083-8112** ⬅ 本轮 +9 |
 
-### 本文件行号（`DriveSegmentController.swift` **430 行**，未变）逐条实测
+### 本文件行号（`DriveSegmentController.swift` **435 行**）逐条实测
 
 `:37` enum 声明 ✅ / `:53` struct 声明 ✅ / `:61` `overridesVision` ✅ / `:104-113` init ✅ / `:157` `cornerAhead` ✅ / `:161` `junctionAhead` ✅ / `:163` `chooseExit` ✅ / `:194` `stepFromVision` 算 lim（:197 才 return）✅ / `:237` `speedLimitForCorner(nil, …)` ✅ / `:303-329` `stepStraighten` ✅ / `:331` `stepHandover` ✅ / `:378-382` 12s 兜底 ✅ / `:383` 返回 `speedLimitKmh: 30.0` ✅ / `:406-411` `speedLimitForCorner` 函数 ✅ / `:414-423` `reset` ✅ / **`:417` 是 `targetCorner = nil`**（原文标注为「`handoverOrigin` 赋值」❌ 语义错标，已订正）/ `:419` `handoverOrigin = nil` ✅（原文写「:417 handoverOrigin 赋值」把 :419 的 nil 清空和 :317 的赋值混了）—— 除该 1 处标注外，**本文件行号全部准确**。
 
@@ -83,7 +83,7 @@
 - `:194` 进地图段返回 `mapSteer: nil`（转向由 `stepMapTurn` `:230-235` 在后续帧给出）
 - `:237` `speedLimitForCorner(nil, spd, radius: nil)` → `:406-411` `hit == nil` 恒返回 nil ✅
 - `:383` `stepHandover` 返回 `mapSteer: nil, speedLimitKmh: 30.0` ✅
-- **新证据（上一轮发现，本轮确认行号 +4）**：消费端 `AuroraDriveApp.swift:7660-7664` 那段压油门逻辑写在 `if segDecision.overridesVision, let ms = segDecision.mapSteer {`（**:7656**）**块内**：
+- **新证据（上一轮发现，本轮确认行号 +4）**：消费端 `AuroraDriveApp.swift` 那段压油门逻辑写在 `if segDecision.overridesVision, let ms = segDecision.mapSteer {`（**:7656**）**块内**：
   ```swift
   if let lim = segDecision.speedLimitKmh {          // :7660 ← 只有 overridesVision 为真才进来
       let cap = lim / 3.6                           // :7661
@@ -99,7 +99,7 @@
 
 ---
 
-> 覆盖源文件：`Sources/AuroraDrive/Agent/DriveSegmentController.swift`（**430 行**，2026-10-17 `wc -l` 实测）。
+> 覆盖源文件：`Sources/AuroraDrive/Agent/DriveSegmentController.swift`（**435 行**，2026-11-10 `wc -l` 实测）。
 > 本文件**未在 git 跟踪**（untracked），是 2026-09-30 新增的分段控制层。
 > **✅ 2026-10-17 复核（T6）**：全文行号（本文件 + 消费端 `AuroraDriveApp.swift` + `AuroraFlags.swift`）已按当前源码 `grep -n` / `sed -n` 逐条实测——本文件 430 行未变，第一～五节行号核对无误；第六节消费端行号按 App **9095 行版**重测。旧版复核说明不再保留。
 > 关联：[`代码-24-AuroraDriveApp入口与AppDelegate.md`](代码-24-AuroraDriveApp入口与AppDelegate.md)（消费端）、
@@ -204,7 +204,7 @@ var reason: String
 **避障仍可再覆盖地图**。
 
 **航向符号链已核实正确**：`compassBearing`（`RoadCornerGuide.swift:460-466`）+ `signedHeadingDiff`
-（`RoadCornerGuide.swift:639-644`），`diff > 0 → steerRight`。罗盘 0°=北、90°=东，
+（`RoadCornerGuide.swift`），`diff > 0 → steerRight`。罗盘 0°=北、90°=东，
 右转时航向角增大 ✓ 自洽。
 
 ---
@@ -222,7 +222,7 @@ var reason: String
 3. `:237` `let lim = speedLimitForCorner(nil, spd, radius: nil)`
    → `:406-411` 该函数 `hit == nil` 时返回 nil ⇒ **地图段稳态永远没有限速值**
 4. `:383`（`stepHandover`）→ 返回 `mapSteer: nil, speedLimitKmh: 30.0` → **同样被丢**
-5. 消费端 `AuroraDriveApp.swift:7656` 的 `if segDecision.overridesVision, let ms = ...` 进不来 → `:7668`（else 分支）静默丢弃
+5. 消费端 `AuroraDriveApp.swift` 的 `if segDecision.overridesVision, let ms = ...` 进不来 → `:7668`（else 分支）静默丢弃
 
 > ♻️ 行号重基准：第 5 环原写 `:7647` 的 if / `:7659` 静默丢弃，实测为 **:7656（if）/ :7668（else 丢弃）**。
 
@@ -242,10 +242,10 @@ var reason: String
 
 430 行、用户点名的能力，**一条断言都没有**。
 全仓 `grep -rn DriveSegmentController Sources/`（♻️ 2026-10-18 实测）命中仅 4 处 App 引用 + 6 处 Flags 登记：
-- `AuroraDriveApp.swift:5733`（实例声明 `let driveSegment = DriveSegmentController()`）
-- `AuroraDriveApp.swift:7646`（注释「详见 DriveSegmentController」）
-- `AuroraDriveApp.swift:8000`（注释「读取自车位姿（供 DriveSegmentController 用）」）
-- `AuroraDriveApp.swift:8049`（注释「DriveSegmentController 会用距离近似兜底」）
+- `AuroraDriveApp.swift`（实例声明 `let driveSegment = DriveSegmentController()`）
+- `AuroraDriveApp.swift`（注释「详见 DriveSegmentController」）
+- `AuroraDriveApp.swift`（注释「读取自车位姿（供 DriveSegmentController 用）」）
+- `AuroraDriveApp.swift`（注释「DriveSegmentController 会用距离近似兜底」）
 - `Core/AuroraFlags.swift:461-466`（6 个 `AURORA_SEG_*` 的 `readBy` 登记）
 - 本文件自身
 
