@@ -1,0 +1,207 @@
+[
+  {
+    "metadataOutputVersion" : "3.0",
+    "storagePrecision" : "Mixed (Float16, Palettized (4 bits), UInt4)",
+    "outputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 3)",
+        "shortDescription" : "",
+        "shape" : "[1, 3]",
+        "name" : "vertical",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 3)",
+        "shortDescription" : "",
+        "shape" : "[1, 3]",
+        "name" : "horizontal",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "handbrake",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "brake",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "super_brake",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "ultimate",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "confidence",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 1)",
+        "shortDescription" : "",
+        "shape" : "[1, 1]",
+        "name" : "risk",
+        "type" : "MultiArray"
+      }
+    ],
+    "modelParameters" : [
+
+    ],
+    "specificationVersion" : 9,
+    "mlProgramOperationTypeHistogram" : {
+      "Ios18.expandDims" : 4,
+      "Ios18.mul" : 12,
+      "Ios18.softmax" : 11,
+      "Ios18.matmul" : 22,
+      "Ios16.reduceMean" : 2,
+      "Ios18.avgPool" : 1,
+      "Ios18.realDiv" : 1,
+      "Select" : 2,
+      "Ios18.greater" : 2,
+      "Ios16.reduceMax" : 1,
+      "Tile" : 2,
+      "Ios18.add" : 26,
+      "Ios16.reduceSum" : 3,
+      "Ios18.layerNorm" : 23,
+      "Ios16.fillLike" : 1,
+      "Ios18.reshape" : 52,
+      "Ios18.constexprLutToDense" : 93,
+      "Ios18.maximum" : 1,
+      "Ios18.linear" : 85,
+      "Ios18.conv" : 24,
+      "Ios18.relu" : 27,
+      "Ios18.concat" : 4,
+      "Ios18.transpose" : 48,
+      "Ios18.gelu" : 11,
+      "Ios18.maxPool" : 1,
+      "Ios18.sliceByIndex" : 5,
+      "Ios18.squeeze" : 1
+    },
+    "computePrecision" : "Mixed (Float16, Int32)",
+    "isUpdatable" : "0",
+    "stateSchema" : [
+
+    ],
+    "availability" : {
+      "macOS" : "15.0",
+      "tvOS" : "18.0",
+      "visionOS" : "2.0",
+      "watchOS" : "11.0",
+      "iOS" : "18.0",
+      "macCatalyst" : "18.0"
+    },
+    "modelType" : {
+      "name" : "MLModelType_mlProgram"
+    },
+    "userDefinedMetadata" : {
+      "com.github.apple.coremltools.conversion_date" : "2026-11-08",
+      "com.github.apple.coremltools.source" : "torch==2.13.0",
+      "com.github.apple.coremltools.version" : "9.0",
+      "com.github.apple.coremltools.source_dialect" : "TorchScript"
+    },
+    "inputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 3 × 3 × 224 × 384)",
+        "shortDescription" : "",
+        "shape" : "[1, 3, 3, 224, 384]",
+        "name" : "image_hi",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 21 × 3 × 112 × 192)",
+        "shortDescription" : "",
+        "shape" : "[1, 21, 3, 112, 192]",
+        "name" : "image_lo",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 1 × 160 × 160)",
+        "shortDescription" : "",
+        "shape" : "[1, 1, 160, 160]",
+        "name" : "lane",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 20 × 12)",
+        "shortDescription" : "",
+        "shape" : "[1, 20, 12]",
+        "name" : "dets",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 20)",
+        "shortDescription" : "",
+        "shape" : "[1, 20]",
+        "name" : "det_mask",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 8)",
+        "shortDescription" : "",
+        "shape" : "[1, 8]",
+        "name" : "vehicle_state",
+        "type" : "MultiArray"
+      }
+    ],
+    "generatedClassName" : "v3_int4_new",
+    "method" : "predict"
+  }
+]

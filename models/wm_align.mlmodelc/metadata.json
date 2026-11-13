@@ -1,0 +1,89 @@
+[
+  {
+    "metadataOutputVersion" : "3.0",
+    "shortDescription" : "wm_align 投影头：把静态\/动态世界模型的 256 维 latent 映到共享空间 (单位球)。主干不包含在本模型中，需先在 Swift 侧各自推理后串联。",
+    "outputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 256)",
+        "shortDescription" : "",
+        "shape" : "[1, 256]",
+        "name" : "u_static",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 256)",
+        "shortDescription" : "",
+        "shape" : "[1, 256]",
+        "name" : "u_dynamic",
+        "type" : "MultiArray"
+      }
+    ],
+    "storagePrecision" : "Float16",
+    "modelParameters" : [
+
+    ],
+    "specificationVersion" : 7,
+    "mlProgramOperationTypeHistogram" : {
+      "Ios16.maximum" : 2,
+      "Tile" : 2,
+      "Ios16.cast" : 4,
+      "Ios16.linear" : 4,
+      "Ios16.gelu" : 2,
+      "Ios16.realDiv" : 2,
+      "Ios16.layerNorm" : 4,
+      "Ios16.reduceL2Norm" : 2
+    },
+    "computePrecision" : "Mixed (Float16, Float32, Int32)",
+    "isUpdatable" : "0",
+    "stateSchema" : [
+
+    ],
+    "availability" : {
+      "macOS" : "13.0",
+      "tvOS" : "16.0",
+      "visionOS" : "1.0",
+      "watchOS" : "9.0",
+      "iOS" : "16.0",
+      "macCatalyst" : "16.0"
+    },
+    "modelType" : {
+      "name" : "MLModelType_mlProgram"
+    },
+    "inputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 256)",
+        "shortDescription" : "",
+        "shape" : "[1, 256]",
+        "name" : "z_static",
+        "type" : "MultiArray"
+      },
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 256)",
+        "shortDescription" : "",
+        "shape" : "[1, 256]",
+        "name" : "z_dynamic",
+        "type" : "MultiArray"
+      }
+    ],
+    "userDefinedMetadata" : {
+      "com.github.apple.coremltools.conversion_date" : "2026-11-06",
+      "com.github.apple.coremltools.source" : "torch==2.13.0",
+      "com.github.apple.coremltools.version" : "9.0",
+      "com.github.apple.coremltools.source_dialect" : "TorchScript"
+    },
+    "generatedClassName" : "wm_align",
+    "method" : "predict"
+  }
+]
