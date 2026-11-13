@@ -77,8 +77,8 @@
 
 | 项 | 值 | 出处（已核实） |
 |---|---|---|
-| 卡片定宽 | `static let cardWidth: CGFloat = 260`（:1258），高度由内容撑开（`.frame(width:)` :1331） | MissionConsole.swift:1258 |
-| 挂载对齐 | `.overlay(alignment: .topLeading)` 左上角（:645），内层 `.padding(.top, 44).padding(.leading, 14)`（:653–654）——44 = 标签行 padding 14 + 标签高 ~21 + 呼吸 ~9，卡片落在 LIVE 标签排下沿之下、与标签同左基线 | MissionConsole.swift:645、:653–654 |
+| 卡片定宽 | `static let cardWidth: CGFloat = 260`（:1258），高度由内容撑开（`.frame(width:)` :1331） | MissionConsole.swift:1265 |
+| 挂载对齐 | `.overlay(alignment: .topLeading)` 左上角（:645），内层 `.padding(.top, 44).padding(.leading, 14)`（:653–654）——44 = 标签行 padding 14 + 标签高 ~21 + 呼吸 ~9，卡片落在 LIVE 标签排下沿之下、与标签同左基线 | MissionConsole.swift:1265、:653–654 |
 | 内容布局 | `VStack(spacing: 5)` 三行（:1281）+ `.padding(.horizontal, 12)`（:1329）+ `.padding(.vertical, 9)`（:1330） | MissionConsole.swift:1281、:1329–1330 |
 | 圆角 | `AuroraSilver.radius` = `Aurora.radiusCard` = 12（注释「小方框不要用面板级 16」） | MissionConsole.swift:1342/1345/1349；AuroraTheme.swift:771–772 |
 
@@ -86,8 +86,8 @@
 
 | 行 | 内容 | 字体/颜色 | 出处（已核实） |
 |---|---|---|---|
-| ① 任务名 | `hasName ? (questName ?? "") : "暂无任务"`（:1284） | **12.5pt** `Aurora.sans(12.5, hasName ? .semibold : .medium)`（:1285）+ tracking 0.3（:1286）；有任务 textName / 无任务 textDim（:1287–1288）；`lineLimit(1)` + `minimumScaleFactor(0.75)` + 尾部截断（:1289–1291） | MissionConsole.swift:1284–1293 |
-| ② 「任务直线距离」 | 标签全称独占一行 + 数值米串（:1295–1311，HStack spacing 5） | 标签 `Aurora.label(10.5)` / textDim（:1299–1303）；数值 `Aurora.metric(11.5, .semibold)` / textName（:1304–1309） | MissionConsole.swift:1295–1311 |
+| ① 任务名 | `hasName ? (questName ?? "") : "暂无任务"`（:1284） | **12.5pt** `Aurora.sans(12.5, hasName ? .semibold : .medium)`（:1285）+ tracking 0.3（:1286）；有任务 textName / 无任务 textDim（:1287–1288）；`lineLimit(1)` + `minimumScaleFactor(0.75)` + 尾部截断（:1289–1291） | MissionConsole.swift:1291 – 1297 |
+| ② 「任务直线距离」 | 标签全称独占一行 + 数值米串（:1295–1311，HStack spacing 5） | 标签 `Aurora.label(10.5)` / textDim（:1299–1303）；数值 `Aurora.metric(11.5, .semibold)` / textName（:1304–1309） | MissionConsole.swift:1291 – 1297 |
 | ③ 「任务弯道距离」 | 与②同构（:1313–1327），数值来自 `routeMeters` | 同② | MissionConsole.swift:1313–1327 |
 
 - 米数格式：`String(format: "%.0f 米", m)`，nil / 负 / 非有限一律 `"--"`，绝不编数字 —— `metersText(_:)`（:1241–1244）。
@@ -108,7 +108,7 @@
 
 ### 5. ViewportPanel 挂载层叠与投影修复
 
-- ViewportPanel 定义：MissionConsole.swift:577。ZStack 层叠自底向上：`FrameHostView`（:583）→ `UpscaleFrameHostView` 插帧层（:587–590）→ `AuroraLightField`（:593）→ `ObstacleOverlay`（:603–607）→ `MaskOverlay`（:613–620）→ **QuestCard**（overlay(topLeading)，:645–655）→ 左上 TagChip 排（:658–669）/ 右上 TagChip（:672–679）→ 卡死/接管/路况横幅（:701–724）→ 底部 AutoSpeedPill + DualGauge（:727–749）。顺序注释明写 :637。
+- ViewportPanel 定义：MissionConsole.swift:595。ZStack 层叠自底向上：`FrameHostView`（:583）→ `UpscaleFrameHostView` 插帧层（:587–590）→ `AuroraLightField`（:593）→ `ObstacleOverlay`（:603–607）→ `MaskOverlay`（:613–620）→ **QuestCard**（overlay(topLeading)，:645–655）→ 左上 TagChip 排（:658–669）/ 右上 TagChip（:672–679）→ 卡死/接管/路况横幅（:701–724）→ 底部 AutoSpeedPill + DualGauge（:727–749）。顺序注释明写 :637。
 - **投影挪进 `.background{}`**（2026-10-06 修复）：`.shadow(color: .black.opacity(0.78), radius: 17, y: 14)` 现在位于 ViewportPanel 的 `.background{}` 内部（MissionConsole.swift，shadow 语句在 :785）、作用在渐变底图上；随后 `.clipShape(RoundedRectangle(cornerRadius: 16))`（:787）与描边 overlay（:788–794）。
   - 为什么挪：投影原先挂在 ViewportPanel 修饰符链末端，覆盖整个 ZStack，把 `.overlay` 里的任务卡片连带投了 y 偏移黑色投影（卡片下方 5~25px 实测压暗 −27.05，几何与卡片完全吻合）——注释 :759–773。
   - 为什么进 background 就好：`.background{}` 内容不参与外层 `.overlay` 的合成范围，投影只跟随视口底图，overlay 的卡片/标签/检测框不再被投影（:775–778）；左上/右上 TagChip 一并解除压暗（:783–784）。
@@ -124,7 +124,7 @@ MissionConsole 的**每一个可点元素**背后都有真实执行路径（Cont
 
 ## 三-B、QuestCard 数据链（OCR → 先比后写落库，2026-10-06 新增核实）
 
-- `DriveState`（`@Observable @MainActor final class`，AuroraDriveApp.swift:4150）相关字段（行号 2026-10-18 实测）：`locatorFound / locatorX / locatorY`（:4367–4369）、`locatorScore`（:4370）、`locatorHeading`（:4371）、`locatorTarget: (x: Double, y: Double)?`（:4378，世界坐标 UE5 厘米）、`questName: String? = nil`（:4384，注释 :4380–4383 仍带旧「整张隐藏」说法，与常驻卡片矛盾，以 MissionConsole.swift 为准）、`routePlan: RoutePlan?`（:4394）。
+- `DriveState`（`@Observable @MainActor final class`，AuroraDriveApp.swift:4889）相关字段（行号 2026-10-18 实测）：`locatorFound / locatorX / locatorY`（:4367–4369）、`locatorScore`（:4370）、`locatorHeading`（:4371）、`locatorTarget: (x: Double, y: Double)?`（:4378，世界坐标 UE5 厘米）、`questName: String? = nil`（:4384，注释 :4380–4383 仍带旧「整张隐藏」说法，与常驻卡片矛盾，以 MissionConsole.swift 为准）、`routePlan: RoutePlan?`（:4394）。
 - `setLocatorTarget(x:y:)` 直接赋值，无坐标转换（AuroraDriveApp.swift）；`clearRoute()` 会连带把 `locatorTarget` 置 nil（:4416–4422）。
 - **OCR 链**：`DriveState.questPanel = QuestPanelReader()`（`@ObservationIgnored`，AuroraDriveApp.swift；类定义 Inference/QuestPanelReader.swift）。`tick()` 每帧 `if AuroraFlags.questOCR, let cg = currentFrameCG { questPanel.ingest(cgImage: cg) }`（AuroraDriveApp.swift）。
   - ✅ 开关口径**三处已一致**（2026-10-18 复核）：`AuroraFlags.questOCR = bool("AURORA_QUEST_OCR", default: true)` **默认开**（AuroraFlags.swift:201）；注册表 `AuroraFlags.swift:445` `defaultValue: "1"` + summary「默认开，2026-10-17 修正：原误写默认关」（已改对）；调用点注释 `AuroraDriveApp.swift:5903` / `:6966` 均「2026-10-17 修正」。`--flags-help` 输出 `AURORA_QUEST_OCR=1 …（默认开）`。运行时可用 `AURORA_QUEST_OCR=0` 关闭。
@@ -168,7 +168,7 @@ MissionConsole 的**每一个可点元素**背后都有真实执行路径（Cont
 
 ## 三-F、QuestCard 的刷新机制：20Hz DispatchSource tick（2026-10-06 核实，2026-10-18 更新频率）
 
-- **主时钟**：`bootstrap()`（MissionConsole.swift:6106）里 DispatchSourceTimer，独立高优队列 `com.aurora.tick`（:6111），**20Hz** `repeating: 1.0 / 20.0`（:6117；⚠️ 原为 `1.0/30.0`，2026-10-12 定档 20Hz 时改，注释 :6113–6116 记录「原为 1.0/30.0，是 20Hz 定档前的遗留值」），每拍 `DispatchQueue.main.async { state.tick() }`（:6140）；待机（非开车/非录制）降频（`idleSkip < 8` 每 8 拍投 1 次 = **20Hz/8 ≈ 2.5Hz**，语句 :6131–6137；⚠️ 原注释「45Hz/8 ≈ 5.6Hz」是 45Hz 时代遗留口径）。App Nap 规避原因 :6108–6110。
+- **主时钟**：`bootstrap()`（MissionConsole.swift:6392）里 DispatchSourceTimer，独立高优队列 `com.aurora.tick`（:6111），**20Hz** `repeating: 1.0 / 20.0`（:6117；⚠️ 原为 `1.0/30.0`，2026-10-12 定档 20Hz 时改，注释 :6113–6116 记录「原为 1.0/30.0，是 20Hz 定档前的遗留值」），每拍 `DispatchQueue.main.async { state.tick() }`（:6140）；待机（非开车/非录制）降频（`idleSkip < 8` 每 8 拍投 1 次 = **20Hz/8 ≈ 2.5Hz**，语句 :6131–6137；⚠️ 原注释「45Hz/8 ≈ 5.6Hz」是 45Hz 时代遗留口径）。App Nap 规避原因 :6108–6110。
 - 刷新链：`tick()`（AuroraDriveApp.swift 起）消费 pendingFrame 写 `currentScreenImage/currentFrameCG` 等 @Observable 字段（:6946–6961）；同一 tick 里喂 `questPanel.ingest(cgImage:)`（:6973–6975）。
 - QuestCard 数据全部来自 `@Observable DriveState`（AuroraDriveApp.swift）：`questName / locatorFound / locatorX / locatorY / locatorTarget / routePlan` 任一被赋值即触发观察它的视图（挂载处 ViewportPanel body）重算；QuestCard 本身无定时器、无动画、无 onAppear 副作用（MissionConsole.swift），纯读字段。
 - QuestCard 未定位时 `egoWorld` 传 nil（MissionConsole.swift:648），直线距离落「--」。
@@ -209,16 +209,16 @@ MissionConsole 的**每一个可点元素**背后都有真实执行路径（Cont
 
 | 符号 | 文件:行号 |
 |---|---|
-| `final class DriveState` / `locatorFound/X/Y/Score/Heading` | AuroraDriveApp.swift:4150 / :4367–4371 |
-| `locatorTarget` / `questName` / `routePlan` | AuroraDriveApp.swift:4378 / :4384 / :4394 |
-| `clearRoute()` / `setLocatorTarget()` | AuroraDriveApp.swift:4416 / :4515 |
-| `questPanel` / `onConfirmed` 接线 / `questPanel.ingest` | AuroraDriveApp.swift:5908 / :5981–5987 / :6973–6975 |
-| `tick()` / `locatorX/Y` 写入 | AuroraDriveApp.swift:6865 / :4766–4767 |
+| `final class DriveState` / `locatorFound/X/Y/Score/Heading` | AuroraDriveApp.swift:4276 / :4367–4371 |
+| `locatorTarget` / `questName` / `routePlan` | AuroraDriveApp.swift:4276 / :4384 / :4394 |
+| `clearRoute()` / `setLocatorTarget()` | AuroraDriveApp.swift:4927 / :4515 |
+| `questPanel` / `onConfirmed` 接线 / `questPanel.ingest` | AuroraDriveApp.swift:8070 / :5981–5987 / :6973–6975 |
+| `tick()` / `locatorX/Y` 写入 | AuroraDriveApp.swift:8070 / :4766–4767 |
 | `AuroraFlags.questOCR` | AuroraFlags.swift:201（注释 :192–200；注册表 summary :445） |
 | `final class QuestPanelReader` / `ingest(cgImage:)` | QuestPanelReader.swift:416 / :541 |
 | `minInterval` / `voteNeed` / `fuzzyThreshold` / `fuzzyConfident` / `equivalentRadiusMeters` / `questROI` / `ocrQueue` | QuestPanelReader.swift:431 / :427 / :434 / :440 / :449 / :424 / :483 |
 | `onConfirmed?(reading)` / `main.async` / `resolveAmbiguous` | QuestPanelReader.swift:566 / :557 / :883 |
 | `RoadOverlayCache.Style` / `defaultStyle` / `overlay` / `cacheKey` | MapLayers.swift:193 / :238 / :254 / :77 |
 | `RoadOverlayLayer` / `MapLayerStore` | MapLayers.swift:423 / :478 |
-| `driveBars` | ControlWiring.swift:309 |
+| `driveBars` | ControlWiring.swift:314 |
 | `AuroraSilver.radius` / 白玻璃对比度 1.57:1 注释 | AuroraTheme.swift:771–772 / :724–738 |

@@ -263,12 +263,12 @@ if let onUpscaleFrame, isUpscaleWanted(),
 | 步骤 | 位置 |
 |---|---|
 | 1. UI 连不上引擎时 spawn `--engine` 子进程；引擎入口 `EngineMain.run()` | EngineClient.swift `startup()`（AURORA_UI_LOCAL=1 时直接本地模式不 spawn，:166–171）；EngineMain.swift:885 |
-| 2. 引擎进程创建 `DriveState()`，其成员 `captureEngine = CaptureEngine()` 随之创建；**覆盖式接线**：`onUpscaleFrame` → 存入 `EngineGlobals.latestFullFrame`（锁保护），`isUpscaleWanted = { EngineGlobals.wantFullFrame }` | EngineMain.swift:1042（DriveState 创建）、:1048–1055（覆盖式接线）；DriveState 的 captureEngine 声明 AuroraDriveApp.swift:5529 |
+| 2. 引擎进程创建 `DriveState()`，其成员 `captureEngine = CaptureEngine()` 随之创建；**覆盖式接线**：`onUpscaleFrame` → 存入 `EngineGlobals.latestFullFrame`（锁保护），`isUpscaleWanted = { EngineGlobals.wantFullFrame }` | EngineMain.swift:1232（DriveState 创建）、:1048–1055（覆盖式接线）；DriveState 的 captureEngine 声明 AuroraDriveApp.swift:6290 |
 | 3. **启动时机 ①诊断模式**：`AURORA_ENGINE_DIAG_CAPTURE_ONLY` 时 EngineMain 直接 `captureEngine.start()`（EngineMain.swift:1059–1062，开关定义 AuroraFlags.swift:162；本次复核该区间准确）。**启动时机 ②生产路径**：UI 发 `start` 命令 → `EngineMain.handleCommand`（:1497）→ `EngineGlobals.state?.startDriving()`（:1513）→ DriveState.startDriving（AuroraDriveApp.swift:6190）→ `captureEngine.start()`（:6283）。UI 自己的 startDriving 在引擎模式下只发命令、不启动本地抓屏（:6192–6199 引擎分支） | |
 | 4. SCStream 帧进引擎进程的 `aurora.capture` 队列 → 四路直通（Native/Yolo/Upscale/UI 480px）**全部在引擎进程内完成** | CaptureEngine.swift:1092–1228 |
 | 5. `onFrame` 接线写在 DriveState `init()`（AuroraDriveApp.swift:5988–6000，引擎进程创建 DriveState 时同样执行）→ 覆盖写入 pendingFrame；引擎进程的 tick（`EngineMain.tickOnce`，DispatchSourceTimer，EngineMain.swift:1067–1081）调 `st.tick()`（:1195）消费帧：YOLO/YOLOPX/E2E 推理、置信度、按键注入全在引擎进程 | |
 | 6. tickOnce 末尾 `shm.publish(image: st.currentFrameCG, detections:…, fps:…, isDriving:…, isStreaming:…, fullFrame:)` 发共享内存；`wantFullFrame` 为真时附全分辨率帧 | EngineMain.swift:1255–1263 |
-| 7. UI 进程 `tickEngineMode()` 轮询：`client.poll()` 拿 CGImage → `currentFrameCG`/`screenSize`/`frameHost.push`；开插帧时 `client.takePixelBuffer()` 拿全分辨率帧喂 `upscaleHost` | AuroraDriveApp.swift:6522–6551 |
+| 7. UI 进程 `tickEngineMode()` 轮询：`client.poll()` 拿 CGImage → `currentFrameCG`/`screenSize`/`frameHost.push`；开插帧时 `client.takePixelBuffer()` 拿全分辨率帧喂 `upscaleHost` | AuroraDriveApp.swift:7454 – 7456 |
 
 ### 8.3 本地模式（`AURORA_UI_LOCAL=1` 或无引擎可连）的帧路径
 
@@ -283,9 +283,9 @@ if let onUpscaleFrame, isUpscaleWanted(),
 |---|---|---|
 | SCStream 所在进程 | 引擎（--engine 子进程） | UI 进程 |
 | tick/推理进程 | 引擎 | UI |
-| isUpscaleWanted 接线 | `{ EngineGlobals.wantFullFrame }`（UI 经 socket `upscale` 命令下发，EngineMain.swift:1561） | `{ upscaleEnabled }`（本进程变量，AuroraDriveApp.swift:6046） |
+| isUpscaleWanted 接线 | `{ EngineGlobals.wantFullFrame }`（UI 经 socket `upscale` 命令下发，EngineMain.swift:1248） | `{ upscaleEnabled }`（本进程变量，AuroraDriveApp.swift:6046） |
 | 全分辨率帧去向 | `EngineGlobals.latestFullFrame` → shm | `upscaleHost.push`（本进程 MetalGoose） |
-| UI 侧取帧 | `tickEngineMode()` 轮询 shm（AuroraDriveApp.swift:6533 `client.poll()` 起） | captureQueue 回调覆盖写 + tick 消费（:6946 起） |
+| UI 侧取帧 | `tickEngineMode()` 轮询 shm（AuroraDriveApp.swift:7454 `client.poll()` 起） | captureQueue 回调覆盖写 + tick 消费（:6946 起） |
 | 任务面板 OCR | **引擎进程照跑**（见下方 8.5 节：引擎 tick 走的就是同一份 `st.tick()`，:6974 在引擎进程同样执行），但**结果回传 UI 缺失**——onConfirmed 只写引擎进程的 state.questName，UI 看不见 | 跑（默认开：`AURORA_QUEST_OCR`，AuroraFlags.swift:201） |
 
 ### 8.5 引擎进程的 tick 语义（⚠️ 关键且反直觉）
@@ -368,15 +368,15 @@ _driveState 单例说明_：`DriveState.shared` 是**每进程一个**的单例�
 | 符号 | 文件:行号 |
 |---|---|
 | `EngineMain.run()` / `tickOnce()` / `st.tick()` | EngineMain.swift:885 / :1193 / :1195 |
-| `DriveState()` 创建 / `onUpscaleFrame` 覆盖接线 / `isUpscaleWanted` | EngineMain.swift:1042 / :1048–1051 / :1055 |
-| `tickTimer` 装配 / 心跳 5 秒统计 / `hasFrame` | EngineMain.swift:1067–1081 / :1105–1130 / :1110 |
+| `DriveState()` 创建 / `onUpscaleFrame` 覆盖接线 / `isUpscaleWanted` | EngineMain.swift:1232 / :1048–1051 / :1055 |
+| `tickTimer` 装配 / 心跳 5 秒统计 / `hasFrame` | EngineMain.swift:1232 – 1241 / :1105–1130 / :1110 |
 | `shm.publish` / `handleCommand` / `收到命令` | EngineMain.swift:1255–1263 / :1497 / :1504 |
-| `final class DriveState` / `DriveState.shared` | AuroraDriveApp.swift:4150 / :4180 |
-| `captureEngine` 声明 / `startDriving()` / 本地 `captureEngine.start()` | AuroraDriveApp.swift:5529 / :6190 / :6283 |
+| `final class DriveState` / `DriveState.shared` | AuroraDriveApp.swift:4276 / :4180 |
+| `captureEngine` 声明 / `startDriving()` / 本地 `captureEngine.start()` | AuroraDriveApp.swift:4276 / :6190 / :6283 |
 | 四路接线 `onFrame/onYolo/onNative/onUpscale/isUpscaleWanted` | AuroraDriveApp.swift:5988–6000 / :6003–6030 / :6032–6039 / :6041–6044 / :6046 |
 | `questPanel` / `onConfirmed` 接线 | AuroraDriveApp.swift:5908 / :5981–5983 |
-| `tick()` / `tickEngineMode()` / `client.poll()` / `takePixelBuffer()` | AuroraDriveApp.swift:6865 / :6522 / :6533 / :6534 |
-| `questPanel.ingest` 门 / 推理入口 / `yolopxEngine.infer` | AuroraDriveApp.swift:6974 / :7154 / :7290 |
+| `tick()` / `tickEngineMode()` / `client.poll()` / `takePixelBuffer()` | AuroraDriveApp.swift:7454 / :6522 / :6533 / :6534 |
+| `questPanel.ingest` 门 / 推理入口 / `yolopxEngine.infer` | AuroraDriveApp.swift:8070 / :7154 / :7290 |
 | `EngineClient.startup()` / `handleConnectionLoss` | EngineClient.swift:166 / **:553**（原写 :552 是 `/// - Parameter reason` 注释行，函数定义在 :553） |
 | `AuroraFlags.uiLocal` / `questOCR` / `engineDiagCaptureOnly` | AuroraFlags.swift:138 / :201 / :162（本次复核：三处仍准确） |
 | `final class QuestPanelReader` / `ingest(cgImage:)` | QuestPanelReader.swift:415 / :541（本次复核：类声明在 :415–416，:541 即 `ingest(cgImage:)`，准确） |

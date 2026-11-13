@@ -80,7 +80,7 @@ trap 'bash scripts/build-lock.sh release' EXIT
 2. **tick 队列**（`com.aurora.tick`，`qos: .userInteractive`，30Hz `DispatchSource`）：
    `state.tick()` 驱动捕获→推理→按键
    - ⚠️ **实测订正**：`com.aurora.tick` 的创建点其实在
-     `App/MissionConsole.swift:5534`（`bootstrap()` 内），**不是** `AuroraDriveApp.swift`
+     `App/MissionConsole.swift:6392`（`bootstrap()` 内），**不是** `AuroraDriveApp.swift`
    - ⚠️ **必须是 DispatchSource，不能用 main RunLoop Timer**——后者会被 App Nap 冻结，
      全屏游戏时 tick 掉到 8Hz（`MissionConsole.swift:5532-5534` 注释）
    - ★ **待机降频（旧文完全没写，新人最容易误判「卡了」）**：非开车/非录制时

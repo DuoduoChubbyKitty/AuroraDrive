@@ -175,13 +175,13 @@
 | 实例化 `NetworkLocator()` | **全仓零命中**（`grep -rn "NetworkLocator(" Sources/` → **0 命中**，2026-10-17 实测；仅 `LocateRuntime.swift:31` 有类型声明） | 2026-10-17 实核 |
 | 旧实例声明 | 已注释掉 | `AuroraDriveApp.swift:5663-5664` — `// 旧NetworkPacketCapture已移除（不编译），使用移植的NetworkLocator` + `// @ObservationIgnored let networkLocator = NetworkPacketCapture()` |
 | 回调接线 | 已注释掉 | `AuroraDriveApp.swift:6164-6171` — `// 旧网络定位已移除` / `// 旧网络定位回调已移除（NetworkPacketCapture不编译）` / `// networkLocator.onLocate = …` / `// networkLocator.onStatusChange = …`（实测首行注释在 **:6164**，块尾 `dlog("[network] 定位引擎初始化完成")` 在 :6182、`}` 在 :6183） |
-| 类型声明 | **保留**，但无人赋值 | `App/LocateRuntime.swift:31` — `var networkLocator: NetworkLocator? = nil`（`LocateContext` 成员，**初始 nil，全仓无任何赋值点**；同类的 `visualLocator`（:30）同样无人赋值） |
+| 类型声明 | **保留**，但无人赋值 | `App/LocateRuntime.swift:41` — `var networkLocator: NetworkLocator? = nil`（`LocateContext` 成员，**初始 nil，全仓无任何赋值点**；同类的 `visualLocator`（:30）同样无人赋值） |
 | `start()` 方法本体 | **仍然存在** | `NetworkLocator.swift:410-415`（`LocalPoseSocketClient.start()`）；`NetworkLocator.prepare()`（:548-554）内部会调它 |
 
 ### 4.2 当前实际在跑的定位是谁
 
 - **实际活跃**：`代码-04 CoordinateCapture`（libpcap 自包含抓包，无外部服务依赖）。它由 `DriveState.runNetworkLocateStep()`（`AuroraDriveApp.swift` 起；**函数声明实测在 :4546**）**懒初始化并常开**：`:4549` 判 `coordinateCapture == nil` → `:4553` `let cc = CoordinateCapture()` → `:4554` `let ok = cc.start()` → `:4557` `locateCtx.networkReady = true`。
-- **`networkReady` 的含义已经变味**：`LocateContext.networkReady`（`LocateRuntime.swift:33`）如今由 **CoordinateCapture** 写（`:4555`），而**不是** `NetworkLocator`。`locateSource()`（声明在 `:4537`，`:4538` 以它为门）与 `runNetworkLocateStep()`（`:4563` 的门）都以它为门。⚠️ **命名陷阱：字段叫 networkReady，实际指 CoordinateCapture 就绪。**
+- **`networkReady` 的含义已经变味**：`LocateContext.networkReady`（`LocateRuntime.swift:35`）如今由 **CoordinateCapture** 写（`:4555`），而**不是** `NetworkLocator`。`locateSource()`（声明在 `:4537`，`:4538` 以它为门）与 `runNetworkLocateStep()`（`:4563` 的门）都以它为门。⚠️ **命名陷阱：字段叫 networkReady，实际指 CoordinateCapture 就绪。**
 - **`NetworkLocator.locate()` 当前无产品调用者**——本文件整套（WebSocket 客户端 + UE5 位流解码）处于**休眠**状态。
 - **⚠️ 防误读（再强调一次）**：本节只说明 `NetworkLocator` 休眠；**网络定位功能（CoordinateCapture）是活跃的**。另外 `AuroraDriveApp.swift` 处还有一处**自检/网卡自适应夹具**（`runNicAdaptSelfTest()`，声明在 `:1583`；内部 `let cc = CoordinateCapture()` :1604 → `let started = cc.start()` :1605，配 `ck("自适应抓包启动", …)` :1606 + `probeRounds` :1611），属 `--nic-selftest` 类入口，与产品常开链路不是同一处，勿混计。
 
@@ -189,7 +189,7 @@
 
 - 本文第一~三节描述的**代码实体全部有效**（行号已 2026-10-17 逐条 `grep -n` 实测：文件现 668 行，`LocalPoseSocketClient` 在 :397，`NetworkLocator` 在 :536）；**失效的只是"它在产品里被调用"这一前提**。
 - **依赖前提仍在**：若将来重新接线，仍需**本机 9004 端口的位姿桥接 WebSocket 服务在跑**（`kLocalPoseBridgeURL = "ws://127.0.0.1:9004"`，:23）——服务不在则 `locate()` 永远返回 `coordinate_stale`（:559-561）。
-- **"旧网络抓包定位已移除"注释的措辞歧义（诚实记录）**：该注释字面像在说"本文件已删"，实测**文件未被删除**；被移除的是**调用点**。`AuroraDriveApp.swift:6399` 的措辞更准确（"旧 NetworkPacketCapture 已移除（不编译），使用移植的 NetworkLocator"）——即：旧的抓包类被删、移植版 `NetworkLocator` 保留为**候选实现**，但**尚未接线**。这两处注释并存，建议未来以 :5663 的表述为准。
+- **"旧网络抓包定位已移除"注释的措辞歧义（诚实记录）**：该注释字面像在说"本文件已删"，实测**文件未被删除**；被移除的是**调用点**。`AuroraDriveApp.swift:6426` 的措辞更准确（"旧 NetworkPacketCapture 已移除（不编译），使用移植的 NetworkLocator"）——即：旧的抓包类被删、移植版 `NetworkLocator` 保留为**候选实现**，但**尚未接线**。这两处注释并存，建议未来以 :5663 的表述为准。
 
 ### 4.4 本次改动核实
 
@@ -214,9 +214,9 @@
 
 - **现状（已确认）**：存在两套符号约定，均为**正确实现**，只是矩阵定义写法不同：
   1. `MapWiring.worldToMapPixelX/Y`（`MapWiring.swift:29-36`）：`mapX = A·wx + B·wy + TX`，`mapY = A·wy − B·wx + TY`。其自推逆变换 `wx=(A·dx−B·dy)/det`、`wy=(B·dx+A·dy)/det`（`MapWiring.swift:78-93`）与该方程组严格匹配，`CoordinateCapture.worldToMapPixel` 同符号（`CoordinateCapture.swift:1786-1787`）。
-  2. `NetworkLocator.swift` 的 `CoordinateTransform.apply`（`NetworkLocator.swift:75-79`）：`(a·x − b·y + tx, b·x + a·y + ty)`——B 项符号与 MapWiring 相反（`NetworkLocator.swift:70`）。它同样来自上游 MaaNTE 标定语义（头注释 `NetworkLocator.swift`），对该矩阵而言 `invert`（`NetworkLocator.swift:81-88`）自洽。
+  2. `NetworkLocator.swift` 的 `CoordinateTransform.apply`（`NetworkLocator.swift:75-79`）：`(a·x − b·y + tx, b·x + a·y + ty)`——B 项符号与 MapWiring 相反（`NetworkLocator.swift:648`）。它同样来自上游 MaaNTE 标定语义（头注释 `NetworkLocator.swift`），对该矩阵而言 `invert`（`NetworkLocator.swift:81-88`）自洽。
 - **数值影响**：|B| = 5.69e-08；取定位界值 kMaxLocationAbs=2e6（`NetworkLocator.swift`），|B·wy| 最大约 0.114 px；对 1e5 量级的典型坐标差 ≈0.0057 px（MapWiring 注释称 ~0.006 px，`MapWiring.swift`）。任务给定「影响 ≤0.053 px」与以上估算同量级——无论取哪个界，都远低于任何可见阈值。
-- **结论**：`NetworkLocator.swift:70` 的 B 符号「相反」只是与 MapWiring 的书写约定不同，两套各自正逆自洽；产品代码中 MapWiring 已不用 `CoordinateTransform.invert`（自推逆在 `MapWiring.swift:78-93`），**现状无功能性 bug，仅注释/文档层面的符号不一致**。
+- **结论**：`NetworkLocator.swift:657` 的 B 符号「相反」只是与 MapWiring 的书写约定不同，两套各自正逆自洽；产品代码中 MapWiring 已不用 `CoordinateTransform.invert`（自推逆在 `MapWiring.swift:78-93`），**现状无功能性 bug，仅注释/文档层面的符号不一致**。
 - **遗留注释漂移（未验证是否有意）**：`MapWiring.swift` 注释写 `CoordinateTransform.invert（NetworkLocator.swift）`，实际 invert 在 `NetworkLocator.swift`——行号引用漂移，应为历史行号。
 
 ---

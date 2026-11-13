@@ -88,7 +88,7 @@
 
 **接口**：`fpsProvider: (() -> (assist: Double, game: Double))?`（调用方注入取值闭包，避免依赖具体引擎内部）；`isInstalled`（window != nil）；`debugState`（诊断字符串：visible/level/frame）。
 
-**引用关系（2026-10-18 复核重测，`AuroraDriveApp.swift` 现 9097 行）**：实例 `let gameHUD = GameHUDWindow()`（AuroraDriveApp.swift:5532）；安装调用方 = `DriveState.init()`（App:5914 起，类声明在 App:4150），`gameHUD.install()`（App:5966），**`--engine` 模式下不装**（`if !CommandLine.arguments.contains("--engine")` App:**5962**），另有 `AURORA_DISABLE_HUD=1` 诊断开关跳过安装（App:5961-5968）；fpsProvider 唯一赋值方在 DriveState（App:5929）；`uninstall()` 零调用（全仓仅 GameHUDWindow.swift:106 有定义，无卸载路径，与旧版一致）。
+**引用关系（2026-10-18 复核重测，`AuroraDriveApp.swift` 现 9097 行）**：实例 `let gameHUD = GameHUDWindow()`（AuroraDriveApp.swift:6293）；安装调用方 = `DriveState.init()`（App:5914 起，类声明在 App:4150），`gameHUD.install()`（App:5966），**`--engine` 模式下不装**（`if !CommandLine.arguments.contains("--engine")` App:**5962**），另有 `AURORA_DISABLE_HUD=1` 诊断开关跳过安装（App:5961-5968）；fpsProvider 唯一赋值方在 DriveState（App:5929）；`uninstall()` 零调用（全仓仅 GameHUDWindow.swift:106 有定义，无卸载路径，与旧版一致）。
 
 ## 二、AuroraTheme 主题令牌（**773 行**，UI 大改版新增；2026-10-07 E4 实测）
 

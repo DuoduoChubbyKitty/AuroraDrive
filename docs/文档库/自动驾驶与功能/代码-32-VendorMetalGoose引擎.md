@@ -377,7 +377,7 @@ does not need a drawable, and take one at the last possible moment.
 
 原文 §一 已提到「Shaders.metal 运行时编译」，但没点明它在 `Package.swift` 里的处置。补三点：
 
-1. **两份都被显式 exclude**：根层 `Vendor/MetalGoose/Shaders.metal`（`Package.swift:176`）+ Engine/ `Vendor/MetalGoose/Engine/Shaders.metal`（`:178`）。
+1. **两份都被显式 exclude**：根层 `Vendor/MetalGoose/Shaders.metal`（`Package.swift:178`）+ Engine/ `Vendor/MetalGoose/Engine/Shaders.metal`（`:178`）。
 2. **466 行 / 17,016 字节**，两份内容完全相同（`diff` 零差异）——原文此结论今日复核仍成立。
 3. **运行时按路径加载**，三候选路径见 §一 `setupPipelines`（441–481 行）：`Bundle.main` → 可执行文件目录（`exeDir/Shaders.metal`、`exeDir/Vendor/MetalGoose/Engine/Shaders.metal`、以及一条硬编码绝对路径 `/Users/dupi/Desktop/自动驾驶系统/Vendor/MetalGoose/Engine/Shaders.metal`）→ `makeDefaultLibrary()` 兜底。
    ⚠️ 那条硬编码绝对路径是 vendor 原样保留的（换机器会失效，但只是三候选之一，不影响功能）。

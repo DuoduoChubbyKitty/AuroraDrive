@@ -82,7 +82,7 @@
 > **为什么必须升 v3**（源码 61–63 行注释原文）：
 > > `pixelsOffset` 从 20480 后移到 28672。**这是布局变更**：
 > > 新旧混跑时旧 UI 会把掩码区当像素读 → 花屏，所以必须升版本，
-> > 让版本守卫强制重启引擎（**`EngineClient.swift:266-268`** 的 stale 判据；♻️ 2026-10-18 重基准，原写 `:265-267`——`:266` 是 `var isEngineStale: Bool {`、`:267` 是判据表达式 `sawHeartbeat && engineProtocol != Self.protocolVersion`、`:268` 是 `}`）。
+> > 让版本守卫强制重启引擎（**`EngineClient.swift:334 - 335`** 的 stale 判据；♻️ 2026-10-18 重基准，原写 `:265-267`——`:266` 是 `var isEngineStale: Bool {`、`:267` 是判据表达式 `sawHeartbeat && engineProtocol != Self.protocolVersion`、`:268` 是 `}`）。
 >
 > **版本沿革**：
 > - v1 = 原始（start/stop/bye/status/upscale/ping）
@@ -93,7 +93,7 @@
 >
 > | 版本号 | 位置 | 当前值 | 含义 |
 > |---|---|---|---|
-> | shm header `version` | `EngineMain.swift:217`（2026-10-18 实测订正，原写 :216）`storeU32(4, 1)` | **1** | 共享内存**结构版本**，极稳定 |
+> | shm header `version` | `EngineMain.swift:247`（2026-10-18 实测订正，原写 :216）`storeU32(4, 1)` | **1** | 共享内存**结构版本**，极稳定 |
 > | `EngineClient.protocolVersion` | `EngineClient.swift` | **3** | socket **命令/心跳协议版本**（♻️ 原 `:64`） |
 >
 

@@ -10,7 +10,7 @@
 >
 > **行号漂移**：系统性 +2（:4047~:5527 段）/ +3（:5898~:6865 段）/ **+8（:7899~:8082 段；Lead 又改 :7405/:7582 两处注释各 +1）**。
 > 下表「2026-10-18 实测锚点表」与「§附 当前实测锚点表」均已按 **9096 行版**实测重写。
-> `tick()` 驱动者更正：**20Hz**（非旧文 30Hz），由 `MissionConsole.swift:6117` DispatchSource `1.0/20.0` 驱动，回调 `:6140` `state.tick()`（非 ContentView Timer）。
+> `tick()` 驱动者更正：**20Hz**（非旧文 30Hz），由 `MissionConsole.swift:6429` DispatchSource `1.0/20.0` 驱动，回调 `:6140` `state.tick()`（非 ContentView Timer）。
 
 > 覆盖源文件：`Sources/AuroraDrive/App/AuroraDriveApp.swift`（**10636 行**，2026-11-10 `wc -l` 实测；9094/9088 为当日/10-17 旧基准，8456 行为 10-07 旧基准，10-06 版为 8335 行）之中部：DriveMode/DriveModeGroup/RecordLabelMapper + DriveState。
 > **✅ 2026-10-17 复核**：正文原含 291 处基于 8335/8456/9088 多版本的行号引用（已漂移 Δ275~632），**已按 2026-10-17 9088 行版实测更新，再经 2026-10-18 复核至 9096 行版**——正文行号引用（符号名 + （第 N–M 行）区间）均基于当前 9096 行版重测，不再基于 8335/8456 旧基准。精确行号见下方「2026-10-18 实测锚点表」。
@@ -32,7 +32,7 @@
 >
 > ② **AI 面板改动不在本文覆盖范围**（用户明确要求核实项）：`sendChatMessage` / 滑动窗口 `appendMessage`+`maxMessages=200` / 后端选择器 / 视觉开关 / 配置向导 / 底部小字 / 诊断面板 **全部落在 `Agent/AIAgentPanel.swift`**，与本文覆盖的 `AuroraDriveApp.swift` 中段（DriveMode + DriveState）**无重叠**。`AuroraDriveApp.swift` 本次仅两处变动，均在本文范围外：自检 flag 登记与分发（:935-1094），以及 `ControlEngine`（另一文件）。→ **本文本次未改动任何 DriveState 逻辑**，10-06 复核结论全部继续有效。
 >
-> ③ 与 AI 面板的**唯一接口点**是 `AgentSkillCenter.configure(control:capture:)`（`AuroraDriveApp.swift:533`，`AppDelegate` 侧；DriveState 侧另见 `MissionConsole.swift:6555/6245/6261`），**本次未改动**（`git diff HEAD~5..HEAD -- Sources/AuroraDrive/App/AuroraDriveApp.swift` 仅 3 个 hunk，均在 :701/:935/:1001 附近，未触及 `configure` 调用点）。
+> ③ 与 AI 面板的**唯一接口点**是 `AgentSkillCenter.configure(control:capture:)`（`AuroraDriveApp.swift:279`，`AppDelegate` 侧；DriveState 侧另见 `MissionConsole.swift:6555/6245/6261`），**本次未改动**（`git diff HEAD~5..HEAD -- Sources/AuroraDrive/App/AuroraDriveApp.swift` 仅 3 个 hunk，均在 :701/:935/:1001 附近，未触及 `configure` 调用点）。
 
 ## 〇·五、AI 面板改动落点（2026-10-07，**代码不在本文覆盖文件内**）
 >
@@ -100,13 +100,13 @@
 
 | 字段 | 定义处 | 写入者 | 读取者 |
 |---|---|---|---|
-| `locatorFound` | AuroraDriveApp.swift:4915 | 网络定位回调 AuroraDriveApp.swift（**先比后写**：`if self?.locatorFound == false`）；游戏未运行时清除 AuroraDriveApp.swift | `planRouteToMapPixel` 起点判断 AuroraDriveApp.swift；`readPose()` 门槛 AuroraDriveApp.swift；决策门槛与 UI（注释称 24 处 UI 读取，AuroraDriveApp.swift） |
-| `locatorX` / `locatorY` | AuroraDriveApp.swift | 网络定位回调 AuroraDriveApp.swift（**写世界坐标 UE5 厘米**——坐标系统一修复取证见 AuroraDriveApp.swift） | `DriveState.worldToMapPixelX/Y` 各调用点（MapWiring.swift:29 定义；AuroraDriveApp.swift、MissionConsole.swift:2589-2590、:3969-3970、:4045-4046）；`readPose()` AuroraDriveApp.swift；NavGuidance 距离 `(t.x - locatorX)/100`（MissionConsole.swift:847 注释） |
-| `locatorScore` | AuroraDriveApp.swift | AuroraDriveApp.swift（按新鲜度 tier 分级 `locatorScoreForTier`，AuroraDriveApp.swift：live=1.0 / recent=0.3 / stale=0.1 / lost=0） | 决策门槛 0.4（`readPose()` AuroraDriveApp.swift）；诊断打印 MissionConsole.swift:2886 |
+| `locatorFound` | AuroraDriveApp.swift:5281 | 网络定位回调 AuroraDriveApp.swift（**先比后写**：`if self?.locatorFound == false`）；游戏未运行时清除 AuroraDriveApp.swift | `planRouteToMapPixel` 起点判断 AuroraDriveApp.swift；`readPose()` 门槛 AuroraDriveApp.swift；决策门槛与 UI（注释称 24 处 UI 读取，AuroraDriveApp.swift） |
+| `locatorX` / `locatorY` | AuroraDriveApp.swift | 网络定位回调 AuroraDriveApp.swift（**写世界坐标 UE5 厘米**——坐标系统一修复取证见 AuroraDriveApp.swift） | `DriveState.worldToMapPixelX/Y` 各调用点（MapWiring.swift:29 定义；AuroraDriveApp.swift、MissionConsole.swift:2589-2590、:3969-3970、:4045-4046）；`readPose()` AuroraDriveApp.swift；NavGuidance 距离 `(t.x - locatorX)/100`（MissionConsole.swift:5084 注释） |
+| `locatorScore` | AuroraDriveApp.swift | AuroraDriveApp.swift（按新鲜度 tier 分级 `locatorScoreForTier`，AuroraDriveApp.swift：live=1.0 / recent=0.3 / stale=0.1 / lost=0） | 决策门槛 0.4（`readPose()` AuroraDriveApp.swift）；诊断打印 MissionConsole.swift:3731 |
 | `locatorHeading` | AuroraDriveApp.swift | AuroraDriveApp.swift | `readPose()` AuroraDriveApp.swift（供 DriveSegmentController，AuroraDriveApp.swift 调用） |
 | `locatorAccelX/Y/Z` | AuroraDriveApp.swift | AuroraDriveApp.swift | 仅如实展示（AuroraDriveApp.swift 注释：坐标系未实测确认，**不参与控制**） |
-| `locatorTarget` | AuroraDriveApp.swift | ① `setLocatorTarget(x:y:)` AuroraDriveApp.swift（QuestPanelReader 确认回调 AuroraDriveApp.swift 调用，来自 quest_index 世界坐标）② `clearRoute()` AuroraDriveApp.swift（置 nil）③ 演示/自检夹具 MissionConsole.swift:5687、:5838、:6124、:6285 | MissionConsole.swift:634、:1457、:2540-2547、:3968（距离计算与路线规划） |
-| `questName` | AuroraDriveApp.swift | QuestPanelReader 确认回调 AuroraDriveApp.swift（**先比后写**，注释 AuroraDriveApp.swift） | 任务卡片渲染 MissionConsole.swift:632、:861、:904、:927 |
+| `locatorTarget` | AuroraDriveApp.swift | ① `setLocatorTarget(x:y:)` AuroraDriveApp.swift（QuestPanelReader 确认回调 AuroraDriveApp.swift 调用，来自 quest_index 世界坐标）② `clearRoute()` AuroraDriveApp.swift（置 nil）③ 演示/自检夹具 MissionConsole.swift:5945、:5838、:6124、:6285 | MissionConsole.swift:634、:1457、:2540-2547、:3968（距离计算与路线规划） |
+| `questName` | AuroraDriveApp.swift | QuestPanelReader 确认回调 AuroraDriveApp.swift（**先比后写**，注释 AuroraDriveApp.swift） | 任务卡片渲染 MissionConsole.swift:5945、:861、:904、:927 |
 
 **quest 数据流闭环**：`tick()` 主线程调 `questPanel.ingest(cgImage:)`（AuroraDriveApp.swift，门 `AuroraFlags.questOCR`）→ ROI 裁剪在主线程、Vision OCR 丢到 `aurora.quest.ocr` 后台串行队列（QuestPanelReader.swift，`qos: .utility`）→ OCR 完成回主线程（QuestPanelReader.swift:557 `DispatchQueue.main.async`）→ `onConfirmed` 回调（AuroraDriveApp.swift，主线程执行）→ 写 `questName`（AuroraDriveApp.swift）+ `setLocatorTarget`（AuroraDriveApp.swift）。QuestPanelReader.swift 文件头明确 `locatorTarget` 与 quest_index 同为世界坐标（UE5 厘米）。
 
@@ -317,7 +317,7 @@
 | `confidenceEst = ConfidenceEstimator()` | **E2E 无置信度头，用启发式从输出/画面估算** |
 | `inferenceEngine = InferenceEngine()` | **CoreML E2E 推理引擎（m9_mono）——tick 异步触发推理，读 lastResult 作为本帧 E2E 输出；推理约 24Hz，tick 30Hz，未完成推理时沿用上一帧结果** |
 | `assistEngine = InferenceEngine(modelFileName: "game_assist_control")` | **第二套驾驶模型（YOLO接管档的司机）——与 M9 同架构（画面+车辆状态→steer/throttle/brake），独立权重文件。档2 YOLO接管用它的输出开车；当前与 M9 同权重，后续可换训练权重** |
-| `yoloEngine = YoloEngine()` | **CoreML YOLO 检测引擎——tick 异步触发**。⚠️ **2026-10-19 订正**：旧文写「检测结果同时喂 RuleController 决策 + UI 画框」**已不同源**——现码 RuleController 只吃 `effectiveDetections`（`AuroraDriveApp.swift:7538` 定义 → `:7753` `ruleController.decide`），UI 画框走 `state.displayDetections`（`MissionConsole.swift:609`），两条链路在 `:4236` 就已分家、不经 RuleController。另：A 模型档（默认档）下本引擎**不加载、不推理**（仅 legacy 三件套档加载，详见 `代码-14` 文首「2026-10-19 档位语义变更」） |
+| `yoloEngine = YoloEngine()` | **CoreML YOLO 检测引擎——tick 异步触发**。⚠️ **2026-10-19 订正**：旧文写「检测结果同时喂 RuleController 决策 + UI 画框」**已不同源**——现码 RuleController 只吃 `effectiveDetections`（`AuroraDriveApp.swift:6480` 定义 → `:7753` `ruleController.decide`），UI 画框走 `state.displayDetections`（`MissionConsole.swift:609`），两条链路在 `:4236` 就已分家、不经 RuleController。另：A 模型档（默认档）下本引擎**不加载、不推理**（仅 legacy 三件套档加载，详见 `代码-14` 文首「2026-10-19 档位语义变更」） |
 | `speedOCR = SpeedOCRReader()` | **车速表 OCR 读取引擎——CaptureEngine 原生帧 → 后台 OCR 读车速 → 主线程读 speedKmh/speedConfidence** |
 | `currentCommand: ControlCommand = .idle`（private(set)） | **本帧最终决策命令（tick 末尾写出，供按键注入用）** |
 
@@ -427,7 +427,7 @@
 
 > ✅ 本节行号已按 **9096 行版（2026-10-18 实测）** 重写；旧版 1837–2092 / 8335 版行号均作废。
 
-**`tick()`（AuroraDriveApp.swift:6865 起）**——每帧推进（**20Hz**，由 MissionConsole.swift:6117 的 DispatchSource `com.aurora.tick`（`repeating: 1.0 / 20.0`）驱动，事件回调 `DispatchQueue.main.async { state.tick() }`（MissionConsole.swift:6140）——**不是 ContentView 的 Timer**，旧文有误；待机时 `idleSkip < 8` 降频至 **约 2.5Hz**（MissionConsole.swift:6197-6200，即 20Hz/8）。**完整决策管线：跳帧消费 → quest OCR → 速度/卡死 → 降级决策 → 按态输出 → 注入 → 录制**。
+**`tick()`（AuroraDriveApp.swift:6865 起）**——每帧推进（**20Hz**，由 MissionConsole.swift:6392 的 DispatchSource `com.aurora.tick`（`repeating: 1.0 / 20.0`）驱动，事件回调 `DispatchQueue.main.async { state.tick() }`（MissionConsole.swift:6140）——**不是 ContentView 的 Timer**，旧文有误；待机时 `idleSkip < 8` 降频至 **约 2.5Hz**（MissionConsole.swift:6197-6200，即 20Hz/8）。**完整决策管线：跳帧消费 → quest OCR → 速度/卡死 → 降级决策 → 按态输出 → 注入 → 录制**。
 
 **① 诊断 + 引擎分流（AuroraDriveApp.swift）**：tickGapMs（实际间隔，>33ms = 主线程掉拍）；`if EngineClient.shared.isActive { tickEngineMode(); return }`（AuroraDriveApp.swift，**本地抓屏/推理/按键全部不跑**）。
 
@@ -641,33 +641,33 @@ controlEngine.refreshHeldKeys()
 
 | 队列 label | 定义处 | QoS | 用途 |
 |---|---|---|---|
-| `aurora.capture`（captureQueue） | CaptureEngine.swift:91 | userInteractive | **SCStream sampleHandlerQueue**（CaptureEngine.swift:237）：每帧拷贝逻辑见 :120 注释/实现；串行清理缓冲池（:269-272） |
+| `aurora.capture`（captureQueue） | CaptureEngine.swift:215 | userInteractive | **SCStream sampleHandlerQueue**（CaptureEngine.swift:215）：每帧拷贝逻辑见 :120 注释/实现；串行清理缓冲池（:269-272） |
 | `aurora.quest.ocr`（ocrQueue） | QuestPanelReader.swift:483 | utility | Vision OCR 专用。**刻意不复用 captureQueue**：SCStream 队列上同步计算会推迟帧消费引发雪崩（capGap 11ms→2081ms 实测，QPR:477-482 注释）；OCR .accurate p50 33.6ms ≈ 整帧预算（QPR:524-528 注释） |
 | `com.aurora.speedocr` | SpeedOCRReader.swift:200 | userInteractive | 速度表 OCR |
 | `com.aurora.speedocr.modelload` | SpeedOCRReader.swift:327 | serial | 模型加载 |
-| `com.aurora.yolo` | YoloEngine.swift:145 | userInteractive | YOLO 检测推理（:307 提及避免与 captureQueue 写竞争） |
+| `com.aurora.yolo` | YoloEngine.swift:146 | userInteractive | YOLO 检测推理（:307 提及避免与 captureQueue 写竞争） |
 | `com.aurora.inference` | InferenceEngine.swift:111 | userInteractive | M9/assist E2E 推理 |
-| `com.aurora.yolopx` | YolopxEngine.swift:445 | env `AURORA_INFER_QOS=interactive` 可覆盖（默认 userInitiated，YolopxEngine.swift:441-443） | YOLOPX/A-YOLOM 推理 |
+| `com.aurora.yolopx` | YolopxEngine.swift:458 | env `AURORA_INFER_QOS=interactive` 可覆盖（默认 userInitiated，YolopxEngine.swift:453 - 458） | YOLOPX/A-YOLOM 推理 |
 | `agent.skill`（workQueue） | AIAgentPanel.swift:**263** | userInteractive | AI 技能工作队列 |
 | `aurora.engine.client` | EngineClient.swift:225 | userInteractive | UI 侧 socket 读 + 重连定时器 |
-| `aurora.engine.socket` | EngineMain.swift:457 | userInteractive | 引擎侧 socket 服务 |
-| `aurora.engine.tick` | EngineMain.swift:1061 | userInteractive | 引擎 30Hz tick 定时源，**回调再 main.async 进主线程**（:784-789） |
-| `aurora.engine.heartbeat` | EngineMain.swift:1090 | （默认） | 引擎 1Hz 心跳（:797） |
-| `aurora.engine.signal` | EngineMain.swift:976 | （默认） | SIGTERM/SIGINT 处理，置 shutdownRequested 后 main.async 安全停车（:694-709） |
+| `aurora.engine.socket` | EngineMain.swift:487 | userInteractive | 引擎侧 socket 服务 |
+| `aurora.engine.tick` | EngineMain.swift:1272 | userInteractive | 引擎 30Hz tick 定时源，**回调再 main.async 进主线程**（:784-789） |
+| `aurora.engine.heartbeat` | EngineMain.swift:1301 | （默认） | 引擎 1Hz 心跳（:797） |
+| `aurora.engine.signal` | EngineMain.swift:1171 | （默认） | SIGTERM/SIGINT 处理，置 shutdownRequested 后 main.async 安全停车（:694-709） |
 | `aurora.defender` | GameModeDefender.swift:153 | userInteractive | Game Mode 对抗，每 3s 重主张（:19、:94） |
 | `aurora.privilege.process` | PrivilegePill.swift:251 | utility | 提权脚本执行 |
-| `com.aurora.tick` | MissionConsole.swift:6111 | userInteractive | 地图控制台 tick 驱动（30Hz / 待机 3.75Hz），回调 main.async（:5558） |
+| `com.aurora.tick` | MissionConsole.swift:6392 | userInteractive | 地图控制台 tick 驱动（30Hz / 待机 3.75Hz），回调 main.async（:5558） |
 | `com.aurora.netlocate` | MissionConsole.swift:6480 | userInteractive | 网络定位轮询 10Hz，回调 main.async（:5607） |
 | `com.aurora.logsink` | AuroraDriveApp.swift:**8969** | utility | 日志缓冲写盘 |
 | `aurora.upscale.ingest` | AuroraDriveApp.swift:**8733** | userInitiated | 插帧 ingest |
-| `com.aurora.record.write` | RecordEngine.swift:128 | （默认/unspecified） | 录制写盘 |
+| `com.aurora.record.write` | RecordEngine.swift:194 | （默认/unspecified） | 录制写盘 |
 | `com.aurora.confidence.brightness`（brightnessQueue） | ConfidenceEstimator.swift:217-218 | userInitiated | 画面亮度估计 |
 
 ### 11.2 主线程 / 后台分工（关键事实）
 
 - **主线程（MainActor）**：`DriveState.tick()` 全部决策（AuroraDriveApp.swift 中；DegradeStateMachine 仅主线程访问 DegradeStateMachine.swift:23）；`tick()` 由 `com.aurora.tick` DispatchSource 触发后 `DispatchQueue.main.async` 投递（MissionConsole.swift）；`EngineGlobals` 全部 @MainActor（EngineMain.swift）；QuestPanelReader 的投票/匹配/落库回主线程（QPR:557，onConfirmed 主线程执行 AuroraDriveApp.swift 注释）。
 - **captureQueue 特殊性**：它是 SCStream 采样队列，「不是普通后台队列」（AuroraDriveApp.swift 注释）；回调里只做**覆盖式写 pendingFrame**（加锁，AuroraDriveApp.swift），SwiftUI 更新由 tick 主线程消费（AuroraDriveApp.swift）。光流曾于 09-27 被移到 captureQueue，09-28 **已回退主线程 tick**（AuroraDriveApp.swift 注释、AuroraDriveApp.swift 说明）。
-- **引擎进程**：30Hz tick 定时器在 `aurora.engine.tick` 触发但计算 `tickOnce()` 强制回主线程（EngineMain.swift:781-791）；共享内存 BGRA 双缓冲由引擎写/UI 读（EngineMain.swift:18 注释、:353/:378 写入）；`latestFullFrame` 采集线程写/主线程读 + NSLock（EngineMain.swift、:763-766 写侧 / :891-893 读侧）。
+- **引擎进程**：30Hz tick 定时器在 `aurora.engine.tick` 触发但计算 `tickOnce()` 强制回主线程（EngineMain.swift:781-791）；共享内存 BGRA 双缓冲由引擎写/UI 读（EngineMain.swift:1272 注释、:353/:378 写入）；`latestFullFrame` 采集线程写/主线程读 + NSLock（EngineMain.swift、:763-766 写侧 / :891-893 读侧）。
 - **跳帧防堆积模式**（贯穿全项目）：生产者（后台队列）只覆盖「最新一帧」槽位，消费者（主线程 tick）取最新——pendingFrame/pendingYoloFrame/pendingNativeFrame 三处（AuroraDriveApp.swift 写 / 6942-6960、6974-6978、7087-7091 消费）。
 - **@Observable 先比后写纪律**：值不变不赋值，省观察者通知（questName AuroraDriveApp.swift、mode AuroraDriveApp.swift、confidence AuroraDriveApp.swift、locatorFound AuroraDriveApp.swift 等）。
 
@@ -691,7 +691,7 @@ controlEngine.refreshHeldKeys()
 
 **「有帧=false 帧数=0 降级=true」组合的解释链**（与状态机的关系）：
 
-1. **引擎模式下 YOLOPX 根本不跑**（EngineMain.swift:22-36 头注释明确：tick 在 `EngineClient.shared.isActive` 时 `tickEngineMode(); return` 提前返回，本地推理分支走不到）→ `帧数=0` 与 `降级=true` 是**引擎模式的既定常态**，不是故障（副作用：引擎侧 `isDegraded` 恒 true → LaneFallback 不介入；掩码只能由引擎把 YOLOPX 结果写进共享内存掩码区后 UI 才有）。
+1. **引擎模式下 YOLOPX 根本不跑**（EngineMain.swift:24 - 25 头注释明确：tick 在 `EngineClient.shared.isActive` 时 `tickEngineMode(); return` 提前返回，本地推理分支走不到）→ `帧数=0` 与 `降级=true` 是**引擎模式的既定常态**，不是故障（副作用：引擎侧 `isDegraded` 恒 true → LaneFallback 不介入；掩码只能由引擎把 YOLOPX 结果写进共享内存掩码区后 UI 才有）。
 2. 该日志的 `降级=` 反映的是**引擎进程内 yolopxEngine 的掩码可信度**，与 UI 侧降级状态机（DegradeStateMachine 的 e2e/yolo/rule 三档）**不是一回事**：驾驶档位降级由引擎进程自己的 `DriveState.tick → degradeStm.update` 决定（AuroraDriveApp.swift），经心跳 `engineMode` 回传 UI（EngineClient.swift「降级档位（引擎是权威源）」）。日志里看不到档位，要看心跳/面板。
 3. 若 `有帧=false` 持续出现（非刚启动）：先查抓屏权限 / `AURORA_ENGINE_DIAG_CAPTURE_ONLY` 诊断 / `frameHost` 是否从未 push——即**帧管道问题**，与降级状态机无关；降级状态机此时也不会动（tick 在引擎模式提前 return 前就跑了完整本地管线？——不是：引擎进程 isActive 恒 true，走 tickEngineMode 的是 **UI 进程**；引擎进程自己的 tick 跑完整决策管线，其降级档位经心跳回传）。
 4. UI 侧看到的 `engineMode/engineSpeed/engineConfidence` 等驾驶状态全部来自引擎心跳字段（EngineClient.swift），`speedValid = client.engineSpeedKmh >= 0 && client.engineSpeed > 0.5`（AuroraDriveApp.swift，先比后写）。引擎失联（`engineConnected=false`）时 UI 状态面板显示「未连接」（MissionConsole.swift），档位显示沿用引擎最后回传值，UI 不自行接管档位。

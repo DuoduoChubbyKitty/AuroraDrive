@@ -19,7 +19,7 @@
 >
 > **补充实测（文档未记，本轮新增）**：
 > - `.locate(` 全仓**零调用**（`grep -rn "\.locate(" Sources/ --include=*.swift` 无输出）——比文档「`.locate(template:` 零产品调用」更严：连**非产品调用也不存在**。
-> - `visualLocator` 字段全仓**仅 1 处**：`App/LocateRuntime.swift:30` 声明 `var visualLocator: VisualLocator? = nil`，**零赋值、零读取**。
+> - `visualLocator` 字段全仓**仅 1 处**：`App/LocateRuntime.swift:40` 声明 `var visualLocator: VisualLocator? = nil`，**零赋值、零读取**。
 > - **平行佐证**：`NetworkLocator()` 同样**零实例化**（`grep -rn "NetworkLocator(" Sources/` 无输出）——两条定位链**同时废弃**，与 lead 的判断一致。
 >
 > **废弃定级建议**（⚠️ 待确认，需 lead 决策）：本文件 491 行 + 自检 32 行，是**完整可用但零装配**的能力。两种处置：① 保留为「降级备用」并在类头注明「当前无装配」；② 若确认不再需要视觉定位，整文件移入 `docs/老旧文档/` 对应的归档区。**不建议直接删除**——它是唯一不依赖网络抓包的定位实现，未来 pcap 失效时是备选。

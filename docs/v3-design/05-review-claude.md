@@ -229,7 +229,7 @@
   ```
   ["t_sec","frame","w","shift","super_brake"] -> v3_keys   （只有 5 列，也被当 V3）
   ```
-  `verify_recording.py:37` 同样只判 `"w" in h and "shift" in h`，于是 `t_sec,frame,w,shift,super_brake` 这种**残缺表头**会被报成 `✓ controls.csv 表头 OK (v3 纯按键 10 列格式)`，且因为缺列的行 `r.get(...)` 返回 `None`，组合键校验反而**通过**：
+  `verify_recording.py:42` 同样只判 `"w" in h and "shift" in h`，于是 `t_sec,frame,w,shift,super_brake` 这种**残缺表头**会被报成 `✓ controls.csv 表头 OK (v3 纯按键 10 列格式)`，且因为缺列的行 `r.get(...)` 返回 `None`，组合键校验反而**通过**：
   ```
   [OK ] clip_partial
         ✓ controls.csv 表头 OK (v3 纯按键 10 列格式)
@@ -241,8 +241,8 @@
 
 ## 4. P2 建议改进
 
-- **P2-1　padding 语义可能制造「假静止」**（`src/dataset_v3.py:388`）：`clamp_frame = lambda fi: max(0, fi)` 让 clip 开头历史不足时用**第 0 帧重复填充**。对「从静止起步」的片段没问题；但若 clip 从高速中间截断，模型会看到「t−3…t−23 全等于第 0 帧」的假静止历史，可能学到错误运动先验。建议：对 `frame_idx < 23` 的样本**降低采样权重**或直接丢弃（或把 `clamp_frame` 改成「用最早帧 + 标记有效长度」的通道）。**这是推断，非实测精度影响**。
-- **P2-2　`augment` 使用全局 `np.random`**（`src/dataset_v3.py:465`），而 `self.rng`（`:264`）根本没用到；DDP/多 worker 下每个 worker 的随机种子相同，增强会相关性化。建议用 `self.rng.uniform` 或 `torch.Generator` 按 worker 设置种子。
+- **P2-1　padding 语义可能制造「假静止」**（`src/dataset_v3.py:707`）：`clamp_frame = lambda fi: max(0, fi)` 让 clip 开头历史不足时用**第 0 帧重复填充**。对「从静止起步」的片段没问题；但若 clip 从高速中间截断，模型会看到「t−3…t−23 全等于第 0 帧」的假静止历史，可能学到错误运动先验。建议：对 `frame_idx < 23` 的样本**降低采样权重**或直接丢弃（或把 `clamp_frame` 改成「用最早帧 + 标记有效长度」的通道）。**这是推断，非实测精度影响**。
+- **P2-2　`augment` 使用全局 `np.random`**（`src/dataset_v3.py:942`），而 `self.rng`（`:264`）根本没用到；DDP/多 worker 下每个 worker 的随机种子相同，增强会相关性化。建议用 `self.rng.uniform` 或 `torch.Generator` 按 worker 设置种子。
 - **P2-3　`skip_all_zero` 会把「故意停车/等红灯」整段丢掉**（`:313`），训练分布偏向「一直在动」。建议：提供 `keep_idle_ratio` 或按窗口保留少量全零帧，否则模型学不到「静止也是合法状态」。
 - **P2-4　`_rows_cache` 在 `:318` 才赋值，但 `:306` 已经 `_read_rows` 过**；同一 clip 若被 `view_filter` 过滤掉，`_rows_cache` 不会收它。目前逻辑正确，但若将来 `view_filter` 在 `__getitem__` 里被改变，缓存不会失效。建议在 `__init__` 之外**禁止修改** `index`/缓存，或提供 `reload()`。
 - **P2-5　`verify_recording.py:39,70` 用 `open(csvp)` 不关闭**（`list(csv.DictReader(open(csvp)))`），小文件无碍，但长录制会占 fd。建议 `with open(...)`。

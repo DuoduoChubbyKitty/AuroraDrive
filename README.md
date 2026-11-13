@@ -44,15 +44,15 @@
 | 功能 | 依据（`文件:行号` / 命令） |
 |---|---|
 | **三档**降级（原写「四档含脱困」**已过期**） | 脱困档 `.recover` 于 2026-09-30 整体删除：`Sources/AuroraDrive/Agent/DegradeStateMachine.swift:5-9`；`EscapeController` 类型已删、仅留 `ControlCommand` 输出格式：`Sources/AuroraDrive/Control/EscapeController.swift:12-14`、`AuroraDriveApp.swift:4053-4055` |
-| 网络定位**仍活着**（旧抓包路径已移除） | 旧 `networkLocator.start()` 已注释：`AuroraDriveApp.swift:6281`（原注释「旧网络抓包定位已移除」）；**现行** `CoordinateCapture` 懒初始化 + `cc.start()`：`AuroraDriveApp.swift:4546-4553`（注释「纯网络定位，无自愈引擎」）；libpcap 实调用 `CoordinateCapture.swift:1052`（`pcap_open_live`）；过滤器/端口 `CoordinateCapture.swift:1100`（`tcp port 30031 or udp`） |
-| `NetworkLocator` **编译但零实例化** | `grep -rn "NetworkLocator(" Sources/` → **零命中**；仅 `Sources/AuroraDrive/App/LocateRuntime.swift:31` 有一个从未赋值的字段 |
+| 网络定位**仍活着**（旧抓包路径已移除） | 旧 `networkLocator.start()` 已注释：`AuroraDriveApp.swift:7133`（原注释「旧网络抓包定位已移除」）；**现行** `CoordinateCapture` 懒初始化 + `cc.start()`：`AuroraDriveApp.swift:4546-4553`（注释「纯网络定位，无自愈引擎」）；libpcap 实调用 `CoordinateCapture.swift:1052`（`pcap_open_live`）；过滤器/端口 `CoordinateCapture.swift:1100`（`tcp port 30031 or udp`） |
+| `NetworkLocator` **编译但零实例化** | `grep -rn "NetworkLocator(" Sources/` → **零命中**；仅 `Sources/AuroraDrive/App/LocateRuntime.swift:37` 有一个从未赋值的字段 |
 | 三层校验 | `Sources/AuroraDrive/Inference/SpeedOCRReader.swift:638-653`（Layer 1 量程 / Layer 2 跳变 / Layer 3 多帧确认） |
 | AI **真对话** | `Sources/AuroraDrive/Agent/AgentChatService.swift:109-115`（候选上限 4、增量 15Hz 节流）；同文件 `:22-26` 记「全链失败不抛错给 UI，回退 `localReply` 并标注『离线回复』」 |
 | 自主调工具 **30 个** | `Sources/AuroraDrive/Agent/ToolRegistry.swift:16-23`（18 技能 + 4 键位 + 1 文本 + 3 鼠标 + 2 观察 + 2 搜索）；技能挂载 `:151-160`；四道护栏 `:24-34`。⚠️ **挂载 30 个 ≠ 全部可用**：`isImplemented = skill.ported`（`:158`），18 个技能里 `ported:true` 只有 **15 个**，`pinkpaw` / `rhythm` / `preset_realtime` 三个是 `false`（`AIAgentPanel.swift:104/112/124`），调用会返回 `ok=false` |
 | **ESC + 鼠标**路径 | `AgentChatService.swift:340-348`（「这条路（ESC → 截图 → 鼠标点击）是本工具操作界面的**唯一可靠方式**」）；技能内 ESC 实注入 `AIAgentPanel.swift:1245`（`pressGameKey(.esc, duration: 0.05)`）；键位自检探针 `LLMSelfTest.swift:1160` |
 | **滑动窗口** | `Sources/AuroraDrive/Agent/AIAgentPanel.swift:197-214`（`static let maxMessages = 200`） |
 | 任务面板 **OCR** | `Sources/AuroraDrive/Inference/QuestPanelReader.swift:414-431`（`minInterval = 0.7`）；默认开启：`Sources/AuroraDrive/Core/AuroraFlags.swift:192-201`（`questOCR` 默认 `true`） |
-| 路网 **664/932** | `Sources/AuroraDrive/App/AuroraDriveApp.swift:2135`（「断头 118 (19.3%) → 36 (5.4%)，节点 612→664，边 825→932」）+ `:2139-2140` 自检断言；数据文件实测 `models/route_graph.json` → `nodes:664 / edges:932` |
+| 路网 **664/932** | `Sources/AuroraDrive/App/AuroraDriveApp.swift:1974`（「断头 118 (19.3%) → 36 (5.4%)，节点 612→664，边 825→932」）+ `:2139-2140` 自检断言；数据文件实测 `models/route_graph.json` → `nodes:664 / edges:932` |
 | 三级新鲜度（替代原「自愈式定位」） | `AuroraDriveApp.swift:4620-4626`（live ≤18s / recent ≤40s / stale ≤90s / lost >90s；`recent` 起不参与决策） |
 | MetalFX 仅显示层 | `Sources/AuroraDrive/Capture/CaptureEngine.swift:128-130`（「MetalGoose 引擎需要完整帧做时域插帧/空间超分，走独立回调不干扰主路径」）；`AuroraDriveApp.swift:6037-6040`（「插帧/超分直通：全分辨率帧 → MetalGoose 引擎（仅显示路径）」） |
 

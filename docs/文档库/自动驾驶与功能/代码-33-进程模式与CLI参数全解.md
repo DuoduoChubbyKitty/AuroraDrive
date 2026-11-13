@@ -308,7 +308,7 @@
 >    1Hz 心跳（`:1098-1105`（hbTimer.setEventHandler@:1098 / sendHeartbeat periodic@:1105））。
 > 4. 回退：任一步失败 → 本地模式；`AURORA_UI_LOCAL=1` 则连「想连引擎」都不成立
 >    （`EngineClient.swift`，`wantsEngineMode=false`）。
-> 5. UI 退出 `applicationWillTerminate` → `sendByeSync()`（`AuroraDriveApp.swift:542-544`）→
+> 5. UI 退出 `applicationWillTerminate` → `sendByeSync()`（`AuroraDriveApp.swift:565 - 566`）→
 >    引擎 `pauseDriving`：释放按键、停录制，但保持抓屏推理等重连（`EngineMain.swift`）；
 >    异常断开有 3s 重连窗口（:1922）+ 30s 无人使用自动退出（:1947）。
 >
@@ -691,7 +691,7 @@ AURORA_UI_LOCAL=1 $BIN --tool-call-demo "领奖励"
 | `AURORA_LOG_SYNC` | 8953 | 8192–8201 |
 | `AURORA_DAEMON_MODE` | 138 | 137–138（同） |
 | `AURORA_TCC_TEST` | 159 | —（旧文未记） |
-| `AuroraFlags.helpText()` | AuroraFlags.swift:521（文件 543 行） | 953–956（旧记 App 侧） |
+| `AuroraFlags.helpText()` | AuroraFlags.swift:53（文件 543 行） | 953–956（旧记 App 侧） |
 
 ### EngineMain.swift（2002 行，2026-10-18 冻结版 `wc -l` 实测）
 
