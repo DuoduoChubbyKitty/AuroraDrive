@@ -2086,9 +2086,12 @@ enum EngineMain {
             // 【语义】takeover=true = 用户按下受控键 → 让位（5Hz，把算力让给用户）
             //         takeover=false = 用户松开 → 回巡航（15Hz）
             //   EmergencyTakeover.noteUserKeyDown()/noteUserKeyUp() 内部自带状态守卫
-            //   （只在冲刺态响应 keyDown、只在让位态响应 keyUp），故这里无条件转发即可，
+            //   （巡航/冲刺均响应 keyDown、只在让位态响应 keyUp），故这里无条件转发即可，
             //   不需要引擎侧再做状态判断 —— 语义单一，好核对。
             let cTakeover = obj["takeover"] as? Bool
+            let cPhysicalKeys = (obj["physicalKeys"] as? [Int]).map {
+                Set($0.compactMap { CGKeyCode(exactly: $0) })
+            }
             // 消化模式：真正注入按键的是**引擎进程**，UI 侧开关必须下发到这里，
             //   否则「UI 显示已消化、引擎照旧真按键」—— 那是最危险的不一致。
             let cDigest = obj["digest"] as? Bool
@@ -2136,11 +2139,16 @@ enum EngineMain {
                     if let v = cLimitSource { st.unlimitedSource = v }
                     // ── ET-5：转发「用户接管让位」信号给状态机（2026-10-12）──
                     // 在 applied 回显**之前**处理，这样反降级信号也算"已应用的键"。
-                    // noteUserKeyDown/Up 内部有状态守卫（非冲刺态按键无意义、
+                    // noteUserKeyDown/Up 内部有状态守卫（重复按下幂等、
                     // 非让位态松开无意义），故这里只需如实转发，不必判状态。
+                    if let keys = cPhysicalKeys { st.remotePhysicalKeys = keys }
                     if let v = cTakeover {
                         if v {
                             EmergencyTakeover.shared.noteUserKeyDown()
+                            // 立即交还控制，不等待下一次 5Hz tick；快照与接管同包到达。
+                            if !st.benchSuppressAllInjection {
+                                st.controlEngine.releaseAIHeldKeys(preserving: st.remotePhysicalKeys)
+                            }
                             engineLog("[ENGINE] 🚨 应急：用户接管（按下受控键）→ 让位 "
                                       + "\(Int(EmergencyTakeover.shared.effectiveTickHz))Hz")
                         } else {
@@ -2164,6 +2172,7 @@ enum EngineMain {
                     // Lead 新增的消化模式（digest）也一并回显，保持 applied 是"真实写入全量"
                     if let v = cDigest { applied["digest"] = v }
                     // ET-5：takeover 也纳入回显（UI 可据此确认引擎真的收到了让位信号）
+                    if let keys = cPhysicalKeys { applied["physicalKeys"] = keys.sorted() }
                     if let v = cTakeover { applied["takeover"] = v }
                     // 按键掩码回显：录出来按键全 0 时，UI 侧可据此区分
                     // 「UI 没采到键」与「引擎没收到转发」两种原因。

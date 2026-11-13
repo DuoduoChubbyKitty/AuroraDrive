@@ -31,6 +31,9 @@ import Observation
 @Observable
 final class ControlEngine: @unchecked Sendable {
 
+    /// 跨 UI/引擎进程一致的自产事件标记，防止监听器把 AI 输出当成人工接管。
+    static let injectedEventTag: Int64 = 0x4155524F5241
+
     /// 按键动作枚举（语义化，与具体键位解耦）
     enum Action {
         case throttle    // 油门（前进）
@@ -430,6 +433,15 @@ final class ControlEngine: @unchecked Sendable {
         }
     }
 
+    /// 让位只清理本进程拥有的键；同键已被人按住时移交所有权，不发 keyUp。
+    /// 清空后重复调用不会再注入事件。停止/退出仍用 releaseAll 清残留。
+    func releaseAIHeldKeys(preserving physicalKeys: Set<CGKeyCode>) {
+        for keyCode in heldKeys.subtracting(physicalKeys) {
+            postKeyEvent(keyCode: keyCode, keyDown: false)
+        }
+        heldKeys.removeAll()
+    }
+
     /// 释放所有按住的键（停止自动驾驶时调用，避免按键卡住）
     /// 无条件对所有映射键发释放事件：即使本会话没记录按过（例如上次进程
     /// 异常退出残留的系统级卡键），也主动清掉，保证系统键盘状态干净。
@@ -515,6 +527,8 @@ final class ControlEngine: @unchecked Sendable {
             print("[ControlEngine] CGEvent 创建失败 keyCode=\(keyCode) keyDown=\(keyDown)")
             return
         }
+
+        event.setIntegerValueField(.eventSourceUserData, value: Self.injectedEventTag)
 
         // 仅在显式要求时标记为按键重复事件。
         // 注意：目标游戏（异环 NTE）会忽略带 auto-repeat 标记的 keyDown，
@@ -684,6 +698,8 @@ final class ControlEngine: @unchecked Sendable {
             print("[ControlEngine] typeText CGEvent 创建失败")
             return
         }
+        down.setIntegerValueField(.eventSourceUserData, value: Self.injectedEventTag)
+        up.setIntegerValueField(.eventSourceUserData, value: Self.injectedEventTag)
         down.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         up.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         // ⚠️ 消化模式：文本注入同样被消化（这条路径最容易「乱发消息」，

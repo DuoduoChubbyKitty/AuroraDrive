@@ -30,7 +30,7 @@
 //  【接线说明】（ET-4/ET-5 负责，本文件只管状态机本身）
 //    · 调用方在 tick 里喂 noteTickGap(实际间隔 ms)
 //    · YolopxEngine.isDegraded 变化时喂 noteModelDegraded
-//    · KeyboardMonitor 在 takeoverActive=true 时启用监听，收到按键喂 noteUserKeyDown/Up
+//    · KeyboardMonitor 在驾驶期间始终启用监听，收到按键喂 noteUserKeyDown/Up
 //    · effectiveTickHz 由 EngineMain 读，用于动态调 engineTickHz
 //
 //  【双进程注意】@MainActor 隔离；双进程（UI + engine）各有独立实例。
@@ -161,10 +161,10 @@ final class EmergencyTakeover {
         enterSprint()
     }
 
-    /// 用户真实按下受控键（仅在冲刺态生效 → 进入让位）。
+    /// 用户真实按下受控键（巡航或冲刺 → 进入让位）。
     func noteUserKeyDown() {
-        // 只在冲刺态响应（巡航态用户按键无意义；让位态已经在按键中）
-        if sprinting {
+        // 重复按下幂等；最后一个接管键松开才回巡航。
+        if !userHoldingKey {
             enterYield()
         }
     }
@@ -221,6 +221,9 @@ final class EmergencyTakeover {
     /// takeoverActive 保持 true（横幅可转「已接管」态，UI 用 userHoldingKey 区分）
     private func enterYield() {
         sprinting = false           // 退出 20Hz 冲刺期
+        takeoverActive = true      // 巡航直接让位也显示「已接管」，并保护 5Hz
+        sprintStart = nil
+        consecutiveMisses = 0
         userHoldingKey = true
         effectiveTickHz = Self.yieldHz
         print("[EmergencyTakeover] → 让位（\(Self.yieldHz)Hz）用户已接管")

@@ -5,7 +5,7 @@
 //  KeyboardMonitor.swift — 物理键盘全局监听
 //  用 NSEvent.addGlobalMonitorForEvents 监听系统级键盘按下/释放
 //  实时反映用户物理键盘状态，供 KeyboardBar 显示
-//  注意：全局监听需要辅助功能权限（与 ControlEngine 共用）
+//  注意：显式检查输入监控授权；不能把注入所用的辅助功能检查当成监听已就绪
 // ============================================================================
 
 import AppKit
@@ -14,7 +14,7 @@ import Observation
 /// 物理键盘全局监听器
 /// - 监听系统级 keyDown / keyUp 事件（即使 app 不在前台也能收到）
 /// - 实时更新 heldKeys，供 KeyboardBar 显示真实按键状态
-/// - 需要"辅助功能"权限（与按键注入共用）
+/// - 显式检查输入监控权限，与按键注入的辅助功能权限分开
 @Observable
 final class KeyboardMonitor {
 
@@ -31,12 +31,7 @@ final class KeyboardMonitor {
 
     // MARK: - 用户按键回调（ET-2 · 应急接管用）
 
-    /// 用户真实按下受控键（W/A/S/D/空格等驾驶键）时回调。
-    /// 只在 EmergencyTakeover.takeoverActive 时接线方会设值；平时为 nil（省资源）。
-    ///
-    /// 【零开销】nil 时本类只在 handleKeyDown 里做一次 `if let` 即返回，
-    /// 不查受控键集合（短路顺序：先判 nil，再判集合）。
-    /// 【线程】与 heldKeys 同模型：全局监听回调投递在主线程，接线方也在主线程设值。
+    /// 驾驶期间始终接线；修饰键只更新状态，不触发接管。
     var onUserKeyDown: (() -> Void)?
 
     /// 用户松开受控键时回调
@@ -77,14 +72,58 @@ final class KeyboardMonitor {
     private var keyUpMonitor: Any?
     /// 修饰键监听句柄（.flagsChanged）
     private var flagsMonitor: Any?
+    private var localMonitor: Any?
+    private var requestedInputMonitoring = false
+    private(set) var hasInputMonitoringPermission = false
+    var onPhysicalKeysChanged: (() -> Void)?
+
+    /// Shift/Ctrl 可观测，但不单独触发接管。
+    var isUserHoldingControlKey: Bool {
+        !heldKeys.intersection(Self.controlledKeyCodes.subtracting([56, 59])).isEmpty
+    }
+
+    @discardableResult
+    func checkInputMonitoringPermission() -> Bool {
+        hasInputMonitoringPermission = CGPreflightListenEventAccess()
+        return hasInputMonitoringPermission
+    }
+
+    @discardableResult
+    func requestInputMonitoringPermission() -> Bool {
+        if !checkInputMonitoringPermission(), !requestedInputMonitoring {
+            requestedInputMonitoring = true
+            _ = CGRequestListenEventAccess()
+        }
+        let granted = checkInputMonitoringPermission()
+        print("[KeyboardMonitor] 输入监控：\(granted ? "已授权" : "未授权；请在系统设置 → 隐私与安全性 → 输入监控中授权，然后重新启动 App")")
+        return granted
+    }
+
+    /// 排除本程序两进程注入的键；不假设硬件/系统转发事件的 PID 恒为 0。
+    private func handleEvent(_ event: NSEvent) {
+        guard let cgEvent = event.cgEvent,
+              cgEvent.getIntegerValueField(.eventSourceUserData) != ControlEngine.injectedEventTag else { return }
+        switch event.type {
+        case .keyDown:
+            if !event.isARepeat { handleKeyDown(keyCode: event.keyCode) }
+        case .keyUp: handleKeyUp(keyCode: event.keyCode)
+        case .flagsChanged: handleModifierFlags(event)
+        default: return
+        }
+        onPhysicalKeysChanged?()
+    }
 
     // MARK: - 启动 / 停止
 
     /// 启动全局键盘监听
     /// NSEvent.addGlobalMonitorForEvents：监听其他应用的事件（系统级）
-    /// 需要"辅助功能"权限，否则收不到事件
-    func start() {
-        guard keyDownMonitor == nil else { return }
+    /// 显式申请输入监控权限；global 不覆盖本应用，需配合 local monitor
+    @discardableResult
+    func start() -> Bool {
+        // --engine 没有 AppKit 事件循环；权限请求与采样只属于 UI 进程。
+        guard !ProcessInfo.processInfo.arguments.contains("--engine") else { return false }
+        guard requestInputMonitoringPermission() else { return false }
+        guard keyDownMonitor == nil else { return true }
 
         // 监听 keyDown（物理按下）
         // mask: .keyDown 表示按键按下事件
@@ -93,14 +132,13 @@ final class KeyboardMonitor {
         // 重置 keyDownTimes 时间戳 → holdDuration 永远只有 ~50ms，比例标签
         // 无法达到满刻度，按键时长功能失效。
         keyDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard !event.isARepeat else { return }
-            self?.handleKeyDown(keyCode: event.keyCode)
+            self?.handleEvent(event)
         }
 
         // 监听 keyUp（物理释放）
         // mask: .keyUp 表示按键释放事件
         keyUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyUp) { [weak self] event in
-            self?.handleKeyUp(keyCode: event.keyCode)
+            self?.handleEvent(event)
         }
 
         // 监听修饰键变化（.flagsChanged）
@@ -114,12 +152,28 @@ final class KeyboardMonitor {
         //   shift 列全程为 0 → handbrake/super_brake/ultimate 三个安全头
         //   一个正样本都拿不到，训练出来的模型永远不会拉手刹。
         flagsMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.handleModifierFlags(event)
+            self?.handleEvent(event)
         }
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] event in
+            self?.handleEvent(event)
+            return event
+        }
+        guard keyDownMonitor != nil, keyUpMonitor != nil,
+              flagsMonitor != nil, localMonitor != nil else {
+            print("[KeyboardMonitor] 监听注册失败；请检查输入监控与辅助功能授权并重启 App")
+            stop()
+            return false
+        }
+        print("[KeyboardMonitor] global/local 监听已注册（事件到达仍需真按键确认）")
+        return true
     }
 
     /// 停止全局键盘监听
     func stop() {
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMonitor = nil
+        }
         if let monitor = keyDownMonitor {
             NSEvent.removeMonitor(monitor)
             keyDownMonitor = nil
@@ -132,15 +186,14 @@ final class KeyboardMonitor {
             NSEvent.removeMonitor(monitor)
             flagsMonitor = nil
         }
-        heldKeys.removeAll()
-        keyDownTimes.removeAll()
+        clearAll()
     }
 
     // MARK: - 事件处理
 
     /// 按键按下：加入 heldKeys，并记录按住起点时间戳
     private func handleKeyDown(keyCode: CGKeyCode) {
-        heldKeys.insert(keyCode)
+        guard heldKeys.insert(keyCode).inserted else { return }
         keyDownTimes[keyCode] = Date()
         // ET-2：用户真实按下受控键 → 回调应急接管。
         // 短路顺序：先判闭包 nil（零开销），再查受控键集合（O(1) Set）。
@@ -152,10 +205,10 @@ final class KeyboardMonitor {
 
     /// 按键释放：从 heldKeys 移除，并清除时间戳
     private func handleKeyUp(keyCode: CGKeyCode) {
-        heldKeys.remove(keyCode)
+        guard heldKeys.remove(keyCode) != nil else { return }
         keyDownTimes.removeValue(forKey: keyCode)
         // ET-2：松开同理（短路顺序同上）
-        if let onUserKeyUp, Self.controlledKeyCodes.contains(keyCode) {
+        if let onUserKeyUp, Self.controlledKeyCodes.contains(keyCode), !isUserHoldingControlKey {
             onUserKeyUp()
         }
     }
@@ -225,7 +278,10 @@ final class KeyboardMonitor {
 
     /// 清空所有按键状态（失去焦点时调用，避免按键卡住）
     func clearAll() {
+        let wasHolding = isUserHoldingControlKey
         heldKeys.removeAll()
         keyDownTimes.removeAll()
+        if wasHolding { onUserKeyUp?() }
+        onPhysicalKeysChanged?()
     }
 }

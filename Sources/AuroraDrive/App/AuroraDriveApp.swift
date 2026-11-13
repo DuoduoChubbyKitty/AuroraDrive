@@ -4388,6 +4388,32 @@ final class DriveState {
     /// 【位定义】bit0=W bit1=A bit2=S bit3=D bit4=Shift bit5=Space
     /// 【只在引擎侧有值】UI 进程直接读本地 keyboardMonitor，不用这个字段。
     var remoteKeyMask: Int = 0
+    var remotePhysicalKeys: Set<CGKeyCode> = []
+    private var lastSentPhysicalKeys: Set<CGKeyCode>?
+
+    /// 在同一条 config 中发送完整物理键快照和让位状态，避免先让位后收到 W。
+    private func syncPhysicalControlState() {
+        guard isDriving, !isEngineHost else { return }
+        let keys = keyboardMonitor.heldKeys
+        let holding = keyboardMonitor.isUserHoldingControlKey
+        if EngineClient.shared.isActive {
+            guard keys != lastSentPhysicalKeys else { return }
+            if EngineClient.shared.sendCommand("config", extra: [
+                "physicalKeys": keys.map { Int($0) }.sorted(),
+                "keyMask": currentPhysicalKeyMask(), "takeover": holding
+            ]) {
+                lastSentPhysicalKeys = keys
+                dlog("[KeyboardMonitor] 物理键=\(keys.sorted()) takeover=\(holding) 已发送")
+            }
+        } else {
+            if holding {
+                EmergencyTakeover.shared.noteUserKeyDown()
+                if !benchSuppressAllInjection { controlEngine.releaseAIHeldKeys(preserving: keys) }
+            } else {
+                EmergencyTakeover.shared.noteUserKeyUp()
+            }
+        }
+    }
 
     /// 本 DriveState 是否活在**引擎进程**里（EngineMain 创建时置 true）。
     ///
@@ -4707,6 +4733,7 @@ final class DriveState {
     /// 把当前按键掩码转发给引擎进程（仅引擎模式、仅录制中、仅变化时）。
     /// 引擎侧收到后写入 `remoteKeyMask`，供其 recordFrameIfNeeded 生成 V3 标签。
     func forwardPhysicalKeysToEngineIfNeeded() {
+        syncPhysicalControlState()
         guard EngineClient.shared.isActive, isRecording else { return }
         let mask = currentPhysicalKeyMask()
         guard mask != lastSentKeyMask else { return }
@@ -6996,12 +7023,28 @@ final class DriveState {
     /// 3. 启动截屏画面流
     /// 4. 后续由推理引擎决定注入什么按键（当前仅占位，状态机已就位）
     func startDriving() {
+        if !isEngineHost {
+            guard keyboardMonitor.requestInputMonitoringPermission() else {
+                dlog("[KeyboardMonitor] 输入监控未授权，拒绝启动驾驶：无法保证人工接管")
+                return
+            }
+            let sync: () -> Void = { [weak self] in self?.syncPhysicalControlState() }
+            keyboardMonitor.onUserKeyDown = sync
+            keyboardMonitor.onUserKeyUp = sync
+            keyboardMonitor.onPhysicalKeysChanged = sync
+            guard keyboardMonitor.start() else {
+                dlog("[KeyboardMonitor] 监听未就绪，拒绝启动驾驶")
+                return
+            }
+            lastSentPhysicalKeys = nil
+        }
         // ── 引擎模式：命令转发给后台引擎（UI 不启动本地抓屏/推理/按键）──
         if EngineClient.shared.isActive {
             EngineClient.shared.sendCommand("start")
             lastDriveCommandTime = Date()
             isDriving = true
             drivingStartTime = Date()
+            syncPhysicalControlState()
             dlog("[引擎模式] 已发送 start 命令给后台引擎")
             return
         }
@@ -7085,24 +7128,7 @@ final class DriveState {
         brakeAuditSpace = 0
         driveAuditE2EFrames = 0
 
-        keyboardMonitor.start()   // 启动物理键盘监听（KeyboardBar 显示用 + 录制用）
-        // ★ ET-4（2026-10-12）：把 UI 进程的物理按键事件经 socket 通知引擎。
-        //
-        // 【跨进程架构】KeyboardMonitor 只在 UI 进程（引擎进程是后台无 GUI，
-        //   收不到 NSEvent —— 见 V4 审计）。而真正注入按键、需要"让位"的是
-        //   引擎进程。故：UI 监听按键 → socket config → 引擎设 takeover 状态。
-        //
-        // 【为什么不需要门控 takeoverActive】Lead 裁决：回调是轻量的（发一条
-        //   socket JSON），且引擎侧 noteUserKeyDown 只在 sprinting 状态才生效，
-        //   平时无害。加门控反而要跨进程同步 takeoverActive（复杂且有时序 gap）。
-        //   本回调**只在受控键**触发 —— KeyboardMonitor 内部已用
-        //   controlledKeyCodes 过滤（:128/:138），非受控键不会发 socket。
-        keyboardMonitor.onUserKeyDown = {
-            _ = EngineClient.shared.sendCommand("config", extra: ["takeover": true])
-        }
-        keyboardMonitor.onUserKeyUp = {
-            _ = EngineClient.shared.sendCommand("config", extra: ["takeover": false])
-        }
+        syncPhysicalControlState()
         captureEngine.start()
         // networkLocator.start()  // 旧网络抓包定位已移除    // 启动网络抓包定位
         // ── 主驾模型：V2 优先；M9 只在 V2 **真的加载失败**时才加载（2026-10-24 打死 M9 空转）──
@@ -7173,10 +7199,13 @@ final class DriveState {
             EngineClient.shared.sendCommand("stop")
             lastDriveCommandTime = Date()
             isDriving = false
+            lastSentPhysicalKeys = nil
+            if !isRecording { keyboardMonitor.stop() }
             dlog("[引擎模式] 已发送 stop 命令给后台引擎")
             return
         }
         isDriving = false
+        EmergencyTakeover.shared.noteUserKeyUp()
         controlEngine.releaseAll()
         keyboardMonitor.stop()
         captureEngine.stop()
@@ -8801,7 +8830,12 @@ final class DriveState {
             // 否则 return 后的 releaseAll 走不到，空格会永久卡住。
             if speedLimitBrakeLatched {
                 speedLimitBrakeLatched = false
-                releaseSpeedLimitBrake()
+                if EmergencyTakeover.shared.userHoldingKey {
+                    controlEngine.releaseAIHeldKeys(preserving:
+                        isEngineHost ? remotePhysicalKeys : keyboardMonitor.heldKeys)
+                } else {
+                    releaseSpeedLimitBrake()
+                }
                 dlog("限速刹车 强制退出（准入条件不再满足）")
             }
         }
@@ -9054,6 +9088,10 @@ final class DriveState {
         if benchSuppressAllInjection {
             // 夹具模式：**零注入**。只复位刹车闩锁状态（纯内存写，不发事件）。
             if speedLimitBrakeLatched { speedLimitBrakeLatched = false }
+        } else if EmergencyTakeover.shared.userHoldingKey {
+            // 人工让位优先于专家/禁用控制的全量清扫，绝不释放人物理按住的键。
+            controlEngine.releaseAIHeldKeys(preserving:
+                isEngineHost ? remotePhysicalKeys : keyboardMonitor.heldKeys)
         } else if expertMode || controlDisabled {
             // ★ 阶段4（2026-10-01 折叠）：`releaseAll()` → `releaseAllIfNeeded()`。
             //   实测依据：`tick.inject` p50=0.15ms 占整帧 71%（tick 分段剖析），
@@ -9070,16 +9108,6 @@ final class DriveState {
             }
             // ★ E1：先比后写（专家模式下本已为 false，每帧白写会触发重绘）
             if speedLimitBrakeLatched { speedLimitBrakeLatched = false }   // 刹车状态一并复位，防下次进来自锁
-        } else if EmergencyTakeover.shared.userHoldingKey {
-            // ★ ET-4（2026-10-12）：让位 —— 用户正按住应急键，不与用户抢控制权。
-            //
-            // 【ET-6 结论】一次性 releaseAll 不够：下一帧 tick 会 applyCommand
-            //   重新按下去。故这里是**持续抑制**：本帧跳过 applyCommand，
-            //   并释放 AI 已注入的键。
-            //
-            // 【为什么只在这里生效】UI 进程在 :6886 的 isActive 早退前就 return
-            //   了，走不到本行 → 只有引擎进程执行（真正注入按键的那方）。
-            controlEngine.releaseAll()
         } else {
             // ── P0-2：防侧翻兜底（在**最终物理键集合**上约束，不是改模型输出）──
             //
