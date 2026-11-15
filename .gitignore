@@ -193,3 +193,8 @@ docs/文档库/神秘乱七八糟的文档/异环开车素材-分段/
 
 # ===== 第三方论文 PDF（2026-11-03：4.3MB，来源 arXiv:2310.20650 可重新下载，不入库）=====
 docs/v3-design/papers/*.pdf
+
+# ── V3 INT4 复审：备份模型与训练 checkpoint 不入库（走云盘，报告里记 sha256 溯源）──
+models/v3_int4_prev_*.mlmodelc/
+models/v3_int4_full6mb_*.mlmodelc/
+models/aurora_v3_best_ep*.pt

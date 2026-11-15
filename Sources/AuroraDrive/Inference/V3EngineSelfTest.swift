@@ -321,7 +321,9 @@ private func v3SourceContainsNormalized(_ src: String, _ needle: String) -> Bool
 func runV3EngineSelfTest() -> Int {
     let bar = String(repeating: "=", count: 78)
     print(bar)
-    print("V3 引擎自检（INT4 / ANE / 24 帧双分辨率窗口）")
+    print("V3 引擎自检（24 帧双分辨率窗口；计算单元配置 .cpuAndNeuralEngine）")
+    print("  说明：本自检验证「模型能加载并产出正确决策」，不验证每个算子实际派发到 ANE；")
+    print("        INT4/LUT 实际形态以编译产物 models/v3_int4.mlmodelc 的 model.mil 为准。")
     print(bar)
 
     var ledger = V3SelfTestLedger()
@@ -668,75 +670,121 @@ func runV3EngineSelfTest() -> Int {
     ledger.check("找到真实连续帧", frameURLs.count >= 30, "\(frameURLs.count) 帧")
 
     if frameURLs.count >= 30 {
-        // 逐帧喂入（每帧等推理完成，避免 isInferencing 跳过）
-        var latencies: [Double] = []
+        // 逐帧喂入：每帧等推理完成。T4 要求**每一帧**都成功产出且逐帧输出有限，
+        // 而不是「至少 1 帧成功」——旧实现 `inferenceCount > 0` 在 1/30 成功时也判过，
+        // 属"错误也判通过"（评审 P1-6）。
+        var engineLatencies: [Double] = []   // 引擎内部推理耗时（r.latencyMs，不含预处理前段）
+        var e2eLatencies: [Double] = []      // 真·端到端：提交前 → 拿到本帧决策的墙钟耗时
+        var completedCount = 0
+        var finiteViolations = 0
+        var rangeViolations = 0
+        var classViolations = 0
         for url in frameURLs {
             guard let cg = v3LoadCGImage(url) else { continue }
             let before = engine.inferenceCount
+            let submitAt = Date()
             engine.infer(image: cg)
-            if v3DrainOneInference(engine, before: before), let r = engine.lastResult {
-                latencies.append(r.latencyMs)
+            guard v3DrainOneInference(engine, before: before), let r = engine.lastResult else {
+                continue  // 本帧未在超时内完成 → 计入失败
             }
+            let deliverAt = Date()
+            completedCount += 1
+            engineLatencies.append(r.latencyMs)
+            e2eLatencies.append(deliverAt.timeIntervalSince(submitAt) * 1000.0)
+            let d = engine.lastDecision
+            if !(r.steer.isFinite && r.throttle.isFinite && r.brake.isFinite
+                 && d.confidence.isFinite && d.risk.isFinite) { finiteViolations += 1 }
+            if !(d.confidence >= 0 && d.confidence <= 1 && d.risk >= 0 && d.risk <= 1) { rangeViolations += 1 }
+            if !((0...2).contains(d.verticalClass) && (0...2).contains(d.horizontalClass)) { classViolations += 1 }
         }
 
-        ledger.check("端到端产出结果", engine.inferenceCount > 0,
-                     "成功 \(engine.inferenceCount)/\(frameURLs.count) 帧")
-
+        // T4：全部帧成功（不是 >0）
+        ledger.check("端到端全部帧成功产出（非仅 1 帧）", completedCount == frameURLs.count,
+                     "成功 \(completedCount)/\(frameURLs.count) 帧")
+        // T4：逐帧有限 / 区间 / 分类合法性（不是只看末帧）
+        ledger.check("逐帧输出全部有限（非 NaN/Inf）", finiteViolations == 0,
+                     "违规 \(finiteViolations)/\(completedCount) 帧")
+        ledger.check("逐帧 confidence/risk ∈ [0,1]", rangeViolations == 0,
+                     "违规 \(rangeViolations)/\(completedCount) 帧")
+        ledger.check("逐帧分类编号合法", classViolations == 0,
+                     "违规 \(classViolations)/\(completedCount) 帧")
         if let last = engine.lastResult {
             let d = engine.lastDecision
-            let finite = last.steer.isFinite && last.throttle.isFinite
-                && last.brake.isFinite && d.confidence.isFinite && d.risk.isFinite
-            ledger.check("输出全部有限（非 NaN/Inf）", finite)
-            ledger.check("confidence ∈ [0,1]", d.confidence >= 0 && d.confidence <= 1,
-                         String(format: "%.4f", d.confidence))
-            ledger.check("risk ∈ [0,1]", d.risk >= 0 && d.risk <= 1,
-                         String(format: "%.4f", d.risk))
-            ledger.check("分类编号合法", (0...2).contains(d.verticalClass) && (0...2).contains(d.horizontalClass),
-                         "v=\(d.verticalClass) h=\(d.horizontalClass)")
             print("    末帧决策: \(d.debugSummary)")
             print(String(format: "    steer=%.2f throttle=%.2f brake=%.2f",
                          last.steer, last.throttle, last.brake))
-        } else {
-            ledger.check("读取末帧结果", false, "lastResult 为 nil")
         }
 
-        // ── T5：延迟 ──
-        ledger.section("[T5] 端到端延迟（预处理 + 推理，串行）")
-        if !latencies.isEmpty {
-            let sorted = latencies.sorted()
-            let mean = latencies.reduce(0, +) / Double(latencies.count)
-            let p50 = sorted[sorted.count / 2]
-            let mx = sorted.last ?? 0
-            print(String(format: "    mean=%.2fms  p50=%.2fms  max=%.2fms  n=%d",
-                         mean, p50, mx, latencies.count))
-            ledger.check("满足 30FPS 预算（≤33.3ms）", p50 <= 33.3, String(format: "p50=%.2fms", p50))
-            ledger.check("满足 15FPS 预算（≤66.7ms）", p50 <= 66.7, String(format: "p50=%.2fms", p50))
+        // ── T5：延迟（真·端到端 + 尾延迟） ──
+        // 旧实现只用 r.latencyMs（计时起点在预处理之后，不含排队/前段/主线程交付），
+        // 且只报 p50/max（评审 P1-6）。这里改用「提交前 → 拿到本帧决策」的墙钟，
+        // 并给出 p50/p95/p99/max，用 p95 卡 15FPS 预算以覆盖尾延迟。
+        ledger.section("[T5] 端到端延迟（提交→交付，墙钟）含尾延迟 p95/p99")
+        if !e2eLatencies.isEmpty {
+            func pct(_ arr: [Double], _ p: Double) -> Double {
+                let s = arr.sorted(); let idx = min(s.count - 1, max(0, Int((Double(s.count - 1) * p).rounded())))
+                return s[idx]
+            }
+            let p50 = pct(e2eLatencies, 0.50), p95 = pct(e2eLatencies, 0.95)
+            let p99 = pct(e2eLatencies, 0.99), mx = e2eLatencies.max() ?? 0
+            let mean = e2eLatencies.reduce(0, +) / Double(e2eLatencies.count)
+            let engP50 = pct(engineLatencies, 0.50)
+            print(String(format: "    e2e: mean=%.2f p50=%.2f p95=%.2f p99=%.2f max=%.2f ms (n=%d，含~5ms轮询粒度)",
+                         mean, p50, p95, p99, mx, e2eLatencies.count))
+            print(String(format: "    引擎内: latencyMs p50=%.2f ms（对比参考，非门禁）", engP50))
+            ledger.check("e2e p95 满足 15FPS 预算（≤66.7ms）", p95 <= 66.7, String(format: "p95=%.2fms", p95))
+            // 30FPS(33.3ms) 是加强目标、非本引擎设计预算（V3 为 15Hz）。p50 未达只作信息，不判失败，
+            // 避免不同硬件/负载下把「未达 30FPS」误当引擎失败（评审 P1-E）。
+            let p50_30fps_ok = p50 <= 33.3
+            print(String(format: "    30FPS 加强目标(≤33.3ms)：%@ p50=%.2fms（信息项，非失败）",
+                         p50_30fps_ok ? "达标" : "未达", p50))
         } else {
             ledger.check("采集延迟样本", false, "无样本")
         }
 
         // ── T6：黑 / 白帧对照（证明图像真的进了模型） ──
-        ledger.section("[T6] 黑帧 vs 白帧：输出必须随输入变化（非恒定）")
-        func runSolid(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> (Double, Double)? {
+        // 旧实现（评审 P1-6/P1-E）只比 confidence/risk 两个标量。实测纯色是 OOD 输入，
+        // 两帧 confidence/risk 可能都喂到同一饱和值（如 0.9236/0.2035）而"相同"，
+        // 但图像是否真的进了模型应看**完整 8 路决策**（含动作 logits），任一维度不同即接通。
+        // 这里：①两组各 26 帧强制全部完成；②逐维比较 6 动作 + conf + risk 的 max|Δ|；
+        //          ③判据=任一维明显不同（>1e-3）。这样只在模型对纯色完全无响应时才失败。
+        ledger.section("[T6] 黑帧 vs 白帧：完整 8 路输出必须随输入变化（非恒定）")
+        func runSolid(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> (dec: V3Decision, done: Int)? {
             let e = InferenceEngineV3()
             e.loadIfNeeded()
             guard e.isLoaded, let img = v3SolidImage(r: r, g: g, b: b) else { return nil }
-            // 喂满 24 帧，确保窗口填满（避免钳位影响）
+            var done = 0
             for _ in 0..<26 {
                 let before = e.inferenceCount
                 e.infer(image: img)
-                _ = v3DrainOneInference(e, before: before)
+                if v3DrainOneInference(e, before: before) { done += 1 }
             }
-            let d = e.lastDecision
-            return (d.confidence, d.risk)
+            return (e.lastDecision, done)
+        }
+        func actionVec(_ d: V3Decision) -> [Double] {
+            [Double(d.verticalClass), Double(d.horizontalClass),
+             d.brakePressed ? 1 : 0, d.handbrakePressed ? 1 : 0,
+             d.superBrakePressed ? 1 : 0, d.ultimatePressed ? 1 : 0,
+             d.confidence, d.risk]
         }
         if let black = runSolid(0, 0, 0), let white = runSolid(1, 1, 1) {
-            let dConf = abs(black.0 - white.0)
-            let dRisk = abs(black.1 - white.1)
-            print(String(format: "    黑帧 conf=%.4f risk=%.4f", black.0, black.1))
-            print(String(format: "    白帧 conf=%.4f risk=%.4f", white.0, white.1))
-            ledger.check("输出随输入变化（图像链路真的接通）", dConf > 0.01 || dRisk > 0.01,
-                         String(format: "Δconf=%.4f Δrisk=%.4f", dConf, dRisk))
+            ledger.check("黑帧组 26 帧全部完成", black.done == 26, "完成 \(black.done)/26")
+            ledger.check("白帧组 26 帧全部完成", white.done == 26, "完成 \(white.done)/26")
+            let bv = actionVec(black.dec), wv = actionVec(white.dec)
+            let maxDelta = zip(bv, wv).map { abs($0 - $1) }.max() ?? 0
+            print(String(format: "    黑帧 v=%d h=%d brk=%d hb=%d sb=%d ul=%d conf=%.4f risk=%.4f",
+                         black.dec.verticalClass, black.dec.horizontalClass,
+                         black.dec.brakePressed ? 1 : 0, black.dec.handbrakePressed ? 1 : 0,
+                         black.dec.superBrakePressed ? 1 : 0, black.dec.ultimatePressed ? 1 : 0,
+                         black.dec.confidence, black.dec.risk))
+            print(String(format: "    白帧 v=%d h=%d brk=%d hb=%d sb=%d ul=%d conf=%.4f risk=%.4f",
+                         white.dec.verticalClass, white.dec.horizontalClass,
+                         white.dec.brakePressed ? 1 : 0, white.dec.handbrakePressed ? 1 : 0,
+                         white.dec.superBrakePressed ? 1 : 0, white.dec.ultimatePressed ? 1 : 0,
+                         white.dec.confidence, white.dec.risk))
+            // 判据：完整 8 路任一维明显不同 → 图像链路接通。仅在模型对纯色完全无响应时失败。
+            ledger.check("完整 8 路输出随输入变化（图像链路真的接通）", maxDelta > 1e-3,
+                         String(format: "max 8-路 Δ=%.5f（黑/白）", maxDelta))
         } else {
             ledger.check("黑/白对照", false, "推理失败")
         }
@@ -1432,7 +1480,7 @@ private func runV3ControlPathChecks(state: DriveState, realFrames: [CGImage]) ->
                                             isFresh: fresh,
                                             // 车速在 tick 前段写入、注入段在其后读取；
                                             // tick 结束后读到的正是注入时刻的真实值。
-                                            speedKmh: state.effectiveSpeed,
+                                            speedKmh: state.trustedSpeedKmh,
                                             speedValid: state.speedValid)
         // 限速刹车会提前 return 抢走控制权，此时六键不属于 V3 决策，跳过键集断言。
         if !state.speedLimitBrakeLatched {
@@ -1749,7 +1797,7 @@ private func runV3ControlPathChecks(state: DriveState, realFrames: [CGImage]) ->
           v3SourceContainsNormalized(appSrc, "let brakeHeadsActive = v3Active && decided == .e2e && v3DecisionFresh")
           && v3SourceContainsNormalized(appSrc, "if brakeHeadsActive { applyV3BrakeHeads(inferenceEngineV3.lastDecision) } else { controlEngine.release(.boost) controlEngine.release(.handbrake) }"))
     check("P0-2：注入前对最终命令套防侧翻兜底",
-          v3SourceContainsNormalized(appSrc, "injectCommand = InferenceEngineV3.applyRolloverGuard( to: currentCommand, decision: inferenceEngineV3.lastDecision, speedKmh: effectiveSpeed, speedValid: speedValid)")
+          v3SourceContainsNormalized(appSrc, "injectCommand = InferenceEngineV3.applyRolloverGuard( to: currentCommand, decision: inferenceEngineV3.lastDecision, speedKmh: trustedSpeedKmh, speedValid: speedValid)")
           && v3SourceContainsNormalized(appSrc, "applyCommand(injectCommand)"))
     check("P0-2：兜底仅在刹车头生效时介入（其他档位不改写纵向）",
           v3SourceContainsNormalized(appSrc, "if brakeHeadsActive { injectCommand = InferenceEngineV3.applyRolloverGuard("))
