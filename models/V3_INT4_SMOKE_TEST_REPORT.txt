@@ -5,7 +5,7 @@ V3 INT4 部署冒烟/验收汇总 —— 总判定 PASSED
 体积(实测目录): 9.661 MiB   LUT: 84
 内容指纹(实测): 8431c7815b447193…   记录: 8431c7815b447193…
 checkpoint: aurora_v3_best_ep13_20261115.pt  sha 898cc9b98cdc…
-git HEAD: 1f182708124c4189e3a1792d8177b5c8975ff721  dirty=True
+git HEAD: 829d696e0dce775f693afb2ff84ccd2e704229cc  dirty=True
 ------------------------------------------------------------------------
 eval_status=passed  deploy_status=deployed
 样本数=128 来源=val_clips_reconstructed 分片=['clip_20261104_131750[0-4102]', 'clip_20261104_211247[0-3999]']

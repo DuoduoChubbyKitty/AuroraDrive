@@ -1,6 +1,6 @@
 # V3 INT4 部署审计报告
 
-> 由 `tools/v3_exp/gen_v3_audit_report.py` 于 2026-11-16 07:25:58 自动生成。
+> 由 `tools/v3_exp/gen_v3_audit_report.py` 于 2026-11-16 07:30:19 自动生成。
 > **总判定：PASSED**（任一门禁失败即 FAILED，且脚本退出码非 0）
 
 ## 一、门禁结果
@@ -25,8 +25,8 @@
 
 | 项 | 值 |
 |---|---|
-| git HEAD | `1f182708124c4189e3a1792d8177b5c8975ff721` |
-| git 工作树 dirty | True（status sha256 `2b631f0d4c0d…`）|
+| git HEAD | `829d696e0dce775f693afb2ff84ccd2e704229cc` |
+| git 工作树 dirty | True（status sha256 `d7e86bdd3060…`）|
 | 导出脚本 sha256 | `9c01cd08fe0a1f42…` |
 | 自检 Swift 源码 sha256 | `2b8f73ec77ed2b87…` |
 | 自检二进制 sha256 | `3ddc772c07d91f33…` |

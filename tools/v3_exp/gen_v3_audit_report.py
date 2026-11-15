@@ -290,12 +290,25 @@ def verify_drift(drift, accepted: dict = None, measured_content_sha: str = "") -
                     ps = per_sample[idx]
                     if ps.get("shard") != fd.get("shard") or ps.get("frame") != fd.get("frame"):
                         problems.append(f"{head} 翻转 shard/frame 与 per_sample[{idx}] 不符")
+            # 方向必须由决策字段重建并核对（评审 R5 P1：防止伪造 direction 骗过豁免）
+            fpd = fd.get("fp16_decision") if isinstance(fd, dict) else None
+            itd = fd.get("int4_decision") if isinstance(fd, dict) else None
+            dirn = fd.get("direction") if isinstance(fd, dict) else None
+            dom = {"0", "1", "2"} if head in ("vertical", "horizontal") else {"true", "false"}
+            if fpd not in dom or itd not in dom:
+                problems.append(f"{head} 翻转决策字段缺失/越域 fp16={fpd!r} int4={itd!r}")
+            elif fpd == itd:
+                problems.append(f"{head} 翻转两端决策相同({fpd})→并非真实翻转")
+            else:
+                rebuilt = f"{fpd}→{itd}"
+                if dirn != rebuilt:
+                    problems.append(f"{head} direction={dirn!r} 与决策重建 {rebuilt!r} 不符")
             if abs(float(m)) >= NON_BOUNDARY_MARGIN:
                 key = (head, fd.get("shard") if isinstance(fd, dict) else None,
                        fd.get("frame") if isinstance(fd, dict) else None,
-                       fd.get("direction") if isinstance(fd, dict) else None)
-                if acc_active and key in acc_set:
-                    warns.append(f"{head} 非边界翻转({fd.get('shard')}#{fd.get('frame')},{fd.get('direction')},裕度{abs(float(m)):.3f})已签字接受")
+                       dirn)
+                if acc_active and key in acc_set and dirn == f"{fpd}→{itd}":
+                    warns.append(f"{head} 非边界翻转({fd.get('shard')}#{fd.get('frame')},{dirn},裕度{abs(float(m)):.3f})已签字接受")
                 else:
                     problems.append(f"{head} 非边界翻转(裕度{abs(float(m)):.3f})不可接受(方向/样本未签署)")
     if das:
