@@ -47,9 +47,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import random
 import statistics
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -70,6 +72,61 @@ REQUIRED_COLUMNS = [
 
 #: 原子键列（用于校验组合键一致性）
 ATOMIC_KEYS = ["w", "a", "s", "d", "shift", "space"]
+
+#: 「修饰键卡键」判定的最短连续帧数。
+#:
+#: 【为什么需要这个判定】录制器（tools/aurora_recorder.c）在部分片段里把
+#:   shift/space 粘住了：clip_20261104_131750 帧 1190-2254 共 1065 帧
+#:   （约 71 秒）shift 与 space 恒为 1，期间车速 0→191km/h、玩家一直在按 W。
+#:   人不可能连续 71 秒不松手刹与空格 —— 这是录制故障，不是操作。
+#:
+#:   若不处理，会产生两个确定性错误：
+#:     ① super_brake(=shift∧space) 头学到「这类画面永远=1」；
+#:     ② L_rollover 的 violation = w(speed)·P(super_brake)·(1−P(S))，
+#:        在高速段把 P(S) 硬推向 1，与 vertical 的 CE 标签（W）直接对冲：
+#:        λ_roll=2.0 > λ_key=0.8，实测四个 P(S) 取值点上 rollover 梯度全部更大
+#:        → 模型被按着「看到超级刹车就踩 S」，即使标签是给油。
+#:
+#:   5 秒（75 帧 @15Hz）是保守下限：真实「按住超级刹车」是点按，不会连续 75 帧。
+MODIFIER_STUCK_MIN_RUN = 75
+
+
+def modifier_valid_from_rows(rows: List[Dict[str, str]]) -> List[bool]:
+    """逐帧判定「修饰键(shift/space)标签是否可信」。
+
+    返回与 rows 等长的布尔列表：False 表示该帧处于**疑似卡键段**，
+    其 shift/space 值不可信，不应作为 super_brake/ultimate 的监督目标，
+    也不应参与 L_rollover。
+
+    ⚠️ 这类帧的 **vertical / horizontal 仍然可信、仍用于训练**：
+      卡键只影响两个修饰键，不代表玩家没在给油或打方向。
+      所以本函数只产出 mask，**绝不删帧**。
+
+    判定依据（只依赖数据本身，不写死 clip 名/帧号）：
+      存在一段连续 ≥ MODIFIER_STUCK_MIN_RUN 帧、shift 与 space 同时为 1。
+      该段内所有帧标记为不可信。
+    """
+    n = len(rows)
+    both = []
+    for r in rows:
+        try:
+            sh, sp = _bit(r, "shift"), _bit(r, "space")
+        except ValueError:
+            sh = sp = 0
+        both.append(1 if (sh == 1 and sp == 1) else 0)
+
+    valid = [True] * n
+    start = None
+    for i in range(n + 1):
+        on = both[i] if i < n else 0
+        if on and start is None:
+            start = i
+        elif not on and start is not None:
+            if i - start >= MODIFIER_STUCK_MIN_RUN:
+                for j in range(start, i):
+                    valid[j] = False
+            start = None
+    return valid
 
 #: 高清帧数。必须与 model_v3.V3Config.num_hi_frames 一致（默认 3）。
 #: 24 帧窗口 = 3 高清(t,t−1,t−2) + 21 低清(t−3 … t−23)，总计 24 帧 @15Hz = 1.6s。
@@ -157,7 +214,8 @@ def horizontal_from_keys(a: int, d: int) -> int:
     return 1
 
 
-def intent_from_keys(w: int, a: int, s: int, d: int, shift: int, space: int) -> int:
+def intent_from_keys(w: int, a: int, s: int, d: int, shift: int, space: int,
+                    modifier_valid: bool = True) -> int:
     """stage1 制动意图：0=GO / 1=SLOW / 2=STOP（仅训练用）。
 
     定义严格照 03-output-head.md §3.3：
@@ -165,7 +223,20 @@ def intent_from_keys(w: int, a: int, s: int, d: int, shift: int, space: int) -> 
         SLOW(1)：按了 Shift（手刹），或「同时给油+转向」（转弯需减速）
         GO(0)  ：其余
     STOP 必须先判，否则「Shift+Space+S」会被 SLOW 抢走。
+
+    【为什么必须按 modifier_valid 屏蔽】
+        卡键段（modifier_valid=False）里 shift 与 space 恒为 1（录制故障），
+        若照原始值计算，STOP 分支的 `space` 恒真 → 整段被误判成 STOP。
+        实测 clip_20261104_131750 第 2000 帧：vertical=W（正确）却 intent=STOP（错误）。
+        而 intent 监督的 stage1 状态会传播进控制主干（model_v3.py:1043-1053），
+        等于教模型「这画面是停车场景」—— 这是 ultimate 误触发的直接来源。
+        故 modifier_valid=False 时把 shift/space 视为 0（不可信，不参与判定）。
+
+    ⚠️ `s` 是原子键、不受卡键影响（卡键只坏 shift/space），仍照常参与判定：
+       卡键段里真按了 S 的帧依然是合法 STOP，不能一起抹掉。
     """
+    if not modifier_valid:
+        shift = space = 0
     if space or s:
         return 2
     if shift or (w and (a or d)):
@@ -198,7 +269,45 @@ def validate_row(row: Dict[str, str], where: str) -> None:
 # 代理真值（confidence / risk）
 # ----------------------------------------------------------------------------
 
-def _confidence_targets(control_matrix: np.ndarray, tau: float = 0.15) -> np.ndarray:
+def confidence_valid_from_modifier_valid(modifier_valid: List[bool]) -> List[bool]:
+    """逐帧判定「confidence 代理真值是否可信」。
+
+    【为什么 confidence 需要**相邻两帧都可信**】
+        `_confidence_targets` 用「本帧与上一帧（t-1）的控制量差异」构造真值：
+        差异大 → 低置信。若本帧或上一帧任一处于卡键段，其 shift/space 是故障值，
+        差分就会被故障污染：
+          · 卡键段起始帧：t-1 正常、t 变 1 → 伪造出「键状态剧变」→ confidence 假性变低；
+          · 卡键段结束帧：t-1 是 1(故障)、t 恢复正常 → 又一次伪造剧变。
+        所以只要 `modifier_valid[t]` 或 `modifier_valid[t-1]` 任一为 False，
+        本帧 confidence 就不可信，必须屏蔽。
+
+    【为什么首帧（t=0）只要求本帧可信】
+        首帧没有上一帧（`_confidence_targets` 里 conf[0]=1.0，不参与差分），
+        不存在「相邻帧污染」，故只看本帧。这与 `_confidence_targets` 的首帧
+        特判严格对应；若这里也要求 t-1，会把每段第 0 帧误屏蔽（那里根本没有差分）。
+
+    实测影响（data/lean_clips + data/lean_clips_hudmasked 两个目录一致）：
+        卡键段共 3 段，`modifier_valid=0` 1739 帧；按本规则 confidence 不可信
+        1742 帧 = 1739 + 3（每段之后的第一帧）。多出的 3 帧正是「离开卡键段
+        第一帧」——它的差分项仍被上一帧的故障值污染，确实必须屏蔽。
+
+    Args:
+        modifier_valid: 与 `modifier_valid_from_rows` 输出等长的布尔列表
+    Returns:
+        与输入等长的布尔列表：True=该帧 confidence 真值可信
+    """
+    n = len(modifier_valid)
+    valid = [True] * n
+    for i in range(n):
+        if not modifier_valid[i]:
+            valid[i] = False
+        elif i > 0 and not modifier_valid[i - 1]:
+            valid[i] = False
+    return valid
+
+
+def _confidence_targets(control_matrix: np.ndarray, tau: float = 0.15,
+                        modifier_valid: Optional[List[bool]] = None) -> np.ndarray:
     """由「控制量的帧间变化」构造 confidence 代理真值（越小越该低置信）。
 
     语义对齐 src/risk_head.py:1128 的 `confidence_target_from_temporal_change`：
@@ -208,6 +317,11 @@ def _confidence_targets(control_matrix: np.ndarray, tau: float = 0.15) -> np.nda
         control_matrix: [N, 6] 每帧的 6 个原子键（w,a,s,d,shift,space），0/1
         tau: 变化量到置信度的缩放。6 个键最大变化量是 6，用 tau=0.15 时
              单键变化约降 0.15 置信度。
+        modifier_valid: 可选的逐帧真值屏蔽（见 `modifier_valid_from_rows`）。
+             传入时，**不可信帧的 shift/space 先按键位降级为 0** 再算差分。
+             为什么必须降级：卡键段的 shift/space 是录制故障，差分里保留它们
+             会在卡键段边界伪造「键状态剧变」。降级后差分只反映可信原子键的变化。
+             注意这里只改*差分输入*，不改返回的置信度语义。
     Returns:
         [N, 1] float32，值域 (0, 1]
     """
@@ -215,14 +329,24 @@ def _confidence_targets(control_matrix: np.ndarray, tau: float = 0.15) -> np.nda
     conf = np.ones((n, 1), dtype=np.float32)
     if n < 2:
         return conf
+    cm = control_matrix
+    if modifier_valid is not None:
+        # 复制后再降级，绝不改动调用方的矩阵（它被多帧缓存共享）
+        cm = np.array(control_matrix, dtype=np.float32, copy=True)
+        # 原子键顺序见 dataset_v3.ATOMIC_KEYS = [w,a,s,d,shift,space] → 4/5 位
+        for i in range(n):
+            if not modifier_valid[i]:
+                cm[i, 4] = 0.0
+                cm[i, 5] = 0.0
     # 当前帧与上一帧的差异键个数（0..6）
-    diff = np.abs(np.diff(control_matrix, axis=0)).sum(axis=1)  # [N-1]
+    diff = np.abs(np.diff(cm, axis=0)).sum(axis=1)  # [N-1]
     # 与前向差分对齐：第 i 帧的"变化"用 i 与 i-1 的差；首帧无历史，设 0
     conf[1:, 0] = np.exp(-tau * diff)
     return np.clip(conf, 0.05, 1.0)
 
 
-def _risk_targets(control_matrix: np.ndarray) -> np.ndarray:
+def _risk_targets(control_matrix: np.ndarray,
+                  modifier_valid: Optional[List[bool]] = None) -> np.ndarray:
     """由「制动强度」构造 risk 代理真值。
 
     ⚠️ 这是**简化代理**，不是真正的 TTC（没有前车距离/相对速度）。
@@ -233,6 +357,14 @@ def _risk_targets(control_matrix: np.ndarray) -> np.ndarray:
         · space 或 s（普通制动/后退）    → 0.5
         · 其余                            → 0.1（基线，不是 0——保持头不饱和）
 
+    Args:
+        control_matrix: [N, 6] 原子键矩阵
+        modifier_valid: 可选逐帧真值屏蔽。传入时**不可信帧的 shift/space 降级为 0**
+            再判定风险档位。为什么：卡键段 shift∧space 恒真 → risk 恒被抬到 0.8，
+            实测 clip_20261104_131750 第 2000 帧 risk=0.8（实际只是 cruise 给油），
+            等于教 risk 头「这类画面是高风险」。降级后该帧回落到「只看 space/s」
+            的真实档位（未按 space/s → 0.1 基线）。
+
     诚实声明：该代理无法区分「平静减速」与「紧急避险」，训练出的 risk 头
     只能当作「当前是否处于制动动作」的指示器，不能当作真实风险预测。
     已列入未测项（见模块 docstring）。
@@ -241,6 +373,9 @@ def _risk_targets(control_matrix: np.ndarray) -> np.ndarray:
     risk = np.full((n, 1), 0.1, dtype=np.float32)
     for i in range(n):
         w, a, s, d, shift, space = control_matrix[i]
+        if modifier_valid is not None and not modifier_valid[i]:
+            # 卡键帧的 shift/space 是故障值：视为未按，避免 risk 被抬到 0.8/1.0
+            shift = space = 0
         if shift and space and s:
             risk[i, 0] = 1.0
         elif shift and space:
@@ -288,6 +423,7 @@ class V3KeyDataset(Dataset):
         skip_all_zero: bool = True,
         seed: int = 42,
         expected_fps: Optional[float] = EXPECTED_FPS,
+        decode_workers: Optional[int] = None,
     ):
         if Image is None:
             raise RuntimeError("需要 Pillow：pip install pillow")
@@ -300,10 +436,38 @@ class V3KeyDataset(Dataset):
         self.rng = random.Random(seed)
         self.expected_fps = expected_fps
 
+        # 解码线程数：未显式传入时读环境变量 AURORA_DECODE_THREADS，再缺省为 1
+        # （1 = 完全保持原来的单线程行为，调用方不传该参数时行为不变）。
+        #
+        # 为什么用线程并行解码，而不是 DataLoader 的 num_workers：
+        #     容器 /dev/shm 固定 64MB，而单样本 24 帧张量约 8.1MB，多进程透传
+        #     必然 bus error（2026-11-07 在书生平台实测五次全崩，file_system
+        #     共享策略同样无效）。线程不走共享内存，因此不受该限制。
+        # 为什么线程能真正并行（不是伪并行）：
+        #     实测 Pillow 在 JPEG decode 与 resize 期间释放 GIL，
+        #     4 线程 2.12x、8 线程 2.30x，且输出与原实现逐像素完全一致。
+        if decode_workers is None:
+            decode_workers = int(os.environ.get("AURORA_DECODE_THREADS", "1"))
+        self.decode_workers = max(1, decode_workers)
+        #: 懒建线程池：不在 __init__ 建，避免 Dataset 被 DataLoader 多进程序列化时
+        #: ThreadPoolExecutor 无法 pickle 而报错。
+        self._decode_pool: Optional[ThreadPoolExecutor] = None
+
+        #: 显存帧缓存（vram_cache.V3VRAMFrameCache）。非 None 时 __getitem__ 从显存直取。
+        #: 由训练脚本在构造好后挂载；不挂载时行为与原实现完全一致。
+        self.vram_cache = None
         self.index: List[Tuple[Path, int]] = []
         self._rows_cache: Dict[Path, List[Dict[str, str]]] = {}
+        #: 每 clip 的「修饰键是否可信」缓存。与 _rows_cache 同生命周期。
+        #: 见 modifier_valid_from_rows()：False 的帧不参与 super_brake/ultimate 监督。
+        self._modifier_valid_cache: Dict[Path, List[bool]] = {}
+        #: 每 clip 的「confidence 真值是否可信」缓存（相邻帧规则，见
+        #: confidence_valid_from_modifier_valid）。与 _modifier_valid_cache 同生命周期。
+        self._confidence_valid_cache: Dict[Path, List[bool]] = {}
         #: clip → [N,6] 原子键矩阵缓存（算 confidence / risk 用；实例级）
         self._cm_cache: Dict[Path, np.ndarray] = {}
+        #: clip → (confidence, risk) 代理真值缓存（同上，只依赖 cm，纯确定性）
+        self._target_cache: Dict[Path, Tuple[np.ndarray, np.ndarray]] = {}
         self._build_index(view_filter=view_filter, skip_all_zero=skip_all_zero)
 
     # -- 索引 --------------------------------------------------------------
@@ -508,6 +672,19 @@ class V3KeyDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         clip, frame_idx = self._locate(idx)
         rows = self._rows_cache[clip]
+        # 修饰键可信性（卡键段 → False）。按 clip 惰性计算并缓存：
+        # 逐帧计算会退化成 O(N²)，而这一判定只与整段 shift/space 序列有关。
+        modifier_valid = self._modifier_valid_cache.get(clip)
+        if modifier_valid is None:
+            modifier_valid = modifier_valid_from_rows(rows)
+            self._modifier_valid_cache[clip] = modifier_valid
+        # confidence 真值涉及相邻两帧 → 另建一份「本帧或上一帧不可信即 False」的掩码。
+        # 与 modifier_valid 分开缓存：两者语义不同（后者是本帧，前者是本帧∧上一帧），
+        # 混用会让损失侧把单个卡键帧也当成「相邻帧污染」屏蔽掉。
+        confidence_valid = self._confidence_valid_cache.get(clip)
+        if confidence_valid is None:
+            confidence_valid = confidence_valid_from_modifier_valid(modifier_valid)
+            self._confidence_valid_cache[clip] = confidence_valid
         frames_dir = clip / "frames"
 
         def load_frame(fi: int, size: Tuple[int, int]) -> np.ndarray:
@@ -533,12 +710,42 @@ class V3KeyDataset(Dataset):
         lo_idx = [clamp_frame(frame_idx - NUM_HI_FRAMES - k)
                   for k in range(self.history)]
 
-        image_hi = np.stack(
-            [load_frame(fi, self.image_size) for fi in hi_idx], axis=0
-        )                                                                # [3,3,H,W]
-        image_lo = np.stack(
-            [load_frame(fi, self.lowres_size) for fi in lo_idx], axis=0
-        )                                                                # [21,3,h,w]
+        if self.vram_cache is not None and not self.augment:
+            # ── 显存缓存路径 ──────────────────────────────────────────────
+            # 相邻样本的 24 帧窗口重叠 23 帧，原实现每个样本都重解这 24 张 JPEG
+            # → 同一帧被反复解码（乱序采样下一个 batch 冗余 32x、连续采样 14x）。
+            # 预解码一次后每样本只剩 24 次显存切片，这是消除 GPU 空转的关键。
+            #
+            # ⚠️ 为什么 augment=True 时不走这里：亮度抖动要求按 self.rng 的**调用顺序**
+            #    逐帧取随机数（24 次），一旦帧顺序或 clamp 与原始实现有偏差，
+            #    随机流即错位、增强不可复现。训练实际用 augment=False。
+            image_hi = self.vram_cache.gather(clip, hi_idx, high=True)
+            image_hi = image_hi.float().div_(255.0)                      # [3,3,H,W]
+            image_lo = self.vram_cache.gather(clip, lo_idx, high=False)
+            image_lo = image_lo.float().div_(255.0)                      # [21,3,h,w]
+        elif self.decode_workers > 1 and not self.augment:
+            # ── CPU 多线程解码（未启用显存缓存时的回落路径）──
+            # Pillow 在 decode/resize 期间释放 GIL，因此线程能真正并行（实测 2.1x）。
+            # 为什么不用 DataLoader num_workers：容器 /dev/shm 仅 64MB，多进程必崩。
+            # hi/lo 合并成一批提交，让线程池连续排满（分两批会有尾部空转）。
+            if self._decode_pool is None:
+                self._decode_pool = ThreadPoolExecutor(
+                    max_workers=self.decode_workers,
+                    thread_name_prefix="jpeg-decode",
+                )
+            jobs = [(fi, self.image_size) for fi in hi_idx]
+            jobs += [(fi, self.lowres_size) for fi in lo_idx]
+            frames = list(self._decode_pool.map(lambda a: load_frame(*a), jobs))
+            image_hi = torch.from_numpy(np.stack(frames[:NUM_HI_FRAMES], axis=0))
+            image_lo = torch.from_numpy(np.stack(frames[NUM_HI_FRAMES:], axis=0))
+        else:
+            # ── 单线程解码（augment=True 或显式 decode_workers=1）──
+            image_hi = torch.from_numpy(np.stack(
+                [load_frame(fi, self.image_size) for fi in hi_idx], axis=0
+            ))                                                               # [3,3,H,W]
+            image_lo = torch.from_numpy(np.stack(
+                [load_frame(fi, self.lowres_size) for fi in lo_idx], axis=0
+            ))                                                               # [21,3,h,w]
 
         row = rows[frame_idx]
         vals = {k: _bit(row, k) for k in ATOMIC_KEYS}
@@ -546,9 +753,9 @@ class V3KeyDataset(Dataset):
         shift, space = vals["shift"], vals["space"]
 
         # confidence / risk 需要整段控制序列 → 按 clip 缓存，避免每帧重算 O(N²)
-        cm = self._control_matrix(clip, rows)
-        conf_all = _confidence_targets(cm)
-        risk_all = _risk_targets(cm)
+        # 两条代理真值都按 modifier_valid 做键位屏蔽（卡键段 shift/space 是故障值）。
+        conf_all, risk_all = self._conf_risk_targets(
+            clip, rows, modifier_valid, confidence_valid)
 
         # ── vehicle_state：只允许 t−1 及更早的信息，禁止当前帧标签泄漏 ──
         #
@@ -605,9 +812,37 @@ class V3KeyDataset(Dataset):
                     speed_kmh = value
                     speed_valid = 1.0
 
+        # 当前帧修饰键是否可信（见 modifier_valid_from_rows 的说明）。
+        # 必须定义在字典**之前** —— 字典字面量内部不能放语句。
+        mvalid = bool(modifier_valid[frame_idx])
+
+        # ── 上一帧车速：仅供 L_rollover 判断「是否真的在减速」──
+        #
+        # 【为什么需要】原 L_rollover 的 violation = w(speed)·P(super_brake)·(1−P(S))
+        #   只看「想按超级刹车」这一个标志就去抬 P(S)。但 super_brake 标志本身可能
+        #   来自录制器卡键（shift/space 粘住），而**卡键段车速是平稳的**。
+        #   真正的防侧翻场景一定伴随车速下降。用「实际减速」作为触发条件，
+        #   卡键段自然不触发，真急刹时照常保护。
+        speed_prev_kmh = 0.0
+        speed_prev_valid = 0.0
+        if frame_idx > 0:
+            raw_prev = rows[frame_idx - 1].get("speed_kmh")
+            if raw_prev is not None:
+                text_prev = str(raw_prev).strip()
+                if text_prev != "":
+                    try:
+                        value_prev = float(text_prev)
+                    except ValueError:
+                        value_prev = -1.0
+                    if value_prev >= 0.0:
+                        speed_prev_kmh = value_prev
+                        speed_prev_valid = 1.0
+
         return {
-            "image_hi": torch.from_numpy(image_hi),
-            "image_lo": torch.from_numpy(image_lo),
+            # 三个分支（显存缓存 / 多线程 / 单线程）产出的都已经是张量，
+            # 故此处不再包 from_numpy —— 否则对张量调用会直接 TypeError。
+            "image_hi": image_hi,
+            "image_lo": image_lo,
             "lane": torch.zeros(1, 160, 160, dtype=torch.float32),
             "dets": torch.zeros(20, 12, dtype=torch.float32),
             "det_mask": torch.zeros(20, dtype=torch.float32),
@@ -622,17 +857,39 @@ class V3KeyDataset(Dataset):
             #    不与本安全项混在一起做。
             "speed_kmh": torch.tensor([speed_kmh], dtype=torch.float32),
             "speed_valid": torch.tensor([speed_valid], dtype=torch.float32),
+            # 上一帧车速（仅 L_rollover 用：判断是否真的在减速）
+            "speed_prev_kmh": torch.tensor([speed_prev_kmh], dtype=torch.float32),
+            "speed_prev_valid": torch.tensor([speed_prev_valid], dtype=torch.float32),
             # ---- 8 个 target ----
             "vertical": torch.tensor(vertical_from_keys(w, s), dtype=torch.long),
             "horizontal": torch.tensor(horizontal_from_keys(a, d), dtype=torch.long),
             "handbrake": torch.tensor([float(shift)], dtype=torch.float32),
             "brake": torch.tensor([float(space)], dtype=torch.float32),
-            "super_brake": torch.tensor([float(shift and space)], dtype=torch.float32),
-            "ultimate": torch.tensor([float(shift and space and s)], dtype=torch.float32),
+            # ⚠️ 卡键段（modifier_valid=False）里 shift/space 是录制故障值，
+            #    super_brake/ultimate 的监督目标必须屏蔽（置 0 由 loss 侧按
+            #    modifier_valid 过滤，这里同时置 0 作双保险，避免误用）。
+            #    注意：**不影响 vertical/horizontal** —— 卡键只坏两个修饰键，
+            #    玩家当时是否给油/打方向仍然可信。
+            "super_brake": torch.tensor(
+                [float(shift and space and mvalid)], dtype=torch.float32),
+            "ultimate": torch.tensor(
+                [float(shift and space and s and mvalid)], dtype=torch.float32),
+            # 逐帧 mask：1=修饰键标签可信，0=处于卡键段（loss 侧据此过滤）
+            "modifier_valid": torch.tensor([float(mvalid)], dtype=torch.float32),
+            # confidence 专用相邻帧掩码：1=本帧且上一帧 modifier 都可信。
+            # 为什么单列一个键：confidence 真值由 t 与 t-1 的差分构造，任一端不可信
+            # 都会污染真值；而 handbrake/brake 等只需本帧可信（modifier_valid）。
+            "confidence_valid": torch.tensor(
+                [float(bool(confidence_valid[frame_idx]))], dtype=torch.float32),
             "confidence": torch.tensor([float(conf_all[frame_idx, 0])], dtype=torch.float32),
             "risk": torch.tensor([float(risk_all[frame_idx, 0])], dtype=torch.float32),
+            # ⚠️ intent 必须按 modifier_valid 屏蔽：卡键段 shift/space 恒 1，
+            #    否则 STOP 分支的 space 恒真 → 整段误判 STOP，而 intent 监督的
+            #    stage1 状态会进控制主干（model_v3.py:1043-1053），等于教模型
+            #    「这画面是停车场景」。实测帧 2000：vertical=W 却 intent=STOP。
             "intent": torch.tensor(
-                intent_from_keys(w, a, s, d, shift, space), dtype=torch.long
+                intent_from_keys(w, a, s, d, shift, space, modifier_valid=mvalid),
+                dtype=torch.long
             ),
         }
 
@@ -650,6 +907,31 @@ class V3KeyDataset(Dataset):
         )
         self._cm_cache[clip] = cm
         return cm
+
+    def _conf_risk_targets(self, clip: Path, rows: List[Dict[str, str]],
+                           modifier_valid: List[bool],
+                           confidence_valid: List[bool]) -> Tuple[np.ndarray, np.ndarray]:
+        """按 clip 缓存 confidence / risk 代理真值。
+
+        为什么值得单独缓存：_risk_targets 是 Python 逐帧循环，对约 6200 帧的
+        clip 实测 2.3 ms/次；原来它在 __getitem__ 里**每取一个样本就重算一遍**
+        （67k 样本 × 2.3 ms ≈ 2.5 分钟/epoch 的纯重复计算）。两者只依赖
+        control_matrix（纯确定性），缓存后与原实现逐元素一致。
+
+        ⚠️ 两条代理真值都必须按修饰键可信性做屏蔽（见 `_risk_targets` /
+            `_confidence_targets` 的 modifier_valid 参数）。真实标签只与
+            control_matrix + modifier_valid 有关，与 confidence_valid 无关；
+            confidence_valid 是**损失侧**的掩码（相邻帧规则），不影响真值本身，
+            因此这里虽然接收它，只用于口径说明，不参与真值计算。
+        """
+        cached = self._target_cache.get(clip)
+        if cached is not None:
+            return cached
+        cm = self._control_matrix(clip, rows)
+        result = (_confidence_targets(cm, modifier_valid=modifier_valid),
+                  _risk_targets(cm, modifier_valid=modifier_valid))
+        self._target_cache[clip] = result
+        return result
 
     def _augment_brightness(self, img: np.ndarray) -> np.ndarray:
         """仅亮度抖动。
@@ -782,25 +1064,54 @@ def print_stats(clips_dir: str | Path, skip_all_zero: bool = True) -> None:
     total = 0          # 参与统计的帧数（= 训练实际使用的帧数）
     raw_total = 0      # CSV 原始行数
     n_skipped = 0      # 被跳过的全零帧
+    # 修饰键可信性统计：与训练标签/损失侧严格同口径，否则 --stats 报出的
+    # intent 分布与训练实际吃的标签不一致（会误导类权重决策）。
+    n_modifier_invalid = 0    # modifier_valid=0 的帧（卡键段）
+    n_confidence_invalid = 0  # confidence 不可信的帧（本帧或上一帧处于卡键段）
+    # combo 正例按**可信帧**统计：super_brake/ultimate 已改为派生量，
+    # 这两组数字就是「值不值得单独监督」的决定依据（见 model_v3 输出头注释）。
+    combo_pos_all = {"super_brake": 0, "ultimate": 0}
+    combo_pos_clean = {"super_brake": 0, "ultimate": 0}
 
     for clip in clips:
         csv_path = clip / "controls.csv"
         if not csv_path.exists():
             continue
         rows = V3KeyDataset._read_rows(csv_path)
-        for row in rows:
+        clip_modifier_valid = modifier_valid_from_rows(rows)
+        clip_confidence_valid = confidence_valid_from_modifier_valid(clip_modifier_valid)
+        for i, row in enumerate(rows):
             raw_total += 1
+            mvalid = bool(clip_modifier_valid[i])
+            if not mvalid:
+                n_modifier_invalid += 1
+            if not clip_confidence_valid[i]:
+                n_confidence_invalid += 1
             vals = {k: _bit(row, k) for k in ATOMIC_KEYS}
+            # combo 正例统计放在 skip 之前：与屏蔽帧数一样按全库行数口径，
+            # 才能和「全库共屏蔽 1739 帧」的结论对齐。
+            w_s, a_s = vals["w"], vals["a"]
+            s_s, d_s = vals["s"], vals["d"]
+            sb = int(vals["shift"] and vals["space"])
+            ul = int(vals["shift"] and vals["space"] and s_s)
+            combo_pos_all["super_brake"] += sb
+            combo_pos_all["ultimate"] += ul
+            if mvalid:
+                combo_pos_clean["super_brake"] += sb
+                combo_pos_clean["ultimate"] += ul
             if skip_all_zero and not any(vals[k] for k in ATOMIC_KEYS):
                 n_skipped += 1
                 continue
             for k in ATOMIC_KEYS:
                 counts[k] += vals[k]
-            vert[vertical_from_keys(vals["w"], vals["s"])] += 1
-            horiz[horizontal_from_keys(vals["a"], vals["d"])] += 1
+            vert[vertical_from_keys(w_s, s_s)] += 1
+            horiz[horizontal_from_keys(a_s, d_s)] += 1
+            # ⚠️ 必须传 modifier_valid：卡键段的 shift/space 是录制故障，
+            #    不屏蔽会把整段卡键误算成 STOP，使 --stats 的 intent 分布失真
+            #    （实测修复前 STOP=10461，修复后 STOP=9421，差 1040 帧）。
             intent[intent_from_keys(
-                vals["w"], vals["a"], vals["s"], vals["d"],
-                vals["shift"], vals["space"])] += 1
+                w_s, a_s, s_s, d_s, vals["shift"], vals["space"],
+                modifier_valid=mvalid)] += 1
             total += 1
 
     if raw_total == 0:
@@ -832,6 +1143,26 @@ def print_stats(clips_dir: str | Path, skip_all_zero: bool = True) -> None:
     print("intent (GO/SLOW/STOP):")
     for i, name in enumerate(("GO", "SLOW", "STOP")):
         print(f"  {name:8s} {intent[i]:7d}  ({intent[i] / total * 100:5.2f}%)")
+
+    # ── 修饰键可信性（本次修复的核心口径，必须可见）──
+    # 为什么必须打印：卡键帧被 loss 侧屏蔽，若统计不显示这两行，就没人能确认
+    # 「屏蔽是否真的生效」「intent 是否按 mask 计算」。这两个数字是回归基线：
+    #   modifier_valid=0 实测 1739 帧（13 个 clip、3 段卡键）
+    #   confidence_valid=0 = 1739 + 卡键段数(3) = 1742 帧（每段后第一帧的差分被污染）
+    print()
+    print("修饰键可信性（卡键屏蔽口径，与训练标签/损失侧一致）:")
+    print(f"  modifier_valid=0   {n_modifier_invalid:7d} 帧"
+          f"  ({(n_modifier_invalid / raw_total * 100):5.2f}% 的 CSV 行)")
+    print(f"  confidence_valid=0 {n_confidence_invalid:7d} 帧"
+          f"  (差值 {n_confidence_invalid - n_modifier_invalid:+d} = 卡键段数，"
+          "每段结束后第一帧的帧间差分仍被故障值污染)")
+    # combo 正例：super_brake/ultimate 已改为派生量，这两组数是「为什么不再
+    # 单独监督」的可复查依据（干净正例仅数百，无法支撑独立 BCE 头）。
+    print("  combo 正例（super_brake=shift∧space / ultimate=shift∧space∧s）:")
+    print(f"    全部行: super_brake={combo_pos_all['super_brake']:5d}  "
+          f"ultimate={combo_pos_all['ultimate']:5d}")
+    print(f"    仅可信行: super_brake={combo_pos_clean['super_brake']:5d}  "
+          f"ultimate={combo_pos_clean['ultimate']:5d}")
 
     # 类权重建议（逆频率，归一化到均值为 1）
     print()

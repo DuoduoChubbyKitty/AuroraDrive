@@ -5,24 +5,27 @@ V3 INT4 部署冒烟/验收汇总 —— 总判定 PASSED
 体积(实测目录): 9.661 MiB   LUT: 84
 内容指纹(实测): 5720e47407b57fbe…   记录: 5720e47407b57fbe…
 checkpoint: aurora_v3_best_ep13_20261115.pt  sha 898cc9b98cdc…
-git HEAD: 4ca61dba14eeca7ea4e3d3a1933043a40ca1617c  dirty=True
+git HEAD: 175d4ccbdabbfe524f22dcee1f950c2ab2db3df1  dirty=True
 ------------------------------------------------------------------------
 eval_status=passed  deploy_status=deployed
-样本数=128 来源=val_clips 分片=['clip_20261104_131750[0-4102]', 'clip_20261104_211247[0-3999]']
+样本数=128 来源=val_clips_reconstructed 分片=['clip_20261104_131750[0-4102]', 'clip_20261104_211247[0-3999]']
 安全动作最低一致率=99.22%  转换动作最低一致=100.0%
-confidence 量化误差=0.0097  risk 误差=0.0661(告警)
---v3-selftest: 69/69（退出 0）
+confidence 量化误差=0.0120  risk 误差=0.0538(告警)
+--v3-selftest: 70/70（退出 0）
 v3_contract_test.py: 通过 31 / 失败 0（退出 0）
 ------------------------------------------------------------------------
 门禁明细:
   [OK] 部署模型目录存在 — /Users/dupi/Desktop/自动驾驶系统/models/v3_int4.mlmodelc
   [OK] 部署模型必需文件齐全 — OK
-  [OK] 契约：输入 6 路齐全 — ['det_mask', 'dets', 'image_hi', 'image_lo', 'lane', 'vehicle_state']
+  [OK] 契约：输入 6 路名称/形状/dtype 全符 — OK
   [OK] 契约：输出 8 路有序一致 — ['vertical', 'horizontal', 'handbrake', 'brake', 'super_brake', 'ultimate', 'confidence', 'risk']
   [OK] LUT 算子数 > 0 — 84
   [OK] 实测内容指纹 == 部署记录 — 实测 5720e47407b57fbe… vs 记录 5720e47407b57fbe…
-  [OK] 评估通过 (eval_status=passed) — eval_status=passed
-  [OK] 部署完成 (deploy_status=deployed) — deploy_status=deployed
-  [OK] v3-selftest 全通过且退出 0 — 69/69 rc=0 失败项=0
+  [OK] 实测完整目录哈希 == 部署记录 — 实测 664b1747d6fb31ae… vs 记录 664b1747d6fb31ae…
+  [OK] 存在 drift 评估证据 — 有
+  [OK] drift.status == passed — drift.status=passed
+  [OK] 顶层 eval_status == passed — eval_status=passed
+  [OK] deploy_status == deployed — deploy_status=deployed
+  [OK] v3-selftest 全通过且退出 0 — 70/70 rc=0 失败项=0
   [OK] contract_test 通过/退出0/有断言 — pass=31 fail=0 rc=0
 ========================================================================

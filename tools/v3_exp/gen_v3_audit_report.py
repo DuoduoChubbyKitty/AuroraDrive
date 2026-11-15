@@ -88,10 +88,25 @@ def sha256_of_text(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-def parse_model_contract(modelc: Path) -> dict:
-    """从 model.mil 的 `func main(...)` 入参与 `-> (...)` 返回子句真实解析契约。
+EXPECTED_INPUT_SIGNATURES = {
+    "image_hi": "fp16, [1, 3, 3, 224, 384]",
+    "image_lo": "fp16, [1, 21, 3, 112, 192]",
+    "lane": "fp16, [1, 1, 160, 160]",
+    "dets": "fp16, [1, 20, 12]",
+    "det_mask": "fp16, [1, 20]",
+    "vehicle_state": "fp16, [1, 8]",
+}
 
-    旧实现只要 model.mil 存在就填硬编码名称（评审 P0-B）；这里若解析不到即报错。
+
+def parse_model_contract(modelc: Path) -> dict:
+    """从 model.mil 的 `func main(...)` 签名**严格**解析并核对 6 输入/8 输出的名称、形状、dtype。
+
+    评审 P0-B（第 2 次）：旧实现过滤掉未知输入、只比名称，导致「输入全改 int32[99] 再加第七个输入」
+    仍判 inputs_ok=True。这里：
+      · 捕获**每一个**输入参数（不过滤），逐一核对 (名称, dtype=fp16, shape)；
+      · 输入数量必须正好 6、名称集合必须精确等于期望；
+      · 输出必须正好 8 路且有序。
+    任一不符即 ok=False（并在报告中列出差异）。
     """
     mil = modelc / "model.mil"
     if not mil.is_file():
@@ -101,19 +116,41 @@ def parse_model_contract(modelc: Path) -> dict:
     if not m:
         raise RuntimeError("model.mil 中未找到 func main 签名")
     params = m.group(1)
-    inputs = [x.group(1) for x in re.finditer(r"tensor<[^>]*>\s+([A-Za-z_][A-Za-z0-9_]*)", params)]
+    # 捕获完整 "tensor<dtype, [shape]>" + 变量名（不过滤）
+    raw_inputs = [(x.group(1), x.group(2)) for x in
+                  re.finditer(r"tensor<([^>]*)>\s+([A-Za-z_][A-Za-z0-9_]*)", params)]
+    # 反过来：raw_inputs 是 [(sig, name)]
+    sig_by_name = {name: sig.strip() for (sig, name) in raw_inputs}
     r = re.search(r"\}\s*->\s*\((.*?)\)\s*;", txt, re.S)
     if not r:
         raise RuntimeError("model.mil 中未找到 main 的返回签名")
     outputs = [x.strip() for x in r.group(1).split(",") if x.strip()]
-    # 输入名可能被 dtype 前缀污染，只保留期望集合内的真实名
-    inputs = [i for i in inputs if i in EXPECTED_INPUTS]
+
+    input_names = sorted(sig_by_name.keys())
+    input_diffs = []
+    # 数量与名称集合精确匹配
+    if len(sig_by_name) != len(EXPECTED_INPUT_SIGNATURES):
+        input_diffs.append(f"输入数量 {len(sig_by_name)} != {len(EXPECTED_INPUT_SIGNATURES)}")
+    if set(sig_by_name.keys()) != set(EXPECTED_INPUT_SIGNATURES.keys()):
+        extra = set(sig_by_name) - set(EXPECTED_INPUT_SIGNATURES)
+        miss = set(EXPECTED_INPUT_SIGNATURES) - set(sig_by_name)
+        input_diffs.append(f"额外输入={sorted(extra)} 缺失输入={sorted(miss)}")
+    # 逐个核对 (dtype=fp16, shape)
+    for nm, exp in EXPECTED_INPUT_SIGNATURES.items():
+        got = sig_by_name.get(nm)
+        if got is None:
+            continue
+        if got != exp:
+            input_diffs.append(f"{nm} 签名 '{got}' != 期望 '{exp}'")
+    inputs_ok = not input_diffs
+    outputs_ok = outputs == EXPECTED_OUTPUTS
     return {
         "lut_ops": txt.count("constexpr_lut_to_dense"),
-        "inputs": sorted(inputs),
+        "inputs": input_names,
         "outputs": outputs,
-        "inputs_ok": sorted(inputs) == sorted(EXPECTED_INPUTS),
-        "outputs_ok": outputs == EXPECTED_OUTPUTS,
+        "input_diffs": input_diffs,
+        "inputs_ok": inputs_ok,
+        "outputs_ok": outputs_ok,
     }
 
 
@@ -145,13 +182,14 @@ def main() -> int:
         gates.append(("部署模型必需文件齐全", not missing, f"缺 {missing}" if missing else "OK"))
         try:
             contract = parse_model_contract(MODELC)
-            gates.append(("契约：输入 6 路齐全", contract["inputs_ok"], str(contract["inputs"])))
+            gates.append(("契约：输入 6 路名称/形状/dtype 全符", contract["inputs_ok"],
+                          "OK" if contract["inputs_ok"] else f"差异={contract['input_diffs']}"))
             gates.append(("契约：输出 8 路有序一致", contract["outputs_ok"], str(contract["outputs"])))
             gates.append(("LUT 算子数 > 0", (contract["lut_ops"] or 0) > 0, str(contract["lut_ops"])))
         except Exception as exc:
             gates.append(("契约可解析", False, f"{type(exc).__name__}: {exc}"))
 
-    # ── 指纹交叉校验 ──
+    # ── 指纹交叉校验（内容指纹 + 完整目录哈希都必须匹配）──
     measured_content = None
     measured_full = None
     if modelc_present:
@@ -164,15 +202,29 @@ def main() -> int:
     if measured_content is not None and recorded:
         gates.append(("实测内容指纹 == 部署记录", measured_content == recorded,
                       f"实测 {measured_content[:16]}… vs 记录 {str(recorded)[:16]}…"))
-    elif measured_content is not None and not recorded:
+    elif measured_content is not None:
         gates.append(("部署记录含有内容指纹", False, "calibration 未记录 deployed_modelc_content_sha256"))
+    # 完整目录哈希（评审 P0-B：WRONG 完整哈希仍 PASSED 的漏洞）
+    recorded_full = calib.get("deployed_modelc_full_sha256")
+    if measured_full is not None:
+        if recorded_full:
+            gates.append(("实测完整目录哈希 == 部署记录", measured_full == recorded_full,
+                          f"实测 {measured_full[:16]}… vs 记录 {str(recorded_full)[:16]}…"))
+        else:
+            gates.append(("部署记录含有完整目录哈希", False, "calibration 未记录 deployed_modelc_full_sha256"))
 
-    # ── 评估状态 ──
+    # ── 评估证据完整性（评审 P0-B：缺 drift / drift.status=failed 仍 PASSED 的漏洞）──
+    drift = calib.get("drift") if isinstance(calib.get("drift"), dict) else None
     eval_status = calib.get("eval_status", "unknown")
     deploy_status = calib.get("deploy_status", "unknown")
-    gates.append(("评估通过 (eval_status=passed)", eval_status == "passed", f"eval_status={eval_status}"))
-    if deploy_status not in ("unknown",):
-        gates.append(("部署完成 (deploy_status=deployed)", deploy_status == "deployed", f"deploy_status={deploy_status}"))
+    gates.append(("存在 drift 评估证据", drift is not None, "有" if drift else "缺失 drift"))
+    drift_status_ok = bool(drift) and drift.get("status") == "passed"
+    gates.append(("drift.status == passed", drift_status_ok,
+                  f"drift.status={drift.get('status') if drift else 'N/A'}"
+                  + (f" reasons={drift.get('reasons')}" if drift and drift.get('reasons') else "")))
+    gates.append(("顶层 eval_status == passed", eval_status == "passed", f"eval_status={eval_status}"))
+    # 部署门禁：必须明确 deployed（不再允许 unknown 跳过）
+    gates.append(("deploy_status == deployed", deploy_status == "deployed", f"deploy_status={deploy_status}"))
 
     # ── 自检 & 契约实测 ──
     st_txt, st_rc = run([str(SELFTEST_BIN), "--v3-selftest"]) if SELFTEST_BIN.exists() else ("[缺二进制]", -1)

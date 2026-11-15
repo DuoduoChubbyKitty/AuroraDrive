@@ -402,9 +402,9 @@ def assert_outputs_valid(outputs: Dict[str, "object"], expected_n: int, label: s
     这是评审 P0-1 的核心修复——旧实现在输出为 NaN 时 argmax/差值会得到
     「NaN==NaN 一致率 100% / max(0,NaN)=0」的假通过。这里在做任何比较**之前**就拦掉。
 
-    形状契约（评审 P0-A 补强）：vertical/horizontal 必须 [N,3]，其余必须 [N,1]。
-    旧实现只校验第一维(样本数)就 reshape，导致给 vertical 传 (N,4) 也被放过——属假通过。
-    这里**不做 reshape 抹平**，直接按 (N, 期望通道数) 严格比对。
+    形状契约（评审 P0-A 补强，第 2 次）：**严格**要求每个输出是 (expected_n, want_c)，
+    其中 vertical/horizontal 的 want_c=3、其余=1；仅额外容许 (N,) 视作 (N,1)（连续量常见形态）。
+    任何 rank≥3 或通道数不符都直接失败——绝不用 reshape 把 (N,1,3) 之类错误形状展平成 (N,3) 混过。
     """
     import numpy as np
     if not isinstance(outputs, dict):
@@ -412,30 +412,24 @@ def assert_outputs_valid(outputs: Dict[str, "object"], expected_n: int, label: s
     missing = [k for k in OUTPUT_NAMES if k not in outputs]
     if missing:
         raise AssertionError(f"[{label}] 缺少输出键：{missing}")
-    n_ref = None
     for name in OUTPUT_NAMES:
-        arr = np.asarray(outputs[name], dtype=np.float64)
+        raw = np.asarray(outputs[name], dtype=np.float64)
         want_c = _expected_channels(name)
-        # 允许 (N,) 视作 (N,1)（连续量的常见形态），但绝不接受通道数不符。
-        if arr.ndim == 1:
-            arr2 = arr.reshape(-1, 1)
-        else:
-            arr2 = arr.reshape(arr.shape[0], -1)
-        if arr2.shape[0] == 0:
-            raise AssertionError(f"[{label}] 输出 {name} 为空")
-        if arr2.shape[1] != want_c:
+        if raw.ndim == 1:                     # (N,) → (N,1)
+            arr = raw.reshape(-1, 1)
+        elif raw.ndim == 2:                   # (N,C)
+            arr = raw
+        else:                                  # rank>=3 一律拒绝（如 (N,1,3)）
             raise AssertionError(
-                f"[{label}] 输出 {name} 形状 {np.asarray(outputs[name]).shape} "
-                f"通道数={arr2.shape[1]} != 契约 {want_c}")
-        if n_ref is None:
-            n_ref = arr2.shape[0]
-        elif arr2.shape[0] != n_ref:
-            raise AssertionError(f"[{label}] 输出 {name} 样本数 {arr2.shape[0]} 与其它 {n_ref} 不一致")
-        if not np.all(np.isfinite(arr2)):
-            bad = int(arr2.size - np.isfinite(arr2).sum())
+                f"[{label}] 输出 {name} 形状 {raw.shape} 非法：必须是 (N,) 或 (N,{want_c})，不接受 rank={raw.ndim}")
+        if arr.shape[1] != want_c:
+            raise AssertionError(
+                f"[{label}] 输出 {name} 形状 {raw.shape} 通道数={arr.shape[1]} != 契约 {want_c}")
+        if arr.shape[0] != expected_n:
+            raise AssertionError(f"[{label}] 输出 {name} 样本数 {arr.shape[0]} != 期望 {expected_n}")
+        if not np.all(np.isfinite(arr)):
+            bad = int(arr.size - np.isfinite(arr).sum())
             raise AssertionError(f"[{label}] 输出 {name} 含 {bad} 个非有限值（NaN/Inf），拒绝评估")
-    if n_ref != expected_n:
-        raise AssertionError(f"[{label}] 输出样本数 {n_ref} != 期望 {expected_n}")
 
 
 def decode_decisions(outputs: Dict[str, "object"]) -> Dict[str, "object"]:
@@ -526,92 +520,164 @@ def _resolve_val_clips(ckpt_path):
         return [], False
 
 
+def _clean_dir_for(clip_name: str) -> Path:
+    return _REPO_ROOT / "data" / "lean_clips_clean" / clip_name
+
+
+def _materialize_clean_shards(pieces, dest_root: Path):
+    """按 frames_clean.txt + controls_clean.csv + 原始帧，重建与训练一致的验证分片。
+
+    训练用的是**清洗后重编号**的分片（checkpoint val_clips 形如 clip_x_p00000，见 pack_pieces.py）。
+    lean_clips（原始帧目录）包含清洗时删除的帧；直接在其上按原始帧号取窗口，会和训练分片的
+    「整窗可用」判定与历史窗口不一致（评审 P1-D）。故这里精确重建每个分片：frames/（按 kept
+    重编号）+ controls.csv（frame 列=分片内序号），再从重建分片取样。
+    返回 [provenance,...]；分片目录落在 dest_root 下，供上层用一个 V3KeyDataset 统一加载。
+    """
+    import csv
+    import hashlib
+    import os
+    import shutil
+    out = []
+    for (clip_name, start, end) in pieces:
+        clean = _clean_dir_for(clip_name)
+        fclean = clean / "frames_clean.txt"
+        cclean = clean / "controls_clean.csv"
+        if not fclean.exists() or not cclean.exists():
+            raise RuntimeError(f"缺少清洗映射 {clean}，无法精确重建分片（--val-clips 严格模式）")
+        kept = [l.strip() for l in fclean.read_text(encoding="utf-8").splitlines() if l.strip()]
+        rows = list(csv.reader(cclean.open(encoding="utf-8")))
+        header, data = rows[0], rows[1:]
+        if len(kept) != len(data):
+            raise RuntimeError(f"{clip_name}: frames_clean({len(kept)}) != controls_clean({len(data)})")
+        if end >= len(kept):
+            raise RuntimeError(f"{clip_name}: 分片 end={end} 超出清洗帧数 {len(kept)}")
+        orig = _REPO_ROOT / "data" / "lean_clips" / clip_name / "frames"
+        shard_name = f"{clip_name}_p{start:05d}"
+        dest = dest_root / shard_name
+        if dest.exists():
+            shutil.rmtree(dest)
+        (dest / "frames").mkdir(parents=True)
+        h = hashlib.sha256()
+        for k in range(start, end + 1):
+            src = orig / kept[k]
+            if not src.exists():
+                raise RuntimeError(f"原始帧缺失 {src}（重建分片失败）")
+            dst = dest / "frames" / f"{k - start:06d}.jpg"
+            try:
+                os.link(src, dst)
+            except OSError:
+                shutil.copy2(src, dst)
+            h.update(kept[k].encode())
+        with (dest / "controls.csv").open("w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(header)
+            for j, row in enumerate(data[start:end + 1]):
+                row = list(row)
+                row[1] = str(j)          # frame 列重编号为分片内序号
+                w.writerow(row)
+        prov = {"shard": shard_name, "clean_range": [start, end],
+                "orig_first_kept": kept[start], "orig_last_kept": kept[end],
+                "kept_sha256": h.hexdigest()}
+        out.append(prov)
+    return out
+
+
 def build_calib_inputs(n_samples: int, seed: int = 42,
                        use_val_clips: bool = False, ckpt_path=None):
-    """从真实清洗数据取样本，组装成 6 路输入（含 batch 维）。
+    """组装 6 路输入（含 batch 维）。
 
-    默认：全量随机抽样（seed 固定，可复现）。
-    use_val_clips=True 且 ckpt_path 提供：仅用 checkpoint 记录的 val_clips（训练独立留出），
-      样本数可能少于 n_samples（该留出集本身大小）。这样选档与评估所用的数据与训练互斥，
-      才是有意义的独立确认（评审 P1-5）。
-    返回 (np_inputs, torch_inputs, meta)，meta 含索引、clip 名、每样本 (clip,frame)、
-    数据 SHA 等可审计信息。无数据返回 (None, None, {})。
+    use_val_clips=True：按 checkpoint val_clips **精确重建训练分片**后再抽样（评审 P1-A/P1-D），
+      与训练数据互斥且时序窗口一致；解析失败即 raise，不退回随机。
+    否则：在 data/lean_clips 全量随机抽样（seed 固定）。
+    返回 (np_inputs, torch_inputs, meta)；meta 含 per_sample(shard,frame)、数据/分片血缘、
+    data_sha256。无数据返回 (None, None, {})。
     """
+    import hashlib
+    import tempfile
+
     import numpy as np
     import torch
     from src.dataset_v3 import V3KeyDataset
 
+    keys = ["image_hi", "image_lo", "lane", "dets", "det_mask", "vehicle_state"]
+
+    def _assemble(pool):
+        """pool: [(ds, local_idx)] → (torch_inp, np_inp, per_sample)。"""
+        rng = np.random.default_rng(seed)
+        n = min(n_samples, len(pool))
+        pick = sorted(rng.choice(len(pool), size=n, replace=False).tolist())
+        torch_inp = {k: [] for k in keys}
+        per_sample = []
+        for pi in pick:
+            ds, i = pool[pi]
+            item = ds[int(i)]
+            clip_path, frame = ds.index[int(i)]
+            per_sample.append({"shard": Path(clip_path).name, "frame": int(frame)})
+            for k in keys:
+                torch_inp[k].append(item[k].unsqueeze(0))
+        torch_inp = {k: torch.cat(v, dim=0) for k, v in torch_inp.items()}
+        np_inp = {k: v.numpy().astype(np.float16) for k, v in torch_inp.items()}
+        dh = hashlib.sha256()
+        for k in keys:
+            dh.update(k.encode())
+            dh.update(torch_inp[k].numpy().tobytes())
+        return torch_inp, np_inp, per_sample, dh.hexdigest()
+
+    if use_val_clips:
+        if ckpt_path is None:
+            raise RuntimeError("--val-clips 需要 ckpt_path")
+        pieces, ok = _resolve_val_clips(ckpt_path)
+        if not ok or not pieces:
+            raise RuntimeError("--val-clips 要求精确分片，但无法从 checkpoint/manifest 恢复分片范围")
+        dest_root = Path(tempfile.mkdtemp(prefix="v3_valshards_"))
+        provs = _materialize_clean_shards(pieces, dest_root)
+        from src.dataset_v3 import V3KeyDataset as _V3DS
+        ds = _V3DS(str(dest_root), skip_all_zero=True, augment=False, decode_workers=1)
+        pool = [(ds, i) for i in range(len(ds))]
+        if not pool:
+            raise RuntimeError(f"--val-clips 重建分片无可用样本：{pieces}")
+        torch_inp, np_inp, per_sample, data_sha = _assemble(pool)
+        meta = {
+            "n_samples": len(per_sample),
+            "seed": seed,
+            "source": "val_clips_reconstructed",
+            "val_clips": [f"{c}[{s}-{e}]" for (c, s, e) in pieces],
+            "provenance": provs,
+            "pool_size": len(pool),
+            "per_sample": per_sample,
+            "data_sha256": data_sha,
+        }
+        print(f"[B1] 由清洗映射精确重建训练分片：{meta['val_clips']}（池 {len(pool)} 样本 → 抽 "
+              f"{meta['n_samples']}，data_sha256={data_sha[:12]}…）")
+        return np_inp, torch_inp, meta
+
+    # 全量随机（非独立留出，仅用于无 val_clips 的场景）
     clips = _REPO_ROOT / "data" / "lean_clips"
     if not clips.exists():
         print(f"[B1] ⚠ 数据不可用：{clips} 不存在，跳过真实帧校准")
         return None, None, {}
     ds = V3KeyDataset(str(clips), skip_all_zero=True, augment=False, decode_workers=1)
-
-    # 可选：仅取 val_clips 覆盖的样本（精确到帧范围，防跨分片泄漏）
-    pool = list(range(len(ds)))
-    used_val_clips = []
-    if use_val_clips and ckpt_path is not None:
-        pieces, ok = _resolve_val_clips(ckpt_path)
-        if not ok or not pieces:
-            # 严格模式：声称用独立留出却解析不出分片 → 直接失败，绝不退回随机蒙混（评审 P1-A）
-            raise RuntimeError("--val-clips 要求精确分片，但无法从 checkpoint/manifest 恢复分片范围")
-        kept = []
-        for i, (clp, frame) in enumerate(ds.index):
-            cname = Path(clp).name
-            for (vc, s, e) in pieces:
-                if cname == vc and s <= int(frame) <= e:
-                    kept.append(i)
-                    break
-        if not kept:
-            raise RuntimeError(f"--val-clips 分片 {pieces} 在数据集中无匹配样本")
-        pool = kept
-        used_val_clips = [f"{c}[{s}-{e}]" for (c, s, e) in pieces]
-        print(f"[B1] 使用 checkpoint val_clips 精确分片：{used_val_clips}（候选样本 {len(pool)}）")
-
-    rng = np.random.default_rng(seed)
-    n = min(n_samples, len(pool))
-    pick = sorted(rng.choice(len(pool), size=n, replace=False).tolist())
-    idxs = [pool[i] for i in pick]
-    keys = ["image_hi", "image_lo", "lane", "dets", "det_mask", "vehicle_state"]
-    torch_inp = {k: [] for k in keys}
-    per_sample = []
-    for i in idxs:
-        item = ds[int(i)]
-        clip_path, frame_idx = ds.index[int(i)]
-        per_sample.append({"clip": Path(clip_path).name, "frame": int(frame_idx)})
-        for k in keys:
-            torch_inp[k].append(item[k].unsqueeze(0))  # 加 batch 维
-    torch_inp = {k: torch.cat(v, dim=0) for k, v in torch_inp.items()}
-    np_inp = {k: v.numpy().astype(np.float16) for k, v in torch_inp.items()}
-
-    # 数据指纹：对抽样输入的 float32 字节做 SHA256，绑定可复现的数据快照
-    import hashlib
-    dh = hashlib.sha256()
-    for k in keys:
-        dh.update(k.encode())
-        dh.update(torch_inp[k].numpy().tobytes())
-    # 防泄漏自检：val_clips 模式下，所有抽样帧必须落在声明的分片区间内
-    if used_val_clips:
-        pieces, _ = _resolve_val_clips(ckpt_path)
-        for ps in per_sample:
-            if not any(ps["clip"] == c and s <= ps["frame"] <= e for (c, s, e) in pieces):
-                raise RuntimeError(f"val_clips 泄漏：样本 {ps} 不在声明的分片区间内")
+    pool = [(ds, i) for i in range(len(ds))]
+    torch_inp, np_inp, per_sample, data_sha = _assemble(pool)
     meta = {
-        "n_samples": n,
-        "dataset_size": len(ds),
-        "seed": seed,
-        "source": "val_clips" if used_val_clips else "all_random",
-        "val_clips": used_val_clips,
-        "per_sample": per_sample,
-        "data_sha256": dh.hexdigest(),
+        "n_samples": len(per_sample), "seed": seed, "source": "all_random",
+        "val_clips": [], "pool_size": len(pool),
+        "per_sample": per_sample, "data_sha256": data_sha,
     }
-    print(f"[B1] 真实校准集：{n} 个样本（数据共 {len(ds)} 样本，来源={meta['source']}，"
-          f"data_sha256={meta['data_sha256'][:12]}…）")
+    print(f"[B1] 真实校准集(全量随机)：{meta['n_samples']} 样本，data_sha256={data_sha[:12]}…")
     return np_inp, torch_inp, meta
 
 
 def _predict_mlmodel(mlmodel, np_inputs) -> Dict[str, "object"]:
-    """逐样本推理（模型导出的固定 batch=1），再把各输出堆叠成 [N, ...]。"""
+    """逐样本推理（模型导出固定 batch=1），堆叠成 [N, C]。
+
+    评审 P0-A（第 2 次）：**先校验单样本原始输出形状，再展平**。旧实现直接
+    `np.asarray(out).reshape(-1)`，会把 (1,1,3) 之类的错误形状悄悄展平成 (3,)，
+    到上层就再也看不出契约错误。这里按单样本契约强制核对（batch=1）：
+      · 分类头 vertical/horizontal：原始须 (1,3) 或 (3,)；
+      · 其余 1 通道：原始须 (1,1)/(1,)/(标量)。
+    不符即抛错。
+    """
     import numpy as np
     keys = list(np_inputs.keys())
     n = np_inputs[keys[0]].shape[0]
@@ -620,7 +686,19 @@ def _predict_mlmodel(mlmodel, np_inputs) -> Dict[str, "object"]:
         feed = {k: np_inputs[k][i:i + 1] for k in keys}
         out = mlmodel.predict(feed)
         for name in OUTPUT_NAMES:
-            acc[name].append(np.asarray(out[name], dtype=np.float32).reshape(-1))
+            raw = np.asarray(out[name], dtype=np.float32)
+            want_c = _expected_channels(name)
+            # 单样本：去掉长度为 1 的前导 batch 维后，必须正好 (want_c,) 或标量(仅 want_c==1)
+            shape = raw.shape
+            if raw.ndim >= 1 and raw.shape[0] == 1 and raw.ndim > 1:
+                squeezed = raw.reshape(raw.shape[1:])
+            else:
+                squeezed = raw
+            if squeezed.size != want_c:
+                raise AssertionError(
+                    f"[predict] 输出 {name} 单样本形状 {shape} 非法（期望展平后 {want_c} 个值，"
+                    f"实际 {squeezed.size}）——拒绝在契约错误上继续")
+            acc[name].append(squeezed.reshape(-1))
     return {name: np.stack(v, axis=0) for name, v in acc.items()}
 
 
@@ -912,14 +990,24 @@ def _tool_versions() -> dict:
             "torch": torch.__version__}
 
 
+def _source_fingerprints() -> dict:
+    """影响导出结果的关键源码内容哈希（评审 P1-C：缓存必须绑定模型实现，不只导出脚本）。"""
+    srcs = {
+        "export_script": Path(__file__),
+        "model_v3": _REPO_ROOT / "src" / "model_v3.py",
+        "dataset_v3": _REPO_ROOT / "src" / "dataset_v3.py",
+    }
+    return {k: (sha256_of(v) if v.exists() else "missing") for k, v in srcs.items()}
+
+
 def _stamp_identity(ckpt_sha: str, ios: int, scheme: str) -> dict:
-    """缓存身份：checkpoint 哈希 + 目标 ios + 输出契约 + scheme + 导出源码哈希 + 工具版本。"""
+    """缓存身份：checkpoint 哈希 + 目标 ios + 输出契约 + scheme + 源码哈希集合 + 工具版本。"""
     return {
         "ckpt_sha256": ckpt_sha,
         "ios": ios,
         "scheme": scheme,
         "outputs": list(OUTPUT_NAMES),
-        "export_script_sha256": sha256_of(Path(__file__)),
+        "source_fingerprints": _source_fingerprints(),
         "tool_versions": _tool_versions(),
     }
 
@@ -992,31 +1080,65 @@ def modelc_full_sha(modelc_dir: Path) -> str:
     return sha256_of(Path(modelc_dir))
 
 
-def deploy_modelc(int4_package: Path, target_modelc: Path) -> str:
-    """编译 mlpackage → target .mlmodelc，**原子发布**（评审 P1-B）。
+def _atomic_swap_dirs(a: Path, b: Path) -> None:
+    """macOS renamex_np(RENAME_SWAP)：**原子**交换两个目录（同一文件系统）。
 
-    与旧实现的关键区别：
-      · 编译与校验都在**目标同一父目录**的暂存目录里完成（同一文件系统），避免
-        shutil.move 跨卷退化成「复制到一半失败」；
-      · 校验通过后，用两次 os.rename 做原子交换：先把旧目录 rename 到备份，再把新目录
-        rename 到 target（同 FS 的 rename 是近原子操作）；任一步失败则把旧目录 rename 回来，
-        保证 target 要么是完整旧版、要么是完整新版，绝不出现半成品或把备份嵌进坏目录。
-      · 全部校验通过后才切换，切换成功后才删备份。
+    评审 P1-B（第 2 次）：两次 os.rename 不是原子交换（中间 target 不存在，进程中断可丢模型）。
+    renamex_np 的 RENAME_SWAP 在同一系统调用内交换 a、b 两个路径，要么全换要么不换，
+    不存在"target 短时不存在"的窗口。失败抛 OSError。
+    """
+    import ctypes
+    import ctypes.util
+    libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+    if not hasattr(libc, "renamex_np"):
+        raise OSError("libc 无 renamex_np，无法保证原子交换")
+    RENAME_SWAP = 0x00000002
+    rc = libc.renamex_np(str(a).encode(), str(b).encode(), RENAME_SWAP)
+    if rc != 0:
+        err = ctypes.get_errno()
+        import os as _os
+        raise OSError(err, f"renamex_np(RENAME_SWAP) 失败: {_os.strerror(err)}")
+
+
+def _acquire_deploy_lock(parent: Path):
+    """部署互斥：对父目录下 .v3deploy.lock 加 flock，防并发部署互相碰撞（评审 P1-B）。"""
+    import fcntl
+    lock_path = parent / ".v3deploy.lock"
+    f = open(lock_path, "w")
+    try:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        raise RuntimeError(f"另一个部署正在进行（{lock_path} 已被锁定），拒绝并发部署")
+    return f
+
+
+def deploy_modelc(int4_package: Path, target_modelc: Path) -> str:
+    """编译 mlpackage → target .mlmodelc，**原子发布**（评审 P1-B 第 2 次）。
+
+    关键设计：
+      · 编译/校验在目标同父目录的**唯一暂存目录**里完成（同一文件系统）；
+      · 部署互斥（flock），防并发碰撞；
+      · 用 macOS `renamex_np(RENAME_SWAP)` 在一次系统调用内**原子交换**暂存目录与 target：
+        交换前 target=旧、暂存=新；交换后 target=新、暂存=旧。不存在"target 中途不存在"的窗口，
+        进程中断也不会丢模型（要么旧要么新）。首次部署（target 不存在）退化为一次 rename，
+        同样在暂存校验完成后进行。
+      · 交换成功后删除暂存里的旧目录。
     返回 target 的语义内容指纹。
     """
     import os
     import shutil
     import subprocess
+    import uuid
     if not int4_package.exists():
         raise RuntimeError(f"待编译产物不存在：{int4_package}")
     target_modelc = Path(target_modelc)
-    target_modelc.parent.mkdir(parents=True, exist_ok=True)
-    # 暂存目录放在目标同一父目录 → 同一文件系统
-    stage = target_modelc.parent / (".v3build_" + str(int(time.time())))
-    if stage.exists():
-        shutil.rmtree(stage, ignore_errors=True)
-    stage.mkdir(parents=True)
+    parent = target_modelc.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    lock = _acquire_deploy_lock(parent)
+    stage = parent / (".v3build_" + uuid.uuid4().hex[:12])
     try:
+        stage.mkdir(parents=True)
         r = subprocess.run(["xcrun", "coremlcompiler", "compile",
                             str(int4_package), str(stage)],
                            capture_output=True, text=True)
@@ -1028,37 +1150,28 @@ def deploy_modelc(int4_package: Path, target_modelc: Path) -> str:
             if not cands:
                 raise RuntimeError(f"编译未产出 .mlmodelc：{list(stage.iterdir())}")
             built = cands[0]
-        # 校验结构完整（缺必需文件即失败，绝不上线半成品）
         missing = [n for n in REQUIRED_MODELC_FILES if not (built / n).is_file()]
         if missing:
             raise RuntimeError(f"编译产物缺少必需文件 {missing}，拒绝部署")
-        # 计算新指纹（在校验通过后）
         new_sha = modelc_content_sha(built)
 
-        backup = target_modelc.parent / (".v3old_" + str(int(time.time())))
-        if backup.exists():
-            shutil.rmtree(backup, ignore_errors=True)
-        had_old = target_modelc.exists()
-        try:
-            if had_old:
-                os.rename(str(target_modelc), str(backup))  # 同 FS rename，近原子
-            os.rename(str(built), str(target_modelc))       # 切换
-        except Exception:
-            # 回滚：若 target 仍空且备份在，则还原旧目录
-            if not target_modelc.exists() and had_old and backup.exists():
-                os.rename(str(backup), str(target_modelc))
-            elif target_modelc.exists() and backup.exists():
-                # target 已是新（rename 成功但后续异常），保留新、清备份
-                shutil.rmtree(backup, ignore_errors=True)
-            raise
-        # 切换成功：删旧备份
-        if backup.exists():
-            shutil.rmtree(backup, ignore_errors=True)
+        if target_modelc.exists():
+            # 原子交换：built <-> target。交换后 built 位置变为旧目录。
+            _atomic_swap_dirs(built, target_modelc)
+            # 交换完成后 built 目录内其实是旧模型，删除之；若交换语义异常则兜底清理
+            if built.exists():
+                shutil.rmtree(built, ignore_errors=True)
+        else:
+            # 首次部署：暂存校验完成后一次 rename（无旧目录可交换）
+            os.rename(str(built), str(target_modelc))
         print(f"[deploy] 已原子部署 {target_modelc}（内容指纹={new_sha[:12]}…，{dir_size_mb(target_modelc):.2f} MB）")
         return new_sha
     finally:
         shutil.rmtree(stage, ignore_errors=True)
-
+        try:
+            lock.close()
+        except Exception:
+            pass
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="V3 checkpoint → CoreML fp16/INT4")

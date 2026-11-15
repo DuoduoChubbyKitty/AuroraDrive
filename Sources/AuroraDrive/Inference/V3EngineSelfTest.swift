@@ -969,6 +969,60 @@ func runV3EngineSelfTest() -> Int {
         }
     }
 
+    // ── T15：编译后 .mlmodelc 的数值一致性（评审 P1-F） ──
+    // 此前数值只在 .mlpackage 上验证；部署的是 .mlmodelc。coremltools 读不了 mlmodelc，
+    // 故这里用 Swift 运行时加载部署 .mlmodelc，喂固定常量输入，与 Python 用 int4 mlpackage
+    // 算出的参考值（models/v3_fixed_input_ref.json）逐路比对，证明编译产物数值正确。
+    ledger.section("[T15] 部署 .mlmodelc 数值一致性（固定输入 vs mlpackage 参考值）")
+    do {
+        let refURL = AuroraPaths.projectRoot().appendingPathComponent("models/v3_fixed_input_ref.json")
+        if let data = try? Data(contentsOf: refURL),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let fillD = (obj["fill"] as? Double),
+           let shapes = obj["shapes"] as? [String: [Int]],
+           let outRef = obj["outputs"] as? [String: [Double]] {
+            let fill = Float(fillD)
+            let modelURL = AuroraPaths.projectRoot().appendingPathComponent("models/\(V3InputContract.modelFileName).mlmodelc")
+            let cfg = MLModelConfiguration()
+            cfg.computeUnits = .cpuAndNeuralEngine
+            if let model = try? MLModel(contentsOf: modelURL, configuration: cfg) {
+                var feed: [String: MLFeatureValue] = [:]
+                var ok = true
+                for (name, dims) in shapes {
+                    let shape = dims.map { NSNumber(value: $0) }
+                    guard let arr = try? MLMultiArray(shape: shape, dataType: .float16) else { ok = false; break }
+                    for i in 0..<arr.count { arr[i] = NSNumber(value: fill) }
+                    feed[name] = MLFeatureValue(multiArray: arr)
+                }
+                if ok, let prov = try? MLDictionaryFeatureProvider(dictionary: feed),
+                   let pred = try? model.prediction(from: prov),
+                   let raw = InferenceEngineV3.rawLogits(from: pred) {
+                    var worstDelta: Double = 0
+                    var worstKey = ""
+                    var missing: [String] = []
+                    for (name, refVals) in outRef {
+                        guard let got = raw[name] else { missing.append(name); continue }
+                        for (k, rv) in refVals.enumerated() where k < got.count {
+                            let d = abs(Double(got[k]) - rv)
+                            if d > worstDelta { worstDelta = d; worstKey = "\(name)[\(k)]" }
+                        }
+                    }
+                    // 同等编译/同输入，数值应几乎一致；留极小容差容忍 fp16 舍入
+                    ledger.check("mlmodelc 八路输出与参考值一致（maxΔ ≤ 0.02）",
+                                 missing.isEmpty && worstDelta <= 0.02,
+                                 String(format: "maxΔ=%.6f@%@ missing=%@", worstDelta, worstKey, "\(missing)"))
+                    print(String(format: "    固定输入 fill=%.2f：mlmodelc vs mlpackage 参考 maxΔ=%.6f", fill, worstDelta))
+                } else {
+                    ledger.check("mlmodelc 固定输入推理可解析", false, "prediction/rawLogits 失败")
+                }
+            } else {
+                ledger.check("mlmodelc 可用 Swift 运行时加载", false, modelURL.path)
+            }
+        } else {
+            ledger.check("读取固定输入参考值", false, "models/v3_fixed_input_ref.json 缺失或格式错")
+        }
+    }
+
     print("\n" + bar)
     print("V3 引擎自检：\(ledger.total - ledger.failures)/\(ledger.total) 通过"
           + (ledger.failures == 0 ? "  ✓ 全部通过" : "  ✗ 失败 \(ledger.failures) 项"))

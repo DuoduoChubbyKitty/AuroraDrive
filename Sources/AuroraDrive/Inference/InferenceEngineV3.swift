@@ -1076,6 +1076,32 @@ final class InferenceEngineV3 {
     // MARK: 输出解析
 
     /// 把 CoreML 输出解析成 `V3Decision`；任一关键输出缺失或含 NaN/Inf → nil。
+    /// 暴露八路**原始 logits**（不解码），供自检对部署 .mlmodelc 做固定输入的数值健全性验证。
+    /// 键：vertical(3)/horizontal(3)/handbrake/brake/super_brake/ultimate/confidence/risk。
+    /// 任何非有限值返回 nil。
+    nonisolated static func rawLogits(from output: MLFeatureProvider) -> [String: [Float]]? {
+        func floats(_ name: String) -> [Float]? {
+            guard let mv = output.featureValue(for: name)?.multiArrayValue else { return nil }
+            var out = [Float](repeating: 0, count: mv.count)
+            for i in 0..<mv.count {
+                let v = mv[i].floatValue
+                if !v.isFinite { return nil }
+                out[i] = v
+            }
+            return out
+        }
+        guard let v = floats("vertical"), v.count == 3,
+              let h = floats("horizontal"), h.count == 3,
+              let hb = floats("handbrake"), hb.count == 1,
+              let br = floats("brake"), br.count == 1,
+              let sb = floats("super_brake"), sb.count == 1,
+              let ul = floats("ultimate"), ul.count == 1,
+              let cf = floats("confidence"), cf.count == 1,
+              let rk = floats("risk"), rk.count == 1 else { return nil }
+        return ["vertical": v, "horizontal": h, "handbrake": hb, "brake": br,
+                "super_brake": sb, "ultimate": ul, "confidence": cf, "risk": rk]
+    }
+
     nonisolated static func parseDecision(_ output: MLFeatureProvider) -> V3Decision? {
         func floats(_ name: String) -> [Float]? {
             guard let mv = output.featureValue(for: name)?.multiArrayValue else { return nil }

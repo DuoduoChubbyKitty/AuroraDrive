@@ -181,12 +181,18 @@ V3 换成论文的范式：**所有模态进同一个 token 序列，靠 attenti
 本模型输出（**全部为 logits**，训练侧直接喂 CE / BCEWithLogitsWithLogits）：
     vertical    [B,3]  W / NONE / S 三分类互斥 logits   ← 满足"不能同时 W 和 S"
     horizontal  [B,3]  A / NONE / D 三分类互斥 logits   ← 录制器保证左右互斥
-    handbrake   [B,1]  Shift 手刹
-    brake       [B,1]  Space 正常刹车
-    super_brake [B,1]  Shift+Space 超级刹车（短按）
-    ultimate    [B,1]  Shift+Space+S 极致刹车
+    handbrake   [B,1]  Shift 手刹                       （独立头）
+    brake       [B,1]  Space 正常刹车                   （独立头）
+    super_brake [B,1]  Shift+Space 超级刹车（短按）      （派生：sigmoid(hb)·sigmoid(br)）
+    ultimate    [B,1]  Shift+Space+S 极致刹车            （派生：super_brake·P(S)）
     confidence  [B,1]  决策置信度
     risk        [B,1]  场景风险
+
+⚠️ 输出名仍是 8 个（部署端 `InferenceEngineV3` 按名读取，不能少），但
+   `super_brake` / `ultimate` 的值由 `handbrake/brake/vertical` **派生**，
+   不再是独立 Linear（见下方「紧急刹车不设独立头」与 `V3OutputHead.forward`）。
+   理由：它们是原子键的定义性派生量，独立监督需为数百小样本设 ~53/~219 的
+   pos_weight，必然过拟合、在干净片段误触发；派生在结构上排除误触发。
 
 **为什么纵向/横向拆成两个 3 类而不是一个 4 类 softmax**（Lead 拍板，
 `03-output-head.md` §7.1 的实测依据）：录制器把 throttle 与 steer 写成两个独立
@@ -224,6 +230,10 @@ CCM **必须先单独训到收敛再冻结**（`03-output-head.md` §3.4 实测�
     5. **4-bit 量化误差**：未做量化后精度验证。
     6. **lane/dets 两路 token 的实际收益**：01/02 文档都未设计这两路的接入方式，
        "各投影成 1 个 token 放进序列"是整合时的设计决定，**未做精度验证**。
+    7. **super_brake/ultimate 改派生后与独立监督的精度对照**：派生方案的结构
+       收益（super_brake ≤ min(handbrake,brake)、误触发在结构上被排除）与
+       L_coh 梯度方向均已本地验证；但**端到端训练后**在 seg_d 上的误触发率
+       是否真的下降、六键 F1 是否提升，**未做 A/B 训练对照**。需实际训练两版验证。
 """
 
 from __future__ import annotations
@@ -690,7 +700,8 @@ class V3OutputHead(nn.Module):
 
     结构（03-output-head.md §2.1/§2.2）：
         trunk: Linear(D→192) → ReLU → Dropout(0.1) → Linear(192→96) → ReLU
-        然后 8 个独立头，**全部输出 logits**。
+        然后 6 个独立头（vertical/horizontal/handbrake/brake/confidence/risk）
+        + 2 个**派生输出**（super_brake/ultimate），共 8 路，全部为 logits。
 
     为什么纵向/横向各用 3 类 softmax：见文件头 §六（4 类只能表达 9 种合法组合
     中的 4 种）。为什么修饰键用独立 sigmoid：Shift 与 Space 是**可同时成立的
@@ -714,11 +725,22 @@ class V3OutputHead(nn.Module):
         self.vertical = nn.Linear(hidden2, 3)
         # 横向：A / NONE / D（互斥，录制器的 left&&!right 已保证）
         self.horizontal = nn.Linear(hidden2, 3)
-        # 四个修饰/安全键：独立 sigmoid（B,1）
+        # 修饰键独立 sigmoid（B,1）：只有 handbrake/brake 两个真实独立头
         self.handbrake = nn.Linear(hidden2, 1)      # Shift
         self.brake = nn.Linear(hidden2, 1)          # Space
-        self.super_brake = nn.Linear(hidden2, 1)    # Shift+Space 短按
-        self.ultimate = nn.Linear(hidden2, 1)       # Shift+Space+S
+        # ⚠️ super_brake / ultimate **不设独立头**（见文件头 §六 与
+        #    "紧急刹车不设独立头"）。它们是原子键的派生量：
+        #        super_brake = shift ∧ space        （由 handbrake×brake 派生）
+        #        ultimate    = shift ∧ space ∧ s    （再 ∧ P(S) 派生）
+        #    为什么不能独立监督（本次修复的依据，实测数据）：
+        #      干净训练样本里 ultimate 只有约 258 个正例、super_brake 约 1059 个，
+        #      若做独立 BCE，pos_weight 必须设到 ~219 / ~53（= (n-pos)/pos）。
+        #      用这么极端的权重去拟合百量级正例，模型只会记住这些画面 →
+        #      在干净验证片段 seg_d 上误触发（这正是要修的缺陷）。
+        #      而按定义派生后，super_brake 恒 ≤ min(handbrake, brake)：
+        #      只要模型认为没按 Shift（正常巡航帧确实不按），super_brake 就必然为 0，
+        #      误触发在结构上被排除，且不需要任何独立正例样本。
+        #    梯度方向已实测（L_coh 对派生头的约束方向正确），详见验证脚本。
         self.confidence = nn.Linear(hidden2, 1)
         self.risk = nn.Linear(hidden2, 1)
         self._init_weights()
@@ -744,13 +766,40 @@ class V3OutputHead(nn.Module):
     def forward(self, state_token: torch.Tensor) -> Dict[str, torch.Tensor]:
         """state_token [B,D] → 8 路 logits。"""
         h = self.trunk(state_token)
+        hb = self.handbrake(h)                     # [B,1] Shift logit
+        br = self.brake(h)                         # [B,1] Space logit
+        vert = self.vertical(h)                    # [B,3] W/NONE/S logits
+        # ── super_brake / ultimate：由已训练的头**派生**，不是独立 Linear ──
+        # 定义（录制器口径）：super_brake = shift ∧ space；ultimate = shift ∧ space ∧ s。
+        # 用 sigmoid 概率相乘得到联合概率，再换算回 logit 返回 —— 这样：
+        #   ① 部署侧 `parseDecision` 的 `logit > 0`（⟺ prob > 0.5）判定照旧，
+        #      与原先"读独立头"完全同构，Swift 侧零改动；
+        #   ② super_brake 恒 ≤ min(handbrake, brake)、ultimate 恒 ≤ min(..., P(S))，
+        #      误触发在结构上被排除，不再需要那 258/1059 个小样本正例。
+        #
+        # ⚠️ 为什么必须换算成 logit，而不是直接返回 log(p)：
+        #   输出契约是 logits（文件头 §六），部署侧 `sbRaw > 0` 等价于 prob > 0.5。
+        #   而 log(p) 对任何 p∈(0,1) 恒为负 —— 直接返回它会让
+        #   `sbRaw > 0` **永远为假**，super_brake / ultimate 静默失效。
+        #   正确换算：logit(p) = log(p) − log(1−p)。
+        # 为什么要 clamp：fp16 下 sigmoid 可能下溢到 0（大负 logit），
+        #   log(0) = −inf 会让部署侧 NaN/Inf 检查整帧作废。
+        #   单边 clamp_min 不是文件头 §五 禁止的「双边 clamp」（那会编译成
+        #   logical_and 把整模型踢出 ANE）。
+        p_hb = torch.sigmoid(hb)
+        p_br = torch.sigmoid(br)
+        p_s = torch.softmax(vert, dim=-1)[..., 2:3]   # 下标 2 = S（与 VERT_S_INDEX 一致）
+        p_sb = (p_hb * p_br).clamp(1e-6, 1.0 - 1e-6)  # [B,1] shift∧space
+        p_ul = (p_sb * p_s).clamp(1e-6, 1.0 - 1e-6)   # [B,1] shift∧space∧S
+        logit_sb = torch.log(p_sb) - torch.log1p(-p_sb)
+        logit_ul = torch.log(p_ul) - torch.log1p(-p_ul)
         return {
-            "vertical": self.vertical(h),          # [B,3] W/NONE/S
+            "vertical": vert,                      # [B,3] W/NONE/S
             "horizontal": self.horizontal(h),      # [B,3] A/NONE/D
-            "handbrake": self.handbrake(h),        # [B,1]
-            "brake": self.brake(h),                # [B,1]
-            "super_brake": self.super_brake(h),    # [B,1]
-            "ultimate": self.ultimate(h),          # [B,1]
+            "handbrake": hb,                       # [B,1]
+            "brake": br,                           # [B,1]
+            "super_brake": logit_sb,               # [B,1] 派生（真 logit）
+            "ultimate": logit_ul,                  # [B,1] 派生（真 logit）
             "confidence": self.confidence(h),      # [B,1]
             "risk": self.risk(h),                  # [B,1]
         }
@@ -1246,6 +1295,56 @@ class V3Loss(nn.Module):
             self.register_buffer(
                 f"pw_{name}", torch.tensor([val], dtype=torch.float32), persistent=False)
 
+    @staticmethod
+    def _masked_bce(logits: torch.Tensor, target_val: torch.Tensor,
+                    mask: Optional[torch.Tensor],
+                    pos_weight: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """按逐帧 mask 加权的 BCEWithLogits；mask 为 None 时退化为普通 BCE。
+
+        为什么需要：录制器卡键产生的 shift/space 是故障值，不能作为监督目标。
+        mask=0 的帧完全不计入梯度（不是置 0 目标 —— 那会教模型"别按"），
+        分母用 mask 求和，保证损失量级不随被屏蔽帧数变化。
+        """
+        if mask is None:
+            return F.binary_cross_entropy_with_logits(
+                logits, target_val, pos_weight=pos_weight)
+        m = mask.reshape(-1).to(logits.dtype)
+        per = F.binary_cross_entropy_with_logits(
+            logits.reshape(-1), target_val.reshape(-1),
+            pos_weight=pos_weight, reduction="none")
+        return (per * m).sum() / m.sum().clamp_min(1.0)
+
+    @staticmethod
+    def _derived_super_probs(pred: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+        """从原子键头派生 (P(super_brake), P(ultimate))，用于质检（无梯度）。
+
+        super_brake = handbrake ∧ brake；ultimate = handbrake ∧ brake ∧ S。
+        与 `V3OutputHead.forward` 的内部派生同口径，这里只取概率做 MAE 监控。
+        """
+        p_hb = torch.sigmoid(pred["handbrake"].reshape(-1))
+        p_br = torch.sigmoid(pred["brake"].reshape(-1))
+        p_s = torch.softmax(pred["vertical"], dim=-1)[..., V3Loss.VERT_S_INDEX]
+        p_sb = p_hb * p_br
+        return p_sb, p_sb * p_s
+
+    @staticmethod
+    def _masked_emd(logits: torch.Tensor, target: torch.Tensor,
+                    mask: Optional[torch.Tensor]) -> torch.Tensor:
+        """按逐帧 mask 加权的序数 EMD；mask 为 None 时退化为普通 EMD。
+
+        为什么需要：卡键段的 intent 标签不可信（shift/space 是录制故障），
+        mask=0 的帧完全不计入梯度，分母用 mask 求和（同 `_masked_bce` 口径）。
+        """
+        if mask is None:
+            return V3Loss._ordinal_emd_loss(logits, target)
+        # 逐样本 EMD（不做 batch 平均），再按 mask 加权平均
+        prob = torch.softmax(logits, dim=-1)
+        onehot = F.one_hot(target.long(), num_classes=3).to(prob.dtype)
+        cdf_diff = (torch.cumsum(prob, dim=-1) - torch.cumsum(onehot, dim=-1)).abs()
+        per = cdf_diff[:, :-1].mean(dim=-1)                       # [B]
+        m = mask.reshape(-1).to(per.dtype)
+        return (per * m).sum() / m.sum().clamp_min(1.0)
+
     def forward(self, pred: Dict[str, torch.Tensor],
                 target: Dict[str, torch.Tensor],
                 ccm_pred: Optional[torch.Tensor] = None,
@@ -1277,10 +1376,19 @@ class V3Loss(nn.Module):
             pred["horizontal"], target["horizontal"], weight=self.horizontal_weights)
 
         # ── 四个修饰/安全键：BCEWithLogits（pos_weight 处理正负不平衡）──
-        loss_hb = F.binary_cross_entropy_with_logits(
-            pred["handbrake"], target["handbrake"], pos_weight=self.pw_handbrake)
-        loss_br = F.binary_cross_entropy_with_logits(
-            pred["brake"], target["brake"], pos_weight=self.pw_brake)
+        #
+        # ⚠️ 逐帧 mask（modifier_valid）：录制器在部分片段把 shift/space 粘住了
+        #   （实测某 clip 连续 1065 帧、约 71 秒不松，期间玩家一直按 W、车速 0→191km/h）。
+        #   这些帧的修饰键标签是**录制故障**，不是操作。用它们监督会让
+        #   super_brake 头学成「这类画面永远=1」。故按 mask 过滤，其余帧照常。
+        #   注意：vertical/horizontal **完全不受影响** —— 卡键只坏两个修饰键，
+        #   玩家当时是否给油/打方向仍然可信，所以绝不删帧、也绝不动 W。
+        loss_hb = self._masked_bce(pred["handbrake"], target["handbrake"],
+                                   target.get("modifier_valid"),
+                                   pos_weight=self.pw_handbrake)
+        loss_br = self._masked_bce(pred["brake"], target["brake"],
+                                   target.get("modifier_valid"),
+                                   pos_weight=self.pw_brake)
 
         loss_key = loss_v + loss_h + loss_hb + loss_br
         metrics.update({
@@ -1290,25 +1398,37 @@ class V3Loss(nn.Module):
 
         total = self.lambda_key * loss_key
 
-        # ── 长按辅助（可选，λ_sb=0.05）──
-        if "super_brake" in target and "super_brake" in pred:
-            loss_sb = F.binary_cross_entropy_with_logits(
-                pred["super_brake"], target["super_brake"],
-                pos_weight=self.pw_super_brake)
-            total = total + self.lambda_super * loss_sb
-            metrics["super_brake"] = loss_sb.item()
-        if "ultimate" in target and "ultimate" in pred:
-            loss_ul = F.binary_cross_entropy_with_logits(
-                pred["ultimate"], target["ultimate"], pos_weight=self.pw_ultimate)
-            total = total + self.lambda_super * loss_ul
-            metrics["ultimate"] = loss_ul.item()
+        # ── super_brake / ultimate：派生量，**不做独立监督** ──
+        # 【为什么去掉独立 BCE（本次修复第 4 项的依据）】见 V3OutputHead.forward：
+        #   这两键是原子键派生量（shift∧space、shift∧space∧s）。干净训练样本里
+        #   正例只有约 1059 / 258 个，若做独立 BCE，pos_weight 需设到 ≈53 / ≈219
+        #   （(n−pos)/pos）。用这么极端的权重拟合百量级正例，模型只会记住这些画面，
+        #   在干净验证片段 seg_d 上误触发 —— 正是要修的缺陷。
+        #   改法：从 handbrake/brake/vertical 派生（结构上 super_brake ≤ min(hb,br)，
+        #   正常巡航帧必然为 0），并由 L_coh 约束派生与原子键一致；不需要独立正例。
+        # 这两项**不参与梯度**，只做量化质检（派生概率对真值的 MAE），便于监控。
+        if "super_brake" in target and "ultimate" in target:
+            with torch.no_grad():
+                p_sb, p_ul = self._derived_super_probs(pred)
+                mv = target.get("modifier_valid")
+                mv = (mv.reshape(-1).to(p_sb.dtype) if mv is not None
+                      else torch.ones_like(p_sb))
+                denom = mv.sum().clamp_min(1.0)
+                err_sb = ((p_sb - target["super_brake"].reshape(-1)).abs() * mv).sum() / denom
+                err_ul = ((p_ul - target["ultimate"].reshape(-1)).abs() * mv).sum() / denom
+            metrics["super_brake"] = err_sb.item()
+            metrics["ultimate"] = err_ul.item()
 
         # ── 安全头（confidence / risk，λ_safe=0.1）──
         if "confidence" in target and "confidence" in pred:
-            loss_conf = F.binary_cross_entropy_with_logits(
-                pred["confidence"], target["confidence"])
-            loss_risk = F.binary_cross_entropy_with_logits(
-                pred["risk"], target["risk"])
+            # confidence 真值由**相邻两帧差分**构造 → 必须用 confidence_valid
+            #   （本帧与上一帧 modifier 都可信）；否则卡键段边界会被伪造的
+            #   「键状态剧变」污染。
+            loss_conf = self._masked_bce(pred["confidence"], target["confidence"],
+                                         target.get("confidence_valid"))
+            # risk 只依赖本帧制动强度 → 用 modifier_valid 屏蔽即可。
+            loss_risk = self._masked_bce(pred["risk"], target["risk"],
+                                         target.get("modifier_valid"))
             total = total + self.lambda_safe * (loss_conf + loss_risk)
             metrics["confidence"] = loss_conf.item()
             metrics["risk"] = loss_risk.item()
@@ -1321,7 +1441,10 @@ class V3Loss(nn.Module):
 
         # ── 中间监督（τ=0.1）：序数 EMD ──
         if self.enable_intent and "intent" in pred and "intent" in target:
-            loss_intent = self._ordinal_emd_loss(pred["intent"], target["intent"])
+            # intent 也按 modifier_valid 屏蔽：卡键段 shift/space 恒 1，会使 STOP
+            # 标签恒真（dataset 侧已屏蔽，但 loss 侧再兜一层，防止其它数据源漏屏蔽）。
+            loss_intent = self._masked_emd(pred["intent"], target["intent"],
+                                           target.get("modifier_valid"))
             total = total + self.tau_intent * loss_intent
             metrics["intent"] = loss_intent.item()
 
@@ -1397,6 +1520,41 @@ class V3Loss(nn.Module):
         valid = (speed_valid.reshape(-1).to(p_S.dtype) > 0.5
                  if speed_valid is not None else torch.ones_like(speed) > 0.5)
 
+        # ── 触发条件收紧：只在「真的在减速」时惩罚（本次修复的核心）──
+        #
+        # 【原缺陷】violation 只看「想按超级刹车」这一个标志：
+        #     w(speed) · P(super_brake) · (1 − P(S))
+        #   于是只要 super_brake 标签=1 且高速，梯度就把 P(S) 往 1 推
+        #   （λ_roll=2.0 > λ_key=0.8，实测四个 P(S) 取样点上 rollover 梯度全部更大）。
+        #   而 super_brake 标签可能来自录制器卡键（shift/space 粘住），
+        #   卡键段车速是平稳的 —— 模型因此被教成「看到超级刹车就踩 S」，与 CE 标签对冲。
+        #
+        # 【收紧方式】防侧翻的物理前提是**车速在下降**（真在急刹）。
+        #   用上一帧到本帧的车速变化构造 0/1 门：仅在 decel>0 时才允许该项生效。
+        #   真急刹 → 触发，保护不变；卡键匀速段 → 不触发，冲突消失。
+        #   取 0.5km/h 死区：过滤速度读数抖动，不放行任何真实减速。
+        speed_prev = target.get("speed_prev_kmh")
+        prev_valid = target.get("speed_prev_valid")
+        if speed_prev is not None:
+            sp_prev = speed_prev.reshape(-1).to(p_S.dtype)
+            pv = (prev_valid.reshape(-1).to(p_S.dtype) > 0.5
+                  if prev_valid is not None else torch.ones_like(sp_prev) > 0.5)
+            # 只有「两帧速度都有效」才可判定减速；否则不可判定 → 不惩罚（放行）
+            decel = (sp_prev - speed) > 0.5
+            decel_ok = (decel & valid & pv).to(p_S.dtype)
+        else:
+            # 兼容旧数据（无上一帧速度）：退化为原行为，但记录一次告警
+            decel_ok = torch.ones_like(speed)
+            if not getattr(self, "_decel_fallback_warned", False):
+                self._decel_fallback_warned = True
+                print("[V3Loss] ⚠ 数据未提供 speed_prev_kmh → L_rollover 退回"
+                      "「只看 super_brake 标志」的旧行为（可能与 CE 对冲）。")
+
+        # 卡键帧的 super_brake 本身不可信 → 同样不计入
+        mvalid = target.get("modifier_valid")
+        if mvalid is not None:
+            decel_ok = decel_ok * (mvalid.reshape(-1).to(p_S.dtype) > 0.5).to(p_S.dtype)
+
         # 整批无有效速度 → 本轮关闭（并只告警一次）。见上方 ①② 的区分。
         if not bool(valid.any()):
             if not self._rollover_disabled_warned:
@@ -1418,7 +1576,8 @@ class V3Loss(nn.Module):
         # ★ 梯度切断（本设计最关键的一处安全考量，见 docstring）
         p_super = p_super_raw.detach()
 
-        return loss_coh, (w * p_super * (1.0 - p_S)).mean()
+        # decel_ok 作为硬门：非减速帧权重归零（不是 detach —— 它不含梯度）
+        return loss_coh, (w * p_super * (1.0 - p_S) * decel_ok).mean()
 
     @staticmethod
     def _ordinal_emd_loss(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -1519,6 +1678,37 @@ def get_model_stats(model: Optional[V3Model] = None) -> str:
     return "\n".join(lines)
 
 
+#: 导出输出名顺序（必须与 forward 返回 dict 的键一致，且与 ct.convert 的
+#: outputs 列表一一对应；Swift 侧 `InferenceEngineV3` 按这些名字取值）。
+EXPORT_OUTPUT_NAMES: Tuple[str, ...] = (
+    "vertical", "horizontal", "handbrake", "brake",
+    "super_brake", "ultimate", "confidence", "risk",
+)
+
+
+class _ExportWrapper(nn.Module):
+    """把 forward 的 dict 输出转成 tuple，供 `torch.jit.trace` + `ct.convert` 使用。
+
+    为什么需要：coremltools 9.0 的 torch 前端**没有实现** `dictconstruct` 算子的
+    转换；直接 trace `V3Model`（返回 dict）会在 `ct.convert` 里报
+    `NotImplementedError: PyTorch convert function for op 'dictconstruct'`。
+    tuple 是 V2 已验证可用的形态（`model_v2.export_coreml` 的 forward 直接返回
+    tuple），故此处用薄包装把 dict 拆成定序 tuple。
+    """
+
+    def __init__(self, model: nn.Module):
+        super().__init__()
+        self.model = model
+
+    def forward(self, image_hi: torch.Tensor, image_lo: torch.Tensor,
+                lane: torch.Tensor, dets: torch.Tensor,
+                det_mask: torch.Tensor, vehicle_state: torch.Tensor):
+        out = self.model(
+            image_hi=image_hi, image_lo=image_lo, lane=lane,
+            dets=dets, det_mask=det_mask, vehicle_state=vehicle_state)
+        return tuple(out[name] for name in EXPORT_OUTPUT_NAMES)
+
+
 def export_coreml(state_dict_path: str, save_path: str,
                   cfg: Optional[V3Config] = None,
                   precision: str = "float16") -> None:
@@ -1565,8 +1755,16 @@ def export_coreml(state_dict_path: str, save_path: str,
         torch.zeros(1, c.max_detections),
         torch.zeros(1, c.state_dim),
     )
+    # ⚠️ 必须先用 _ExportWrapper 把 dict 输出包成 tuple 再 trace：
+    #   `torch.jit.trace` 能记录 dict 返回，但 coremltools 9.0 的前端没有
+    #   `dictconstruct` 算子的转换实现，直接 trace(model) 会在 ct.convert 里报
+    #   `NotImplementedError: PyTorch convert function for op 'dictconstruct'`。
+    #   这不是本次改动引入的（改前 HEAD 版同样报错），而是既有导出路径缺陷；
+    #   仓库已在 `tools/v3_exp/v3code_export.py:55-73` 用同一 _ExportWrapper 形态绕开。
+    #   这里按同样做法修正，输出顺序与下方 outputs 列表严格一致。
+    wrapper = _ExportWrapper(model).eval()
     with torch.no_grad():
-        traced = torch.jit.trace(model, dummy, strict=False)
+        traced = torch.jit.trace(wrapper, dummy, strict=False)
 
     prec = ct.precision.FLOAT16 if precision == "float16" else ct.precision.FLOAT32
     mlmodel = ct.convert(
