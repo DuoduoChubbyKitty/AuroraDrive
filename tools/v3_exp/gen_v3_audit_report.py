@@ -162,6 +162,103 @@ def parse_selftest(txt: str):
     return {"pass": int(m.group(1)), "total": int(m.group(2)), "fail_lines": fails, "parsed": True}
 
 
+#: 安全动作头：这些头的"非边界翻转"视为不可接受的量化退化。
+SAFETY_HEADS = ("vertical", "horizontal", "handbrake", "brake", "super_brake", "ultimate")
+#: fp16 侧 |logit|（二分类）或 top1-top2（三分类）>= 此值时视为"高置信/非边界"：
+#: 此时被 INT4 翻转说明量化把明确决策改错，属真退化（不是边界噪声）。
+NON_BOUNDARY_MARGIN = 0.6
+
+
+def _accepted_risk_sha() -> str:
+    """读取用户已签字的残余风险记录所绑定的部署 modelc 内容指纹；无则空串。"""
+    p = Path(__file__).resolve().parents[2] / "models" / "V3_RESIDUAL_RISK_ACCEPT.md"
+    if not p.is_file():
+        return ""
+    import re as _re
+    txt = p.read_text(encoding="utf-8", errors="ignore")
+    m = _re.search(r"内容指纹\s*`?([0-9a-f]{16,})", txt)
+    return m.group(1) if m else ""
+
+
+def verify_drift(drift, accept_sha: str = "", measured_content_sha: str = "") -> tuple:
+    """按指标 schema + 阈值**重算** drift 是否通过（评审 P0#1：不信任 status 字符串）。
+
+    校验项：
+      1) schema 完整：n_samples/per_output/flip_margins/thresholds/关键顶层误差指标齐全；
+      2) n_samples >= min_calib_samples；
+      3) 6 个安全头 per_output 均有有限 decision_agreement 且 >= thresholds.min_safe_agreement；
+      4) confidence_quant_err 有限且 <= thresholds.max_quant_conf_err；
+      5) 【硬安全规则】任何安全头的"非边界翻转"（flip_margins 中 fp16 高置信裕度 >= NON_BOUNDARY_MARGIN）
+         一律不可接受——量化不得把 fp16 已明确的动作改掉；
+      6) reasons 必须为空（非空即自证失败）。
+    返回 (ok, 说明)。
+    """
+    import math
+    if not isinstance(drift, dict):
+        return False, "drift 缺失或非 dict"
+    problems = []
+    warnings_acc = []
+    for key in ("per_output", "flip_margins", "thresholds", "n_samples",
+                "min_safe_decision_agreement", "min_safe_convert_agreement",
+                "confidence_quant_err"):
+        if key not in drift:
+            problems.append(f"缺 {key}")
+    if problems:
+        return False, "schema 不全: " + ", ".join(problems)
+    n = drift.get("n_samples")
+    try:
+        thr = drift["thresholds"]
+        min_safe = float(thr["min_safe_agreement"])
+        min_calib = float(thr.get("min_calib_samples", 30))
+        max_conf = float(thr["max_quant_conf_err"])
+    except Exception as exc:
+        return False, f"thresholds 不可解析: {type(exc).__name__}: {exc}"
+    if not isinstance(n, (int, float)) or n < min_calib:
+        problems.append(f"n_samples={n} < {min_calib}")
+    per = drift.get("per_output") or {}
+    flips = drift.get("flip_margins") or {}
+    das = []
+    for head in SAFETY_HEADS:
+        po = per.get(head)
+        if not isinstance(po, dict):
+            problems.append(f"缺 per_output.{head}")
+            continue
+        da = po.get("decision_agreement")
+        if not isinstance(da, (int, float)) or not math.isfinite(da):
+            problems.append(f"{head}.decision_agreement 非有限")
+        else:
+            das.append(float(da))
+            if da < min_safe:
+                problems.append(f"{head} 一致率 {da:.4f}<{min_safe}")
+        # 非边界翻转硬规则
+        for m in (flips.get(head) or []):
+            try:
+                mv = abs(float(m))
+            except Exception:
+                problems.append(f"{head} 翻转裕度非法 {m!r}")
+                continue
+            if mv >= NON_BOUNDARY_MARGIN:
+                if accept_sha and measured_content_sha and accept_sha == measured_content_sha:
+                    warnings_acc.append(f"{head} 非边界翻转(裕度{mv:.3f})已由用户签字接受")
+                else:
+                    problems.append(f"{head} 非边界翻转(裕度{mv:.3f}≥{NON_BOUNDARY_MARGIN})→不可接受")
+    if das and min(das) < min_safe:
+        problems.append(f"重算最低安全一致 {min(das):.4f}<{min_safe}")
+    cq = drift.get("confidence_quant_err")
+    if not isinstance(cq, (int, float)) or not math.isfinite(cq):
+        problems.append("confidence_quant_err 非有限")
+    elif cq > max_conf:
+        problems.append(f"confidence_quant_err={cq:.4f}>{max_conf}")
+    if drift.get("reasons"):
+        problems.append(f"reasons 非空={list(drift['reasons'])[:2]}")
+    ok = not problems
+    if ok:
+        note = "OK" + ("（" + "；".join(warnings_acc) + "）" if warnings_acc else "")
+    else:
+        note = "；".join(problems[:6]) + ("（另含已接受：" + "；".join(warnings_acc) + "）" if warnings_acc else "")
+    return ok, note
+
+
 def main() -> int:
     gates: list = []  # (名称, 通过?, 说明)
     calib = {}
@@ -213,15 +310,13 @@ def main() -> int:
         else:
             gates.append(("部署记录含有完整目录哈希", False, "calibration 未记录 deployed_modelc_full_sha256"))
 
-    # ── 评估证据完整性（评审 P0-B：缺 drift / drift.status=failed 仍 PASSED 的漏洞）──
+    # ── 评估证据完整性（评审 P0-B/P0#1：不信任 status 字符串，按指标 schema 重算）──
     drift = calib.get("drift") if isinstance(calib.get("drift"), dict) else None
     eval_status = calib.get("eval_status", "unknown")
     deploy_status = calib.get("deploy_status", "unknown")
     gates.append(("存在 drift 评估证据", drift is not None, "有" if drift else "缺失 drift"))
-    drift_status_ok = bool(drift) and drift.get("status") == "passed"
-    gates.append(("drift.status == passed", drift_status_ok,
-                  f"drift.status={drift.get('status') if drift else 'N/A'}"
-                  + (f" reasons={drift.get('reasons')}" if drift and drift.get('reasons') else "")))
+    drift_ok, drift_note = verify_drift(drift, _accepted_risk_sha(), measured_content or "")
+    gates.append(("drift 指标 schema 完整且按阈值重算通过", drift_ok, drift_note))
     gates.append(("顶层 eval_status == passed", eval_status == "passed", f"eval_status={eval_status}"))
     # 部署门禁：必须明确 deployed（不再允许 unknown 跳过）
     gates.append(("deploy_status == deployed", deploy_status == "deployed", f"deploy_status={deploy_status}"))

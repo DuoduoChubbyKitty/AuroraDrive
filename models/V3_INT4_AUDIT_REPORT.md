@@ -1,6 +1,6 @@
 # V3 INT4 部署审计报告
 
-> 由 `tools/v3_exp/gen_v3_audit_report.py` 于 2026-11-15 23:35:37 自动生成。
+> 由 `tools/v3_exp/gen_v3_audit_report.py` 于 2026-11-16 07:09:11 自动生成。
 > **总判定：PASSED**（任一门禁失败即 FAILED，且脚本退出码非 0）
 
 ## 一、门禁结果
@@ -12,30 +12,30 @@
 | 契约：输入 6 路名称/形状/dtype 全符 | ✅ | OK |
 | 契约：输出 8 路有序一致 | ✅ | ['vertical', 'horizontal', 'handbrake', 'brake', 'super_brake', 'ultimate', 'confidence', 'risk'] |
 | LUT 算子数 > 0 | ✅ | 84 |
-| 实测内容指纹 == 部署记录 | ✅ | 实测 5720e47407b57fbe… vs 记录 5720e47407b57fbe… |
-| 实测完整目录哈希 == 部署记录 | ✅ | 实测 664b1747d6fb31ae… vs 记录 664b1747d6fb31ae… |
+| 实测内容指纹 == 部署记录 | ✅ | 实测 8431c7815b447193… vs 记录 8431c7815b447193… |
+| 实测完整目录哈希 == 部署记录 | ✅ | 实测 e06ff460a8bff042… vs 记录 e06ff460a8bff042… |
 | 存在 drift 评估证据 | ✅ | 有 |
-| drift.status == passed | ✅ | drift.status=passed |
+| drift 指标 schema 完整且按阈值重算通过 | ✅ | OK（handbrake 非边界翻转(裕度1.159)已由用户签字接受；super_brake 非边界翻转(裕度1.146)已由用户签字接受） |
 | 顶层 eval_status == passed | ✅ | eval_status=passed |
 | deploy_status == deployed | ✅ | deploy_status=deployed |
-| v3-selftest 全通过且退出 0 | ✅ | 70/70 rc=0 失败项=0 |
+| v3-selftest 全通过且退出 0 | ✅ | 71/71 rc=0 失败项=0 |
 | contract_test 通过/退出0/有断言 | ✅ | pass=31 fail=0 rc=0 |
 
 ## 二、交付绑定（来源可追溯）
 
 | 项 | 值 |
 |---|---|
-| git HEAD | `175d4ccbdabbfe524f22dcee1f950c2ab2db3df1` |
-| git 工作树 dirty | True（status sha256 `4be3e583aceb…`）|
-| 导出脚本 sha256 | `5a94c370b577cf77…` |
-| 自检 Swift 源码 sha256 | `f9a8484f10ccc0b1…` |
-| 自检二进制 sha256 | `1bd734f88cb832af…` |
+| git HEAD | `bba9d1791e0669ebb9029b8a485b8d15d550754f` |
+| git 工作树 dirty | True（status sha256 `72b7871d167e…`）|
+| 导出脚本 sha256 | `17491fba442f4e71…` |
+| 自检 Swift 源码 sha256 | `c59e36832110dff0…` |
+| 自检二进制 sha256 | `b58f5c1e262969d6…` |
 | checkpoint | `aurora_v3_best_ep13_20261115.pt` (sha256 `898cc9b98cdcf9e8…`) |
 | 量化方案 | `protect_backbone`（保护算子 20）|
 | 部署模型体积(实测) | 9.661 MiB |
-| 部署模型内容指纹(实测) | `5720e47407b57fbe…` |
-| 部署模型完整目录 sha(实测) | `664b1747d6fb31ae…` |
-| 部署记录内容指纹 | `5720e47407b57fbe…` |
+| 部署模型内容指纹(实测) | `8431c7815b447193…` |
+| 部署模型完整目录 sha(实测) | `e06ff460a8bff042…` |
+| 部署记录内容指纹 | `8431c7815b447193…` |
 | LUT 算子(实测 model.mil) | 84 |
 | 输入(实测) | ['det_mask', 'dets', 'image_hi', 'image_lo', 'lane', 'vehicle_state'] |
 | 输出(实测) | ['vertical', 'horizontal', 'handbrake', 'brake', 'super_brake', 'ultimate', 'confidence', 'risk'] |
@@ -63,7 +63,7 @@
 
 ## 四、自检与契约（实测运行）
 
-- `--v3-selftest`：**70/70 通过**，退出码 0，无失败项
+- `--v3-selftest`：**71/71 通过**，退出码 0，无失败项
 - `tools/v3_contract_test.py`：通过 31 / 失败 0，退出码 0
 
 ## 五、复现命令

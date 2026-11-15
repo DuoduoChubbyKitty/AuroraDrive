@@ -1,5 +1,14 @@
 {
-  "fill": 0.25,
+  "deployed_modelc_content_sha": "8431c7815b447193e7b7fc48b268e02733d15bfeacb7aeabe1b973ecd48b4ac5",
+  "source": {
+    "mode": "real",
+    "sample": {
+      "shard": "clip_20261104_211247_p00000",
+      "frame": 3577
+    },
+    "data_sha256": "4c2b786dfa28347fa83a740c66b3dd524e088190631d3b39ec529abf9743521a",
+    "bin_dir": "models/v3_fixed_input"
+  },
   "shapes": {
     "image_hi": [
       1,
@@ -38,32 +47,32 @@
   "package": "/tmp/v3_ckpt/v3_int4_protect_backbone.mlpackage",
   "outputs": {
     "vertical": [
-      0.6005859375,
-      0.256591796875,
-      1.89453125
+      5.5625,
+      0.5625,
+      -1.962890625
     ],
     "horizontal": [
-      -2.076171875,
-      -0.327880859375,
-      -2.5625
+      -0.89990234375,
+      1.6923828125,
+      0.011474609375
     ],
     "handbrake": [
-      -1.0576171875
+      -4.98046875
     ],
     "brake": [
-      -0.1773681640625
+      -4.39453125
     ],
     "super_brake": [
-      -2.009765625
+      -9.375
     ],
     "ultimate": [
-      -2.435546875
+      -13.8046875
     ],
     "confidence": [
-      3.06640625
+      4.2578125
     ],
     "risk": [
-      -0.8974609375
+      -1.9970703125
     ]
   }
 }

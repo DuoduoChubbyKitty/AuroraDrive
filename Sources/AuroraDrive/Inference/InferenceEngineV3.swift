@@ -529,8 +529,10 @@ final class InferenceEngineV3 {
         }
 
         let cfg = MLModelConfiguration()
-        // ANE 优先：同一 INT4 模型实测 ANE 4.80ms vs CPU 21.75ms / GPU 18.62ms
-        cfg.computeUnits = .cpuAndNeuralEngine
+        // 默认 ANE 优先：同一 INT4 模型实测 ANE 4.80ms vs CPU 21.75ms / GPU 18.62ms。
+        // 可用环境变量 AURORA_COMPUTE_UNITS=cpu|cpuAndGPU|cpuAndNeuralEngine|all 覆盖，
+        // 便于复现跨计算单元的数值一致性（INT4+fp16 在 ANE/CPU 上可能有细微分歧）。
+        cfg.computeUnits = ComputeUnitSelection.current()
 
         do {
             let loaded = try MLModel(contentsOf: url, configuration: cfg)
@@ -1076,6 +1078,18 @@ final class InferenceEngineV3 {
     // MARK: 输出解析
 
     /// 把 CoreML 输出解析成 `V3Decision`；任一关键输出缺失或含 NaN/Inf → nil。
+    /// 按环境变量 AURORA_COMPUTE_UNITS 选择计算单元（默认 cpuAndNeuralEngine）。
+    enum ComputeUnitSelection {
+        static func current() -> MLComputeUnits {
+            switch ProcessInfo.processInfo.environment["AURORA_COMPUTE_UNITS"] {
+            case "cpu": return .cpuOnly
+            case "cpuAndGPU": return .cpuAndGPU
+            case "all": return .all
+            default: return .cpuAndNeuralEngine
+            }
+        }
+    }
+
     /// 暴露八路**原始 logits**（不解码），供自检对部署 .mlmodelc 做固定输入的数值健全性验证。
     /// 键：vertical(3)/horizontal(3)/handbrake/brake/super_brake/ultimate/confidence/risk。
     /// 任何非有限值返回 nil。

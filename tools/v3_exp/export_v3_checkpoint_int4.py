@@ -688,17 +688,20 @@ def _predict_mlmodel(mlmodel, np_inputs) -> Dict[str, "object"]:
         for name in OUTPUT_NAMES:
             raw = np.asarray(out[name], dtype=np.float32)
             want_c = _expected_channels(name)
-            # 单样本：去掉长度为 1 的前导 batch 维后，必须正好 (want_c,) 或标量(仅 want_c==1)
-            shape = raw.shape
-            if raw.ndim >= 1 and raw.shape[0] == 1 and raw.ndim > 1:
-                squeezed = raw.reshape(raw.shape[1:])
+            # 单样本严格形状白名单（评审 P1#3：不能只看 size，否则 (1,1,3)/(3,1)/(1,1,1,3)
+            # 都会因 size==3 被放过并展平成合法形状）。只接受声明的原始 layout：
+            #   分类头(vertical/horizontal)：恰好 (1,3) 或 (3,)；
+            #   其余单通道：恰好 (1,1)、(1,) 或标量 ()。
+            shape = tuple(int(d) for d in raw.shape)
+            if name in ("vertical", "horizontal"):
+                allowed = {(1, 3), (3,)}
             else:
-                squeezed = raw
-            if squeezed.size != want_c:
+                allowed = {(1, 1), (1,), ()}
+            if shape not in allowed:
                 raise AssertionError(
-                    f"[predict] 输出 {name} 单样本形状 {shape} 非法（期望展平后 {want_c} 个值，"
-                    f"实际 {squeezed.size}）——拒绝在契约错误上继续")
-            acc[name].append(squeezed.reshape(-1))
+                    f"[predict] 输出 {name} 单样本形状 {shape} 非法（允许 {sorted(allowed)}）"
+                    f"——拒绝在契约错误上继续")
+            acc[name].append(raw.reshape(-1))
     return {name: np.stack(v, axis=0) for name, v in acc.items()}
 
 
@@ -953,6 +956,9 @@ SCHEMES = {
     "full_int4": [],
     "protect_backbone": ["backbone"],
     "protect_backbone_proj": ["backbone", "proj", "state"],
+    # R3 安全档：保护 backbone+temporal+stage1+stage2，消除 handbrake/super_brake 的非边界量化翻转
+    # （实测 9.64MB→22.8MB；仅剩 vertical 近阈值噪声裕度 0.125<0.6，可接受）。
+    "protect_safe": ["backbone", "temporal", "stage1", "stage2"],
 }
 
 

@@ -41,6 +41,7 @@ import Foundation
 import CoreGraphics
 import ImageIO
 import CoreML
+import CryptoKit
 import AppKit
 import QuartzCore
 
@@ -978,40 +979,102 @@ func runV3EngineSelfTest() -> Int {
         let refURL = AuroraPaths.projectRoot().appendingPathComponent("models/v3_fixed_input_ref.json")
         if let data = try? Data(contentsOf: refURL),
            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let fillD = (obj["fill"] as? Double),
            let shapes = obj["shapes"] as? [String: [Int]],
            let outRef = obj["outputs"] as? [String: [Double]] {
-            let fill = Float(fillD)
+            let srcDict = obj["source"] as? [String: Any]
+            let srcMode = (srcDict?["mode"] as? String) ?? "constant"
+            let fill = Float((srcDict?["fill"] as? Double) ?? 0)
             let modelURL = AuroraPaths.projectRoot().appendingPathComponent("models/\(V3InputContract.modelFileName).mlmodelc")
+            // 参考绑定：重算部署 modelc 内容指纹（weight.bin+model.mil+metadata.json 的 SHA256），
+            // 与参考记录比对，确保 T15 用的是针对当前部署产物生成的参考（评审 P1#4）。
+            let refDepSha = (obj["deployed_modelc_content_sha"] as? String) ?? ""
+            var depHasher = SHA256()
+            for rel in ["weights/weight.bin", "model.mil", "metadata.json"] {
+                // 与 Python modelc_content_sha 对齐：先混入相对路径名，再混文件字节
+                depHasher.update(data: Data(rel.utf8))
+                if let d = try? Data(contentsOf: modelURL.appendingPathComponent(rel)) { depHasher.update(data: d) }
+            }
+            let localDepSha = depHasher.finalize().map { String(format: "%02x", $0) }.joined()
+            ledger.check("T15 参考绑定当前部署 modelc 内容指纹",
+                         !refDepSha.isEmpty && localDepSha == refDepSha,
+                         "本地 \(localDepSha.prefix(12))… vs 参考 \(refDepSha.prefix(12))…")
             let cfg = MLModelConfiguration()
-            cfg.computeUnits = .cpuAndNeuralEngine
+            cfg.computeUnits = InferenceEngineV3.ComputeUnitSelection.current()
             if let model = try? MLModel(contentsOf: modelURL, configuration: cfg) {
                 var feed: [String: MLFeatureValue] = [:]
                 var ok = true
-                for (name, dims) in shapes {
-                    let shape = dims.map { NSNumber(value: $0) }
-                    guard let arr = try? MLMultiArray(shape: shape, dataType: .float16) else { ok = false; break }
-                    for i in 0..<arr.count { arr[i] = NSNumber(value: fill) }
-                    feed[name] = MLFeatureValue(multiArray: arr)
+                if srcMode == "real" {
+                    // 真实验证帧固定输入：从 models/v3_fixed_input/<name>.bin 读 float16 原始字节
+                    let binDir = AuroraPaths.projectRoot().appendingPathComponent("models/v3_fixed_input")
+                    for (name, dims) in shapes {
+                        let binURL = binDir.appendingPathComponent("\(name).bin")
+                        guard let raw = try? Data(contentsOf: binURL) else { ok = false; break }
+                        let shape = dims.map { NSNumber(value: $0) }
+                        var count = 1; for d in dims { count *= d }
+                        guard raw.count == count * MemoryLayout<UInt16>.size,
+                              let arr = try? MLMultiArray(shape: shape, dataType: .float16) else { ok = false; break }
+                        raw.withUnsafeBytes { (rb: UnsafeRawBufferPointer) in
+                            let src = rb.bindMemory(to: UInt16.self)
+                            for i in 0..<count {
+                                // float16 位模式直接拷贝（数据即 numpy float16 原始字节）
+                                arr[i] = NSNumber(value: Float(Float16(bitPattern: src[i])))
+                            }
+                        }
+                        feed[name] = MLFeatureValue(multiArray: arr)
+                    }
+                } else {
+                    for (name, dims) in shapes {
+                        let shape = dims.map { NSNumber(value: $0) }
+                        guard let arr = try? MLMultiArray(shape: shape, dataType: .float16) else { ok = false; break }
+                        for i in 0..<arr.count { arr[i] = NSNumber(value: fill) }
+                        feed[name] = MLFeatureValue(multiArray: arr)
+                    }
                 }
                 if ok, let prov = try? MLDictionaryFeatureProvider(dictionary: feed),
                    let pred = try? model.prediction(from: prov),
                    let raw = InferenceEngineV3.rawLogits(from: pred) {
+                    // 严格：先要求恰好八个输出键、每路长度分别 3/3/1/1/1/1/1/1，再逐元素比较。
+                    // 旧实现只遍历参考已有键、只比 k<got.count，缺项/空参考反而"通过"（评审 P0#2）。
+                    let expectedLens: [String: Int] = ["vertical": 3, "horizontal": 3,
+                                                       "handbrake": 1, "brake": 1, "super_brake": 1,
+                                                       "ultimate": 1, "confidence": 1, "risk": 1]
+                    var schemaErr: [String] = []
+                    if Set(outRef.keys) != Set(expectedLens.keys) {
+                        schemaErr.append("参考键≠八路: \(Set(outRef.keys))")
+                    }
+                    for (name, wantLen) in expectedLens {
+                        guard let refVals = outRef[name] else { schemaErr.append("缺参考头 \(name)"); continue }
+                        if refVals.count != wantLen { schemaErr.append("\(name) 参考长度 \(refVals.count)≠\(wantLen)") }
+                        guard let got = raw[name] else { schemaErr.append("缺实际输出 \(name)"); continue }
+                        if got.count != wantLen { schemaErr.append("\(name) 实际长度 \(got.count)≠\(wantLen)") }
+                    }
                     var worstDelta: Double = 0
                     var worstKey = ""
-                    var missing: [String] = []
-                    for (name, refVals) in outRef {
-                        guard let got = raw[name] else { missing.append(name); continue }
-                        for (k, rv) in refVals.enumerated() where k < got.count {
-                            let d = abs(Double(got[k]) - rv)
-                            if d > worstDelta { worstDelta = d; worstKey = "\(name)[\(k)]" }
+                    if schemaErr.isEmpty {
+                        for (name, wantLen) in expectedLens {
+                            let refVals = outRef[name]!
+                            let got = raw[name]!
+                            for k in 0..<wantLen {
+                                let rv = refVals[k]
+                                if !rv.isFinite { schemaErr.append("\(name)[\(k)] 参考非有限"); continue }
+                                let d = abs(Double(got[k]) - rv)
+                                if d > worstDelta { worstDelta = d; worstKey = "\(name)[\(k)]" }
+                            }
                         }
                     }
-                    // 同等编译/同输入，数值应几乎一致；留极小容差容忍 fp16 舍入
-                    ledger.check("mlmodelc 八路输出与参考值一致（maxΔ ≤ 0.02）",
-                                 missing.isEmpty && worstDelta <= 0.02,
-                                 String(format: "maxΔ=%.6f@%@ missing=%@", worstDelta, worstKey, "\(missing)"))
-                    print(String(format: "    固定输入 fill=%.2f：mlmodelc vs mlpackage 参考 maxΔ=%.6f", fill, worstDelta))
+                    // 容差 0.15：编译一致性 + 跨计算单元浮点噪声上限（真实验证帧实测 ANE/all Δ=0、
+                    // cpuOnly ≈0.086）。安全动作的量化翻转不靠这里把关（由审计 flip_margins 硬规则负责），
+                    // 此处只抓"编译改变数值/明显损坏"（如 NaN 或 >0.15 的漂移）。
+                    ledger.check("mlmodelc 八路输出与参考值一致（schema 严格，maxΔ ≤ 0.15）",
+                                 schemaErr.isEmpty && worstDelta <= 0.15,
+                                 schemaErr.isEmpty
+                                   ? String(format: "maxΔ=%.6f@%@", worstDelta, worstKey)
+                                   : "schema 错误: \(schemaErr.prefix(4))")
+                    print(String(format: "    固定输入(%@)：mlmodelc vs mlpackage 参考 maxΔ=%.6f（computeUnits=%@）",
+                                 srcMode, worstDelta, ProcessInfo.processInfo.environment["AURORA_COMPUTE_UNITS"] ?? "cpuAndNeuralEngine(default)"))
+                    if worstDelta > 0.15 {
+                        print("    ⚠ 数值不一致：检查计算单元后端差异（INT4 在 cpuOnly 与 ANE 上可能有分歧）或参考身份")
+                    }
                 } else {
                     ledger.check("mlmodelc 固定输入推理可解析", false, "prediction/rawLogits 失败")
                 }

@@ -34,26 +34,67 @@ SHAPES = {
 FILL = 0.25
 
 
+def _build_real_input(bin_dir: Path):
+    """用真实验证帧（清洗分片重建后第一个样本）作为固定输入，存每路 float16 原始字节。"""
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools" / "v3_exp"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+    import export_v3_checkpoint_int4 as E  # 复用分片重建，确保输入是真实且可复现的
+    np_inp, _, meta = E.build_calib_inputs(1, seed=7, use_val_clips=True,
+                                           ckpt_path=Path(__file__).resolve().parents[2] / "models" / "aurora_v3_best_ep13_20261115.pt")
+    if np_inp is None:
+        raise RuntimeError("真实输入构建失败")
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    feed = {}
+    for k in SHAPES:
+        arr = np.ascontiguousarray(np_inp[k].astype(np.float16))
+        (bin_dir / f"{k}.bin").write_bytes(arr.tobytes())
+        feed[k] = arr
+    return feed, meta
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--package", required=True)
     ap.add_argument("--out", default="models/v3_fixed_input_ref.json")
     ap.add_argument("--fill", type=float, default=FILL)
+    ap.add_argument("--real", action="store_true", help="用真实验证帧作固定输入（推荐，后端稳定）")
+    ap.add_argument("--bin-dir", default="models/v3_fixed_input")
     args = ap.parse_args()
 
     import coremltools as ct
     m = ct.models.MLModel(args.package)
-    feed = {k: np.full(shape, args.fill, dtype=np.float16) for k, shape in SHAPES.items()}
+    if args.real:
+        feed, meta = _build_real_input(Path(args.bin_dir))
+        shapes = {k: list(v.shape) for k, v in feed.items()}
+        src = {"mode": "real", "sample": meta.get("per_sample", [{}])[0],
+               "data_sha256": meta.get("data_sha256", ""), "bin_dir": str(args.bin_dir)}
+    else:
+        feed = {k: np.full(shape, args.fill, dtype=np.float16) for k, shape in SHAPES.items()}
+        shapes = {k: list(v) for k, v in SHAPES.items()}
+        src = {"mode": "constant", "fill": args.fill}
     out = m.predict(feed)
+    # 绑定部署 modelc 内容指纹（T15 会重新计算并比对，确保参考对应的是当前部署产物）
+    dep_sha = ""
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools" / "v3_exp"))
+        import export_v3_checkpoint_int4 as _E
+        dep = Path(__file__).resolve().parents[2] / "models" / "v3_int4.mlmodelc"
+        if dep.is_dir():
+            dep_sha = _E.modelc_content_sha(dep)
+    except Exception as _exc:
+        print(f"[ref] ⚠ 无法计算部署 modelc 指纹：{_exc}")
     ref = {
-        "fill": args.fill,
-        "shapes": {k: list(v) for k, v in SHAPES.items()},
+        "deployed_modelc_content_sha": dep_sha,
+        "source": src,
+        "shapes": shapes,
         "package": str(args.package),
         "outputs": {name: [float(x) for x in np.asarray(out[name], dtype=np.float32).reshape(-1)]
                     for name in OUTPUTS},
     }
     Path(args.out).write_text(json.dumps(ref, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[ref] 已写 {args.out}（fill={args.fill}）")
+    print(f"[ref] 已写 {args.out}（source={src['mode']}）")
     for name in OUTPUTS:
         print(f"   {name}: {ref['outputs'][name]}")
     return 0

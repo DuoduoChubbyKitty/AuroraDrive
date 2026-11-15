@@ -198,3 +198,7 @@ docs/v3-design/papers/*.pdf
 models/v3_int4_prev_*.mlmodelc/
 models/v3_int4_full6mb_*.mlmodelc/
 models/aurora_v3_best_ep*.pt
+
+# V3 部署临时锁/暂存
+models/.v3deploy.lock
+models/.v3build_*/
