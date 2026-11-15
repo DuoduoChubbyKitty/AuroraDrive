@@ -3,17 +3,17 @@
   "ckpt_sha256": "898cc9b98cdcf9e88494c8e7707c45c50644ff3b29cb2f0ba578bd4ee31722dd",
   "ios": 18,
   "scheme": "protect_backbone",
-  "git_commit": "d33cf24376271b655bc1407e4b0a5257e0889d5a",
-  "generated_at": "2026-11-16 07:18:05",
+  "git_commit": "1f182708124c4189e3a1792d8177b5c8975ff721",
+  "generated_at": "2026-11-16 07:24:33",
   "params_train": 12208931,
   "params_deploy": 12187226,
   "fp16_size_mb": 23.427,
-  "fp16_sha256": "f1591b75a98d11c43bd68ea6867fb5ed2b0dd626f2b0235e1072fcb36539fe96",
+  "fp16_sha256": "983cedb9454a880b7ff189f9fa1b471c220b302972f4152f5a271c748d96e75e",
   "build_status": "int4_ok",
   "scheme_protected_ops": 20,
   "int4_path": "/tmp/v3_ckpt/v3_int4_protect_backbone.mlpackage",
   "int4_size_mb": 9.641,
-  "int4_sha256": "00ce8baf93c51dc4592386576cc810108602987102fb0a01ffc752919223e499",
+  "int4_sha256": "f5edf106cd7fa9e39eb7c6a45bc44604160c48a92674ee09c01720a435c093a2",
   "int4_compression": 2.43,
   "drift": {
     "status": "passed",
@@ -29,7 +29,10 @@
             "idx": 95,
             "shard": "clip_20261104_211247_p00000",
             "frame": 1682,
-            "margin": 0.125
+            "margin": 0.125,
+            "fp16_decision": "0",
+            "int4_decision": "1",
+            "direction": "0→1"
           }
         ],
         "agreement_ci95": [
@@ -58,7 +61,10 @@
             "idx": 105,
             "shard": "clip_20261104_211247_p00000",
             "frame": 2006,
-            "margin": 1.1591796875
+            "margin": 1.1591796875,
+            "fp16_decision": "false",
+            "int4_decision": "true",
+            "direction": "false→true"
           }
         ],
         "agreement_ci95": [
@@ -87,7 +93,10 @@
             "idx": 105,
             "shard": "clip_20261104_211247_p00000",
             "frame": 2006,
-            "margin": 1.1455078125
+            "margin": 1.1455078125,
+            "fp16_decision": "false",
+            "int4_decision": "true",
+            "direction": "false→true"
           }
         ],
         "agreement_ci95": [
@@ -127,19 +136,28 @@
             "idx": 11,
             "shard": "clip_20261104_131750_p00000",
             "frame": 727,
-            "margin": 0.11663818359375
+            "margin": 0.11663818359375,
+            "fp16_decision": "true",
+            "int4_decision": "false",
+            "direction": "true→false"
           },
           {
             "idx": 17,
             "shard": "clip_20261104_131750_p00000",
             "frame": 1133,
-            "margin": 0.032623291015625
+            "margin": 0.032623291015625,
+            "fp16_decision": "false",
+            "int4_decision": "true",
+            "direction": "false→true"
           },
           {
             "idx": 76,
             "shard": "clip_20261104_211247_p00000",
             "frame": 885,
-            "margin": 0.0760498046875
+            "margin": 0.0760498046875,
+            "fp16_decision": "false",
+            "int4_decision": "true",
+            "direction": "false→true"
           }
         ],
         "agreement_ci95": [
@@ -746,7 +764,7 @@
   "eval_status": "passed",
   "deployed_modelc": "models/v3_int4.mlmodelc",
   "deployed_modelc_content_sha256": "8431c7815b447193e7b7fc48b268e02733d15bfeacb7aeabe1b973ecd48b4ac5",
-  "deployed_modelc_full_sha256": "dfc12da6f9a925faed90e5ae644731ab1bbb2cd8667b59f5301c67e2d132c844",
+  "deployed_modelc_full_sha256": "84030e72910d5b5fb13a02ca4d733c4dd9bbed653b162a0087d6b4783ed1aed2",
   "deploy_status": "deployed",
-  "total_seconds": 55.2
+  "total_seconds": 46.3
 }

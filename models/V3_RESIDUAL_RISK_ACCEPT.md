@@ -29,8 +29,20 @@
   "model_content_sha": "8431c7815b447193e7b7fc48b268e02733d15bfeacb7aeabe1b973ecd48b4ac5",
   "data_sha256": "07d8fba94f56f6597cdbf85d22d57ca10c084ea9b38535027e7fd497ffb11c7f",
   "accepted": [
-    {"head": "handbrake", "shard": "clip_20261104_211247_p00000", "frame": 2006, "margin": 1.1592, "direction": "false→true"},
-    {"head": "super_brake", "shard": "clip_20261104_211247_p00000", "frame": 2006, "margin": 1.1455, "direction": "false→true"}
+    {
+      "head": "handbrake",
+      "shard": "clip_20261104_211247_p00000",
+      "frame": 2006,
+      "direction": "false→true",
+      "margin": 1.1592
+    },
+    {
+      "head": "super_brake",
+      "shard": "clip_20261104_211247_p00000",
+      "frame": 2006,
+      "direction": "false→true",
+      "margin": 1.1455
+    }
   ]
 }
 ```

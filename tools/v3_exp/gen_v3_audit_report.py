@@ -191,17 +191,14 @@ def _finite(x) -> bool:
 
 
 def verify_drift(drift, accepted: dict = None, measured_content_sha: str = "") -> tuple:
-    """按指标 schema + 阈值**全字段重算** drift（评审 R3 P0#1/P1#2）。
+    """按指标 schema + 阈值**全字段严格重算** drift（评审 R4 P0#1/P1#2）。
 
-    不再信任 status/min_safe 等汇总字段，而是：
-      · 校验 schema 与所有数值**有限且范围合法**（样本正整数、阈值∈(0,1]、误差≥0 有限）；
-      · 逐头核对 n_flip == len(flip_ids) == len(flip_margins)，且 1-decision_agreement ≈ n_flip/n；
-      · 重算 min_safe_decision_agreement == 逐头最小值；
-      · **转换保真门禁（硬）**：各安全头 convert_agreement==1.0、min_safe_convert_agreement==1.0、
-        worst_convert_drift<=gross、confidence_convert_err<=max_convert_prob_err；
-      · **量化门禁（硬）**：confidence_quant_err<=max_quant_conf_err；
-      · **非边界翻转硬规则**：安全头 fp16 高置信翻转默认不可接受；仅当 (model指纹+数据指纹匹配) 且
-        该翻转 (head,shard,frame) **精确命中所签字记录**时降级为 WARN，其它一律 FAIL。
+    · 所有数值必须**有限**，误差/漂移必须**非负**，一致率必须 ∈[0,1]；
+    · 转换一致率**严格 == 1.0**（不接受 >1 或 <1）；
+    · 逐头报告结构：八路都必须有 per_output（含 confidence/risk）；
+    · 翻转索引必须对齐 data.per_sample 的 shard/frame；
+    · 非边界翻转：默认 FAIL，仅当 (model+data 指纹匹配) 且 (head,shard,frame,direction) 精确命中签署
+      记录时降级 WARN；方向必须匹配签字的 false→true。
     返回 (ok, 说明)。
     """
     accepted = accepted or {}
@@ -216,37 +213,45 @@ def verify_drift(drift, accepted: dict = None, measured_content_sha: str = "") -
     if problems:
         return False, "schema 不全: " + ", ".join(problems)
     thr = drift["thresholds"]
-    if not isinstance(thr, dict):
-        return False, "thresholds 非 dict"
     need_thr = ("min_safe_agreement", "max_convert_prob_err", "max_quant_conf_err",
                 "gross_logit_drift", "min_calib_samples")
-    miss_t = [k for k in need_thr if not _finite(thr.get(k))]
-    if miss_t:
-        return False, f"thresholds 非有限/缺失: {miss_t}"
+    if not isinstance(thr, dict) or [k for k in need_thr if not _finite(thr.get(k))]:
+        return False, f"thresholds 非有限/缺失: {[k for k in need_thr if not (isinstance(thr,dict) and _finite(thr.get(k)))]}"
     min_safe = float(thr["min_safe_agreement"]); max_conf = float(thr["max_quant_conf_err"])
     max_conv_prob = float(thr["max_convert_prob_err"]); gross = float(thr["gross_logit_drift"])
     min_calib = float(thr["min_calib_samples"])
-    if not (0 < min_safe <= 1 and 0 < max_conf and max_conv_prob >= 0 and gross > 0 and min_calib > 0):
-        problems.append(f"阈值范围非法 min_safe={min_safe} max_conf={max_conf} gross={gross} min_calib={min_calib}")
+    if not (0 < min_safe <= 1 and max_conf > 0 and max_conv_prob >= 0 and gross > 0 and min_calib > 0):
+        problems.append("阈值范围非法")
     n = drift.get("n_samples")
     if not (isinstance(n, int) and not isinstance(n, bool) and n > 0):
-        problems.append(f"n_samples 非正整数: {n!r}")
-        n = None
+        problems.append(f"n_samples 非正整数: {n!r}"); n = None
     if n is not None and n < min_calib:
-        problems.append(f"n_samples={n} < min_calib={min_calib}")
+        problems.append(f"n_samples={n} < min_calib")
     data = drift.get("data") or {}
-    if not isinstance(data, dict) or not isinstance(data.get("data_sha256"), str) or len(data.get("data_sha256", "")) < 16:
+    per_sample = data.get("per_sample") if isinstance(data, dict) else None
+    if not isinstance(per_sample, list) or (n is not None and len(per_sample) != n):
+        problems.append(f"data.per_sample 缺失或长度≠n")
+    if not isinstance(data, dict) or len(str(data.get("data_sha256", ""))) < 16:
         problems.append("缺 data.data_sha256")
-    if n is not None and data.get("n_samples") not in (None, n):
-        problems.append(f"data.n_samples={data.get('n_samples')} != drift.n_samples={n}")
+
+    # 误差/漂移必须非负且有限
+    for key in ("confidence_quant_err", "confidence_convert_err", "worst_convert_drift"):
+        v = drift.get(key)
+        if not _finite(v) or v < 0:
+            problems.append(f"{key}={v!r} 非有限或为负")
 
     per = drift.get("per_output") or {}
     flips = drift.get("flip_margins") or {}
-    # 结构化豁免是否生效（须 model 指纹 + 数据指纹都匹配）
+    # 八路结构必须齐全（含 confidence/risk）
+    REPORT_HEADS = SAFETY_HEADS + ("confidence", "risk")
+    for h in REPORT_HEADS:
+        if not isinstance(per.get(h), dict):
+            problems.append(f"缺 per_output.{h}")
     acc_model = accepted.get("model_content_sha", "")
     acc_data = accepted.get("data_sha256", "")
     acc_list = accepted.get("accepted", []) if isinstance(accepted.get("accepted"), list) else []
-    acc_set = {(a.get("head"), a.get("shard"), a.get("frame")) for a in acc_list if isinstance(a, dict)}
+    acc_set = {(a.get("head"), a.get("shard"), a.get("frame"), a.get("direction"))
+               for a in acc_list if isinstance(a, dict)}
     acc_active = bool(acc_model and measured_content_sha and acc_model == measured_content_sha
                       and acc_data and acc_data == data.get("data_sha256"))
     if acc_list and not acc_active:
@@ -254,10 +259,7 @@ def verify_drift(drift, accepted: dict = None, measured_content_sha: str = "") -
 
     das = []
     for head in SAFETY_HEADS:
-        po = per.get(head)
-        if not isinstance(po, dict):
-            problems.append(f"缺 per_output.{head}")
-            continue
+        po = per.get(head) or {}
         da = po.get("decision_agreement")
         if not _finite(da) or not (0 <= da <= 1):
             problems.append(f"{head}.decision_agreement 非法 {da!r}")
@@ -272,44 +274,51 @@ def verify_drift(drift, accepted: dict = None, measured_content_sha: str = "") -
             problems.append(f"{head} flip_ids/flip_margins 非列表"); continue
         if nf is not None and not (len(fids) == len(mags) == nf):
             problems.append(f"{head} n_flip({nf})≠flip_ids({len(fids)})≠margins({len(mags)})")
-        # 一致率与翻转数自洽：1-da ≈ nf/n
         if _finite(da) and nf is not None and n:
             if abs((1.0 - da) - nf / n) > 0.5 / n:
-                problems.append(f"{head} 一致率 {da:.4f} 与 n_flip/n={nf/n:.4f} 不自洽")
-        # 逐翻转：裕度有限、非边界必须精确命中签字记录
+                problems.append(f"{head} 一致率与 n_flip/n 不自洽")
         for j, m in enumerate(mags):
             if not _finite(m):
-                problems.append(f"{head} 翻转裕度非有限 {m!r}"); continue
-            if abs(float(m)) >= NON_BOUNDARY_MARGIN:
-                fd = fids[j] if j < len(fids) else {}
-                key = (head, fd.get("shard") if isinstance(fd, dict) else None,
-                       fd.get("frame") if isinstance(fd, dict) else None)
-                if acc_active and key in acc_set:
-                    warns.append(f"{head} 非边界翻转({fd.get('shard')}#{fd.get('frame')},裕度{abs(float(m)):.3f})已签字接受")
+                problems.append(f"{head} 翻转裕度非有限"); continue
+            fd = fids[j] if j < len(fids) else {}
+            # 索引必须对齐 per_sample
+            if isinstance(fd, dict) and isinstance(per_sample, list):
+                idx = fd.get("idx")
+                if not (isinstance(idx, int) and 0 <= idx < len(per_sample)):
+                    problems.append(f"{head} 翻转 idx={idx} 越界 data.per_sample")
                 else:
-                    problems.append(f"{head} 非边界翻转(裕度{abs(float(m)):.3f}≥{NON_BOUNDARY_MARGIN})不可接受")
+                    ps = per_sample[idx]
+                    if ps.get("shard") != fd.get("shard") or ps.get("frame") != fd.get("frame"):
+                        problems.append(f"{head} 翻转 shard/frame 与 per_sample[{idx}] 不符")
+            if abs(float(m)) >= NON_BOUNDARY_MARGIN:
+                key = (head, fd.get("shard") if isinstance(fd, dict) else None,
+                       fd.get("frame") if isinstance(fd, dict) else None,
+                       fd.get("direction") if isinstance(fd, dict) else None)
+                if acc_active and key in acc_set:
+                    warns.append(f"{head} 非边界翻转({fd.get('shard')}#{fd.get('frame')},{fd.get('direction')},裕度{abs(float(m)):.3f})已签字接受")
+                else:
+                    problems.append(f"{head} 非边界翻转(裕度{abs(float(m)):.3f})不可接受(方向/样本未签署)")
     if das:
         if not _finite(drift.get("min_safe_decision_agreement")) or abs(float(drift["min_safe_decision_agreement"]) - min(das)) > 1e-6:
-            problems.append(f"min_safe_decision_agreement={drift.get('min_safe_decision_agreement')} 与逐头最小 {min(das):.6f} 不符")
+            problems.append("min_safe_decision_agreement 与逐头最小不符")
 
-    # 转换保真（硬，不接受豁免）
+    # 转换保真（硬，严格 ==1）
     mc = drift.get("min_safe_convert_agreement")
-    if not _finite(mc) or mc < 1.0:
-        problems.append(f"min_safe_convert_agreement={mc!r} <1.0")
+    if not _finite(mc) or mc != 1.0:
+        problems.append(f"min_safe_convert_agreement={mc!r} !=1.0")
     for head in SAFETY_HEADS:
         ca = (per.get(head) or {}).get("convert_agreement")
-        if not _finite(ca) or ca < 1.0:
-            problems.append(f"{head}.convert_agreement={ca!r} <1.0")
+        if not _finite(ca) or ca != 1.0:
+            problems.append(f"{head}.convert_agreement={ca!r} !=1.0")
     wc = drift.get("worst_convert_drift")
-    if not _finite(wc) or wc > gross:
-        problems.append(f"worst_convert_drift={wc!r} > gross={gross}")
+    if not _finite(wc) or wc < 0 or wc > gross:
+        problems.append(f"worst_convert_drift={wc!r} 越界")
     cconv = drift.get("confidence_convert_err")
-    if not _finite(cconv) or cconv > max_conv_prob:
-        problems.append(f"confidence_convert_err={cconv!r} > {max_conv_prob}")
-    # 量化门禁
+    if not _finite(cconv) or cconv < 0 or cconv > max_conv_prob:
+        problems.append(f"confidence_convert_err={cconv!r} 越界")
     cq = drift.get("confidence_quant_err")
-    if not _finite(cq) or cq > max_conf:
-        problems.append(f"confidence_quant_err={cq!r} > {max_conf}")
+    if not _finite(cq) or cq < 0 or cq > max_conf:
+        problems.append(f"confidence_quant_err={cq!r} 越界")
     if drift.get("reasons"):
         problems.append(f"reasons 非空={list(drift['reasons'])[:2]}")
 

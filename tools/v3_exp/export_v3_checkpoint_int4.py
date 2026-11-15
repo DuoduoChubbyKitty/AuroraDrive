@@ -813,8 +813,16 @@ def evaluate_drift(fp16_path: Path, int4_path: Path, ckpt_path: Path,
         flip_ids = []
         for ii in flip:
             ps = meta["per_sample"][int(ii)] if int(ii) < len(meta["per_sample"]) else {}
+            # 记录翻转方向（fp16 → int4 的决策），供审计核对签署记录的 direction
+            if name in ("vertical", "horizontal"):
+                fv = int(np.argmax(fp16_out[name][ii])); iv = int(np.argmax(int4_out[name][ii]))
+                pv, nv = str(fv), str(iv)
+            else:
+                fv = bool(fp16_out[name].reshape(-1)[ii] > 0); iv = bool(int4_out[name].reshape(-1)[ii] > 0)
+                pv, nv = str(fv).lower(), str(iv).lower()
             flip_ids.append({"idx": int(ii), "shard": ps.get("shard"), "frame": ps.get("frame"),
-                             "margin": float(margins[len(flip_ids)] if len(flip_ids) < len(margins) else 0.0)})
+                             "margin": float(margins[len(flip_ids)] if len(flip_ids) < len(margins) else 0.0),
+                             "fp16_decision": pv, "int4_decision": nv, "direction": pv + "→" + nv})
         result["per_output"][name] = {
             "logit_drift_max": logit_drift,
             "convert_agreement": convert_action_flips[name],

@@ -89,16 +89,35 @@ def main() -> int:
     dep_dir = Path(__file__).resolve().parents[2] / "models" / "v3_int4.mlmodelc"
     pkg_wm = _sha_files(pkg_dir / "Data" / "com.apple.CoreML" / "weights", ["weight.bin"])
     dep_wm = _sha_files(dep_dir / "weights", ["weight.bin"])
-    pkg_mil = pkg_dir / "Data" / "com.apple.CoreML" / "model.mil"
-    if pkg_mil.is_file():
-        pkg_mil_h = _hl.sha256(pkg_mil.read_bytes()).hexdigest()
-    else:
-        pkg_mil_h = None
+    # 计算图一致性：package 存的是 model.mlmodel（protobuf），部署是编译后的 model.mil。
+    # 二者不可直接比——必须把 package **编译到临时目录**，再比对编译产物的 weight.bin + model.mil
+    # 与部署 modelc 逐字节一致（评审 R4 P1#3：旧代码查 model.mil 取不到→跳过图比较）。
+    import subprocess, tempfile, shutil
+    pkg_mil_h = None
+    _stage = Path(tempfile.mkdtemp(prefix="ref_cmp_"))
+    try:
+        r = subprocess.run(["xcrun", "coremlcompiler", "compile", str(pkg_dir), str(_stage)],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise SystemExit(f"[ref] ❌ 无法编译 --package 做图一致性校验：{r.stderr.strip()[:200]}")
+        cands = list(_stage.glob("*.mlmodelc"))
+        if not cands:
+            raise SystemExit("[ref] ❌ 编译 --package 未产出 .mlmodelc，无法校验计算图")
+        built = cands[0]
+        built_wm = _sha_files(built / "weights", ["weight.bin"])
+        built_mil = built / "model.mil"
+        pkg_mil_h = _hl.sha256(built_mil.read_bytes()).hexdigest() if built_mil.is_file() else None
+    finally:
+        shutil.rmtree(_stage, ignore_errors=True)
     dep_mil_h = _hl.sha256((dep_dir / "model.mil").read_bytes()).hexdigest() if (dep_dir / "model.mil").is_file() else None
-    if pkg_wm and dep_wm and pkg_wm != dep_wm:
+    if not (pkg_wm and dep_wm):
+        raise SystemExit("[ref] ❌ 无法计算权重哈希（package 或部署 modelc 缺 weight.bin），拒绝生成参考")
+    if pkg_wm != dep_wm:
         raise SystemExit(f"[ref] ❌ --package 权重({pkg_wm[:12]}) 与部署 modelc({dep_wm[:12]}) 不一致，拒绝生成参考")
-    if pkg_mil_h and dep_mil_h and pkg_mil_h != dep_mil_h:
-        raise SystemExit("[ref] ❌ --package model.mil 与部署 modelc 不一致，拒绝生成参考")
+    if not (pkg_mil_h and dep_mil_h):
+        raise SystemExit("[ref] ❌ 无法计算计算图哈希，拒绝生成参考（不允许跳过图比较）")
+    if pkg_mil_h != dep_mil_h:
+        raise SystemExit("[ref] ❌ --package 编译图与部署 modelc 的 model.mil 不一致（异图包），拒绝生成参考")
     # 输入字节哈希
     inp_hash = ""
     try:

@@ -5,7 +5,7 @@ V3 INT4 部署冒烟/验收汇总 —— 总判定 PASSED
 体积(实测目录): 9.661 MiB   LUT: 84
 内容指纹(实测): 8431c7815b447193…   记录: 8431c7815b447193…
 checkpoint: aurora_v3_best_ep13_20261115.pt  sha 898cc9b98cdc…
-git HEAD: d33cf24376271b655bc1407e4b0a5257e0889d5a  dirty=True
+git HEAD: 1f182708124c4189e3a1792d8177b5c8975ff721  dirty=True
 ------------------------------------------------------------------------
 eval_status=passed  deploy_status=deployed
 样本数=128 来源=val_clips_reconstructed 分片=['clip_20261104_131750[0-4102]', 'clip_20261104_211247[0-3999]']
@@ -21,9 +21,9 @@ v3_contract_test.py: 通过 31 / 失败 0（退出 0）
   [OK] 契约：输出 8 路有序一致 — ['vertical', 'horizontal', 'handbrake', 'brake', 'super_brake', 'ultimate', 'confidence', 'risk']
   [OK] LUT 算子数 > 0 — 84
   [OK] 实测内容指纹 == 部署记录 — 实测 8431c7815b447193… vs 记录 8431c7815b447193…
-  [OK] 实测完整目录哈希 == 部署记录 — 实测 dfc12da6f9a925fa… vs 记录 dfc12da6f9a925fa…
+  [OK] 实测完整目录哈希 == 部署记录 — 实测 84030e72910d5b5f… vs 记录 84030e72910d5b5f…
   [OK] 存在 drift 评估证据 — 有
-  [OK] drift 指标 schema 完整且按阈值重算通过 — OK（handbrake 非边界翻转(clip_20261104_211247_p00000#2006,裕度1.159)已签字接受；super_brake 非边界翻转(clip_20261104_211247_p00000#2006,裕度1.146)已签字接受）
+  [OK] drift 指标 schema 完整且按阈值重算通过 — OK（handbrake 非边界翻转(clip_20261104_211247_p00000#2006,false→true,裕度1.159)已签字接受；super_brake 非边界翻转(clip_20261104_211247_p00000#2006,false→true,裕度1.146)已签字接受）
   [OK] 顶层 eval_status == passed — eval_status=passed
   [OK] deploy_status == deployed — deploy_status=deployed
   [OK] v3-selftest 全通过且退出 0 — 71/71 rc=0 失败项=0

@@ -1,6 +1,6 @@
 # V3 INT4 部署审计报告
 
-> 由 `tools/v3_exp/gen_v3_audit_report.py` 于 2026-11-16 07:19:30 自动生成。
+> 由 `tools/v3_exp/gen_v3_audit_report.py` 于 2026-11-16 07:25:58 自动生成。
 > **总判定：PASSED**（任一门禁失败即 FAILED，且脚本退出码非 0）
 
 ## 一、门禁结果
@@ -13,9 +13,9 @@
 | 契约：输出 8 路有序一致 | ✅ | ['vertical', 'horizontal', 'handbrake', 'brake', 'super_brake', 'ultimate', 'confidence', 'risk'] |
 | LUT 算子数 > 0 | ✅ | 84 |
 | 实测内容指纹 == 部署记录 | ✅ | 实测 8431c7815b447193… vs 记录 8431c7815b447193… |
-| 实测完整目录哈希 == 部署记录 | ✅ | 实测 dfc12da6f9a925fa… vs 记录 dfc12da6f9a925fa… |
+| 实测完整目录哈希 == 部署记录 | ✅ | 实测 84030e72910d5b5f… vs 记录 84030e72910d5b5f… |
 | 存在 drift 评估证据 | ✅ | 有 |
-| drift 指标 schema 完整且按阈值重算通过 | ✅ | OK（handbrake 非边界翻转(clip_20261104_211247_p00000#2006,裕度1.159)已签字接受；super_brake 非边界翻转(clip_20261104_211247_p00000#2006,裕度1.146)已签字接受） |
+| drift 指标 schema 完整且按阈值重算通过 | ✅ | OK（handbrake 非边界翻转(clip_20261104_211247_p00000#2006,false→true,裕度1.159)已签字接受；super_brake 非边界翻转(clip_20261104_211247_p00000#2006,false→true,裕度1.146)已签字接受） |
 | 顶层 eval_status == passed | ✅ | eval_status=passed |
 | deploy_status == deployed | ✅ | deploy_status=deployed |
 | v3-selftest 全通过且退出 0 | ✅ | 71/71 rc=0 失败项=0 |
@@ -25,16 +25,16 @@
 
 | 项 | 值 |
 |---|---|
-| git HEAD | `d33cf24376271b655bc1407e4b0a5257e0889d5a` |
-| git 工作树 dirty | True（status sha256 `9181642d68d7…`）|
-| 导出脚本 sha256 | `cc02deac6cb8ac48…` |
+| git HEAD | `1f182708124c4189e3a1792d8177b5c8975ff721` |
+| git 工作树 dirty | True（status sha256 `2b631f0d4c0d…`）|
+| 导出脚本 sha256 | `9c01cd08fe0a1f42…` |
 | 自检 Swift 源码 sha256 | `2b8f73ec77ed2b87…` |
 | 自检二进制 sha256 | `3ddc772c07d91f33…` |
 | checkpoint | `aurora_v3_best_ep13_20261115.pt` (sha256 `898cc9b98cdcf9e8…`) |
 | 量化方案 | `protect_backbone`（保护算子 20）|
 | 部署模型体积(实测) | 9.661 MiB |
 | 部署模型内容指纹(实测) | `8431c7815b447193…` |
-| 部署模型完整目录 sha(实测) | `dfc12da6f9a925fa…` |
+| 部署模型完整目录 sha(实测) | `84030e72910d5b5f…` |
 | 部署记录内容指纹 | `8431c7815b447193…` |
 | LUT 算子(实测 model.mil) | 84 |
 | 输入(实测) | ['det_mask', 'dets', 'image_hi', 'image_lo', 'lane', 'vehicle_state'] |
