@@ -74,6 +74,41 @@ def main() -> int:
         shapes = {k: list(v) for k, v in SHAPES.items()}
         src = {"mode": "constant", "fill": args.fill}
     out = m.predict(feed)
+
+    # —— 校验 --package 与部署 modelc 是同一模型（权重+model.mil 内容一致），否则拒绝生成参考 ——
+    import hashlib as _hl
+    pkg_dir = Path(args.package)
+    def _sha_files(base: Path, names):
+        h = _hl.sha256()
+        for nm in names:
+            fp = base / nm
+            if not fp.is_file():
+                return None
+            h.update(nm.encode()); h.update(fp.read_bytes())
+        return h.hexdigest()
+    dep_dir = Path(__file__).resolve().parents[2] / "models" / "v3_int4.mlmodelc"
+    pkg_wm = _sha_files(pkg_dir / "Data" / "com.apple.CoreML" / "weights", ["weight.bin"])
+    dep_wm = _sha_files(dep_dir / "weights", ["weight.bin"])
+    pkg_mil = pkg_dir / "Data" / "com.apple.CoreML" / "model.mil"
+    if pkg_mil.is_file():
+        pkg_mil_h = _hl.sha256(pkg_mil.read_bytes()).hexdigest()
+    else:
+        pkg_mil_h = None
+    dep_mil_h = _hl.sha256((dep_dir / "model.mil").read_bytes()).hexdigest() if (dep_dir / "model.mil").is_file() else None
+    if pkg_wm and dep_wm and pkg_wm != dep_wm:
+        raise SystemExit(f"[ref] ❌ --package 权重({pkg_wm[:12]}) 与部署 modelc({dep_wm[:12]}) 不一致，拒绝生成参考")
+    if pkg_mil_h and dep_mil_h and pkg_mil_h != dep_mil_h:
+        raise SystemExit("[ref] ❌ --package model.mil 与部署 modelc 不一致，拒绝生成参考")
+    # 输入字节哈希
+    inp_hash = ""
+    try:
+        ih = _hl.sha256()
+        for k in sorted(feed.keys()):
+            ih.update(k.encode()); ih.update(np.ascontiguousarray(feed[k].astype(np.float16)).tobytes())
+        inp_hash = ih.hexdigest()
+    except Exception:
+        pass
+
     # 绑定部署 modelc 内容指纹（T15 会重新计算并比对，确保参考对应的是当前部署产物）
     dep_sha = ""
     try:
@@ -87,6 +122,9 @@ def main() -> int:
         print(f"[ref] ⚠ 无法计算部署 modelc 指纹：{_exc}")
     ref = {
         "deployed_modelc_content_sha": dep_sha,
+        "package_weight_sha": pkg_wm,
+        "package_model_mil_sha": pkg_mil_h,
+        "input_bytes_sha256": inp_hash,
         "source": src,
         "shapes": shapes,
         "package": str(args.package),

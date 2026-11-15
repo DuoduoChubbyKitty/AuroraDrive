@@ -1,5 +1,8 @@
 {
   "deployed_modelc_content_sha": "8431c7815b447193e7b7fc48b268e02733d15bfeacb7aeabe1b973ecd48b4ac5",
+  "package_weight_sha": "b614bb754fba6ce8446f1cc9a2494aea2960575795f3553b3d558b2791978ac5",
+  "package_model_mil_sha": null,
+  "input_bytes_sha256": "079262e1c2fe5412cac388a0d8d72a1b7ec304f48f36797224ec281833a27bc0",
   "source": {
     "mode": "real",
     "sample": {

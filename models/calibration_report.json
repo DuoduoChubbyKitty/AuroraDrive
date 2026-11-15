@@ -3,17 +3,17 @@
   "ckpt_sha256": "898cc9b98cdcf9e88494c8e7707c45c50644ff3b29cb2f0ba578bd4ee31722dd",
   "ios": 18,
   "scheme": "protect_backbone",
-  "git_commit": "bba9d1791e0669ebb9029b8a485b8d15d550754f",
-  "generated_at": "2026-11-16 07:07:20",
+  "git_commit": "d33cf24376271b655bc1407e4b0a5257e0889d5a",
+  "generated_at": "2026-11-16 07:18:05",
   "params_train": 12208931,
   "params_deploy": 12187226,
   "fp16_size_mb": 23.427,
-  "fp16_sha256": "69e8775ccf345fa424db8c48ba4b6ad6bbcf25f41c408abaacad508df74d3a0a",
+  "fp16_sha256": "f1591b75a98d11c43bd68ea6867fb5ed2b0dd626f2b0235e1072fcb36539fe96",
   "build_status": "int4_ok",
   "scheme_protected_ops": 20,
   "int4_path": "/tmp/v3_ckpt/v3_int4_protect_backbone.mlpackage",
   "int4_size_mb": 9.641,
-  "int4_sha256": "16909c6d44cf0d601f90e8af1c72e48cd50f82f643458c9a25d87cb4a7a501fa",
+  "int4_sha256": "00ce8baf93c51dc4592386576cc810108602987102fb0a01ffc752919223e499",
   "int4_compression": 2.43,
   "drift": {
     "status": "passed",
@@ -24,6 +24,14 @@
         "convert_agreement": 1.0,
         "decision_agreement": 0.9921875,
         "n_flip": 1,
+        "flip_ids": [
+          {
+            "idx": 95,
+            "shard": "clip_20261104_211247_p00000",
+            "frame": 1682,
+            "margin": 0.125
+          }
+        ],
         "agreement_ci95": [
           0.9571,
           0.9986
@@ -34,6 +42,7 @@
         "convert_agreement": 1.0,
         "decision_agreement": 1.0,
         "n_flip": 0,
+        "flip_ids": [],
         "agreement_ci95": [
           0.9709,
           1.0
@@ -44,6 +53,14 @@
         "convert_agreement": 1.0,
         "decision_agreement": 0.9921875,
         "n_flip": 1,
+        "flip_ids": [
+          {
+            "idx": 105,
+            "shard": "clip_20261104_211247_p00000",
+            "frame": 2006,
+            "margin": 1.1591796875
+          }
+        ],
         "agreement_ci95": [
           0.9571,
           0.9986
@@ -54,6 +71,7 @@
         "convert_agreement": 1.0,
         "decision_agreement": 1.0,
         "n_flip": 0,
+        "flip_ids": [],
         "agreement_ci95": [
           0.9709,
           1.0
@@ -64,6 +82,14 @@
         "convert_agreement": 1.0,
         "decision_agreement": 0.9921875,
         "n_flip": 1,
+        "flip_ids": [
+          {
+            "idx": 105,
+            "shard": "clip_20261104_211247_p00000",
+            "frame": 2006,
+            "margin": 1.1455078125
+          }
+        ],
         "agreement_ci95": [
           0.9571,
           0.9986
@@ -74,6 +100,7 @@
         "convert_agreement": 1.0,
         "decision_agreement": 1.0,
         "n_flip": 0,
+        "flip_ids": [],
         "agreement_ci95": [
           0.9709,
           1.0
@@ -84,6 +111,7 @@
         "convert_agreement": 1.0,
         "decision_agreement": 1.0,
         "n_flip": 0,
+        "flip_ids": [],
         "agreement_ci95": [
           0.9709,
           1.0
@@ -94,6 +122,26 @@
         "convert_agreement": 1.0,
         "decision_agreement": 0.9765625,
         "n_flip": 3,
+        "flip_ids": [
+          {
+            "idx": 11,
+            "shard": "clip_20261104_131750_p00000",
+            "frame": 727,
+            "margin": 0.11663818359375
+          },
+          {
+            "idx": 17,
+            "shard": "clip_20261104_131750_p00000",
+            "frame": 1133,
+            "margin": 0.032623291015625
+          },
+          {
+            "idx": 76,
+            "shard": "clip_20261104_211247_p00000",
+            "frame": 885,
+            "margin": 0.0760498046875
+          }
+        ],
         "agreement_ci95": [
           0.9334,
           0.992
@@ -698,7 +746,7 @@
   "eval_status": "passed",
   "deployed_modelc": "models/v3_int4.mlmodelc",
   "deployed_modelc_content_sha256": "8431c7815b447193e7b7fc48b268e02733d15bfeacb7aeabe1b973ecd48b4ac5",
-  "deployed_modelc_full_sha256": "e06ff460a8bff0428c134b13b3b205af34d9bcbc3fa1be38504ef721a36b8849",
+  "deployed_modelc_full_sha256": "dfc12da6f9a925faed90e5ae644731ab1bbb2cd8667b59f5301c67e2d132c844",
   "deploy_status": "deployed",
-  "total_seconds": 54.7
+  "total_seconds": 55.2
 }

@@ -783,11 +783,54 @@ func runV3EngineSelfTest() -> Int {
                          white.dec.brakePressed ? 1 : 0, white.dec.handbrakePressed ? 1 : 0,
                          white.dec.superBrakePressed ? 1 : 0, white.dec.ultimatePressed ? 1 : 0,
                          white.dec.confidence, white.dec.risk))
-            // 判据：完整 8 路任一维明显不同 → 图像链路接通。仅在模型对纯色完全无响应时失败。
-            ledger.check("完整 8 路输出随输入变化（图像链路真的接通）", maxDelta > 1e-3,
-                         String(format: "max 8-路 Δ=%.5f（黑/白）", maxDelta))
+            // 纯色 OOD 作辅助信息（不同后端可能都饱和成同一决策，不作硬门禁）
+            print(String(format: "    （纯色 OOD 参考）8 路 maxΔ=%.5f，仅信息", maxDelta))
         } else {
-            ledger.check("黑/白对照", false, "推理失败")
+            print("    （纯色 OOD 参考）黑/白推理失败，跳过该信息项")
+        }
+
+        // 真实输入对照（确定性、可复现，不依赖纯色 OOD 饱和）：
+        // 用真实验证帧 x 与同一帧加残差扰动 y，经部署 .mlmodelc 取原始 logits，
+        // 要求 8 路至少一路明显变化，且预处理后的输入确实不同 → 证明图像真实进入模型。
+        let binDir = AuroraPaths.projectRoot().appendingPathComponent("models/v3_fixed_input")
+        let modelURL = AuroraPaths.projectRoot().appendingPathComponent("models/\(V3InputContract.modelFileName).mlmodelc")
+        let cfg = MLModelConfiguration(); cfg.computeUnits = InferenceEngineV3.ComputeUnitSelection.current()
+        if let model = try? MLModel(contentsOf: modelURL, configuration: cfg),
+           let obj = (try? Data(contentsOf: AuroraPaths.projectRoot().appendingPathComponent("models/v3_fixed_input_ref.json"))).flatMap({ try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }),
+           let shapes = obj["shapes"] as? [String: [Int]] {
+            func loadFeed(perturb: Bool) -> [String: MLFeatureValue]? {
+                var feed: [String: MLFeatureValue] = [:]
+                for (name, dims) in shapes {
+                    guard let raw = try? Data(contentsOf: binDir.appendingPathComponent("\(name).bin")) else { return nil }
+                    var count = 1; for d in dims { count *= d }
+                    guard raw.count == count * MemoryLayout<UInt16>.size,
+                          let arr = try? MLMultiArray(shape: dims.map { NSNumber(value: $0) }, dataType: .float16) else { return nil }
+                    raw.withUnsafeBytes { (rb: UnsafeRawBufferPointer) in
+                        let src = rb.bindMemory(to: UInt16.self)
+                        for i in 0..<count {
+                            var f = Float(Float16(bitPattern: src[i]))
+                            if perturb && name == "image_hi" { f += 0.1 }   // 仅扰动高分辨率图，确定性
+                            arr[i] = NSNumber(value: f)
+                        }
+                    }
+                    feed[name] = MLFeatureValue(multiArray: arr)
+                }
+                return feed
+            }
+            if let fx = loadFeed(perturb: false), let fy = loadFeed(perturb: true),
+               let px = try? MLDictionaryFeatureProvider(dictionary: fx), let py = try? MLDictionaryFeatureProvider(dictionary: fy),
+               let rx = try? model.prediction(from: px), let ry = try? model.prediction(from: py),
+               let lx = InferenceEngineV3.rawLogits(from: rx), let ly = InferenceEngineV3.rawLogits(from: ry) {
+                var md: Double = 0; var worst = ""
+                for (k, v) in lx { let w = ly[k] ?? []; for i in 0..<min(v.count, w.count) { let d = abs(Double(v[i]) - Double(w[i])); if d > md { md = d; worst = "\(k)[\(i)]" } } }
+                // 输入确实不同（扰动生效）+ 输出随输入变化
+                ledger.check("真实输入：扰动图像→8 路原始 logits 明显变化（非恒定）", md > 1e-2,
+                             String(format: "max 8-路原始 logit Δ=%.5f@%@", md, worst))
+            } else {
+                ledger.check("真实输入对照可执行", false, "加载固定输入/推理失败")
+            }
+        } else {
+            ledger.check("真实输入对照可执行", false, "部署 mlmodelc 或参考不可用")
         }
     }
 

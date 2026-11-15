@@ -809,11 +809,18 @@ def evaluate_drift(fp16_path: Path, int4_path: Path, ckpt_path: Path,
                 margins.append(float(abs(fp16_out[name].reshape(-1)[i])))
         k = int(round(agree * n))
         ci_lo, ci_hi = wilson_ci(k, n)
+        # 翻转样本 ID（具体到 shard+frame），供审计做精确豁免/追溯
+        flip_ids = []
+        for ii in flip:
+            ps = meta["per_sample"][int(ii)] if int(ii) < len(meta["per_sample"]) else {}
+            flip_ids.append({"idx": int(ii), "shard": ps.get("shard"), "frame": ps.get("frame"),
+                             "margin": float(margins[len(flip_ids)] if len(flip_ids) < len(margins) else 0.0)})
         result["per_output"][name] = {
             "logit_drift_max": logit_drift,
             "convert_agreement": convert_action_flips[name],
             "decision_agreement": agree,
             "n_flip": int(len(flip)),
+            "flip_ids": flip_ids,
             "agreement_ci95": [round(ci_lo, 4), round(ci_hi, 4)],
         }
         result["flip_margins"][name] = margins

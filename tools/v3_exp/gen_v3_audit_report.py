@@ -169,54 +169,89 @@ SAFETY_HEADS = ("vertical", "horizontal", "handbrake", "brake", "super_brake", "
 NON_BOUNDARY_MARGIN = 0.6
 
 
-def _accepted_risk_sha() -> str:
-    """读取用户已签字的残余风险记录所绑定的部署 modelc 内容指纹；无则空串。"""
+def _load_accepted_risk() -> dict:
+    """读取用户签字记录的**结构化**豁免（绑定模型指纹+数据指纹+具体 head/shard/frame）。"""
+    import re as _re
     p = Path(__file__).resolve().parents[2] / "models" / "V3_RESIDUAL_RISK_ACCEPT.md"
     if not p.is_file():
-        return ""
-    import re as _re
+        return {}
     txt = p.read_text(encoding="utf-8", errors="ignore")
-    m = _re.search(r"内容指纹\s*`?([0-9a-f]{16,})", txt)
-    return m.group(1) if m else ""
+    m = _re.search(r"```json\s*(\{.*?\})\s*```", txt, _re.S)
+    if not m:
+        return {}
+    try:
+        return json.loads(m.group(1))
+    except Exception:
+        return {}
 
 
-def verify_drift(drift, accept_sha: str = "", measured_content_sha: str = "") -> tuple:
-    """按指标 schema + 阈值**重算** drift 是否通过（评审 P0#1：不信任 status 字符串）。
+def _finite(x) -> bool:
+    import math
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
 
-    校验项：
-      1) schema 完整：n_samples/per_output/flip_margins/thresholds/关键顶层误差指标齐全；
-      2) n_samples >= min_calib_samples；
-      3) 6 个安全头 per_output 均有有限 decision_agreement 且 >= thresholds.min_safe_agreement；
-      4) confidence_quant_err 有限且 <= thresholds.max_quant_conf_err；
-      5) 【硬安全规则】任何安全头的"非边界翻转"（flip_margins 中 fp16 高置信裕度 >= NON_BOUNDARY_MARGIN）
-         一律不可接受——量化不得把 fp16 已明确的动作改掉；
-      6) reasons 必须为空（非空即自证失败）。
+
+def verify_drift(drift, accepted: dict = None, measured_content_sha: str = "") -> tuple:
+    """按指标 schema + 阈值**全字段重算** drift（评审 R3 P0#1/P1#2）。
+
+    不再信任 status/min_safe 等汇总字段，而是：
+      · 校验 schema 与所有数值**有限且范围合法**（样本正整数、阈值∈(0,1]、误差≥0 有限）；
+      · 逐头核对 n_flip == len(flip_ids) == len(flip_margins)，且 1-decision_agreement ≈ n_flip/n；
+      · 重算 min_safe_decision_agreement == 逐头最小值；
+      · **转换保真门禁（硬）**：各安全头 convert_agreement==1.0、min_safe_convert_agreement==1.0、
+        worst_convert_drift<=gross、confidence_convert_err<=max_convert_prob_err；
+      · **量化门禁（硬）**：confidence_quant_err<=max_quant_conf_err；
+      · **非边界翻转硬规则**：安全头 fp16 高置信翻转默认不可接受；仅当 (model指纹+数据指纹匹配) 且
+        该翻转 (head,shard,frame) **精确命中所签字记录**时降级为 WARN，其它一律 FAIL。
     返回 (ok, 说明)。
     """
-    import math
+    accepted = accepted or {}
     if not isinstance(drift, dict):
         return False, "drift 缺失或非 dict"
-    problems = []
-    warnings_acc = []
-    for key in ("per_output", "flip_margins", "thresholds", "n_samples",
+    problems, warns = [], []
+    for key in ("per_output", "flip_margins", "thresholds", "n_samples", "data",
                 "min_safe_decision_agreement", "min_safe_convert_agreement",
-                "confidence_quant_err"):
+                "confidence_quant_err", "confidence_convert_err", "worst_convert_drift"):
         if key not in drift:
             problems.append(f"缺 {key}")
     if problems:
         return False, "schema 不全: " + ", ".join(problems)
+    thr = drift["thresholds"]
+    if not isinstance(thr, dict):
+        return False, "thresholds 非 dict"
+    need_thr = ("min_safe_agreement", "max_convert_prob_err", "max_quant_conf_err",
+                "gross_logit_drift", "min_calib_samples")
+    miss_t = [k for k in need_thr if not _finite(thr.get(k))]
+    if miss_t:
+        return False, f"thresholds 非有限/缺失: {miss_t}"
+    min_safe = float(thr["min_safe_agreement"]); max_conf = float(thr["max_quant_conf_err"])
+    max_conv_prob = float(thr["max_convert_prob_err"]); gross = float(thr["gross_logit_drift"])
+    min_calib = float(thr["min_calib_samples"])
+    if not (0 < min_safe <= 1 and 0 < max_conf and max_conv_prob >= 0 and gross > 0 and min_calib > 0):
+        problems.append(f"阈值范围非法 min_safe={min_safe} max_conf={max_conf} gross={gross} min_calib={min_calib}")
     n = drift.get("n_samples")
-    try:
-        thr = drift["thresholds"]
-        min_safe = float(thr["min_safe_agreement"])
-        min_calib = float(thr.get("min_calib_samples", 30))
-        max_conf = float(thr["max_quant_conf_err"])
-    except Exception as exc:
-        return False, f"thresholds 不可解析: {type(exc).__name__}: {exc}"
-    if not isinstance(n, (int, float)) or n < min_calib:
-        problems.append(f"n_samples={n} < {min_calib}")
+    if not (isinstance(n, int) and not isinstance(n, bool) and n > 0):
+        problems.append(f"n_samples 非正整数: {n!r}")
+        n = None
+    if n is not None and n < min_calib:
+        problems.append(f"n_samples={n} < min_calib={min_calib}")
+    data = drift.get("data") or {}
+    if not isinstance(data, dict) or not isinstance(data.get("data_sha256"), str) or len(data.get("data_sha256", "")) < 16:
+        problems.append("缺 data.data_sha256")
+    if n is not None and data.get("n_samples") not in (None, n):
+        problems.append(f"data.n_samples={data.get('n_samples')} != drift.n_samples={n}")
+
     per = drift.get("per_output") or {}
     flips = drift.get("flip_margins") or {}
+    # 结构化豁免是否生效（须 model 指纹 + 数据指纹都匹配）
+    acc_model = accepted.get("model_content_sha", "")
+    acc_data = accepted.get("data_sha256", "")
+    acc_list = accepted.get("accepted", []) if isinstance(accepted.get("accepted"), list) else []
+    acc_set = {(a.get("head"), a.get("shard"), a.get("frame")) for a in acc_list if isinstance(a, dict)}
+    acc_active = bool(acc_model and measured_content_sha and acc_model == measured_content_sha
+                      and acc_data and acc_data == data.get("data_sha256"))
+    if acc_list and not acc_active:
+        warns.append("签字记录存在但模型/数据指纹不匹配→本轮不生效")
+
     das = []
     for head in SAFETY_HEADS:
         po = per.get(head)
@@ -224,38 +259,65 @@ def verify_drift(drift, accept_sha: str = "", measured_content_sha: str = "") ->
             problems.append(f"缺 per_output.{head}")
             continue
         da = po.get("decision_agreement")
-        if not isinstance(da, (int, float)) or not math.isfinite(da):
-            problems.append(f"{head}.decision_agreement 非有限")
+        if not _finite(da) or not (0 <= da <= 1):
+            problems.append(f"{head}.decision_agreement 非法 {da!r}")
         else:
             das.append(float(da))
             if da < min_safe:
                 problems.append(f"{head} 一致率 {da:.4f}<{min_safe}")
-        # 非边界翻转硬规则
-        for m in (flips.get(head) or []):
-            try:
-                mv = abs(float(m))
-            except Exception:
-                problems.append(f"{head} 翻转裕度非法 {m!r}")
-                continue
-            if mv >= NON_BOUNDARY_MARGIN:
-                if accept_sha and measured_content_sha and accept_sha == measured_content_sha:
-                    warnings_acc.append(f"{head} 非边界翻转(裕度{mv:.3f})已由用户签字接受")
+        nf = po.get("n_flip"); fids = po.get("flip_ids"); mags = flips.get(head)
+        if not (isinstance(nf, int) and not isinstance(nf, bool) and nf >= 0):
+            problems.append(f"{head}.n_flip 非法 {nf!r}"); nf = None
+        if not isinstance(fids, list) or not isinstance(mags, list):
+            problems.append(f"{head} flip_ids/flip_margins 非列表"); continue
+        if nf is not None and not (len(fids) == len(mags) == nf):
+            problems.append(f"{head} n_flip({nf})≠flip_ids({len(fids)})≠margins({len(mags)})")
+        # 一致率与翻转数自洽：1-da ≈ nf/n
+        if _finite(da) and nf is not None and n:
+            if abs((1.0 - da) - nf / n) > 0.5 / n:
+                problems.append(f"{head} 一致率 {da:.4f} 与 n_flip/n={nf/n:.4f} 不自洽")
+        # 逐翻转：裕度有限、非边界必须精确命中签字记录
+        for j, m in enumerate(mags):
+            if not _finite(m):
+                problems.append(f"{head} 翻转裕度非有限 {m!r}"); continue
+            if abs(float(m)) >= NON_BOUNDARY_MARGIN:
+                fd = fids[j] if j < len(fids) else {}
+                key = (head, fd.get("shard") if isinstance(fd, dict) else None,
+                       fd.get("frame") if isinstance(fd, dict) else None)
+                if acc_active and key in acc_set:
+                    warns.append(f"{head} 非边界翻转({fd.get('shard')}#{fd.get('frame')},裕度{abs(float(m)):.3f})已签字接受")
                 else:
-                    problems.append(f"{head} 非边界翻转(裕度{mv:.3f}≥{NON_BOUNDARY_MARGIN})→不可接受")
-    if das and min(das) < min_safe:
-        problems.append(f"重算最低安全一致 {min(das):.4f}<{min_safe}")
+                    problems.append(f"{head} 非边界翻转(裕度{abs(float(m)):.3f}≥{NON_BOUNDARY_MARGIN})不可接受")
+    if das:
+        if not _finite(drift.get("min_safe_decision_agreement")) or abs(float(drift["min_safe_decision_agreement"]) - min(das)) > 1e-6:
+            problems.append(f"min_safe_decision_agreement={drift.get('min_safe_decision_agreement')} 与逐头最小 {min(das):.6f} 不符")
+
+    # 转换保真（硬，不接受豁免）
+    mc = drift.get("min_safe_convert_agreement")
+    if not _finite(mc) or mc < 1.0:
+        problems.append(f"min_safe_convert_agreement={mc!r} <1.0")
+    for head in SAFETY_HEADS:
+        ca = (per.get(head) or {}).get("convert_agreement")
+        if not _finite(ca) or ca < 1.0:
+            problems.append(f"{head}.convert_agreement={ca!r} <1.0")
+    wc = drift.get("worst_convert_drift")
+    if not _finite(wc) or wc > gross:
+        problems.append(f"worst_convert_drift={wc!r} > gross={gross}")
+    cconv = drift.get("confidence_convert_err")
+    if not _finite(cconv) or cconv > max_conv_prob:
+        problems.append(f"confidence_convert_err={cconv!r} > {max_conv_prob}")
+    # 量化门禁
     cq = drift.get("confidence_quant_err")
-    if not isinstance(cq, (int, float)) or not math.isfinite(cq):
-        problems.append("confidence_quant_err 非有限")
-    elif cq > max_conf:
-        problems.append(f"confidence_quant_err={cq:.4f}>{max_conf}")
+    if not _finite(cq) or cq > max_conf:
+        problems.append(f"confidence_quant_err={cq!r} > {max_conf}")
     if drift.get("reasons"):
         problems.append(f"reasons 非空={list(drift['reasons'])[:2]}")
+
     ok = not problems
     if ok:
-        note = "OK" + ("（" + "；".join(warnings_acc) + "）" if warnings_acc else "")
+        note = "OK" + ("（" + "；".join(warns) + "）" if warns else "")
     else:
-        note = "；".join(problems[:6]) + ("（另含已接受：" + "；".join(warnings_acc) + "）" if warnings_acc else "")
+        note = "；".join(problems[:6]) + ("（另：" + "；".join(warns) + "）" if warns else "")
     return ok, note
 
 
@@ -315,7 +377,7 @@ def main() -> int:
     eval_status = calib.get("eval_status", "unknown")
     deploy_status = calib.get("deploy_status", "unknown")
     gates.append(("存在 drift 评估证据", drift is not None, "有" if drift else "缺失 drift"))
-    drift_ok, drift_note = verify_drift(drift, _accepted_risk_sha(), measured_content or "")
+    drift_ok, drift_note = verify_drift(drift, _load_accepted_risk(), measured_content or "")
     gates.append(("drift 指标 schema 完整且按阈值重算通过", drift_ok, drift_note))
     gates.append(("顶层 eval_status == passed", eval_status == "passed", f"eval_status={eval_status}"))
     # 部署门禁：必须明确 deployed（不再允许 unknown 跳过）
