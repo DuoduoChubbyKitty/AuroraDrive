@@ -4779,6 +4779,16 @@ final class DriveState {
     /// 实现上复用了精简录制器的启停（同一套抓屏/落盘/分段/自动标注），
     /// 只是把 `coDriveMode` 置真；不新开第二条录制链路，避免两套录制互相打架。
     func toggleCoDrive() {
+        // 【引擎模式不支持共驾采集（评审 round-4 收口）】
+        //   精简录制器只在 UI 进程；引擎模式下真正的 AI 注入发生在后台引擎进程，
+        //   而 UI 侧「接管状态」来自约 1s 周期的引擎心跳镜像、并非与本地按键同源的
+        //   即时信号。过渡窗口里会写出「HUMAN + 空键」这类错误标签，训练数据被污染。
+        //   与其产出坏标签，不如在引擎 driving 时明确禁止共驾采集（请改用本地驾驶）。
+        if EngineClient.shared.isActive {
+            leanLastError = "当前由后台引擎进程驾驶：共驾采集需要「执行动作=AI 注入键」与接管信号同源，"
+                + "引擎模式的接管状态有约 1 秒心跳延迟，会污染标签。请先停止引擎（改用本地驾驶）再开共驾。"
+            return
+        }
         if leanRecorder.isRecording {
             // 已在录：若是共驾模式则走正常停录；否则提示先停普通录制。
             if !leanRecorder.coDriveMode {

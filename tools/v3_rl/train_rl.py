@@ -298,15 +298,10 @@ def train(
     is_unknown = ~(is_ai | is_human)
     valid = is_ai | is_human
     # GAE must not propagate reward/bootstrap ACROSS an UNKNOWN segment (Codex round-3 ③).
-    # Because GAE runs backward, marking the UNKNOWN frame itself as terminal is NOT
-    # enough: the last VALID frame before an UNKNOWN run still folds the unknown reward
-    # in via its gamma*lam*last term (repro: [AI,UNKNOWN] with unknown reward 0->10 flips
-    # AI advantage 0->9.405). So we cut at the boundary: a valid frame followed by an
-    # invalid frame becomes an episode end, and unknown frames also reset the recursion.
-    cut = np.zeros(n, dtype=bool)
-    if n > 1:
-        cut[:-1] = valid[:-1] & ~valid[1:]
-    ends = ends | is_unknown | cut
+    # Single source of truth lives in reward.compute_episode_ends (so tests bind to the
+    # real logic, not a copy): it cuts at UNKNOWN frames AND at the last valid frame
+    # before an UNKNOWN run (backward GAE would otherwise leak the unknown reward in).
+    ends = R.compute_episode_ends(valid, clip_ends=ends)
     print(f"[rl] stage={stage} frames={n} ai={int(is_ai.sum())} human={int(is_human.sum())} "
           f"unknown={int(is_unknown.sum())} device={device}")
 

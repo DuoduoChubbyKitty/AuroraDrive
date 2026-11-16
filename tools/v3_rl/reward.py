@@ -193,6 +193,37 @@ def normalize_advantages(adv: np.ndarray, eps: float = 1e-8) -> np.ndarray:
     return ((adv - mean) / (std + eps)).astype(np.float32)
 
 
+def compute_episode_ends(is_valid: Sequence[bool], clip_ends: Optional[Sequence[bool]] = None
+                         ) -> np.ndarray:
+    """Build GAE episode-end flags that also cut at invalid (UNKNOWN) boundaries.
+
+    A frame is an episode end when ANY of:
+      * it is the last frame of its clip (``clip_ends``), or
+      * it is itself invalid (an UNKNOWN frame has no reliable action/value and must
+        reset the backward recursion), or
+      * it is a valid frame immediately followed by an invalid frame -- because GAE
+        runs backward, leaving the last valid frame open would let the following
+        unknown segment's reward leak into its ``gamma*lam*last`` term.
+
+    This is the SINGLE production definition (train_rl imports it), so tests bind to
+    the real logic rather than re-implementing it.
+    """
+    valid = np.asarray(is_valid, dtype=bool)
+    n = valid.shape[0]
+    if clip_ends is None:
+        ends = np.zeros(n, dtype=bool)
+        if n:
+            ends[-1] = True
+    else:
+        ends = np.asarray(clip_ends, dtype=bool).copy()
+    if n == 0:
+        return ends
+    cut = np.zeros(n, dtype=bool)
+    if n > 1:
+        cut[:-1] = valid[:-1] & ~valid[1:]
+    return ends | (~valid) | cut
+
+
 def gae_advantages(
     rewards: Sequence[float],
     values: Sequence[float],

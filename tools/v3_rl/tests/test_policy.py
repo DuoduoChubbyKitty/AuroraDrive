@@ -246,19 +246,25 @@ def run() -> None:
                   msg="value_mask: UNKNOWN-frame target change has zero effect on v_loss")
 
     # ── REGRESSION (Codex round-3 ③): GAE does not leak across UNKNOWN boundary ──
-    # Boundary must be cut at the LAST VALID frame before an UNKNOWN run (marking only
-    # the unknown frame terminal is insufficient for backward GAE). We mirror train_rl's
-    # cut construction: a valid frame followed by an invalid frame is an episode end.
+    # Bind to the REAL production boundary function reward.compute_episode_ends (not a
+    # test-local copy), so deleting/breaking the production cut fails this test.
     import numpy as _np
     import reward as _R
-    valid_m = _np.array([True, False])          # [AI, UNKNOWN]
-    n2 = valid_m.shape[0]
-    cut = _np.zeros(n2, dtype=bool)
-    cut[:-1] = valid_m[:-1] & ~valid_m[1:]
-    ends_ok = (_np.zeros(n2, dtype=bool))
-    ends_ok[-1] = True
-    ends_ok = ends_ok | (~valid_m) | cut
+    # [AI, UNKNOWN]: cut at last-valid frame -> AI advantage isolated from unknown reward.
+    ends_ok = _R.compute_episode_ends([True, False])
     adv_lo, _ = _R.gae_advantages([1.0, 0.0], [0.0, 0.0], episode_ends=ends_ok)
     adv_hi, _ = _R.gae_advantages([1.0, 10.0], [0.0, 0.0], episode_ends=ends_ok)
     H.check_close(float(adv_lo[0]), float(adv_hi[0]), tol=1e-6,
-                  msg="UNKNOWN boundary cut at last-valid frame isolates AI advantage")
+                  msg="UNKNOWN boundary via compute_episode_ends isolates AI advantage")
+    # No UNKNOWN -> normal episode not cut early (AI,HUMAN stay one episode).
+    ends_norm = _R.compute_episode_ends([True, True, True])
+    H.check(np.array_equal(ends_norm, [False, False, True]),
+            "all-valid single clip -> only final frame is episode end (no spurious cuts)")
+    # valid, UNKNOWN, UNKNOWN, valid: last-valid and each unknown are ends (all reset),
+    # so the trailing valid frame starts a fresh episode -> all four are ends here.
+    ends_consec = _R.compute_episode_ends([True, False, False, True])
+    H.check(np.array_equal(ends_consec, [True, True, True, True]),
+            "valid->unknown run: last-valid + unknowns all cut (trailing valid restart)")
+    # Non-zero bootstrap across a real clip end still honored (clip_ends preserved).
+    ends_clip = _R.compute_episode_ends([True, True], clip_ends=[True, True])
+    H.check(np.array_equal(ends_clip, [True, True]), "clip_ends are preserved")
