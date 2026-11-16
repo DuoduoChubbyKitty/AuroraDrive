@@ -165,6 +165,25 @@ def _validate_folded_strict(folded_sd: Dict[str, torch.Tensor]) -> None:
     model.load_state_dict(folded_sd, strict=True)  # 任何 missing/unexpected 直接抛
 
 
+def _validate_final_container(out_ckpt: "object") -> None:
+    """按导出器 load_trained_model 的**同一口径**从最终容器取出 state_dict 并 strict 校验。
+
+    这一步专门验证"写出去的那份容器"能被下游接受：若把裸 state_dict 装进顶层、
+    又在顶层塞了非张量元数据（如 rl_fold），导出器会把它整体当 state_dict 而失败。
+    """
+    if isinstance(out_ckpt, dict) and "model" in out_ckpt:
+        sd = out_ckpt["model"]
+    elif isinstance(out_ckpt, dict) and "model_state_dict" in out_ckpt:
+        sd = out_ckpt["model_state_dict"]
+    else:
+        sd = out_ckpt
+        if isinstance(out_ckpt, dict) and not all(torch.is_tensor(v) for v in out_ckpt.values()):
+            raise RuntimeError(
+                "最终容器既不含 'model'/'model_state_dict'，顶层又混入非张量键，"
+                f"导出器会把它当 state_dict 加载失败；顶层键={list(out_ckpt)[:8]}")
+    _validate_folded_strict(sd)
+
+
 def main(argv: "List[str] | None" = None) -> int:
     ap = argparse.ArgumentParser(
         description="把 RL 训出的头权重折回完整 V3 checkpoint（供 INT4/CoreML 导出）")
@@ -226,11 +245,11 @@ def main(argv: "List[str] | None" = None) -> int:
         return 3
     print("[fold] 折叠后完整 checkpoint strict 校验通过（仅 load，未 forward/未训练）。")
 
-    if args.dry_run:
-        print(f"[fold] --dry-run：键对齐校验通过，未写盘（目标将输出到 {out_path}）。")
-        return 0
-
-    # 5) 真正落盘：保留原 checkpoint 的容器结构与元信息，只替换 'model' 段。
+    # 5) 真正落盘：始终包装成 {"model": state_dict, ...} 容器。
+    #    导出器 load_trained_model 只把 ckpt["model"] / ckpt["model_state_dict"] 当作
+    #    state_dict；若这里写裸 state_dict 再往顶层塞 "rl_fold"，导出器会把整个顶层
+    #    （含非张量的 rl_fold）当成 state_dict 去 strict 加载而失败。故裸输入也必须包一层，
+    #    并且 dry-run 的 strict 校验要针对**最终写出的容器**，不能只验裸 dict。
     if isinstance(raw_ckpt, dict) and "model" in raw_ckpt:
         out_ckpt = dict(raw_ckpt)
         out_ckpt["model"] = train_sd
@@ -238,7 +257,8 @@ def main(argv: "List[str] | None" = None) -> int:
         out_ckpt = dict(raw_ckpt)
         out_ckpt["model_state_dict"] = train_sd
     else:
-        out_ckpt = train_sd
+        # 裸 state_dict 输入：包成与导出一致的 "model" 容器，杜绝顶层非张量键污染。
+        out_ckpt = {"model": train_sd}
     out_ckpt["rl_fold"] = {
         "source_ckpt": str(ckpt_path),
         "source_sha256": E.sha256_of(ckpt_path),
@@ -246,6 +266,19 @@ def main(argv: "List[str] | None" = None) -> int:
         "head_sha256": E.sha256_of(head_path),
         "folded_head_keys": list(DEPLOY_HEAD_KEYS),
     }
+
+    # 6) 校验**最终容器**能被导出逻辑正确取出并 strict 加载（对比第 4 步只验裸 train_sd）。
+    try:
+        _validate_final_container(out_ckpt)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[错误] 最终 checkpoint 容器校验失败（导出器将无法加载）：{exc}", file=sys.stderr)
+        return 3
+    print("[fold] 最终容器校验通过（导出器可从中取出 'model' 并 strict 加载）。")
+
+    if args.dry_run:
+        print(f"[fold] --dry-run：键对齐+最终容器校验通过，未写盘（目标将输出到 {out_path}）。")
+        return 0
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(out_ckpt, str(out_path))
     print(f"[fold] 已写出完整可部署 checkpoint → {out_path}"

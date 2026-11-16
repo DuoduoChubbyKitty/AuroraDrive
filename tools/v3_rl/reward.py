@@ -120,10 +120,18 @@ def backfill_human_scores(
     scores = np.zeros(n, dtype=np.float32)
     if n == 0:
         return scores
+    # Clip bounds: a press strictly after the last frame or far before the first
+    # is out of range and must be dropped, not smeared onto the nearest frame.
+    # (Without this, a press at t=.3 for frames [0,.1,.2] would still rate all
+    # three frames, contradicting "out-of-range presses are dropped".)
+    first_t = float(ft[0])
+    last_t = float(ft[-1])
     # Sort events by time so later presses overwrite earlier overlapping ones.
     evs = sorted(((e.t, e.score) for e in events
                   if np.isfinite(e.t) and np.isfinite(e.score)), key=lambda x: x[0])
     for t, sc in evs:
+        if t > last_t + 1e-9 or t < first_t - judge_window_s - 1e-9:
+            continue  # out of this clip's time range
         # frames with timestamp in (t - window, t]
         lo = t - judge_window_s
         sel = (ft > lo) & (ft <= t + 1e-9)

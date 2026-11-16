@@ -996,7 +996,9 @@ enum LeanRecordSelfTest {
         badEngine.clipsRootOverride = URL(fileURLWithPath: "/dev/null/impossible")
         badEngine.inputProvider = { RecordInputSnapshot(keys: sampleKey(w: 1)) }
         let started = badEngine.start()
-        check("不可写根 → 不崩溃（返回明确结果）", true)
+        // 不崩溃应以可观测状态证明：start() 返回了明确结果且未进入录制态。
+        check("不可写根 → 不崩溃且 didNotEnterRecording", started == false && badEngine.isRecording == false,
+              "started=\(started) isRecording=\(badEngine.isRecording)")
         check("不可写根 → 未开始录制", started == false, "started=\(started)")
         check("不可写根 → lastError 非空可见", (badEngine.lastError?.isEmpty == false),
               badEngine.lastError ?? "nil")

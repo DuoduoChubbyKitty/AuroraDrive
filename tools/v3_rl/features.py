@@ -50,19 +50,39 @@ def load_v3_model(ckpt: Path, device: str):
     return model
 
 
-def _frame_times(controls_path: Path, n: int) -> np.ndarray:
-    """Read real t_sec per frame from controls.csv (falls back to i/fps)."""
+def _frame_times(controls_path: Path, frame_ids: Optional[np.ndarray] = None) -> np.ndarray:
+    """Read real ``t_sec`` for each frame, indexed by the frame's REAL frame number.
+
+    The dataset skips windows broken by a missing frame, so the cached rows are NOT
+    guaranteed contiguous in frame number. We must therefore look up each row's
+    time by its true frame id (``frame_ids``), not by its compacted position ``i``
+    -- otherwise a dropped frame shifts every later timestamp and corrupts codrive
+    / human-score alignment (Codex round-2 #4).
+
+    Falls back to ``i/15`` ONLY when controls.csv is unavailable/short; a real
+    lookup that runs past the table is an error (no silent fake timestamps).
+    """
     import csv
+    if frame_ids is None:
+        frame_ids = np.arange(0, dtype=np.int64)
+    frame_ids = np.asarray(frame_ids, dtype=np.int64)
     try:
         with open(controls_path, newline="", encoding="utf-8") as f:
             rows = list(csv.DictReader(f))
-        t = np.array([float(r.get("t_sec", i / 15.0)) for i, r in enumerate(rows)],
-                     dtype=np.float64)
-        if t.shape[0] == n:
-            return t
-    except Exception:  # noqa: BLE001
-        pass
-    return np.arange(n, dtype=np.float64) / 15.0
+        if rows:
+            t_all = np.array([float(r.get("t_sec", i / 15.0)) for i, r in enumerate(rows)],
+                             dtype=np.float64)
+            if frame_ids.size and int(frame_ids.max()) < t_all.shape[0] and int(frame_ids.min()) >= 0:
+                return t_all[frame_ids]
+            if frame_ids.size:
+                raise IndexError(
+                    f"{controls_path} 只有 {t_all.shape[0]} 行，但帧号最大 {int(frame_ids.max())}，"
+                    f"帧号越界——拒绝伪造时间戳")
+    except (FileNotFoundError, KeyError, TypeError, ValueError, IndexError) as exc:
+        # Missing/short controls: fall back to nominal 15Hz, but surface it loudly.
+        import sys as _sys
+        print(f"[feat][warn] {controls_path} 无法按真实帧号取 t_sec：{exc}；回退 i/15", file=_sys.stderr)
+    return frame_ids.astype(np.float64) / 15.0
 
 
 @dataclass
@@ -76,6 +96,12 @@ class ClipCache:
     speed_valid: np.ndarray     # [N] bool
     frame_times: np.ndarray     # [N]
     clip: str
+    frame_ids: Optional[np.ndarray] = None   # [N] real frame numbers
+
+    def _frame_ids(self) -> np.ndarray:
+        if self.frame_ids is None:
+            return np.arange(self.vertical.shape[0], dtype=np.int64)
+        return np.asarray(self.frame_ids, dtype=np.int64)
 
     def save(self, path: Path) -> None:
         np.savez_compressed(path,
@@ -87,29 +113,38 @@ class ClipCache:
                             speed_kmh=self.speed_kmh,
                             speed_valid=self.speed_valid,
                             frame_times=self.frame_times,
+                            frame_ids=self._frame_ids(),
                             clip=self.clip)
 
     @classmethod
     def load(cls, path: Path) -> "ClipCache":
         d = np.load(path, allow_pickle=False)
+        frame_ids = d["frame_ids"] if "frame_ids" in d.files else None
         return cls(
             state_token=d["state_token"], orig_vlogit=d["orig_vlogit"],
             orig_hlogit=d["orig_hlogit"], vertical=d["vertical"],
             horizontal=d["horizontal"], speed_kmh=d["speed_kmh"],
             speed_valid=d["speed_valid"], frame_times=d["frame_times"],
-            clip=str(d["clip"]),
+            clip=str(d["clip"]), frame_ids=frame_ids,
         )
 
 
 def extract_clip(model, ds, global_indices: List[int], clip_name: str,
                  device: str, batch_size: int = 32) -> ClipCache:
-    """Run one clip's frames through frozen V3 -> state_token + behaviour probs."""
+    """Run one clip's frames through frozen V3 -> state_token + behaviour probs.
+
+    Also records each row's REAL frame number (``ds.index[gi][1]``) so downstream
+    codrive / human-score lookups by frame are exact even when the dataset skipped
+    frames (Codex round-2 #4).
+    """
     import torch
     from torch.utils.data import DataLoader, Subset
 
     sub = Subset(ds, global_indices)
     loader = DataLoader(sub, batch_size=batch_size, num_workers=0)
     sts, ovl, ohl, vs, hs, sps, svs = [], [], [], [], [], [], []
+    # Real frame ids, in the SAME order the loader yields the subset.
+    frame_ids = np.array([int(ds.index[gi][1]) for gi in global_indices], dtype=np.int64)
     with torch.no_grad():
         for b in loader:
             inp = {k: b[k].float().to(device)
@@ -123,10 +158,14 @@ def extract_clip(model, ds, global_indices: List[int], clip_name: str,
             hs.append(b["horizontal"].long().numpy())
             sps.append(b["speed_kmh"].float().numpy().reshape(-1))
             svs.append((b["speed_valid"].float().numpy().reshape(-1) >= 0.5))
+    st_all = np.concatenate(sts, 0)
+    if st_all.shape[0] != frame_ids.shape[0]:
+        raise RuntimeError(
+            f"{clip_name}: 抽取得到 {st_all.shape[0]} 行但记录到 {frame_ids.shape[0]} 个帧号，数量不一致")
     controls = Path(clip_name) / "controls.csv"
-    frame_times = _frame_times(controls, len(global_indices))
+    frame_times = _frame_times(controls, frame_ids)
     return ClipCache(
-        state_token=np.concatenate(sts, 0),
+        state_token=st_all,
         orig_vlogit=np.concatenate(ovl, 0),
         orig_hlogit=np.concatenate(ohl, 0),
         vertical=np.concatenate(vs, 0),
@@ -135,6 +174,7 @@ def extract_clip(model, ds, global_indices: List[int], clip_name: str,
         speed_valid=np.concatenate(svs, 0),
         frame_times=frame_times,
         clip=str(clip_name),
+        frame_ids=frame_ids,
     )
 
 

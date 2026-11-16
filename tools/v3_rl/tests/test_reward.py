@@ -239,3 +239,17 @@ def run() -> None:
     H.check_eq(R.DEFAULT_WEIGHTS.speed, 1.0, "default speed weight")
     H.check_eq(R.DEFAULT_WEIGHTS.takeover, 10.0, "default takeover weight")
     H.check_eq(R.DEFAULT_WEIGHTS.human, 1.0, "default human weight")
+
+    # ── REGRESSION (Codex round-2 #9): out-of-range press must be dropped, ──
+    # not smeared onto the nearest (last) frame.
+    ft_clip = np.array([0.0, 0.1, 0.2])
+    sc_after = R.backfill_human_scores([R.HumanEvent(t=0.3, score=1.0)], ft_clip)
+    H.check(np.array_equal(sc_after, [0.0, 0.0, 0.0]),
+            "press after last frame (t=.3 > .2) -> dropped, no frame scored")
+    # narrow window (0.05s): only the frame exactly at .2 lies in (.15,.2]
+    sc_at_last = R.backfill_human_scores([R.HumanEvent(t=0.2, score=1.0)], ft_clip, judge_window_s=0.05)
+    H.check(np.array_equal(sc_at_last, [0.0, 0.0, 1.0]),
+            "press at last frame (narrow window) -> only that frame scored")
+    sc_far_before = R.backfill_human_scores([R.HumanEvent(t=-5.0, score=1.0)], ft_clip)
+    H.check(np.array_equal(sc_far_before, [0.0, 0.0, 0.0]),
+            "press far before first frame -> dropped")

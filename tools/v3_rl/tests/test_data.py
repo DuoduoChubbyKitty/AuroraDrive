@@ -138,3 +138,49 @@ def run() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         H.check_raises(lambda: T.assemble(Path(tmp)), FileNotFoundError,
                        "assemble empty cache dir raises FileNotFoundError")
+
+    # ── REGRESSION (Codex round-2 #6): missing codrive must NOT be defaulted ──
+    # to "whole clip is human demo" when require_codrive=True.
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = Path(tmp) / "clip_nocodrive"
+        clip.mkdir()
+        cache = _fake_cache(4, speed=10.0)
+        # default (require_codrive=False): whole clip treated as human demo
+        ct_expert = T.build_clip_tensors(cache, clip, require_codrive=False)
+        H.check(bool(np.all(ct_expert.is_human)), "no codrive + not required -> all HUMAN (expert demo)")
+        # require_codrive=True: must raise, not silently label as human
+        H.check_raises(lambda: T.build_clip_tensors(cache, clip, require_codrive=True),
+                       FileNotFoundError, "no codrive + require_codrive -> raise (no silent HUMAN)")
+
+    # ── REGRESSION (Codex round-2 #4): codrive looked up by REAL frame id, ──
+    # not compacted position. Simulate a dataset that skipped frames 1,3,4.
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = Path(tmp) / "clip_gap"
+        clip.mkdir()
+        # real frame numbers present: 0, 2, 5, 6 (gaps at 1,3,4)
+        ids = [0, 2, 5, 6]
+        cache = F.ClipCache(
+            state_token=np.zeros((4, 8), dtype=np.float32),
+            orig_vlogit=np.zeros((4, 3), dtype=np.float32),
+            orig_hlogit=np.zeros((4, 3), dtype=np.float32),
+            vertical=np.zeros(4, dtype=np.int64),
+            horizontal=np.zeros(4, dtype=np.int64),
+            speed_kmh=np.full(4, 10.0, dtype=np.float32),
+            speed_valid=np.ones(4, dtype=bool),
+            frame_times=np.array([0.0, 0.2, 0.5, 0.6]),
+            clip="clip_gap",
+            frame_ids=np.array(ids, dtype=np.int64),
+        )
+        with open(clip / "codrive.csv", "w", encoding="utf-8") as f:
+            f.write("frame,source,took_over,collided,lane_offset\n")
+            f.write("0,ai,0,0,0.0\n")
+            f.write("2,human,1,0,0.0\n")   # real frame 2 == position 1
+            f.write("5,ai,0,0,0.0\n")      # real frame 5 == position 2
+            f.write("6,human,0,0,0.0\n")   # real frame 6 == position 3
+        ct = T.build_clip_tensors(cache, clip)
+        H.check(np.array_equal(ct.is_human, [False, True, False, True]),
+                "codrive mapped by real frame id (gap-safe), not position")
+        H.check(np.array_equal(ct.is_ai, [True, False, True, False]),
+                "AI flags mapped by real frame id (gap-safe)")
+        H.check(np.array_equal(ct.took_over, [False, True, False, False]),
+                "took_over mapped by real frame id (gap-safe)")

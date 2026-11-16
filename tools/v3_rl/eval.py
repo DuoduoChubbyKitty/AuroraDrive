@@ -131,7 +131,13 @@ def evaluate_clip_with_policy(clip_dir: Path, policy_v_fn, policy_h_fn) -> Corne
     pv = np.asarray(policy_v_fn(lv))
     ph = np.asarray(policy_h_fn(lh))
     mask = load_human_mask(clip_dir)
-    if mask is not None and mask.shape[0] == lv.shape[0] and mask.any():
+    if mask is not None:
+        if mask.shape[0] != lv.shape[0]:
+            raise ValueError(
+                f"evaluate_clip_with_policy: 人类 mask 长度 {mask.shape[0]} 与标签 {lv.shape[0]} 不一致")
+        # A present mask is authoritative: evaluate HUMAN frames only. If it selects
+        # nothing, keep the empty selection so we return a zero-sample result (rates
+        # N/A) instead of silently evaluating every frame as if it were human.
         lv, lh = lv[mask], lh[mask]
         pv, ph = pv[mask], ph[mask]
     return evaluate_predictions(pv, ph, lv, lh)

@@ -14,10 +14,24 @@ Pipeline (all on genuine V3 features, no action leak):
      deploy pipeline can fold them back into the model.
 
 Semantics for codrive.csv (fix for "missing row == human demo"):
-  * No codrive.csv for a clip  -> whole clip is a HUMAN demonstration (all human).
-  * codrive.csv present        -> per frame: source=AI -> AI; source=HUMAN -> HUMAN;
-                                  frame absent from codrive -> UNKNOWN (excluded
-                                  from both the PPO and imitation sets).
+  * No codrive.csv for a clip AND require_codrive=False -> the caller explicitly
+    opted into "whole clip is a plain HUMAN demonstration".
+  * No codrive.csv AND require_codrive=True -> hard error (a missing sidecar is
+    ambiguous: it may be a co-drive session whose sidecar failed and was downgraded
+    to plain recording). Never silently relabel a downgraded capture as human.
+  * codrive.csv present -> per frame: source=AI -> AI; source=HUMAN -> HUMAN;
+    frame absent from codrive -> UNKNOWN (excluded from PPO and imitation sets).
+
+Known limitations (honest scope -- do NOT overclaim "faithful PPO"):
+  * PPO "old probs" are the base checkpoint's softmax, not logged stochastic
+    behaviour-policy probabilities (deployment acts argmax). Treat --stage ppo as
+    an approximate OFFLINE fine-tune on recorded AI frames, not standard on-policy
+    PPO (Codex round-2 #3).
+  * The per-frame action label comes from controls.csv (the keys that were pressed).
+    For frames the deployed driver produced, that equals the executed action; but
+    the offline replay cannot perfectly reconstruct control overrides. Frames with
+    no reliable action should use a separate "executed action" channel (not yet
+    captured) -- see docs/v3-design/06 (Codex round-2 #2).
 """
 
 from __future__ import annotations
@@ -103,7 +117,8 @@ def _load_human_scores(path: Path) -> List[R.HumanEvent]:
 
 def build_clip_tensors(cache: "F.ClipCache", clip_path: Path,
                        weights: R.RewardWeights = R.DEFAULT_WEIGHTS,
-                       human_score_path: Optional[Path] = None) -> ClipTensors:
+                       human_score_path: Optional[Path] = None,
+                       require_codrive: bool = False) -> ClipTensors:
     """Build per-frame tensors for one clip.
 
     ``human_score_path`` is optional and defaults to None, in which case the
@@ -111,6 +126,17 @@ def build_clip_tensors(cache: "F.ClipCache", clip_path: Path,
     exists, ``human_scores.csv`` (t, score) is parsed into HumanEvents and fed to
     ``compute_episode_rewards``; when it is absent a clear log states the human
     term is 0 (data is never invented).
+
+    ``require_codrive`` controls the meaning of a *missing* ``codrive.csv``.
+    Codrive is a per-frame annotation; a missing file is ambiguous (it can mean a
+    pure expert demo, OR a co-drive session whose sidecar failed and was
+    downgraded to plain recording). We must NOT silently treat every clip without
+    codrive as a human demonstration, or a downgraded capture would be
+    mislabelled as human. So:
+      * require_codrive=True  -> a missing codrive.csv is a hard error for a
+        co-drive training run; the caller must not pretend it is human data.
+      * require_codrive=False -> the caller explicitly opted into "clip without
+        codrive is a plain expert demonstration", so every frame is HUMAN.
     """
     n = cache.vertical.shape[0]
     co = _load_codrive(clip_path)
@@ -120,11 +146,23 @@ def build_clip_tensors(cache: "F.ClipCache", clip_path: Path,
     collided = np.zeros(n, dtype=bool)
     lane_off = np.zeros(n, dtype=np.float64)
     if co is None:
-        # No codrive at all -> pure human demonstration.
+        if require_codrive:
+            raise FileNotFoundError(
+                f"共驾训练缺少 codrive.csv: {Path(clip_path)} —— 可能是旁路录制失败后被"
+                f"降级为普通录制，不能当作人类示范；请剔除该 clip 或改用普通示范模式。")
+        # Explicitly opted into "no codrive == plain expert demonstration".
         is_human[:] = True
     else:
+        # Look up codrive by the row's REAL frame id, not its compacted position.
+        # The dataset skips frames, so position i != frame number; using i would
+        # misalign source/took_over/collided/lane_offset (Codex round-2 #4).
+        frame_ids = (np.asarray(cache.frame_ids, dtype=np.int64)
+                     if getattr(cache, "frame_ids", None) is not None
+                     else np.arange(n, dtype=np.int64))
+        if frame_ids.shape[0] != n:
+            raise ValueError(f"{cache.clip}: frame_ids 长度 {frame_ids.shape[0]} != 行数 {n}")
         for i in range(n):
-            row = co.get(i)
+            row = co.get(int(frame_ids[i]))
             if row is None:
                 continue  # UNKNOWN frame: neither AI nor human
             src = str(row.get("source", "")).strip().upper()
@@ -164,13 +202,17 @@ def build_clip_tensors(cache: "F.ClipCache", clip_path: Path,
                        is_ai, is_human, took_over, rewards)
 
 
-def assemble(cache_dir: Path, use_human_scores: bool = False
+def assemble(cache_dir: Path, use_human_scores: bool = False,
+             require_codrive: bool = False
              ) -> Tuple[List[ClipTensors], np.ndarray]:
     """Load caches + codrive -> list of ClipTensors and episode_ends array.
 
     When ``use_human_scores`` is True, each clip looks for
     ``<clip>/human_scores.csv`` next to its codrive and feeds it into the reward.
     Default False keeps reward identical to the no-human-score behaviour.
+    ``require_codrive`` (see ``build_clip_tensors``) makes a missing codrive.csv
+    a hard error instead of "whole clip is a human demo" -- use it for co-drive
+    training so a downgraded capture is never silently labelled as human.
     """
     caches = F.load_cached_clips(cache_dir)
     if not caches:
@@ -179,7 +221,8 @@ def assemble(cache_dir: Path, use_human_scores: bool = False
     for c in caches:
         clip_path = Path(c.clip)
         human_score_path = (clip_path / "human_scores.csv") if use_human_scores else None
-        clips.append(build_clip_tensors(c, clip_path, human_score_path=human_score_path))
+        clips.append(build_clip_tensors(c, clip_path, human_score_path=human_score_path,
+                                        require_codrive=require_codrive))
     ends = []
     for c in clips:
         e = np.zeros(c.state_token.shape[0], dtype=bool)
@@ -212,6 +255,7 @@ def train(
     limit: Optional[int] = None,
     init_from: Optional[Path] = None,
     use_human_scores: bool = False,
+    require_codrive: bool = False,
 ) -> Dict[str, object]:
     torch = _torch()
     if batch_size <= 0:
@@ -224,7 +268,8 @@ def train(
         device = "mps" if torch.backends.mps.is_available() else "cpu"
     device = torch.device(device)
 
-    clips, _ends = assemble(Path(cache_dir), use_human_scores=use_human_scores)
+    clips, _ends = assemble(Path(cache_dir), use_human_scores=use_human_scores,
+                            require_codrive=require_codrive)
     # concatenate with episode_ends
     st = np.concatenate([c.state_token for c in clips], 0)
     ovl = np.concatenate([c.orig_vlogit for c in clips], 0)
@@ -280,16 +325,45 @@ def train(
     AI = torch.tensor(is_ai, dtype=torch.bool, device=device)
     HU = torch.tensor(is_human, dtype=torch.bool, device=device)
 
-    # behaviour-policy probabilities (pi_0) for PPO importance ratio
+    # Behaviour-policy probabilities (pi_0) for the PPO importance ratio.
+    #
+    # IMPORTANT LIMITATION (Codex round-2 #3): these are the ORIGINAL checkpoint's
+    # softmax outputs on each frame -- NOT the probabilities of a logged stochastic
+    # behaviour policy. The deployed driver acts argmax (deterministic) plus control
+    # overrides, so it never sampled actions from this softmax. Consequently the
+    # ratio pi_theta/pi_0 here only measures "how far the heads drifted from the
+    # base model's softmax"; it is NOT a valid off-policy correction for standard
+    # PPO. Treat `--stage ppo` as an approximate offline fine-tune over recorded AI
+    # frames, not a theoretically-faithful on-policy PPO. For a faithful PPO you must
+    # record (action, logprob, model/version, override flags) from a stochastic
+    # behaviour policy at capture time; that capture plumbing does not exist yet.
     OLD_V = torch.softmax(OVL, -1)
     OLD_H = torch.softmax(OHL, -1)
+    if stage == "ppo":
+        _log.warning(
+            "[rl] PPO 的 old_probs 取自原始 checkpoint 的 softmax，不是采集时的随机行为策略概率；"
+            "视为离线近似微调，不是严格 on-policy PPO（详见代码注释 / 文档限制）。")
 
     # per-episode GAE
     with torch.no_grad():
         _, _, values = policy(ST)
     adv, vtarget = R.gae_advantages(rewards, values.detach().cpu().numpy(),
                                     episode_ends=ends, gamma=gamma, lam=lam)
-    adv = R.normalize_advantages(adv)
+    # PPO advantage normalisation must use ONLY the frames that actually enter the
+    # policy gradient (AI frames). Normalising over all frames lets unrelated
+    # HUMAN/UNKNOWN frames shift the mean/std -- adding human-demo clips could even
+    # flip the sign of AI advantages. BC stage ignores advantages, so the global
+    # path there is harmless.
+    if stage == "ppo" and is_ai.any():
+        ai_adv = adv[is_ai]
+        mean = float(ai_adv.mean())
+        std = float(ai_adv.std())
+        if not (np.isfinite(mean) and np.isfinite(std)) or std < 1e-8:
+            adv = np.zeros_like(adv, dtype=np.float32)
+        else:
+            adv = ((adv - mean) / (std + 1e-8)).astype(np.float32)
+    else:
+        adv = R.normalize_advantages(adv)
     ADV = torch.tensor(adv, dtype=torch.float32, device=device)
     VT = torch.tensor(vtarget, dtype=torch.float32, device=device)
 
@@ -364,6 +438,9 @@ def _parse_args(argv=None):
                     help="BC 阶段产出的 head_state_dict .pt；PPO 载入后继续（BC→PPO 入口）")
     ap.add_argument("--use-human-scores", action="store_true",
                     help="读取每个 clip 目录下的 human_scores.csv（t,score）计入 human 项")
+    ap.add_argument("--require-codrive", action="store_true",
+                    help="共驾训练：缺少 codrive.csv 视为错误（不默认整段当人类示范），"
+                         "防止旁路失败降级的数据被误当人类数据")
     return ap.parse_args(argv)
 
 
@@ -376,7 +453,7 @@ def main(argv=None) -> int:
           clip_eps=a.clip_eps, gamma=a.gamma, lam=a.lam, seed=a.seed,
           out_ckpt=Path(a.out_ckpt) if a.out_ckpt else None, limit=a.limit,
           init_from=Path(a.init_from) if a.init_from else None,
-          use_human_scores=a.use_human_scores)
+          use_human_scores=a.use_human_scores, require_codrive=a.require_codrive)
     return 0
 
 
