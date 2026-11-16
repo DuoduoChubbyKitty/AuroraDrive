@@ -241,10 +241,12 @@ final class SpeedOCRReader {
     /// 解码规则 2：数字串长度 < 2 → 判无效（模型输出噪声帧常解成单字符）
     nonisolated static let ppocrMinDigits: Int = 2
 
-    /// 解码规则 3：置信度 < 0.30 → 判无效。
-    /// 微调后全测试集最低置信 0.8343（见 PPOCRV6_FINETUNE_REPORT.md §5），
-    /// 0.30 极安全；同时下游 speedValid(conf>0.3) 语义保持一致。
-    nonisolated static let ppocrMinConfidence: Double = 0.30
+    /// 解码规则 3：置信度 < 0.60 → 判无效。
+    /// 2026-11-13 从 0.30 提到 0.60：实测「有速度表」帧置信度中位数 0.84、
+    /// 「无速度表」（菜单/遮挡/HUD 暂隐）帧中位数仅 0.36。0.30 会把 0.33~0.34
+    /// 这类瞎猜读数当有效值（造成假车速）；0.60 时对「有表」帧 99% 判对、
+    /// 「无表」帧 0% 误判。下游 tick 的 ocrFresh 门槛与之保持一致（同为 0.6）。
+    nonisolated static let ppocrMinConfidence: Double = 0.60
 
     /// 前置无效检测的等比例阈值：旧路径 3 槽 3375 像素上 fg<80 ≈ 2.37%，
     /// 整行路径按比例换算（窗口分辨率随全屏分辨率变化，绝对像素数不可比）
@@ -268,6 +270,11 @@ final class SpeedOCRReader {
 
     /// 最近一次成功读取时间（主线程读，判断快照新鲜度）
     private(set) var lastResultTime: Date?
+
+    /// 帧到达时的单调时间；失败立即置空，不能拿完成时刻替旧帧续命。
+    private(set) var lastObservationUptime: Double?
+    /// 即使两次 tick 之间先失败再成功，也必须重置控制侧平滑和副驾结果。
+    private(set) var invalidationID: UInt64 = 0
 
     /// CNN模型（speed_digit_cnn_v4.mlpackage），替代模板匹配
     @ObservationIgnored
@@ -310,7 +317,7 @@ final class SpeedOCRReader {
     /// 即每个 tick 都跑一次。这条过时注释是 2 轮审计里反复被误导的源头
     /// （用户「速度表一秒才更新几次」的印象也来自它），必须与代码保持一致。
     @ObservationIgnored
-    private var lastInferTime: Date?
+    private var lastInferTime: Double?
 
     /// 上一帧有效车速（用于跳变过滤）
     @ObservationIgnored
@@ -673,7 +680,7 @@ final class SpeedOCRReader {
 
     /// 喂入一帧原生速度表 ROI 缓冲：CIImage 路径裁 3 槽（不插值）→ 后台 OCR → 主线程写快照
     /// - Parameter nativePixelBuffer: CaptureEngine onNativeFrame 的原生 ROI 帧（环1 后为速度表切片）
-    func infer(nativePixelBuffer: CVPixelBuffer) {
+    func infer(nativePixelBuffer: CVPixelBuffer, observedAt: Double = ProcessInfo.processInfo.systemUptime) {
         // 闸 0（2026-09-30）：模型可能还在后台加载 —— 首次推理前兜底等一次。
         // 正常情况（启动后 1s 内首帧才到）此时已加载完毕，等于零开销。
         ensureModelsLoaded()
@@ -687,7 +694,7 @@ final class SpeedOCRReader {
         //   ⚠️ 2026-10-24 更正：原文写「5Hz / 200ms」，与 `inferInterval` 实际值
         //   （`1.0/15.0`）不符。15Hz 才对得上「每个 tick 都跑一次」的真实行为。
         guard lastInferTime == nil
-                || Date().timeIntervalSince(lastInferTime!) >= Self.inferInterval
+                || ProcessInfo.processInfo.systemUptime - lastInferTime! >= Self.inferInterval
         else { return }
         // 闸 2：防重叠（上一帧 OCR 还没跑完）
         guard !isInferencing else { return }
@@ -698,7 +705,7 @@ final class SpeedOCRReader {
         }
 
         // 后台队列：按当前引擎推理；PP-OCR 运行时系统级故障 → 同帧降级 CNN + 提示
-        lastInferTime = Date()
+        lastInferTime = ProcessInfo.processInfo.systemUptime
         let gen = generation
         let cnnSnapshot = cnnModel
         let ppocrSnapshot = ppocrModel
@@ -753,7 +760,7 @@ final class SpeedOCRReader {
             }
             Task { @MainActor in
                 self?.applyEngineUse(usedEngine, notice: switchNotice)
-                self?.finish(gen, result)
+                self?.finish(gen, result, observedAt: observedAt)
             }
         }
     }
@@ -768,21 +775,33 @@ final class SpeedOCRReader {
 
     /// 主线程写最新快照（仿 YoloEngine.finish）
     /// - Parameter gen: 入队时捕获的 generation；reset() 后 gen 不匹配则丢弃过期结果
-    private func finish(_ gen: Int, _ result: RecognitionResult) {
+    private func finish(_ gen: Int, _ result: RecognitionResult, observedAt: Double) {
         guard gen == generation else { return }   // reset() 后在途结果过期，直接丢弃
         isInferencing = false
+        // 默认撤销有效性；只有全部校验通过才能发布新快照。
+        // generation 不匹配的旧会话结果已在上面丢弃，不能撤销新会话。
+        confidence = 0
+        lastObservationUptime = nil
+        defer { if confidence <= 0.6 { invalidationID &+= 1 } }
         if let error = result.error {
             errorMessage = error                    // 仅系统级错误（如灰度转换失败）
+            confidence = 0                          // 本帧无有效读数：置信度清零，避免旧置信度继续被当新鲜
             return
         }
         // 无法识别 → 记录诊断并静默丢弃（正常情况：画面无速度表 / 整体残差过高）
+        // 置信度必须清零：否则上一份成功结果的 confidence/lastResultTime 仍在 0.5s 保鲜期内，
+        // tick 的 ocrFresh（confidence>0.6 且 age<0.5s）会继续把旧读数当新鲜值喂给限速判断。
         guard let speed = result.speed, result.unknownSlots.isEmpty else {
             lastOCRDiagnostic = result.diag ?? "无法识别"
+            confidence = 0
             return
         }
+        guard observedAt.isFinite, observedAt <= ProcessInfo.processInfo.systemUptime,
+              ProcessInfo.processInfo.systemUptime - observedAt < 0.5,
+              result.confidence.isFinite, result.confidence > 0.6 else { return }
         lastOCRDiagnostic = ""   // 成功读出，清空诊断
 
-        // ── 三层校验（任一不通过则保留旧值）──
+        // ── 三层校验（失败可保留显示数值，但有效性已经撤销）──
         // Layer 1: 量程过滤
         guard Self.speedRange.contains(Double(speed)) else {
             errorMessage = "out of range \(speed)"
@@ -790,7 +809,7 @@ final class SpeedOCRReader {
         }
         // Layer 2: 跳变过滤
         // 跨阈值视为噪声帧：不再静默沿用旧值假装新鲜读数，而是把本帧置信度置 0，
-        // 让下游 speedValid（conf>0.3）判 false，走正规的"读不到→降级"路径。
+        // 让下游 speedValid（conf>0.6）判 false，走正规的"读不到→降级"路径。
         // speedKmh 保留旧值仅供显示；lastValidSpeed 不更新，避免错误读数污染下一帧基准。
         if let last = lastValidSpeed, abs(Double(speed) - last) > Self.maxJumpKmh {
             errorMessage = "jump too large \(last)→\(speed)"
@@ -798,7 +817,7 @@ final class SpeedOCRReader {
             return
         }
         // Layer 3: 多帧确认（容差内同读数 ≥ minConfirmAgreement 才输出）
-        let now = Date()
+        let now = Date(timeIntervalSinceReferenceDate: observedAt)
         candidates.append((speed, now))
         // 截断超出时间窗的旧候选
         let windowStart = now.addingTimeInterval(-Self.confirmWindowSec)
@@ -809,14 +828,15 @@ final class SpeedOCRReader {
             tolerance: Self.confirmToleranceKmh,
             minAgreement: Self.minConfirmAgreement
         ) else {
-            // 候选不足或不一致，暂不输出（保留上一帧有效值）
+            // 候选不足或不一致，暂不输出（置信度已清零）
             return
         }
 
         speedKmh = Double(confirmed)
         confidence = result.confidence
         lastValidSpeed = Double(confirmed)
-        lastResultTime = now
+        lastResultTime = Date()   // 兼容诊断/UI；控制新鲜度只看单调观测时刻
+        lastObservationUptime = observedAt
         errorMessage = nil
     }
 
@@ -861,6 +881,8 @@ final class SpeedOCRReader {
         isInferencing = false
         errorMessage = nil
         lastResultTime = nil
+        lastObservationUptime = nil
+        invalidationID &+= 1
         lastInferTime = nil
         lastValidSpeed = nil
         lastOCRDiagnostic = ""
@@ -1037,7 +1059,7 @@ final class SpeedOCRReader {
     /// - 预处理与 eval_onnx.py / eval_coreml.py 完全同参：
     ///   灰度 → 双线性 resize 48×136（对齐 cv2.INTER_LINEAR）→ (v/255-0.5)/0.5
     ///   → 灰度值复制 3 通道 NCHW
-    /// - 解码与训练期规则一致：CTC（blank=0、折叠重复）→ 置信 ≥0.30 →
+    /// - 解码与训练期规则一致：CTC（blank=0、折叠重复）→ 置信 ≥0.60 →
     ///   取数字串**后 3 位**左补零 → <2 位判无效；多帧级决策由上游 finish 三层校验负责
     nonisolated private static func recognizePPOCR(
         roiBuffer: CVPixelBuffer,
@@ -1274,7 +1296,7 @@ final class SpeedOCRReader {
         guard conf >= ppocrMinConfidence else {
             return RecognitionResult(
                 unknownSlots: [0],
-                diag: "PP-OCR: 置信度 \(String(format: "%.3f", conf)) < 0.30 raw=\(text)")
+                diag: "PP-OCR: 置信度 \(String(format: "%.3f", conf)) < \(String(format: "%.2f", ppocrMinConfidence)) raw=\(text)")
         }
         if AuroraFlags.ocrDebug {
             print("[DBG] raw=\(text.debugDescription) conf=\(conf) digits=\(text.filter { $0 >= "0" && $0 <= "9" })")
