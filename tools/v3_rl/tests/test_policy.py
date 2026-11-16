@@ -227,3 +227,38 @@ def run() -> None:
     H.check(torch.isfinite(total_e).item(), "ppo_loss empty masks finite")
     H.check(np.isfinite(st_e["pg_loss"]) and np.isfinite(st_e["bc"]),
             "ppo_loss empty masks stats finite")
+
+    # ── REGRESSION (Codex round-3 ③): UNKNOWN frames must NOT train the critic ──
+    # value_mask excludes them; a huge wrong target on an UNKNOWN row must not
+    # move the value loss.
+    with torch.no_grad():
+        _, _, v_now = pol(tok)
+    vt_clean = torch.zeros(N)
+    vt_dirty = torch.zeros(N)
+    vt_dirty[0] = 100.0                      # row0 is the "UNKNOWN" frame
+    valid = torch.ones(N, dtype=torch.bool)
+    valid[0] = False                         # exclude row0
+    _, st_clean = P.ppo_loss(pol, tok, vlab, hlab, old_vp, old_hp, adv_vec, vt_clean,
+                             ai_mask=ai_all, human_mask=hu_none, value_mask=valid)
+    _, st_dirty = P.ppo_loss(pol, tok, vlab, hlab, old_vp, old_hp, adv_vec, vt_dirty,
+                             ai_mask=ai_all, human_mask=hu_none, value_mask=valid)
+    H.check_close(st_clean["v_loss"], st_dirty["v_loss"], tol=1e-6,
+                  msg="value_mask: UNKNOWN-frame target change has zero effect on v_loss")
+
+    # ── REGRESSION (Codex round-3 ③): GAE does not leak across UNKNOWN boundary ──
+    # Boundary must be cut at the LAST VALID frame before an UNKNOWN run (marking only
+    # the unknown frame terminal is insufficient for backward GAE). We mirror train_rl's
+    # cut construction: a valid frame followed by an invalid frame is an episode end.
+    import numpy as _np
+    import reward as _R
+    valid_m = _np.array([True, False])          # [AI, UNKNOWN]
+    n2 = valid_m.shape[0]
+    cut = _np.zeros(n2, dtype=bool)
+    cut[:-1] = valid_m[:-1] & ~valid_m[1:]
+    ends_ok = (_np.zeros(n2, dtype=bool))
+    ends_ok[-1] = True
+    ends_ok = ends_ok | (~valid_m) | cut
+    adv_lo, _ = _R.gae_advantages([1.0, 0.0], [0.0, 0.0], episode_ends=ends_ok)
+    adv_hi, _ = _R.gae_advantages([1.0, 10.0], [0.0, 0.0], episode_ends=ends_ok)
+    H.check_close(float(adv_lo[0]), float(adv_hi[0]), tol=1e-6,
+                  msg="UNKNOWN boundary cut at last-valid frame isolates AI advantage")

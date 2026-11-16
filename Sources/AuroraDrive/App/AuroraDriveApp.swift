@@ -4495,18 +4495,22 @@ final class DriveState {
     ///
     /// 【为什么要在引擎模式早退之前调用】见 tick() 里的调用点注释。
     func captureLeanSnapshot() -> RecordInputSnapshot {
-        // ── 按键来源必须按「进程 × 专家模式」区分，与 recordFrameIfNeeded 完全同口径 ──
-        //   （评审 round-2 B1：旧实现无条件读物理键掩码，于是 AI 注入的键被
-        //     KeyboardMonitor 过滤、物理掩码恒 0，AI 帧的 controls 全零 → 训练把
-        //     「AI 按 W 在开」记成 NONE，PPO 学错动作。这里改为与行驶录制同一套
-        //     选择逻辑：非专家=AI 驾驶→读 controlEngine.heldKeys（本进程实际注入的键，
-        //     即**实际执行动作**）；专家=真人物理键→读键盘监听/引擎回传掩码。）
-        //   · 引擎进程 + 专家：本进程无 NSEvent → remoteKeyMask
-        //   · 引擎进程 + 非专家：注入键在引擎进程 → controlEngine.heldKeys
-        //   · UI 进程 + 专家：本地键盘监听 → currentPhysicalKeyMask
-        //   · UI 进程 + 非专家：本地注入 → controlEngine.heldKeys
+        // ── 按键来源必须按「实际控制归属」区分（评审 round-2 B1 + round-3 ①）──
+        //   标签要记录的是「本帧**实际执行**的动作」，来源随控制归属而变：
+        //   · 专家模式：全程由真人物理键驾驶 → 读键盘监听/引擎回传掩码。
+        //   · 非专家 + 人类正在接管（EmergencyTakeover.userHoldingKey）：此时 AI 注入
+        //     被抑制、controlEngine.heldKeys 会被清空 —— 若仍读 heldKeys 会把救车动作
+        //     记成 NONE（round-3 ① 回归）。故接管时读**真人物理键**（救车=要模仿的人类动作）。
+        //   · 非专家 + 人类未接管：AI 在驾驶 → 读 controlEngine.heldKeys（本进程实际注入的键）。
+        //   进程归属细节：
+        //     · 引擎进程 + 专家：本进程无 NSEvent → remoteKeyMask
+        //     · 引擎进程 + 接管：真人键由 UI 进程回传 → remoteKeyMask
+        //     · 引擎进程 + AI：注入键在引擎进程 → controlEngine.heldKeys
+        //     · UI 进程 + 专家/接管：本地键盘监听 → currentPhysicalKeyMask
+        //     · UI 进程 + AI：本地注入 → controlEngine.heldKeys
+        let physicalInput = expertMode || EmergencyTakeover.shared.userHoldingKey
         let mask: Int
-        if expertMode {
+        if physicalInput {
             mask = isEngineHost ? remoteKeyMask : currentPhysicalKeyMask()
         } else {
             let held = controlEngine.heldKeys
@@ -4559,12 +4563,15 @@ final class DriveState {
         // 「V3 在控」：本帧由 V3 主驾（.e2e 档）、在驾驶、非专家模式、未禁用控制。
         // 这是与主驾命令 `mayDriveByV3 = v3ReadyForControl && decided == .e2e` 同口径的
         // 控制权判据；缺它则 `ai_*` 可能记录"模型想发但根本没被执行的意图"。
-        let v3InControl = v3Active && isDriving && !expertMode && !controlDisabled
+        let v3ReadyForControl = v3Active && isDriving && !expertMode && !controlDisabled
             && mode == .e2e
         // 决策新鲜度 < 1s：`lastDecision` 一旦写出就永久保留，必须按与 isAlive 一致的
         // 1.0s 阈值判新鲜，否则会把陈旧决策当本帧意图。
-        let fresh = v3InControl
+        let fresh = v3ReadyForControl
             && (inferenceEngineV3.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
+        // 真正"V3 在控"必须要求**决策新鲜**（评审 round-3 ②）：仅加载+就绪+.e2e 不够，
+        // 过期决策说明本帧模型并未真正驱动，应判为未在控（→ UNKNOWN 或 -1），不能标 AI。
+        let v3InControl = fresh
         let aiV: Int, aiH: Int, aiShift: Int, aiSpace: Int
         if fresh {
             let d = inferenceEngineV3.lastDecision
@@ -4577,8 +4584,8 @@ final class DriveState {
             aiV = -1; aiH = -1; aiShift = -1; aiSpace = -1
         }
         // 接管判定/来源由纯函数决定（只信真实人类接管信号 + V3 实际是否在控）。
-        // 评审 round-2 B2：把 `v3InControl` 传进去，人类没接管但 V3 未在控的帧标 UNKNOWN，
-        // 训练端排除，不再把待机/未就绪/控制被禁用的帧当成有效 AI 动作。
+        // 评审 round-2 B2 / round-3 ②：把新鲜度并入的 `v3InControl` 传入；人类没接管但
+        // V3 未在控（含决策过期）的帧标 UNKNOWN，训练端排除，不当成有效 AI 动作。
         return CoDriveSample.compute(
             userHolding: EmergencyTakeover.shared.userHoldingKey,
             aiV: aiV, aiH: aiH, aiShift: aiShift, aiSpace: aiSpace,

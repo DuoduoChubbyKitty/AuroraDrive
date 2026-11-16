@@ -121,6 +121,7 @@ def ppo_loss(
     lambda_imitation: float = 0.0,
     vf_coef: float = 0.5,
     ent_coef: float = 0.0,
+    value_mask: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
     """PPO clipped surrogate (AI frames only) + value regression (all) + imitation
     (human frames only). Human rescue actions are NEVER under the policy-gradient
@@ -141,7 +142,13 @@ def ppo_loss(
     pg_elem = -torch.min(surr1, surr2)
     pg_loss = _masked_mean(pg_elem, ai_mask)
 
-    v_loss = 0.5 * F.mse_loss(value, value_targets)
+    # Value regression: only on frames with a usable target (AI + HUMAN). UNKNOWN
+    # frames have no reliable action/control, so they must not train the critic
+    # (Codex round-3 ③). value_mask=None keeps the legacy "all frames" behaviour.
+    if value_mask is None:
+        v_loss = 0.5 * F.mse_loss(value, value_targets)
+    else:
+        v_loss = 0.5 * _masked_mean((value - value_targets) ** 2, value_mask)
 
     ent_v = -(v_prob * torch.log(v_prob + 1e-8)).sum(-1).mean()
     ent_h = -(h_prob * torch.log(h_prob + 1e-8)).sum(-1).mean()

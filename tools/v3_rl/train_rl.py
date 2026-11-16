@@ -294,8 +294,21 @@ def train(
     n = st.shape[0]
     if n == 0:
         raise ValueError("无可用帧")
+    # UNKNOWN = neither AI nor HUMAN (no reliable action / V3 not in control).
+    is_unknown = ~(is_ai | is_human)
+    valid = is_ai | is_human
+    # GAE must not propagate reward/bootstrap ACROSS an UNKNOWN segment (Codex round-3 ③).
+    # Because GAE runs backward, marking the UNKNOWN frame itself as terminal is NOT
+    # enough: the last VALID frame before an UNKNOWN run still folds the unknown reward
+    # in via its gamma*lam*last term (repro: [AI,UNKNOWN] with unknown reward 0->10 flips
+    # AI advantage 0->9.405). So we cut at the boundary: a valid frame followed by an
+    # invalid frame becomes an episode end, and unknown frames also reset the recursion.
+    cut = np.zeros(n, dtype=bool)
+    if n > 1:
+        cut[:-1] = valid[:-1] & ~valid[1:]
+    ends = ends | is_unknown | cut
     print(f"[rl] stage={stage} frames={n} ai={int(is_ai.sum())} human={int(is_human.sum())} "
-          f"unknown={int((~is_ai & ~is_human).sum())} device={device}")
+          f"unknown={int(is_unknown.sum())} device={device}")
 
     # Real V3 model + trainable heads
     from tools.v3_rl.policy import (TorchPolicy, bc_loss, ppo_loss, make_optimizer)
@@ -324,6 +337,7 @@ def train(
     Hl = torch.tensor(hlab, dtype=torch.long, device=device)
     AI = torch.tensor(is_ai, dtype=torch.bool, device=device)
     HU = torch.tensor(is_human, dtype=torch.bool, device=device)
+    VALID = torch.tensor(is_ai | is_human, dtype=torch.bool, device=device)  # value-loss frames (exclude UNKNOWN)
 
     # Behaviour-policy probabilities (pi_0) for the PPO importance ratio.
     #
@@ -387,7 +401,7 @@ def train(
                 loss, st_dict = ppo_loss(
                     policy, ST[bi], Vl[bi], Hl[bi], OLD_V[bi], OLD_H[bi],
                     ADV[bi], VT[bi], ai_mask=AI[bi], human_mask=HU[bi],
-                    clip_eps=clip_eps, lambda_imitation=lam_now)
+                    clip_eps=clip_eps, lambda_imitation=lam_now, value_mask=VALID[bi])
             else:
                 raise ValueError(f"未知 stage: {stage}")
             opt.zero_grad()
