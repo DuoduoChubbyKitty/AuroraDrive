@@ -1090,7 +1090,8 @@ struct AuroraDriveLauncher {
         // 与注入样本一致，以及关闭共驾时**不**产生 codrive.csv（向后兼容）。
         if args.contains("--codrive-selftest") {
             let failed = LeanRecordSelfTest.runCoDriveSelfTest()
-            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+            let failed2 = LeanRecordSelfTest.runCoDriveFailureSelfTest()
+            exit((failed + failed2) == 0 ? 0 : Int32(min(failed + failed2, 127)))
         }
 
         // ── AI 助手三证据链自检分发（2026-10-06）──
@@ -4270,28 +4271,22 @@ private final class LeanInputSnapshot: @unchecked Sendable {
     private var keys = RawKeySample()
     private var coDrive = CoDriveSample()
 
-    /// 主线程 30Hz 唯一写入口
-    func store(keys: RawKeySample) {
+    /// 主线程 30Hz 唯一写入口 —— **按键与共驾信息一次性原子写入**。
+    ///
+    /// 为什么把两者合成一个写入方法（评审 Blocking 3）：抓屏队列按帧取标签
+    /// 时必须拿到**同一时刻**的按键与共驾信息。若分成两个方法、两次加锁，
+    /// 主线程可在两次之间更新，形成 keys(t) 配 codrive(t+1) 的错配。
+    /// 合成一次写入、一次读取，从结构上排除该错配。
+    func store(keys: RawKeySample, coDrive: CoDriveSample) {
         lock.lock(); defer { lock.unlock() }
         self.keys = keys
+        self.coDrive = coDrive
     }
 
-    /// 主线程写共驾标注快照（与按键同锁，保证两者取自同一时刻）。
-    func storeCoDrive(_ sample: CoDriveSample) {
+    /// 抓屏队列一次性读按键 + 共驾（同一次加锁，保证时刻一致）。
+    func read() -> (keys: RawKeySample, coDrive: CoDriveSample) {
         lock.lock(); defer { lock.unlock() }
-        self.coDrive = sample
-    }
-
-    /// 抓屏队列读按键
-    func readKeys() -> RawKeySample {
-        lock.lock(); defer { lock.unlock() }
-        return keys
-    }
-
-    /// 抓屏队列读共驾标注
-    func readCoDrive() -> CoDriveSample {
-        lock.lock(); defer { lock.unlock() }
-        return coDrive
+        return (keys, coDrive)
     }
 }
 
@@ -4499,52 +4494,44 @@ final class DriveState {
         keys.shift = (mask >> 4) & 1
         keys.space = (mask >> 5) & 1
 
-        leanSnapshot.store(keys: keys)
-
-        // 共驾标注：只有开着共驾采集时才拍（关闭时零成本，不碰 V3 决策）。
-        if leanRecorder.coDriveMode {
-            leanSnapshot.storeCoDrive(buildCoDriveSample(physicalMask: mask))
-        }
+        // 共驾标注：只有本会话是共驾时才拍（关闭时零成本、不碰 V3 决策）。
+        // 按键与共驾**一次性原子写入**，避免两次加锁之间被主线程更新造成错配。
+        let co = leanRecorder.coDriveMode ? buildCoDriveSample() : CoDriveSample()
+        leanSnapshot.store(keys: keys, coDrive: co)
     }
 
     /// 由本帧状态构造共驾标注（主线程）。
     ///
-    /// 口径要点：
-    ///   · source：把模型的 AI 动作换算成"等效键位掩码"，与物理掩码逐位比对；
-    ///     完全一致 → "AI"（模型在按它的意图开）；不一致 → "HUMAN"（人类在纠偏/接管）。
-    ///     这比单看 `userHoldingKey` 更准：共驾中人类轻点一下修正也算一次有效的
-    ///     "模型这一步不对"的信号，而 `userHoldingKey` 只在长按应急键时置位。
-    ///   · tookOver 同口径（不一致即视为接管纠偏）。
-    ///   · ai_* 始终记录模型**想**下发的动作，便于事后对照"模型想做 vs 人实际做"。
-    private func buildCoDriveSample(physicalMask: Int) -> CoDriveSample {
-        var s = CoDriveSample()
-        s.enabled = true
-        let d = inferenceEngineV3.lastDecision
-        s.aiVertical = d.verticalClass
-        s.aiHorizontal = d.horizontalClass
-        s.aiShift = d.handbrakePressed ? 1 : 0
-        s.aiSpace = d.brakePressed ? 1 : 0
-        // 物理掩码位序：0=w,1=a,2=s,3=d,4=shift,5=space（见 updateLeanSnapshot）。
-        let pw = (physicalMask >> 0) & 1
-        let pa = (physicalMask >> 1) & 1
-        let ps = (physicalMask >> 2) & 1
-        let pd = (physicalMask >> 3) & 1
-        let pshift = (physicalMask >> 4) & 1
-        let pspace = (physicalMask >> 5) & 1
-        // AI 动作 → 等效键位掩码（三分类，互斥）。
-        let aiW = d.verticalClass == 0 ? 1 : 0
-        let aiS = d.verticalClass == 2 ? 1 : 0
-        let aiA = d.horizontalClass == 0 ? 1 : 0
-        let aiD = d.horizontalClass == 2 ? 1 : 0
-        let same = (aiW == pw) && (aiA == pa) && (aiS == ps) && (aiD == pd)
-            && (s.aiShift == pshift) && (s.aiSpace == pspace)
-        // 人类按了应急接管键 → 无论键位是否巧合都算接管。
-        let humanHold = EmergencyTakeover.shared.userHoldingKey
-        s.tookOver = humanHold || !same
-        s.source = s.tookOver ? "HUMAN" : "AI"
-        // collided / laneOffset：当前 tick 没有可靠的逐帧碰撞/车道偏置量，
-        // 保持默认 0（未知），由离线或后续视觉模块回填；绝不臆造数值。
-        return s
+    /// 关键口径（已按评审 Blocking 1/2 修正）：
+    ///   · **接管判定用真实人类输入信号 `EmergencyTakeover.userHoldingKey`**，
+    ///     绝不用"物理键掩码 vs AI 意图"比对 —— 因为 KeyboardMonitor 会**过滤掉
+    ///     本程序注入的 AI 按键**，导致"AI 按 W、人类没操作"时物理掩码为 0、被
+    ///     误判为人类接管。`userHoldingKey` 由 `noteUserKeyDown()`（真人物理按键）
+    ///     驱动，是真·人手信号；引擎模式经 heartbeat 回传，两模式都有效。
+    ///   · 训练所需的"AI 动作/行为概率"取自**离线重跑真 V3**（features.py 在真实
+    ///     画面上拿到 state_token 与原始模型概率），不依赖本帧 `ai_*`；故引擎
+    ///     模式下 UI 进程拿不到实时 V3 决策也无碍。`ai_*` 仅作诊断，拿不到就写 -1。
+    private func buildCoDriveSample() -> CoDriveSample {
+        // 是否真的处于 V3 控制、且有新鲜决策（本地路径才有真 lastDecision）。
+        let v3Active = !isEngineHost && inferenceEngineV3.isLoaded
+            && inferenceEngineV3.timelineReady
+        let fresh = v3Active
+            && (inferenceEngineV3.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
+        let aiV: Int, aiH: Int, aiShift: Int, aiSpace: Int
+        if fresh {
+            let d = inferenceEngineV3.lastDecision
+            aiV = d.verticalClass
+            aiH = d.horizontalClass
+            aiShift = d.handbrakePressed ? 1 : 0
+            aiSpace = d.brakePressed ? 1 : 0
+        } else {
+            // 拿不到有效 AI 决策（如引擎模式）：不臆造，标 -1 表"不可用"。
+            aiV = -1; aiH = -1; aiShift = -1; aiSpace = -1
+        }
+        // 接管判定/来源由纯函数决定（只信真实人类接管信号）。
+        return CoDriveSample.compute(
+            userHolding: EmergencyTakeover.shared.userHoldingKey,
+            aiV: aiV, aiH: aiH, aiShift: aiShift, aiSpace: aiSpace)
     }
 
     /// 把 `leanRecorder` 的内部状态镜像到 UI 可观察字段（主线程调用）。
@@ -4651,7 +4638,15 @@ final class DriveState {
     ///
     /// 【为什么停录后要留 lastClipPath】离线标注要用它定位刚录完的那一段；
     ///  `stop()` 内部会清空 sessionDir，故引擎另存了 lastClipDir。
-    func toggleLeanRecording() {
+    /// 精简录制/人机共驾采集的统一启停开关。
+    ///
+    /// 【为什么带 coDrive 参数】（评审 Blocking 4）开录入口必须**显式**声明这次是
+    ///   普通录制还是共驾采集，而不是依赖一个可能残留的 `coDriveMode` 布尔。
+    ///   历史上模式只在手动停录分支复位，帧率异常自动停录 / 交接超时 / 切段重启失败
+    ///   都不复位 → 之后点普通录制仍会建 codrive.csv。改成“每次开录显式指定”后，
+    ///   普通录制入口必然 `coDriveMode=false`，从根上消除残留（分段轮转期间沿用同一
+    ///   意图、共驾照常延续，那是正确的）。
+    func toggleLeanRecording(coDrive: Bool = false) {
         if leanRecorder.isRecording {
             leanRecorder.stop()
             // 停录即复位共驾模式：避免下一段普通精简录制意外带上 codrive.csv。
@@ -4684,8 +4679,11 @@ final class DriveState {
                 leanEngineResumeAt = Date().addingTimeInterval(1.5)
             }
         } else {
+            // 开录：**入口显式决定模式**（普通= false，共驾= true），不依赖残留布尔。
+            leanRecorder.coDriveMode = coDrive
             guard leanRecorder.start() else {
                 leanLastError = leanRecorder.lastError
+                leanRecorder.coDriveMode = false
                 dlog("[LEAN] ❌ 开录失败：\(leanRecorder.lastError ?? "未知原因")")
                 return
             }
@@ -4727,16 +4725,11 @@ final class DriveState {
                 leanLastError = "正在普通精简录制，请先停止再开共驾"
                 return
             }
-            toggleLeanRecording()
+            toggleLeanRecording(coDrive: true)
             return
         }
-        // 未录：开共驾模式后走统一开录路径。
-        leanRecorder.coDriveMode = true
-        toggleLeanRecording()
-        if !leanRecorder.isRecording {
-            // 开录失败：复位模式，别让下次普通录制意外带 codrive。
-            leanRecorder.coDriveMode = false
-        }
+        // 未录：显式以共驾模式开录（入口参数决定，不依赖残留布尔）。
+        toggleLeanRecording(coDrive: true)
     }
 
     /// 停录后自动标注：拉起子进程跑「速度 OCR 回填 + 质量检查」，进度镜像到界面。
@@ -5798,13 +5791,13 @@ final class DriveState {
     /// 让脱困只 enter 一次（避免每帧 phase==.done 就 re-enter 抵消超时）。
     private var lastDecided: DriveMode = .e2e
 
-    /// 有效车速（km/h）：每帧由 OCR 新鲜读数（EMA 平滑）或一阶滤波回退计算
-    /// 供 M9 vehicle_state、卡死判据、脱困退出使用 —— 替代原模拟速度
+    /// 估计车速（km/h）：仅用于诊断/IPC，OCR 丢失时可外推或冻结，禁止参与控制。
     var effectiveSpeed: Double = 0
-
-    /// 有效车速是否新鲜（OCR 读数新鲜：lastResultTime < 0.5s 且 confidence > 0.3）
-    /// 不新鲜时卡死判据不计入 stuckSeconds；感知融合层可直接消费此健康标志
+    /// 可信 OCR 平滑速度；仅 speedValid 时允许控制消费者读取。
+    private(set) var trustedSpeedKmh: Double = 0
+    /// OCR 本身置信度达标且单调观测年龄 <0.5s；外推不会续期。
     var speedValid: Bool = false
+    @ObservationIgnored private var speedTracking = SpeedTrackingState()
 
     /// 兼容属性：旧代码读 speed 的地方统一读到 effectiveSpeed（不再有模拟值/随机抖动）
     var speed: Double { effectiveSpeed }
@@ -6032,6 +6025,10 @@ final class DriveState {
     ///   故由主线程 30Hz 拍一份快照，后台只读快照。
     /// 主线程 30Hz 拍快照、抓屏队列只读。盒内自带锁，见 `LeanInputSnapshot` 的注释。
     private nonisolated let leanSnapshot = LeanInputSnapshot()
+    /// 本次 appendFrame 的共驾快照缓存：由 keyProvider 在 captureQueue 上写入、
+    /// coDriveProvider 紧随其后读取（同一帧、同一队列、串行），保证二者原子一致。
+    /// 只在 captureQueue（keyProvider/coDriveProvider 调用处）读写，故 unsafe 可接受。
+    private nonisolated(unsafe) var pendingCoDriveForFrame = CoDriveSample()
 
     // ── 精简录制：UI 可观察镜像 ──
     // leanRecorder 是 @ObservationIgnored（类实例，SwiftUI 不观察其内部属性），
@@ -6313,6 +6310,8 @@ final class DriveState {
     @ObservationIgnored
     private nonisolated(unsafe) var pendingNativeFrame: CVPixelBuffer?
     @ObservationIgnored
+    private nonisolated(unsafe) var pendingNativeObservedAt: Double?
+    @ObservationIgnored
     private nonisolated(unsafe) let pendingNativeLock = NSLock()
 
     // ── 诊断：主线程 tick 实际间隔(ms)（>66ms = 主线程掉拍/被卡）──
@@ -6323,7 +6322,7 @@ final class DriveState {
     //   → 实际只喂 7.5Hz、24 帧窗口张成 3.2s。故此处按真实频率订正并留痕。
     //   判据：间隔应稳定 ~66.7ms；出现 133/200ms 或更大 = 主线程被阻塞。
     @ObservationIgnored
-    private var lastTickTime = Date()
+    private var lastTickUptime = ProcessInfo.processInfo.systemUptime
     @ObservationIgnored
     var tickGapMs: Double = 0
 
@@ -6938,6 +6937,7 @@ final class DriveState {
             guard let self else { return }
             self.pendingNativeLock.lock()
             self.pendingNativeFrame = pb
+            self.pendingNativeObservedAt = ProcessInfo.processInfo.systemUptime
             self.pendingNativeLock.unlock()
         }
         // 插帧/超分直通：全分辨率帧 → MetalGoose 引擎（仅显示路径）
@@ -6966,14 +6966,21 @@ final class DriveState {
         // 标签数据源：只读主线程拍好的加锁快照（见 updateLeanSnapshot 的注释）。
         // 绝不能在这里直接读 keyboardMonitor / coordinateCapture —— 本闭包在
         // captureQueue 上执行，而那两个对象由主线程维护、无锁。
+        //
+        // 按键与共驾**必须是同一次快照读取**（评审 Blocking 3）：引擎在 appendFrame
+        // 里先调 keyProvider、再调 coDriveProvider；若两者各自加锁读，主线程可在
+        // 其间更新，形成 keys(t) 配 codrive(t+1)。故让 keyProvider 一次读回二者、
+        // 把共驾存进一个"每帧缓存"，coDriveProvider 直接返回该缓存值。
         leanRecorder.keyProvider = { [weak self] in
             guard let self else { return RawKeySample() }
-            return self.leanSnapshot.readKeys()
+            let snap = self.leanSnapshot.read()
+            self.pendingCoDriveForFrame = snap.coDrive
+            return snap.keys
         }
-        // 共驾标注数据源：同样只读主线程拍好的加锁快照。
+        // 共驾标注数据源：返回本次 appendFrame 同一个快照里读到的共驾信息。
         leanRecorder.coDriveProvider = { [weak self] in
             guard let self else { return CoDriveSample() }
-            return self.leanSnapshot.readCoDrive()
+            return self.pendingCoDriveForFrame
         }
         // 每段收尾都登记待标注（含 10 分钟自动分段切出来的中间段）。
         // stop() 在主动停录与轮转切段两种情形下都在主线程调用；这里再兜一次
@@ -7292,6 +7299,14 @@ final class DriveState {
         dlog("模型加载: V3=\(inferenceEngineV3.isLoaded) M9=\(inferenceEngine.isLoaded) V2=\(inferenceEngineV2.isLoaded) V2拆分=\(inferenceEngineV2.useSplitModels) 第二司机=\(assistEngine.isLoaded) YOLO=\(yoloEngine.isLoaded) YOLOPX=\(yolopxEngine.isLoaded) M9错误=\(inferenceEngine.errorMessage ?? "-") V2错误=\(inferenceEngineV2.errorMessage ?? "-") 世界模型=\(inferenceEngineV2.worldModelLoaded)")
     }
 
+    /// 停止/待机清理全部速度状态，快速重开也不能沿用上一会话估计。
+    private func resetSpeedTracking() {
+        speedTracking.reset()
+        if trustedSpeedKmh != 0 { trustedSpeedKmh = 0 }
+        if effectiveSpeed != 0 { effectiveSpeed = 0 }
+        if speedValid { speedValid = false }
+    }
+
     /// 停止自动驾驶：
     /// 1. 释放所有按住的键（避免按键卡住，导致游戏失控）
     /// 2. 停止物理键盘监听
@@ -7299,6 +7314,7 @@ final class DriveState {
     /// 4. 重置降级状态机 + 脱困控制器 + 置信度估计器 + 推理引擎
     /// 5. 若正在录制，一并停止录制（保证 meta.json 落盘）
     func stopDriving() {
+        resetSpeedTracking()
         // ── 引擎模式：命令转发给后台引擎（引擎侧释放按键并停止抓屏）──
         if EngineClient.shared.isActive {
             EngineClient.shared.sendCommand("stop")
@@ -7314,6 +7330,10 @@ final class DriveState {
         controlEngine.releaseAll()
         keyboardMonitor.stop()
         captureEngine.stop()
+        pendingNativeLock.lock()
+        pendingNativeFrame = nil
+        pendingNativeObservedAt = nil
+        pendingNativeLock.unlock()
         // networkLocator.stop()   // 旧网络抓包定位已移除
         degradeStm.reset()
         lastDecided = .e2e
@@ -7895,6 +7915,7 @@ final class DriveState {
 
         pendingNativeLock.lock()
         pendingNativeFrame = native
+        pendingNativeObservedAt = ProcessInfo.processInfo.systemUptime
         pendingNativeLock.unlock()
     }
 
@@ -7934,8 +7955,9 @@ final class DriveState {
         defer { if isDriving && !EngineClient.shared.isActive { auditDriveInference() } }
         // 诊断：tick 实际间隔（>33ms = 主线程掉拍/被卡；配合 capGap/capWork 定位延迟）
         let tickNow = Date()
-        tickGapMs = tickNow.timeIntervalSince(lastTickTime) * 1000
-        lastTickTime = tickNow
+        let tickUptime = ProcessInfo.processInfo.systemUptime
+        tickGapMs = (tickUptime - lastTickUptime) * 1000
+        lastTickUptime = tickUptime
 
         // ★ ET-4（2026-10-12）：喂应急接管触发信号。
         //
@@ -8296,10 +8318,12 @@ final class DriveState {
         // ── 消费最新原生 ROI 帧（OCR 读速 + 字模录制，跳帧防堆积）──
         pendingNativeLock.lock()
         let nativeFrame = pendingNativeFrame
+        let nativeObservedAt = pendingNativeObservedAt
         pendingNativeFrame = nil
+        pendingNativeObservedAt = nil
         pendingNativeLock.unlock()
-        if let nativeFrame {
-            speedOCR.infer(nativePixelBuffer: nativeFrame)
+        if let nativeFrame, let nativeObservedAt {
+            speedOCR.infer(nativePixelBuffer: nativeFrame, observedAt: nativeObservedAt)
             if recordEngine.glyphMode && recordEngine.isRecording {
                 recordEngine.appendGlyphNative(pixelBuffer: nativeFrame)
                 frames = recordEngine.frameCount
@@ -8321,7 +8345,7 @@ final class DriveState {
         }
 
         guard isDriving else {
-            // 待机：车速衰减，清空决策。
+            // 待机：清空两类车速和决策，避免快速重开沿用旧会话。
             //
             // ⚠️ 性能红线：tick 以 30Hz 运行，而这些属性都是 @Observable ——
             //    只要**赋值**就会让 SwiftUI 标记整棵视图树失效并重绘，
@@ -8329,9 +8353,7 @@ final class DriveState {
             //    却仍在每秒 30 次无意义地触发全树重绘（实测 UI 进程
             //    稳定烧 25-36% CPU、WindowServer 44%+、整机发烫）。
             //    所以先比较、变了才写 —— 值不变则一次赋值都不发生。
-            if speedValid { speedValid = false }
-            let decayed = max(0, effectiveSpeed - 6)
-            if decayed != effectiveSpeed { effectiveSpeed = decayed }
+            resetSpeedTracking()
             if currentCommand != .idle { currentCommand = .idle }
             recordFrameIfNeeded()   // 待机也写帧：录制不依赖驾驶状态
             PerfBus.mark("tick.idleTail", from: perfT)   // ★ 阶段1 打点（待机尾段）
@@ -8354,6 +8376,17 @@ final class DriveState {
         //   改用本帧实测 tick 间隔（tickGapMs 在 tick() 开头已算好）。
         //   钳位 [5ms, 200ms]：防首帧（tickGapMs 未初始化）与极端掉帧把 dt 算成 0 或巨大值。
         let dt = min(max(tickGapMs / 1000.0, 0.005), 0.2)
+
+        // 先更新车速，再调副驾：同一 tick 的所有控制消费者使用同一可信快照。
+        // 外推仅留作诊断；失败/过期时撤销副驾缓存和在途 generation，不能恢复后重用旧命令。
+        let revokeAssist = speedTracking.update(
+            speed: speedOCR.speedKmh, confidence: speedOCR.confidence,
+            observedAt: speedOCR.lastObservationUptime,
+            invalidationID: speedOCR.invalidationID, now: ProcessInfo.processInfo.systemUptime)
+        if speedValid != speedTracking.speedValid { speedValid = speedTracking.speedValid }
+        if trustedSpeedKmh != speedTracking.trustedSpeedKmh { trustedSpeedKmh = speedTracking.trustedSpeedKmh }
+        if effectiveSpeed != speedTracking.estimatedSpeedKmh { effectiveSpeed = speedTracking.estimatedSpeedKmh }
+        if revokeAssist { assistEngine.reset() }
 
         // ── 1. 感知层：双驾驶模型推理 + YOLO 检测 ──
         // 异步触发推理（不阻塞 tick），读 lastResult 作为本帧输出
@@ -8512,8 +8545,8 @@ final class DriveState {
             let assistKeepalive = AuroraFlags.assistKeepaliveConfigured ? AuroraFlags.assistKeepalive : !AuroraFlags.e2eMinimalInference
             let assistInE2E = AuroraFlags.assistKeepaliveConfigured || !AuroraFlags.e2eMinimalInference
             let assistImageFresh = currentFrameCGAt.map { Date().timeIntervalSince($0) < 1.0 } ?? false
-            if assistImageFresh && (mode != .e2e || (assistInE2E && (!assistKeepalive || adaptiveFrameCounter % 5 == 0))) {
-                assistEngine.infer(image: cg, speedKmh: effectiveSpeed, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
+            if speedValid && assistImageFresh && (mode != .e2e || (assistInE2E && (!assistKeepalive || adaptiveFrameCounter % 5 == 0))) {
+                assistEngine.infer(image: cg, speedKmh: trustedSpeedKmh, speedLimitKmh: speedLimit)      // 第二套驾驶模型（YOLO接管档）
             }
 
             // ── P1 · 检测网偶奇错开（yolopx 偶数帧 / yolo26s 奇数帧）──
@@ -8658,7 +8691,7 @@ final class DriveState {
         let v3DecisionFresh = inferenceEngineV3.isLoaded
             && (inferenceEngineV3.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
         let m9Command = v3CommandOf(inferenceEngineV3) ?? .idle
-        let assistCommand = commandOf(assistEngine)
+        let assistCommand = speedValid ? commandOf(assistEngine) : .idle
 
         // 模型链路存活：加载成功 && 有结果 && 结果 1s 内新鲜
         func isAlive(_ engine: InferenceEngine) -> Bool {
@@ -8681,7 +8714,7 @@ final class DriveState {
                 && (engine.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
         }
         let m9Live = isAliveV3(inferenceEngineV3)
-        let assistLive = isAlive(assistEngine)
+        let assistLive = speedValid && isAlive(assistEngine)
 
         // ── 纯规则档（.rule）的检测框来源 ──
         //
@@ -8716,21 +8749,6 @@ final class DriveState {
         // 同一份数据仅供 RuleController 决策；UI 画框走 displayDetections（另路）。
         let detections = effectiveDetections
 
-        // ── 2. 有效车速：OCR 新鲜（<0.5s 且 conf>0.3）→ EMA 追真实读数；否则一阶滤波回退 ──
-        // 替代原遥测模拟（指数逼近限速 + 随机抖动）：速度现在来自真实游戏读数（speedOCR），
-        // 读不到时平滑衰减而非随机抖动；卡死判据由 speedValid 门控避免"读不到→误判卡死"。
-        let ocrFresh = speedOCR.speedKmh >= 0
-            && speedOCR.confidence > 0.3
-            && (speedOCR.lastResultTime.map { Date().timeIntervalSince($0) < 0.5 } ?? false)
-        // 先比后写：speedValid / fps 值不变时跳过 @Observable 写入
-        //（逐帧无条件赋值也会触发 SwiftUI 刷新链）。
-        if speedValid != ocrFresh { speedValid = ocrFresh }
-        if ocrFresh {
-            effectiveSpeed += (speedOCR.speedKmh - effectiveSpeed) * 0.7   // 快跟踪 OCR 读数
-        } else {
-            effectiveSpeed *= 0.9                                          // 向 0 一阶衰减
-            if effectiveSpeed < 0.5 { effectiveSpeed = 0 }
-        }
         // FPS 如实反映捕获帧率：未捕获到帧就是 0（UI 显示「—」），
         // 绝不回退成 60 伪造一个好看的数。
         let newFPS = captureEngine.captureFPS
@@ -8749,10 +8767,10 @@ final class DriveState {
         //   · **不要语音**：只出横幅，不播报。
         //   · 零速判据用「有效速度≈0」而非「speedValid==false」——
         //     后者只表示"读不到速度"，可能是 OCR 抖动，不等于车真的停着。
-        //     `effectiveSpeed` 在 OCR 失效时会向 0 衰减，故必须要求
+        //     OCR 失效时 effectiveSpeed 改用外推/冻结值（不再向 0 衰减），故必须要求
         //     `speedValid` 为真（确实读到 0）才算，避免"读不到就误报卡死"。
         //   · 停车等红灯不该报：要求**正在自动驾驶**（isDriving）才计时。
-        if isDriving && speedValid && effectiveSpeed < 1.0 {
+        if isDriving && speedValid && trustedSpeedKmh < 1.0 {
             if stuckZeroSince == nil { stuckZeroSince = Date() }
             let held = Date().timeIntervalSince(stuckZeroSince ?? Date())
             if held >= Self.stuckZeroThreshold, !needsManualIntervention {
@@ -8780,7 +8798,7 @@ final class DriveState {
                                         assistLive: assistLive,
                                         health: confidence,
                                         warmingUp: warmingUp,
-                                        speedKmh: effectiveSpeed,
+                                        speedKmh: trustedSpeedKmh,
                                         speedValid: speedValid,
                                         dt: dt,
                                         sportMode: sportMode,
@@ -8924,7 +8942,7 @@ final class DriveState {
         let mayInjectKeys = isDriving && !expertMode && !controlDisabled
             && !EmergencyTakeover.shared.userHoldingKey
         let limitBraking = mayInjectKeys
-            && speedLimitGuard.update(speedKmh: effectiveSpeed,
+            && speedLimitGuard.update(speedKmh: trustedSpeedKmh,
                                       speedValid: speedValid,
                                       limitKmh: speedLimit,
                                       dt: dt)
@@ -8946,12 +8964,12 @@ final class DriveState {
         }
         if limitBraking {
             if driveAuditFrames % 60 == 0 {
-                dlog("[DRIVE-BRAKE] source=speedLimit mode=\(decided.rawValue) speedValid=\(speedValid) speed=\(effectiveSpeed) limit=\(speedLimit)")
+                dlog("[DRIVE-BRAKE] source=speedLimit mode=\(decided.rawValue) speedValid=\(speedValid) speed=\(trustedSpeedKmh) limit=\(speedLimit)")
             }
             // 刹车优先级最高：只执行限速键，跳过下面的档位决策
             if !speedLimitBrakeLatched {
                 speedLimitBrakeLatched = true
-                dlog("限速刹车 ON: 速度=\(String(format:"%.1f", effectiveSpeed)) 限速=\(Int(speedLimit)) 超速=\(String(format:"%.1f", speedLimitGuard.overshoot))")
+                dlog("限速刹车 ON: 速度=\(String(format:"%.1f", trustedSpeedKmh)) 限速=\(Int(speedLimit)) 超速=\(String(format:"%.1f", speedLimitGuard.overshoot))")
             }
             if speedLimitBrakeLastStage != speedLimitGuard.stage {
                 speedLimitBrakeLastStage = speedLimitGuard.stage
@@ -8996,7 +9014,7 @@ final class DriveState {
             releaseSpeedLimitBrake()
             // 读 last* 而不是当前值：update() 已在本帧 reset() 过，
             // 直接读 overspeedSeconds/stage 只会得到 0 / 待命。
-            dlog("限速刹车 OFF: 速度=\(String(format:"%.1f", effectiveSpeed)) 限速=\(Int(speedLimit)) 持续=\(String(format:"%.1f", speedLimitGuard.lastBrakeSeconds))s 最高级别=\(speedLimitGuard.lastStage.label) 峰值超速=\(String(format:"%.1f", speedLimitGuard.lastOvershoot)) 脉冲数=\(speedLimitGuard.lastPulseCount)")
+            dlog("限速刹车 OFF: 速度=\(String(format:"%.1f", trustedSpeedKmh)) 限速=\(Int(speedLimit)) 持续=\(String(format:"%.1f", speedLimitGuard.lastBrakeSeconds))s 最高级别=\(speedLimitGuard.lastStage.label) 峰值超速=\(String(format:"%.1f", speedLimitGuard.lastOvershoot)) 脉冲数=\(speedLimitGuard.lastPulseCount)")
             speedLimitGuard.endSession()
         }
 
@@ -9233,7 +9251,7 @@ final class DriveState {
                 injectCommand = InferenceEngineV3.applyRolloverGuard(
                     to: currentCommand,
                     decision: inferenceEngineV3.lastDecision,
-                    speedKmh: effectiveSpeed,
+                    speedKmh: trustedSpeedKmh,
                     speedValid: speedValid)
                 // 兜底真的改写了纵向时，同步回 currentCommand：
                 //   后面「回填实际执行动作」与「行驶录制」读的都是它，
@@ -9284,7 +9302,7 @@ final class DriveState {
         let auditDecision = inferenceEngineV3.lastDecision
         let auditV3 = v3Active && decided == .e2e && v3DecisionFresh
         let auditGuarded = auditV3 ? InferenceEngineV3.applyRolloverGuard(
-            to: m9Command, decision: auditDecision, speedKmh: effectiveSpeed,
+            to: m9Command, decision: auditDecision, speedKmh: trustedSpeedKmh,
             speedValid: speedValid) : currentCommand
         let guardChanged = auditV3 && auditGuarded != m9Command
         let guardAddedS = auditV3 && m9Command.brake < 1 && auditGuarded.brake == 1
@@ -9672,8 +9690,8 @@ final class DriveState {
         let wx = locatorX, wy = locatorY
         guard wx.isFinite, wy.isFinite, locatorHeading.isFinite else { return nil }
         guard locatorScore >= 0.4 else { return nil }
-        // 车速：已有 effectiveSpeed（km/h）；无有效值时传 nil（分段逻辑允许 nil）
-        let spd: Double? = speedValid ? effectiveSpeed : nil
+        // 分段只用可信 OCR 速度；无有效值传 nil，不能拿估计值参与控制。
+        let spd: Double? = speedValid ? trustedSpeedKmh : nil
         return (wx, wy, locatorHeading, spd)
     }
 

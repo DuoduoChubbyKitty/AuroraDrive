@@ -748,12 +748,30 @@ enum LeanRecordSelfTest {
             return failures + 1
         }
 
-        // 交替注入 AI / HUMAN 两类共驾样本。
+        // ── 接管判定纯函数语义（评审 Blocking 1/12：直接测真实决策，不绕过）──
+        print("  ── CoDriveSample.compute 接管语义 ──")
+        // AI 正常驾驶、人类没按键：userHolding=false，即便 ai 动作与任何“物理键”
+        // 不同，也必须判为 AI（绝不能因“物理掩码为空”误判成人类接管）。
+        let sAI = CoDriveSample.compute(userHolding: false, aiV: 0, aiH: 1, aiShift: 0, aiSpace: 0)
+        check("人类未接管 → source=AI", sAI.source == "AI", sAI.source)
+        check("人类未接管 → tookOver=false", !sAI.tookOver)
+        check("AI 动作透传 ai_vertical", sAI.aiVertical == 0, "\(sAI.aiVertical)")
+        check("AI 动作透传 ai_horizontal", sAI.aiHorizontal == 1, "\(sAI.aiHorizontal)")
+        // 人类真按住接管键 → HUMAN（且与 ai 动作无关）。
+        let sHU = CoDriveSample.compute(userHolding: true, aiV: 0, aiH: 1, aiShift: 0, aiSpace: 0)
+        check("人类接管 → source=HUMAN", sHU.source == "HUMAN", sHU.source)
+        check("人类接管 → tookOver=true", sHU.tookOver)
+        // AI 决策不可用（引擎模式）→ ai_* 为 -1，仍按 userHolding 判来源。
+        let sNA = CoDriveSample.compute(userHolding: false, aiV: -1, aiH: -1, aiShift: -1, aiSpace: -1)
+        check("不可用 AI 决策仍 source=AI（不误判）", sNA.source == "AI", sNA.source)
+        check("不可用 AI 决策 ai_vertical=-1", sNA.aiVertical == -1, "\(sNA.aiVertical)")
+
+        // 交替注入 AI / HUMAN 两类共驾样本（均经 compute 真实决策产出）。
         var coCursor = 0
         let coSequence: [CoDriveSample] = [
-            makeCoDriveSample(source: "AI", tookOver: false, aiV: 0, aiH: 1),
-            makeCoDriveSample(source: "AI", tookOver: false, aiV: 0, aiH: 1),
-            makeCoDriveSample(source: "HUMAN", tookOver: true, aiV: 1, aiH: 1),  // 人类纠偏
+            CoDriveSample.compute(userHolding: false, aiV: 0, aiH: 1, aiShift: 0, aiSpace: 0),
+            CoDriveSample.compute(userHolding: false, aiV: 0, aiH: 1, aiShift: 0, aiSpace: 0),
+            CoDriveSample.compute(userHolding: true, aiV: 1, aiH: 1, aiShift: 0, aiSpace: 0),
         ]
 
         let engine = LeanRecordEngine()
@@ -811,6 +829,9 @@ enum LeanRecordSelfTest {
         }
 
         // ── 向后兼容：coDriveMode=false 时不产生 codrive.csv ──
+        // 默认样本 enabled=false 时必须不触发写（防止“意外带 codrive”）。
+        check("默认 CoDriveSample.enabled=false",
+              CoDriveSample().enabled == false)
         let engine2 = LeanRecordEngine()
         engine2.coDriveMode = false
         engine2.clipsRootOverride = root.appendingPathComponent("plain")
@@ -839,14 +860,29 @@ enum LeanRecordSelfTest {
         return failures
     }
 
-    private static func makeCoDriveSample(source: String, tookOver: Bool,
-                                          aiV: Int, aiH: Int) -> CoDriveSample {
-        var s = CoDriveSample()
-        s.enabled = true
-        s.source = source
-        s.tookOver = tookOver
-        s.aiVertical = aiV
-        s.aiHorizontal = aiH
-        return s
+    /// 共驾模式在**不可写根目录**下必须优雅失败（不崩溃），且 lastError 可见。
+    /// （无法直接把 codrive.csv 造成创建失败而不改 session 命名，故用不可写根验证
+    ///   失败路径的整体不崩溃 + 错误可见性；codrive 创建失败的具体降级逻辑与
+    ///   start 失败同一主干。）
+    static func runCoDriveFailureSelfTest() -> Int {
+        var failures = 0
+        func check(_ name: String, _ condition: Bool, _ detail: String = "") {
+            if !condition { failures += 1 }
+            print("  \(condition ? "✓" : "✗") \(name)\(detail.isEmpty ? "" : "  — \(detail)")")
+        }
+        print("═══ 共驾失败降级自检 ═══")
+        let badEngine = LeanRecordEngine()
+        badEngine.coDriveMode = true
+        // /dev/null 不是目录，其子路径不可创建 → makeSessionDir 失败。
+        badEngine.clipsRootOverride = URL(fileURLWithPath: "/dev/null/impossible")
+        badEngine.keyProvider = { sampleKey(w: 1) }
+        badEngine.coDriveProvider = { CoDriveSample() }
+        let started = badEngine.start()
+        check("不可写根 → 不崩溃（返回明确结果）", true)
+        check("不可写根 → 未开始录制", started == false, "started=\(started)")
+        check("不可写根 → lastError 非空可见", (badEngine.lastError?.isEmpty == false),
+              badEngine.lastError ?? "nil")
+        print("  ── 失败降级自检结束：\(failures == 0 ? "全部通过" : "\(failures) 项失败") ──")
+        return failures
     }
 }

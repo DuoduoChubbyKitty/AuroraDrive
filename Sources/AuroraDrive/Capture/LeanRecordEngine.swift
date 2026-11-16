@@ -119,6 +119,26 @@ struct CoDriveSample {
     var collided = 0
     /// 视觉车道横向偏置（负=偏左，正=偏右，±1=出界）。缺省 0（未知按居中处理）。
     var laneOffset: Double = 0.0
+
+    /// 由真实人类接管信号 + AI 动作构造共驾标注（**纯函数，便于单测**）。
+    ///
+    /// 核心语义：`source/tookOver` **只**由 `userHolding`（真人物理按键触发的
+    /// `EmergencyTakeover.userHoldingKey`）决定，**绝不**用“物理键是否等于 AI 意图”
+    /// 来推断 —— 因为 KeyboardMonitor 会过滤本程序注入的 AI 按键，那样会把“AI 正常
+    /// 驾驶、人类没动”误判成人类接管（评审 Blocking 1）。`ai_*` 只作诊断，不可用时
+    /// 传 -1。
+    static func compute(userHolding: Bool, aiV: Int, aiH: Int,
+                        aiShift: Int, aiSpace: Int) -> CoDriveSample {
+        var s = CoDriveSample()
+        s.enabled = true
+        s.aiVertical = aiV
+        s.aiHorizontal = aiH
+        s.aiShift = aiShift
+        s.aiSpace = aiSpace
+        s.tookOver = userHolding
+        s.source = userHolding ? "HUMAN" : "AI"
+        return s
+    }
 }
 
 /// 精简录制引擎：只负责落盘，不跑任何模型。
@@ -244,6 +264,10 @@ final class LeanRecordEngine: @unchecked Sendable {
     ///   ⇒ `dataset_v3` 的 frame==i 校验照常通过，是**静默**的标签错配。
     ///   写盘前比对世代号，不等就整帧丢弃（宁可少一帧，不可错一帧）。
     private var sessionGeneration = 0
+    /// 本会话是否真的在写 codrive.csv（stateLock 保护）。
+    /// 与主线程可变的 `coDriveMode` 分离：抓屏队列只读这个按会话快照的布尔值，
+    /// 既避免跨线程裸读，也保证模式不跨会话残留（每段 openSession 重新判定）。
+    private var sessionCoDrive = false
     /// 已成功落盘的帧数（**权威计数**，stateLock 保护）。
     /// 为什么不能直接用 @Observable 的 `frameCount`：它只能在主线程写，
     /// 而 stop() 排空队列那一刻主线程的更新可能还没跑到 → 日志/meta 会少报帧数。
@@ -433,8 +457,12 @@ final class LeanRecordEngine: @unchecked Sendable {
         // 时间戳与标签必须在**帧到达的这一刻**取，不能等到写盘时再取：
         // 写盘是异步的，晚取会把"下一帧的按键"贴到"这一帧的画面"上（标签错位）。
         let keys = keyProvider()
-        // 共驾标注同样在帧到达这一刻取（只有 coDriveMode 才取值，关闭时零成本）。
-        let coSample = coDriveMode ? coDriveProvider() : CoDriveSample()
+        // 共驾标注：只有**本会话**真的开了共驾才取值（读锁保护的 sessionCoDrive，
+        // 不裸读主线程的 coDriveMode）。关闭时零成本。
+        stateLock.lock()
+        let coEnabled = sessionCoDrive
+        stateLock.unlock()
+        let coSample = coEnabled ? coDriveProvider() : CoDriveSample()
 
         stateLock.lock()
         let elapsed = now.timeIntervalSince(sessionStart ?? now)
@@ -769,22 +797,33 @@ final class LeanRecordEngine: @unchecked Sendable {
         guard let handle = FileHandle(forWritingAtPath: csvURL.path) else { return false }
         handle.seekToEndOfFile()
 
-        // ── 共驾旁路 CSV（仅 coDriveMode 时创建）──
-        // 列含义见 `writeCoDriveRow`。按 `frame` 与 frames/ + controls.csv 一一对齐，
-        // 因此这 11 列不受 controls.csv 契约约束，纯粹是训练侧的补充信号。
+        // ── 共驾旁路 CSV（仅本会话请求共驾时创建）──
+        // 列含义见 `writeCoDriveRow`。按 `frame` 与 frames/ + controls.csv 一一对齐。
+        //
+        // 【为什么用 sessionCoDrive 而不是裸读 coDriveMode】`coDriveMode` 是主线程
+        //   写的属性，而 appendFrame 在抓屏队列读它 —— 跨线程裸读是数据竞争（评审
+        //   Blocking 3）。这里在 openSession（主线程）把意图快照进锁保护的
+        //   `sessionCoDrive`，抓屏队列只读该快照，且模式**按会话隔离**：每段开录时
+        //   重新判定，不会残留上一段的模式（评审 Blocking 4）。
         var coHandle: FileHandle? = nil
+        var effectiveCoDrive = false
         if coDriveMode {
             let coURL = dir.appendingPathComponent("codrive.csv")
             let coHeader = "frame,source,took_over,ai_vertical,ai_horizontal,"
                 + "ai_shift,ai_space,collided,lane_offset\n"
-            // 用 if 而非 guard：codrive 建不出来不能让整段录制失败（controls* 仍是
-            // 有效数据），但要在下面显式告警并把 coDriveMode 关掉，避免每帧白试写。
+            // 创建或打开失败都要**显式告警并降级**（评审 Blocking 5）：不能让 UI 以为
+            // 共驾成功、也不能让每帧白试写。effectiveCoDrive 只在句柄真的拿到时为真。
             if !fm.createFile(atPath: coURL.path,
                               contents: coHeader.data(using: .utf8)) {
-                print("[lean] ⚠️ 无法创建 codrive.csv，本次共驾标注降级为普通录制")
+                lastError = "无法创建 codrive.csv，本次共驾采集降级为普通录制"
+                print("[lean] ⚠️ \(lastError ?? "")")
             } else if let ch = FileHandle(forWritingAtPath: coURL.path) {
                 ch.seekToEndOfFile()
                 coHandle = ch
+                effectiveCoDrive = true
+            } else {
+                lastError = "无法打开 codrive.csv 句柄，本次共驾采集降级为普通录制"
+                print("[lean] ⚠️ \(lastError ?? "")")
             }
         }
 
@@ -794,6 +833,7 @@ final class LeanRecordEngine: @unchecked Sendable {
         framesDir = dir.appendingPathComponent("frames")
         csvHandle = handle
         codriveHandle = coHandle
+        sessionCoDrive = effectiveCoDrive
         sessionStart = Date()
         // 新段 = 新世代：在途的旧帧写盘时会因世代不符被丢弃，绝不污染本段。
         sessionGeneration &+= 1
