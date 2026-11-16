@@ -4740,17 +4740,6 @@ final class DriveState {
             }
         } else {
             // 开录：**入口显式决定模式**（普通= false，共驾= true），不依赖残留布尔。
-            // 【共驾采集禁止跨入引擎模式（评审 round-5 生命周期收口）】
-            //   精简录制器只在 UI 进程；引擎进程驾驶时，AI 注入键与接管信号（约 1s 心跳
-            //   镜像）不同源，会写出「HUMAN+空键」错误标签。仅靠 toggleCoDrive 点击时
-            //   检查一次不够：断线(isActive=false)开录 → 重连激活引擎 → 录制仍在跑。
-            //   故把「强制本地」守卫放在**统一开录路径**，并配合 onActivated 在引擎激活时
-            //   立即终止共驾（见 setEngineActivation 处理），使任何会话都不可能跨入引擎模式。
-            if coDrive && EngineClient.shared.isActive {
-                leanLastError = "当前由后台引擎进程驾驶：共驾采集需要「执行动作=AI 注入键」与接管信号同源，"
-                    + "引擎模式的接管状态有约 1 秒心跳延迟，会污染标签。请先停止引擎（改用本地驾驶）再开共驾。"
-                return
-            }
             leanRecorder.coDriveMode = coDrive
             guard leanRecorder.start() else {
                 leanLastError = leanRecorder.lastError
@@ -7154,27 +7143,6 @@ final class DriveState {
         // 否则引擎默认发 480 宽缩略帧，UI 开着插帧就会一直等不到全分辨率帧。
         EngineClient.shared.onActivated = { [weak self] in
             guard let self else { return }
-            // 【共驾采集禁止跨入引擎模式（评审 round-5 生命周期收口）】
-            //   若断线期间开了共驾、随后重连激活引擎，则本会话后续帧会由引擎进程驾驶、
-            //   而接管信号来自滞后心跳 → 污染标签。故引擎一激活就立即终止正在进行的共驾
-            //   录制（普通录制不受影响，可继续）。这是"录制期间绝不跨入引擎模式"的保证。
-            if self.leanRecorder.isRecording && self.leanRecorder.coDriveMode {
-                self.leanRecorder.stop()   // 默认 resetCoDriveMode=true，终止共驾并复位
-                self.syncLeanMirror()
-                if let path = self.leanRecorder.lastClipPath { self.leanLastClipPath = path }
-                self.pumpLeanAnnotationQueue()
-                // 与手动停录分支同款收尾：待机共驾（没开车就点）是自己起的抓屏/键盘监听，
-                // 这里必须一并释放，否则 SCStream 会一直 15fps 白烧；同时清掉仍在等待的交接
-                // deadline，避免下一 tick 把引擎"让出"。开车由 stopDriving() 管，故只在非驾驶时释放。
-                if !self.isDriving && !self.isRecording {
-                    self.captureEngine.stop()
-                    self.keyboardMonitor.stop()
-                }
-                self.leanHandoverDeadline = nil
-                self.leanLastError = "引擎重新接入：为保证共驾标签正确，已自动终止本次共驾录制"
-                    + "（引擎模式不支持共驾采集）。普通录制不受影响。"
-                dlog("[LEAN] ⚠️ 引擎激活，已终止正在进行的共驾采集")
-            }
             EngineClient.shared.setUpscale(self.upscaleEnabled && self.upscaleSupported)
             EngineClient.shared.sendCommand("status")
             // ★★★ 2026-10-02 修复：**把 config 快照清空，强制下一帧全量补发**。
