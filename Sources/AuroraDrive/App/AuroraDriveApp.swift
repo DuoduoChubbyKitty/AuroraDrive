@@ -7163,6 +7163,14 @@ final class DriveState {
                 self.syncLeanMirror()
                 if let path = self.leanRecorder.lastClipPath { self.leanLastClipPath = path }
                 self.pumpLeanAnnotationQueue()
+                // 与手动停录分支同款收尾：待机共驾（没开车就点）是自己起的抓屏/键盘监听，
+                // 这里必须一并释放，否则 SCStream 会一直 15fps 白烧；同时清掉仍在等待的交接
+                // deadline，避免下一 tick 把引擎"让出"。开车由 stopDriving() 管，故只在非驾驶时释放。
+                if !self.isDriving && !self.isRecording {
+                    self.captureEngine.stop()
+                    self.keyboardMonitor.stop()
+                }
+                self.leanHandoverDeadline = nil
                 self.leanLastError = "引擎重新接入：为保证共驾标签正确，已自动终止本次共驾录制"
                     + "（引擎模式不支持共驾采集）。普通录制不受影响。"
                 dlog("[LEAN] ⚠️ 引擎激活，已终止正在进行的共驾采集")
