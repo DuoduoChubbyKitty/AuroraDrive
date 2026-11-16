@@ -128,7 +128,8 @@ struct CoDriveSample {
     /// 驾驶、人类没动”误判成人类接管（评审 Blocking 1）。`ai_*` 只作诊断，不可用时
     /// 传 -1。
     static func compute(userHolding: Bool, aiV: Int, aiH: Int,
-                        aiShift: Int, aiSpace: Int) -> CoDriveSample {
+                        aiShift: Int, aiSpace: Int,
+                        v3InControl: Bool = true) -> CoDriveSample {
         var s = CoDriveSample()
         s.enabled = true
         s.aiVertical = aiV
@@ -136,7 +137,15 @@ struct CoDriveSample {
         s.aiShift = aiShift
         s.aiSpace = aiSpace
         s.tookOver = userHolding
-        s.source = userHolding ? "HUMAN" : "AI"
+        if userHolding {
+            s.source = "HUMAN"
+        } else if v3InControl {
+            s.source = "AI"
+        } else {
+            // 无人接管且 V3 未在控：既非有效 AI 驾驶也非人类示范 → UNKNOWN，训练端排除。
+            // （评审 round-2 B2：不能用 ai_*==-1 单独推断，必须由调用方给实际控制归属。）
+            s.source = "UNKNOWN"
+        }
         return s
     }
 }

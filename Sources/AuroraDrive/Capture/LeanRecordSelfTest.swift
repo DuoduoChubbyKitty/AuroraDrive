@@ -777,10 +777,21 @@ enum LeanRecordSelfTest {
         let sHU = CoDriveSample.compute(userHolding: true, aiV: 0, aiH: 1, aiShift: 0, aiSpace: 0)
         check("人类接管 → source=HUMAN", sHU.source == "HUMAN", sHU.source)
         check("人类接管 → tookOver=true", sHU.tookOver)
-        // AI 决策不可用（引擎模式）→ ai_* 为 -1，仍按 userHolding 判来源。
+        // AI 决策不可用（引擎模式）→ ai_* 为 -1；来源仍按 userHolding + v3InControl 判。
+        // 默认 v3InControl=true 时，未接管 → AI（此处保持向后兼容，ai_* 仅诊断）。
         let sNA = CoDriveSample.compute(userHolding: false, aiV: -1, aiH: -1, aiShift: -1, aiSpace: -1)
         check("不可用 AI 决策仍 source=AI（不误判）", sNA.source == "AI", sNA.source)
         check("不可用 AI 决策 ai_vertical=-1", sNA.aiVertical == -1, "\(sNA.aiVertical)")
+        // 评审 round-2 B2：人类没接管、但 V3 实际没在控（待机/未就绪/控制禁用）→ UNKNOWN，
+        // 训练端排除，绝不当成有效 AI 动作。
+        let sUnknown = CoDriveSample.compute(userHolding: false, aiV: -1, aiH: -1,
+                                             aiShift: -1, aiSpace: -1, v3InControl: false)
+        check("无人接管且 V3 未在控 → source=UNKNOWN", sUnknown.source == "UNKNOWN", sUnknown.source)
+        check("UNKNOWN 帧 tookOver=false", !sUnknown.tookOver)
+        // 人类接管优先：即便 V3 未在控，人类在开 → HUMAN。
+        let sHumanNoCtl = CoDriveSample.compute(userHolding: true, aiV: -1, aiH: -1,
+                                                aiShift: -1, aiSpace: -1, v3InControl: false)
+        check("人类接管优先于 V3 未在控 → HUMAN", sHumanNoCtl.source == "HUMAN", sHumanNoCtl.source)
 
         // 交替注入 AI / HUMAN 两类共驾样本（均经 compute 真实决策产出）。
         var coCursor = 0

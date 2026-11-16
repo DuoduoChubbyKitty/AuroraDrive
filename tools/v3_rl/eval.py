@@ -85,15 +85,16 @@ class CornerEval:
     total: int
 
     def to_dict(self) -> Dict[str, Optional[float]]:
-        t = max(self.total, 1)
         turn = self.turning_frames
+        n = self.total
         return {
             "total_frames": self.total,
             "turning_frames": self.turning_frames,
             "hesitation_rate": (self.hesitant_frames / turn) if turn else None,
             "brake_stop_rate": (self.brake_stop_frames / turn) if turn else None,
-            "vertical_agreement": self.vertical_agree / t,
-            "horizontal_agreement": self.horizontal_agree / t,
+            # Zero samples -> N/A (None), not a misleading 0% "perfect" score.
+            "vertical_agreement": (self.vertical_agree / n) if n else None,
+            "horizontal_agreement": (self.horizontal_agree / n) if n else None,
         }
 
 

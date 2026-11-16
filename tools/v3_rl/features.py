@@ -9,10 +9,13 @@ This is the honest bridge between the recording data and the training loop:
     means training operates on genuine V3 representations, not hand-built
     kinematics, and there is NO leak of the current action into the input
     (state_token is derived from images + lane + dets + t-1 vehicle_state only).
-  * We also store the ORIGINAL model's vertical/horizontal probabilities on each
-    frame. Those are the behaviour-policy probabilities pi_0(a|s) that generated
-    the recorded actions, so PPO's importance ratio pi_theta/pi_0 is meaningful
-    (off-policy correction relative to the pre-RL model).
+  * We also store the ORIGINAL model's vertical/horizontal softmax on each frame.
+    NOTE (honest scope): these are NOT the log-probs of a stochastic behaviour
+    policy that sampled the recorded actions. Deployment acts argmax (deterministic
+    + control overrides), so it never sampled from this softmax. The stored softmax
+    therefore only lets PPO measure "how far the heads drifted from the base model",
+    NOT a valid off-policy correction. `--stage ppo` is an approximate OFFLINE
+    fine-tune over recorded AI frames, not theoretically-faithful on-policy PPO.
 
 Output: one .npz per clip under the cache dir + a manifest.json.
 """
@@ -50,7 +53,8 @@ def load_v3_model(ckpt: Path, device: str):
     return model
 
 
-def _frame_times(controls_path: Path, frame_ids: Optional[np.ndarray] = None) -> np.ndarray:
+def _frame_times(controls_path: Path, frame_ids: Optional[np.ndarray] = None,
+                 strict: bool = False) -> np.ndarray:
     """Read real ``t_sec`` for each frame, indexed by the frame's REAL frame number.
 
     The dataset skips windows broken by a missing frame, so the cached rows are NOT
@@ -59,8 +63,10 @@ def _frame_times(controls_path: Path, frame_ids: Optional[np.ndarray] = None) ->
     -- otherwise a dropped frame shifts every later timestamp and corrupts codrive
     / human-score alignment (Codex round-2 #4).
 
-    Falls back to ``i/15`` ONLY when controls.csv is unavailable/short; a real
-    lookup that runs past the table is an error (no silent fake timestamps).
+    ``strict=True`` (co-drive / human-score path): a readable-but-misaligned
+    controls table is a hard error -- never fabricate ``i/15`` timestamps, because
+    that would silently score the wrong frames. ``strict=False`` keeps a loud
+    fallback to nominal 15Hz for scripts that only need approximate timing.
     """
     import csv
     if frame_ids is None:
@@ -77,11 +83,19 @@ def _frame_times(controls_path: Path, frame_ids: Optional[np.ndarray] = None) ->
             if frame_ids.size:
                 raise IndexError(
                     f"{controls_path} 只有 {t_all.shape[0]} 行，但帧号最大 {int(frame_ids.max())}，"
-                    f"帧号越界——拒绝伪造时间戳")
-    except (FileNotFoundError, KeyError, TypeError, ValueError, IndexError) as exc:
-        # Missing/short controls: fall back to nominal 15Hz, but surface it loudly.
+                    f"帧号越界——拒绝伪造时间戳（strict={strict}）")
+    except FileNotFoundError as exc:
+        if strict:
+            raise FileNotFoundError(
+                f"[feat] strict 模式：controls.csv 不存在 {controls_path}，无法取真实时间戳") from exc
         import sys as _sys
-        print(f"[feat][warn] {controls_path} 无法按真实帧号取 t_sec：{exc}；回退 i/15", file=_sys.stderr)
+        print(f"[feat][warn] {controls_path} 缺失，回退 i/15（非严格）", file=_sys.stderr)
+    except (IndexError,) as exc:
+        # Frame id out of range with a readable table: always fatal under strict.
+        if strict:
+            raise
+        import sys as _sys
+        print(f"[feat][warn] {exc}；回退 i/15（非严格）", file=_sys.stderr)
     return frame_ids.astype(np.float64) / 15.0
 
 
@@ -119,13 +133,19 @@ class ClipCache:
     @classmethod
     def load(cls, path: Path) -> "ClipCache":
         d = np.load(path, allow_pickle=False)
-        frame_ids = d["frame_ids"] if "frame_ids" in d.files else None
+        if "frame_ids" not in d.files:
+            # A cache without real frame ids cannot be aligned to codrive/human
+            # scores (position != frame). Refuse it rather than silently fall back
+            # to contiguous ids and corrupt every downstream lookup (Codex round-2 B3).
+            raise ValueError(
+                f"旧缓存缺少 frame_ids（{path}），无法按真实帧号对齐；请删除该缓存并重跑 "
+                f"features.extract_all 以重建。")
         return cls(
             state_token=d["state_token"], orig_vlogit=d["orig_vlogit"],
             orig_hlogit=d["orig_hlogit"], vertical=d["vertical"],
             horizontal=d["horizontal"], speed_kmh=d["speed_kmh"],
             speed_valid=d["speed_valid"], frame_times=d["frame_times"],
-            clip=str(d["clip"]), frame_ids=frame_ids,
+            clip=str(d["clip"]), frame_ids=d["frame_ids"],
         )
 
 
@@ -163,7 +183,7 @@ def extract_clip(model, ds, global_indices: List[int], clip_name: str,
         raise RuntimeError(
             f"{clip_name}: 抽取得到 {st_all.shape[0]} 行但记录到 {frame_ids.shape[0]} 个帧号，数量不一致")
     controls = Path(clip_name) / "controls.csv"
-    frame_times = _frame_times(controls, frame_ids)
+    frame_times = _frame_times(controls, frame_ids, strict=True)
     return ClipCache(
         state_token=st_all,
         orig_vlogit=np.concatenate(ovl, 0),

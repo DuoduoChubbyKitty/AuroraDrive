@@ -170,3 +170,19 @@ def run() -> None:
         ce_ok = E.evaluate_clip_with_policy(
             clip, lambda _lv: np.array([0, 1]), lambda _lh: np.array([1, 1]))
         H.check_eq(ce_ok.total, 1, "mask len==labels -> only frame0 human counted")
+
+    # ── REGRESSION (Codex round-2 B6): zero samples -> agreement N/A, not 0% ──
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = Path(tmp) / "clip_z"
+        clip.mkdir()
+        _write_controls(clip / "controls.csv", [
+            (0.0, 0, 50, 1, 0, 0, 0, 0, 0, 0, 0),
+            (0.1, 1, 50, 0, 1, 0, 0, 0, 0, 0, 0),
+        ])
+        with open(clip / "codrive.csv", "w", encoding="utf-8") as f:
+            f.write("frame,source,took_over,collided,lane_offset\n0,ai,0,0,0.0\n1,ai,0,0,0.0\n")
+        ce_z = E.evaluate_clip_with_policy(clip, lambda _v: np.array([0, 1]), lambda _h: np.array([1, 0]))
+        d = ce_z.to_dict()
+        H.check_eq(d["total_frames"], 0, "zero human frames -> total 0")
+        H.check(d["vertical_agreement"] is None, "zero samples -> vertical_agreement N/A (not 0%)")
+        H.check(d["horizontal_agreement"] is None, "zero samples -> horizontal_agreement N/A (not 0%)")

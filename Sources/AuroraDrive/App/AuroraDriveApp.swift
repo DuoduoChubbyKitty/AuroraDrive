@@ -4495,9 +4495,30 @@ final class DriveState {
     ///
     /// 【为什么要在引擎模式早退之前调用】见 tick() 里的调用点注释。
     func captureLeanSnapshot() -> RecordInputSnapshot {
-        // 按键：引擎模式下 UI 进程收不到 NSEvent，只能读引擎回传的掩码
-        // （与 recordFrameIfNeeded 的既有分支同判据，保持两套录制器标签一致）。
-        let mask = isEngineHost ? remoteKeyMask : currentPhysicalKeyMask()
+        // ── 按键来源必须按「进程 × 专家模式」区分，与 recordFrameIfNeeded 完全同口径 ──
+        //   （评审 round-2 B1：旧实现无条件读物理键掩码，于是 AI 注入的键被
+        //     KeyboardMonitor 过滤、物理掩码恒 0，AI 帧的 controls 全零 → 训练把
+        //     「AI 按 W 在开」记成 NONE，PPO 学错动作。这里改为与行驶录制同一套
+        //     选择逻辑：非专家=AI 驾驶→读 controlEngine.heldKeys（本进程实际注入的键，
+        //     即**实际执行动作**）；专家=真人物理键→读键盘监听/引擎回传掩码。）
+        //   · 引擎进程 + 专家：本进程无 NSEvent → remoteKeyMask
+        //   · 引擎进程 + 非专家：注入键在引擎进程 → controlEngine.heldKeys
+        //   · UI 进程 + 专家：本地键盘监听 → currentPhysicalKeyMask
+        //   · UI 进程 + 非专家：本地注入 → controlEngine.heldKeys
+        let mask: Int
+        if expertMode {
+            mask = isEngineHost ? remoteKeyMask : currentPhysicalKeyMask()
+        } else {
+            let held = controlEngine.heldKeys
+            var m = 0
+            if held.contains(13) { m |= 1 << 0 }   // W
+            if held.contains(0)  { m |= 1 << 1 }   // A
+            if held.contains(1)  { m |= 1 << 2 }   // S
+            if held.contains(2)  { m |= 1 << 3 }   // D
+            if held.contains(56) { m |= 1 << 4 }   // Shift
+            if held.contains(49) { m |= 1 << 5 }   // Space
+            mask = m
+        }
         var keys = RawKeySample()
         keys.w     = (mask >> 0) & 1
         keys.a     = (mask >> 1) & 1
@@ -4555,10 +4576,13 @@ final class DriveState {
             // 拿不到有效 AI 决策（引擎模式 / 未在控 / 决策过期）：不臆造，标 -1 表"不可用"。
             aiV = -1; aiH = -1; aiShift = -1; aiSpace = -1
         }
-        // 接管判定/来源由纯函数决定（只信真实人类接管信号）。
+        // 接管判定/来源由纯函数决定（只信真实人类接管信号 + V3 实际是否在控）。
+        // 评审 round-2 B2：把 `v3InControl` 传进去，人类没接管但 V3 未在控的帧标 UNKNOWN，
+        // 训练端排除，不再把待机/未就绪/控制被禁用的帧当成有效 AI 动作。
         return CoDriveSample.compute(
             userHolding: EmergencyTakeover.shared.userHoldingKey,
-            aiV: aiV, aiH: aiH, aiShift: aiShift, aiSpace: aiSpace)
+            aiV: aiV, aiH: aiH, aiShift: aiShift, aiSpace: aiSpace,
+            v3InControl: v3InControl)
     }
 
     /// 把 `leanRecorder` 的内部状态镜像到 UI 可观察字段（主线程调用）。

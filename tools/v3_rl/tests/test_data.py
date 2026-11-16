@@ -184,3 +184,28 @@ def run() -> None:
                 "AI flags mapped by real frame id (gap-safe)")
         H.check(np.array_equal(ct.took_over, [False, True, False, False]),
                 "took_over mapped by real frame id (gap-safe)")
+
+    # ── REGRESSION (Codex round-2 B3): old cache without frame_ids must be rejected ──
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "clip_old.npz"
+        np.savez_compressed(p,
+            state_token=np.zeros((2, 8), np.float32), orig_vlogit=np.zeros((2, 3), np.float32),
+            orig_hlogit=np.zeros((2, 3), np.float32), vertical=np.zeros(2, np.int64),
+            horizontal=np.zeros(2, np.int64), speed_kmh=np.zeros(2, np.float32),
+            speed_valid=np.ones(2, bool), frame_times=np.array([0.0, 0.1]), clip="clip_old")
+        H.check_raises(lambda: F.ClipCache.load(p), ValueError,
+                       "old cache (no frame_ids) rejected, not silently reindexed")
+
+    # ── REGRESSION (Codex round-2 B2): source=UNKNOWN frames excluded from AI & HUMAN ──
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = Path(tmp) / "clip_unknown"
+        clip.mkdir()
+        cache = _fake_cache(3)
+        with open(clip / "codrive.csv", "w", encoding="utf-8") as f:
+            f.write("frame,source,took_over,collided,lane_offset\n")
+            f.write("0,AI,0,0,0.0\n")
+            f.write("1,UNKNOWN,0,0,0.0\n")
+            f.write("2,HUMAN,1,0,0.0\n")
+        ct = T.build_clip_tensors(cache, clip)
+        H.check(np.array_equal(ct.is_ai, [True, False, False]), "UNKNOWN not counted as AI")
+        H.check(np.array_equal(ct.is_human, [False, False, True]), "UNKNOWN not counted as HUMAN")
