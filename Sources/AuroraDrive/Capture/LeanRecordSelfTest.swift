@@ -725,4 +725,128 @@ enum LeanRecordSelfTest {
         }
         return buf
     }
+
+    // MARK: - 人机共驾采集自检（--codrive-selftest）
+
+    /// 端到端验证共驾采集：开 coDriveMode 录 N 帧（含"AI 开""人类接管"两类），
+    /// 断言 codrive.csv 存在、列名正确、行数与 controls.csv 对齐、source/took_over
+    /// 与注入的样本一致，并验证**关闭 coDriveMode 时不产生 codrive.csv**（向后兼容）。
+    @MainActor
+    static func runCoDriveSelfTest() -> Int {
+        var failures = 0
+        func check(_ name: String, _ condition: Bool, _ detail: String = "") {
+            if !condition { failures += 1 }
+            print("  \(condition ? "✓" : "✗") \(name)\(detail.isEmpty ? "" : "  — \(detail)")")
+        }
+        print("═══ 人机共驾采集自检 ═══")
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("codrive_selftest_\(Int(Date().timeIntervalSince1970))")
+        print("  CODRIVE_SELFTEST_ROOT=\(root.path)")
+
+        guard let buffer = makeTestPixelBuffer(width: 1280, height: 832) else {
+            print("  ✗ 无法构造测试帧缓冲")
+            return failures + 1
+        }
+
+        // 交替注入 AI / HUMAN 两类共驾样本。
+        var coCursor = 0
+        let coSequence: [CoDriveSample] = [
+            makeCoDriveSample(source: "AI", tookOver: false, aiV: 0, aiH: 1),
+            makeCoDriveSample(source: "AI", tookOver: false, aiV: 0, aiH: 1),
+            makeCoDriveSample(source: "HUMAN", tookOver: true, aiV: 1, aiH: 1),  // 人类纠偏
+        ]
+
+        let engine = LeanRecordEngine()
+        engine.coDriveMode = true
+        engine.clipsRootOverride = root.appendingPathComponent("co")
+        engine.keyProvider = { sampleKey(w: 1) }
+        engine.coDriveProvider = {
+            defer { coCursor += 1 }
+            return coSequence[coCursor % coSequence.count]
+        }
+        check("共驾 start() 成功", engine.start(), engine.lastError ?? "")
+
+        let frameCount = 12
+        for _ in 0..<frameCount {
+            engine.appendFrame(pixelBuffer: buffer)
+            usleep(66_667)
+        }
+        engine.stop()
+
+        let coClips = clips(in: root.appendingPathComponent("co"))
+        check("生成 1 个共驾 clip", coClips.count == 1, "实际 \(coClips.count)")
+        guard let clip = coClips.first else { return failures + 1 }
+
+        let coURL = clip.appendingPathComponent("codrive.csv")
+        check("codrive.csv 存在", FileManager.default.fileExists(atPath: coURL.path))
+        let coText = (try? String(contentsOf: coURL, encoding: .utf8)) ?? ""
+        let coLines = coText.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+        check("codrive 有表头+数据行", coLines.count >= 2, "实际 \(coLines.count) 行")
+        let coHeader = coLines.first?.split(separator: ",", omittingEmptySubsequences: false).map(String.init) ?? []
+        let expected = ["frame", "source", "took_over", "ai_vertical", "ai_horizontal",
+                        "ai_shift", "ai_space", "collided", "lane_offset"]
+        check("codrive 表头 9 列正确", coHeader == expected, "实际 \(coHeader)")
+
+        // data 行数与 controls 行数一致（同帧对齐）
+        let ctrlLines = ((try? String(contentsOf: clip.appendingPathComponent("controls.csv"),
+                                      encoding: .utf8)) ?? "")
+            .split(separator: "\n", omittingEmptySubsequences: true).count
+        check("codrive 数据行数 == controls 行数（同帧对齐）",
+              coLines.count == ctrlLines, "codrive \(coLines.count) vs controls \(ctrlLines)")
+
+        // 抽查第一行数据：source=AI, took_over=0, ai_vertical=0, ai_horizontal=1
+        if coLines.count >= 2 {
+            let f = coLines[1].split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+            check("第 1 帧 frame=0", f.count > 0 && f[0] == "0", f.first ?? "nil")
+            check("第 1 帧 source=AI", f.count > 1 && f[1] == "AI", f.count > 1 ? f[1] : "nil")
+            check("第 1 帧 took_over=0", f.count > 2 && f[2] == "0", f.count > 2 ? f[2] : "nil")
+            check("第 1 帧 ai_vertical=0", f.count > 3 && f[3] == "0", f.count > 3 ? f[3] : "nil")
+            check("第 1 帧 ai_horizontal=1", f.count > 4 && f[4] == "1", f.count > 4 ? f[4] : "nil")
+        }
+        // 抽查第 3 帧（index 2，样本轮转到 HUMAN/took_over=1）
+        if coLines.count >= 4 {
+            let f = coLines[3].split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+            check("第 3 帧 source=HUMAN", f.count > 1 && f[1] == "HUMAN", f.count > 1 ? f[1] : "nil")
+            check("第 3 帧 took_over=1", f.count > 2 && f[2] == "1", f.count > 2 ? f[2] : "nil")
+        }
+
+        // ── 向后兼容：coDriveMode=false 时不产生 codrive.csv ──
+        let engine2 = LeanRecordEngine()
+        engine2.coDriveMode = false
+        engine2.clipsRootOverride = root.appendingPathComponent("plain")
+        engine2.keyProvider = { sampleKey(w: 1) }
+        check("普通录制 start() 成功", engine2.start(), engine2.lastError ?? "")
+        for _ in 0..<3 {
+            engine2.appendFrame(pixelBuffer: buffer)
+            usleep(66_667)
+        }
+        engine2.stop()
+        let plainClips = clips(in: root.appendingPathComponent("plain"))
+        if let pc = plainClips.first {
+            check("普通录制**不**产生 codrive.csv",
+                  !FileManager.default.fileExists(atPath: pc.appendingPathComponent("codrive.csv").path))
+            // controls.csv 仍是严格 11 列
+            let plainCtrl = ((try? String(contentsOf: pc.appendingPathComponent("controls.csv"),
+                                          encoding: .utf8)) ?? "")
+                .split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? ""
+            check("普通录制 controls 仍 11 列",
+                  plainCtrl.split(separator: ",", omittingEmptySubsequences: false).count == 11)
+        } else {
+            check("普通录制生成 clip", false)
+        }
+
+        print("  ── 共驾自检结束：\(failures == 0 ? "全部通过" : "\(failures) 项失败") ──")
+        return failures
+    }
+
+    private static func makeCoDriveSample(source: String, tookOver: Bool,
+                                          aiV: Int, aiH: Int) -> CoDriveSample {
+        var s = CoDriveSample()
+        s.enabled = true
+        s.source = source
+        s.tookOver = tookOver
+        s.aiVertical = aiV
+        s.aiHorizontal = aiH
+        return s
+    }
 }

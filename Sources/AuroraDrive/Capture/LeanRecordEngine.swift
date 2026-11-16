@@ -98,6 +98,29 @@ struct LeanRecordMeta {
 
 // MARK: - 精简录制引擎
 
+/// 人机共驾逐帧标注（`codrive.csv` 一行的数据源）。
+///
+/// 由主线程在 tick 里按帧拍好、抓屏队列随画面一起写入，保证"这一帧的画面"
+/// 与"这一帧的共驾标注"严格对齐（与 `RawKeySample` 同一时刻取值）。
+struct CoDriveSample {
+    /// 生产侧是否启用共驾采集（关闭时整条链路不写 codrive.csv）。
+    var enabled = false
+    /// 本帧来源："AI"=模型在开；"HUMAN"=人类接管在开（人类键与 AI 动作不一致时）。
+    var source = "AI"
+    /// 本帧是否发生人工接管（是则 PPO 侧按强负奖励处理，并把人类动作当模仿标签）。
+    var tookOver = false
+    /// 模型**本帧想下发的**纵向/横向分类（0..2）。即使人类接管也照记，用于
+    /// 分析"模型想做什么 vs 人类实际做了什么"。
+    var aiVertical = 1     // 0=W 1=NONE 2=S
+    var aiHorizontal = 1   // 0=A 1=NONE 2=D
+    var aiShift = 0
+    var aiSpace = 0
+    /// 碰撞/剧烈减速（当前由离线或上层视觉判定；缺省 0，不臆造）。
+    var collided = 0
+    /// 视觉车道横向偏置（负=偏左，正=偏右，±1=出界）。缺省 0（未知按居中处理）。
+    var laneOffset: Double = 0.0
+}
+
 /// 精简录制引擎：只负责落盘，不跑任何模型。
 ///
 /// 输出目录（与训练用的 `data/raw_clips` 隔离，避免未标注数据混进训练扫描）：
@@ -146,6 +169,13 @@ final class LeanRecordEngine: @unchecked Sendable {
     /// 仅供 `--lean-selftest` 或将来切换视角用，正常录制不需要改。
     var viewLabel: String = "TPV"
 
+    /// 人机共驾采集开关。开启时，除 controls.csv 外另写 codrive.csv 记录
+    /// 「这一帧是 AI 开还是人接管、AI 想做什么、是否碰撞/压线」。
+    ///
+    /// 【默认关】不开启时行为与引入该字段之前逐字一致：不建 codrive.csv、
+    ///   `appendFrame` 的 codrive 分支直接跳过，零成本。
+    var coDriveMode: Bool = false
+
     /// 录制根目录覆盖（仅自检用：让自检写到临时目录，不污染 data/lean_clips）。
     /// nil = 用默认的 `data/lean_clips`。
     var clipsRootOverride: URL?
@@ -154,6 +184,10 @@ final class LeanRecordEngine: @unchecked Sendable {
 
     /// 取当前按键快照。UI 进程注入 → `keyboardMonitor` 的实时状态。
     var keyProvider: () -> RawKeySample = { RawKeySample() }
+
+    /// 取当前共驾标注快照（AI 动作 / 是否接管 / 碰撞 / 车道偏置）。
+    /// 与 `keyProvider` 同样由主线程拍好、抓屏队列读，保证与画面同帧对齐。
+    var coDriveProvider: () -> CoDriveSample = { CoDriveSample() }
 
     /// 每关闭一段就回调一次（含 10 分钟自动分段切出来的中间段），参数是产物目录路径。
     ///
@@ -190,6 +224,14 @@ final class LeanRecordEngine: @unchecked Sendable {
     private var lastClipDir: URL?
     private var framesDir: URL?
     private var csvHandle: FileHandle?
+    /// 共驾标注 CSV 句柄（`codrive.csv`）。仅当 `coDriveMode` 开启时非空。
+    ///
+    /// 【为什么单独一份文件、而不是给 controls.csv 加列】
+    ///   controls.csv 是 `dataset_v3` 的硬契约（11 列，缺列/多列都有严格校验口径）。
+    ///   往它里面加列会波及**所有**既有离线标注与训练读取路径（那是最容易改出
+    ///   静默错配的地方）。共驾标注是**新用途**，用旁路文件按 frame 对齐，
+    ///   对老流程零影响：不开启共驾就根本不写这个文件，老数据字节不变。
+    private var codriveHandle: FileHandle?
     private var sessionStart: Date?
     /// 下一帧要用的帧号（**只在 writeQueue 内读写**，保证与 CSV 行号一致）
     private var nextFrameIndex = 0
@@ -391,6 +433,8 @@ final class LeanRecordEngine: @unchecked Sendable {
         // 时间戳与标签必须在**帧到达的这一刻**取，不能等到写盘时再取：
         // 写盘是异步的，晚取会把"下一帧的按键"贴到"这一帧的画面"上（标签错位）。
         let keys = keyProvider()
+        // 共驾标注同样在帧到达这一刻取（只有 coDriveMode 才取值，关闭时零成本）。
+        let coSample = coDriveMode ? coDriveProvider() : CoDriveSample()
 
         stateLock.lock()
         let elapsed = now.timeIntervalSince(sessionStart ?? now)
@@ -402,7 +446,7 @@ final class LeanRecordEngine: @unchecked Sendable {
             guard let self else { return }
             autoreleasepool {
                 self.writeFrame(pixelBuffer: pixelBuffer, at: now, keys: keys,
-                                generation: generation)
+                                coSample: coSample, generation: generation)
             }
         }
 
@@ -430,7 +474,8 @@ final class LeanRecordEngine: @unchecked Sendable {
     // MARK: - 写盘（writeQueue 内执行）
 
     private func writeFrame(pixelBuffer: CVPixelBuffer, at date: Date,
-                            keys: RawKeySample, generation: Int) {
+                            keys: RawKeySample, coSample: CoDriveSample,
+                            generation: Int) {
         // 世代校验必须在取 framesDir / nextFrameIndex **之前**：
         //   本帧是在旧会话里取的快照，若期间已切段（自动分段 stop→start），
         //   用新段的目录和帧号落盘 = 静默错配（详见 sessionGeneration 注释）。
@@ -492,6 +537,12 @@ final class LeanRecordEngine: @unchecked Sendable {
             print("[lean] ⚠️ CSV 行写入失败，已回滚帧 \(url.lastPathComponent)（帧号未推进）")
             return
         }
+        // controls 行写成功后才写共驾旁路行 —— 两者同帧同 idx。
+        // 失败**不回滚**：controls.csv 才是训练硬契约，codrive 只是补充信号；
+        // 丢一行 codrive 不会让 controls/frames 错配（训练端按 frame 对齐，缺行即忽略）。
+        if coSample.enabled {
+            writeCoDriveRow(index: idx, sample: coSample)
+        }
 
         nextFrameIndex = idx + 1
         let total = idx + 1
@@ -522,6 +573,32 @@ final class LeanRecordEngine: @unchecked Sendable {
     ///   把 `nextFrameIndex` 推进了：frames/ 留下一张图，CSV 却没有对应行，后续
     ///   行号继续前进 ⇒ 训练端「按行号拼文件名」会整体错位，`dataset_v3` 的
     ///   `frame == i` 校验直接抛 ValueError，**整段一帧都加载不了**。
+    /// 写一行共驾旁路标注（`codrive.csv`）。**只在 writeQueue 内调用**。
+    ///
+    /// 列：frame,source,took_over,ai_vertical,ai_horizontal,ai_shift,ai_space,
+    ///     collided,lane_offset
+    /// 与 controls.csv 的 `frame` 一一对齐；训练端按 frame 关联，缺行可忽略。
+    /// 失败只记录、不阻断（controls.csv 才是硬契约）。
+    private func writeCoDriveRow(index: Int, sample: CoDriveSample) {
+        guard let handle = codriveHandle else { return }
+        // lane_offset 用定点 4 位，避免浮点科学计数法（训练端 float() 可稳妥解析）。
+        let laneStr = String(format: "%.4f", sample.laneOffset)
+        let line = String(index) + "," + sample.source + ","
+            + (sample.tookOver ? "1" : "0") + ","
+            + String(sample.aiVertical) + "," + String(sample.aiHorizontal) + ","
+            + String(sample.aiShift) + "," + String(sample.aiSpace) + ","
+            + String(sample.collided) + "," + laneStr + "\n"
+        guard let data = line.data(using: .utf8) else {
+            recordFailure("codrive 行编码失败")
+            return
+        }
+        do {
+            try handle.write(contentsOf: data)
+        } catch {
+            recordFailure("codrive 行写入失败：\(error.localizedDescription)")
+        }
+    }
+
     @discardableResult
     private func appendCSVRow(index: Int, tSec: Double, keys: RawKeySample) -> Bool {
         // speed_kmh 一律写空串（不是 0）：
@@ -692,11 +769,31 @@ final class LeanRecordEngine: @unchecked Sendable {
         guard let handle = FileHandle(forWritingAtPath: csvURL.path) else { return false }
         handle.seekToEndOfFile()
 
+        // ── 共驾旁路 CSV（仅 coDriveMode 时创建）──
+        // 列含义见 `writeCoDriveRow`。按 `frame` 与 frames/ + controls.csv 一一对齐，
+        // 因此这 11 列不受 controls.csv 契约约束，纯粹是训练侧的补充信号。
+        var coHandle: FileHandle? = nil
+        if coDriveMode {
+            let coURL = dir.appendingPathComponent("codrive.csv")
+            let coHeader = "frame,source,took_over,ai_vertical,ai_horizontal,"
+                + "ai_shift,ai_space,collided,lane_offset\n"
+            // 用 if 而非 guard：codrive 建不出来不能让整段录制失败（controls* 仍是
+            // 有效数据），但要在下面显式告警并把 coDriveMode 关掉，避免每帧白试写。
+            if !fm.createFile(atPath: coURL.path,
+                              contents: coHeader.data(using: .utf8)) {
+                print("[lean] ⚠️ 无法创建 codrive.csv，本次共驾标注降级为普通录制")
+            } else if let ch = FileHandle(forWritingAtPath: coURL.path) {
+                ch.seekToEndOfFile()
+                coHandle = ch
+            }
+        }
+
         stateLock.lock()
         sessionDir = dir
         lastClipDir = dir
         framesDir = dir.appendingPathComponent("frames")
         csvHandle = handle
+        codriveHandle = coHandle
         sessionStart = Date()
         // 新段 = 新世代：在途的旧帧写盘时会因世代不符被丢弃，绝不污染本段。
         sessionGeneration &+= 1
@@ -728,6 +825,10 @@ final class LeanRecordEngine: @unchecked Sendable {
         csvHandle?.synchronizeFile()
         csvHandle?.closeFile()
         csvHandle = nil
+        // codrive 句柄与 controls 同生命周期：一起同步+关闭，避免尾部行未 flush。
+        codriveHandle?.synchronizeFile()
+        codriveHandle?.closeFile()
+        codriveHandle = nil
 
         // 读计数必须在锁内：这些值由 writeQueue 写、主线程读，直接读是数据竞争；
         // 且必须读 `framesWrittenLocked`（权威值），不能用 @Observable 的 frameCount

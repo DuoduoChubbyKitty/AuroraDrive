@@ -1022,7 +1022,8 @@ class V3Model(nn.Module):
                 det_mask: Optional[torch.Tensor] = None,
                 vehicle_state: Optional[torch.Tensor] = None,
                 return_intent: bool = False,
-                return_prob: bool = False) -> Dict[str, torch.Tensor]:
+                return_prob: bool = False,
+                return_state_token: bool = False) -> Dict[str, torch.Tensor]:
         """完整前向。
 
         Args:
@@ -1034,6 +1035,9 @@ class V3Model(nn.Module):
             vehicle_state: [B,8] 或 None（状态读取失败）
             return_intent: True 时额外返回 "intent" [B,3]（训练期用）
             return_prob:   True 时把 logits 过 softmax/sigmoid（部署期用）
+            return_state_token: True 时额外返回 "state_token" [B,D]（RL 训练期
+                的 critic 基线用）。**不新增任何参数、不改变部署图**——critic 是
+                训练脚本里独立的 ValueNet，消费这个冻结特征做优势估计。
 
         Returns:
             dict，键见文件头 §六。默认全部为 **logits**（训练侧直接喂
@@ -1108,6 +1112,10 @@ class V3Model(nn.Module):
             out = self._to_probabilities(out)
         if return_intent:
             out["intent"] = intent
+        # RL 训练期：把 stage2 的 state token（策略网络的共享特征）一并返回，
+        # 供独立的 critic(ValueNet) 估计基线。默认关闭、不加参数、不影响部署图。
+        if return_state_token:
+            out["state_token"] = state_token_2
         return out
 
     # ------------------------------------------------------------------

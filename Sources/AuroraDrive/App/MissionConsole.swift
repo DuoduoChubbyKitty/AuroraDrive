@@ -3326,6 +3326,10 @@ struct HardwareBank: View {
                 // 不能塞进上面的 LazyVGrid —— 那是 2×2 网格，放进去会被裁成半宽。
                 LeanRecordBar(state: state)
                     .padding(.top, 8)
+
+                // ── 第 5.5 个控件：人机共驾采集长条（紧贴精简录制下方）──
+                CoDriveBar(state: state)
+                    .padding(.top, 6)
             }
         }
     }
@@ -3526,6 +3530,120 @@ struct LeanRecordBar: View {
         if state.leanLastError != nil { return Aurora.danger }
         if state.leanIsRecording { return Aurora.ok }
         if state.leanAnnotateProgress != nil { return Aurora.ice }
+        return Aurora.t4
+    }
+}
+
+// ============================================================================
+// MARK: - 人机共驾采集长条（精简录制下方，2026-11-16 新增）
+// ============================================================================
+//
+// 位置：**精简录制长条正下方**（用户原话「放在精简录制的下方」）。
+// 作用：一个开关，开启后以「共驾」方式录制并额外写 codrive.csv（AI 动作 /
+//   是否被人类接管 / 碰撞 / 车道偏置）。它就是 RL 训练的数据入口：
+//   用户一边开一边救，救车的那几帧就是「模型犯错→人类纠正」的最佳样本。
+//
+// 样式刻意与 `LeanRecordBar` 一致（同款扁平长条），只换配色与文案，
+// 让用户一眼看出是同一族的两个录制开关。
+struct CoDriveBar: View {
+    @Bindable var state: DriveState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                state.toggleCoDrive()
+            } label: {
+                row
+            }
+            .buttonStyle(.plain)
+            .help(state.coDriveActive ? "点击停止共驾采集" : "点击开始人机共驾采集（供 RL 训练）")
+
+            Text(detailLine)
+                .font(.system(size: 8.5))
+                .foregroundStyle(detailColor)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var row: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: 6, height: 6)
+                .shadow(color: state.coDriveActive ? Aurora.ice.opacity(0.9) : .clear,
+                        radius: 5)
+
+            Text("人机共驾采集")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(state.coDriveActive ? Aurora.t1 : Aurora.t2)
+
+            Spacer(minLength: 6)
+
+            if state.coDriveActive {
+                Text("\(state.leanFrameCount) 帧")
+                    .font(.system(size: 8.5, design: .monospaced))
+                    .foregroundStyle(Aurora.ice)
+            }
+
+            Text(badge)
+                .font(.system(size: 7.5, weight: .medium))
+                .foregroundStyle(badgeColor)
+                .padding(.horizontal, 5).padding(.vertical, 1.5)
+                .background(Capsule().fill(badgeFill))
+                .overlay(Capsule().strokeBorder(Aurora.hair1, lineWidth: 1))
+        }
+        .padding(.horizontal, 13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 34)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(state.coDriveActive ? Aurora.iceWash : Color.white.opacity(0.038))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(state.coDriveActive ? Aurora.ice.opacity(0.42) : Aurora.hair1,
+                              lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var dotColor: Color {
+        if state.coDriveActive { return Aurora.ice }
+        if state.leanLastError != nil { return Aurora.danger }
+        return Aurora.t4
+    }
+
+    private var badge: String {
+        if state.coDriveActive { return "共驾" }
+        if state.leanLastError != nil { return "ERR" }
+        return "READY"
+    }
+
+    private var badgeColor: Color {
+        if state.coDriveActive { return Aurora.ice }
+        if state.leanLastError != nil { return Aurora.danger }
+        return Aurora.t4
+    }
+
+    private var badgeFill: Color {
+        if state.coDriveActive { return Aurora.iceWash }
+        return Aurora.iceWash
+    }
+
+    private var detailLine: String {
+        if let err = state.leanLastError {
+            return "失败：\(err)"
+        }
+        if state.coDriveActive {
+            return "共驾采集中 · 画面+按键+AI动作/接管（codrive.csv）"
+        }
+        return "人机共驾采集：模型犯怂时你接管救回，那几帧就是 RL 训练样本"
+    }
+
+    private var detailColor: Color {
+        if state.leanLastError != nil { return Aurora.danger }
+        if state.coDriveActive { return Aurora.ice }
         return Aurora.t4
     }
 }

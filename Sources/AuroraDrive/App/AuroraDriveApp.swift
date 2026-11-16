@@ -1015,7 +1015,10 @@ struct AuroraDriveLauncher {
                                // 断言 CSV 行号⟷frame 列⟷文件名三者一致、写失败不占用帧号、
                                // 表头 11 列、meta 宽高非 0。
                                // ⚠️ 登记与分发必须同时存在（本项目第 4 次踩同款假绿陷阱）。
-                               "--lean-selftest"]
+                               "--lean-selftest",
+                               // 人机共驾采集自检（codrive.csv 表头/同帧对齐/source/向后兼容）。
+                               // 同样登记+分发缺一不可。
+                               "--codrive-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -1079,6 +1082,14 @@ struct AuroraDriveLauncher {
         // 而 CSV 连续 → 整体标签静默错位）；表头 11 列；meta 宽高真实。
         if args.contains("--lean-selftest") {
             let failed = LeanRecordSelfTest.run()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+
+        // ── 人机共驾采集自检（--codrive-selftest，2026-11-16）──
+        // 真跑共驾采集链路，断言 codrive.csv 表头/行数同帧对齐/source 与 took_over
+        // 与注入样本一致，以及关闭共驾时**不**产生 codrive.csv（向后兼容）。
+        if args.contains("--codrive-selftest") {
+            let failed = LeanRecordSelfTest.runCoDriveSelfTest()
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
         }
 
@@ -4257,6 +4268,7 @@ enum RecordLabelMapper {
 private final class LeanInputSnapshot: @unchecked Sendable {
     private let lock = NSLock()
     private var keys = RawKeySample()
+    private var coDrive = CoDriveSample()
 
     /// 主线程 30Hz 唯一写入口
     func store(keys: RawKeySample) {
@@ -4264,10 +4276,22 @@ private final class LeanInputSnapshot: @unchecked Sendable {
         self.keys = keys
     }
 
+    /// 主线程写共驾标注快照（与按键同锁，保证两者取自同一时刻）。
+    func storeCoDrive(_ sample: CoDriveSample) {
+        lock.lock(); defer { lock.unlock() }
+        self.coDrive = sample
+    }
+
     /// 抓屏队列读按键
     func readKeys() -> RawKeySample {
         lock.lock(); defer { lock.unlock() }
         return keys
+    }
+
+    /// 抓屏队列读共驾标注
+    func readCoDrive() -> CoDriveSample {
+        lock.lock(); defer { lock.unlock() }
+        return coDrive
     }
 }
 
@@ -4476,6 +4500,51 @@ final class DriveState {
         keys.space = (mask >> 5) & 1
 
         leanSnapshot.store(keys: keys)
+
+        // 共驾标注：只有开着共驾采集时才拍（关闭时零成本，不碰 V3 决策）。
+        if leanRecorder.coDriveMode {
+            leanSnapshot.storeCoDrive(buildCoDriveSample(physicalMask: mask))
+        }
+    }
+
+    /// 由本帧状态构造共驾标注（主线程）。
+    ///
+    /// 口径要点：
+    ///   · source：把模型的 AI 动作换算成"等效键位掩码"，与物理掩码逐位比对；
+    ///     完全一致 → "AI"（模型在按它的意图开）；不一致 → "HUMAN"（人类在纠偏/接管）。
+    ///     这比单看 `userHoldingKey` 更准：共驾中人类轻点一下修正也算一次有效的
+    ///     "模型这一步不对"的信号，而 `userHoldingKey` 只在长按应急键时置位。
+    ///   · tookOver 同口径（不一致即视为接管纠偏）。
+    ///   · ai_* 始终记录模型**想**下发的动作，便于事后对照"模型想做 vs 人实际做"。
+    private func buildCoDriveSample(physicalMask: Int) -> CoDriveSample {
+        var s = CoDriveSample()
+        s.enabled = true
+        let d = inferenceEngineV3.lastDecision
+        s.aiVertical = d.verticalClass
+        s.aiHorizontal = d.horizontalClass
+        s.aiShift = d.handbrakePressed ? 1 : 0
+        s.aiSpace = d.brakePressed ? 1 : 0
+        // 物理掩码位序：0=w,1=a,2=s,3=d,4=shift,5=space（见 updateLeanSnapshot）。
+        let pw = (physicalMask >> 0) & 1
+        let pa = (physicalMask >> 1) & 1
+        let ps = (physicalMask >> 2) & 1
+        let pd = (physicalMask >> 3) & 1
+        let pshift = (physicalMask >> 4) & 1
+        let pspace = (physicalMask >> 5) & 1
+        // AI 动作 → 等效键位掩码（三分类，互斥）。
+        let aiW = d.verticalClass == 0 ? 1 : 0
+        let aiS = d.verticalClass == 2 ? 1 : 0
+        let aiA = d.horizontalClass == 0 ? 1 : 0
+        let aiD = d.horizontalClass == 2 ? 1 : 0
+        let same = (aiW == pw) && (aiA == pa) && (aiS == ps) && (aiD == pd)
+            && (s.aiShift == pshift) && (s.aiSpace == pspace)
+        // 人类按了应急接管键 → 无论键位是否巧合都算接管。
+        let humanHold = EmergencyTakeover.shared.userHoldingKey
+        s.tookOver = humanHold || !same
+        s.source = s.tookOver ? "HUMAN" : "AI"
+        // collided / laneOffset：当前 tick 没有可靠的逐帧碰撞/车道偏置量，
+        // 保持默认 0（未知），由离线或后续视觉模块回填；绝不臆造数值。
+        return s
     }
 
     /// 把 `leanRecorder` 的内部状态镜像到 UI 可观察字段（主线程调用）。
@@ -4487,6 +4556,8 @@ final class DriveState {
     func syncLeanMirror() {
         let recording = leanRecorder.isRecording
         if leanIsRecording != recording { leanIsRecording = recording }
+        let coActive = recording && leanRecorder.coDriveMode
+        if coDriveActive != coActive { coDriveActive = coActive }
         let n = leanRecorder.frameCount
         if leanFrameCount != n { leanFrameCount = n }
         // 把录制器的失败原因镜像到界面。
@@ -4583,6 +4654,8 @@ final class DriveState {
     func toggleLeanRecording() {
         if leanRecorder.isRecording {
             leanRecorder.stop()
+            // 停录即复位共驾模式：避免下一段普通精简录制意外带上 codrive.csv。
+            leanRecorder.coDriveMode = false
             syncLeanMirror()
             if let path = leanRecorder.lastClipPath {
                 leanLastClipPath = path
@@ -4638,6 +4711,31 @@ final class DriveState {
             leanHandoverDeadline = Date().addingTimeInterval(3.0)
             dlog("[LEAN] ▶ 精简录制开始（11 列：画面 + 按键，速度列待离线回填）"
                  + (EngineClient.shared.isActive ? "；等本地首帧后引擎让出" : ""))
+        }
+    }
+
+    /// 人机共驾采集开关（长条按钮）。开启时以「共驾」方式录制：画面+按键照旧，
+    /// 额外写 codrive.csv（AI 动作 / 是否被人类接管 / 碰撞 / 车道偏置），
+    /// 供离线 RL 训练把「模型犯错→人类救回」的那几帧学进去。
+    ///
+    /// 实现上复用了精简录制器的启停（同一套抓屏/落盘/分段/自动标注），
+    /// 只是把 `coDriveMode` 置真；不新开第二条录制链路，避免两套录制互相打架。
+    func toggleCoDrive() {
+        if leanRecorder.isRecording {
+            // 已在录：若是共驾模式则走正常停录；否则提示先停普通录制。
+            if !leanRecorder.coDriveMode {
+                leanLastError = "正在普通精简录制，请先停止再开共驾"
+                return
+            }
+            toggleLeanRecording()
+            return
+        }
+        // 未录：开共驾模式后走统一开录路径。
+        leanRecorder.coDriveMode = true
+        toggleLeanRecording()
+        if !leanRecorder.isRecording {
+            // 开录失败：复位模式，别让下次普通录制意外带 codrive。
+            leanRecorder.coDriveMode = false
         }
     }
 
@@ -5943,6 +6041,8 @@ final class DriveState {
     var leanIsRecording = false
     var leanFrameCount = 0
     var leanLastError: String?
+    /// 是否处于人机共驾采集（UI 长条按钮高亮/文案用）。
+    var coDriveActive: Bool = false
     /// 录制结束后的离线标注进度（0…1）；nil = 未在标注
     var leanAnnotateProgress: Double?
     /// 当前标注阶段名（"速度 OCR" / "坐标对表" / "质量检查"…）
@@ -6869,6 +6969,11 @@ final class DriveState {
         leanRecorder.keyProvider = { [weak self] in
             guard let self else { return RawKeySample() }
             return self.leanSnapshot.readKeys()
+        }
+        // 共驾标注数据源：同样只读主线程拍好的加锁快照。
+        leanRecorder.coDriveProvider = { [weak self] in
+            guard let self else { return CoDriveSample() }
+            return self.leanSnapshot.readCoDrive()
         }
         // 每段收尾都登记待标注（含 10 分钟自动分段切出来的中间段）。
         // stop() 在主动停录与轮转切段两种情形下都在主线程调用；这里再兜一次
