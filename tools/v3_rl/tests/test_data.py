@@ -1,4 +1,15 @@
-"""Tests for train_rl data loading / encoding using tiny synthetic clips."""
+"""Tests for train_rl data-loading against the CURRENT implementation.
+
+The legacy numpy-only helpers no longer exist and are not tested here. We cover
+what is real:
+  * _bit        : truthy string coercion;
+  * _load_codrive: parses codrive.csv keyed by frame, None when absent;
+  * build_clip_tensors: source split (AI/HUMAN/UNKNOWN), and the human-score
+                        wiring (human_scores.csv present vs absent);
+  * _load_human_scores : t,score parsing with bad rows skipped.
+
+All inputs are tiny synthetic ClipCaches + CSV files -- no real clips, no model.
+"""
 
 import sys
 import tempfile
@@ -6,136 +17,124 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+_HERE = Path(__file__).resolve()
+sys.path.insert(0, str(_HERE.parents[1]))   # tools/v3_rl
+sys.path.insert(0, str(_HERE.parents[3]))   # repo root
 import train_rl as T  # noqa: E402
 from tests import _harness as H  # noqa: E402
 
-_CSV_HEADER = "t_sec,frame,speed_kmh,w,a,s,d,shift,space,super_brake,ultimate_brake\n"
+# Use train_rl's OWN module objects for features/reward so ClipCache and
+# HumanEvent are the exact same classes train_rl constructs internally (avoids
+# the top-level `features` vs `tools.v3_rl.features` dual-module identity trap).
+F = T.F
+R = T.R
 
 
-def _write_csv(path: Path, rows):
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(_CSV_HEADER)
-        for r in rows:
-            f.write(",".join(str(x) for x in r) + "\n")
+def _fake_cache(n: int = 4, speed: float = 10.0) -> "F.ClipCache":
+    return F.ClipCache(
+        state_token=np.zeros((n, 8), dtype=np.float32),
+        orig_vlogit=np.zeros((n, 3), dtype=np.float32),
+        orig_hlogit=np.zeros((n, 3), dtype=np.float32),
+        vertical=np.zeros(n, dtype=np.int64),
+        horizontal=np.zeros(n, dtype=np.int64),
+        speed_kmh=np.full(n, speed, dtype=np.float32),
+        speed_valid=np.ones(n, dtype=bool),
+        frame_times=np.arange(n, dtype=np.float64) / 10.0,
+        clip="clip_demo",
+    )
 
 
 def run() -> None:
-    # ── action helpers ──────────────────────────────────────────────────
-    H.check_eq(T.joint_action(2, 1), 7, "joint action 2,1")
-    H.check_eq(T.split_action(7), (2, 1), "split action 7")
-    for v in range(3):
-        for h in range(3):
-            H.check_eq(T.split_action(T.joint_action(v, h)), (v, h), f"roundtrip {v},{h}")
-    H.check(np.array_equal(T.onehot_vertical(1), [0, 1, 0]), "onehot vertical 1")
-    H.check(np.array_equal(T.onehot_horizontal(2), [0, 0, 1]), "onehot horizontal 2")
+    # ── _bit ────────────────────────────────────────────────────────────
+    H.check_eq(T._bit({"x": "1"}, "x"), 1, "_bit '1' -> 1")
+    H.check_eq(T._bit({"x": "0"}, "x"), 0, "_bit '0' -> 0")
+    H.check_eq(T._bit({"x": ""}, "x"), 0, "_bit '' -> 0")
+    H.check_eq(T._bit({"x": "False"}, "x"), 0, "_bit 'False' -> 0")
+    H.check_eq(T._bit({}, "x"), 0, "_bit missing -> 0")
+    H.check_eq(T._bit({"x": "true"}, "x"), 1, "_bit 'true' -> 1")
 
-    # ── encode_kinematics ───────────────────────────────────────────────
-    speeds = [0.0, 50.0, 120.0]
-    valid = [1.0, 1.0, 0.0]
-    keys = [
-        {"w": 1, "a": 0, "s": 0, "d": 0, "shift": 0, "space": 0},
-        {"w": 0, "a": 1, "s": 0, "d": 0, "shift": 1, "space": 0},
-        {"w": 0, "a": 0, "s": 1, "d": 0, "shift": 0, "space": 1},
-    ]
-    feats = T.encode_kinematics(speeds, valid, keys)
-    H.check_eq(feats.shape, (3, 18), "encode shape")
-    H.check_close(float(feats[0, 0]), 0.0, msg="speed0 normalized")
-    H.check_close(float(feats[1, 0]), 0.5, msg="speed50 -> 0.5")
-    H.check_close(float(feats[2, 0]), 0.0, msg="invalid speed -> 0 feature")
-    H.check_close(float(feats[2, 1]), 0.0, msg="invalid flag 0")
-    H.check_close(float(feats[1, 1]), 1.0, msg="valid flag 1")
-    H.check_close(float(feats[0, 2]), 1.0, msg="stuck flag (0 km/h valid)")
-    H.check_close(float(feats[1, 2]), 0.0, msg="not stuck at 50")
-    # keys at cols 3..8 (w,a,s,d,shift,space)
-    H.check_close(float(feats[0, 3]), 1.0, msg="row0 w set")
-    H.check_close(float(feats[1, 4]), 1.0, msg="row1 a set")
-    H.check_close(float(feats[1, 7]), 1.0, msg="row1 shift set")
-    H.check_close(float(feats[2, 8]), 1.0, msg="row2 space set")
-    # no prev keys -> has_prev=0, cos heading=1
-    H.check_close(float(feats[0, 9]), 0.0, msg="no prev")
-    H.check_close(float(feats[0, 17]), 1.0, msg="cos0=1")
-    # length mismatch raises
-    H.check_raises(lambda: T.encode_kinematics([1.0], [], keys), ValueError, "len mismatch raises")
-
-    # with prev keys
-    pk = [None, keys[0], keys[1]]
-    feats2 = T.encode_kinematics(speeds, valid, keys, prev_keys=pk)
-    H.check_close(float(feats2[1, 9]), 1.0, msg="row1 has prev")
-    H.check_close(float(feats2[1, 10]), 1.0, msg="row1 prev w set (from row0)")
-    H.check_close(float(feats2[2, 11]), 1.0, msg="row2 prev a set (from row1)")
-
-    # ── build_encoded_episodes ──────────────────────────────────────────
-    ep = T.build_encoded_episodes(
-        speeds, valid, keys, [0, 2, 1], [1, 0, 2], [True, False, True],
-        [1.0, -2.0, 0.5])
-    H.check_eq(len(ep), 3, "episodes len")
-    H.check(np.array_equal(ep.vertical, [0, 2, 1]), "episodes vertical")
-    H.check(np.array_equal(ep.horizontal, [1, 0, 2]), "episodes horizontal")
-    H.check(np.array_equal(ep.has_human, [True, False, True]), "episodes has_human")
-    H.check_close(float(ep.reward[1]), -2.0, msg="episode reward passthrough")
-
-    # ── load_episodes_from_controls (synthetic clip) ───────────────────
+    # ── _load_codrive ───────────────────────────────────────────────────
     with tempfile.TemporaryDirectory() as tmp:
-        clip = Path(tmp) / "clip_000"
+        clip = Path(tmp) / "clip_a"
         clip.mkdir()
-        rows = [
-            # t, frame, speed, w,a,s,d,shift,space,super,ult
-            (0.000, 0, 50.0, 1, 0, 0, 0, 0, 0, 0, 0),
-            (0.067, 1, 50.0, 0, 1, 0, 0, 0, 0, 0, 0),
-            (0.133, 2, "", 0, 0, 1, 0, 0, 0, 0, 0),
-        ]
-        _write_csv(clip / "controls.csv", rows)
-        ep3 = T.load_episodes_from_controls(clip)
-        H.check_eq(len(ep3), 3, "controls clip len")
-        H.check(np.array_equal(ep3.vertical, [0, 1, 2]), "controls vertical labels")
-        H.check(np.array_equal(ep3.horizontal, [1, 0, 1]), "controls horizontal labels")
-        # all human by default
-        H.check(np.all(ep3.has_human), "all human default")
-        # speed validity: row2 empty speed -> invalid
-        H.check_close(float(ep3.features[2, 1]), 0.0, msg="row2 invalid speed")
-
-        # now add codrive.csv overriding source/takeover
-        _write_csv(clip / "codrive.csv", rows)  # dummy, we will overwrite with custom
+        H.check(T._load_codrive(clip) is None, "no codrive.csv -> None")
         with open(clip / "codrive.csv", "w", encoding="utf-8") as f:
             f.write("frame,source,took_over,collided,lane_offset\n")
-            f.write("0,ai,0,0,0.0\n")
-            f.write("1,human,0,0,0.2\n")
-            f.write("2,ai,1,0,0.0\n")
-        ep4 = T.load_episodes_from_controls(clip)
-        H.check(np.array_equal(ep4.has_human, [False, True, False]), "codrive source split")
-        # row2 takeover -> strong negative reward
-        H.check(ep4.reward[2] < -5.0, f"takeover reward strongly negative ({ep4.reward[2]:.2f})")
+            f.write("0,AI,0,0,0.0\n")
+            f.write("1,HUMAN,0,0,0.0\n")
+            f.write("bad,AI,0,0,0.0\n")  # non-int frame -> skipped
+        co = T._load_codrive(clip)
+        H.check(co is not None, "codrive.csv present -> dict")
+        H.check_eq(set(co.keys()), {0, 1}, "codrive keyed by valid int frames")
+        H.check_eq(co[1]["source"], "HUMAN", "codrive row content preserved")
 
-    # missing controls.csv raises
-    with tempfile.TemporaryDirectory() as tmp2:
-        H.check_raises(lambda: T.load_episodes_from_controls(Path(tmp2)), FileNotFoundError,
-                       "missing controls raises")
-
-    # ── load_v3_state_dict guarded (missing file -> None) ───────────────
-    H.check(T.load_v3_state_dict(None) is None, "None ckpt -> None")
-    H.check(T.load_v3_state_dict(Path("/nonexistent/xx.pt")) is None, "missing ckpt -> None")
-
-    # ── train() end to end on synthetic clips (bc + ppo) ───────────────
+    # ── build_clip_tensors: no codrive -> whole clip is HUMAN ───────────
     with tempfile.TemporaryDirectory() as tmp:
-        for ci in range(2):
-            clip = Path(tmp) / f"clip_{ci:03d}"
-            clip.mkdir()
-            rows = []
-            for i in range(40):
-                sp = 40.0 + i
-                rows.append((i * 0.067, i, sp, 1, 0, 0, 0, 0, 0, 0, 0))
-            _write_csv(clip / "controls.csv", rows)
-        res_bc = T.train(Path(tmp), stage="bc", epochs=2, batch_size=16, seed=1)
-        H.check_eq(res_bc["stage"], "bc", "bc stage result")
-        H.check(res_bc["frames"] == 80, f"bc frames={res_bc['frames']}")
-        H.check(len(res_bc["history"]) == 2, "bc history len")
-        res_ppo = T.train(Path(tmp), stage="ppo", epochs=2, batch_size=16, seed=1)
-        H.check_eq(res_ppo["stage"], "ppo", "ppo stage result")
-        H.check(len(res_ppo["history"]) == 2, "ppo history len")
-        # lambda decays over epochs
-        lam0 = res_ppo["history"][0]["lambda_imitation"]
-        lam1 = res_ppo["history"][1]["lambda_imitation"]
-        H.check(lam1 < lam0, f"lambda decays ({lam0}->{lam1})")
-        # snapshots recorded
-        H.check(len(res_ppo["snapshots"]) == 2, "ppo snapshots recorded")
+        clip = Path(tmp) / "clip_hum"
+        clip.mkdir()
+        cache = _fake_cache(4)
+        ct = T.build_clip_tensors(cache, clip)
+        H.check(np.all(ct.is_human), "no codrive -> all human")
+        H.check(not np.any(ct.is_ai), "no codrive -> no AI frames")
+        H.check_eq(ct.state_token.shape, (4, 8), "state_token passthrough shape")
+        H.check_eq(len(ct.rewards), 4, "rewards length == frames")
+
+    # ── build_clip_tensors: source split with UNKNOWN frames ────────────
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = Path(tmp) / "clip_mix"
+        clip.mkdir()
+        with open(clip / "codrive.csv", "w", encoding="utf-8") as f:
+            f.write("frame,source,took_over,collided,lane_offset\n")
+            f.write("0,AI,0,0,0.0\n")
+            f.write("1,HUMAN,0,0,0.2\n")
+            # frame 2 absent -> UNKNOWN (neither AI nor HUMAN)
+            f.write("3,AI,1,1,0.5\n")
+        ct = T.build_clip_tensors(_fake_cache(4), clip)
+        H.check(np.array_equal(ct.is_ai, [True, False, False, True]),
+                "AI frames flagged from source=AI")
+        H.check(np.array_equal(ct.is_human, [False, True, False, False]),
+                "HUMAN frames flagged from source=HUMAN")
+        # KEY regression: an absent frame must NOT be coerced to HUMAN
+        H.check_eq(bool(ct.is_human[2]), False, "missing codrive row -> NOT human")
+        H.check_eq(bool(ct.is_ai[2]), False, "missing codrive row -> NOT ai (UNKNOWN)")
+        H.check_eq(bool(ct.took_over[3]), True, "took_over parsed on frame3")
+        H.check_eq(bool(ct.took_over[0]), False, "took_over default 0 on frame0")
+
+    # ── build_clip_tensors: human_scores.csv present vs absent ──────────
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = Path(tmp) / "clip_score"
+        clip.mkdir()
+        cache = _fake_cache(4, speed=10.0)  # constant speed -> base 0.1 per frame
+        base = T.build_clip_tensors(cache, clip)  # no human_scores.csv
+        H.check(np.allclose(base.rewards, 0.1), "no human_scores -> base reward only")
+        # explicit human_score_path to a missing file behaves like None
+        missing = T.build_clip_tensors(cache, clip, human_score_path=clip / "nope.csv")
+        H.check(np.allclose(missing.rewards, base.rewards),
+                "missing human_score_path == no-human behaviour")
+        # now write a real human_scores.csv: press at t=0.25 -> frames 0,0.1,0.2
+        with open(clip / "human_scores.csv", "w", encoding="utf-8") as f:
+            f.write("t,score\n0.25,1.0\nbad,0.5\n")  # bad row skipped
+        scored = T.build_clip_tensors(cache, clip, human_score_path=clip / "human_scores.csv")
+        diff = np.round(scored.rewards - base.rewards, 5)
+        H.check(np.array_equal(diff, [1.0, 1.0, 1.0, 0.0]),
+                "human score backfilled to (t-window, t] frames only")
+        H.check_eq(len(scored.rewards), 4, "scored rewards length")
+
+    # ── _load_human_scores: parsing + bad-row skip ──────────────────────
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "human_scores.csv"
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("t,score\n0.1,0.5\n0.4,-1.0\nnotanumber,0.3\n0.9,nan\n")
+        ev = T._load_human_scores(p)
+        H.check_eq(len(ev), 2, "bad/non-finite rows skipped")
+        H.check_close(ev[0].t, 0.1, msg="event t parsed")
+        H.check_close(ev[0].score, 0.5, msg="event score parsed")
+        H.check(isinstance(ev[0], R.HumanEvent), "parsed into reward.HumanEvent")
+        H.check_close(ev[1].score, -1.0, msg="negative score preserved")
+
+    # ── assemble: discovers human_scores.csv only when asked ────────────
+    # (uses load_cached_clips; skip if no npz cache dir -- just assert the
+    #  empty-dir error path is explicit, not a silent empty list.)
+    with tempfile.TemporaryDirectory() as tmp:
+        H.check_raises(lambda: T.assemble(Path(tmp)), FileNotFoundError,
+                       "assemble empty cache dir raises FileNotFoundError")

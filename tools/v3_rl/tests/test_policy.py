@@ -1,146 +1,229 @@
-"""Tests for policy.py: softmax, BC/PPO gradients (finite-difference), learning."""
+"""Tests for policy.py TorchPolicy / bc_loss / ppo_loss.
+
+Uses a tiny SYNTHETIC V3 backbone (`_FakeV3`) and random state_token tensors --
+no real checkpoint is loaded and no real model is ever run. This keeps the whole
+suite CPU-only and fast while still exercising the real policy code paths.
+
+Key regressions:
+  * only the vertical/horizontal decision heads + value head are trainable;
+  * bc_loss frame_mask charges loss ONLY on human frames;
+  * ppo_loss policy-gradient term is masked to AI frames only, so human rescue
+    actions never enter the policy gradient;
+  * value_targets are consumed as the (adv + value) regression target;
+  * the PPO clipped surrogate uses min(surr1, surr2) (both branches).
+"""
 
 import sys
 from pathlib import Path
 
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import policy as P  # noqa: E402
 from tests import _harness as H  # noqa: E402
 
+_STATE_DIM = 6
 
-def _as_f64(pol):
-    for a in ("v_w", "v_b", "h_w", "h_b"):
-        setattr(pol, a, getattr(pol, a).astype(np.float64))
-    return pol
+
+class _Head(nn.Module):
+    """Mimics V3 output_head: .trunk/.vertical/.horizontal."""
+
+    def __init__(self, d: int = _STATE_DIM, hidden: int = 8):
+        super().__init__()
+        self.trunk = nn.Linear(d, hidden)
+        self.vertical = nn.Linear(hidden, 3)
+        self.horizontal = nn.Linear(hidden, 3)
+
+
+class _FakeV3(nn.Module):
+    def __init__(self, d: int = _STATE_DIM):
+        super().__init__()
+        self.output_head = _Head(d)
+        self.backbone = nn.Linear(d, d)  # stand-in for the frozen visual backbone
+
+
+def _make_policy(d: int = _STATE_DIM) -> P.TorchPolicy:
+    return P.TorchPolicy(_FakeV3(d), state_dim=d)
+
+
+def _gmax(pol: P.TorchPolicy) -> float:
+    mx = 0.0
+    for p in pol.trainable_parameters():
+        if p.grad is not None:
+            mx = max(mx, float(p.grad.abs().max()))
+    return mx
 
 
 def run() -> None:
-    rng = np.random.default_rng(0)
+    torch.manual_seed(0)
+    np.random.seed(0)
 
-    # ── softmax ─────────────────────────────────────────────────────────
-    z = np.array([[1.0, 2.0, 3.0], [0.0, 0.0, 0.0]])
-    sm = P.softmax(z)
-    H.check_close(float(sm.sum(axis=1)[0]), 1.0, msg="softmax sums to 1")
-    H.check_close(float(sm.sum(axis=1)[1]), 1.0, msg="softmax rows sum 1")
-    H.check(np.all(sm >= 0), "softmax non-negative")
-    # uniform logits -> uniform probs
-    H.check_close(float(sm[1, 0]), 1.0 / 3.0, msg="uniform softmax")
-    # monotonic: higher logit -> higher prob
-    H.check(sm[0, 2] > sm[0, 1] > sm[0, 0], "softmax monotonic")
-    # stability with huge logits (no overflow)
-    big = P.softmax(np.array([[1000.0, 1000.0, 1000.0]]))
-    H.check(np.isfinite(big).all(), "softmax stable with big logits")
-    H.check_close(float(big.sum()), 1.0, msg="big softmax sums 1")
-    # log_softmax consistency
-    lsm = P.log_softmax(z)
-    H.check_close(float(np.exp(lsm).sum(axis=1)[0]), 1.0, tol=1e-6, msg="logsoftmax->softmax")
-    H.check(np.all(lsm <= 1e-9), "log_softmax <= 0")
+    N = 7
+    d = _STATE_DIM
+    tok = torch.randn(N, d)
+    vlab = torch.randint(0, 3, (N,))
+    hlab = torch.randint(0, 3, (N,))
 
-    # ── policy forward shapes ───────────────────────────────────────────
-    F, N = 6, 5
-    X = rng.normal(size=(N, F))
-    pol = _as_f64(P.DiscretePolicy.from_dim(F, seed=1))
-    H.check_eq(pol.v_probs(X).shape, (N, 3), "v_probs shape")
-    H.check_eq(pol.h_probs(X).shape, (N, 3), "h_probs shape")
-    H.check(np.allclose(pol.v_probs(X).sum(1), 1.0), "v_probs rows sum 1")
-    H.check(np.allclose(pol.h_probs(X).sum(1), 1.0), "h_probs rows sum 1")
-    # act returns valid class indices
-    va, ha = pol.act(X, np.random.default_rng(3))
-    H.check(((va >= 0) & (va < 3)).all(), "act vertical in range")
-    H.check(((ha >= 0) & (ha < 3)).all(), "act horizontal in range")
+    # ── forward shapes ──────────────────────────────────────────────────
+    pol = _make_policy(d)
+    v_logits, h_logits, value = pol(tok)
+    H.check_eq(tuple(v_logits.shape), (N, 3), "vertical logits shape")
+    H.check_eq(tuple(h_logits.shape), (N, 3), "horizontal logits shape")
+    H.check_eq(tuple(value.shape), (N,), "value shape")
 
-    # ── BC gradient check ───────────────────────────────────────────────
-    vt = rng.integers(0, 3, N); ht = rng.integers(0, 3, N)
+    # probs() returns valid simplex distributions + a value vector
+    vp, hp, val = pol.probs(tok)
+    H.check(np.allclose(vp.sum(1).detach().numpy(), 1.0), "probs vertical simplex")
+    H.check(np.allclose(hp.sum(1).detach().numpy(), 1.0), "probs horizontal simplex")
+    H.check(bool((vp >= 0).all() and (vp <= 1).all()), "probs vertical range")
+    H.check_eq(tuple(val.shape), (N,), "probs value shape")
 
-    def bc_loss():
-        return P.bc_loss_and_grads(pol, X, vt, ht)[0]
+    # ── only the two decision heads + value head are trainable ──────────
+    for p in pol.v3.output_head.vertical.parameters():
+        H.check(p.requires_grad, "vertical head trainable")
+    for p in pol.v3.output_head.horizontal.parameters():
+        H.check(p.requires_grad, "horizontal head trainable")
+    for p in pol.value_head.parameters():
+        H.check(p.requires_grad, "value head trainable")
+    for p in pol.v3.output_head.trunk.parameters():
+        H.check(not p.requires_grad, "trunk frozen")
+    for p in pol.v3.backbone.parameters():
+        H.check(not p.requires_grad, "backbone frozen")
+    # 2 (vertical) + 2 (horizontal) + 4 (value sequential) = 8 trainable tensors
+    H.check_eq(len(pol.trainable_parameters()), 8, "exactly 8 trainable tensors")
 
-    _, g = P.bc_loss_and_grads(pol, X, vt, ht)
-    d = 1e-7
-    maxerr = 0.0
-    for i in range(F):
-        for j in range(3):
-            old = pol.v_w[i, j]; pol.v_w[i, j] = old + d; lp = bc_loss()
-            pol.v_w[i, j] = old - d; lm = bc_loss(); pol.v_w[i, j] = old
-            maxerr = max(maxerr, abs((lp - lm) / (2 * d) - g["v_w"][i, j]))
-            old = pol.h_w[i, j]; pol.h_w[i, j] = old + d; lp = bc_loss()
-            pol.h_w[i, j] = old - d; lm = bc_loss(); pol.h_w[i, j] = old
-            maxerr = max(maxerr, abs((lp - lm) / (2 * d) - g["h_w"][i, j]))
-    H.check(maxerr < 1e-5, f"BC gradient matches numeric (maxerr={maxerr:.2e})")
-    H.check_close(float(g["v_b"].sum()), 0.0, tol=1e-5, msg="BC grad sums to ~0 across classes")
+    # optimizer only sees trainable params
+    opt = P.make_optimizer(pol, 1e-3)
+    n_opt = sum(len(g["params"]) for g in opt.param_groups)
+    H.check_eq(n_opt, len(pol.trainable_parameters()), "optimizer only trainable params")
 
-    # ── PPO gradient check (with imitation) ─────────────────────────────
-    va2 = rng.integers(0, 3, N); ha2 = rng.integers(0, 3, N)
-    adv = rng.normal(size=N); vtarget = rng.normal(size=N)
-    crit = P.LinearCritic.from_dim(F, seed=2); crit.w = crit.w.astype(np.float64)
-    old_vp = pol.v_probs(X); old_hp = pol.h_probs(X)
-    is_human = rng.random(N) > 0.4
+    # ── head_state_dict keys + round-trip through load_head_state_dict ──
+    sd = pol.head_state_dict()
+    expected = {"vertical.weight", "vertical.bias", "horizontal.weight",
+                "horizontal.bias", "value.0.weight", "value.0.bias",
+                "value.2.weight", "value.2.bias"}
+    H.check_eq(set(sd.keys()), expected, "head_state_dict keys")
+    pol2 = _make_policy(d)
+    with torch.no_grad():  # perturb so the load is observable
+        for p in pol2.v3.output_head.vertical.parameters():
+            p.add_(1.0)
+    pol2.load_head_state_dict(sd)
+    for k in expected:
+        H.check(torch.allclose(sd[k], pol2.head_state_dict()[k]), f"head round-trip {k}")
 
-    def ppo_loss():
-        return P.ppo_loss_and_grads(pol, crit, X, va2, ha2, adv, vtarget,
-                                    old_vp, old_hp, 0.2, 0.3, is_human)[0]
+    # ── bc_loss: frame_mask charges loss only on human frames ───────────
+    mask = torch.tensor([True, False, True, False, True, False, True])
+    loss_masked = P.bc_loss(pol, tok, vlab, hlab, frame_mask=mask)
+    # manual masked mean of per-frame CE
+    v_logits, h_logits, _ = pol(tok)
+    ce = (F.cross_entropy(v_logits, vlab, reduction="none")
+          + F.cross_entropy(h_logits, hlab, reduction="none"))
+    manual = (ce * mask.float()).sum() / (mask.float().sum())
+    H.check_close(float(loss_masked.detach()), float(manual.detach()), tol=1e-6,
+                  msg="bc_loss masked mean matches manual human-frame mean")
+    # frame_mask=None -> plain mean over all frames
+    loss_all = P.bc_loss(pol, tok, vlab, hlab)
+    H.check_close(float(loss_all.detach()), float(ce.mean().detach()), tol=1e-6,
+                  msg="bc_loss no mask -> mean all frames")
+    # changing labels on NON-human frames must not change the masked loss
+    vlab_mod = vlab.clone()
+    vlab_mod[~mask] = (vlab_mod[~mask] + 1) % 3
+    loss_masked2 = P.bc_loss(pol, tok, vlab_mod, hlab, frame_mask=mask)
+    H.check_close(float(loss_masked.detach()), float(loss_masked2.detach()), tol=1e-6,
+                  msg="bc_loss ignores non-human frames")
+    # empty mask -> finite, exactly 0 (no NaN from division)
+    empty_mask = torch.zeros(N, dtype=torch.bool)
+    loss_empty = P.bc_loss(pol, tok, vlab, hlab, frame_mask=empty_mask)
+    H.check(torch.isfinite(loss_empty).item(), "bc_loss empty mask finite")
+    H.check_close(float(loss_empty.detach()), 0.0, msg="bc_loss empty mask -> 0")
 
-    _, pg, cg = P.ppo_loss_and_grads(pol, crit, X, va2, ha2, adv, vtarget,
-                                     old_vp, old_hp, 0.2, 0.3, is_human)
-    maxerr = 0.0
-    for i in range(F):
-        for j in range(3):
-            old = pol.v_w[i, j]; pol.v_w[i, j] = old + d; lp = ppo_loss()
-            pol.v_w[i, j] = old - d; lm = ppo_loss(); pol.v_w[i, j] = old
-            maxerr = max(maxerr, abs((lp - lm) / (2 * d) - pg["v_w"][i, j]))
-            old = pol.h_w[i, j]; pol.h_w[i, j] = old + d; lp = ppo_loss()
-            pol.h_w[i, j] = old - d; lm = ppo_loss(); pol.h_w[i, j] = old
-            maxerr = max(maxerr, abs((lp - lm) / (2 * d) - pg["h_w"][i, j]))
-    H.check(maxerr < 1e-5, f"PPO policy gradient matches numeric (maxerr={maxerr:.2e})")
+    # ── ppo_loss: value_targets consumed as (adv + value) regression target
+    with torch.no_grad():
+        _, _, value0 = pol(tok)  # value head starts at exactly 0
+    H.check_close(float(value0.abs().max()), 0.0, msg="value head init = 0")
+    adv_vec = torch.tensor([2.0, -1.0, 0.5, -2.0, 1.0, 0.3, -0.7])
+    value_targets = adv_vec + value0  # == adv + value
+    old_vp = torch.full((N, 3), 1.0 / 3.0)
+    old_hp = torch.full((N, 3), 1.0 / 3.0)
+    ai_all = torch.ones(N, dtype=torch.bool)
+    hu_none = torch.zeros(N, dtype=torch.bool)
+    total, stats = P.ppo_loss(pol, tok, vlab, hlab, old_vp, old_hp, adv_vec,
+                              value_targets, ai_mask=ai_all, human_mask=hu_none,
+                              clip_eps=0.2, lambda_imitation=0.0, ent_coef=0.0)
+    expected_v = 0.5 * float(F.mse_loss(value0, value_targets))
+    H.check_close(stats["v_loss"], expected_v, tol=1e-6,
+                  msg="v_loss = 0.5*MSE(value, adv+value)")
+    # total reconstruction: pg + vf*v_loss + lambda*bc - ent*entropy
+    recon = stats["pg_loss"] + 0.5 * stats["v_loss"] + 0.0 * stats["bc"]
+    H.check_close(float(total.detach()), recon, tol=1e-5, msg="total = pg + vf*v + lambda*bc")
 
-    maxerr_c = 0.0
-    for i in range(F):
-        old = crit.w[i, 0]; crit.w[i, 0] = old + d; lp = ppo_loss()
-        crit.w[i, 0] = old - d; lm = ppo_loss(); crit.w[i, 0] = old
-        maxerr_c = max(maxerr_c, abs((lp - lm) / (2 * d) - cg["w"][i, 0]))
-    H.check(maxerr_c < 1e-5, f"PPO critic gradient matches numeric (maxerr={maxerr_c:.2e})")
-    oldb = crit.b; crit.b = oldb + d; lp = ppo_loss(); crit.b = oldb - d; lm = ppo_loss(); crit.b = oldb
-    H.check(abs((lp - lm) / (2 * d) - cg["b"]) < 1e-5, "PPO critic bias grad matches")
+    # ── PPO clipped surrogate uses min(surr1, surr2), both branches ─────
+    eps = 0.2
+    v_logits, h_logits, _ = pol(tok)
+    vp_c = F.softmax(v_logits, -1)
+    hp_c = F.softmax(h_logits, -1)
+    ar = torch.arange(N)
+    cur = ((vp_c[ar, vlab] / old_vp[ar, vlab].clamp(1e-8, 1.0))
+           * (hp_c[ar, hlab] / old_hp[ar, hlab].clamp(1e-8, 1.0)))
+    surr1 = cur * adv_vec
+    surr2 = torch.clamp(cur, 1.0 - eps, 1.0 + eps) * adv_vec
+    pg_manual = (-torch.min(surr1, surr2)).mean()
+    total_c, stats_c = P.ppo_loss(pol, tok, vlab, hlab, old_vp, old_hp, adv_vec,
+                                  value_targets, ai_mask=ai_all, human_mask=hu_none,
+                                  clip_eps=eps, lambda_imitation=0.0, ent_coef=0.0)
+    H.check_close(stats_c["pg_loss"], float(pg_manual.detach()), tol=1e-5,
+                  msg="ppo pg_loss = mean(-min(surr1,surr2))")
+    # clipping must actually bite for at least one frame -> two-branch behaviour
+    pg_unclipped = (-surr1).mean()
+    H.check(not np.isclose(float(pg_manual.detach()), float(pg_unclipped.detach()),
+                           atol=1e-6),
+            "clip branch changes pg (min(surr1,surr2) active)")
+    H.check(bool(((cur < 1.0 - eps) | (cur > 1.0 + eps)).any()),
+            "ratios fall outside [1-eps,1+eps] for some frames")
 
-    # ── normalize_advantages ────────────────────────────────────────────
-    a = np.array([1.0, 2.0, 3.0, 4.0])
-    na = P.normalize_advantages(a)
-    H.check_close(float(na.mean()), 0.0, tol=1e-5, msg="normalized mean 0")
-    H.check_close(float(na.std()), 1.0, tol=1e-5, msg="normalized std 1")
-    H.check_eq(len(P.normalize_advantages(np.array([]))), 0, "normalize empty")
+    # ── KEY regression: human rescue actions not under policy gradient ──
+    # All-human batch (ai_mask all False) with only the PG term active -> the
+    # policy gradient must be exactly zero (rescue frames are masked out).
+    pol_h = _make_policy(d)
+    with torch.no_grad():
+        vh, hh, _ = pol_h(tok)
+        ovh = torch.softmax(vh, -1)
+        ohh = torch.softmax(hh, -1)
+    _, st_h = P.ppo_loss(pol_h, tok, vlab, hlab, ovh, ohh, adv_vec, value_targets,
+                         ai_mask=torch.zeros(N, dtype=torch.bool),
+                         human_mask=torch.ones(N, dtype=torch.bool),
+                         clip_eps=0.2, lambda_imitation=0.0, vf_coef=0.0, ent_coef=0.0)
+    H.check_close(st_h["pg_loss"], 0.0, msg="human-only batch -> pg_loss 0")
+    # same setup but AI frames: pg gradient is nonzero
+    pol_a = _make_policy(d)
+    with torch.no_grad():
+        va_, ha_, _ = pol_a(tok)
+        ova = torch.softmax(va_, -1)
+        oha = torch.softmax(ha_, -1)
+    total_a, st_a = P.ppo_loss(pol_a, tok, vlab, hlab, ova, oha, adv_vec, value_targets,
+                               ai_mask=torch.ones(N, dtype=torch.bool),
+                               human_mask=torch.zeros(N, dtype=torch.bool),
+                               clip_eps=0.2, lambda_imitation=0.0, vf_coef=0.0,
+                               ent_coef=0.0)
+    total_a.backward()
+    H.check(_gmax(pol_a) > 0.0, "AI batch -> nonzero policy gradient")
+    # and in the human-only case the gradient is exactly zero
+    total_h, _ = P.ppo_loss(pol_h, tok, vlab, hlab, ovh, ohh, adv_vec, value_targets,
+                            ai_mask=torch.zeros(N, dtype=torch.bool),
+                            human_mask=torch.ones(N, dtype=torch.bool),
+                            clip_eps=0.2, lambda_imitation=0.0, vf_coef=0.0,
+                            ent_coef=0.0)
+    total_h.backward()
+    H.check_close(_gmax(pol_h), 0.0, msg="human-only batch -> zero policy gradient")
 
-    # ── BC actually learns (loss decreases) ─────────────────────────────
-    pol2 = P.DiscretePolicy.from_dim(F, seed=5)
-    # separable labels: class from sum of features
-    X2 = rng.normal(size=(60, F))
-    vt2 = (np.abs(X2[:, 0]) * 3).clip(0, 2).astype(int) % 3
-    ht2 = (np.abs(X2[:, 1]) * 3).clip(0, 2).astype(int) % 3
-    first = P.bc_loss_and_grads(pol2, X2, vt2, ht2)[0]
-    for _ in range(200):
-        _, gg = P.bc_loss_and_grads(pol2, X2, vt2, ht2)
-        P.sgd_update(pol2, gg, 0.5)
-    last = P.bc_loss_and_grads(pol2, X2, vt2, ht2)[0]
-    H.check(last < first, f"BC loss decreases ({first:.3f}->{last:.3f})")
-    acc = P.evaluate_accuracy(pol2, X2, vt2, ht2)
-    H.check(acc["vertical_acc"] > 0.5, f"BC vertical acc improved ({acc['vertical_acc']:.2f})")
-    H.check(acc["horizontal_acc"] > 0.5, f"BC horiz acc improved ({acc['horizontal_acc']:.2f})")
-
-    # evaluate_accuracy on empty
-    e = P.evaluate_accuracy(pol2, np.zeros((0, F)), np.zeros(0, int), np.zeros(0, int))
-    H.check_close(e["vertical_acc"], 0.0, msg="empty eval acc 0")
-
-    # sgd_update moves weights in the gradient direction
-    w0 = pol2.v_w.copy()
-    gg = {"v_w": np.ones_like(pol2.v_w), "v_b": np.zeros_like(pol2.v_b),
-          "h_w": np.zeros_like(pol2.h_w), "h_b": np.zeros_like(pol2.h_b)}
-    P.sgd_update(pol2, gg, 0.1)
-    H.check(np.allclose(pol2.v_w, w0 - 0.1), "sgd_update subtracts lr*grad")
-
-    # critic sgd update
-    crit2 = P.LinearCritic.from_dim(F, seed=9)
-    w0c = crit2.w.copy()
-    crit2.sgd_update({"w": np.ones_like(crit2.w), "b": 0.0}, 0.1)
-    H.check(np.allclose(crit2.w, w0c - 0.1), "critic sgd subtracts")
-    H.check_close(crit2.b, 0.0, msg="critic bias unchanged with 0 grad")
+    # ── empty ai/human masks -> finite total, no NaN ────────────────────
+    total_e, st_e = P.ppo_loss(pol, tok, vlab, hlab, old_vp, old_hp, adv_vec,
+                               value_targets,
+                               ai_mask=torch.zeros(N, dtype=torch.bool),
+                               human_mask=torch.zeros(N, dtype=torch.bool))
+    H.check(torch.isfinite(total_e).item(), "ppo_loss empty masks finite")
+    H.check(np.isfinite(st_e["pg_loss"]) and np.isfinite(st_e["bc"]),
+            "ppo_loss empty masks stats finite")

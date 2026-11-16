@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import logging
 import sys
 import time
 from dataclasses import dataclass
@@ -38,6 +39,8 @@ if str(_ROOT) not in sys.path:
 
 from tools.v3_rl import features as F  # noqa: E402
 from tools.v3_rl import reward as R  # noqa: E402
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -74,8 +77,41 @@ def _load_codrive(clip_path: Path) -> Optional[Dict[int, Dict[str, str]]]:
     return out
 
 
+def _load_human_scores(path: Path) -> List[R.HumanEvent]:
+    """Parse a clip's ``human_scores.csv`` (columns ``t,score``; t in seconds,
+    score in [-1, 1]) into timestamped HumanEvents.
+
+    The file is the only real source of human judgement; we never fabricate it.
+    Rows with a non-numeric ``t`` or ``score`` are skipped and the row number is
+    logged. Out-of-range scores are clamped later by reward.clamp_human_score.
+    """
+    events: List[R.HumanEvent] = []
+    with open(path, newline="", encoding="utf-8") as f:
+        for line_no, row in enumerate(csv.DictReader(f), start=2):
+            try:
+                t = float(str(row.get("t", "")).strip())
+                score = float(str(row.get("score", "")).strip())
+            except (TypeError, ValueError):
+                _log.warning("[rl] %s 第 %d 行字段非法，已跳过: %r", path, line_no, row)
+                continue
+            if not (np.isfinite(t) and np.isfinite(score)):
+                _log.warning("[rl] %s 第 %d 行非有限值，已跳过: %r", path, line_no, row)
+                continue
+            events.append(R.HumanEvent(t=t, score=score))
+    return events
+
+
 def build_clip_tensors(cache: "F.ClipCache", clip_path: Path,
-                       weights: R.RewardWeights = R.DEFAULT_WEIGHTS) -> ClipTensors:
+                       weights: R.RewardWeights = R.DEFAULT_WEIGHTS,
+                       human_score_path: Optional[Path] = None) -> ClipTensors:
+    """Build per-frame tensors for one clip.
+
+    ``human_score_path`` is optional and defaults to None, in which case the
+    human term stays 0 exactly as before (no behaviour change). When the path
+    exists, ``human_scores.csv`` (t, score) is parsed into HumanEvents and fed to
+    ``compute_episode_rewards``; when it is absent a clear log states the human
+    term is 0 (data is never invented).
+    """
     n = cache.vertical.shape[0]
     co = _load_codrive(clip_path)
     is_ai = np.zeros(n, dtype=bool)
@@ -105,29 +141,45 @@ def build_clip_tensors(cache: "F.ClipCache", clip_path: Path,
                 except ValueError:
                     lane_off[i] = 0.0
 
-    # Per-episode rewards (no human score events supplied by CLI -> 0 human term;
-    # the reward still uses speed/stuck/collision/decel/lane + takeover).
+    # Per-episode rewards. Human scores come only from a real human_scores.csv;
+    # with no events the human term is exactly 0 (never fabricated).
+    human_events: List[R.HumanEvent] = []
+    if human_score_path is not None and Path(human_score_path).exists():
+        human_events = _load_human_scores(Path(human_score_path))
+        if human_events:
+            print(f"[rl] {cache.clip} 载入人工分 {len(human_events)} 条 ← {human_score_path}")
+        else:
+            print(f"[rl] {cache.clip} human_scores.csv 无可解析行，human 项为 0")
+    else:
+        print(f"[rl] {cache.clip} 无人工分，human 项为 0")
     frames = [R.FrameSignals(speed_kmh=float(cache.speed_kmh[i]),
                              speed_valid=bool(cache.speed_valid[i]),
                              lane_offset=float(lane_off[i]),
                              collided=bool(collided[i]),
                              took_over=bool(took_over[i])) for i in range(n)]
-    rewards = R.compute_episode_rewards(frames, [], list(cache.frame_times),
+    rewards = R.compute_episode_rewards(frames, human_events, list(cache.frame_times),
                                         weights=weights)
     return ClipTensors(cache.clip, cache.state_token, cache.orig_vlogit,
                        cache.orig_hlogit, cache.vertical, cache.horizontal,
                        is_ai, is_human, took_over, rewards)
 
 
-def assemble(cache_dir: Path) -> Tuple[List[ClipTensors], np.ndarray]:
-    """Load caches + codrive -> list of ClipTensors and episode_ends array."""
+def assemble(cache_dir: Path, use_human_scores: bool = False
+             ) -> Tuple[List[ClipTensors], np.ndarray]:
+    """Load caches + codrive -> list of ClipTensors and episode_ends array.
+
+    When ``use_human_scores`` is True, each clip looks for
+    ``<clip>/human_scores.csv`` next to its codrive and feeds it into the reward.
+    Default False keeps reward identical to the no-human-score behaviour.
+    """
     caches = F.load_cached_clips(cache_dir)
     if not caches:
         raise FileNotFoundError(f"{cache_dir} 下没有 clip_*.npz（先跑 features 抽取）")
     clips: List[ClipTensors] = []
     for c in caches:
         clip_path = Path(c.clip)
-        clips.append(build_clip_tensors(c, clip_path))
+        human_score_path = (clip_path / "human_scores.csv") if use_human_scores else None
+        clips.append(build_clip_tensors(c, clip_path, human_score_path=human_score_path))
     ends = []
     for c in clips:
         e = np.zeros(c.state_token.shape[0], dtype=bool)
@@ -158,6 +210,8 @@ def train(
     seed: int = 42,
     out_ckpt: Optional[Path] = None,
     limit: Optional[int] = None,
+    init_from: Optional[Path] = None,
+    use_human_scores: bool = False,
 ) -> Dict[str, object]:
     torch = _torch()
     if batch_size <= 0:
@@ -170,7 +224,7 @@ def train(
         device = "mps" if torch.backends.mps.is_available() else "cpu"
     device = torch.device(device)
 
-    clips, _ends = assemble(Path(cache_dir))
+    clips, _ends = assemble(Path(cache_dir), use_human_scores=use_human_scores)
     # concatenate with episode_ends
     st = np.concatenate([c.state_token for c in clips], 0)
     ovl = np.concatenate([c.orig_vlogit for c in clips], 0)
@@ -203,6 +257,19 @@ def train(
     v3 = F.load_v3_model(Path(ckpt), str(device))
     policy = TorchPolicy(v3, state_dim=st.shape[1]).to(device)
     policy.v3.eval()  # backbone/trunk frozen; heads still get grads
+    # BC -> PPO hand-off: load the head_state_dict saved by `--stage bc`.
+    if init_from is not None:
+        init_path = Path(init_from)
+        if not init_path.exists():
+            raise FileNotFoundError(f"--init-from 指定的头权重不存在: {init_path}")
+        blob = torch.load(init_path, map_location=device, weights_only=True)
+        head_sd = blob.get("head_state_dict") if isinstance(blob, dict) else None
+        if not isinstance(head_sd, dict):
+            raise ValueError(
+                f"--init-from 文件缺少 head_state_dict（应由 --stage bc --out-ckpt 产出）: {init_path}")
+        policy.load_head_state_dict(head_sd)
+        print(f"[rl] 已从 {init_path} 载入 BC 头权重并继续 {stage}"
+              f"（源自 stage={blob.get('stage')}）")
     opt = make_optimizer(policy, lr)
 
     ST = torch.tensor(st, dtype=torch.float32, device=device)
@@ -293,16 +360,23 @@ def _parse_args(argv=None):
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out-ckpt", default=None)
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--init-from", default=None,
+                    help="BC 阶段产出的 head_state_dict .pt；PPO 载入后继续（BC→PPO 入口）")
+    ap.add_argument("--use-human-scores", action="store_true",
+                    help="读取每个 clip 目录下的 human_scores.csv（t,score）计入 human 项")
     return ap.parse_args(argv)
 
 
 def main(argv=None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     a = _parse_args(argv)
     train(cache_dir=Path(a.cache_dir), stage=a.stage, ckpt=Path(a.ckpt),
           device=a.device, epochs=a.epochs, lr=a.lr, batch_size=a.batch_size,
           lambda_imitation=a.lambda_imitation, lambda_decay=a.lambda_decay,
           clip_eps=a.clip_eps, gamma=a.gamma, lam=a.lam, seed=a.seed,
-          out_ckpt=Path(a.out_ckpt) if a.out_ckpt else None, limit=a.limit)
+          out_ckpt=Path(a.out_ckpt) if a.out_ckpt else None, limit=a.limit,
+          init_from=Path(a.init_from) if a.init_from else None,
+          use_human_scores=a.use_human_scores)
     return 0
 
 

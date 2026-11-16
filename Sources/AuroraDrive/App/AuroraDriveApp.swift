@@ -4283,6 +4283,15 @@ private final class LeanInputSnapshot: @unchecked Sendable {
         self.coDrive = coDrive
     }
 
+    /// 把主线程冻结好的一整份 `RecordInputSnapshot` 原子写入。
+    /// tick 里用它取代旧的 `store(keys:coDrive:)` 分装，配合引擎的单一
+    /// `inputProvider` 构成「拍摄→读取」全程单对象流动（评审 Blocking 3）。
+    func store(_ snapshot: RecordInputSnapshot) {
+        lock.lock(); defer { lock.unlock() }
+        self.keys = snapshot.keys
+        self.coDrive = snapshot.coDrive
+    }
+
     /// 抓屏队列一次性读按键 + 共驾（同一次加锁，保证时刻一致）。
     func read() -> (keys: RawKeySample, coDrive: CoDriveSample) {
         lock.lock(); defer { lock.unlock() }
@@ -4461,13 +4470,19 @@ final class DriveState {
         return m
     }
 
-    /// 主线程拍一份**按键**快照，供抓屏队列读取精简录制标签。
+    /// 主线程拍一份**按键 + 共驾**快照（返回冻结值），供抓屏队列读取精简录制标签。
     ///
     /// 【为什么必须在主线程拍】（配合 `LeanInputSnapshot` 的注释阅读）
     ///   `onRecordFrame` 在 captureQueue 触发；而 keyboardMonitor.heldKeys 无锁。
-    ///   让 30Hz 的 tick 在主线程拍快照，抓屏队列只读锁保护的值 ——
+    ///   让 15Hz 的 tick 在主线程拍快照，抓屏队列只读锁保护的值 ——
     ///   这是唯一不需要给 KeyboardMonitor 加锁的解法
     ///   （给它加锁会动到驾驶主链路的既有行为，风险远大于收益）。
+    ///
+    /// 【为什么返回一个 RecordInputSnapshot 而不是直接 store】（评审 Blocking 3）
+    ///   按键与共驾标注必须是**同一对象、同一时刻**的一对值。这里在主线程把二者
+    ///   一起冻结进同一个 `RecordInputSnapshot` 返回，tick 调用点把它整体 store 进
+    ///   `leanSnapshot`；抓屏队列经 `inputProvider` 一次读回。这样从「拍摄」到
+    ///   「落盘取值」全程都是单个对象在流动，keys 与 coDrive 不可能来自两个时刻。
     ///
     /// 【这里为什么**不**拍定位（2026-11-03）】
     ///   精简录制器只保存「画面 + 按键」两样；定位/朝向/加速度既不进 CSV，
@@ -4479,10 +4494,7 @@ final class DriveState {
     ///   本次改动一个字节都没碰它们。
     ///
     /// 【为什么要在引擎模式早退之前调用】见 tick() 里的调用点注释。
-    func updateLeanSnapshot() {
-        // 未录制时零成本：不读键盘。
-        guard leanRecorder.wantsFrames else { return }
-
+    func captureLeanSnapshot() -> RecordInputSnapshot {
         // 按键：引擎模式下 UI 进程收不到 NSEvent，只能读引擎回传的掩码
         // （与 recordFrameIfNeeded 的既有分支同判据，保持两套录制器标签一致）。
         let mask = isEngineHost ? remoteKeyMask : currentPhysicalKeyMask()
@@ -4495,9 +4507,8 @@ final class DriveState {
         keys.space = (mask >> 5) & 1
 
         // 共驾标注：只有本会话是共驾时才拍（关闭时零成本、不碰 V3 决策）。
-        // 按键与共驾**一次性原子写入**，避免两次加锁之间被主线程更新造成错配。
         let co = leanRecorder.coDriveMode ? buildCoDriveSample() : CoDriveSample()
-        leanSnapshot.store(keys: keys, coDrive: co)
+        return RecordInputSnapshot(keys: keys, coDrive: co)
     }
 
     /// 由本帧状态构造共驾标注（主线程）。
@@ -4508,14 +4519,30 @@ final class DriveState {
     ///     本程序注入的 AI 按键**，导致"AI 按 W、人类没操作"时物理掩码为 0、被
     ///     误判为人类接管。`userHoldingKey` 由 `noteUserKeyDown()`（真人物理按键）
     ///     驱动，是真·人手信号；引擎模式经 heartbeat 回传，两模式都有效。
-    ///   · 训练所需的"AI 动作/行为概率"取自**离线重跑真 V3**（features.py 在真实
-    ///     画面上拿到 state_token 与原始模型概率），不依赖本帧 `ai_*`；故引擎
-    ///     模式下 UI 进程拿不到实时 V3 决策也无碍。`ai_*` 仅作诊断，拿不到就写 -1。
+    ///   · **本地路径的 `ai_*` 必须校验"V3 真的在控"**（评审 Blocking 2）：
+    ///     `isLoaded` + `timelineReady`（时序就绪）+ `mode == .e2e`（V3 是当前主驾档）
+    ///     + 在驾驶 + 非专家模式 + 未禁用控制 + 决策新鲜度 < 1s。少任一条件都说明
+    ///     "本帧的 V3 决策不是可归属的实际执行意图"，此时 `ai_*` 标 -1（不可用），
+    ///     绝不把陈旧的 `lastDecision` 当作本帧意图写出去。
+    ///   · 「模型意图」与「实际执行」分离：`ai_*` 是模型**想下发**的动作，人类接管
+    ///     （`userHoldingKey=true`）时仍照记模型意图（供分析"模型想做 vs 人实际做"），
+    ///     而真正"本帧是谁在开"由 `source`/`tookOver` 表达。故"V3 在控"门控**不含**
+    ///     `userHoldingKey` —— 人接管只是瞬时覆盖注入，不改变 V3 仍是主驾档这一事实。
+    ///   · 训练所需"AI 动作/行为概率"最终取自**离线重跑真 V3**（features.py 在真实
+    ///     画面上拿 state_token 与原始概率），不依赖本帧 `ai_*`；故引擎模式拿不到
+    ///     实时 V3 决策也无碍，`ai_*` 仅作诊断，拿不到就写 -1，绝不伪造。
     private func buildCoDriveSample() -> CoDriveSample {
-        // 是否真的处于 V3 控制、且有新鲜决策（本地路径才有真 lastDecision）。
+        // 基础就绪：本地进程（引擎进程无 V3 实时决策）+ 模型已加载 + 时序就绪。
         let v3Active = !isEngineHost && inferenceEngineV3.isLoaded
             && inferenceEngineV3.timelineReady
-        let fresh = v3Active
+        // 「V3 在控」：本帧由 V3 主驾（.e2e 档）、在驾驶、非专家模式、未禁用控制。
+        // 这是与主驾命令 `mayDriveByV3 = v3ReadyForControl && decided == .e2e` 同口径的
+        // 控制权判据；缺它则 `ai_*` 可能记录"模型想发但根本没被执行的意图"。
+        let v3InControl = v3Active && isDriving && !expertMode && !controlDisabled
+            && mode == .e2e
+        // 决策新鲜度 < 1s：`lastDecision` 一旦写出就永久保留，必须按与 isAlive 一致的
+        // 1.0s 阈值判新鲜，否则会把陈旧决策当本帧意图。
+        let fresh = v3InControl
             && (inferenceEngineV3.lastResultTime.map { Date().timeIntervalSince($0) < 1.0 } ?? false)
         let aiV: Int, aiH: Int, aiShift: Int, aiSpace: Int
         if fresh {
@@ -4525,7 +4552,7 @@ final class DriveState {
             aiShift = d.handbrakePressed ? 1 : 0
             aiSpace = d.brakePressed ? 1 : 0
         } else {
-            // 拿不到有效 AI 决策（如引擎模式）：不臆造，标 -1 表"不可用"。
+            // 拿不到有效 AI 决策（引擎模式 / 未在控 / 决策过期）：不臆造，标 -1 表"不可用"。
             aiV = -1; aiH = -1; aiShift = -1; aiSpace = -1
         }
         // 接管判定/来源由纯函数决定（只信真实人类接管信号）。
@@ -4543,7 +4570,10 @@ final class DriveState {
     func syncLeanMirror() {
         let recording = leanRecorder.isRecording
         if leanIsRecording != recording { leanIsRecording = recording }
-        let coActive = recording && leanRecorder.coDriveMode
+        // 【评审 Blocking 5】用**真实会话共驾态** `sessionCoDriveActive`，不是意图
+        //   `coDriveMode`：codrive.csv 创建/打开失败时引擎降级为普通录制
+        //   （sessionCoDrive=false）但 coDriveMode 仍为 true，按后者会谎报"共驾中"。
+        let coActive = recording && leanRecorder.sessionCoDriveActive
         if coDriveActive != coActive { coDriveActive = coActive }
         let n = leanRecorder.frameCount
         if leanFrameCount != n { leanFrameCount = n }
@@ -4642,15 +4672,14 @@ final class DriveState {
     ///
     /// 【为什么带 coDrive 参数】（评审 Blocking 4）开录入口必须**显式**声明这次是
     ///   普通录制还是共驾采集，而不是依赖一个可能残留的 `coDriveMode` 布尔。
-    ///   历史上模式只在手动停录分支复位，帧率异常自动停录 / 交接超时 / 切段重启失败
-    ///   都不复位 → 之后点普通录制仍会建 codrive.csv。改成“每次开录显式指定”后，
-    ///   普通录制入口必然 `coDriveMode=false`，从根上消除残留（分段轮转期间沿用同一
-    ///   意图、共驾照常延续，那是正确的）。
+    ///   B4 的复位现在收敛在**引擎 `stop()` 内部**（默认 `resetCoDriveMode: true`）：
+    ///   手动停录 / 帧率异常自动停 / 交接超时放弃 / App 退出这些「终止录制」路径
+    ///   都经 stop() 复位；只有自动分段轮转传 false 以延续共驾意图。故本入口这里
+    ///   不再重复置 false，只靠下面的开录分支显式指定模式即可。
     func toggleLeanRecording(coDrive: Bool = false) {
         if leanRecorder.isRecording {
+            // stop() 默认复位共驾模式（终止录制），无需要额外手动清。
             leanRecorder.stop()
-            // 停录即复位共驾模式：避免下一段普通精简录制意外带上 codrive.csv。
-            leanRecorder.coDriveMode = false
             syncLeanMirror()
             if let path = leanRecorder.lastClipPath {
                 leanLastClipPath = path
@@ -6025,10 +6054,6 @@ final class DriveState {
     ///   故由主线程 30Hz 拍一份快照，后台只读快照。
     /// 主线程 30Hz 拍快照、抓屏队列只读。盒内自带锁，见 `LeanInputSnapshot` 的注释。
     private nonisolated let leanSnapshot = LeanInputSnapshot()
-    /// 本次 appendFrame 的共驾快照缓存：由 keyProvider 在 captureQueue 上写入、
-    /// coDriveProvider 紧随其后读取（同一帧、同一队列、串行），保证二者原子一致。
-    /// 只在 captureQueue（keyProvider/coDriveProvider 调用处）读写，故 unsafe 可接受。
-    private nonisolated(unsafe) var pendingCoDriveForFrame = CoDriveSample()
 
     // ── 精简录制：UI 可观察镜像 ──
     // leanRecorder 是 @ObservationIgnored（类实例，SwiftUI 不观察其内部属性），
@@ -6963,24 +6988,19 @@ final class DriveState {
         captureEngine.isRecordFrameWanted = { [weak self] in
             self?.leanRecorder.wantsFrames ?? false
         }
-        // 标签数据源：只读主线程拍好的加锁快照（见 updateLeanSnapshot 的注释）。
+        // 标签数据源：只读主线程拍好的加锁快照（见 captureLeanSnapshot 的注释）。
         // 绝不能在这里直接读 keyboardMonitor / coordinateCapture —— 本闭包在
         // captureQueue 上执行，而那两个对象由主线程维护、无锁。
         //
-        // 按键与共驾**必须是同一次快照读取**（评审 Blocking 3）：引擎在 appendFrame
-        // 里先调 keyProvider、再调 coDriveProvider；若两者各自加锁读，主线程可在
-        // 其间更新，形成 keys(t) 配 codrive(t+1)。故让 keyProvider 一次读回二者、
-        // 把共驾存进一个"每帧缓存"，coDriveProvider 直接返回该缓存值。
-        leanRecorder.keyProvider = { [weak self] in
-            guard let self else { return RawKeySample() }
+        // 按键与共驾必须是**同一个快照对象、同一次取值**（评审 Blocking 3）：
+        // `inputProvider` 一次返回主线程冻结好的 `RecordInputSnapshot`（keys + coDrive
+        // 同在），引擎侧只调用一次。此前是「keyProvider 先把 coDrive 塞进
+        // pendingCoDriveForFrame，再由 coDriveProvider 读回」的两段式跨闭包缓存，
+        // 既依赖调用顺序、又用一个可变无锁字段传值；现在合成单次读，错配在结构上不可达。
+        leanRecorder.inputProvider = { [weak self] in
+            guard let self else { return RecordInputSnapshot() }
             let snap = self.leanSnapshot.read()
-            self.pendingCoDriveForFrame = snap.coDrive
-            return snap.keys
-        }
-        // 共驾标注数据源：返回本次 appendFrame 同一个快照里读到的共驾信息。
-        leanRecorder.coDriveProvider = { [weak self] in
-            guard let self else { return CoDriveSample() }
-            return self.pendingCoDriveForFrame
+            return RecordInputSnapshot(keys: snap.keys, coDrive: snap.coDrive)
         }
         // 每段收尾都登记待标注（含 10 分钟自动分段切出来的中间段）。
         // stop() 在主动停录与轮转切段两种情形下都在主线程调用；这里再兜一次
@@ -8070,7 +8090,11 @@ final class DriveState {
         // ── 精简录制快照（必须早于引擎模式早退）──
         // 引擎模式下 UI 进程走到 :7231 就 return 了，快照必须在那之前更新，
         // 否则引擎模式下开精简录制会一直读到空按键（八列全 0）。
-        updateLeanSnapshot()
+        // 未录制时零成本：`captureLeanSnapshot` 只在 wantsFrames 时才会被读取，
+        // 但这里用 guard 避免连主线程读键盘都省掉。
+        if leanRecorder.wantsFrames {
+            leanSnapshot.store(captureLeanSnapshot())
+        }
         // leanRecorder 是 @ObservationIgnored 的类实例，其内部 isRecording/frameCount
         // 变化不会触发 SwiftUI 刷新；这里镜像到可观察字段（内部先比后写，避免空转重绘）。
         syncLeanMirror()

@@ -71,9 +71,9 @@ enum LeanRecordSelfTest {
 
         let engine = LeanRecordEngine()
         engine.clipsRootOverride = root.appendingPathComponent("normal")
-        engine.keyProvider = {
+        engine.inputProvider = {
             defer { keyCursor += 1 }
-            return keySequence[keyCursor % keySequence.count]
+            return RecordInputSnapshot(keys: keySequence[keyCursor % keySequence.count])
         }
 
         check("start() 成功", engine.start(), engine.lastError ?? "")
@@ -247,7 +247,7 @@ enum LeanRecordSelfTest {
         print("  ── 第二段：写盘失败不占用帧号 ──")
         let failEngine = LeanRecordEngine()
         failEngine.clipsRootOverride = root.appendingPathComponent("failure")
-        failEngine.keyProvider = { RawKeySample() }
+        failEngine.inputProvider = { RecordInputSnapshot(keys: RawKeySample()) }
         check("第二段 start() 成功", failEngine.start(), failEngine.lastError ?? "")
 
         let failClips = clips(in: root.appendingPathComponent("failure"))
@@ -329,7 +329,7 @@ enum LeanRecordSelfTest {
         print("  ── 第三段：15fps 限流 ──")
         let throttleEngine = LeanRecordEngine()
         throttleEngine.clipsRootOverride = root.appendingPathComponent("throttle")
-        throttleEngine.keyProvider = { RawKeySample() }
+        throttleEngine.inputProvider = { RecordInputSnapshot(keys: RawKeySample()) }
         check("第三段 start() 成功", throttleEngine.start(), throttleEngine.lastError ?? "")
         for _ in 0..<10 { throttleEngine.appendFrame(pixelBuffer: buffer) }
         usleep(70_000)                                    // 70ms > minGap 60ms
@@ -375,7 +375,7 @@ enum LeanRecordSelfTest {
         // 负例：15Hz 正常节奏**绝不能**误停
         let cadenceOK = LeanRecordEngine()
         cadenceOK.clipsRootOverride = root.appendingPathComponent("cadence_ok")
-        cadenceOK.keyProvider = { RawKeySample() }
+        cadenceOK.inputProvider = { RecordInputSnapshot(keys: RawKeySample()) }
         cadenceOK.contractMinSamples = 5
         cadenceOK.contractBreachLimit = 3
         check("契约监视·负例 start() 成功", cadenceOK.start(), cadenceOK.lastError ?? "")
@@ -392,7 +392,7 @@ enum LeanRecordSelfTest {
         // 正例：~10Hz 持续出界必须真的停下来并说明原因
         let cadenceBad = LeanRecordEngine()
         cadenceBad.clipsRootOverride = root.appendingPathComponent("cadence_bad")
-        cadenceBad.keyProvider = { RawKeySample() }
+        cadenceBad.inputProvider = { RecordInputSnapshot(keys: RawKeySample()) }
         cadenceBad.contractMinSamples = 5
         cadenceBad.contractBreachLimit = 3
         check("契约监视·正例 start() 成功", cadenceBad.start(), cadenceBad.lastError ?? "")
@@ -438,7 +438,7 @@ enum LeanRecordSelfTest {
         print("  ── 第四段：分段回调（每段都要被标注）──")
         let rotateEngine = LeanRecordEngine()
         rotateEngine.clipsRootOverride = root.appendingPathComponent("rotation")
-        rotateEngine.keyProvider = { RawKeySample() }
+        rotateEngine.inputProvider = { RecordInputSnapshot(keys: RawKeySample()) }
         rotateEngine.maxSegmentSeconds = 0.05          // 70ms/帧 → 第 2 帧即触发轮转
         var closedPaths: [String] = []
         rotateEngine.onSegmentClosed = { closedPaths.append($0) }
@@ -681,6 +681,22 @@ enum LeanRecordSelfTest {
 
     // MARK: - 辅助
 
+    /// 自检专用：线程安全的 0/1 翻转器（并发快照回归里模拟"主线程高频更新"）。
+    private final class SelfTestAtomicToggle: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        func read() -> Int { lock.lock(); defer { lock.unlock() }; return value }
+        func flip() { lock.lock(); value ^= 1; lock.unlock() }
+    }
+
+    /// 自检专用：线程安全的一次性标志（用来让后台写者优雅退出）。
+    private final class SelfTestAtomicFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var flag = false
+        func set() { lock.lock(); flag = true; lock.unlock() }
+        func isSet() -> Bool { lock.lock(); defer { lock.unlock() }; return flag }
+    }
+
     private static func clips(in root: URL) -> [URL] {
         let fm = FileManager.default
         guard let names = try? fm.contentsOfDirectory(atPath: root.path) else { return [] }
@@ -777,10 +793,10 @@ enum LeanRecordSelfTest {
         let engine = LeanRecordEngine()
         engine.coDriveMode = true
         engine.clipsRootOverride = root.appendingPathComponent("co")
-        engine.keyProvider = { sampleKey(w: 1) }
-        engine.coDriveProvider = {
+        engine.inputProvider = {
             defer { coCursor += 1 }
-            return coSequence[coCursor % coSequence.count]
+            let co = coSequence[coCursor % coSequence.count]
+            return RecordInputSnapshot(keys: sampleKey(w: 1), coDrive: co)
         }
         check("共驾 start() 成功", engine.start(), engine.lastError ?? "")
 
@@ -835,7 +851,7 @@ enum LeanRecordSelfTest {
         let engine2 = LeanRecordEngine()
         engine2.coDriveMode = false
         engine2.clipsRootOverride = root.appendingPathComponent("plain")
-        engine2.keyProvider = { sampleKey(w: 1) }
+        engine2.inputProvider = { RecordInputSnapshot(keys: sampleKey(w: 1)) }
         check("普通录制 start() 成功", engine2.start(), engine2.lastError ?? "")
         for _ in 0..<3 {
             engine2.appendFrame(pixelBuffer: buffer)
@@ -856,7 +872,110 @@ enum LeanRecordSelfTest {
             check("普通录制生成 clip", false)
         }
 
-        print("  ── 共驾自检结束：\(failures == 0 ? "全部通过" : "\(failures) 项失败") ──")
+        // ── 并发快照一致性回归（评审 Blocking 3）──
+        // 真跑一条并发链路：一个后台写者高频 store 不同的 (w, aiV) 组合（w 在 0/1 间切，
+        // aiV = w），同时主线程 appendFrame 持续写入。若引擎把 keys 与 coDrive 分两次
+        // 取值（旧实现），就会读到「w 与 aiV 不配套」的错配帧；合并成单次 inputProvider
+        // 后，每一行都必然满足 aiV == w。用真实 `CoDriveSample.compute` 造样本，不伪造。
+        // 断言是确定性的：只要出现一行 aiV≠w 即失败，与机器快慢无关（慢只是少写几帧）。
+        print("  ── 并发快照一致性回归（Blocking 3）──")
+        let concEngine = LeanRecordEngine()
+        concEngine.coDriveMode = true
+        concEngine.clipsRootOverride = root.appendingPathComponent("snapshot_consistency")
+        let toggle = SelfTestAtomicToggle()
+        concEngine.inputProvider = {
+            let w = toggle.read()
+            // 同一快照对象内同时确定 keys 与 coDrive：aiV 恒等于 w。
+            let keys = sampleKey(w: w)
+            let co = CoDriveSample.compute(userHolding: false,
+                                           aiV: w, aiH: 0, aiShift: 0, aiSpace: 0)
+            return RecordInputSnapshot(keys: keys, coDrive: co)
+        }
+        let stopFlag = SelfTestAtomicFlag()
+        let concWriter = DispatchQueue(label: "selftest.snapshot.writer")
+        concWriter.async {
+            while !stopFlag.isSet() {
+                toggle.flip()
+                usleep(500)                     // 每 0.5ms 翻一次：远快于 66ms 的取快照节奏
+            }
+        }
+        check("并发快照 start() 成功", concEngine.start(), concEngine.lastError ?? "")
+        for _ in 0..<40 {
+            concEngine.appendFrame(pixelBuffer: buffer)
+            usleep(66_667)
+        }
+        stopFlag.set()                          // 先停写者，再 stop 让 writeQueue 排空
+        concEngine.stop()
+        let concClips = clips(in: root.appendingPathComponent("snapshot_consistency"))
+        if let cc = concClips.first {
+            let coTxt = (try? String(contentsOf: cc.appendingPathComponent("codrive.csv"),
+                                     encoding: .utf8)) ?? ""
+            let ctrlTxt = (try? String(contentsOf: cc.appendingPathComponent("controls.csv"),
+                                       encoding: .utf8)) ?? ""
+            let coRows = coTxt.split(separator: "\n", omittingEmptySubsequences: true)
+                .dropFirst().map { $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init) }
+            let ctrlRows = ctrlTxt.split(separator: "\n", omittingEmptySubsequences: true)
+                .dropFirst().map { $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init) }
+            // 建立 frame → w（controls）与 frame → aiV（codrive），逐帧比对 aiV == w。
+            var wByFrame: [String: String] = [:]
+            for r in ctrlRows where r.count == 11 { wByFrame[r[1]] = r[3] }   // 列3 = w
+            var mismatches = 0
+            var compared = 0
+            for r in coRows where r.count == 9 {
+                guard let w = wByFrame[r[0]] else { continue }
+                compared += 1
+                if r[3] != w { mismatches += 1 }   // 列3 = ai_vertical
+            }
+            check("并发快照：确有足够的对齐样本（≥20 帧）", compared >= 20, "实际 \(compared) 帧")
+            check("并发快照：全部帧 ai_vertical == w（无错配）", mismatches == 0,
+                  "错配 \(mismatches)/\(compared) 帧")
+        } else {
+            check("并发快照生成 clip", false)
+        }
+
+        // ── 轮转保留共驾回归（B4：切到下一段 ≠ 终止录制）──
+        // 验证两条互补语义：① 自动分段**轮转**时共驾意图延续（新段仍建 codrive.csv，
+        // 且引擎仍 recording）；② 真正**终止录制**时 stop() 把 coDriveMode 复位。
+        // 这条覆盖的正是被本次改动触及的轮转分支（stop(resetCoDriveMode: false)）。
+        print("  ── 轮转保留共驾（B4）──")
+        let rotEngine = LeanRecordEngine()
+        rotEngine.coDriveMode = true
+        rotEngine.clipsRootOverride = root.appendingPathComponent("rotation_codrive")
+        rotEngine.maxSegmentSeconds = 0.05           // 70ms/帧 → 第 2 帧即触发轮转
+        rotEngine.inputProvider = {
+            RecordInputSnapshot(keys: sampleKey(w: 1),
+                                coDrive: CoDriveSample.compute(userHolding: false,
+                                                               aiV: 0, aiH: 1, aiShift: 0, aiSpace: 0))
+        }
+        var rotClosed: [String] = []
+        rotEngine.onSegmentClosed = { rotClosed.append($0) }
+        check("轮转+共驾 start() 成功", rotEngine.start(), rotEngine.lastError ?? "")
+        rotEngine.appendFrame(pixelBuffer: buffer)   // 第 1 帧：不触发
+        usleep(70_000)
+        rotEngine.appendFrame(pixelBuffer: buffer)   // 第 2 帧：触发轮转 → main.async
+        let rotDeadline = Date().addingTimeInterval(2.0)
+        while rotClosed.isEmpty && Date() < rotDeadline {
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01))
+        }
+        check("轮转触发首次 onSegmentClosed", rotClosed.count == 1, "实际 \(rotClosed.count)")
+        check("轮转后仍在录制（切段不是终止）", rotEngine.isRecording)
+        check("轮转后 coDriveMode 仍为 true（共驾延续，未被终止逻辑复位）",
+              rotEngine.coDriveMode)
+        rotEngine.maxSegmentSeconds = 600            // 调回，避免下面 sleep 后立刻再切
+        usleep(70_000)
+        rotEngine.appendFrame(pixelBuffer: buffer)   // 新段 1 帧
+        rotEngine.stop()                             // 终止 → 默认复位
+        let rotClips = clips(in: root.appendingPathComponent("rotation_codrive"))
+        check("轮转产出 2 个 clip", rotClips.count == 2, "实际 \(rotClips.count)")
+        let rotBothHaveCodrive = rotClips.allSatisfy {
+            FileManager.default.fileExists(atPath: $0.appendingPathComponent("codrive.csv").path)
+        }
+        check("两段都生成 codrive.csv（共驾跨段延续）", rotBothHaveCodrive,
+              rotClips.map { ($0.lastPathComponent) }.joined(separator: ","))
+        check("终止录制后 coDriveMode 复位为 false（B4）", rotEngine.coDriveMode == false)
+
+        let summary = failures == 0 ? "全部通过" : "\(failures) 项失败"
+        print("  ── 共驾自检结束：\(summary) ──")
         return failures
     }
 
@@ -875,13 +994,60 @@ enum LeanRecordSelfTest {
         badEngine.coDriveMode = true
         // /dev/null 不是目录，其子路径不可创建 → makeSessionDir 失败。
         badEngine.clipsRootOverride = URL(fileURLWithPath: "/dev/null/impossible")
-        badEngine.keyProvider = { sampleKey(w: 1) }
-        badEngine.coDriveProvider = { CoDriveSample() }
+        badEngine.inputProvider = { RecordInputSnapshot(keys: sampleKey(w: 1)) }
         let started = badEngine.start()
         check("不可写根 → 不崩溃（返回明确结果）", true)
         check("不可写根 → 未开始录制", started == false, "started=\(started)")
         check("不可写根 → lastError 非空可见", (badEngine.lastError?.isEmpty == false),
               badEngine.lastError ?? "nil")
+
+        // ── codrive 创建失败降级回归（评审 Blocking 5，真实走降级分支）──
+        // 用**可写的真实根目录**，只让 codrive.csv 的创建失败（注入），验证关键语义：
+        //   ① 录制仍成功（主数据 controls.csv/frames 不因旁路失败而失败）
+        //   ② lastError 明确可见、且措辞是"降级"（不是被 openSession 结尾擦掉）
+        //   ③ 真实会话共驾态 sessionCoDriveActive=false（UI 据此不会显示共驾成功）
+        //   ④ 根本没生成 codrive.csv
+        // 这正是旧实现的真 bug：openSession 结尾 `lastError=nil` 会把降级告警擦掉，
+        // 且 UI 曾用请求态 coDriveMode 而谎报成功。此段把三个后果都钉死。
+        let degradeRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("codrive_degrade_\(Int(Date().timeIntervalSince1970))")
+        let degEngine = LeanRecordEngine()
+        degEngine.coDriveMode = true
+        degEngine.clipsRootOverride = degradeRoot
+        degEngine.simulateCoDriveCreateFailureForSelfTest = true
+        degEngine.inputProvider = { RecordInputSnapshot(keys: sampleKey(w: 1),
+                                                        coDrive: CoDriveSample.compute(
+                                                            userHolding: false, aiV: 0, aiH: 1,
+                                                            aiShift: 0, aiSpace: 0)) }
+        let degStarted = degEngine.start()
+        check("降级：codrive 创建失败但录制**成功**（主数据不受影响）", degStarted,
+              degEngine.lastError ?? "")
+        check("降级：lastError 可见且为降级措辞（未被清空）",
+              (degEngine.lastError?.contains("降级") ?? false), degEngine.lastError ?? "nil")
+        check("降级：sessionCoDriveActive=false（UI 不显示共驾成功）",
+              degEngine.sessionCoDriveActive == false)
+        // 喂 3 帧真实走写盘（controls 必须照常产出）。
+        if let degBuffer = makeTestPixelBuffer(width: 1280, height: 832) {
+            for _ in 0..<3 {
+                degEngine.appendFrame(pixelBuffer: degBuffer)
+                usleep(66_667)
+            }
+        }
+        degEngine.stop()
+        let degClips = clips(in: degradeRoot)
+        if let dc = degClips.first {
+            check("降级：controls.csv 仍生成（主数据正常）",
+                  FileManager.default.fileExists(atPath: dc.appendingPathComponent("controls.csv").path))
+            let dcCtrl = ((try? String(contentsOf: dc.appendingPathComponent("controls.csv"),
+                                       encoding: .utf8)) ?? "")
+                .split(separator: "\n", omittingEmptySubsequences: true).count
+            check("降级：controls 有表头 + 3 数据行", dcCtrl == 4, "实际 \(dcCtrl) 行")
+            check("降级：**未**生成 codrive.csv（旁路确实失败）",
+                  !FileManager.default.fileExists(atPath: dc.appendingPathComponent("codrive.csv").path))
+        } else {
+            check("降级：生成 clip", false)
+        }
+
         print("  ── 失败降级自检结束：\(failures == 0 ? "全部通过" : "\(failures) 项失败") ──")
         return failures
     }

@@ -141,6 +141,17 @@ struct CoDriveSample {
     }
 }
 
+/// 一帧的「按键 + 共驾」快照（**同一时刻、同一对象**）。
+///
+/// 由接线方（App 的 `LeanInputSnapshot`）在抓屏队列上一次性构造并交给引擎，
+/// 引擎在 `appendFrame` 里只取一次、绝不分两次取值。评审 Blocking 3 要求的正是
+/// 「按键快照与 codrive 标注在同一个快照对象内一次存取」—— 把 keys/coDrive 绑在
+/// 同一个值类型里，从类型层面排除「keys(t) 配 codrive(t+1)」的跨次读取错配。
+struct RecordInputSnapshot {
+    var keys = RawKeySample()
+    var coDrive = CoDriveSample()
+}
+
 /// 精简录制引擎：只负责落盘，不跑任何模型。
 ///
 /// 输出目录（与训练用的 `data/raw_clips` 隔离，避免未标注数据混进训练扫描）：
@@ -200,14 +211,28 @@ final class LeanRecordEngine: @unchecked Sendable {
     /// nil = 用默认的 `data/lean_clips`。
     var clipsRootOverride: URL?
 
+    /// 仅自检用的失败注入开关：为 true 时 `openSession` 跳过 codrive.csv 的实际
+    /// 创建，走「创建失败 → 降级为普通录制」分支。默认 false（生产零影响）。
+    ///
+    /// 【为什么需要一个注入点，而不是像第二段那样 chmod frames/ 造写失败】
+    ///   Blocking 5 要验证的是「codrive.csv **创建失败**但主数据仍成功」这条降级
+    ///   路径。chmod 影响的是整目录写权限，会把 controls.csv 主数据也一并弄失败，
+    ///   测不到"旁路失败、主数据不失败"这个关键语义。而 codrive 那行的 createFile
+    ///   结果是硬的、没有优雅的 OS 级失败开关，故按本文件既有惯例（`contractBreachLimit`
+    ///   等"为自检开放的可调 var"）提供一个默认关的注入位，走真实降级分支本身。
+    var simulateCoDriveCreateFailureForSelfTest = false
+
     // MARK: 数据源（由接线方注入，引擎自己不抓包也不监听键盘）
 
-    /// 取当前按键快照。UI 进程注入 → `keyboardMonitor` 的实时状态。
-    var keyProvider: () -> RawKeySample = { RawKeySample() }
-
-    /// 取当前共驾标注快照（AI 动作 / 是否接管 / 碰撞 / 车道偏置）。
-    /// 与 `keyProvider` 同样由主线程拍好、抓屏队列读，保证与画面同帧对齐。
-    var coDriveProvider: () -> CoDriveSample = { CoDriveSample() }
+    /// 一次性取「按键 + 共驾」的同帧快照。UI 进程注入 → 主线程拍好的加锁快照。
+    ///
+    /// 【为什么是一个闭包，而不是 keyProvider / coDriveProvider 两个】
+    ///   评审 Blocking 3 要求按键与共驾标注**在同一快照对象内一次存取**。原先把它们
+    ///   拆成两个闭包、在 `appendFrame` 里先后调用，中间还隔着对 `sessionCoDrive`
+    ///   的一次加锁读 —— 即便二者各自加锁，也无法从类型上保证「两次拿到的是同一
+    ///   时刻」。这里合并成**单次调用**，接线方直接返回一份已冻结的
+    ///   `RecordInputSnapshot`，引擎侧再无权分两次取值 —— 错配在结构上不可达。
+    var inputProvider: () -> RecordInputSnapshot = { RecordInputSnapshot() }
 
     /// 每关闭一段就回调一次（含 10 分钟自动分段切出来的中间段），参数是产物目录路径。
     ///
@@ -355,7 +380,14 @@ final class LeanRecordEngine: @unchecked Sendable {
     }
 
     /// 停止录制。会同步等待写盘队列排空，保证最后几帧与 meta.json 都落盘。
-    func stop() {
+    ///
+    /// - Parameter resetCoDriveMode: 停录时是否把 `coDriveMode` 复位为 false。
+    ///   **默认 true**：任何「真正终止录制」的路径（手动停、帧率异常自动停、
+    ///   交接超时放弃、App 退出）都必须复位，避免模式残留给下一段普通录制而
+    ///   悄悄建出 codrive.csv（评审 Blocking 4）。**唯一传 false 的是自动分段
+    ///   轮转**——它紧接着就 `start()` 开下一段、共驾意图应当延续；若轮转后的
+    ///   重启失败，轮转代码会立即补一次复位（那也是「终止录制」）。
+    func stop(resetCoDriveMode: Bool = true) {
         guard isRecording else { return }
 
         stateLock.lock()
@@ -383,6 +415,13 @@ final class LeanRecordEngine: @unchecked Sendable {
         // 所以回调**只能登记路径，不能在这里做标注**（会与新段抓屏抢 CPU）。
         if let closedPath = lastClipPath {
             onSegmentClosed?(closedPath)
+        }
+        // 【评审 Blocking 4】默认停录即复位共驾模式：所有「终止录制」的路径（手动停、
+        // 帧率异常自动停、交接超时放弃、App 退出）都走这里，一次覆盖，避免模式残留
+        // 给下一段普通录制而悄悄建出 codrive.csv。轮转切段传 false 故意保留。
+        // 复位放在 onSegmentClosed 之后：让本轮产物照常入标注队列，再清意图。
+        if resetCoDriveMode {
+            coDriveMode = false
         }
     }
 
@@ -456,13 +495,19 @@ final class LeanRecordEngine: @unchecked Sendable {
 
         // 时间戳与标签必须在**帧到达的这一刻**取，不能等到写盘时再取：
         // 写盘是异步的，晚取会把"下一帧的按键"贴到"这一帧的画面"上（标签错位）。
-        let keys = keyProvider()
-        // 共驾标注：只有**本会话**真的开了共驾才取值（读锁保护的 sessionCoDrive，
-        // 不裸读主线程的 coDriveMode）。关闭时零成本。
+        //
+        // 按键 + 共驾标注必须**在同一次快照读取里**拿到（评审 Blocking 3）：
+        //   `inputProvider()` 一次返回冻结好的 `RecordInputSnapshot`（keys 与 coDrive
+        //   同在）。此前是「先 keyProvider 再（加锁读 sessionCoDrive）再 coDriveProvider」
+        //   三段式，主线程可在其间更新 → keys(t) 配 codrive(t+1) 错配。现在只有一个
+        //   取值点，结构上不可能错配。
+        //   关闭共驾时把 coDrive 置为空样本（enabled=false），下游整条 codrive 链路零成本。
+        let snapshot = inputProvider()
+        let keys = snapshot.keys
         stateLock.lock()
         let coEnabled = sessionCoDrive
         stateLock.unlock()
-        let coSample = coEnabled ? coDriveProvider() : CoDriveSample()
+        let coSample = coEnabled ? snapshot.coDrive : CoDriveSample()
 
         stateLock.lock()
         let elapsed = now.timeIntervalSince(sessionStart ?? now)
@@ -483,7 +528,9 @@ final class LeanRecordEngine: @unchecked Sendable {
             // 先 stop 再 start：stop 内部会 writeQueue.sync 排空，保证前一段完整。
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.isRecordingSnapshot else { return }
-                self.stop()
+                // 轮转：**不复位** coDriveMode —— 这是「切到下一段」而非「终止录制」，
+                // 共驾意图应当延续到新段（openSession 会按它重新建 codrive.csv）。
+                self.stop(resetCoDriveMode: false)
                 self.stateLock.lock()
                 self.segmentIndex += 1
                 self.restartedPending = false
@@ -493,6 +540,9 @@ final class LeanRecordEngine: @unchecked Sendable {
                 // 若静默吞掉，用户只看到"录制停止"却不知原因；lastError 由
                 // syncLeanMirror 镜像到界面。
                 if !self.start() {
+                    // 重启失败 = 这一轮「终止录制」而不是「轮转到下一段」：必须复位
+                    // 共驾模式（评审 Blocking 4），否则下次点普通录制仍会带上 codrive.csv。
+                    self.coDriveMode = false
                     print("[lean] ❌ 自动分段失败，录制已停止：\(self.lastError ?? "未知原因")")
                 }
             }
@@ -807,24 +857,32 @@ final class LeanRecordEngine: @unchecked Sendable {
         //   重新判定，不会残留上一段的模式（评审 Blocking 4）。
         var coHandle: FileHandle? = nil
         var effectiveCoDrive = false
+        // 降级原因先落局部变量，**不能**直接写 lastError 再在结尾被 `lastError = nil`
+        // 擦掉（那会让评审 Blocking 5 要求的"降级可见"形同虚设）。结尾统一
+        // `lastError = coDriveDegradedError`：既清掉上一段的陈旧错误，又保留本次降级信息。
+        var coDriveDegradedError: String? = nil
         if coDriveMode {
             let coURL = dir.appendingPathComponent("codrive.csv")
             let coHeader = "frame,source,took_over,ai_vertical,ai_horizontal,"
                 + "ai_shift,ai_space,collided,lane_offset\n"
             // 创建或打开失败都要**显式告警并降级**（评审 Blocking 5）：不能让 UI 以为
             // 共驾成功、也不能让每帧白试写。effectiveCoDrive 只在句柄真的拿到时为真。
-            if !fm.createFile(atPath: coURL.path,
-                              contents: coHeader.data(using: .utf8)) {
-                lastError = "无法创建 codrive.csv，本次共驾采集降级为普通录制"
-                print("[lean] ⚠️ \(lastError ?? "")")
+            // `simulateCoDriveCreateFailureForSelfTest` 让自检走这条真实的「创建失败」
+            // 分支：此时**不**创建 codrive.csv、不拿句柄，直接落到降级。
+            if simulateCoDriveCreateFailureForSelfTest
+                || !fm.createFile(atPath: coURL.path,
+                                  contents: coHeader.data(using: .utf8)) {
+                coDriveDegradedError = "无法创建 codrive.csv，本次共驾采集降级为普通录制"
             } else if let ch = FileHandle(forWritingAtPath: coURL.path) {
                 ch.seekToEndOfFile()
                 coHandle = ch
                 effectiveCoDrive = true
             } else {
-                lastError = "无法打开 codrive.csv 句柄，本次共驾采集降级为普通录制"
-                print("[lean] ⚠️ \(lastError ?? "")")
+                coDriveDegradedError = "无法打开 codrive.csv 句柄，本次共驾采集降级为普通录制"
             }
+        }
+        if let degraded = coDriveDegradedError {
+            print("[lean] ⚠️ \(degraded)")
         }
 
         stateLock.lock()
@@ -854,7 +912,8 @@ final class LeanRecordEngine: @unchecked Sendable {
         //    监视器也必须按段看。
         cadenceIntervals.removeAll(keepingCapacity: true)
         contractBreachStreak = 0
-        lastError = nil
+        // 清陈旧错误，但**保留本次 codrive 降级原因**（有则可见，无则 nil）。
+        lastError = coDriveDegradedError
         stateLock.unlock()
         return true
     }
@@ -951,6 +1010,18 @@ final class LeanRecordEngine: @unchecked Sendable {
         stateLock.lock()
         defer { stateLock.unlock() }
         return framesWrittenLocked
+    }
+
+    /// 本会话**实际**在写 codrive.csv 吗（stateLock 保护）。
+    ///
+    /// 【为什么 UI 必须读这个、而不是读 `coDriveMode`】`coDriveMode` 只是"意图"：
+    ///   codrive.csv 创建/打开失败时引擎会降级为普通录制（`sessionCoDrive=false`），
+    ///   但 `coDriveMode` 仍是 true。若 UI 按 `coDriveMode` 显示"共驾中"，就会在
+    ///   共驾实际失败时谎报成功（评审 Blocking 5）。故镜像层用这个真实会话态。
+    var sessionCoDriveActive: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return sessionCoDrive
     }
 
     /// 最近一帧的宽高（写 meta 用；在 writeQueue 里更新）

@@ -1,197 +1,244 @@
-"""Property/invariant tests: randomised + boundary coverage to harden the RL maths.
+"""Property / invariant tests for the CURRENT reward + torch policy code.
 
-These are genuine invariants (monotonicity, probability simplex, gradient-flow
-sanity, reward sign properties) exercised over many random seeds, not padding.
+Randomised coverage, but every assertion is a genuine invariant -- there are NO
+constant-true placeholder assertions. The old numpy-only helpers no longer exist
+and are not referenced. Policy paths use a tiny synthetic backbone (no real
+checkpoint, no real model).
 """
 
 import sys
 from pathlib import Path
 
 import numpy as np
+import torch
+import torch.nn as nn
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+_HERE = Path(__file__).resolve()
+sys.path.insert(0, str(_HERE.parents[1]))   # tools/v3_rl
+sys.path.insert(0, str(_HERE.parents[3]))   # repo root
 import reward as R  # noqa: E402
 import policy as P  # noqa: E402
-import train_rl as T  # noqa: E402
 from tests import _harness as H  # noqa: E402
+
+
+class _Head(nn.Module):
+    def __init__(self, d: int = 6, hidden: int = 8):
+        super().__init__()
+        self.trunk = nn.Linear(d, hidden)
+        self.vertical = nn.Linear(hidden, 3)
+        self.horizontal = nn.Linear(hidden, 3)
+
+
+class _FakeV3(nn.Module):
+    def __init__(self, d: int = 6):
+        super().__init__()
+        self.output_head = _Head(d)
+        self.backbone = nn.Linear(d, d)
+
+
+def _pol(d: int = 6) -> P.TorchPolicy:
+    return P.TorchPolicy(_FakeV3(d), state_dim=d)
+
+
+def _ref_backfill(events, ft, window):
+    """Independent brute-force reimplementation of the backward backfill."""
+    n = len(ft)
+    out = np.zeros(n, dtype=np.float32)
+    evs = sorted(((e.t, e.score) for e in events
+                  if np.isfinite(e.t) and np.isfinite(e.score)), key=lambda x: x[0])
+    for t, sc in evs:
+        for j in range(n):
+            if (ft[j] > t - window) and (ft[j] <= t + 1e-9):
+                out[j] = max(-1.0, min(1.0, sc))
+    return out
 
 
 def run() -> None:
     rng = np.random.default_rng(123)
 
-    # ── reward monotonicity: higher valid speed -> higher speed_term ────
+    # ── reward monotonicity / bounds ─────────────────────────────────────
     prev = -1.0
     for sp in range(0, 101, 5):
         st = R.speed_term(float(sp), True)
         H.check(st >= prev - 1e-9, f"speed_term monotone at {sp}")
         prev = st
 
-    # speed_term in [0,1] for a wide range
     for _ in range(50):
         sp = float(rng.uniform(-100, 400))
-        st = R.speed_term(sp, True)
-        H.check(0.0 <= st <= 1.0, f"speed_term in [0,1] for {sp:.1f}")
-
-    # lane_term in [0,1]
+        H.check(0.0 <= R.speed_term(sp, True) <= 1.0, "speed_term in [0,1]")
     for _ in range(50):
         off = float(rng.uniform(-3, 3))
-        H.check(0.0 <= R.lane_term(off) <= 1.0, f"lane_term in [0,1] for {off:.2f}")
-
-    # decel_term in [0,1]
+        H.check(0.0 <= R.lane_term(off) <= 1.0, "lane_term in [0,1]")
     for _ in range(50):
         a = float(rng.uniform(0, 200)); b = float(rng.uniform(0, 200))
-        H.check(0.0 <= R.decel_term(a, b, True) <= 1.0, f"decel_term in [0,1]")
+        H.check(0.0 <= R.decel_term(a, b, True) <= 1.0, "decel_term in [0,1]")
 
-    # dense reward: moving fast & centred beats stopped
     fast = R.dense_reward(100.0, True, 100.0, 0.0, False)
     for _ in range(20):
         slow_sp = float(rng.uniform(0, 30))
         slow = R.dense_reward(slow_sp, True, slow_sp, 0.0, False)
-        H.check(fast > slow, f"fast beats slow ({fast:.2f}>{slow:.2f})")
+        H.check(fast > slow, "fast & centred beats stopped")
 
-    # takeover always makes reward worse
-    base = R.dense_reward(50.0, True, 50.0, 0.0, False)
     for _ in range(20):
         sp = float(rng.uniform(0, 100))
         d = R.dense_reward(sp, True, sp, 0.0, False)
         H.check(R.compose_frame_reward(d, 0.0, True) < R.compose_frame_reward(d, 0.0, False),
-                "takeover lowers reward")
+                "takeover strictly lowers reward")
 
-    # backfill: total energy never exceeds a single full-window spread
+    # ── backfill vs brute-force reference, range, no NaN ────────────────
     fps = 15.0
     n = 300
+    ft = np.arange(n, dtype=np.float64) / fps
     for _ in range(20):
         events = [R.HumanEvent(float(rng.uniform(0, n / fps)), float(rng.uniform(-1, 1)))
-                  for _ in range(rng.integers(1, 8))]
-        sc = R.backfill_human_scores(events, n, fps)
+                  for _ in range(int(rng.integers(1, 8)))]
+        sc = R.backfill_human_scores(events, ft)
         H.check(sc.shape == (n,), "backfill shape")
         H.check(np.all(sc >= -1.0) and np.all(sc <= 1.0), "backfill in [-1,1]")
         H.check(not np.any(np.isnan(sc)), "backfill no NaN")
-        # no forward smear: last frame only set if an event's window reaches it
-        H.check(True, "backfill scan")  # counted once per loop
+        H.check(np.allclose(sc, _ref_backfill(events, ft, 0.5), atol=1e-6),
+                "backfill matches brute-force reference")
 
-    # backfill determinism
     ev = [R.HumanEvent(1.0, 0.7)]
-    a1 = R.backfill_human_scores(ev, 40, fps)
-    a2 = R.backfill_human_scores(ev, 40, fps)
+    a1 = R.backfill_human_scores(ev, ft)
+    a2 = R.backfill_human_scores(ev, ft)
     H.check(np.array_equal(a1, a2), "backfill deterministic")
 
-    # discounted_returns monotonic in gamma for positive rewards
-    rew = [1.0, 1.0, 1.0, 1.0]
-    g_low = R.discounted_returns(rew, gamma=0.5)
-    g_high = R.discounted_returns(rew, gamma=0.9)
-    H.check(g_high[0] > g_low[0], "higher gamma -> higher return")
+    # no forward smear: single event, every frame AFTER the press stays 0
+    scf = R.backfill_human_scores([R.HumanEvent(1.0, 1.0)], ft)
+    after = np.where(ft > 1.0)[0]
+    H.check(np.all(scf[after] == 0.0), "no forward smear after press")
+    inside = np.where((ft > 0.5) & (ft <= 1.0))[0]
+    H.check(np.allclose(scf[inside], 1.0), "all in-window frames scored")
 
-    # gae: with zero rewards and zero values, advantages are all zero
-    adv, vt = R.gae_advantages([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.99, 0.95)
-    H.check(np.allclose(adv, 0.0), "gae zero rewards zero adv")
+    # ── gae invariants ──────────────────────────────────────────────────
+    adv_lo, _ = R.gae_advantages([1.0] * 4, [0.0] * 4, gamma=0.5, lam=0.95)
+    adv_hi, _ = R.gae_advantages([1.0] * 4, [0.0] * 4, gamma=0.9, lam=0.95)
+    H.check(float(adv_hi[0]) > float(adv_lo[0]), "higher gamma -> higher advantage")
 
-    # ── policy: probs are a simplex over random inputs ──────────────────
-    F = 10
-    for _ in range(20):
-        pol = P.DiscretePolicy.from_dim(F, seed=int(rng.integers(0, 1000)))
-        X = rng.normal(size=(8, F))
-        vp = pol.v_probs(X); hp = pol.h_probs(X)
-        H.check(np.allclose(vp.sum(1), 1.0), "v probs simplex")
-        H.check(np.allclose(hp.sum(1), 1.0), "h probs simplex")
-        H.check(np.all(vp >= 0) and np.all(vp <= 1), "v prob range")
-        H.check(np.all(hp >= 0) and np.all(hp <= 1), "h prob range")
+    adv0, vt0 = R.gae_advantages([0.0] * 3, [0.0] * 3)
+    H.check(np.allclose(adv0, 0.0), "gae zero rewards -> zero adv")
+    H.check(np.allclose(vt0, 0.0), "gae zero rewards -> zero value target")
 
-    # BC loss >= 0 always
-    for _ in range(20):
-        pol = P.DiscretePolicy.from_dim(F, seed=int(rng.integers(0, 1000)))
-        X = rng.normal(size=(12, F))
-        vt = rng.integers(0, 3, 12); ht = rng.integers(0, 3, 12)
-        loss, _ = P.bc_loss_and_grads(pol, X, vt, ht)
-        H.check(loss >= 0.0, "BC loss non-negative")
+    advp, _ = R.gae_advantages([0.0, 10.0], [0.0, 0.0], episode_ends=[True, True])
+    H.check_close(float(advp[0]), 0.0, msg="per-episode: ep0 isolated (no leak)")
+    H.check_close(float(advp[1]), 10.0, msg="per-episode: ep1 terminal adv 10")
 
-    # BC: perfect prediction -> near-zero loss
-    pol = P.DiscretePolicy.from_dim(3, seed=1)
-    # force near-deterministic head for label 0
-    pol.v_w = np.zeros((3, 3), dtype=np.float64); pol.v_b = np.array([50.0, -50, -50], dtype=np.float64)
-    pol.h_w = np.zeros((3, 3), dtype=np.float64); pol.h_b = np.array([50.0, -50, -50], dtype=np.float64)
-    X = np.eye(3, dtype=np.float64)
-    loss, _ = P.bc_loss_and_grads(pol, X, np.array([0, 0, 0]), np.array([0, 0, 0]))
-    H.check(loss < 1e-3, f"BC loss near zero on confident-correct ({loss:.2e})")
-
-    # normalize_advantages idempotent-ish and finite
+    # ── normalize_advantages ────────────────────────────────────────────
     for _ in range(10):
         adv = rng.normal(size=50)
-        na = P.normalize_advantages(adv)
+        na = R.normalize_advantages(adv)
         H.check(np.isfinite(na).all(), "norm adv finite")
         H.check_close(float(na.mean()), 0.0, tol=1e-4, msg="norm adv mean 0")
+        H.check_close(float(na.std()), 1.0, tol=1e-4, msg="norm adv std 1")
+    bad = R.normalize_advantages(np.array([np.nan, 1.0, np.inf, -np.inf]))
+    H.check(np.all(bad == 0.0), "non-finite advantages -> all zero")
 
-    # joint/split roundtrip exhaustive
-    for v in range(3):
-        for h in range(3):
-            j = T.joint_action(v, h)
-            H.check(0 <= j < 9, f"joint in range {v},{h}")
-            H.check_eq(T.split_action(j), (v, h), f"split roundtrip {v},{h}")
+    # ── policy: probability simplex over random inits ───────────────────
+    d, N = 6, 8
+    tok = torch.randn(N, d)
+    for s in range(10):
+        torch.manual_seed(s)
+        pol = _pol(d)
+        vp, hp, val = pol.probs(tok)
+        H.check(np.allclose(vp.sum(1).detach().numpy(), 1.0), "v probs simplex")
+        H.check(np.allclose(hp.sum(1).detach().numpy(), 1.0), "h probs simplex")
+        H.check(bool((vp >= 0).all() and (vp <= 1).all()), "v prob range")
+        H.check(bool((hp >= 0).all() and (hp <= 1).all()), "h prob range")
+        H.check_eq(tuple(val.shape), (N,), "value shape")
 
-    # encode_kinematics: constant output shape across varied N
-    for n in (1, 2, 5, 17):
-        sp = [float(rng.uniform(0, 100)) for _ in range(n)]
-        sv = [1.0] * n
-        kk = [{k: 0 for k in T._KEY_NAMES} for _ in range(n)]
-        H.check_eq(T.encode_kinematics(sp, sv, kk).shape, (n, 18), f"encode shape n={n}")
+    # ── bc_loss >= 0 across random policies/labels ──────────────────────
+    for s in range(20):
+        torch.manual_seed(s)
+        pol = _pol(d)
+        X = torch.randn(12, d)
+        vt = torch.randint(0, 3, (12,))
+        ht = torch.randint(0, 3, (12,))
+        loss = P.bc_loss(pol, X, vt, ht)
+        H.check(float(loss.detach()) >= 0.0, "BC loss non-negative")
 
-    # encode_kinematics features finite
-    for _ in range(10):
-        n = int(rng.integers(1, 10))
-        sp = [float(rng.uniform(-10, 300)) for _ in range(n)]
-        sv = [float(rng.integers(0, 2)) for _ in range(n)]
-        kk = [{k: int(rng.integers(0, 2)) for k in T._KEY_NAMES} for _ in range(n)]
-        feats = T.encode_kinematics(sp, sv, kk)
-        H.check(np.isfinite(feats).all(), "encode features finite")
-        H.check(np.all(feats[:, 0] <= 1.0 + 1e-6) and np.all(feats[:, 0] >= 0.0),
-                "normalized speed in [0,1]")
+    # bc loss near zero on confident-correct prediction
+    pol = _pol(d)
+    with torch.no_grad():
+        pol.v3.output_head.vertical.weight.zero_()
+        pol.v3.output_head.vertical.bias.copy_(torch.tensor([50.0, -50.0, -50.0]))
+        pol.v3.output_head.horizontal.weight.zero_()
+        pol.v3.output_head.horizontal.bias.copy_(torch.tensor([50.0, -50.0, -50.0]))
+    X = torch.randn(3, d)
+    loss = P.bc_loss(pol, X, torch.zeros(3, dtype=torch.long), torch.zeros(3, dtype=torch.long))
+    H.check(float(loss.detach()) < 1e-3, "BC loss near zero on confident-correct")
 
-    # ── PPO: importance ratio equals 1 at old==current ------------------
-    pol = P.DiscretePolicy.from_dim(4, seed=2)
-    X = rng.normal(size=(6, 4))
-    va = rng.integers(0, 3, 6); ha = rng.integers(0, 3, 6)
-    adv = rng.normal(size=6); vt = rng.normal(size=6)
-    crit = P.LinearCritic.from_dim(4, seed=3)
-    ovp = pol.v_probs(X); ohp = pol.h_probs(X)
-    loss, pg, cg = P.ppo_loss_and_grads(pol, crit, X, va, ha, adv, vt, ovp, ohp, 0.2, 0.0, None)
-    H.check(np.isfinite(loss), "ppo loss finite")
-    # at ratio==1, unclipped==clipped, PPO surrogate = mean(adv) => policy loss = -mean(adv)
-    # value part in total = vf_coef(0.5) * 0.5*MSE = 0.25*MSE
-    H.check_close(loss - 0.25 * np.mean((crit.predict(X) - vt) ** 2),
-                  -np.mean(adv), tol=1e-4,
-                  msg="PPO loss = -mean(adv) + vf at ratio 1")
+    # ── PPO: ratio == 1 when old == current, loss reconstruct ───────────
+    pol = _pol(d)
+    X = torch.randn(6, d)
+    va = torch.randint(0, 3, (6,)); ha = torch.randint(0, 3, (6,))
+    adv = torch.randn(6); vt = torch.randn(6)
+    vp, hp, _ = pol.probs(X)
+    ai = torch.ones(6, dtype=torch.bool)
+    hu = torch.zeros(6, dtype=torch.bool)
+    total, st = P.ppo_loss(pol, X, va, ha, vp, hp, adv, vt, ai_mask=ai, human_mask=hu,
+                           clip_eps=0.2, lambda_imitation=0.0, ent_coef=0.0)
+    H.check(np.isfinite(float(total.detach())), "ppo loss finite")
+    H.check_close(st["ratio_mean"], 1.0, tol=1e-5, msg="ratio == 1 when old==current")
+    H.check_close(float(total.detach()), -float(adv.mean()) + 0.5 * st["v_loss"],
+                  tol=1e-4, msg="PPO total = -mean(adv) + vf*MSE at ratio 1")
 
-    # clip bounds respected: ratio far from 1 -> clipped branch caps contribution
-    # (loss stays finite and gradient of policy term is ~0 when clipped away)
-    H.check(True, "clip stability checked")
+    # ── PPO clip: ratio far above 1+eps -> clipped branch caps pg ────────
+    pol = _pol(d)
+    X = torch.randn(6, d)
+    va = torch.zeros(6, dtype=torch.long); ha = torch.zeros(6, dtype=torch.long)
+    with torch.no_grad():
+        pol.v3.output_head.vertical.weight.zero_()
+        pol.v3.output_head.vertical.bias.copy_(torch.tensor([10.0, -10.0, -10.0]))
+        pol.v3.output_head.horizontal.weight.zero_()
+        pol.v3.output_head.horizontal.bias.copy_(torch.tensor([10.0, -10.0, -10.0]))
+    old = torch.full((6, 3), 1.0 / 3.0)
+    advp = torch.full((6,), 2.0)
+    _, stc = P.ppo_loss(pol, X, va, ha, old, old, advp, torch.zeros(6),
+                        ai_mask=torch.ones(6, dtype=torch.bool),
+                        human_mask=torch.zeros(6, dtype=torch.bool),
+                        clip_eps=0.2, lambda_imitation=0.0, ent_coef=0.0)
+    H.check(stc["ratio_mean"] > 1.2, "ratio exceeds clip upper bound")
+    H.check_close(stc["pg_loss"], -1.2 * 2.0, tol=1e-4,
+                  msg="clipped branch caps pg at -(1+eps)*adv")
 
-    # lambda_imitation scaling: doubling lambda doubles the BC gradient component
-    ovp = pol.v_probs(X); ohp = pol.h_probs(X)
-    is_h = np.ones(6, dtype=bool)
-    _, pg_lo, _ = P.ppo_loss_and_grads(pol, crit, X, va, ha, adv, vt, ovp, ohp, 0.2, 0.1, is_h)
-    _, pg_hi, _ = P.ppo_loss_and_grads(pol, crit, X, va, ha, adv, vt, ovp, ohp, 0.2, 0.2, is_h)
-    _, pg_no, _ = P.ppo_loss_and_grads(pol, crit, X, va, ha, adv, vt, ovp, ohp, 0.2, 0.0, is_h)
-    H.check(np.allclose(pg_hi["v_w"] - pg_lo["v_w"], pg_lo["v_w"] - pg_no["v_w"], atol=1e-5),
-            "imitation grad linear in lambda")
+    # ── lambda_imitation scales the bc term linearly ────────────────────
+    pol = _pol(d)
+    X = torch.randn(6, d)
+    va = torch.randint(0, 3, (6,)); ha = torch.randint(0, 3, (6,))
+    adv = torch.randn(6); vt = torch.randn(6); vp, hp, _ = pol.probs(X)
+    ai = torch.ones(6, dtype=torch.bool); hu = torch.ones(6, dtype=torch.bool)
+    t0, _ = P.ppo_loss(pol, X, va, ha, vp, hp, adv, vt, ai_mask=ai, human_mask=hu,
+                       clip_eps=0.2, lambda_imitation=0.0)
+    t1, _ = P.ppo_loss(pol, X, va, ha, vp, hp, adv, vt, ai_mask=ai, human_mask=hu,
+                       clip_eps=0.2, lambda_imitation=0.1)
+    t2, _ = P.ppo_loss(pol, X, va, ha, vp, hp, adv, vt, ai_mask=ai, human_mask=hu,
+                       clip_eps=0.2, lambda_imitation=0.2)
+    H.check_close(float((t2 - t1).detach()), float((t1 - t0).detach()), tol=1e-5,
+                  msg="imitation term linear in lambda")
 
-    # ── full pipeline smoke: rewards -> gae -> ppo update lowers value loss ──
-    fr = [R.FrameSignals(speed_kmh=float(s), speed_valid=True, lane_offset=0.0,
-                         collided=False, took_over=False) for s in range(30, 80)]
-    rewards = R.compute_episode_rewards(fr, [], fps=15.0)
-    H.check(len(rewards) == 50, "pipeline rewards len")
-    crit = P.LinearCritic.from_dim(18, seed=1)
-    pol18 = P.DiscretePolicy.from_dim(18, seed=7)
-    Xp = T.encode_kinematics([f.speed_kmh for f in fr], [1.0] * 50,
-                             [{k: 0 for k in T._KEY_NAMES} for _ in range(50)])
-    vals = crit.predict(Xp)
-    adv2, vtarget2 = R.gae_advantages(rewards, vals, 0.99, 0.95)
-    H.check(len(adv2) == 50, "pipeline adv len")
-    before = float(np.mean((crit.predict(Xp) - vtarget2) ** 2))
+    # ── full pipeline: rewards -> gae -> value head regression lowers MSE ─
+    fr = [R.FrameSignals(speed_kmh=float(s), speed_valid=True) for s in range(30, 80)]
+    ft2 = np.arange(50, dtype=np.float64) / 15.0
+    rewards = R.compute_episode_rewards(fr, [], ft2)
+    H.check_eq(len(rewards), 50, "pipeline rewards len")
+    pol = _pol(d)
+    Xp = torch.randn(50, d)
+    with torch.no_grad():
+        _, _, vals = pol(Xp)
+    adv2, vtarget2 = R.gae_advantages(rewards, vals.detach().numpy(), gamma=0.99, lam=0.95)
+    H.check_eq(len(adv2), 50, "pipeline adv len")
+    VT = torch.tensor(vtarget2, dtype=torch.float32)
+    opt = torch.optim.Adam(pol.value_head.parameters(), lr=0.05)
+    with torch.no_grad():
+        _, _, v0 = pol(Xp)
+        before = float(((v0 - VT) ** 2).mean())
     for _ in range(100):
-        _, _, cg2 = P.ppo_loss_and_grads(pol18, crit, Xp,
-                                         np.zeros(50, int), np.zeros(50, int),
-                                         P.normalize_advantages(adv2), vtarget2,
-                                         pol18.v_probs(Xp), pol18.h_probs(Xp), 0.2, 0.0, None)
-        crit.sgd_update(cg2, 0.05)
-    after = float(np.mean((crit.predict(Xp) - vtarget2) ** 2))
-    H.check(after < before, f"critic value loss decreases ({before:.2f}->{after:.2f})")
+        opt.zero_grad()
+        _, _, v = pol(Xp)
+        ((v - VT) ** 2).mean().backward()
+        opt.step()
+    with torch.no_grad():
+        _, _, v1 = pol(Xp)
+        after = float(((v1 - VT) ** 2).mean())
+    H.check(after < before, f"value regression lowers MSE ({before:.3f}->{after:.3f})")
