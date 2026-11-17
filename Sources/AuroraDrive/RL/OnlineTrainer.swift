@@ -40,7 +40,8 @@
 //         reward.py 一致：下一帧的有限性检查抑制伪造的急减速惩罚）。
 //
 //  【奖励语义对齐 tools/v3_rl/reward.py】
-//    speed（限速归一）/ stuck / collision / decel（跨 OCR 缺口用 prev_valid 防
+//    speed（速度三段：v<100 负/100≤v≤160 线性正/v>160 负，speedValid=false→0）/ stuck /
+//    collision / decel（跨 OCR 缺口用 prev_valid 防
 //    伪造）/ lane（绝对偏置，无世界坐标）/ takeover（强负）。**无任何绝对位置
 //    依赖**，只用速度、碰撞、车道偏置、接管这些云端可得的信号。
 //    human 项在在线循环里为 0（在线拿不到人类打分；离线训练才有）。
@@ -127,8 +128,14 @@ public struct RewardConfig {
     public var decel: Double
     public var lane: Double
     public var takeover: Double
-    /// 速度归一上限（km/h）。与 reward.py 的 SPEED_NORM_KMH 一致。
+    /// 速度归一上限（km/h）＝三段奖励的下分界。与 reward.py 的 SPEED_NORM_KMH 一致。
     public static let speedNormKmh: Double = 100.0
+    /// 速度三段奖励的下分界（km/h）：v<下分界 → 负分（按差距扣）。复用 speedNormKmh=100，
+    /// 与 reward.py 的 SPEED_LOW_KMH 一致。
+    public static let speedLowKmh: Double = speedNormKmh
+    /// 速度三段奖励的上分界（km/h）：下分界≤v≤上分界 → 线性递增正分；v>上分界 → 负分（按超出扣）。
+    /// 与 reward.py 的 SPEED_HIGH_KMH 一致。
+    public static let speedHighKmh: Double = 160.0
     /// 判定「卡死」的速度阈值（km/h）。与 reward.py 的 STUCK_SPEED_KMH 一致。
     public static let stuckSpeedKmh: Double = 1.0
 
@@ -607,9 +614,28 @@ public final class OnlineTrainer: @unchecked Sendable {
         }
     }
 
+    /// 速度三段奖励（归一化到 [-1, +1]）。与 reward.py 的 speed_term 同口径，必须保持一致：
+    ///   · v < 100（下分界）：负分，按差距扣 —— -(100 - v)/100，v 越接近 100 越接近 0（v=99≈-0.01），
+    ///     v=0 最负（-1.0）；
+    ///   · 100 ≤ v ≤ 160：线性递增正分 —— (v - 100)/60，v=100 为 0，v=160 最大（+1.0）；
+    ///   · v > 160（上分界）：负分，按超出扣 —— -(v - 160)/60，v=161 略负，越高越负。
+    /// speedValid=false 或速度非有限/为负 → 该项为 0（不伪造奖励）。
+    /// 注意：v=100 处左右连续（两段都恰为 0）；v=160 属中间段最大正分（+1.0），越过 160 立刻转负
+    /// （按超出扣、无下界）——这是「甜点区上限」的设计跳变，并不连续。
     public static func speedTerm(_ speedKmh: Double, _ speedValid: Bool) -> Double {
-        guard speedValid, speedKmh.isFinite, speedKmh > 0 else { return 0 }
-        return min(speedKmh, RewardConfig.speedNormKmh) / RewardConfig.speedNormKmh
+        guard speedValid, speedKmh.isFinite, speedKmh >= 0 else { return 0 }
+        if speedKmh < RewardConfig.speedLowKmh {
+            // v<100：按差距扣。v=100 时此式恰为 0（与中间段起点连续），故不必特判。
+            return -(RewardConfig.speedLowKmh - speedKmh) / RewardConfig.speedLowKmh
+        }
+        if speedKmh <= RewardConfig.speedHighKmh {
+            // 100≤v≤160：线性递增正分，(v-100)/(160-100)。
+            return (speedKmh - RewardConfig.speedLowKmh)
+                / (RewardConfig.speedHighKmh - RewardConfig.speedLowKmh)
+        }
+        // v>160：按超出扣，(v-160)/(160-100)。v=160 属上一段（+1.0），本段从略高于 160 起为小负。
+        return -(speedKmh - RewardConfig.speedHighKmh)
+            / (RewardConfig.speedHighKmh - RewardConfig.speedLowKmh)
     }
 
     public static func isStuck(_ speedKmh: Double, _ speedValid: Bool) -> Bool {

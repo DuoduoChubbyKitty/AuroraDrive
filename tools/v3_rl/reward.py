@@ -20,6 +20,9 @@ import numpy as np
 
 SPEED_NORM_KMH = 100.0
 STUCK_SPEED_KMH = 1.0
+# 速度三段奖励的分界（km/h）。必须与 Swift RewardConfig.speedLowKmh / speedHighKmh 一致。
+SPEED_LOW_KMH = 100.0     # 下分界：v<速度这里为负、100≤v≤上分界为线性正
+SPEED_HIGH_KMH = 160.0    # 上分界：v>这里为负（按超出扣）
 
 
 @dataclass(frozen=True)
@@ -37,9 +40,28 @@ DEFAULT_WEIGHTS = RewardWeights()
 
 
 def speed_term(speed_kmh: float, speed_valid: bool) -> float:
-    if not speed_valid or not np.isfinite(speed_kmh) or speed_kmh <= 0.0:
+    """速度三段奖励（归一化到 [-1, +1]）。与 Swift OnlineTrainer.speedTerm 同口径。
+
+    * ``v < SPEED_LOW_KMH``（100）：负分，按差距扣 —— ``-(100 - v)/100``，v 越接近 100
+      越接近 0（v=99≈-0.01），v=0 最负（-1.0）；
+    * ``SPEED_LOW_KMH ≤ v ≤ SPEED_HIGH_KMH``（100..160）：线性递增正分 —— ``(v - 100)/60``，
+      v=100 为 0，v=160 最大（+1.0）；
+    * ``v > SPEED_HIGH_KMH``（160）：负分，按超出扣 —— ``-(v - 160)/60``，v=161 略负，越高越负。
+
+    注意 ``v == 160`` 属中间段（+1.0）；越过 160 立刻转负（按超出扣、无下界），这是「甜点区
+    上限」的设计跳变，并不连续。``speed_valid=False`` 或速度非有限/为负 → 返回 0（不伪造奖励）。
+    """
+    if not speed_valid or not np.isfinite(speed_kmh) or speed_kmh < 0.0:
         return 0.0
-    return float(min(speed_kmh, SPEED_NORM_KMH) / SPEED_NORM_KMH)
+    if speed_kmh < SPEED_LOW_KMH:
+        # v<100：按差距扣。v=100 时此式恰为 0（与中间段起点连续）。
+        return float(-(SPEED_LOW_KMH - speed_kmh) / SPEED_LOW_KMH)
+    if speed_kmh <= SPEED_HIGH_KMH:
+        # 100≤v≤160：线性递增正分，(v-100)/(160-100)。
+        return float((speed_kmh - SPEED_LOW_KMH) / (SPEED_HIGH_KMH - SPEED_LOW_KMH))
+    # v>160：按超出扣，(v-160)/(160-100)。注意 v 恰为 160 属上一段（+1.0），本段从略高于
+    # 160 起为小负——160 是「甜点区上限」，越过即罚，是设计上的跳变（不连续）。
+    return float(-(speed_kmh - SPEED_HIGH_KMH) / (SPEED_HIGH_KMH - SPEED_LOW_KMH))
 
 
 def is_stuck(speed_kmh: float, speed_valid: bool) -> bool:

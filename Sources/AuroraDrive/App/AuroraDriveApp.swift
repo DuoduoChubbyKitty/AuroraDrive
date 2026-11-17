@@ -1029,7 +1029,16 @@ struct AuroraDriveLauncher {
                                "--rl-core-selftest", "-rl-core-selftest",
                                "--rl-online-selftest", "-rl-online-selftest",
                                "--rl-accel-selftest", "-rl-accel-selftest",
-                               "--rl-train-wire-selftest", "-rl-train-wire-selftest"]
+                               "--rl-train-wire-selftest", "-rl-train-wire-selftest",
+                               // ── 人机共驾壳模式自检（T1 shell-engine 接入，2026-11-17）──
+                               // 壳模式 start/stop 合成自测（假硬件·不碰真引擎/不训练）。
+                               "--shell-engine-selftest", "-shell-engine-selftest",
+                               // 壳模式奖励/回环/默认关自检（T4 reward-test 已落盘，2026-11-17）。
+                               "--rl-shell-selftest", "-rl-shell-selftest",
+                               // ⏳ 待 T2(runtime-fix) 落盘后启用（取消注释即可，分发处同样有占位）。
+                               //    **先注释**是为避免引用尚不存在的类型导致 build 挂：
+                               "--rl-shell-runtime-selftest", "-rl-shell-runtime-selftest",
+                               ]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -1124,6 +1133,23 @@ struct AuroraDriveLauncher {
         // 在线训练接线自检：真实帧 → state_token → 采样 → collect，断言训练推进 + 0 按键注入。
         if args.contains("-rl-train-wire-selftest") || args.contains("--rl-train-wire-selftest") {
             let failed = OnlineTrainingWireSelfTest.run()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+        // ── 壳模式 start/stop 合成自测（T1 shell-engine，2026-11-17）──
+        // 假硬件记录调用轨迹，断言「退引擎→退驾驶→备抓屏→起训练」「停训练→停抓屏→恢复引擎」
+        // 的顺序，以及抓屏保活（有其他归属方时不停抓屏）。不碰真引擎、不训练。
+        if args.contains("-shell-engine-selftest") || args.contains("--shell-engine-selftest") {
+            let failed = ShellModeControllerSelfTest.run()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+        // ── 壳模式奖励/回环/默认关自检（T4 reward-test 提供，2026-11-17 落盘）──
+        if args.contains("-rl-shell-selftest") || args.contains("--rl-shell-selftest") {
+            let failed = ShellModeSelfTest.run()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+        // ⏳ 待 T2(runtime-fix) 落盘后启用（与 oneShotFlags 处同步取消注释）：
+        if args.contains("-rl-shell-runtime-selftest") || args.contains("--rl-shell-runtime-selftest") {
+            let failed = OnlineTrainingRuntimeSelfTest.run()
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
         }
 
@@ -4378,6 +4404,23 @@ final class DriveState {
     var onlineTrainStatus = ""
     @ObservationIgnored let onlineTrainRuntime = OnlineTrainingRuntime()
 
+    // ── 人机共驾「壳模式」（用户自己开，Aurora 只读帧训练/观测，不注入按键）──
+    // 控制器编排「退所有驾驶引擎 + 保抓屏 + 起训练 + stop 恢复引擎」，细节在
+    // RL/ShellModeController.swift。状态走下面三个轻量 @Observable 属性（**先比后写**，
+    // 避免每帧赋值触发整树重绘）；控制器/运行时是 @ObservationIgnored 类实例。
+    // ⚠️ shellController 在 init 末尾注入（那时 DriveState 已完全初始化），此处只声明。
+    var shellModeActive = false
+    var shellModeStatus = ""
+    var shellMetrics: String?
+    /// 复审 B5：壳模式停止时的结果摘要（排空超时/存盘失败/正常=nil），供 UI 如实展示。
+    var shellStopReport: String?
+    @ObservationIgnored var shellController: ShellModeController!
+    /// 壳模式抓屏启动的代数与任务句柄（复审 #8：stop 时代数 +1 并取消任务，
+    /// 防 await 返回后的旧 Task 无条件 captureEngine.start() 重新抢占已释放的抓屏）。
+    /// @ObservationIgnored：非 UI 状态，变化不应触发重绘。
+    @ObservationIgnored private var shellCaptureGeneration = 0
+    @ObservationIgnored private var shellCaptureTask: Task<Void, Never>?
+
     // ── 引擎模式（后台引擎拆分；EngineClient 激活时生效）──
     /// 引擎回传的检测结果（引擎模式下每 tick 刷新）
     var remoteDetections: [Detection] = []
@@ -4715,7 +4758,8 @@ final class DriveState {
                     let n = (try? FileManager.default.contentsOfDirectory(atPath: framesDir))?.count ?? 0
                     if n == 0 { try? FileManager.default.removeItem(atPath: emptyClip) }
                 }
-                if !isDriving && !isRecording && !isOnlineTraining {
+                // 壳模式保活：训练/观测要帧流，壳模式在跑就不停抓屏。
+                if !isDriving && !isRecording && !isOnlineTraining && !shellModeActive {
                     captureEngine.stop()
                     keyboardMonitor.stop()
                 }
@@ -4731,6 +4775,9 @@ final class DriveState {
         guard let resumeAt = leanEngineResumeAt, Date() >= resumeAt else { return }
         leanEngineResumeAt = nil
         guard leanEngineSuspended else { return }
+        // 复审 B4（双保险）：壳模式激活时，录制这条恢复路径**不得**把引擎拉回来
+        //   （引擎该由壳模式独占让出）。录制与壳模式已互斥，这里再挡一层防遗漏。
+        if shellModeActive { leanEngineSuspended = false; return }
         leanEngineSuspended = false
         EngineClient.shared.resumeAfterLeanRecording()
         dlog("[LEAN] ⏫ 录制已结束，引擎自动接回")
@@ -4766,8 +4813,8 @@ final class DriveState {
             // 把全屏往管道里推，录制都结束了还在白烧 CPU/电。
             // 判据与 isRecording 的 didSet 一致：开车由 stopDriving() 管，
             // 专家录制由它自己的 didSet 管，两者都不会被这里误关。
-            // 在线训练若在跑，也保活抓屏（训练要帧流）。
-            if !isDriving && !isRecording && !isOnlineTraining {
+            // 在线训练若在跑，也保活抓屏（训练要帧流）；壳模式同理保活。
+            if !isDriving && !isRecording && !isOnlineTraining && !shellModeActive {
                 captureEngine.stop()
                 keyboardMonitor.stop()
             }
@@ -4781,6 +4828,14 @@ final class DriveState {
                 leanEngineResumeAt = Date().addingTimeInterval(1.5)
             }
         } else {
+            // B4 录制反向门控：壳模式运行中不让开录——壳模式已让出引擎、独占抓屏
+            //   归属，两者会争抢「引擎挂起/恢复所有权」（与 startShellMode 开头的
+            //   正向门控成对，双向互斥；toggleCoDrive 开录也委托到这里，一处覆盖
+            //   两入口）。停录分支绝不挡（壳模式停了还要能正常收尾/停录）。
+            if shellModeActive {
+                leanLastError = "壳模式运行中，请先停止壳模式再开录制"
+                return
+            }
             // 开录：**入口显式决定模式**（普通= false，共驾= true），不依赖残留布尔。
             leanRecorder.coDriveMode = coDrive
             guard leanRecorder.start() else {
@@ -5737,7 +5792,8 @@ final class DriveState {
                 keyboardMonitor.start()
             } else {
                 recordEngine.stop()
-                if !isDriving && !isOnlineTraining {
+                // 壳模式下抓屏归壳模式保活（训练要帧流），即使此刻既没开车也没在线训练。
+                if !isDriving && !isOnlineTraining && !shellModeActive {
                     captureEngine.stop()
                     keyboardMonitor.stop()
                 }
@@ -7220,6 +7276,14 @@ final class DriveState {
         //     }
         // }
         dlog("[network] 定位引擎初始化完成")
+
+        // 壳模式控制器注入：放在 init 最末尾 —— 此刻 self 的几个真实引擎
+        // (controlEngine / inferenceEngine* / captureEngine …) 都已构造完成。
+        // ⚠️ 复审 #1（P0）：必须**直接传 self**，绝不能在控制器里读 DriveState.shared ——
+        //   本 init 正是 `static let shared = DriveState()` 的执行现场，任何路径重入
+        //   单例懒初始化都会死锁（与壳模式开关无关、正常启动即触发）。
+        // 控制器持有 DriveState 的弱引用，之后 start()/stop() 编排才不会踩空。
+        self.shellController = ShellModeController(runtime: self.onlineTrainRuntime, hardware: self)
     }
 
     /// 启动自动驾驶：
@@ -7424,7 +7488,8 @@ final class DriveState {
         // 抓屏归属：停车时若在线训练仍在跑，保活抓屏（训练要帧流）；
         // 训练不在跑才真的停抓屏。键盘监听的停止与训练无关（训练不注入按键）。
         keyboardMonitor.stop()
-        if !isOnlineTraining {
+        // 抓屏归属：壳模式存在时要保活（训练/观测要帧流），不停抓屏。
+        if !isOnlineTraining && !shellModeActive {
             captureEngine.stop()
         }
         pendingNativeLock.lock()
@@ -7490,7 +7555,8 @@ final class DriveState {
         onlineTrainRuntime.stop()
         isOnlineTraining = false
         onlineTrainStatus = "已停止"
-        if !isDriving && !isRecording && !leanRecorder.isRecording {
+        // 壳模式保活：壳模式的训练/观测要帧流，不停抓屏。
+        if !isDriving && !isRecording && !leanRecorder.isRecording && !shellModeActive {
             captureEngine.stop()
             keyboardMonitor.stop()
             dlog("[OnlineTrain] 训练自起的抓屏已停止")
@@ -7501,6 +7567,143 @@ final class DriveState {
     /// 训练按钮切换入口。
     func toggleOnlineTraining() {
         if isOnlineTraining { stopOnlineTraining() } else { startOnlineTraining() }
+    }
+
+    // MARK: - 人机共驾「壳模式」开关（T3/UI 硬依赖，契约不可改）
+
+    /// 壳模式切换入口（T3 的按钮直接调它）。内部转 start/stop 两个包装。
+    func toggleShellMode() {
+        if shellModeActive { stopShellMode() } else { startShellMode() }
+    }
+
+    /// 启动壳模式：把当前若为「只录某窗口」的捕获模式带进壳模式（否则全屏）。
+    /// 成功 → shellModeActive=true、shellModeStatus="运行中"；失败 → 如实写失败原因。
+    func startShellMode() {
+        guard let shellController else {
+            dlog("[ShellMode] ❌ 控制器未注入（init 未完成？），忽略本次启动")
+            return
+        }
+        // 复审 B4：精简录制/共驾录制与壳模式会争抢「引擎挂起所有权」（录制也会
+        //   suspendForLeanRecording 让出引擎，退出时各自恢复 → 谁先退出谁误拉引擎）。
+        //   从根上互斥：录制进行时不允许进壳模式，提示先停录制。反之录制入口也应
+        //   在壳模式激活时被挡（已有 !shellModeActive 门控）。
+        if leanRecorder.isRecording || isRecording {
+            let t = "请先停止精简/共驾录制再进入壳模式（两者会争抢引擎让出所有权）"
+            if shellModeStatus != t { shellModeStatus = t }
+            dlog("[ShellMode] ⚠️ 拒绝启动：录制进行中")
+            return
+        }
+        // 选中的捕获窗口：captureMode 是 .window(id) 时带进去，避免用户选过的窗口被壳模式
+        // 改回全屏（与「停止后想换另一个窗口」的既有语义一致）。
+        var windowID: UInt32? = nil
+        if case .window(let id) = captureMode { windowID = UInt32(id) }
+        if shellController.start(windowID: windowID) {
+            // 复审 B2：壳模式置 isDriving=false，而 syncPhysicalControlState 首句 guard isDriving
+            //   → 人工接管的 noteUserKeyDown 永不触发。故壳模式**独立**建键盘监听 + 接管回调，
+            //   直接维护 EmergencyTakeover.userHoldingKey（不依赖 isDriving），使接管负分/让位生效。
+            startShellTakeoverMonitor()
+            if !shellModeActive { shellModeActive = true }        // 先比后写
+            let text = "运行中"
+            if shellModeStatus != text { shellModeStatus = text }
+            dlog("[ShellMode] ▶ 由 UI 启动成功（窗口=\(windowID.map { "#\($0)" } ?? "全屏")）")
+        } else {
+            if !shellModeActive { shellModeActive = true }        // 引擎已退、抓屏已在跑，仍视为激活态
+            let text = "启动异常：训练运行时未就绪（引擎已退、抓屏已在跑，可点停止恢复）"
+            if shellModeStatus != text { shellModeStatus = text }
+            dlog("[ShellMode] ❌ 由 UI 启动未完全成功：训练运行时未就绪")
+        }
+    }
+
+    /// 停止壳模式：调控制器 stop（收尾训练 → 按需释放抓屏 → 恢复自动驾驶引擎）。
+    func stopShellMode() {
+        guard let shellController else { return }
+        stopShellTakeoverMonitor()
+        shellController.stop()
+        if shellModeActive { shellModeActive = false }
+        // 复审 B5：如实展示停止结果（排空超时 / 存盘失败 / 正常）。
+        let text = shellStopReport ?? "已停止"
+        if shellModeStatus != text { shellModeStatus = text }
+        dlog("[ShellMode] ■ 由 UI 停止完成")
+    }
+
+    /// 复审 B2：壳模式独立的物理键监听与接管状态维护（不依赖 isDriving）。
+    ///   - 启：确保 keyboardMonitor 在跑，接管回调直接 noteUserKeyDown/Up。
+    ///   - 停：停监听（若无其它归属方）并清接管态，防残留让位。
+    ///   监听归属：isDriving=false 时由壳模式持有，停壳时若无驾驶/录制才真停。
+    private func startShellTakeoverMonitor() {
+        if !isEngineHost {
+            _ = keyboardMonitor.requestInputMonitoringPermission()
+        }
+        // 接管回调：人按下受控键 → userHoldingKey=true（让位/负分）；松开 → false。
+        // 注意：回调里绝不 releaseAIHeldKeys 去抵消人的键 —— 壳模式此刻由 RL 注入，
+        //   人的物理键与 RL 键是两套来源，接管时由 stop 路径统一 releaseAll。
+        keyboardMonitor.onUserKeyDown = { [weak self] in
+            self?.shellTakeoverSync()
+        }
+        keyboardMonitor.onUserKeyUp = { [weak self] in
+            self?.shellTakeoverSync()
+        }
+        _ = keyboardMonitor.start()   // start 内部幂等（keyDownMonitor 已建则直接 return true）
+        dlog("[ShellMode] 壳模式独立键盘监听已启动（接管状态不依赖 isDriving）")
+    }
+
+    private func stopShellTakeoverMonitor() {
+        // 清接管态（防止残留让位）：人若还按着，先置回未接管。
+        if EmergencyTakeover.shared.userHoldingKey { EmergencyTakeover.shared.noteUserKeyUp() }
+        // 只有没有其它归属方（驾驶/录制）时才真停监听，避免误停别人的监听。
+        if !isDriving && !isRecording && !leanRecorder.isRecording {
+            keyboardMonitor.stop()
+        }
+        keyboardMonitor.onUserKeyDown = nil
+        keyboardMonitor.onUserKeyUp = nil
+    }
+
+    /// 壳模式接管同步：读物理键的"是否按住受控键"，直接喂 EmergencyTakeover。
+    private func shellTakeoverSync() {
+        if keyboardMonitor.isUserHoldingControlKey {
+            if !EmergencyTakeover.shared.userHoldingKey { EmergencyTakeover.shared.noteUserKeyDown() }
+        } else {
+            if EmergencyTakeover.shared.userHoldingKey { EmergencyTakeover.shared.noteUserKeyUp() }
+        }
+    }
+
+    /// 壳模式状态镜像到 @Observable 字段（tick 调用，**先比后写**）。
+    /// 训练在跑 → 状态「壳模式运行中」+ 指标（采样/跳过帧数）；未跑则清空指标。
+    /// 只在值变化时赋值，避免每帧触发整树重绘（项目里已有同款教训）。
+    private func refreshShellModeMirror() {
+        guard shellModeActive else { return }
+        let running = shellController?.running ?? false
+        let status = running ? "壳模式运行中" : shellModeStatus
+        if shellModeStatus != status { shellModeStatus = status }
+        let metrics: String? = running ? "训练 \(onlineTrainRuntime.stats())" : nil
+        if shellMetrics != metrics { shellMetrics = metrics }
+    }
+
+    /// 按窗口名选壳模式捕获窗口（契约成员：T3 拉条选中时调）。
+    /// 匹配优先级：displayLabel 精确 → 包含（应用名/标题）；命中 → selectCaptureMode(.window)。
+    /// 未命中 → 如实写状态（不静默失败）；壳模式未启动时也允许选（先选窗再开关）。
+    func selectShellCaptureWindow(named name: String) {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            dlog("[ShellMode] 选窗名为空，忽略")
+            return
+        }
+        // 精确命中优先，其次包含匹配（用户通常只敲应用名或标题片段）。
+        let match = capturableWindows.first { $0.displayLabel == clean }
+            ?? capturableWindows.first {
+                $0.displayLabel.contains(clean) || $0.title.contains(clean)
+                    || $0.applicationName.contains(clean)
+            }
+        guard let match else {
+            let text = "未找到窗口「\(clean)」"
+            if shellModeStatus != text { shellModeStatus = text }
+            dlog("[ShellMode] ❌ \(text)（当前可捕获窗口 \(capturableWindows.count) 个）")
+            return
+        }
+        dlog("[ShellMode] 选定捕获窗口：\(match.displayLabel)（id=\(match.id)）")
+        Task { @MainActor [weak self] in
+            await self?.selectCaptureMode(.window(id: match.id))
+        }
     }
 
 
@@ -8220,6 +8423,9 @@ final class DriveState {
         // leanRecorder 是 @ObservationIgnored 的类实例，其内部 isRecording/frameCount
         // 变化不会触发 SwiftUI 刷新；这里镜像到可观察字段（内部先比后写，避免空转重绘）。
         syncLeanMirror()
+        // 壳模式状态镜像（先比后写，仅壳模式激活时执行）—— 须在引擎早退之前，
+        // 保证壳模式下状态行每 tick 能刷新采样指标。
+        refreshShellModeMirror()
         // 标注队列兜底推进：录制中会被 pump 内部的门禁挡掉（不抢 CPU），
         // 停录后若 onFinish 因异常未触发，这里也能把队列接着跑下去。
         pumpLeanAnnotationQueue()
@@ -8229,7 +8435,11 @@ final class DriveState {
         stepLeanEngineHandover()
 
         // ── 引擎模式：只拉取显示数据，本地抓屏/推理/按键全部不跑 ──
-        if EngineClient.shared.isActive {
+        // ⚠️ 壳模式例外：壳模式 start() 虽已 suspend 引擎（isActive 应为 false），但为
+        //   稳妥起见这里显式排除壳模式 —— 壳模式必须继续走下面的本地 tick 才能拿到
+        //   抓屏帧喂训练钩子（在线训练驱动在帧消费临界区内）。壳模式里本地「驾驶」
+        //   推理链已被 stopAllDrivingEngines() 清空，走本地 tick 不会注入任何按键。
+        if EngineClient.shared.isActive && !shellModeActive {
             tickEngineMode()
             // 引擎模式单独成段：UI 进程这条路径的成本结构完全不同（无抓屏/推理）
             PerfBus.mark("tick.engineMode", from: perfT)
@@ -8291,7 +8501,10 @@ final class DriveState {
             // 且不额外持锁（训练运行时内部只做降频采样 + 投递，不阻塞）。
             // 传入**真实**驾驶信号（速度/接管/人工介入）用于奖励计算；这些是 MainActor 上的
             // DriveState 字段，与本锁（pendingFrameLock）无关，读取安全。
-            if isOnlineTraining, let trainCG = latestCG {
+            // ⚠️ 壳模式门控：壳模式直接起 onlineTrainRuntime、**不置** isOnlineTraining
+            //   （那是独立训练开关的 UI 状态，不能被壳模式代管），所以这里必须额外认
+            //   shellModeActive，否则壳模式下帧永远喂不进训练（训练空转）。
+            if isOnlineTraining || shellModeActive, let trainCG = latestCG {
                 let signals = OnlineTrainingRuntime.FrameSignals(
                     speedKmh: trustedSpeedKmh,
                     speedValid: speedValid,
@@ -8376,7 +8589,10 @@ final class DriveState {
             // 【档位门】detectGateB 已含「仅 legacy 档」判据（定义见 tick 开头）。
             //   A 模型档下它恒为 false → yolo26s 不推理；配合开机/切档的按档位
             //   加载，A 模型档下 26S 连内存都不占。回退：AURORA_FORCE_YOLO26S=1。
-            if detectGateB {
+            //
+            // 【壳模式隔离收口】壳模式下检测网推理全部让位（抢 ANE、且壳模式不需要
+            //   检测框）；非壳模式行为逐字不变。
+            if detectGateB && !shellModeActive {
                 yoloEngine.inferFast(pixelBuffer: yoloFrame)
                 perfT = PerfBus.lap("tick.yoloFast", from: perfT)   // ★ 阶段1 打点
             }
@@ -8468,7 +8684,11 @@ final class DriveState {
             //   这是**有意的**（该档每帧有真值，无需外推否决），
             //   但它确实是一处行为变化，不是纯性能优化 —— 见报告与
             //   `--motion-selftest` 的 egoBlocked 两项断言。
-            if !e2ePerceptionPaused, !Self.opticalFlowDisabled, perceptionMode.needsOpticalFlow {
+            // 【壳模式隔离收口】光流同 YOLO 直通：壳模式下不跑（抢 CPU，且光流
+            //   消费链全在驾驶决策里）；speedOCR 直通**不在**收口范围 —— 壳模式的
+            //   速度信号（三段奖励）就靠它。非壳模式行为逐字不变。
+            if !e2ePerceptionPaused, !Self.opticalFlowDisabled, perceptionMode.needsOpticalFlow,
+               !shellModeActive {
                 runOpticalFlow(on: yoloFrame)
                 // ★ 阶段1 打点：光流全链路（convertToGray + compute）。
                 //   注意本段只在**有直通帧**时才产生样本 —— 样本数低于 tick 数属正常。
@@ -8514,7 +8734,26 @@ final class DriveState {
             //    却仍在每秒 30 次无意义地触发全树重绘（实测 UI 进程
             //    稳定烧 25-36% CPU、WindowServer 44%+、整机发烫）。
             //    所以先比较、变了才写 —— 值不变则一次赋值都不发生。
-            resetSpeedTracking()
+            //
+            // ⚠️ 复审 #4：壳模式下速度跟踪必须继续跑 —— 训练钩子要读
+            //   trustedSpeedKmh/speedValid 算三段奖励，待机分支原无条件
+            //   resetSpeedTracking() 会把它们清零 → 壳模式奖励恒无效。
+            //   故壳模式改走与驾驶分支同款的速度跟踪更新链（speedOCR.infer
+            //   已在 guard 之前跑过，读数新鲜）；仅非壳模式才 reset。
+            //   （revokeAssist 的 assistEngine.reset() 不镜像：壳模式下 assist
+            //    已在 stopAllDrivingEngines 里重置过，重复无害但无意义。）
+            if shellModeActive {
+                _ = speedTracking.update(
+                    speed: speedOCR.speedKmh, confidence: speedOCR.confidence,
+                    observedAt: speedOCR.lastObservationUptime,
+                    invalidationID: speedOCR.invalidationID,
+                    now: ProcessInfo.processInfo.systemUptime)
+                if speedValid != speedTracking.speedValid { speedValid = speedTracking.speedValid }
+                if trustedSpeedKmh != speedTracking.trustedSpeedKmh { trustedSpeedKmh = speedTracking.trustedSpeedKmh }
+                if effectiveSpeed != speedTracking.estimatedSpeedKmh { effectiveSpeed = speedTracking.estimatedSpeedKmh }
+            } else {
+                resetSpeedTracking()
+            }
             if currentCommand != .idle { currentCommand = .idle }
             recordFrameIfNeeded()   // 待机也写帧：录制不依赖驾驶状态
             PerfBus.mark("tick.idleTail", from: perfT)   // ★ 阶段1 打点（待机尾段）
@@ -10944,5 +11183,223 @@ final class LogSink: @unchecked Sendable {
         h.seekToEndOfFile()
         h.write(data)
         return true
+    }
+}
+
+// ============================================================================
+//  DriveState ⇄ 壳模式：把「退所有驾驶引擎 + 保抓屏 + 起训练」落到真实引擎上
+//
+//  这是 ShellModeController 的 `ShellModeHardware` 协议的**生产实现**。放在
+//  AuroraDriveApp.swift 尾部（同一文件，能直接访问 DriveState 的私有/内部存储引擎）；
+//  ShellModeController 只依赖协议，自测用假硬件，二者解耦。
+// ============================================================================
+extension DriveState: ShellModeHardware {
+
+    /// 后台自动驾驶引擎是否激活（决定 start 第一步要不要 suspend）。
+    var engineActive: Bool { EngineClient.shared.isActive }
+
+    /// 真 SIGTERM→SIGKILL 让引擎子进程退出，且 wantsEngineMode=false 不重连。
+    @discardableResult
+    func suspendEngineForShellMode() -> Bool {
+        EngineClient.shared.suspendForLeanRecording()
+    }
+
+    /// 停进程内全部自动驾驶推理/降级链，并释放按住的键。
+    /// ⚠️ **刻意不停 captureEngine / speedOCR** —— 壳模式要保留抓屏与速度表。
+    func stopAllDrivingEngines() {
+        isDriving = false
+        controlEngine.releaseAll()   // 释放可能卡住的 W/A/S/D，防游戏失控
+        degradeStm.reset()           // 降级状态机
+        inferenceEngine.reset()      // M9（纯规则回退档）
+        inferenceEngineV2.reset()    // V2（降级备份）
+        inferenceEngineV3.reset()    // V3（主驾，清 24 帧时序窗口）
+        assistEngine.reset()         // 第二司机（YOLO 接管档）
+        yoloEngine.reset()           // yolo26s 检测
+        yolopxEngine.reset()         // 三合一感知
+        // 复审 #4「首帧残留旧值也要清」：壳模式的速度跟踪从此刻重新开始 ——
+        // 清掉上一场驾驶留下的 trustedSpeedKmh/speedValid，之后待机分支的
+        // 壳模式更新链会用**新鲜的** speedOCR 读数重建，不会沿用旧会话速度。
+        resetSpeedTracking()
+        dlog("[ShellMode] 已退所有驾驶引擎（控制/降级/V3/V2/M9/assist/YOLO/YOLOPX）；"
+             + "抓屏与速度表保留")
+    }
+
+    /// 定窗口/全屏捕获并确保抓屏在跑。
+    /// ⚠️ 复审 #8 竞态防护：applyMode 是 async（重建 SCStream），await 期间用户
+    ///   可能已 stop()（抓屏已释放、引擎已恢复）—— 旧 Task 返回后若仍无条件
+    ///   captureEngine.start() 会重新抢占已释放的抓屏。故：
+    ///   ① 每次启动代数 +1 并取消上一枚在途任务（新会话作废旧会话）；
+    ///   ② await 返回后校验代数，不符则放弃启动。
+    func prepareShellCapture(windowID: UInt32?) {
+        let mode: CaptureMode = windowID.map { .window(id: CGWindowID($0)) } ?? .fullScreen
+        shellCaptureGeneration += 1
+        let generation = shellCaptureGeneration
+        shellCaptureTask?.cancel()
+        shellCaptureTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.selectCaptureMode(mode)   // 已在壳模式（非引擎）→ 走本地 applyMode
+            // 代数校验：await 期间 stop() 已推进 generation（或新 start 已接管）→ 放弃。
+            guard self.shellCaptureGeneration == generation, !Task.isCancelled else {
+                dlog("[ShellMode] 抓屏启动任务代数过期（generation=\(generation)），放弃")
+                return
+            }
+            if !self.captureEngine.isCapturing {
+                self.captureEngine.start()
+                dlog("[ShellMode] 抓屏启动（\(mode.label)）")
+            }
+        }
+    }
+
+    /// 是否还有别的抓屏归属方（驾驶 / 录制 / 共驾录制）—— 有则 stop 不得停抓屏。
+    var hasOtherCaptureOwner: Bool {
+        isDriving || isRecording || leanRecorder.isRecording
+    }
+
+    /// 停抓屏（仅在无其他归属方时由控制器 stop 调用）。
+    /// ⚠️ 复审 #8 另一半：停的同时作废在途的异步启动任务（代数 +1 + cancel），
+    ///   防「stop 已释放抓屏、旧 Task 的 await 却刚返回」把抓屏又抢回来。
+    func stopShellCapture() {
+        shellCaptureGeneration += 1
+        shellCaptureTask?.cancel()
+        shellCaptureTask = nil
+        captureEngine.stop()
+        dlog("[ShellMode] 抓屏已释放（无其他归属方；在途启动任务已作废）")
+    }
+
+    /// 起在线训练运行时（吃抓屏帧，只读、不注入按键）。失败原因走 shellTrainingFailureReason。
+    func startShellTraining() -> Bool {
+        // #5 动作执行链：把 runtime 采样的动作接到真实控制（digest 影子 / live 真注入）。
+        //   digest 由 controlEngine.digestMode 决定（tick 每帧同步 digestMode 字段）；
+        //   这里据 environment AURORA_RL_LIVE_ACTUATION 决定允许 live 还是强制 digest。
+        //   默认 digest（只算不真按键），符合「影子先行再真注入」的安全要求。
+        let liveAllowed = ProcessInfo.processInfo.environment["AURORA_RL_LIVE_ACTUATION"] == "1"
+        onlineTrainRuntime.actionExecutor = { [weak self] action, digest in
+            // runtime 在串行 actionQueue（后台线程）回调（B1 契约）；ControlEngine
+            // 的 hold/release/heldKeys 非线程安全，必须跳回主线程执行（绝不 sync——
+            // 主线程 stop 会等 actionQueue 排空，反向等待即死锁）。
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                // 双重保险：只有显式允许 live 且调用方 digest==false 时才真注入。
+                let effectiveDigest = digest || !liveAllowed
+                self.applyShellAction(action, digest: effectiveDigest)
+            }
+        }
+        // #6 统一核算：把用户的消化开关（controlEngine.digestMode，tick 每帧
+        //   按 UI 设置写回）作为只读提供者交给 runtime。runtime 侧合并：
+        //   effectiveDigest = base || userDigest || !liveAllowed —— 用户开了
+        //   digest 就绝不真注入。此处**只读不写**，不与 tick 竞争。
+        onlineTrainRuntime.userDigestProvider = { [weak self] in
+            self?.controlEngine.digestMode ?? true
+        }
+        onlineTrainRuntime.digestMode = !liveAllowed   // runtime 侧默认也走 digest
+        return onlineTrainRuntime.start()
+    }
+
+    /// 停在线训练运行时（收尾 episode + 排空训练队列 + 存盘）。
+    /// 复审 B5：把 stop 的 (drained, headSaved) 结果如实记录下来，供 Controller/UI 透传，
+    /// 不再无条件报「已停止」。
+    func stopShellTraining() {
+        let r = onlineTrainRuntime.stop()
+        if !r.drained {
+            shellStopReport = "停止超时：训练队列未排空（键已释放，存盘可能未完成）"
+        } else if !r.headSaved {
+            shellStopReport = "已停止，但策略头存盘失败（本轮学习结果未落盘）"
+        } else {
+            shellStopReport = nil   // 正常
+        }
+    }
+
+    var shellTrainingRunning: Bool { onlineTrainRuntime.running }
+    var shellTrainingFailureReason: String? { onlineTrainRuntime.lastError }
+
+    /// 重新拉起普通自动驾驶引擎，恢复原状态。
+    /// ⚠️ 复审 #2：绝不裸 startup() —— 挂起标志 suspendedByLeanRecording 若不清，
+    ///   第二次进壳模式时 suspendForLeanRecording 会因幂等守卫直接 return true
+    ///   跳过断连/SIGTERM（引擎仍在驾驶）。resumeAfterLeanRecording 已内置：
+    ///   清挂起标志 + wantsEngineMode=true + 等旧引擎退透（suspendedPID 轮询）再 startup。
+    func restoreEngineAfterShellMode() {
+        EngineClient.shared.resumeAfterLeanRecording()
+    }
+
+    /// #5 动作执行链生产实现：把 RL 采样动作落到真实按键（与 applyCommand 同款 hold/release）。
+    ///   - action.releaseAll（vClass/hClass 任一 < 0）→ 撤 AI 在途键（保留人的物理键；接管/停止）。
+    ///   - 否则：vClass 0=给油(W)/2=刹车(S)；hClass 0=左(A)/2=右(D)；互斥释放对侧。
+    ///   - digest=true → 影子：不产生任何按键、不碰 ControlEngine 状态（协作点 2 契约）；
+    ///     false → 计划化 hold/release，ControlEngine 自身的 digestMode（tick 同步）仍是最后一道闸。
+    ///   帧间：先释放不再按住的键再按当前，最后 refreshHeldKeys 触发 auto-repeat（防「按住不动」）。
+    func applyShellAction(_ action: RLAction, digest: Bool) {
+        // ⚠️ 复审 B2：人工接管期间**保留人的键所有权** —— 绝不发 keyUp 抵消用户正按的键。
+        //   只撤销「AI 自己按下的」键（releaseAIHeldKeys 保留物理键），且常规动作不再注入。
+        //   本函数已在主线程（Controller 与 DriveState 的 executor 都用 main.async 调来），
+        //   可安全碰 controlEngine。
+        let isSentinel = action.vClass < 0 || action.hClass < 0
+        let humanKeys = keyboardMonitor.heldKeys
+        // #6 释放安全：AI 真按过的键，keyUp 必须真发。postKeyEvent 是消化唯一闸口——
+        //   digest 开着时 keyUp 会被吃掉 → OS 层键卡死（游戏里键卡住）。故释放前
+        //   临时关消化 → 释放（保留人的物理键）→ 恢复原值。本函数在主线程串行执行，
+        //   tick 不会在保存与恢复之间插队改写 digestMode。
+        if EmergencyTakeover.shared.userHoldingKey {
+            // 人正接管：撤 AI 键（保留人的键），不再采样动作注入。
+            if !controlEngine.heldKeys.isEmpty {
+                let savedDigest = controlEngine.digestMode
+                controlEngine.digestMode = false
+                controlEngine.releaseAIHeldKeys(preserving: humanKeys)
+                controlEngine.digestMode = savedDigest
+            } else {
+                controlEngine.releaseAIHeldKeys(preserving: humanKeys)
+            }
+            return
+        }
+        if isSentinel {
+            // 撤销哨兵：同样保留人的键，只清 AI 键（避免把用户正按的键抬起来）。
+            if !controlEngine.heldKeys.isEmpty {
+                let savedDigest = controlEngine.digestMode
+                controlEngine.digestMode = false
+                controlEngine.releaseAIHeldKeys(preserving: humanKeys)
+                controlEngine.digestMode = savedDigest
+            } else {
+                controlEngine.releaseAIHeldKeys(preserving: humanKeys)
+            }
+            return
+        }
+        // #6 键卡死根因修复：此前的直写 `controlEngine.digestMode = digest` 与 tick
+        //   每帧按用户设置写回（约 :8717）竞争——tick 刚按用户设置同步，这里又按
+        //   入参翻回去，最坏把 keyUp 消化掉。协作点 2 契约：实现不得写该字段，只按
+        //   入参决定发不发真事件。digest=true → 影子：不产生任何按键、不碰 ControlEngine。
+        if digest {
+            // live→digest 中途切换时，AI 此前真按过的在途键必须用真实 keyUp 清掉
+            //（同上旁路；空集时零开销）。此后每帧 heldKeys 已空，纯观测返回。
+            if !controlEngine.heldKeys.isEmpty {
+                let savedDigest = controlEngine.digestMode
+                controlEngine.digestMode = false
+                controlEngine.releaseAIHeldKeys(preserving: humanKeys)
+                controlEngine.digestMode = savedDigest
+            }
+            return
+        }
+        // 映射到键位计划（纯函数，自检可测）再落到 controlEngine。
+        let plan = DriveState.shellActionKeyPlan(vClass: action.vClass, hClass: action.hClass)
+        for k in plan.release { controlEngine.release(k) }
+        for k in plan.hold { controlEngine.hold(k) }
+        controlEngine.refreshHeldKeys()
+    }
+
+    /// RL 动作 → 真实键位计划（纯函数，便于自检；与 applyCommand 的 W/S、A/D 互斥口径一致）。
+    ///   vClass 0=给油(W)/2=刹车(S)/其余不动；hClass 0=左(A)/2=右(D)/其余不动。
+    static func shellActionKeyPlan(vClass: Int, hClass: Int)
+        -> (hold: [ControlEngine.Action], release: [ControlEngine.Action]) {
+        var hold: [ControlEngine.Action] = []
+        var release: [ControlEngine.Action] = []
+        switch vClass {
+        case 0: hold.append(.throttle); release.append(.brake)
+        case 2: hold.append(.brake); release.append(.throttle)
+        default: release.append(contentsOf: [.throttle, .brake])
+        }
+        switch hClass {
+        case 0: hold.append(.steerLeft); release.append(.steerRight)
+        case 2: hold.append(.steerRight); release.append(.steerLeft)
+        default: release.append(contentsOf: [.steerLeft, .steerRight])
+        }
+        return (hold, release)
     }
 }

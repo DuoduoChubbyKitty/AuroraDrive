@@ -69,7 +69,10 @@ enum OnlineTrainingWireSelfTest {
         }
 
         // 真实运行时（默认降频 3 帧；自检里改成每帧都采，样本更快够）
-        let runtime = OnlineTrainingRuntime(sampleEveryNFrames: 1)
+        // headCheckpointURL: nil——#7 新增的默认存盘是「真实训练续读」用的；
+        // 自检用合成图训练出的权重绝不能写进真实存盘（否则下次真启动会续读到垃圾权重）。
+        let runtime = OnlineTrainingRuntime(sampleEveryNFrames: 1,
+                                             headCheckpointURL: nil)
         check("运行时启动成功（加速器加载）", runtime.start(),
               runtime.lastError ?? "")
 
@@ -94,6 +97,11 @@ enum OnlineTrainingWireSelfTest {
             runtime.onFrame(base, signals: OnlineTrainingRuntime.FrameSignals(
                 speedKmh: 40, speedValid: true, tookOver: false,
                 collision: false, laneOffset: 0, manualStop: false))
+            // 【T2 2026-11-17 唯一例外改动（lead 授权，仅此一行）】onFrame 已改为
+            // 异步有界单槽（主线程立即返回，消费不过来丢旧保新）。本自检要断言
+            // 「每帧都被采样」，必须逐帧等消费完成——否则 400 帧突发会被单槽丢掉
+            // 绝大多数（那是生产行为，不是本自检要验证的事）。
+            _ = runtime.waitForPipelineIdle(timeout: 10)
         }
 
         // 采样计数应 == driveFrames（降频 1 → 每帧都采；只要加速器可用不失败）

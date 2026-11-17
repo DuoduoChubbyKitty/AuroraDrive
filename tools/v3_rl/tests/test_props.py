@@ -56,16 +56,34 @@ def _ref_backfill(events, ft, window):
 def run() -> None:
     rng = np.random.default_rng(123)
 
-    # ── reward monotonicity / bounds ─────────────────────────────────────
-    prev = -1.0
-    for sp in range(0, 101, 5):
+    # ── reward 三段速度 / 边界 ───────────────────────────────────────────
+    # speed_term 三段式：v<100 负、100≤v≤160 线性正、v>160 负。单调上升只在 [0,160] 成立。
+    prev = -2.0
+    for sp in range(0, 161, 5):
         st = R.speed_term(float(sp), True)
-        H.check(st >= prev - 1e-9, f"speed_term monotone at {sp}")
+        H.check(st >= prev - 1e-9, f"speed_term 上升段单调（0..160）at {sp}")
         prev = st
-
+    # 在 [0,160] 上取值有界 [-1, +1]；v>160 为按超出扣的负分（无下界，越高越负）。
     for _ in range(50):
-        sp = float(rng.uniform(-100, 400))
-        H.check(0.0 <= R.speed_term(sp, True) <= 1.0, "speed_term in [0,1]")
+        sp = float(rng.uniform(0, 160))
+        st = R.speed_term(sp, True)
+        H.check(-1.0 - 1e-9 <= st <= 1.0 + 1e-9, "speed_term 在 [0,160] 上界 [-1,1]")
+    prev_over = 0.0
+    for sp in [161.0, 200.0, 300.0, 400.0]:
+        st = R.speed_term(sp, True)
+        H.check(st < 0.0, f"speed_term v>160 为负 at {sp}")
+        H.check(st <= prev_over + 1e-12, f"speed_term v>160 越高越负（不回升）at {sp}")
+        prev_over = st
+    # 三段正确性 + 100 处连续（两端点都恰为 0）；160 处是设计跳变（160 为甜点上限最大正，
+    # 一旦越过立刻变负），故**不**断言 160 处连续。
+    H.check_close(R.speed_term(99.0, True), -0.01, msg="speed 99 -> -0.01")
+    H.check_close(R.speed_term(100.0, True), 0.0, msg="speed 100 -> 0（下分界）")
+    H.check_close(R.speed_term(130.0, True), 0.5, msg="speed 130 -> +0.5")
+    H.check_close(R.speed_term(160.0, True), 1.0, msg="speed 160 -> +1.0（甜点上限最大正）")
+    H.check_close(R.speed_term(161.0, True), -1.0 / 60.0, msg="speed 161 -> -1/60（越过即小负）")
+    H.check_close(R.speed_term(100.0 - 1e-6, True),
+                  R.speed_term(100.0 + 1e-6, True), tol=1e-6,
+                  msg="speed 在 100 处左右连续")
     for _ in range(50):
         off = float(rng.uniform(-3, 3))
         H.check(0.0 <= R.lane_term(off) <= 1.0, "lane_term in [0,1]")

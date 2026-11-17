@@ -180,8 +180,12 @@ enum OnlineTrainerSelfTest {
                 let vOK = sample.vClass == prefV[ctx], hOK = sample.hClass == prefH[ctx]
                 // episode 的最后一帧就是**真实采样帧**且 isTerminal=true（不发 logProb=0 的假终止帧，
                 // 否则会用坏 old logProb 污染 PPO ratio）。
+                // 速度三段式（2026-11-17）：正确动作用 160（最大正分 +1.0）、错误用 20（负分 -0.8）。
+                // 原先 90/20 在旧「限速归一」语义下同为正分；三段式下 90 已是负分，会让最优回报为负、
+                // critic 价值目标整体为负，压垮学习收益断言 —— 故把承载奖励的速度移入正分段，
+                // 断言阈值（Δ>0.25 / lpf>0.55）保持不变、不削弱。
                 let r = trainer.collect(stateToken: state, sample: sample, tookOver: false,
-                                        speedKmh: vOK ? 90.0 : 20.0, speedValid: true, collision: false,
+                                        speedKmh: vOK ? 160.0 : 20.0, speedValid: true, collision: false,
                                         laneOffset: hOK ? 0.0 : 1.0, isTerminal: step == framesPerEpisode - 1)
                 tot += r; if vOK { cV += 1 }; if hOK { cH += 1 }
             }
@@ -521,10 +525,11 @@ enum OnlineTrainerSelfTest {
         _ = feed(100, true)                 // 帧1：prev speed=100, valid
         _ = feed(Double.nan, true)          // 帧2：NaN（valid 却 NaN）→ 必须 prevValid=false
         let r3 = feed(50, true)             // 帧3：50 km/h
-        // 若修复：帧3 decel=0（prevValid=false），reward = speedTerm(50)=0.5
-        // 若未修复：decelTerm(prev=100,cur=50)=min(50/30,1)=1 → reward = 0.5 - 2*1 = -1.5
-        check("NaN 之后一帧不被伪造急减速（reward==speedTerm 0.5，非 -1.5）",
-              abs(r3 - 0.5) < 1e-9, String(format: "实际%.4f", r3))
+        // 若修复：帧3 decel=0（prevValid=false），reward = speedTerm(50)。
+        // 三段式下 speedTerm(50) = -(100-50)/100 = -0.5。
+        // 若未修复：decelTerm(prev=100,cur=50)=min(50/30,1)=1 → reward = -0.5 - 2*1 = -2.5
+        check("NaN 之后一帧不被伪造急减速（reward==speedTerm(50)=-0.5，非 -2.5）",
+              abs(r3 - (-0.5)) < 1e-9, String(format: "实际%.4f", r3))
         // 对照：连续两个有限值确实产生减速惩罚（证明减速项本身没坏）
         let trainer2 = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
                                      ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
@@ -536,7 +541,8 @@ enum OnlineTrainerSelfTest {
                                    sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 0),
                                    tookOver: false, speedKmh: 50, speedValid: true,
                                    collision: false, laneOffset: 0, isTerminal: false)
-        check("对照：连续有限值 100→50 确实有减速惩罚（reward < 0.5）", r2c < 0.5,
+        // speedTerm(50)=-0.5，再叠加 decel 1.0*2=2 → 约 -2.5，明显比「无减速」的 -0.5 更负。
+        check("对照：连续有限值 100→50 确实有减速惩罚（reward < -0.5）", r2c < -0.5,
               String(format: "实际%.4f", r2c))
         return 0
     }
@@ -591,8 +597,10 @@ enum OnlineTrainerSelfTest {
                 var pol = trainer.currentPolicyForTest()
                 let sample = pol.sampleSeeded(stateToken: s, rng: &rng)
                 let vOK = sample.vClass == prefV[ctx], hOK = sample.hClass == prefH[ctx]
+                // 速度三段式（2026-11-17）：同 ③，正确 160（+1.0）/错误 20（-0.8），保持正分段
+                // 奖励尺度，critic 不背「全负回报」；断言（Δ>0.4 / 后窗 CV>0.85）不变。
                 let r = trainer.collect(stateToken: s, sample: sample, tookOver: false,
-                                        speedKmh: vOK ? 90 : 20, speedValid: true, collision: false,
+                                        speedKmh: vOK ? 160 : 20, speedValid: true, collision: false,
                                         laneOffset: hOK ? 0 : 1, isTerminal: step == fpe - 1)
                 tot += r; if vOK { cV += 1 }
             }

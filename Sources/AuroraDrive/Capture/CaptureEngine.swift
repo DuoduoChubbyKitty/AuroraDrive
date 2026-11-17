@@ -211,7 +211,11 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
 
     // MARK: - 私有属性
 
-    private var stream: SCStream?
+    private var _stream: SCStream?
+    private var stream: SCStream? {
+        get { stateLock.withLock { _stream } }
+        set { stateLock.withLock { _stream = newValue } }
+    }
     private let captureQueue = DispatchQueue(label: "aurora.capture", qos: .userInteractive)
     private var lastFPSDate: Date = .distantPast
     private var fpsAccumulator: Int = 0
@@ -316,6 +320,12 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     private let stateLock = OSAllocatedUnfairLock()
     private var _currentFrame: NSImage?
     private var _isCapturing = false
+
+    /// 启动代数（复审 B3）：每次 start() 取号、stop() 递增。await 建流成功后若代数已变
+    /// （期间发生过 stop），说明这次建流已过期 → 立刻拆掉刚建的流并放弃发布，
+    /// 杜绝「stop 后旧 start 的 Task 又把流建起来抢占」的竞态。stateLock 保护。
+    private var _startGeneration = 0
+    var startGeneration: Int { stateLock.withLock { _startGeneration } }
 
     /// [cap-deep] 帧到达计数（诊断用：确认 SCStream 回调真的在跑）
     private var _deepFrameCounter = 0
@@ -450,6 +460,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             print("[cap-deep] start() 早退：isCapturing 已为 true（重复调用）")
             return
         }
+        let startGen = stateLock.withLock { _startGeneration }
 
         // 用 Task 包装 async 调用
         Task { [weak self] in
@@ -505,12 +516,12 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             print("[capture] selected displayID=\(display.displayID) main=\(mainDisplayID)")
 
             // 3. 创建并启动流
-            await self.startStream(display: display, content: content)
+            await self.startStream(display: display, content: content, startGen: startGen)
         }
     }
 
     /// 创建并启动 SCStream（async 版本）
-    private func startStream(display: SCDisplay, content: SCShareableContent) async {
+    private func startStream(display: SCDisplay, content: SCShareableContent, startGen: Int) async {
         // 诊断日志：确认显示器输出分辨率（字模模式依赖原生分辨率，实测点/像素语义）
         // SCDisplay.width 按 Apple 文档是像素，但实测需确认；若为点值需 ×backingScaleFactor
         print("[capture] display frame=\(display.frame.size) w=\(display.width) h=\(display.height)")
@@ -598,7 +609,20 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             print("[cap-deep] 即将 startCapture() filter=\(filter) config=\(config.width)x\(config.height)")
             try await stream.startCapture()
             print("[cap-deep] ✅ startCapture 成功")
-            self.stream = stream
+            // 复审 B3（加强）：把「校验代数 + 提交 stream/isCapturing」放进**同一 stateLock
+            //   临界区**，与 stop() 里的「失效代数 + 取走 stream + 清 isCapturing」互斥 ——
+            //   杜绝「后台校验通过→主线程 stop 早退→后台仍发布旧流」的检查-提交竞态。
+            let committed = self.stateLock.withLock { () -> Bool in
+                guard self._startGeneration == startGen else { return false }
+                self._stream = stream
+                self._isCapturing = true
+                return true
+            }
+            if !committed {
+                print("[cap-deep] ⚠️ 建流期间已 stop（代数 \(startGen)≠\(self.startGeneration)），丢弃本次建流")
+                try? await stream.stopCapture()
+                return
+            }
             self.currentDisplay = display       // 切模式时复用（避免重新查显示器）
             self.captureMode = self.desiredMode  // 记录已生效模式
             // task-C 第 3 点闭环：start() **确实应用了** desiredMode →
@@ -612,12 +636,21 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             // task-94：记录**已生效**的帧率（诊断/UI 用）。此处 targetCaptureHz
             //   就是本次建流实际用的值（makeStreamConfiguration(configHz: targetCaptureHz)）。
             self.activeCaptureHz = self.targetCaptureHz
-            self.isCapturing = true
+            // 复审 B3（残留）：临界区提交时已置 _isCapturing=true，这里**不再**锁外
+            //   重复置位 —— 原重复行会在「提交成功 → stop() 同步置 false → 尾部
+            //   又置 true」竞态下留下 _stream=nil 但 isCapturing=true 的假活态：
+            //   后续 start() 全部早退，抓屏永远无法恢复。
             self.lastFPSDate = Date()
             self.resetOwnUIWarning()            // 新一轮录制允许重新告警
-            self.onModeChange?(self.captureMode)
-            self.onStatusChange?(.started)
-            print("[cap-deep] ✅ 状态已置 isCapturing=true")
+            // 通知遵守同一生命周期：提交与通知之间 stop() 可能已收走状态（代数已
+            //   推进），重读代数确认本次建流仍是当前会话，才发 .started。
+            if self.startGeneration == startGen {
+                self.onModeChange?(self.captureMode)
+                self.onStatusChange?(.started)
+                print("[cap-deep] ✅ 建流完成（isCapturing 已在提交临界区置位）")
+            } else {
+                print("[cap-deep] ⚠️ 建流提交后 stop() 已介入（代数 \(startGen)≠\(self.startGeneration)），跳过 .started 通知")
+            }
         } catch {
             print("[cap-deep] ❌ startCapture 失败: \(error)")
             onStatusChange?(.error("启动捕获失败: \(error.localizedDescription)"))
@@ -763,14 +796,23 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     ///   `guard !isCapturing` 静默返回 → capture 永不重启 → 用户「停了再选就没反应」。
     ///   修复：同步置状态（让 start() 立刻能通过 guard），async Task 只做 stopCapture + 清池。
     func stop() {
-        guard isCapturing, let oldStream = stream else {
-            print("[cap-deep] stop() 早退：isCapturing=\(isCapturing) stream=\(stream != nil ? "有" : "nil")")
+        // 复审 B3：**无条件先递增启动代数**（早退前），使任何在途 start() 的 Task 在
+        //   await 建流返回后发现代数已变而自行丢弃 —— 即便此刻 isCapturing 还是 false
+        //   （stop 早退分支），也能源泉式作废「stop 之后又被旧任务建起来的流」。
+        // 复审 B3（加强）：把「失效代数 + 取走 stream + 清 isCapturing」放进**同一 stateLock
+        //   临界区**，与 startStream 的「校验代数+提交」互斥，杜绝检查-提交竞态。
+        let oldStream: SCStream? = stateLock.withLock {
+            _startGeneration &+= 1
+            let taken = _stream
+            _stream = nil
+            _isCapturing = false
+            return taken
+        }
+        guard let oldStream else {
+            print("[cap-deep] stop() 早退：isCapturing=false stream=nil")
             return
         }
         print("[cap-deep] stop() 进入：desiredMode=\(desiredMode.label) captureMode=\(captureMode.label)")
-        // 同步置状态：让紧接着的 start() 能通过 guard !isCapturing
-        self.stream = nil
-        self.isCapturing = false
         self.currentFrame = nil
         // ⚠️ **刻意不动 `desiredMode`**（task-C 第 3 点）：
         //   用户「停止后想换另一个窗口」→ 停止不应抹掉他的选择。

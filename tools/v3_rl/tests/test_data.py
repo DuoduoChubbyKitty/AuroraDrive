@@ -104,9 +104,9 @@ def run() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         clip = Path(tmp) / "clip_score"
         clip.mkdir()
-        cache = _fake_cache(4, speed=10.0)  # constant speed -> base 0.1 per frame
+        cache = _fake_cache(4, speed=10.0)  # constant speed=10 -> speed_term(10)=-(100-10)/100=-0.9 per frame
         base = T.build_clip_tensors(cache, clip)  # no human_scores.csv
-        H.check(np.allclose(base.rewards, 0.1), "no human_scores -> base reward only")
+        H.check(np.allclose(base.rewards, -0.9), "no human_scores -> base reward only (speed(10)=-0.9)")
         # explicit human_score_path to a missing file behaves like None
         missing = T.build_clip_tensors(cache, clip, human_score_path=clip / "nope.csv")
         H.check(np.allclose(missing.rewards, base.rewards),

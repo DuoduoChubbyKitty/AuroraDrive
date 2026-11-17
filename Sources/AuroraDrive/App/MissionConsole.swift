@@ -3327,7 +3327,7 @@ struct HardwareBank: View {
                 LeanRecordBar(state: state)
                     .padding(.top, 8)
 
-                // ── 第 5.5 个控件：人机共驾采集长条（紧贴精简录制下方）──
+                // ── 第 5.5 个控件：人机共驾壳模式长条（紧贴精简录制下方）──
                 CoDriveBar(state: state)
                     .padding(.top, 6)
             }
@@ -3415,6 +3415,8 @@ struct LeanRecordBar: View {
                 row
             }
             .buttonStyle(.plain)
+            // B4：壳模式运行中禁开录（争抢引擎挂起/恢复所有权）；开录失败原因见状态行。
+            .disabled(state.shellModeActive)
             .help(state.leanIsRecording ? "点击停止并进入离线标注" : "点击开始精简录制")
 
             Text(detailLine)
@@ -3535,52 +3537,98 @@ struct LeanRecordBar: View {
 }
 
 // ============================================================================
-// MARK: - 人机共驾采集长条（精简录制下方，2026-11-16 新增）
+// MARK: - 人机共驾壳模式长条（精简录制下方，2026-11-17 由「共驾采集」改为「壳模式」）
 // ============================================================================
 //
 // 位置：**精简录制长条正下方**（用户原话「放在精简录制的下方」）。
-// 作用：一个开关，开启后以「共驾」方式录制并额外写 codrive.csv（AI 动作 /
-//   是否被人类接管 / 碰撞 / 车道偏置）。它就是 RL 训练的数据入口：
-//   用户一边开一边救，救车的那几帧就是「模型犯错→人类纠正」的最佳样本。
 //
-// 样式刻意与 `LeanRecordBar` 一致（同款扁平长条），只换配色与文案，
-// 让用户一眼看出是同一族的两个录制开关。
+// 作用：一个总开关，开启后进入「人机共驾壳模式」——只保留 UI 壳 + 训练引擎，
+//   把自动驾驶的推理/规则/降级引擎全部退掉（编排在 RL/ShellModeController.swift，
+//   不在本文件），模型在游戏里自己开、边开边学。数据读写仍走精简录制那套
+//   抓屏/落盘，所以这里照旧用 leanFrameCount 显示采样帧数。
+//
+// 本视图只做三件事：① 启停壳模式（toggleShellMode）；② 启动前选抓画面的
+//   游戏/串流窗口（复用已有的 selectCaptureMode/refreshCapturableWindows，
+//   与右侧 WindowPickerRail 同一套契约，绝不新开抓屏链路）；③ 如实展示壳模式
+//   运行状态与训练指标（读 shellModeStatus/shellMetrics，错误不静默吞）。
+//
+// 样式刻意保留与 `LeanRecordBar` 一致（同款扁平长条），只换语义与文案，
+// 让用户一眼看出是同一族的两个开关。
 struct CoDriveBar: View {
     @Bindable var state: DriveState
 
+    /// 本长条内联的窗口选择面板是否展开。故意与右侧 WindowPickerRail 的
+    /// `windowPickerExpanded` **不共享**：那是常驻侧栏，本处是壳模式启动前的
+    /// 一次性入口，各自记住自己的开合，互不干扰。
+    @State private var showWindowPicker = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Button {
-                state.toggleCoDrive()
-            } label: {
-                row
-            }
-            .buttonStyle(.plain)
-            .help(state.coDriveActive ? "点击停止共驾采集" : "点击开始人机共驾采集（供 RL 训练）")
+            HStack(spacing: 8) {
+                Button {
+                    state.toggleShellMode()
+                } label: {
+                    row
+                }
+                .buttonStyle(.plain)
+                .disabled(!shellToggleEnabled)
+                .help(shellHelp)
 
-            Text(detailLine)
+                // 「选择训练窗口」入口：壳模式未运行时才可点（运行中切换抓屏源会
+                // 打乱正在采样的流，必须先停）；按钮常显当前窗口名，没选窗口时
+                // 给出「选择训练窗口」提示。
+                Button {
+                    showWindowPicker.toggle()
+                    if showWindowPicker {
+                        Task { await state.refreshCapturableWindows() }
+                    }
+                } label: {
+                    windowPickerButtonLabel
+                }
+                .buttonStyle(.plain)
+                .disabled(state.shellModeActive)
+                .help(state.shellModeActive ? "壳模式运行中不可切换窗口，请先停止" : "选择要抓的训练窗口（游戏/串流）")
+            }
+
+            if showWindowPicker && !state.shellModeActive {
+                windowPickerPanel
+            }
+
+            // 壳模式运行状态行：运行中/采样帧数/最近 PPO 指标/速度奖励/存盘/错误。
+            Text(shellStatusLine)
                 .font(.system(size: 8.5))
-                .foregroundStyle(detailColor)
-                .lineLimit(2)
+                .foregroundStyle(shellStatusColor)
+                .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
+
+            // 错误不静默吞：壳模式错误与遗留的精简录制错误都在这里显式点名。
+            if let err = shellErrorText {
+                Text("⚠️ \(err)")
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(Aurora.danger)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
+
+    // MARK: 主行（与 LeanRecordBar 同款扁平长条，只换配色/文案）
 
     private var row: some View {
         HStack(spacing: 8) {
             Circle()
                 .fill(dotColor)
                 .frame(width: 6, height: 6)
-                .shadow(color: state.coDriveActive ? Aurora.ice.opacity(0.9) : .clear,
+                .shadow(color: state.shellModeActive ? Aurora.ice.opacity(0.9) : .clear,
                         radius: 5)
 
-            Text("人机共驾采集")
+            Text("人机共驾壳模式")
                 .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(state.coDriveActive ? Aurora.t1 : Aurora.t2)
+                .foregroundStyle(state.shellModeActive ? Aurora.t1 : Aurora.t2)
 
             Spacer(minLength: 6)
 
-            if state.coDriveActive {
+            if state.shellModeActive {
                 Text("\(state.leanFrameCount) 帧")
                     .font(.system(size: 8.5, design: .monospaced))
                     .foregroundStyle(Aurora.ice)
@@ -3598,53 +3646,356 @@ struct CoDriveBar: View {
         .frame(height: 34)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(state.coDriveActive ? Aurora.iceWash : Color.white.opacity(0.038))
+                .fill(state.shellModeActive ? Aurora.iceWash : Color.white.opacity(0.038))
         }
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(state.coDriveActive ? Aurora.ice.opacity(0.42) : Aurora.hair1,
+                .strokeBorder(state.shellModeActive ? Aurora.ice.opacity(0.42) : Aurora.hair1,
                               lineWidth: 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
+    // MARK: 窗口选择入口
+
+    /// 窗口模式（只录某个窗口）下，若捕获出错（那个窗口已被关掉等），
+    /// 直接开壳模式没有意义 —— UI 侧用 captureModeError 拦一下并提示换窗口；
+    /// 全屏模式永远可开（有些串流/云游戏以全屏呈现）。
+    private var canStartShellMode: Bool {
+        Self.shellToggleEnabled(shellActive: false, captureError: state.captureModeError)
+    }
+
+    /// 启停按钮可用性（Codex 复审 #9 修复）。
+    ///
+    /// 关键不变量：壳模式**已激活**时按钮语义是「停止」，必须永远可点——
+    /// 运行中窗口被关/切流失败后，用户要靠它退出恢复；此时若被捕获报错禁用，
+    /// 选窗按钮又因运行中被禁用，用户就卡死在壳模式里出不来。
+    /// 只有**未激活**（按钮语义是「启动」）时才受捕获报错门控。
+    private var shellToggleEnabled: Bool {
+        let enabled = Self.shellToggleEnabled(shellActive: state.shellModeActive,
+                                              captureError: state.captureModeError)
+        if state.shellModeActive && state.captureModeError != nil {
+            // 恰在「运行中 + 捕获报错」这个曾被 #9 卡死的状态断言停止仍可用。
+            assert(enabled,
+                   "复审#9：壳模式运行中即使 captureModeError != nil，停止按钮也必须可用")
+        }
+        return enabled
+    }
+
+    /// 纯函数门控：停止永远可用；只有「启动」受捕获报错门控。
+    /// 抽成纯函数是为了让上面这条不变量可以在不建视图的情况下被断言/复用。
+    static func shellToggleEnabled(shellActive: Bool, captureError: String?) -> Bool {
+        if shellActive { return true }
+        return captureError == nil
+    }
+
+    private var effectiveCaptureHint: String {
+        state.captureModeDescription
+    }
+
+    /// 按钮上显示的当前捕获目标名：窗口模式显示窗口名（短名，避免挤压缩放主按钮），
+    /// 全屏模式显式写「录全屏」——始终如实反映"壳模式会抓什么"，不留误导的「未选窗口」。
+    private var captureTargetShortName: String {
+        switch state.captureMode {
+        case .fullScreen:
+            return "录全屏"
+        case .window(let id):
+            if let match = state.capturableWindows.first(where: { $0.id == id }) {
+                return match.applicationName
+            }
+            return "窗口 #\(id)"
+        }
+    }
+
+    private var windowPickerButtonLabel: some View {
+        let selectedWindow = state.captureMode.isWindowMode
+        return HStack(spacing: 5) {
+            Image(systemName: selectedWindow ? "gamecontroller.fill" : "scope")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(selectedWindow ? Aurora.ok : Aurora.ice)
+            Text(captureTargetShortName)
+                .font(.system(size: 8.5, weight: .medium))
+                .foregroundStyle(selectedWindow ? Aurora.t2 : Aurora.t3)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Image(systemName: showWindowPicker ? "chevron.up" : "chevron.down")
+                .font(.system(size: 7, weight: .bold))
+                .foregroundStyle(Aurora.t4)
+        }
+        .padding(.horizontal, 9)
+        .frame(height: 34)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.white.opacity(0.038))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(selectedWindow ? Aurora.ok.opacity(0.35) : Aurora.hair1, lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .fixedSize()
+    }
+
+    /// 内联窗口列表：复用与 WindowPickerRail 相同的字段与选择方法
+    /// （refreshCapturableWindows / selectCaptureMode / capturableWindows /
+    ///  recommendedGameWindow / windowListLoading / windowListError），
+    /// 不新开任何抓屏链路，只把「选哪个窗口」这一步搬进壳模式入口。
+    private var windowPickerPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Text("选择训练窗口")
+                    .font(.system(size: Aurora.fsSmall, weight: .semibold))
+                    .foregroundStyle(Aurora.t1)
+                Spacer()
+                Button {
+                    Task { await state.refreshCapturableWindows() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Aurora.ice)
+                }
+                .buttonStyle(.plain)
+                .help("刷新窗口列表（窗口会变化）")
+                Button {
+                    showWindowPicker = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Aurora.t3)
+                }
+                .buttonStyle(.plain)
+                .help("收起")
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+
+            Divider().overlay(Aurora.hair1)
+
+            if state.windowListLoading {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("正在枚举窗口…")
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.t3)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 1) {
+                        pickerFullScreenRow
+                        if let game = state.recommendedGameWindow {
+                            pickerSectionLabel("推荐（检测到游戏窗口）")
+                            pickerWindowRow(game, highlighted: true)
+                        }
+                        let others = state.capturableWindows.filter { !$0.isGame }
+                        pickerSectionLabel("其他窗口（\(others.count)）")
+                        if others.isEmpty {
+                            Text("没有其他可捕获的窗口")
+                                .font(.system(size: Aurora.fsMicro))
+                                .foregroundStyle(Aurora.t4)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                        } else {
+                            ForEach(others) { window in
+                                pickerWindowRow(window, highlighted: false)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 5)
+                }
+                .frame(maxHeight: 240)
+            }
+
+            if let error = state.captureModeError ?? state.windowListError {
+                HStack(alignment: .top, spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(Aurora.amber)
+                    Text(error)
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.amber)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+            }
+
+            Divider().overlay(Aurora.hair1)
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(state.captureMode.isWindowMode ? Aurora.ok : Aurora.t4)
+                    .frame(width: 4, height: 4)
+                Text(effectiveCaptureHint)
+                    .font(.system(size: Aurora.fsMicro))
+                    .foregroundStyle(Aurora.t3)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Aurora.glassSolid)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Aurora.hair2, lineWidth: 1)
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private var pickerFullScreenRow: some View {
+        let selected = !state.captureMode.isWindowMode
+        return Button {
+            Task { await state.selectCaptureMode(.fullScreen) }
+        } label: {
+            HStack(spacing: 7) {
+                pickerSelectionDot(selected)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("录全屏")
+                        .font(.system(size: Aurora.fsSmall, weight: selected ? .semibold : .regular))
+                        .foregroundStyle(selected ? Aurora.t1 : Aurora.t2)
+                    Text("整块显示器（已排除 AuroraDrive 自己的窗口）")
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.t4)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(pickerRowBackground(selected))
+    }
+
+    private func pickerWindowRow(_ window: CapturableWindow, highlighted: Bool) -> some View {
+        let selected = state.captureMode == .window(id: window.id)
+        return Button {
+            Task { await state.selectCaptureMode(.window(id: window.id)) }
+            showWindowPicker = false
+        } label: {
+            HStack(spacing: 7) {
+                pickerSelectionDot(selected)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        if highlighted {
+                            Image(systemName: "gamecontroller.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(Aurora.ok)
+                        }
+                        Text(window.applicationName)
+                            .font(.system(size: Aurora.fsSmall, weight: selected || highlighted ? .semibold : .regular))
+                            .foregroundStyle(highlighted ? Aurora.ok : (selected ? Aurora.t1 : Aurora.t2))
+                            .lineLimit(1)
+                    }
+                    if !window.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(window.title)
+                            .font(.system(size: Aurora.fsMicro))
+                            .foregroundStyle(Aurora.t3)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Text(window.sizeLabel)
+                        .font(.system(size: Aurora.fsMicro))
+                        .foregroundStyle(Aurora.t4)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(pickerRowBackground(selected || highlighted))
+    }
+
+    private func pickerSelectionDot(_ selected: Bool) -> some View {
+        Circle()
+            .strokeBorder(selected ? Aurora.ice : Aurora.hair3, lineWidth: 1.2)
+            .background(Circle().fill(selected ? Aurora.ice : Color.clear))
+            .frame(width: 9, height: 9)
+    }
+
+    private func pickerRowBackground(_ active: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .fill(active ? Aurora.iceWash : Color.clear)
+    }
+
+    private func pickerSectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: Aurora.fsMicro, weight: .semibold))
+            .foregroundStyle(Aurora.t4)
+            .padding(.horizontal, 10)
+            .padding(.top, 7)
+            .padding(.bottom, 2)
+    }
+
+    // MARK: 状态与配色
+
+    private var shellHelp: String {
+        if state.shellModeActive { return "点击停止壳模式（恢复自动驾驶引擎）" }
+        if !canStartShellMode {
+            return "当前捕获目标出错，点右侧按钮重新选择训练窗口后再启动"
+        }
+        return "点击进入人机共驾壳模式：只留 UI 壳 + 训练引擎，模型自己开并学习"
+    }
+
     private var dotColor: Color {
-        if state.coDriveActive { return Aurora.ice }
-        if state.leanLastError != nil { return Aurora.danger }
+        if state.shellModeActive { return Aurora.ice }
+        if shellErrorText != nil { return Aurora.danger }
         return Aurora.t4
     }
 
     private var badge: String {
-        if state.coDriveActive { return "共驾" }
-        if state.leanLastError != nil { return "ERR" }
+        if state.shellModeActive { return "SHELL" }
+        if shellErrorText != nil { return "ERR" }
         return "READY"
     }
 
     private var badgeColor: Color {
-        if state.coDriveActive { return Aurora.ice }
-        if state.leanLastError != nil { return Aurora.danger }
+        if state.shellModeActive { return Aurora.ice }
+        if shellErrorText != nil { return Aurora.danger }
         return Aurora.t4
     }
 
     private var badgeFill: Color {
-        if state.coDriveActive { return Aurora.iceWash }
+        if state.shellModeActive { return Aurora.iceWash }
         return Aurora.iceWash
     }
 
-    private var detailLine: String {
-        if let err = state.leanLastError {
-            return "失败：\(err)"
+    /// 壳模式运行状态描述：
+    ///   运行中 → 优先用 shellModeStatus（由 T1 编排填入，例如「采样N帧」），
+    ///            并附上 shellMetrics 的 PPO/速度奖励/存盘摘要；
+    ///   已停   → 静态说明壳模式到底是什么。
+    private var shellStatusLine: String {
+        if state.shellModeActive {
+            var line = state.shellModeStatus.isEmpty ? "壳模式运行中" : state.shellModeStatus
+            if let metrics = state.shellMetrics, !metrics.isEmpty {
+                line += " · \(metrics)"
+            }
+            return line
         }
-        if state.coDriveActive {
-            return "共驾采集中 · 画面+按键+AI动作/接管（codrive.csv）"
-        }
-        return "人机共驾采集：模型犯怂时你接管救回，那几帧就是 RL 训练样本"
+        return "人机共驾壳模式：只留 UI 壳 + 训练引擎，模型自己开并学习"
     }
 
-    private var detailColor: Color {
-        if state.leanLastError != nil { return Aurora.danger }
-        if state.coDriveActive { return Aurora.ice }
+    private var shellStatusColor: Color {
+        if shellErrorText != nil { return Aurora.amber }
+        if state.shellModeActive { return Aurora.ice }
         return Aurora.t4
+    }
+
+    /// 壳模式错误优先取 shellModeStatus 里的失败信号无从判断，统一读遗留的
+    /// 精简录制错误（抓屏/落盘失败会写进 leanLastError），两者都可能出现。
+    /// 说明：T1 契约未单列 shellError 字段，抓屏/落盘失败仍复用 leanLastError，
+    /// 这里如实把它冒出来，绝不静默吞。
+    private var shellErrorText: String? {
+        state.leanLastError
     }
 }
 
