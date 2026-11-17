@@ -32,6 +32,9 @@
 //      也为 true（绝不在用户 digest 开时真注入）；三源全关才 live；
 //    · ⑫ B5 遗留：超时路径 lastStopReport 如实快照（drained/headSaved/
 //      keysReleased）、start() 清空报告、干净停止三元组全 true。
+//    · ⑬ 七轮 P1：队列旧动作不借新会话身份——执行方卡死 actionQueue →
+//      stop（投递超时）→ 重启+换装新执行方 → 放行：旧会话排队动作作废
+//      （新执行方零旧动作），旧 releaseAll 仍投给旧执行方，新会话动作照常。
 //    · 所有 runtime 构造都传 headCheckpointURL: nil（⑧ 之外），绝不动
 //      用户真实存盘；⑧ 用临时文件 + defer 清理。
 // ============================================================================
@@ -632,6 +635,58 @@ enum OnlineTrainingRuntimeSelfTest {
               "stop=(\(r12.drained),\(r12.headSaved)) "
               + "report=\(report12.map { "(\($0.drained),\($0.headSaved),\($0.keysReleased))" } ?? "nil")")
         rt12.stop()   // 已停再停：无害（报告重记为全 true）
+
+        // ── ⑬ 七轮 P1：队列旧动作不得借新会话身份执行 ──────────────
+        print("  ── ⑬ 队列旧动作不借新会话身份（投递超时→stop→重启→放行）──")
+        let gate13 = Gate()
+        let rt13 = OnlineTrainingRuntime(sampleEveryNFrames: 1,
+                                         softCutSeconds: 1e9,
+                                         actionConfirmTimeout: 0.3,   // 队列卡死路径下 stop 快速超时
+                                         headCheckpointURL: nil,
+                                         stateTokenSource: FakeStateTokenSource())
+        let rec13a = RecordingExecutor()   // 旧执行方
+        let rec13b = RecordingExecutor()   // 新执行方
+        rt13.actionExecutor = { gate13.waitOpen(); rec13a.record($0, $1) }
+        check("⑬ 运行时启动成功", rt13.start(), rt13.lastError ?? "")
+        gate13.close()   // 关闸：旧执行方第 1 次调用即卡死整个串行 actionQueue
+        // 两帧：第 1 个动作进入旧执行方并卡死整个串行 actionQueue，
+        // 第 2 个动作只能在队列里排队等待。
+        rt13.onFrame(base, signals: signals())
+        _ = rt13.waitForPipelineIdle(timeout: 10)
+        rt13.onFrame(base, signals: signals())
+        _ = rt13.waitForPipelineIdle(timeout: 10)
+        check("⑬ 前置 2 帧已采样（动作已入队，首动作卡死 actionQueue）",
+              rt13.sampledFrames == 2, "sampled=\(rt13.sampledFrames)")
+        // stop：releaseAll 排在第 2 个旧动作后面；投递确认超时（队列卡死）。
+        _ = rt13.stop()
+        check("⑬ stop 如实返回哨兵未投递（keysReleased=false，队列卡死）",
+              rt13.lastStopReport?.keysReleased == false,
+              "keysReleased=\(rt13.lastStopReport?.keysReleased.description ?? "nil")")
+        // 重启 + 换装新执行方：新会话代数 + 新 executor 箱。
+        check("⑬ 重启成功（管线未卡，仅 actionQueue 卡）", rt13.start(), rt13.lastError ?? "")
+        rt13.actionExecutor = { rec13b.record($0, $1) }
+        // 放行队列：卡死的第 1 动作在旧执行方执行；排队的第 2 旧动作（代数已
+        // 作废）必须被丢弃；stop 的旧 releaseAll 仍投给旧执行方（安全方向）。
+        gate13.open()
+        _ = rt13.waitForPipelineIdle(timeout: 10)
+        rt13.waitForActionDispatchIdle()
+        let calls13a = rec13a.snapshot
+        let calls13b = rec13b.snapshot
+        check("⑬ 旧执行方只收到：第 1 动作 + stop 的 releaseAll（排队的第 2 旧动作未送达）",
+              calls13a.count == 2 && calls13a[0].v >= 0 && calls13a[1].v == -1 && calls13a[1].h == -1,
+              "oldCalls=\(calls13a.count) "
+              + "first=(v=\(calls13a.first?.v.description ?? "nil")) "
+              + "last=(v=\(calls13a.last?.v.description ?? "nil"),h=\(calls13a.last?.h.description ?? "nil"))")
+        check("⑬ 旧会话第 2 动作未借新会话身份执行（新执行方此刻零调用）",
+              calls13b.isEmpty, "newCalls=\(calls13b.count)")
+        // 新会话动作正常发布到新执行方。
+        _ = pushAndDrain(rt13, base, signals())
+        let calls13b2 = rec13b.snapshot
+        check("⑬ 新会话动作发布到新执行方（1 次，v/h ∈ [0,2]）",
+              calls13b2.count == 1
+              && (0...2).contains(calls13b2[0].v) && (0...2).contains(calls13b2[0].h),
+              "newCalls=\(calls13b2.count)")
+        rt13.stop()
 
         print(failures == 0
               ? "═══ 结果：全部通过 ✅（\(failures) 项失败）═══"

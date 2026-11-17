@@ -358,5 +358,39 @@ enum ShellModeControllerSelfTest {
         check("B2/#3：applyShellAction 不写 controlEngine.digestMode（严格影子契约）",
               !codeText.contains("controlEngine.digestMode ="),
               "digestMode 唯一写方是 tick 的用户开关同步")
+        // P1-A（Codex 第六轮复审）：digest 早退必须**先于任何 ControlEngine 写入**——
+        //   用行号比较验证分支先后（不靠注释宣称）：早退行 < 首个 ControlEngine
+        //   变更调用行（forceRelease/releaseAIHeld/release(/hold(/refreshHeldKeys(。
+        if let digestExitIdx = codeLines.firstIndex(where: {
+            $0.contains("if digest || nowDigesting { return }")
+        }), let firstMutationIdx = codeLines.firstIndex(where: { line in
+            line.contains("controlEngine.forceReleaseAIHeldKeys")
+                || line.contains("controlEngine.releaseAIHeldKeys")
+                || line.contains("controlEngine.release(")
+                || line.contains("controlEngine.hold(")
+                || line.contains("controlEngine.refreshHeldKeys(")
+        }) {
+            check("P1-A：digest 早退先于一切 ControlEngine 写入（行号序验证）",
+                  digestExitIdx < firstMutationIdx,
+                  "digest 早退行=\(digestExitIdx) 首个 ControlEngine 写入行=\(firstMutationIdx)")
+        } else {
+            check("P1-A：digest 早退行与 ControlEngine 写入行均存在（行号序验证）",
+                  false, "applyShellAction 内未找到早退行或写入行")
+        }
+        // P1-B：userDigestProvider 闭包只读锁保护镜像，不裸读 controlEngine.digestMode
+        //（该闭包在 runtime 后台 actionQueue 被调，字段由主线程 tick 同写）。
+        if let provStart = lines.firstIndex(where: {
+            $0.contains("onlineTrainRuntime.userDigestProvider = {")
+        }) {
+            let provBlock = lines[(provStart + 1)...].prefix(4)
+                .map { String($0) }.joined(separator: "\n")
+            check("P1-B：userDigestProvider 只读锁保护镜像（闭包不裸读 controlEngine.digestMode）",
+                  provBlock.contains("shellDigestMirror.read()")
+                      && !provBlock.contains("controlEngine.digestMode"),
+                  "闭包体（前4行）：" + provBlock)
+        } else {
+            check("P1-B：找到 userDigestProvider 注入点", false,
+                  "AuroraDriveApp.swift 未找到")
+        }
     }
 }

@@ -51,8 +51,10 @@
 //  【B1/B5/B6 动作执行会话（Codex 第三轮）】
 //    · B1 串行会话化：所有 executor 调用收敛到**独立串行 actionQueue**（与
 //      消费线程解耦）——stop 的 releaseAll 不被卡死的推理阻塞，执行方（含
-//      ControlEngine 侧）绝不会被两个线程并发调用。块内**二次校验**会话有效
-//      性与 executor 存在性，关掉与 stop()/clearActionExecutor() 的竞争窗口。
+//      ControlEngine 侧）绝不会被两个线程并发调用。入队时快照 (executor箱,
+//      会话代数)，执行点只认快照（Codex 七轮 P1：绝不 re-read currentExecutor
+//      给旧动作借新会话身份）；代数不一致的旧动作作废，releaseAll 哨兵恒对
+//      入队时的旧执行方投递（安全方向）。
 //      digest 由 runtime 统一核算（每次调用在临界区读一次 digestMode），执行
 //      方不得把 digest 另写进 ControlEngine 每帧覆盖（那是竞态源）。
 //    · B5 stop 硬不变量：一进入就**失效动作会话 + 立即 releaseAll**（不等
@@ -173,10 +175,23 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     /// digest=true（digestMode 开）→ 只给 ControlEngine 消化，**不得产生真实
     /// 按键**；digest=false → CGEvent 真注入（仅限用户明确授权的实机实验）。
     nonisolated var actionExecutor: ((RLAction, _ digest: Bool) -> Void)? {
-        get { stateLock.lock(); defer { stateLock.unlock() }; return actionExecutorValue }
-        set { stateLock.lock(); actionExecutorValue = newValue; stateLock.unlock() }
+        get { stateLock.lock(); defer { stateLock.unlock() }; return actionExecutorBoxValue?.execute }
+        set {
+            stateLock.lock()
+            // 每次注入都换新箱（实例身份）——执行点用 === 校验「仍是同一
+            // executor 实例」，换装即旧动作作废（Codex 七轮 P1 契约 2/3）。
+            actionExecutorBoxValue = newValue.map { ExecutorBox($0) }
+            stateLock.unlock()
+        }
     }
-    private nonisolated(unsafe) var actionExecutorValue: ((RLAction, _ digest: Bool) -> Void)?
+    private nonisolated(unsafe) var actionExecutorBoxValue: ExecutorBox?
+
+    /// Codex 七轮 P1：executor 身份箱——Swift 闭包无 === 比较，包一层以做
+    /// 实例同一性校验。执行点只认入队时快照的 (box, generation)。
+    private final class ExecutorBox {
+        let execute: (RLAction, _ digest: Bool) -> Void
+        init(_ execute: @escaping (RLAction, _ digest: Bool) -> Void) { self.execute = execute }
+    }
 
     /// #5 动作执行模式开关（默认 true = digest 只算不真按）。
     /// B1：digest 由 runtime 统一核算（每调用在临界区读一次），执行方不得
@@ -224,6 +239,13 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     /// 置 false 后，已入队/在途帧的采样动作一律作废不发布（停止后旧帧动作
     /// 不得再操纵按键）；releaseAll 哨兵不受门控（撤销必须总能送达）。
     private nonisolated(unsafe) var actionSessionActiveValue = false
+
+    /// Codex 七轮 P1·动作会话代数（stateLock 保护）：start()/stop()/
+    /// clearActionExecutor() 各自增（stop/clear 的自增即「作废本代」）。
+    /// dispatchAction 入队时捕获当时代数，执行点校验「代数一致 && 同一
+    /// executor 实例」才执行——堵死「投递超时→stop→start→旧普通动作出队
+    /// 读到新会话 stillActive/新 executor 借身份执行」的时序洞。
+    private nonisolated(unsafe) var actionSessionGenerationValue: UInt64 = 0
 
     // MARK: #7 存盘
 
@@ -419,6 +441,7 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
         lastFrameSignalsValue = nil
         lastStopReportValue = nil       // B5①：新会话不带上次 stop 的报告
         actionSessionActiveValue = true     // B1/B5：新会话激活动作发布
+        actionSessionGenerationValue &+= 1 // 七轮 P1：新会话代数，旧队列动作作废
         stateLock.unlock()
         isRunning = true
         return true
@@ -450,6 +473,7 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
         //    releaseAll 走独立 actionQueue，即使消费线程卡死也能排队送达。
         stateLock.lock()
         actionSessionActiveValue = false
+        actionSessionGenerationValue &+= 1 // 七轮 P1：作废本代（投递超时后重启也不借身份）
         stateLock.unlock()
         isRunning = false          // 关门：onFrame 不再入槽
         dispatchAction(.releaseAll)
@@ -727,32 +751,47 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     private nonisolated func dispatchAction(_ action: RLAction) {
         stateLock.lock()
         let sessionActive = actionSessionActiveValue
-        let executor = actionExecutorValue
+        let generation = actionSessionGenerationValue
+        let executorBox = actionExecutorBoxValue
         if action.vClass >= 0 {
             lastDispatchedActionValue = action   // 只记采样动作，不记撤销哨兵
         }
         stateLock.unlock()
         // 入队前快速路径：会话已失效且非撤销哨兵 → 旧帧动作作废；executor
         // 未接线 → 无处可发（撤销哨兵也一样静默跳过）。
-        guard executor != nil, sessionActive || action.vClass < 0 else { return }
-        actionQueue.async { [weak self] in
+        guard let executorBox, sessionActive || action.vClass < 0 else { return }
+        actionQueue.async { [weak self, action, executorBox, generation] in
             guard let self else { return }
-            // 块内二次校验（入队后 stop()/clearActionExecutor() 可能已发生）：
-            // 会话失效后的采样动作一律作废；releaseAll 始终放行。
+            // Codex 七轮 P1：执行点只认**入队时快照**的 (executorBox, generation)，
+            // 绝不 re-read currentExecutor/会话——堵死「投递超时→stop→start→
+            // 旧普通动作出队读到新会话新 executor 借身份执行」：
+            //   · 代数不一致（期间 stop/clear/start 已换代）→ 采样动作作废；
+            //   · executor 已换装（新箱 !== 快照箱）→ 采样动作作废；
+            //   · releaseAll 哨兵是安全方向，恒对快照的旧执行方投递。
             self.stateLock.lock()
-            let stillActive = self.actionSessionActiveValue
-            let currentExecutor = self.actionExecutorValue
+            let stillSameSession = self.actionSessionGenerationValue == generation
+            let stillSameExecutor = self.actionExecutorBoxValue === executorBox
+            self.stateLock.unlock()
+            guard stillSameSession, stillSameExecutor, action.vClass >= 0 else {
+                if action.vClass >= 0 { return }   // 旧会话采样动作：作废，不执行
+                // releaseAll 哨兵：仍投递给入队时快照的旧执行方（松键安全方向）。
+                self.stateLock.lock()
+                let baseDigest = self.digestModeValue
+                let provider = self.userDigestProviderValue
+                let liveAllowed = self.liveActuationAllowedValue
+                self.stateLock.unlock()
+                let effectiveDigest = baseDigest || (provider?() ?? false) || !liveAllowed
+                executorBox.execute(action, effectiveDigest)
+                return
+            }
+            // 快照校验全过（同一会话 + 同一执行方 + 采样动作）：核算最终 digest。
+            self.stateLock.lock()
             let baseDigest = self.digestModeValue
             let provider = self.userDigestProviderValue
             let liveAllowed = self.liveActuationAllowedValue
             self.stateLock.unlock()
-            guard let currentExecutor, stillActive || action.vClass < 0 else { return }
-            // #6 统一核算（锁外调 provider——实现方可能读主线程状态，锁内调
-            // 外部闭包有死锁风险）：最终有效 digest = 运行时基线 || 用户 digest
-            // 开关 || !live 许可。用户开了 digest 就必须 digest——**绝不能在
-            // 用户 digest 开时真注入**；live 许可关闭时强制 digest。
             let effectiveDigest = baseDigest || (provider?() ?? false) || !liveAllowed
-            currentExecutor(action, effectiveDigest)
+            executorBox.execute(action, effectiveDigest)
         }
     }
 
@@ -769,12 +808,13 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     /// 最终撤销丢掉；串行队列保证它仍与之前/之后的所有执行方调用严格有序。
     func clearActionExecutor() {
         stateLock.lock()
-        let oldExecutor = actionExecutorValue
+        let oldExecutor = actionExecutorBoxValue?.execute
         let baseDigest = digestModeValue
         let userDigestProvider = userDigestProviderValue
         let liveAllowed = liveActuationAllowedValue
-        actionExecutorValue = nil
+        actionExecutorBoxValue = nil
         actionSessionActiveValue = false
+        actionSessionGenerationValue &+= 1 // 七轮 P1：作废本代（清后旧队列动作不借新会话）
         stateLock.unlock()
         guard let oldExecutor else { return }
         // #6 统一核算（与 dispatchAction 同式；releaseAll 也带最终有效 digest，
