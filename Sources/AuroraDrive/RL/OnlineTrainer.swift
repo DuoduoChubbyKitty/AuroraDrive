@@ -465,7 +465,7 @@ public final class OnlineTrainer: @unchecked Sendable {
     /// 封口 **UNKNOWN / 无有效状态 / 非有限帧**（「后继状态不可知」）——**不含人工接管**
     /// （接管是真实终止，走 flushTerminated）。**P1-A**：不能拿 tail=0 硬训——tail=0 与「当
     /// terminal」在 GAE 里结果完全相同（末条后继 advantage=0），等于把「观测缺失」当「环境
-    /// 终止」，会把末条 valueTarget 归零并向前传播。
+    /// 终止」，会把末条 valueTarget 退化为即时 reward（reward=0 时即为归零）并向前传播。
     /// 正确做法：丢掉**没有可靠后继的末条**（其后的状态未知，不能当作终止），用它自身已估计
     /// 的 value 作为「后继状态价值」的代理，去 bootstrap 前面的有效前缀 —— 即对前缀 [0..n-2]
     /// 传 tailBootstrapValue = 末条 value。整段无有效前缀（n≤1）时直接丢弃、不训练（不伪造）。
