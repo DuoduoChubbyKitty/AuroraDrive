@@ -442,6 +442,18 @@ final class ControlEngine: @unchecked Sendable {
         heldKeys.removeAll()
     }
 
+    /// 壳模式 #3②（Codex 第五轮复审）：对「AI 真按过的账本键」**绕过消化**直发
+    /// 真实 keyUp。与 releaseAIHeldKeys 的区别：digestMode 开着时后者的 keyUp 会被
+    /// 消化闸口吃掉（账本清了但 OS 层键还按着 → 键卡死），本方法保证释放事件一定
+    /// 发出。只用于停止/人工接管/撤销哨兵/live→digest 切换等**清理场景**，常规帧
+    /// 动作一律不得调用。同样保留人的物理键（不发 keyUp 抵消用户正按的键）。
+    func forceReleaseAIHeldKeys(preserving physicalKeys: Set<CGKeyCode>) {
+        for keyCode in heldKeys.subtracting(physicalKeys) {
+            postKeyEvent(keyCode: keyCode, keyDown: false, bypassDigest: true)
+        }
+        heldKeys.removeAll()
+    }
+
     /// 释放所有按住的键（停止自动驾驶时调用，避免按键卡住）
     /// 无条件对所有映射键发释放事件：即使本会话没记录按过（例如上次进程
     /// 异常退出残留的系统级卡键），也主动清掉，保证系统键盘状态干净。
@@ -517,7 +529,9 @@ final class ControlEngine: @unchecked Sendable {
     ///                 保留该参数以备其他输入层使用，但针对目标游戏必须保持
     ///                 默认 false —— 该游戏输入层只认「新按下」，会忽略
     ///                 auto-repeat 事件（详见 refreshHeldKeys 说明）。
-    private func postKeyEvent(keyCode: CGKeyCode, keyDown: Bool, autorepeat: Bool = false) {
+    private func postKeyEvent(
+        keyCode: CGKeyCode, keyDown: Bool, autorepeat: Bool = false, bypassDigest: Bool = false
+    ) {
         // CGEvent 创建：nil eventSource 时使用默认源
         guard let event = CGEvent(
             keyboardEventSource: eventSource,
@@ -544,7 +558,9 @@ final class ControlEngine: @unchecked Sendable {
         // ⚠️ 消化模式：**唯一**真正发事件的地方，在这里截住 —— 整条链路上游
         //   （决策 / hold / release / refreshHeldKeys / heldKeys / 日志）全部照常
         //   执行，只是事件不离开本进程。见 `digestMode` 的长注释。
-        if digestMode {
+        // bypassDigest=true：仅限 forceReleaseAIHeldKeys 的账本清理路径——digest 模式
+        //   下 keyUp 被吃掉会造成 OS 层键卡死，清理必须绕过消化真发。
+        if digestMode && !bypassDigest {
             digestedEventCount &+= 1
             return
         }

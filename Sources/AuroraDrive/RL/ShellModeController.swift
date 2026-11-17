@@ -92,7 +92,9 @@ protocol ShellModeHardware: AnyObject {
     ///   - action: vClass 0=给油/1=不动/2=刹车，hClass 0=左/1=不动/2=右；
     ///     vClass/hClass 任一为负（`RLAction.releaseAll` 哨兵）→ 撤销在途键。
     ///   - digest: true=影子（**不产生任何按键**，也不碰 ControlEngine 状态）；
-    ///     false=真注入（ControlEngine 自身的消化开关仍是最终安全闸）。
+    ///     false=真注入（实现须在入口重查**当前** controlEngine.digestMode 并按其
+    ///     结果门控：入参 digest 是排队前的快照，执行时用户可能已打开消化，
+    ///     仍按快照走 live 会把 keyUp 消化掉造成 OS 层键卡死）。
     /// 协作点 2（runtime-fix）：实现**不得**写 `controlEngine.digestMode`（该字段
     /// 由 tick 从 UI 开关统一同步，每帧覆盖既竞态又盖掉用户开关）——只按入参
     /// 决定发不发真事件。
@@ -135,6 +137,12 @@ final class ShellModeController {
     private var resourcesAcquired = false
     private var enginesSuspended = false
 
+    /// 会话代数（Codex 第五轮复审 #1）：start 安装 executor 前自增、stop 再自增。
+    /// executor 闭包**按值捕获**安装时刻的代数，主线程执行时与当前值比对——
+    /// 快速 stop→start 周期里滞留的旧采样动作因代数过期被淘汰，不会把键按回
+    /// 新会话。读比较只发生在主线程（start/stop 也是主线程），无跨线程访问。
+    private var shellSessionGeneration = 0
+
     /// 唯一构造入口：生产由 DriveState.init 末尾传 self；自测传假硬件。
     init(runtime: OnlineTrainingRuntime, hardware: ShellModeHardware) {
         self.runtime = runtime
@@ -156,20 +164,22 @@ final class ShellModeController {
     /// 已在主线程则同步直发（自测直调 / 主线程投递路径，撤销哨兵绝不停滞）；
     /// 否则 main.async 跳主线程 —— **绝不能 main.sync**（主线程 stop 会等 actionQueue
     /// 排空，sync 反向等待就是死锁）。
-    private func handleActionFromRuntime(_ action: RLAction, digest: Bool) {
+    private func handleActionFromRuntime(_ action: RLAction, digest: Bool, sessionGen: Int) {
         let isSentinel = action.vClass < 0 || action.hClass < 0
         if Thread.isMainThread {
-            // 主线程同步路径：stop 之后残留的常规采样动作作废（防在 releaseAll
-            // 之后又把键按回去）；撤销哨兵无条件放行（撤销是安全方向）。
-            guard isSentinel || running else { return }
+            // 主线程同步路径：常规采样动作须「运行中且代数未过期」——stop 之后或
+            //   经历过 stop→start 的旧会话动作作废（防把键按回去）；撤销哨兵
+            //   无条件放行（撤销是安全方向）。
+            guard isSentinel || (running && sessionGen == shellSessionGeneration) else { return }
             hardware?.applyShellAction(action, digest: digest || !liveActuationEnabled)
             return
         }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            // 二次校验 running：入队到执行之间可能已 stop。
+            // 二次校验（#1）：running 之外还须代数匹配——入队到执行之间可能经历
+            //   完整的 stop→start 周期，旧会话动作不得注入新会话。
             let sentinel = action.vClass < 0 || action.hClass < 0
-            guard sentinel || self.running else { return }
+            guard sentinel || (self.running && sessionGen == self.shellSessionGeneration) else { return }
             self.hardware?.applyShellAction(action, digest: digest || !self.liveActuationEnabled)
         }
     }
@@ -215,8 +225,12 @@ final class ShellModeController {
         //    runtime.digestMode 是发给 executor 的 digest 入参来源；默认影子
         //    （liveActuationEnabled=false 时恒 digest），live 开才可能 false。
         runtime.digestMode = !liveActuationEnabled
+        shellSessionGeneration &+= 1
+        let sessionGen = shellSessionGeneration
         runtime.actionExecutor = { [weak self] action, digest in
-            self?.handleActionFromRuntime(action, digest: digest)
+            // sessionGen 按值捕获安装时刻的会话代数（#1）：闭包被 runtime 的后台
+            // actionQueue 调用，此处不读任何主线程属性。
+            self?.handleActionFromRuntime(action, digest: digest, sessionGen: sessionGen)
         }
         guard hardware.startShellTraining() else {
             let why = hardware.shellTrainingFailureReason ?? "训练运行时未就绪"
@@ -246,6 +260,7 @@ final class ShellModeController {
     func stop() {
         guard running || resourcesAcquired else { return }
         running = false
+        shellSessionGeneration &+= 1   // #1：立即作废在途采样动作的会话代数
         guard let hardware else {
             resourcesAcquired = false
             enginesSuspended = false

@@ -7615,9 +7615,23 @@ final class DriveState {
     }
 
     /// 停止壳模式：调控制器 stop（收尾训练 → 按需释放抓屏 → 恢复自动驾驶引擎）。
+    /// #4（Codex 第五轮复审）：**先快照物理键、同步清 AI 键，再停接管监听** ——
+    ///   旧序先 stopShellTakeoverMonitor（其 keyboardMonitor.stop() 清空
+    ///   heldKeys），后到的释放哨兵会读到空 humanKeys，人和 AI 同按 W 时给
+    ///   W 发 up，抵消人手里的键。新序保证释放发生在监听/物理键记录仍在时。
     func stopShellMode() {
         guard let shellController else { return }
+        // ① 先快照有效物理键（此时 keyboardMonitor 仍在跑，heldKeys 未被清）。
+        let humanKeys = keyboardMonitor.heldKeys
+        // ② 主线程同步撤销 AI 在途键（forceRelease 绕消化真发 keyUp；保留①的
+        //   快照——人正按的键绝不被抬起）。空账本时零事件开销。
+        if !controlEngine.heldKeys.isEmpty {
+            controlEngine.forceReleaseAIHeldKeys(preserving: humanKeys)
+        }
+        // ③ 之后才停接管监听/清接管态（keyboardMonitor.stop 里的 heldKeys
+        //   清空不再影响②的快照）。
         stopShellTakeoverMonitor()
+        // ④ 最后 Controller.stop（停训练→按需停抓屏→恢复引擎）。
         shellController.stop()
         if shellModeActive { shellModeActive = false }
         // 复审 B5：如实展示停止结果（排空超时 / 存盘失败 / 正常）。
@@ -8723,6 +8737,14 @@ final class DriveState {
         //   鼠标在 digest 下仍真注入（安全红线）。
         if controlEngine.digestMode != digestMode {
             controlEngine.digestMode = digestMode
+            // #3③（Codex 第五轮复审）：live→digest 切换瞬间，壳模式 AI 真按住的
+            //   在途键必须立即绕消化抬起——此后 digest=true 严格影子，普通释放的
+            //   keyUp 会被消化闸口吃掉 → OS 层键卡死。force 版真发 keyUp，且保留
+            //   人的物理键（人不松手键不抬）。digest→live 方向无需清理（下一帧
+            //   采样动作会正常接管键位）。
+            if digestMode && shellModeActive && !controlEngine.heldKeys.isEmpty {
+                controlEngine.forceReleaseAIHeldKeys(preserving: keyboardMonitor.heldKeys)
+            }
         }
 
         guard isDriving else {
@@ -11255,35 +11277,30 @@ extension DriveState: ShellModeHardware {
         isDriving || isRecording || leanRecorder.isRecording
     }
 
-    /// 停抓屏（仅在无其他归属方时由控制器 stop 调用）。
+    /// 停抓屏。#5（Codex 第五轮复审）：**始终**作废壳的在途请求与代数；**仅当**
+    ///   没有其他抓屏归属方（驾驶/录制）时才真的 captureEngine.stop() —— 有归属
+    ///   方时保活（Controller.stop 已按 B3 无条件调用本方法，归属判断在此收口）。
     /// ⚠️ 复审 #8 另一半：停的同时作废在途的异步启动任务（代数 +1 + cancel），
     ///   防「stop 已释放抓屏、旧 Task 的 await 却刚返回」把抓屏又抢回来。
     func stopShellCapture() {
         shellCaptureGeneration += 1
         shellCaptureTask?.cancel()
         shellCaptureTask = nil
-        captureEngine.stop()
-        dlog("[ShellMode] 抓屏已释放（无其他归属方；在途启动任务已作废）")
+        if !hasOtherCaptureOwner {
+            captureEngine.stop()
+            dlog("[ShellMode] 抓屏已释放（无其他归属方；在途启动任务已作废）")
+        } else {
+            dlog("[ShellMode] 壳抓屏请求已作废（有其他归属方，抓屏保活）")
+        }
     }
 
     /// 起在线训练运行时（吃抓屏帧，只读、不注入按键）。失败原因走 shellTrainingFailureReason。
     func startShellTraining() -> Bool {
-        // #5 动作执行链：把 runtime 采样的动作接到真实控制（digest 影子 / live 真注入）。
-        //   digest 由 controlEngine.digestMode 决定（tick 每帧同步 digestMode 字段）；
-        //   这里据 environment AURORA_RL_LIVE_ACTUATION 决定允许 live 还是强制 digest。
-        //   默认 digest（只算不真按键），符合「影子先行再真注入」的安全要求。
-        let liveAllowed = ProcessInfo.processInfo.environment["AURORA_RL_LIVE_ACTUATION"] == "1"
-        onlineTrainRuntime.actionExecutor = { [weak self] action, digest in
-            // runtime 在串行 actionQueue（后台线程）回调（B1 契约）；ControlEngine
-            // 的 hold/release/heldKeys 非线程安全，必须跳回主线程执行（绝不 sync——
-            // 主线程 stop 会等 actionQueue 排空，反向等待即死锁）。
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                // 双重保险：只有显式允许 live 且调用方 digest==false 时才真注入。
-                let effectiveDigest = digest || !liveAllowed
-                self.applyShellAction(action, digest: effectiveDigest)
-            }
-        }
+        // #1（Codex 第五轮复审）：**此处不再安装 executor** —— Controller.start()
+        //   已安装带会话代数 + running 校验的唯一生产 executor（先注后 start，保证
+        //   第一个采样动作就有落点）。此前这里覆盖安装了第二个无校验 executor，
+        //   stop 之后已在主队列等待的旧动作仍会执行。两个入口共用同一 runtime，
+        //   executor 单槽，唯一安装点是 Controller。
         // #6 统一核算：把用户的消化开关（controlEngine.digestMode，tick 每帧
         //   按 UI 设置写回）作为只读提供者交给 runtime。runtime 侧合并：
         //   effectiveDigest = base || userDigest || !liveAllowed —— 用户开了
@@ -11291,7 +11308,6 @@ extension DriveState: ShellModeHardware {
         onlineTrainRuntime.userDigestProvider = { [weak self] in
             self?.controlEngine.digestMode ?? true
         }
-        onlineTrainRuntime.digestMode = !liveAllowed   // runtime 侧默认也走 digest
         return onlineTrainRuntime.start()
     }
 
@@ -11322,61 +11338,40 @@ extension DriveState: ShellModeHardware {
     }
 
     /// #5 动作执行链生产实现：把 RL 采样动作落到真实按键（与 applyCommand 同款 hold/release）。
-    ///   - action.releaseAll（vClass/hClass 任一 < 0）→ 撤 AI 在途键（保留人的物理键；接管/停止）。
-    ///   - 否则：vClass 0=给油(W)/2=刹车(S)；hClass 0=左(A)/2=右(D)；互斥释放对侧。
-    ///   - digest=true → 影子：不产生任何按键、不碰 ControlEngine 状态（协作点 2 契约）；
-    ///     false → 计划化 hold/release，ControlEngine 自身的 digestMode（tick 同步）仍是最后一道闸。
-    ///   帧间：先释放不再按住的键再按当前，最后 refreshHeldKeys 触发 auto-repeat（防「按住不动」）。
+    ///   - 撤销哨兵（vClass/hClass 任一 < 0）/ 人工接管 → forceReleaseAIHeldKeys 清 AI 在途键
+    ///     （绕消化真发 keyUp；保留人的物理键，绝不发 keyUp 抵消用户正按的键）。
+    ///   - digest=true → **严格影子：纯 no-op 直接返回**（零按键、零 ControlEngine 写入）。
+    ///   - digest=false → 计划化 hold/release；入口重查的**当前** controlEngine.digestMode
+    ///     仍是最后一道闸（入参是排队前的快照，用户可能已在排队期间打开消化）。
+    ///   #3（Codex 第五轮复审）：本函数**不写 controlEngine.digestMode**（与 tick 竞争会致
+    ///   keyUp 被消化 → OS 层键卡死）；live→digest 切换的残留键清理由 tick 的切换点用
+    ///   forceReleaseAIHeldKeys 显式完成，不走本函数。
     func applyShellAction(_ action: RLAction, digest: Bool) {
         // ⚠️ 复审 B2：人工接管期间**保留人的键所有权** —— 绝不发 keyUp 抵消用户正按的键。
-        //   只撤销「AI 自己按下的」键（releaseAIHeldKeys 保留物理键），且常规动作不再注入。
-        //   本函数已在主线程（Controller 与 DriveState 的 executor 都用 main.async 调来），
+        //   本函数在主线程串行执行（Controller 的 executor 用 main.async 投递），
         //   可安全碰 controlEngine。
         let isSentinel = action.vClass < 0 || action.hClass < 0
-        let humanKeys = keyboardMonitor.heldKeys
-        // #6 释放安全：AI 真按过的键，keyUp 必须真发。postKeyEvent 是消化唯一闸口——
-        //   digest 开着时 keyUp 会被吃掉 → OS 层键卡死（游戏里键卡住）。故释放前
-        //   临时关消化 → 释放（保留人的物理键）→ 恢复原值。本函数在主线程串行执行，
-        //   tick 不会在保存与恢复之间插队改写 digestMode。
-        if EmergencyTakeover.shared.userHoldingKey {
-            // 人正接管：撤 AI 键（保留人的键），不再采样动作注入。
+        // #3①：入口重查**当前**消化状态——入参 digest 是 runtime 排队前的快照，
+        //   排队期间用户可能已打开消化（tick 每帧同步）；此时仍按快照走 live 会把
+        //   keyUp 消化掉造成 OS 层键卡死。
+        let nowDigesting = controlEngine.digestMode
+        if EmergencyTakeover.shared.userHoldingKey || isSentinel {
+            // 人正接管 / 撤销哨兵：撤 AI 键（保留人的物理键），不再采样动作注入。
+            //   #3②：forceReleaseAIHeldKeys 绕过消化真发 keyUp —— 账本键（AI 真按
+            //   过的键）必须真实抬起，且**不写 digestMode**（无临时翻转）。
+            let humanKeys = keyboardMonitor.heldKeys
             if !controlEngine.heldKeys.isEmpty {
-                let savedDigest = controlEngine.digestMode
-                controlEngine.digestMode = false
-                controlEngine.releaseAIHeldKeys(preserving: humanKeys)
-                controlEngine.digestMode = savedDigest
+                controlEngine.forceReleaseAIHeldKeys(preserving: humanKeys)
             } else {
                 controlEngine.releaseAIHeldKeys(preserving: humanKeys)
             }
             return
         }
-        if isSentinel {
-            // 撤销哨兵：同样保留人的键，只清 AI 键（避免把用户正按的键抬起来）。
-            if !controlEngine.heldKeys.isEmpty {
-                let savedDigest = controlEngine.digestMode
-                controlEngine.digestMode = false
-                controlEngine.releaseAIHeldKeys(preserving: humanKeys)
-                controlEngine.digestMode = savedDigest
-            } else {
-                controlEngine.releaseAIHeldKeys(preserving: humanKeys)
-            }
-            return
-        }
-        // #6 键卡死根因修复：此前的直写 `controlEngine.digestMode = digest` 与 tick
-        //   每帧按用户设置写回（约 :8717）竞争——tick 刚按用户设置同步，这里又按
-        //   入参翻回去，最坏把 keyUp 消化掉。协作点 2 契约：实现不得写该字段，只按
-        //   入参决定发不发真事件。digest=true → 影子：不产生任何按键、不碰 ControlEngine。
-        if digest {
-            // live→digest 中途切换时，AI 此前真按过的在途键必须用真实 keyUp 清掉
-            //（同上旁路；空集时零开销）。此后每帧 heldKeys 已空，纯观测返回。
-            if !controlEngine.heldKeys.isEmpty {
-                let savedDigest = controlEngine.digestMode
-                controlEngine.digestMode = false
-                controlEngine.releaseAIHeldKeys(preserving: humanKeys)
-                controlEngine.digestMode = savedDigest
-            }
-            return
-        }
+        // #3①：strict 影子 = 入参 digest 为真 **或** 当前引擎已在消化 → 纯 no-op：
+        //   零按键、零 ControlEngine 写入（live→digest 切换的残留键清理由 tick
+        //   切换点负责，见 digestMode 同步处）。入参 digest 的来源链已含
+        //   userDigestProvider（用户开关），此处重查是纵深防御（排队竞态）。
+        if digest || nowDigesting { return }
         // 映射到键位计划（纯函数，自检可测）再落到 controlEngine。
         let plan = DriveState.shellActionKeyPlan(vClass: action.vClass, hClass: action.hClass)
         for k in plan.release { controlEngine.release(k) }

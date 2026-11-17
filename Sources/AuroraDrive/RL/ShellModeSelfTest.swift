@@ -335,28 +335,28 @@ enum ShellModeControllerSelfTest {
         }
         let codeText = codeLines.joined(separator: "\n")
 
-        // 三条路径各自保留人的物理键：接管分支、哨兵分支、消化影子分支。
-        // 判据：分支内含 releaseAIHeldKeys(preserving: humanKeys（humanKeys 来自
-        // keyboardMonitor.heldKeys，即物理按住的键集）。
-        check("B2 保键：人工接管分支撤 AI 键保留物理键（releaseAIHeldKeys(preserving:)）",
+        // 接管/哨兵分支保留人的物理键：forceReleaseAIHeldKeys(preserving: humanKeys)
+        //（humanKeys 来自 keyboardMonitor.heldKeys，即物理按住的键集；force 版绕
+        // 消化真发 keyUp，防 digest 下账本键在 OS 层卡死）。
+        check("B2 保键：人工接管分支撤 AI 键保留物理键（forceReleaseAIHeldKeys(preserving:)）",
               codeText.contains("EmergencyTakeover.shared.userHoldingKey")
-                  && codeText.contains("releaseAIHeldKeys(preserving: humanKeys)"), "")
+                  && codeText.contains("forceReleaseAIHeldKeys(preserving: humanKeys)"), "")
         check("B2 保键：撤销哨兵分支保留物理键",
               codeText.contains("isSentinel")
-                  && codeText.contains("releaseAIHeldKeys(preserving: humanKeys)"), "")
+                  && codeText.contains("forceReleaseAIHeldKeys(preserving: humanKeys)"), "")
         check("B2 保键：无裸 releaseAll（不得把用户正按的键抬起来）",
-              !codeText.contains("releaseAll()")
-                  && !codeText.contains("releaseAll("),
+              !codeText.contains("releaseAll("),
               "applyShellAction 代码行不得出现裸 releaseAll")
-        // #6：实现不得把**入参 digest** 写进 controlEngine.digestMode（与 tick 每帧
-        //   按用户设置写回竞争，最坏 keyUp 被消化 → 键卡死）。释放旁路的临时
-        //   `= false` / `= savedDigest`（同线程保存-恢复，保证 keyUp 真发）不属此列。
-        let digestWrites = codeLines.filter {
-            $0.contains("controlEngine.digestMode") && $0.contains("= digest")
-        }
-        check("B2/#6：applyShellAction 不直写 controlEngine.digestMode（防键卡死）",
-              digestWrites.isEmpty,
-              digestWrites.map { String($0.trimmingCharacters(in: .whitespaces)).prefix(70) }
-                  .joined(separator: " | "))
+        // #3①（Codex 第五轮复审）：入口必须重查**当前** controlEngine.digestMode ——
+        //   入参 digest 是 runtime 排队前的快照，排队期间用户可能已打开消化。
+        check("B2/#3：入口重查当前 digestMode（快照过期纵深防御）",
+              codeText.contains("let nowDigesting = controlEngine.digestMode")
+                  && codeText.contains("if digest || nowDigesting { return }"), "")
+        // #3 严格影子契约：applyShellAction 全函数**零** digestMode 写入（含临时
+        //   翻转）；digestMode 唯一写方是本处的用户开关同步，残留键清理由切换点
+        //   forceReleaseAIHeldKeys 显式完成。
+        check("B2/#3：applyShellAction 不写 controlEngine.digestMode（严格影子契约）",
+              !codeText.contains("controlEngine.digestMode ="),
+              "digestMode 唯一写方是 tick 的用户开关同步")
     }
 }

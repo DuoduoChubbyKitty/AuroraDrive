@@ -190,6 +190,12 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     /// #6 统一核算：用户 digest 开关提供者（Controller 注入，典型实现读
     /// ControlEngine.digestMode）。返回 true = 用户开了 digest → 最终必须
     /// digest（**绝不能在用户 digest 开时真注入**）。nil = 无用户输入。
+    ///
+    /// #3 契约（2026-11-18）：本闭包的取值只构成传给 executor 的 digest
+    /// **建议值**——最终决策在执行点（applyShellAction，主线程）重查为准。
+    /// 实现必须线程安全：闭包引用在 stateLock 临界区内读取、**调用发生在串行
+    /// actionQueue 的后台线程上**（锁外，避免锁内调外部闭包死锁）——不得
+    /// 裸读主线程字段（如直接读 MainActor 状态），须用线程安全读。
     nonisolated var userDigestProvider: (() -> Bool)? {
         get { stateLock.lock(); defer { stateLock.unlock() }; return userDigestProviderValue }
         set { stateLock.lock(); userDigestProviderValue = newValue; stateLock.unlock() }
@@ -421,10 +427,19 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     /// 停止：**一进入就失效动作会话 + 立即 releaseAll**（B5 硬不变量，不等
     /// 排空——卡死的推理恢复后，在途帧的采样动作因会话失效一律作废），随后
     /// 排空帧管线并做可恢复步骤（封口/等训练/存盘）。
+    ///
+    /// **等待次序（#2 契约，2026-11-18 定稿）**：主线程停止入口（App 侧
+    /// stopShellMode）**已先行同步撤键**（①快照人键→②主线程同步
+    /// releaseAIHeldKeys→③停监听→④才调本方法）。因此本方法的 releaseAll
+    /// 哨兵/排空/存盘全部是**后续幂等收尾**，不是松键的第一道——等待推理/
+    /// 训练排空期间按住的 AI 键已由入口撤键释放，keysReleased 只确认哨兵
+    /// **已投递至最终执行点**（executor 调用返回），**不证明按键已在 CGEvent
+    /// 层真实松开**（生产 executor 返回后真实释放可能仍在主队列等待）。
+    ///
     /// - Returns: `drained`（帧管线+训练队列是否都在超时内排空；任一超时为
     ///   false，此时不碰 trainer 独占态/不存盘）；`headSaved`（策略头是否成功
-    ///   落盘）。结果同时记入 lastStopReport（含 keysReleased：releaseAll 是否
-    ///   在确认超时内送达执行方），供 Controller/UI 透传。
+    ///   落盘）。结果同时记入 lastStopReport（含 keysReleased：releaseAll
+    ///   哨兵是否已在确认超时内投递至最终执行点），供 Controller/UI 透传。
     @discardableResult
     func stop() -> (drained: Bool, headSaved: Bool) {
         guard isRunning else {
@@ -469,9 +484,13 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
         return (drained: true, headSaved: saved)
     }
 
-    /// B5③：确认 actionQueue 上已入队的 executor 调用（含 releaseAll）全部执行完。
-    /// DispatchGroup 哨兵排在 releaseAll 之后（串行 FIFO）——哨兵跑完即证明
-    /// releaseAll 已送达执行方；执行方卡死则超时返回 false，绝不无限等。
+    /// B5③（#2 语义修正）：确认 actionQueue 上已入队的 executor 调用（含
+    /// releaseAll）**已投递至最终执行点**——DispatchGroup 哨兵排在 releaseAll
+    /// 之后（串行 FIFO），哨兵跑完即证明 releaseAll 的 executor 调用已返回。
+    /// **不证明按键已真实松开**（生产 executor 返回后 CGEvent 层释放可能仍在
+    /// 主队列等待）；真实松键由 App 侧主线程同步撤键先行承担（见 stop 次序注
+    /// 释），本哨兵只是幂等清理的投递确认。执行方卡死则超时返回 false，绝不
+    /// 无限等。
     private nonisolated func awaitActionDelivery(timeout: TimeInterval) -> Bool {
         let group = DispatchGroup()
         group.enter()

@@ -577,6 +577,28 @@ enum OnlineTrainingRuntimeSelfTest {
         check("⑪D 基线 digestMode 开（用户关+live 许可）→ digest=true",
               pushAndDrain(rt11, base, signals()) && rec11.snapshot.last?.digest == true,
               "last.digest=\(rec11.snapshot.last?.digest.description ?? "nil")")
+        // #3②：provider 线程安全契约固化——本自检全部 provider 闭包（{ true }/{ false }/
+        //   下面的锁保护盒）都是**纯计算/线程安全读**，不裸读 MainActor 字段；
+        //   provider 在后台 actionQueue 被调用（非主线程），锁保护盒从主线程改值
+        //   也能安全读到最新值——证明契约下跨线程读安全、无需依赖主线程状态。
+        final class ThreadSafeDigestBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = false
+            func set(_ v: Bool) { lock.lock(); value = v; lock.unlock() }
+            func get() -> Bool { lock.lock(); defer { lock.unlock() }; return value }
+        }
+        let box = ThreadSafeDigestBox()
+        rt11.digestMode = false
+        rt11.liveActuationAllowed = true
+        rt11.userDigestProvider = { box.get() }   // 线程安全读：锁保护，非裸读
+        box.set(true)
+        check("⑪E 线程安全 provider（锁保护盒=true）在后台调用读到 true → digest=true",
+              pushAndDrain(rt11, base, signals()) && rec11.snapshot.last?.digest == true,
+              "last.digest=\(rec11.snapshot.last?.digest.description ?? "nil")")
+        box.set(false)
+        check("⑪F 主线程改盒值后（=false）后台读新值 → 三源全关 digest=false",
+              pushAndDrain(rt11, base, signals()) && rec11.snapshot.last?.digest == false,
+              "last.digest=\(rec11.snapshot.last?.digest.description ?? "nil")")
         rt11.stop()
 
         // ── ⑫ B5 遗留：lastStopReport 快照 / start 清空 / 干净停止 ──────
@@ -586,7 +608,7 @@ enum OnlineTrainingRuntimeSelfTest {
         check("⑫ 超时路径报告如实快照（drained=false headSaved=false）",
               report9?.drained == false && report9?.headSaved == false,
               "report=\(report9.map { "(\($0.drained),\($0.headSaved),\($0.keysReleased))" } ?? "nil")")
-        check("⑫ 卡死路径键释放已确认（keysReleased=true：releaseAll 在确认超时内送达）",
+        check("⑫ 卡死路径哨兵已投递至最终执行点（keysReleased=true；真实松键由 App 侧主线程同步撤键先行承担）",
               report9?.keysReleased == true,
               "keysReleased=\(report9?.keysReleased.description ?? "nil")")
         // start() 清空：新会话不带着旧会话的停止报告。

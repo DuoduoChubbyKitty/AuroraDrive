@@ -3415,8 +3415,9 @@ struct LeanRecordBar: View {
                 row
             }
             .buttonStyle(.plain)
-            // B4：壳模式运行中禁开录（争抢引擎挂起/恢复所有权）；开录失败原因见状态行。
-            .disabled(state.shellModeActive)
+            // B4：壳模式运行中禁开录（争抢引擎挂起/恢复所有权）；只挡启动方向——
+            //   万一录制已在跑，「停止」必须可用。开录失败原因见状态行。
+            .disabled(state.shellModeActive && !state.leanIsRecording)
             .help(state.leanIsRecording ? "点击停止并进入离线标注" : "点击开始精简录制")
 
             Text(detailLine)
