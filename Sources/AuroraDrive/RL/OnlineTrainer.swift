@@ -13,7 +13,8 @@
 //  【依赖类型归属（与 B 域 PolicyHead.swift 的协作口径）】
 //    RLTransition / PPOConfig / PPOMetrics 由 PolicyHead.swift 单一 public 定义，
 //    本文件**只引用不重复定义**，避免同 target "invalid redeclaration"。
-//    GAE 也复用 PolicyHead.computeGAE（语义严格照 reward.py，逐 episode 不跨边界）。
+//    GAE 复用 PolicyHead.computeGAE（语义严格照 reward.py，逐 episode 不跨边界）；
+//    因 P1-2 需保留批次尾 bootstrap，调用带 tailBootstrapValue 参数的重载。
 //    OnlineTrainer 只面向 `PolicyUpdatable` 协议编程，B 的头用
 //    `extension PolicyHead: PolicyUpdatable {}` 接入；自检里的玩具策略也实现它。
 //
@@ -23,8 +24,20 @@
 //    · 参数双缓冲：训练改 `trainingPolicy`（只在训练队列内碰），改完在锁内把
 //      它**整体赋值**给 `inferencePolicy`（值语义 ⇒ 等价于复制一份快照），
 //      主线程下一帧读到的就是新快照。struct 值语义是双缓冲能成立的前提。
-//    · 所有跨线程共享状态：pendingTransitions/episode 累计只由主线程碰；
-//      inferencePolicy 由 `lock` 保护；metrics 环形缓冲由 `metricsLock` 保护。
+//
+//  【Codex 复审 788a26b 硬化点（本文件已修，逐条对应）】
+//    P1-1 采样快照：collect 直接接收 sampleAction 采样时的 (vClass,hClass,logProbV,
+//         logProbH,value) 并原样保存，**不再二次 forward 取 old**。避免「动作来自 π0、
+//         old logProb 来自 π1」的竞态把 PPO ratio 人为拉成 ≈1。
+//    P1-2 截断 vs 终止：批次按 `isTerminal` 真实边界切；仅因缓冲上限截断时，**扣下
+//         最后一条不训**，对被截断子批传入 tailBootstrapValue=扣下那条的 value 估计，
+//         保留 bootstrap（不把 nextV 归零）。episode 真正结束才整批训练。
+//    P1-3 人工接管：tookOver 帧是真人救援动作，**不为它建策略 transition**；把接管
+//         惩罚(-takeover)归因到上一条 AI transition 的 reward 上，并封口该 episode。
+//    P1-4 UNKNOWN 缺口：sealEpisode()/markInvalid() 只在无有效状态/非有限帧时封口已有
+//         轨迹（不伪造 transition），恢复后重新开始；UNKNOWN 不入训练。
+//    P2   非有限速度：speedValid=true 但 speed=NaN 时把 previousValid 置 false（与
+//         reward.py 一致：下一帧的有限性检查抑制伪造的急减速惩罚）。
 //
 //  【奖励语义对齐 tools/v3_rl/reward.py】
 //    speed（限速归一）/ stuck / collision / decel（跨 OCR 缺口用 prev_valid 防
@@ -54,6 +67,25 @@ public protocol PolicyUpdatable {
     mutating func updatePPO(transitions: [RLTransition], config: PPOConfig) -> PPOMetrics
 }
 
+extension PolicyUpdatable {
+    /// 可复现采样：只依赖 `forward` + 注入的确定性 RNG，返回完整采样快照
+    /// （含 old logProb 与 value）。给自检用固定种子拿到可复现的学习收益断言。
+    /// 生产热路径仍用 `stochasticSample`（系统随机数）；此实现不改变策略语义。
+    public func sampleSeeded(stateToken: [Float], rng: inout SplitMix64) -> PolicySample {
+        let (vLogits, hLogits, value) = forward(stateToken: stateToken)
+        let pv = RLMath.softmax(vLogits)
+        let ph = RLMath.softmax(hLogits)
+        let vClass = RLMath.sampleCategorical(pv, rng: &rng)
+        let hClass = RLMath.sampleCategorical(ph, rng: &rng)
+        let lv = RLMath.logSoftmax(vLogits)
+        let lh = RLMath.logSoftmax(hLogits)
+        return PolicySample(vClass: vClass, hClass: hClass,
+                            logProbV: vClass < lv.count ? lv[vClass] : 0,
+                            logProbH: hClass < lh.count ? lh[hClass] : 0,
+                            value: Double(value))
+    }
+}
+
 // ============================================================================
 // MARK: - 数据结构
 // ============================================================================
@@ -66,6 +98,25 @@ public struct RLAction {
         self.vClass = vClass
         self.hClass = hClass
     }
+}
+
+/// 一次动作采样的**完整快照**：动作类别 + 采样时旧策略对该动作的 log 概率 + 状态价值。
+/// P1-1 的关键：collect 直接用它保存 old logProb/value，绝不再二次 forward（否则后台
+/// 已发布新策略会导致 old 与动作口径不一致）。
+public struct PolicySample {
+    public var vClass: Int
+    public var hClass: Int
+    public var logProbV: Double
+    public var logProbH: Double
+    public var value: Double
+    public init(vClass: Int, hClass: Int, logProbV: Double, logProbH: Double, value: Double) {
+        self.vClass = vClass
+        self.hClass = hClass
+        self.logProbV = logProbV
+        self.logProbH = logProbH
+        self.value = value
+    }
+    public var action: RLAction { RLAction(vClass: vClass, hClass: hClass) }
 }
 
 /// 奖励权重，默认值与 tools/v3_rl/reward.py 的 RewardWeights 一一对应。
@@ -97,25 +148,18 @@ public struct RewardConfig {
 }
 
 /// 在线循环自有的「一次更新摘要」，写进环形缓冲供 UI 画曲线。
-/// 为什么不直接用 PPOMetrics：那是单次 updatePPO 的产出；而 meanReward 是
-/// 在线环境里由 OnlineTrainer 回填的（PPOMetrics 不产生它），updateIndex 也由
-/// 环形缓冲维护。所以另建一个轻量封装，不污染 PolicyHead 的对外结构。
+/// 为什么不直接用 PPOMetrics：那是单次 updatePPO 的产出；而 meanReward 是在线环境里
+/// 由 OnlineTrainer 回填的（PPOMetrics 不产生它），updateIndex 也由环形缓冲维护。
 public struct TrainingMetrics {
     public var policyLoss: Double
     public var valueLoss: Double
     public var entropy: Double
     public var approxKL: Double
-    /// 最近窗口 episode 的平均回报（OnlineTrainer 回填）。
     public var meanReward: Double
-    /// 第几次更新（单调递增，便于 UI 画曲线）。
     public var updateIndex: Int
 
-    public init(policyLoss: Double = 0,
-                valueLoss: Double = 0,
-                entropy: Double = 0,
-                approxKL: Double = 0,
-                meanReward: Double = 0,
-                updateIndex: Int = 0) {
+    public init(policyLoss: Double = 0, valueLoss: Double = 0, entropy: Double = 0,
+                approxKL: Double = 0, meanReward: Double = 0, updateIndex: Int = 0) {
         self.policyLoss = policyLoss
         self.valueLoss = valueLoss
         self.entropy = entropy
@@ -129,14 +173,11 @@ public struct TrainingMetrics {
 // MARK: - 数值工具（softmax / logSoftmax / 采样）+ 可复现 RNG
 // ============================================================================
 
-/// 数值稳定的 softmax / logSoftmax。全部 max-subtract，杜绝 exp 溢出。
 public enum RLMath {
-    /// softmax，返回 [Double]（与 logits 同长）。空输入返回空；全非有限退化为均匀。
     public static func softmax(_ logits: [Float]) -> [Double] {
         softmaxD(logits.map { Double($0) })
     }
 
-    /// softmax（Double 入参）。
     public static func softmaxD(_ logits: [Double]) -> [Double] {
         let n = logits.count
         if n == 0 { return [] }
@@ -157,7 +198,6 @@ public enum RLMath {
         return exps
     }
 
-    /// log-softmax，返回 [Double]。数值稳定：log p_i = (z_i - max) - log Σ exp(z_j - max)。
     public static func logSoftmax(_ logits: [Float]) -> [Double] {
         let z = logits.map { Double($0) }
         let n = z.count
@@ -178,6 +218,18 @@ public enum RLMath {
         }
         return out
     }
+
+    /// 按概率做一次分类采样。空输入返回 0；累计概率法，越界兜底最后一项。
+    public static func sampleCategorical(_ p: [Double], rng: inout SplitMix64) -> Int {
+        guard !p.isEmpty else { return 0 }
+        let u = rng.nextUnit()
+        var acc = 0.0
+        for i in 0..<p.count {
+            acc += p[i]
+            if u < acc { return i }
+        }
+        return p.count - 1
+    }
 }
 
 /// 可复现的伪随机数发生器（SplitMix64）。自检要确定性，不能用系统熵。
@@ -191,9 +243,15 @@ public struct SplitMix64: RandomNumberGenerator {
         z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
         return z ^ (z >> 31)
     }
-    /// 采样一个 [0,1) 均匀数（取高 53 位对齐 double 尾数精度）。
     public mutating func nextUnit() -> Double {
         Double(next() >> 11) * (1.0 / 9007199254740992.0)
+    }
+    public mutating func nextGaussian() -> Double {
+        // Box–Muller（不追求极致性能，够自检用）。
+        var u1 = nextUnit()
+        if u1 < 1e-12 { u1 = 1e-12 }
+        let u2 = nextUnit()
+        return (-2.0 * log(u1)).squareRoot() * cos(2.0 * Double.pi * u2)
     }
 }
 
@@ -201,31 +259,25 @@ public struct SplitMix64: RandomNumberGenerator {
 // MARK: - OnlineTrainer 主类
 // ============================================================================
 
-/// 在线 RL 训练器。主线程调 collect，后台串行队列训练，双缓冲发布参数。
 public final class OnlineTrainer: @unchecked Sendable {
     // ── 策略快照（双缓冲）──
-    /// 推理用快照：主线程 sampleAction / collect / actionDistribution 读它，`lock` 保护。
     private var inferencePolicy: any PolicyUpdatable
-    /// 训练用副本：只由训练串行队列触碰，改完整体赋值给 inferencePolicy。
     private var trainingPolicy: any PolicyUpdatable
     private let lock = NSLock()
 
     // ── 训练调度 ──
-    /// 后台串行队列：串行 ⇒ 多个 flush 天然互斥，训练不会并发改 trainingPolicy。
     private let trainingQueue: DispatchQueue
     private let rewardConfig: RewardConfig
     public let ppoConfig: PPOConfig
-    /// 每积累多少条 transition 触发一次更新（episode 结束也会强制触发）。
+    /// 每积累多少条 transition 触发一次「缓冲截断」更新（episode 真正结束也会训练）。
+    /// 注意：缓冲截断会扣下最后一条不训（保留 bootstrap），见 flushBufferCap。
     public let trainEvery: Int
 
     // ── 主线程独占的采集态 ──
     private var pendingTransitions: [RLTransition] = []
-    /// 当前 episode 累计回报（主线程）。
     private var episodeRewardAccumulator: Double = 0
-    /// 已完成 episode 的回报窗口（主线程），用于 meanReward。
     private var recentEpisodeReturns: [Double] = []
     private let recentEpisodeWindow = 50
-    /// decel 项要的上一帧速度（含有效性），跨帧保持 —— 与 reward.py 一致。
     private var previousSpeedKmh: Double = 0
     private var previousSpeedValid: Bool = false
 
@@ -235,13 +287,9 @@ public final class OnlineTrainer: @unchecked Sendable {
     private let metricsLock = NSLock()
     private var updateCounter = 0
 
-    /// - Parameters:
-    ///   - policy: 初始策略（值类型）。会被复制成推理快照 + 训练副本两份。
-    ///   - rewardConfig: 奖励权重（默认与 reward.py 对齐）。
-    ///   - ppoConfig: PPO 超参（PolicyHead.swift 定义）。
-    ///   - trainEvery: 每多少条 transition 触发一次更新（<=0 视为永不按数量触发，
-    ///     只在 episode 结束触发）。
-    ///   - metricsCapacity: 指标环形缓冲容量。
+    // ── 自检钩子状态（跨线程，metricsLock 保护）──
+    private var capturedBatchesForTest: [[RLTransition]] = []
+
     public init(policy: any PolicyUpdatable,
                 rewardConfig: RewardConfig = RewardConfig(),
                 ppoConfig: PPOConfig = PPOConfig(),
@@ -253,20 +301,20 @@ public final class OnlineTrainer: @unchecked Sendable {
         self.ppoConfig = ppoConfig
         self.trainEvery = trainEvery
         self.metricsCapacity = max(1, metricsCapacity)
-        self.trainingQueue = DispatchQueue(label: "aurora.online-trainer.train",
-                                           qos: .utility)
+        self.trainingQueue = DispatchQueue(label: "aurora.online-trainer.train", qos: .utility)
     }
 
-    // ── 公开：采样动作（主线程，动作选择阶段）──────────────────────────────
-    /// 用当前推理快照前向 + 采样，返回联合动作与其旧 log 概率、状态价值。
-    public func sampleAction(stateToken: [Float])
-        -> (action: RLAction, logProbV: Double, logProbH: Double, value: Double) {
+    // ── 公开：采样动作（主线程）────────────────────────────────────────────
+    /// 用当前推理快照前向 + 采样，返回**完整采样快照**（P1-1：调用方须把整份快照
+    /// 原样交给 collect，collect 不再二次 forward）。
+    public func sampleAction(stateToken: [Float]) -> PolicySample {
         lock.lock()
         let (vLogits, hLogits, value) = inferencePolicy.forward(stateToken: stateToken)
         let sample = inferencePolicy.stochasticSample(vLogits: vLogits, hLogits: hLogits)
         lock.unlock()
-        return (RLAction(vClass: sample.vClass, hClass: sample.hClass),
-                sample.logProbV, sample.logProbH, Double(value))
+        return PolicySample(vClass: sample.vClass, hClass: sample.hClass,
+                            logProbV: sample.logProbV, logProbH: sample.logProbH,
+                            value: Double(value))
     }
 
     /// 当前推理快照在给定 state 下的动作分布（给自检断言「发布后分布变了」）。
@@ -277,132 +325,169 @@ public final class OnlineTrainer: @unchecked Sendable {
         return (RLMath.softmax(vLogits), RLMath.softmax(hLogits))
     }
 
-    // ── 公开：逐帧采集（主线程）──────────────────────────────────────────
-    /// 收集一帧：算奖励、取旧策略的 value/logProb、存 transition；到点触发更新。
-    /// - Returns: 这一帧的即时奖励（便于调用方观测/打日志）。
+    // ── 公开：逐帧采集（主线程）────────────────────────────────────────────
+    /// 收集一帧。**P1-1**：`sample` 是采样时的完整快照，这里原样保存 logProb/value，
+    /// 绝不重新 forward。**P1-3**：tookOver 帧不为人类动作建 transition，而是把接管
+    /// 惩罚归因到上一条 AI transition 并封口 episode。
+    /// - Returns: 这一帧的原始即时奖励（供调用方观测/打日志，不代表训练口径）。
     @discardableResult
     public func collect(stateToken: [Float],
-                        actionTaken: RLAction,
+                        sample: PolicySample,
                         tookOver: Bool,
                         speedKmh: Double,
                         speedValid: Bool,
                         collision: Bool,
                         laneOffset: Double,
                         isTerminal: Bool) -> Double {
-        // ① 逐帧奖励（与 reward.py 完全同语义，prev_speed/prev_valid 跨帧保持）
-        let reward = Self.frameReward(signals: RewardSignals(speedKmh: speedKmh,
-                                                             speedValid: speedValid,
-                                                             laneOffset: laneOffset,
-                                                             collided: collision,
-                                                             tookOver: tookOver),
-                                      previousSpeedKmh: previousSpeedKmh,
-                                      previousSpeedValid: previousSpeedValid,
-                                      config: rewardConfig)
-        // ② 推进上一帧速度状态：有效读数才更新 prev_speed；无效则保持旧值
-        //    （与 reward.py 的 `prev_speed = f.speed if valid else prev_speed` 一致）。
+        // ① 逐帧奖励（与 reward.py 同语义，prev_speed/prev_valid 跨帧保持）
+        let frameRewardValue = Self.frameReward(
+            signals: RewardSignals(speedKmh: speedKmh, speedValid: speedValid,
+                                   laneOffset: laneOffset, collided: collision, tookOver: tookOver),
+            previousSpeedKmh: previousSpeedKmh,
+            previousSpeedValid: previousSpeedValid,
+            config: rewardConfig)
+
+        // ② 推进上一帧速度状态（P2：NaN/无效 → previousValid=false，下一帧 decel 被抑制）
         if speedValid && speedKmh.isFinite {
             previousSpeedKmh = speedKmh
+            previousSpeedValid = true
+        } else {
+            // speedValid=false 或 speed 非有限：保留旧 speed 供日志，但标 prev 无效，
+            // 与 reward.py 的有限性检查等价 —— 杜绝「stale 有限值 vs 新值」伪造急减速。
+            previousSpeedValid = false
         }
-        previousSpeedValid = speedValid
 
-        // ③ 取旧策略在「实际动作」上的 value / logProb（PPO 的 old logProb）
-        lock.lock()
-        let (vLogits, hLogits, value) = inferencePolicy.forward(stateToken: stateToken)
-        lock.unlock()
-        let logProbsV = RLMath.logSoftmax(vLogits)
-        let logProbsH = RLMath.logSoftmax(hLogits)
-        let vClass = Self.clampClass(actionTaken.vClass, count: vLogits.count)
-        let hClass = Self.clampClass(actionTaken.hClass, count: hLogits.count)
-        let logProbV = logProbsV.isEmpty ? 0 : logProbsV[vClass]
-        let logProbH = logProbsH.isEmpty ? 0 : logProbsH[hClass]
+        // ③ P1-3：人工接管 —— 人类救援动作不进策略梯度
+        if tookOver {
+            // 接管惩罚归因到上一条 AI transition（作为其额外 reward），封口 episode。
+            let takeoverPenalty = -rewardConfig.takeover
+            if let lastIdx = pendingTransitions.indices.last {
+                pendingTransitions[lastIdx].reward += takeoverPenalty
+            }
+            episodeRewardAccumulator += frameRewardValue
+            sealEpisode()
+            return frameRewardValue
+        }
 
-        // ④ 组 transition 入缓冲
+        // ④ 正常策略帧：用采样快照原样保存 old logProb / value（P1-1）
         let transition = RLTransition(stateToken: stateToken,
-                                      vClass: vClass,
-                                      hClass: hClass,
-                                      logProbV: logProbV,
-                                      logProbH: logProbH,
-                                      reward: reward,
-                                      value: Double(value),
-                                      tookOver: tookOver,
+                                      vClass: sample.vClass,
+                                      hClass: sample.hClass,
+                                      logProbV: sample.logProbV,
+                                      logProbH: sample.logProbH,
+                                      reward: frameRewardValue,
+                                      value: sample.value,
+                                      tookOver: false,
                                       isTerminal: isTerminal)
         pendingTransitions.append(transition)
-        episodeRewardAccumulator += reward
+        episodeRewardAccumulator += frameRewardValue
 
-        // ⑤ episode 结束：归档回报、复位 reward 内部状态、强制触发训练
+        // ⑤ 真实 episode 结束 → 归档回报 + 整批训练 + 复位 reward 状态
         if isTerminal {
             recentEpisodeReturns.append(episodeRewardAccumulator)
             if recentEpisodeReturns.count > recentEpisodeWindow {
                 recentEpisodeReturns.removeFirst(recentEpisodeReturns.count - recentEpisodeWindow)
             }
-            episodeRewardAccumulator = 0
-            previousSpeedKmh = 0
-            previousSpeedValid = false
+            flushEpisodeEnd()
+            resetRewardState()
+        } else if trainEvery > 0 && pendingTransitions.count >= trainEvery {
+            // ⑥ 缓冲上限 → 截断训练（扣下最后一条，保留 bootstrap，见 flushBufferCap）
+            flushBufferCap()
         }
-
-        // ⑥ 到量 / episode 结束 → flush
-        let reachedCount = trainEvery > 0 && pendingTransitions.count >= trainEvery
-        if reachedCount || isTerminal {
-            flush()
-        }
-        return reward
+        return frameRewardValue
     }
 
-    /// 阻塞到当前已排队的训练全部跑完（自检/收尾用）。主线程别在热循环里调。
-    public func drainTrainingAndWait() {
-        trainingQueue.sync { }
+    /// P1-4：封口当前轨迹（用于 UNKNOWN 缺口 / 无有效状态 / 非有限帧）——不伪造
+    /// transition，只把已有轨迹以 tailBootstrapValue=0（无后继状态）训练掉并清空，
+    /// 恢复后从新轨迹重新开始。不计入「已完成 episode」（它不是自然结束）。
+    public func sealEpisode() { markInvalid() }
+
+    /// sealEpisode 的别名，语义同「当前帧无效 / 状态不可用」。
+    public func markInvalid() {
+        flushSealed()
+        resetRewardState()
     }
+
+    /// 阻塞到当前已排队的训练全部跑完（自检/收尾用）。
+    public func drainTrainingAndWait() { trainingQueue.sync { } }
 
     // ── 公开：指标读出 ────────────────────────────────────────────────────
-    /// 最近的指标快照（时间正序，最多 metricsCapacity 条）。
     public var recentMetrics: [TrainingMetrics] {
-        metricsLock.lock()
-        defer { metricsLock.unlock() }
+        metricsLock.lock(); defer { metricsLock.unlock() }
         return metricsBuffer
     }
 
-    /// 最近窗口 episode 的平均回报（主线程读）。
     public var meanEpisodeReward: Double {
         guard !recentEpisodeReturns.isEmpty else { return 0 }
         return recentEpisodeReturns.reduce(0, +) / Double(recentEpisodeReturns.count)
     }
-
-    /// 已完成 episode 数（主线程读）。
     public var completedEpisodeCount: Int { recentEpisodeReturns.count }
 
-    // ── 内部：flush（主线程快照 → 后台训练 → 原子发布 → 记指标）──────────────
-    private func flush() {
+    // ========================================================================
+    // MARK: - 内部：训练调度（三种 flush，语义严格区分）
+    // ========================================================================
+
+    /// 真实 episode 结束：整批训练。末条 isTerminal=true，computeGAE 自然按终止处理。
+    private func flushEpisodeEnd() {
         guard !pendingTransitions.isEmpty else { return }
         let batch = pendingTransitions
         pendingTransitions.removeAll(keepingCapacity: true)
-        // 主线程先算出 meanReward 快照，避免训练队列跨线程读 recentEpisodeReturns。
+        trainAsync(batch, tailBootstrapValue: 0)
+    }
+
+    /// 缓冲上限截断：**扣下最后一条不训**，对其余子批训练并把扣下那条的 value 作为
+    /// 尾 bootstrap（下一步 q 值估计），避免把「批次截断」错当「episode 终止」丢 bootstrap。
+    private func flushBufferCap() {
+        guard pendingTransitions.count >= 2 else { return }  // 至少留 1 条续跑
+        let heldBack = pendingTransitions.removeLast()
+        let batch = pendingTransitions
+        pendingTransitions = [heldBack]
+        trainAsync(batch, tailBootstrapValue: heldBack.value)
+    }
+
+    /// 封口（UNKNOWN / 接管 / 无效帧）：整批训练，尾 bootstrap=0（无可靠后继状态），
+    /// 但**不改写**末条的 isTerminal —— computeGAE 会因 tail=0 视作软截断，而非伪造终止。
+    private func flushSealed() {
+        guard !pendingTransitions.isEmpty else { return }
+        let batch = pendingTransitions
+        pendingTransitions.removeAll(keepingCapacity: true)
+        trainAsync(batch, tailBootstrapValue: 0)
+    }
+
+    /// 后台串行执行：GAE（含 tail bootstrap）→ 优势归一化（valueTarget 保留原始）→ PPO → 发布。
+    private func trainAsync(_ batch: [RLTransition], tailBootstrapValue: Double) {
+        guard !batch.isEmpty else { return }
         let meanRewardSnapshot = meanEpisodeReward
         let cfg = ppoConfig
-
         trainingQueue.async { [weak self] in
             guard let self else { return }
-            // GAE（逐 episode 不跨边界）——复用 PolicyHead 的实现，语义严格照 reward.py
             var withAdvantage = batch
-            PolicyHead.computeGAE(&withAdvantage, gamma: cfg.gamma, lam: cfg.lam)
-            // 归一化优势（valueTarget 保持 computeGAE 写好的「原始 adv+value」不变）。
-            // 与 train_rl 的 normalize_advantages 一致：PPO 策略梯度用归一化优势更稳。
-            let rawAdv = withAdvantage.map { $0.advantage }
-            let normalized = Self.normalizeAdvantages(rawAdv)
+            // P1-2：只按 isTerminal 判边界；末条若未终止，用 tailBootstrapValue 做 bootstrap。
+            PolicyHead.computeGAE(&withAdvantage, gamma: cfg.gamma, lam: cfg.lam,
+                                  tailBootstrapValue: tailBootstrapValue)
+            // 归一化只作用于 advantage；valueTarget 保留 computeGAE 写好的「原始 adv+value」。
+            let normalized = Self.normalizeAdvantages(withAdvantage.map { $0.advantage })
             for i in withAdvantage.indices { withAdvantage[i].advantage = normalized[i] }
-            // 训练副本上做 PPO（epochs/batch 由 config 决定，在策略实现内完成）
+            // 自检钩子：在归一化后、训练前留一份（valueTarget/advantage 可被断言）
+            self.metricsLock.lock()
+            self.capturedBatchesForTest.append(withAdvantage)
+            self.metricsLock.unlock()
             let metrics = self.trainingPolicy.updatePPO(transitions: withAdvantage, config: cfg)
-            // 双缓冲发布：把训练好的副本整体赋值给推理快照（锁内原子换）
             self.lock.lock()
             self.inferencePolicy = self.trainingPolicy
             self.lock.unlock()
-            // 回填 meanReward 后入环形缓冲
-            let tm = TrainingMetrics(policyLoss: metrics.policyLoss,
-                                     valueLoss: metrics.valueLoss,
-                                     entropy: metrics.entropy,
-                                     approxKL: metrics.approxKL,
-                                     meanReward: meanRewardSnapshot)
-            self.appendMetric(tm)
+            self.appendMetric(TrainingMetrics(policyLoss: metrics.policyLoss,
+                                              valueLoss: metrics.valueLoss,
+                                              entropy: metrics.entropy,
+                                              approxKL: metrics.approxKL,
+                                              meanReward: meanRewardSnapshot))
         }
+    }
+
+    private func resetRewardState() {
+        episodeRewardAccumulator = 0
+        previousSpeedKmh = 0
+        previousSpeedValid = false
     }
 
     private func appendMetric(_ metrics: TrainingMetrics) {
@@ -417,6 +502,36 @@ public final class OnlineTrainer: @unchecked Sendable {
         metricsLock.unlock()
     }
 
+    // ========================================================================
+    // MARK: - 自检钩子（internal，同 target 的 OnlineTrainerSelfTest 可用）
+    // ========================================================================
+
+    /// 当前推理快照（自检用固定种子对真实 PolicyHead 采样，需与训练保持同一快照）。
+    func currentPolicyForTest() -> any PolicyUpdatable {
+        lock.lock(); defer { lock.unlock() }
+        return inferencePolicy
+    }
+
+    /// 直接注入一份策略（模拟「采样后、collect 前后台发布了新策略」的竞态场景）。
+    func injectPolicyForTest(_ policy: any PolicyUpdatable) {
+        lock.lock(); inferencePolicy = policy; trainingPolicy = policy; lock.unlock()
+    }
+
+    /// 当前待训练缓冲的 transition 快照（只读拷贝）。
+    func pendingTransitionsForTest() -> [RLTransition] {
+        pendingTransitions
+    }
+
+    /// 已被训练过的批次（按训练先后；含归一化后的 advantage 与原始 valueTarget）。
+    func capturedBatchesForTestSnapshot() -> [[RLTransition]] {
+        metricsLock.lock(); defer { metricsLock.unlock() }
+        return capturedBatchesForTest
+    }
+
+    func clearCapturedBatchesForTest() {
+        metricsLock.lock(); capturedBatchesForTest.removeAll(); metricsLock.unlock()
+    }
+
     private static func clampClass(_ value: Int, count: Int) -> Int {
         if count <= 0 { return 0 }
         return min(max(value, 0), count - 1)
@@ -426,7 +541,6 @@ public final class OnlineTrainer: @unchecked Sendable {
     // MARK: - 奖励（纯函数，逐项对齐 reward.py）
     // ========================================================================
 
-    /// 一帧的原始信号（与 reward.py 的 FrameSignals 对应；human 项在线下省略）。
     public struct RewardSignals {
         public var speedKmh: Double
         public var speedValid: Bool
@@ -443,18 +557,15 @@ public final class OnlineTrainer: @unchecked Sendable {
         }
     }
 
-    /// speed 项：有效且 >0 时 min(speed,100)/100，否则 0。
     public static func speedTerm(_ speedKmh: Double, _ speedValid: Bool) -> Double {
         guard speedValid, speedKmh.isFinite, speedKmh > 0 else { return 0 }
         return min(speedKmh, RewardConfig.speedNormKmh) / RewardConfig.speedNormKmh
     }
 
-    /// 是否卡死：有效且 < 1 km/h。
     public static func isStuck(_ speedKmh: Double, _ speedValid: Bool) -> Bool {
         speedValid && speedKmh.isFinite && speedKmh < RewardConfig.stuckSpeedKmh
     }
 
-    /// 硬减速幅度 [0,1]。要求前后帧都有效（跨 OCR 缺口用 prev_valid 防伪造）。
     public static func decelTerm(previousSpeed: Double, speedKmh: Double,
                                  currentValid: Bool, previousValid: Bool) -> Double {
         guard currentValid, previousValid else { return 0 }
@@ -464,14 +575,12 @@ public final class OnlineTrainer: @unchecked Sendable {
         return min(drop / 30.0, 1.0)
     }
 
-    /// 车道偏置项 [0,1]（绝对偏置，无世界坐标）。
     public static func laneTerm(_ laneOffset: Double) -> Double {
         guard laneOffset.isFinite else { return 0 }
         return min(abs(laneOffset), 1.0)
     }
 
     /// 一帧奖励 = dense（speed - stuck - collision - decel - lane）+ takeover 强负。
-    /// 与 reward.py 的 dense_reward + takeover_reward 组合完全一致（human=0）。
     public static func frameReward(signals: RewardSignals,
                                    previousSpeedKmh: Double,
                                    previousSpeedValid: Bool,
@@ -493,8 +602,6 @@ public final class OnlineTrainer: @unchecked Sendable {
     // MARK: - 优势归一化（reward.py 的 normalize_advantages）
     // ========================================================================
 
-    /// 优势归一化：非有限输入返回全 0（不产 NaN）；std 过小也返回全 0。
-    /// 与 reward.py 的 normalize_advantages 一致（总体标准差 ddof=0）。
     public static func normalizeAdvantages(_ adv: [Double], eps: Double = 1e-8) -> [Double] {
         let n = adv.count
         guard n > 0 else { return adv }
@@ -513,6 +620,4 @@ public final class OnlineTrainer: @unchecked Sendable {
 // MARK: - PolicyHead 接入（一行把 B 的真实头接进在线循环）
 // ============================================================================
 
-/// 让 B 域 PolicyHead 直接实现 OnlineTrainer 的策略协议。B 的方法签名与协议
-/// 逐字一致，故无需包装逻辑——空扩展即可（struct 值语义天然满足双缓冲要求）。
 extension PolicyHead: PolicyUpdatable {}

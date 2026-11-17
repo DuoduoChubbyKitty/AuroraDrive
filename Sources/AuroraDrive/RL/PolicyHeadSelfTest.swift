@@ -146,7 +146,7 @@ enum PolicyHeadSelfTest {
         return local
     }
 
-    // MARK: - ② 解析梯度 vs 有限差分（主证据）
+    // MARK: - ② 解析梯度 vs 有限差分（主证据）+ PPO 四象限梯度
 
     private static func checkAnalyticGradient(_ check: (String, Bool, String) -> Void) -> Int {
         var local = 0
@@ -161,6 +161,10 @@ enum PolicyHeadSelfTest {
         var maxRel = 0.0
         var checkedCount = 0
         var worst = ""
+        // ★ NaN 假绿缺口修复：任何抽样点若解析梯度/数值梯度/相对误差为非有限值，
+        //   单独记为失败——不能因为 NaN > maxRel 恒 false 就悄悄放过。
+        var nonFiniteCount = 0
+        var nonFiniteInfo = ""
         let h = 1e-5
         func relErr(_ a: Double, _ b: Double) -> Double {
             abs(a - b) / max(1e-4, abs(a) + abs(b))
@@ -178,8 +182,17 @@ enum PolicyHeadSelfTest {
                 var hm = head; writeW(&hm, idx, orig - h)
                 let lossM = hm.ppoLossOnly(trans, config: cfg)
                 let numeric = (lossP - lossM) / (2 * h)
-                let e = relErr(analytic[idx], numeric)
+                let analyticV = analytic[idx]
+                let e = relErr(analyticV, numeric)
                 checkedCount += 1
+                // 三者之一非有限 → 计入假绿缺口
+                if !analyticV.isFinite || !numeric.isFinite || !e.isFinite {
+                    nonFiniteCount += 1
+                    if nonFiniteInfo.isEmpty {
+                        nonFiniteInfo = "\(name)[\(idx)] a=\(analyticV) n=\(numeric) e=\(e)"
+                    }
+                    continue
+                }
                 if e > maxRel { maxRel = e; worst = "\(name)[\(idx)]" }
             }
         }
@@ -201,6 +214,8 @@ enum PolicyHeadSelfTest {
         fd("value.bias", grads.dBval, [0],
            { $0.valueLayer.bias }, { hp, i, v in hp.valueLayer.bias[i] = v })
 
+        c("抽样 \(checkedCount) 个参数：解析/数值/误差三者全部有限（无 NaN/Inf 假绿）",
+          nonFiniteCount == 0, nonFiniteCount == 0 ? "" : nonFiniteInfo)
         c("抽样 \(checkedCount) 个参数：解析梯度与有限差分一致（最大相对误差 <1e-3）",
           maxRel < 1e-3, "maxRelErr=\(fmtSci(maxRel)) @ \(worst)")
 
@@ -211,6 +226,45 @@ enum PolicyHeadSelfTest {
         let hlp = PolicyHead.logSoftmax(fwd.hLogits.map { Double($0) })
         let ratio = exp((vlp[one[0].vClass] - one[0].logProbV) + (hlp[one[0].hClass] - one[0].logProbH))
         c("单样本 ratio 有限且 > 0", ratio.isFinite && ratio > 0, "ratio=\(fmt(ratio))")
+
+        // ── PPO 四种优势符号 × clip 内外区域：解析梯度逐一与有限差分比对 ──
+        // 现在 makeTransitions 的 advantage 恰为 {-0.6,-0.3,0,0.3}（四种符号），
+        // oldLogProb 取 -1.05 附近 → ratio≈exp(+0.06)≈1.06，落入 clip 内；clipped 取 0.95，
+        // ratio≈1.06 > 0.95 → 必然落在 clip 外（ratio>1 且 A≠0 时 surr1 与 surr2 走不同支）。
+        // 故正/负优势 × clip 内外被同时覆盖，逐一数字校验 vertical 梯度。
+        var quadChecked = 0
+        var quadMaxRel = 0.0
+        var quadNonFinite = 0
+        var quadInfo = ""
+        for idx in 0..<trans.count {
+            let single = [trans[idx]]
+            let (_, g1, _) = head.ppoLossAndGradients(single, config: cfg)
+            for w in [0, 47, 143, 287] where w < head.vertical.weight.count {
+                let orig = head.vertical.weight[w]
+                var hp = head; hp.vertical.weight[w] = orig + h
+                let lp = hp.ppoLossOnly(single, config: cfg)
+                var hm = head; hm.vertical.weight[w] = orig - h
+                let lm = hm.ppoLossOnly(single, config: cfg)
+                let numeric = (lp - lm) / (2 * h)
+                let analyticV = g1.dWv[w]
+                let e = relErr(analyticV, numeric)
+                quadChecked += 1
+                if !analyticV.isFinite || !numeric.isFinite || !e.isFinite {
+                    quadNonFinite += 1
+                    if quadInfo.isEmpty { quadInfo = "t=\(idx) w=\(w)" }
+                    continue
+                }
+                if e > quadMaxRel { quadMaxRel = e }
+            }
+        }
+        let signs = Set(trans.map { $0.advantage > 0 ? "+" : ($0.advantage < 0 ? "-" : "0") })
+        c("覆盖优势四象限（含正/负/零，" + "符号集=" + signs.sorted().joined(separator: ",") + "）",
+          signs.contains("+") && signs.contains("-") && signs.contains("0"),
+          "signs=\(signs.sorted())")
+        c("四象限单样本梯度：解析/数值全部有限", quadNonFinite == 0,
+          quadNonFinite == 0 ? "" : quadInfo)
+        c("四象限单样本梯度与有限差分一致（\(quadChecked) 点，最大相对误差 <1e-3）",
+          quadMaxRel < 1e-3, "quadMaxRelErr=\(fmtSci(quadMaxRel))")
         return local
     }
 
@@ -448,6 +502,47 @@ enum PolicyHeadSelfTest {
         // t=0: delta=1+0.9*0.2-0.5=0.68 → A0=0.68+0.9*0.8*0.8=1.256
         c("GAE 递推：A1 == 0.8", abs(tr2[1].advantage - 0.8) < 1e-9, "A1=\(fmt(tr2[1].advantage))")
         c("GAE 递推：A0 == 1.256", abs(tr2[0].advantage - 1.256) < 1e-9, "A0=\(fmt(tr2[0].advantage))")
+
+        // ── (P1-2) 末项 isTerminal=false：tailBootstrapValue 参与 nextV bootstrap ──
+        // 单元素批次，value=0.5，r=1.0，γ=0.9，λ=0.8。
+        //   tail=0：delta=1+0.9*0-0.5=0.5 → A0=0.5，valueTarget=0.5+0.5=1.0
+        //   tail=5：delta=1+0.9*5-0.5=5.0 → A0=5.0，valueTarget=5.0+0.5=5.5
+        //   两者差 == γ*tail = 0.9*5 = 4.5
+        var tb0 = [mkTransition(1.0, terminal: false)]
+        tb0[0].value = 0.5
+        var tb5 = [mkTransition(1.0, terminal: false)]
+        tb5[0].value = 0.5
+        PolicyHead.computeGAE(&tb0, gamma: 0.9, lam: 0.8, tailBootstrapValue: 0)
+        PolicyHead.computeGAE(&tb5, gamma: 0.9, lam: 0.8, tailBootstrapValue: 5)
+        c("末项非 terminal：tail=0 → A0==0.5（符合公式）", abs(tb0[0].advantage - 0.5) < 1e-9,
+          "A0(tail=0)=\(fmt(tb0[0].advantage))")
+        c("末项非 terminal：tail=5 → A0==5.0（符合公式）", abs(tb5[0].advantage - 5.0) < 1e-9,
+          "A0(tail=5)=\(fmt(tb5[0].advantage))")
+        c("tail 影响量 == γ·tail（0.9*5=4.5）", abs((tb5[0].advantage - tb0[0].advantage) - 4.5) < 1e-9,
+          "Δ=\(fmt(tb5[0].advantage - tb0[0].advantage))")
+        c("末项非 terminal：tail=5 时 valueTarget==A0+value(5.5)",
+          abs(tb5[0].valueTarget - 5.5) < 1e-9, "vt=\(fmt(tb5[0].valueTarget))")
+
+        // ── 中间 isTerminal=true：正确切断递推（后半段奖励不泄漏到前半段）──
+        // tr5 = [r=1,v=0.1,term=F], [r=2,v=0.2,term=T], [r=3,v=0.3,term=F]，γ=0.9,λ=0.8
+        //   t=2(末,F,tail=0): delta=3-0.3=2.7 → A2=2.7
+        //   t=1(term=T):      delta=2-0.2=1.8 → A1=1.8（在此切断）
+        //   t=0(F): nextV=v1=0.2; delta=1+0.9*0.2-0.1=1.08; A0=1.08+0.72*1.8=2.376
+        //   —— A0 与 t=2 的 reward 无关（否则说明没切断）
+        var tr5 = [mkTransition(1.0, terminal: false),
+                   mkTransition(2.0, terminal: true),
+                   mkTransition(3.0, terminal: false)]
+        tr5[0].value = 0.1; tr5[1].value = 0.2; tr5[2].value = 0.3
+        PolicyHead.computeGAE(&tr5, gamma: 0.9, lam: 0.8)
+        c("中途 terminal 切断：A2==2.7", abs(tr5[2].advantage - 2.7) < 1e-9, "A2=\(fmt(tr5[2].advantage))")
+        c("中途 terminal 切断：A1==1.8", abs(tr5[1].advantage - 1.8) < 1e-9, "A1=\(fmt(tr5[1].advantage))")
+        c("中途 terminal 切断：A0==2.376", abs(tr5[0].advantage - 2.376) < 1e-9, "A0=\(fmt(tr5[0].advantage))")
+        var tr5b = tr5
+        tr5b[2].reward = 999.0            // 改后半段奖励
+        PolicyHead.computeGAE(&tr5b, gamma: 0.9, lam: 0.8)
+        c("中途 terminal 切断：改 t=2 奖励不影响 A0（无跨段泄漏）",
+          abs(tr5b[0].advantage - tr5[0].advantage) < 1e-12,
+          "A0(orig)=\(fmt(tr5[0].advantage)) A0(改t2奖励)=\(fmt(tr5b[0].advantage))")
 
         // logSoftmax 与 softmax 数值一致
         let z: [Double] = [-0.3, 1.2, 0.0, -2.0]

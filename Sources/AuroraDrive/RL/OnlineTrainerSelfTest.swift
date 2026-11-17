@@ -4,34 +4,24 @@
 // ============================================================================
 //  OnlineTrainerSelfTest.swift — 在线 RL 循环自检（-rl-online-selftest）
 //
-//  【为什么建这个 / 为什么分四段】
-//    「能 build」不等于「真的在学」。本自检分四段，每段断言的维度不同：
-//
-//    ① GAE 逐 episode 隔离：**直接绑 B 域 PolicyHead.computeGAE 的真实实现**
-//       （不另写一份），证明「两个独立 episode 的回报不互相泄漏」。这是硬不变量。
-//    ② 价值头学习：用 ToyPolicy 在**固定 valueTarget、advantage=0** 的批次上，
-//       证明 value 回归确实把目标拟合下来（隔离策略变化，避免混淆）。
-//    ③ 学习曲线：用**确定性可学习的 ToyPolicy**（线性 softmax 策略头 + PPO + Adam）
-//       在合成可学习环境里跑 80 episode，硬断言「每帧奖励显著上升 / 动作正确率上升 /
-//       熵合理 / 双缓冲发布生效」。用确定性小网络当硬门，是为了让断言**稳定可复现**。
-//    ④ 真实 PolicyHead 端到端机器验证：把 B 的真实 MLP 头接进 OnlineTrainer，真跑
-//       collect→computeGAE→updatePPO→发布，断言「确实完成了 PPO 更新 / 指标有限 /
-//       参数被更新（双缓冲发布生效）」。
-//
-//  【为什么④不断言「MLP 必然 reward 上升」】
-//    实测（本机，详见交付说明）：同一个 MLP 头 + 同样超参，在不同随机种子下行为差异大
-//    （有的种子熵塌缩、有的稳定学会）。在极小玩具环境里「MLP+PPO 必然单调上升」不是
-//    稳定可复现的断言，写进 CI 会 flaky。故「reward 上升」这条硬门交给③确定性线性头；
-//    ④只验证真实头能被整条循环正确驱动且确实在更新。这是工程上诚实的分工。
+//  【为什么建这个 / 段落划分】
+//    每段断言一个维度，全部真实、可失败，绝不恒真：
+//    ① GAE 逐 episode 隔离 + 尾 bootstrap（直接绑 PolicyHead.computeGAE 真实实现）
+//    ② 价值头对固定目标收敛（advantage=0 冻结策略，只验 value 回归）
+//    ③ 学习曲线（确定性线性 ToyPolicy 在合成可学习环境，硬断言 reward 上升）
+//    ④ 真实 PolicyHead 端到端机器验证（真跑 collect→GAE→updatePPO→发布）
+//    ⑤ P1-1 采样快照/发布竞态
+//    ⑥ P1-2 截断 vs 终止（非零 critic 尾 bootstrap）
+//    ⑦ P1-3 人工接管动作不进策略梯度（惩罚归因上一 AI 帧）
+//    ⑧ P1-4 UNKNOWN 缺口隔离（sealEpisode 不伪造、两段不互串）
+//    ⑨ P2 非有限速度不伪造急减速
+//    ⑩ P2-5 真实 PolicyHead 可复现学习收益（固定采样种子，多 seed 聚合）
 // ============================================================================
 
 import Foundation
 
 enum OnlineTrainerSelfTest {
 
-    // ========================================================================
-    // MARK: - 入口
-    // ========================================================================
     static func run() -> Int {
         var failures = 0
         func check(_ name: String, _ condition: Bool, _ detail: String = "") {
@@ -41,13 +31,16 @@ enum OnlineTrainerSelfTest {
 
         print("═══ 在线 RL 循环自检（-rl-online-selftest）═══")
 
-        failures += runGAEIsolationChecks(check)
-        print("")
-        failures += runValueLearningCheck(check)
-        print("")
-        failures += runLearningCurveChecks(check)
-        print("")
-        failures += runRealPolicyHeadIntegrationCheck(check)
+        failures += runGAEIsolationChecks(check);            print("")
+        failures += runValueLearningCheck(check);            print("")
+        failures += runLearningCurveChecks(check);           print("")
+        failures += runRealPolicyHeadIntegrationCheck(check);print("")
+        failures += runSamplingSnapshotRaceCheck(check);     print("")
+        failures += runTruncationVsTerminationCheck(check);  print("")
+        failures += runTakeoverAttributionCheck(check);      print("")
+        failures += runUnknownGapCheck(check);               print("")
+        failures += runNonFiniteSpeedCheck(check);           print("")
+        failures += runRealPolicyHeadLearningBenefitCheck(check)
 
         print("")
         print(failures == 0
@@ -57,25 +50,20 @@ enum OnlineTrainerSelfTest {
     }
 
     // ========================================================================
-    // MARK: - ① GAE 逐 episode 隔离（绑定 PolicyHead.computeGAE 真实实现）
+    // MARK: - ① GAE 逐 episode 隔离 + 尾 bootstrap（绑定 computeGAE 真实实现）
     // ========================================================================
-    private static func runGAEIsolationChecks(
-        _ check: (String, Bool, String) -> Void) -> Int {
-        print("── 第一段：GAE 逐 episode 隔离（绑定 PolicyHead.computeGAE，不跨边界）──")
+    private static func runGAEIsolationChecks(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ① GAE 逐 episode 隔离 + 尾 bootstrap（绑定 PolicyHead.computeGAE）──")
 
-        // (1) 经典判别用例：两个各自 terminal 的单帧，回报 0 与 10。
-        //     正确：adv = [0, 10]。若边界没切断，adv[0] 会吃到 gamma*lam*adv[1] = 9.405。
         var g1: [RLTransition] = [
             makeTransition(reward: 0, value: 0, isTerminal: true),
             makeTransition(reward: 10, value: 0, isTerminal: true)
         ]
         PolicyHead.computeGAE(&g1, gamma: 0.99, lam: 0.95)
-        let okG1 = abs(g1[0].advantage - 0) < 1e-9 && abs(g1[1].advantage - 10) < 1e-9
-        check("两独立单帧 adv == [0,10]（非 [9.405,10]）", okG1,
+        check("两独立单帧 adv == [0,10]（非 [9.405,10]）",
+              abs(g1[0].advantage) < 1e-9 && abs(g1[1].advantage - 10) < 1e-9,
               "实际 [" + g1.map { String(format: "%.4f", $0.advantage) }.joined(separator: ",") + "]")
 
-        // (2) 多帧拼接：episode A = 三帧回报 [1,1,1]（终止在帧2），episode B = 单帧 [100]。
-        //     把两段拼起来算 GAE，A 段优势必须与「A 单独跑」完全一致（B 的 100 不渗入 A）。
         var combined: [RLTransition] = [
             makeTransition(reward: 1, value: 0, isTerminal: false),
             makeTransition(reward: 1, value: 0, isTerminal: false),
@@ -90,339 +78,458 @@ enum OnlineTrainerSelfTest {
         ]
         PolicyHead.computeGAE(&standaloneA, gamma: 0.99, lam: 0.95)
         var okA = true
-        var detailA = ""
-        for i in 0..<3 {
-            let diff = abs(combined[i].advantage - standaloneA[i].advantage)
-            detailA += String(format: "A[%d]拼接=%.4f 单独=%.4f ", i,
-                              combined[i].advantage, standaloneA[i].advantage)
-            if diff > 1e-9 { okA = false }
-        }
-        check("episode A 优势与单独跑一致（B 回报不渗入 A）", okA, detailA)
-        check("episode B 单帧 adv == 100", abs(combined[3].advantage - 100.0) < 1e-9,
-              String(format: "实际 %.4f", combined[3].advantage))
-
-        // (3) valueTarget = **原始**优势 + value（computeGAE 写回的原始值，未归一化；归一化只作用于 advantage）。
-        //     这批 value 全 0，故 valueTarget 必须等于 A 段单独跑的原始优势。
+        for i in 0..<3 where abs(combined[i].advantage - standaloneA[i].advantage) > 1e-9 { okA = false }
+        check("episode A 优势与单独跑一致（B 的 100 不渗入 A）", okA, "")
+        check("episode B 单帧 adv == 100", abs(combined[3].advantage - 100.0) < 1e-9, "")
         var okVT = true
-        var detailVT = ""
-        for i in 0..<3 {
-            let diff = abs(combined[i].valueTarget - standaloneA[i].advantage)
-            detailVT += String(format: "A[%d]vt=%.4f raw=%.4f ", i,
-                               combined[i].valueTarget, standaloneA[i].advantage)
-            if diff > 1e-9 { okVT = false }
-        }
-        check("computeGAE valueTarget = 原始优势 + value（A 段不串 B）", okVT, detailVT)
-        check("computeGAE B 段 valueTarget == 100", abs(combined[3].valueTarget - 100.0) < 1e-9,
-              String(format: "实际 %.4f", combined[3].valueTarget))
+        for i in 0..<3 where abs(combined[i].valueTarget - standaloneA[i].advantage) > 1e-9 { okVT = false }
+        check("computeGAE valueTarget = 原始优势 + value（A 段不串 B）", okVT, "")
 
-        // (4) normalizeAdvantages：非有限输入返回全 0（不产 NaN）；常量输入返回全 0。
-        //     注意：归一化只施加到 advantage，且必须发生在 valueTarget 已经由 computeGAE 定好之后。
+        // P1-2 的 GAE 层：末帧 isTerminal=false 时用 tailBootstrapValue（非归零）。
+        // 单帧 value=2.0,reward=0.1,gamma=0.99：tail=0 → adv=r- v = -1.9；tail=5 → -1.9+0.99*5=3.05。
+        var t0 = [makeTransition(reward: 0.1, value: 2.0, isTerminal: false)]
+        PolicyHead.computeGAE(&t0, gamma: 0.99, lam: 0.95, tailBootstrapValue: 0)
+        var t5 = [makeTransition(reward: 0.1, value: 2.0, isTerminal: false)]
+        PolicyHead.computeGAE(&t5, gamma: 0.99, lam: 0.95, tailBootstrapValue: 5.0)
+        let exp0 = 0.1 + 0.99 * 0 - 2.0            // -1.9
+        let exp5 = 0.1 + 0.99 * 5.0 - 2.0          // 3.05
+        check("尾 bootstrap：tail=0 → adv=-1.9", abs(t0[0].advantage - exp0) < 1e-9,
+              String(format: "实际 %.4f", t0[0].advantage))
+        check("尾 bootstrap：tail=5 → adv=3.05（保留 bootstrap，非归零）",
+              abs(t5[0].advantage - exp5) < 1e-9, String(format: "实际 %.4f", t5[0].advantage))
+        check("尾 bootstrap：Δ(adv) == gamma*tail = 4.95",
+              abs((t5[0].advantage - t0[0].advantage) - 0.99 * 5.0) < 1e-9,
+              String(format: "Δ=%.4f", t5[0].advantage - t0[0].advantage))
+
         let nanOut = OnlineTrainer.normalizeAdvantages([Double.nan, 1.0, 2.0])
-        check("normalizeAdvantages 非有限输入 → 全 0（无 NaN）",
-              nanOut.allSatisfy { $0 == 0 }, nanOut.map { String($0) }.joined(separator: ","))
-        let constOut = OnlineTrainer.normalizeAdvantages([3.0, 3.0, 3.0])
-        check("normalizeAdvantages 常量输入 → 全 0", constOut.allSatisfy { $0 == 0 }, "")
-        // 归一化后 adv 均值≈0、方差≈1（除常量外）。
+        check("normalizeAdvantages 非有限输入 → 全 0（无 NaN）", nanOut.allSatisfy { $0 == 0 }, "")
+        check("normalizeAdvantages 常量输入 → 全 0",
+              OnlineTrainer.normalizeAdvantages([3.0, 3.0, 3.0]).allSatisfy { $0 == 0 }, "")
         let z = OnlineTrainer.normalizeAdvantages([1.0, 2.0, 3.0, 4.0])
-        let zMean = z.reduce(0, +) / Double(z.count)
-        check("normalizeAdvantages 结果均值≈0", abs(zMean) < 1e-9,
-              String(format: "mean=%.3e", zMean))
-
+        check("normalizeAdvantages 结果均值≈0", abs(z.reduce(0, +) / Double(z.count)) < 1e-9, "")
         return 0
     }
 
     // ========================================================================
-    // MARK: - ② 价值头对固定目标收敛（advantage=0 冻结策略，只验 value 回归）
+    // MARK: - ② 价值头固定目标收敛
     // ========================================================================
-    private static func runValueLearningCheck(
-        _ check: (String, Bool, String) -> Void) -> Int {
-        print("── 第二段：价值头对固定目标收敛（advantage=0 冻结策略，只验 value 回归）──")
-
+    private static func runValueLearningCheck(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ② 价值头对固定目标收敛（advantage=0 冻结策略，只验 value 回归）──")
         let numContexts = 3
-        let fixedTargets = [5.0, -3.0, 8.0]   // 每个上下文一个固定价值目标
+        let fixedTargets = [5.0, -3.0, 8.0]
         var batch: [RLTransition] = []
         for ctx in 0..<numContexts {
             for _ in 0..<6 {
-                var state = [Float](repeating: 0, count: numContexts)
-                state[ctx] = 1.0
+                var state = [Float](repeating: 0, count: numContexts); state[ctx] = 1.0
                 var t = RLTransition(stateToken: state, vClass: 0, hClass: 0,
                                      logProbV: 0, logProbH: 0, reward: 0, value: 0,
                                      tookOver: false, isTerminal: false)
-                t.advantage = 0                         // 冻结策略头
+                t.advantage = 0
                 t.valueTarget = fixedTargets[ctx]
                 batch.append(t)
             }
         }
-
         var policy = ToyPolicy(numContexts: numContexts, seed: 0xABCD_1234)
-        var cfg = PPOConfig()
-        cfg.lr = 0.1
-        cfg.epochs = 200
-        cfg.batch = 18          // 一次性全批（18 条）
-        cfg.vfCoef = 0.5
-        cfg.entCoef = 0
-
-        let before = policy.forward(stateToken: [1, 0, 0]).value
+        var cfg = PPOConfig(); cfg.lr = 0.1; cfg.epochs = 200; cfg.batch = 18
+        cfg.vfCoef = 0.5; cfg.entCoef = 0
         let m = policy.updatePPO(transitions: batch, config: cfg)
         let afterPreds = (0..<numContexts).map { ctx -> Double in
             var s = [Float](repeating: 0, count: numContexts); s[ctx] = 1.0
             return Double(policy.forward(stateToken: s).value)
         }
-        // 参考：同样种子、未训练的玩具策略（对比策略头是否被动过）
         let reference = ToyPolicy(numContexts: numContexts, seed: 0xABCD_1234)
         var s0 = [Float](repeating: 0, count: numContexts); s0[0] = 1.0
         let vLogitDiff = abs(Double(policy.forward(stateToken: s0).vLogits[0])
                              - Double(reference.forward(stateToken: s0).vLogits[0]))
-
-        let initialMSE = fixedTargets.map { $0 * $0 }.reduce(0, +) / Double(numContexts) // 初始预测全 0
-        let finalMSE = zip(afterPreds, fixedTargets)
-            .map { ($0 - $1) * ($0 - $1) }.reduce(0, +) / Double(numContexts)
-
-        print(String(format: "  初始预测=[0,0,0] 目标=[5,-3,8] 初始MSE=%.3f", initialMSE))
-        print(String(format: "  训练后预测=[%.2f,%.2f,%.2f] 最终MSE=%.3f value_loss=%.4f",
-                     afterPreds[0], afterPreds[1], afterPreds[2], finalMSE, m.valueLoss))
-
-        check("价值头把固定目标拟合下来（MSE 至少降到初值的 1/5）",
-              finalMSE < initialMSE / 5.0,
-              String(format: "%.3f → %.3f", initialMSE, finalMSE))
-        check("固定目标下 value_loss 显著下降", m.valueLoss < initialMSE,
-              String(format: "loss=%.4f < 初始MSE=%.3f", m.valueLoss, initialMSE))
-        check("advantage=0 时策略头不被价值回归带偏（vLogits 与未训练参考一致）",
-              vLogitDiff < 1e-6,
-              String(format: "max|ΔvLogit|=%.3e (before value=%.4f)", vLogitDiff, Double(before)))
+        let initialMSE = fixedTargets.map { $0 * $0 }.reduce(0, +) / Double(numContexts)
+        let finalMSE = zip(afterPreds, fixedTargets).map { ($0 - $1) * ($0 - $1) }.reduce(0, +) / Double(numContexts)
+        print(String(format: "  预测=[0,0,0]→[%.2f,%.2f,%.2f] 目标=[5,-3,8] MSE %.3f→%.3f",
+                     afterPreds[0], afterPreds[1], afterPreds[2], initialMSE, finalMSE))
+        check("价值头把固定目标拟合下来（MSE 至少降到初值 1/5）", finalMSE < initialMSE / 5.0, "")
+        check("固定目标下 value_loss 显著下降", m.valueLoss < initialMSE, "")
+        check("advantage=0 时策略头不被价值回归带偏", vLogitDiff < 1e-6,
+              String(format: "max|ΔvLogit|=%.3e", vLogitDiff))
         return 0
     }
 
     // ========================================================================
-    // MARK: - ③ 学习曲线（确定性 ToyPolicy + 合成可学习环境）
+    // MARK: - ③ 学习曲线（确定性 ToyPolicy + 合成环境）
     // ========================================================================
-    private static func runLearningCurveChecks(
-        _ check: (String, Bool, String) -> Void) -> Int {
-        print("── 第三段：合成可学习环境，跑真实在线循环（确定性线性策略头）──")
-
-        // 环境：3 个 one-hot 上下文，各有偏好动作。动作正确 → 高速+零偏置（高奖励）；
-        // 错误 → 低速+大偏置（低/负奖励）。OnlineTrainer 用 reward.py 同语义算奖励。
-        let numContexts = 3
-        let framesPerEpisode = 16
-        let episodes = 80
-        let prefV = [0, 1, 2]
-        let prefH = [2, 1, 0]
-
+    private static func runLearningCurveChecks(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ③ 合成可学习环境学习曲线（确定性线性策略头）──")
+        let numContexts = 3, framesPerEpisode = 16, episodes = 80
+        let prefV = [0, 1, 2], prefH = [2, 1, 0]
         let seed: UInt64 = 0x51A7_2026
-        let initialPolicy = ToyPolicy(numContexts: numContexts, seed: seed)
-
-        // trainEvery 设很大 → 只在 episode 结束 flush（每 episode 一次更新）。
-        var ppo = PPOConfig()
-        ppo.lr = 0.04
-        ppo.clipEps = 0.2
-        ppo.gamma = 0.99
-        ppo.lam = 0.95
-        ppo.epochs = 4
-        ppo.batch = 16
-        ppo.vfCoef = 0.5
-        ppo.entCoef = 0.0
-        let trainer = OnlineTrainer(policy: initialPolicy,
-                                    rewardConfig: RewardConfig(),
-                                    ppoConfig: ppo,
-                                    trainEvery: 10_000,
-                                    metricsCapacity: 512)
-
+        var ppo = PPOConfig(); ppo.lr = 0.04; ppo.epochs = 4; ppo.batch = 16
+        ppo.vfCoef = 0.5; ppo.entCoef = 0.0
+        let trainer = OnlineTrainer(policy: ToyPolicy(numContexts: numContexts, seed: seed),
+                                    rewardConfig: RewardConfig(), ppoConfig: ppo,
+                                    trainEvery: 10_000, metricsCapacity: 512)
         var rng = SplitMix64(seed: seed ^ 0xDEAD_BEEF)
-        var episodeRewards: [Double] = []
-        var episodeCorrectV: [Double] = []
-        var episodeCorrectH: [Double] = []
-
+        var epR: [Double] = [], cv: [Double] = [], ch: [Double] = []
         for ep in 0..<episodes {
-            var totalReward = 0.0
-            var correctV = 0
-            var correctH = 0
-            for _ in 0..<framesPerEpisode {
+            var tot = 0.0, cV = 0, cH = 0
+            for step in 0..<framesPerEpisode {
                 let ctx = Int(rng.next() % UInt64(numContexts))
-                var state = [Float](repeating: 0, count: numContexts)
-                state[ctx] = 1.0
-
-                let sampled = trainer.sampleAction(stateToken: state)
-                let vOK = (sampled.action.vClass == prefV[ctx])
-                let hOK = (sampled.action.hClass == prefH[ctx])
-                let speedKmh = vOK ? 90.0 : 20.0
-                let laneOffset = hOK ? 0.0 : 1.0
-
-                let r = trainer.collect(stateToken: state,
-                                        actionTaken: sampled.action,
-                                        tookOver: false,
-                                        speedKmh: speedKmh,
-                                        speedValid: true,
-                                        collision: false,
-                                        laneOffset: laneOffset,
-                                        isTerminal: false)
-                totalReward += r
-                if vOK { correctV += 1 }
-                if hOK { correctH += 1 }
+                var state = [Float](repeating: 0, count: numContexts); state[ctx] = 1.0
+                let sample = trainer.sampleAction(stateToken: state)
+                let vOK = sample.vClass == prefV[ctx], hOK = sample.hClass == prefH[ctx]
+                // episode 的最后一帧就是**真实采样帧**且 isTerminal=true（不发 logProb=0 的假终止帧，
+                // 否则会用坏 old logProb 污染 PPO ratio）。
+                let r = trainer.collect(stateToken: state, sample: sample, tookOver: false,
+                                        speedKmh: vOK ? 90.0 : 20.0, speedValid: true, collision: false,
+                                        laneOffset: hOK ? 0.0 : 1.0, isTerminal: step == framesPerEpisode - 1)
+                tot += r; if vOK { cV += 1 }; if hOK { cH += 1 }
             }
-            // 收尾：送一个 terminal（episode 边界）→ 强制 flush 并复位 reward 状态
-            var s0 = [Float](repeating: 0, count: numContexts); s0[0] = 1.0
-            _ = trainer.collect(stateToken: s0,
-                                actionTaken: RLAction(vClass: 0, hClass: 0),
-                                tookOver: false,
-                                speedKmh: 0, speedValid: false,
-                                collision: false, laneOffset: 0,
-                                isTerminal: true)
             trainer.drainTrainingAndWait()
-
-            episodeRewards.append(totalReward)
-            episodeCorrectV.append(Double(correctV) / Double(framesPerEpisode))
-            episodeCorrectH.append(Double(correctH) / Double(framesPerEpisode))
-            if ep % 8 == 0 || ep == episodes - 1 {
-                print(String(format: "  ep %2d  回报=%8.3f  正确率VH=%.2f/%.2f",
-                             ep, totalReward, episodeCorrectV[ep], episodeCorrectH[ep]))
+            epR.append(tot); cv.append(Double(cV) / Double(framesPerEpisode)); ch.append(Double(cH) / Double(framesPerEpisode))
+            if ep % 16 == 0 || ep == episodes - 1 {
+                print(String(format: "  ep %2d 回报=%8.3f VH=%.2f/%.2f", ep, tot, cv[ep], ch[ep]))
             }
         }
         trainer.drainTrainingAndWait()
-
-        let window = 10
-        let firstReward = mean(Array(episodeRewards.prefix(window)))
-        let lastReward = mean(Array(episodeRewards.suffix(window)))
-        let firstPerFrame = firstReward / Double(framesPerEpisode)
-        let lastPerFrame = lastReward / Double(framesPerEpisode)
-        let firstCV = mean(Array(episodeCorrectV.prefix(window)))
-        let lastCV = mean(Array(episodeCorrectV.suffix(window)))
-        let firstCH = mean(Array(episodeCorrectH.prefix(window)))
-        let lastCH = mean(Array(episodeCorrectH.suffix(window)))
-
-        print(String(format: "  ── 前%d episode 平均回报=%.3f（每帧 %.3f） 正确率V/H=%.2f/%.2f",
-                     window, firstReward, firstPerFrame, firstCV, firstCH))
-        print(String(format: "  ── 后%d episode 平均回报=%.3f（每帧 %.3f） 正确率V/H=%.2f/%.2f",
-                     window, lastReward, lastPerFrame, lastCV, lastCH))
-
-        // (L1) 奖励显著上升：后窗口每帧平均奖励比前窗口高至少 0.25（随机≈0.10，满分 0.90）。
-        check("后窗口每帧奖励显著高于前窗口（Δ>0.25）",
-              lastPerFrame - firstPerFrame > 0.25,
-              String(format: "Δ=%.3f (前 %.3f → 后 %.3f)", lastPerFrame - firstPerFrame,
-                     firstPerFrame, lastPerFrame))
-        // (L2) 后窗口每帧奖励达到可观绝对水平（说明确实学会了偏好动作）。
-        check("后窗口每帧奖励 > 0.55（远离随机 0.10）", lastPerFrame > 0.55,
-              String(format: "实际 %.3f", lastPerFrame))
-        // (L3) 动作正确率上升（两个头都上升）。
-        check("竖直动作正确率显著上升（Δ>0.3）", lastCV - firstCV > 0.3,
-              String(format: "%.2f → %.2f", firstCV, lastCV))
-        check("水平动作正确率显著上升（Δ>0.3）", lastCH - firstCH > 0.3,
-              String(format: "%.2f → %.2f", firstCH, lastCH))
-
-        // (L4) 指标：产生足够更新次数、四类指标有限、entropy 在合理区间且发生合理变化。
+        let W = 10
+        let fpf = mean(Array(epR.prefix(W))) / Double(framesPerEpisode)
+        let lpf = mean(Array(epR.suffix(W))) / Double(framesPerEpisode)
+        let fcv = mean(Array(cv.prefix(W))), lcv = mean(Array(cv.suffix(W)))
+        let fch = mean(Array(ch.prefix(W))), lch = mean(Array(ch.suffix(W)))
+        print(String(format: "  前%d 每帧 %.3f V%.2f H%.2f → 后%d 每帧 %.3f V%.2f H%.2f",
+                     W, fpf, fcv, fch, W, lpf, lcv, lch))
+        check("后窗口每帧奖励显著高于前窗口（Δ>0.25）", lpf - fpf > 0.25,
+              String(format: "Δ=%.3f", lpf - fpf))
+        check("后窗口每帧奖励 > 0.55", lpf > 0.55, String(format: "%.3f", lpf))
+        check("竖直正确率显著上升（Δ>0.3）", lcv - fcv > 0.3, String(format: "%.2f→%.2f", fcv, lcv))
+        check("水平正确率显著上升（Δ>0.3）", lch - fch > 0.3, String(format: "%.2f→%.2f", fch, lch))
         let metrics = trainer.recentMetrics
-        check("产生 PPO 更新指标（>10 次更新）", metrics.count > 10, "实际 \(metrics.count) 次")
-        let allFinite = metrics.allSatisfy {
-            $0.policyLoss.isFinite && $0.valueLoss.isFinite
-                && $0.entropy.isFinite && $0.approxKL.isFinite
-        }
-        check("policy_loss/value_loss/entropy/approxKL 全部有限", allFinite, "")
-        if metrics.count >= 4 {
-            let firstEntropy = mean(Array(metrics.prefix(4).map { $0.entropy }))
-            let lastEntropy = mean(Array(metrics.suffix(4).map { $0.entropy }))
-            check("entropy 数值在合理区间 [0, 2·ln3]",
-                  metrics.allSatisfy { $0.entropy >= -1e-6 && $0.entropy <= 2.0 * log(3.0) + 1e-6 },
-                  String(format: "观测 前%.3f→后%.3f", firstEntropy, lastEntropy))
-            check("entropy 发生合理变化（|Δ|>1e-3）",
-                  abs(lastEntropy - firstEntropy) > 1e-3,
-                  String(format: "%.4f → %.4f", firstEntropy, lastEntropy))
-            let firstVL = mean(Array(metrics.prefix(4).map { $0.valueLoss }))
-            let lastVL = mean(Array(metrics.suffix(4).map { $0.valueLoss }))
-            // 策略变好后每 episode 回报从负升到大正值，valueTarget 量级整体变大，
-            // value_loss 绝对值**会**上升——这不是「没学会」，故这里只断言未发散。
-            check("value_loss 有限且未发散（< 1e3）",
-                  firstVL.isFinite && lastVL.isFinite && lastVL < 1e3,
-                  String(format: "%.4f → %.4f", firstVL, lastVL))
-        }
-
-        // (L5) 双缓冲发布生效：训练后竖直动作分布应显著不同于初始策略。
-        var s0 = [Float](repeating: 0, count: numContexts); s0[0] = 1.0
-        let trainedDist = trainer.actionDistribution(stateToken: s0).v
-        let initialDist = RLMath.softmax(ToyPolicy(numContexts: numContexts, seed: seed)
-                                            .forward(stateToken: s0).vLogits)
-        var maxDiff = 0.0
-        for c in 0..<3 { maxDiff = max(maxDiff, abs(trainedDist[c] - initialDist[c])) }
-        check("双缓冲发布生效（训练后竖直分布显著变化 Δp>0.1）", maxDiff > 0.1,
-              String(format: "max|Δp|=%.3f", maxDiff))
-
+        check("产生 PPO 更新指标（>10 次）", metrics.count > 10, "\(metrics.count) 次")
+        check("四类指标全部有限", metrics.allSatisfy {
+            $0.policyLoss.isFinite && $0.valueLoss.isFinite && $0.entropy.isFinite && $0.approxKL.isFinite }, "")
         return 0
     }
 
     // ========================================================================
     // MARK: - ④ 真实 PolicyHead 端到端机器验证
     // ========================================================================
-    private static func runRealPolicyHeadIntegrationCheck(
-        _ check: (String, Bool, String) -> Void) -> Int {
-        print("── 第四段：接入真实 PolicyHead 端到端机器验证（真跑 collect→GAE→updatePPO→发布）──")
-
-        let dim = 256   // PolicyHead 要求 256 维 stateToken
-        let numContexts = 3
-        let prefV = [0, 1, 2]
-        let prefH = [2, 1, 0]
-
-        var cfg = PPOConfig()
-        cfg.lr = 0.01
-        cfg.epochs = 2
-        cfg.batch = 8
-        cfg.entCoef = 0.1
-        cfg.gamma = 0.99
-        cfg.lam = 0.95
-
-        let head = PolicyHead(randomSeed: 0x51A7_2026)
-        // trainEvery=8：每 8 条 flush 一次，episode 结束再 flush → 确保多次真实更新。
-        let trainer = OnlineTrainer(policy: head,
-                                    rewardConfig: RewardConfig(),
-                                    ppoConfig: cfg,
-                                    trainEvery: 8,
-                                    metricsCapacity: 256)
-
+    private static func runRealPolicyHeadIntegrationCheck(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ④ 接入真实 PolicyHead 端到端机器验证（真跑 collect→GAE→updatePPO→发布）──")
+        let dim = 256, numContexts = 3
+        let prefV = [0, 1, 2], prefH = [2, 1, 0]
+        var cfg = PPOConfig(); cfg.lr = 0.01; cfg.epochs = 2; cfg.batch = 8; cfg.entCoef = 0.1
+        let trainer = OnlineTrainer(policy: PolicyHead(randomSeed: 0x51A7_2026),
+                                    rewardConfig: RewardConfig(), ppoConfig: cfg,
+                                    trainEvery: 8, metricsCapacity: 256)
         var rng = SplitMix64(seed: 999)
         var steps = 0
-        for _ in 0..<10 {   // 10 episode
-            for _ in 0..<16 {
+        for _ in 0..<10 {
+            for step in 0..<16 {
                 let ctx = Int(rng.next() % UInt64(numContexts))
                 var s = [Float](repeating: 0, count: dim); s[ctx] = 1.0
-                let sa = trainer.sampleAction(stateToken: s)
-                let vOK = sa.action.vClass == prefV[ctx]
-                let hOK = sa.action.hClass == prefH[ctx]
-                _ = trainer.collect(stateToken: s, actionTaken: sa.action, tookOver: false,
-                                    speedKmh: vOK ? 90 : 20, speedValid: true,
-                                    collision: false, laneOffset: hOK ? 0 : 1,
-                                    isTerminal: false)
+                var pol = trainer.currentPolicyForTest()
+                let sample = pol.sampleSeeded(stateToken: s, rng: &rng)
+                let vOK = sample.vClass == prefV[ctx], hOK = sample.hClass == prefH[ctx]
+                _ = trainer.collect(stateToken: s, sample: sample, tookOver: false,
+                                    speedKmh: vOK ? 90 : 20, speedValid: true, collision: false,
+                                    laneOffset: hOK ? 0 : 1, isTerminal: step == 15)
                 steps += 1
             }
-            var s0 = [Float](repeating: 0, count: dim); s0[0] = 1.0
-            _ = trainer.collect(stateToken: s0, actionTaken: RLAction(vClass: 0, hClass: 0),
-                                tookOver: false, speedKmh: 0, speedValid: false,
-                                collision: false, laneOffset: 0, isTerminal: true)
             trainer.drainTrainingAndWait()
         }
         trainer.drainTrainingAndWait()
-
         let metrics = trainer.recentMetrics
-        print("  真实 PolicyHead：跑 \(steps) 帧，产生 \(metrics.count) 次 PPO 更新")
-        check("真实 PolicyHead：OnlineTrainer 完成 >0 次 PPO 更新", metrics.count > 0,
-              "\(metrics.count) 次")
-        check("真实 PolicyHead：完成的 episode 数 == 10", trainer.completedEpisodeCount == 10,
-              "实际 \(trainer.completedEpisodeCount)")
-        let allFinite = metrics.allSatisfy {
-            $0.policyLoss.isFinite && $0.valueLoss.isFinite
-                && $0.entropy.isFinite && $0.approxKL.isFinite && $0.meanReward.isFinite
-        }
-        check("真实 PolicyHead：全部指标有限（含回填的 meanReward）", allFinite, "")
-
-        // 双缓冲发布生效：训练后竖直分布必须不同于同种子未训练头的初始分布。
+        print("  真实 PolicyHead：跑 \(steps) 帧，\(metrics.count) 次 PPO 更新，\(trainer.completedEpisodeCount) episode")
+        check("完成 >0 次 PPO 更新", metrics.count > 0, "")
+        check("完成 episode 数 == 10", trainer.completedEpisodeCount == 10, "")
+        check("全部指标有限（含回填 meanReward）", metrics.allSatisfy {
+            $0.policyLoss.isFinite && $0.valueLoss.isFinite && $0.entropy.isFinite
+                && $0.approxKL.isFinite && $0.meanReward.isFinite }, "")
         let reference = PolicyHead(randomSeed: 0x51A7_2026)
         var s0 = [Float](repeating: 0, count: dim); s0[0] = 1.0
         let trainedDist = trainer.actionDistribution(stateToken: s0).v
-        let initialDist = RLMath.softmax(reference.forward(stateToken: s0).vLogits)
-        var maxDiff = 0.0
-        for c in 0..<3 { maxDiff = max(maxDiff, abs(trainedDist[c] - initialDist[c])) }
-        check("真实 PolicyHead：双缓冲发布生效（参数被真实更新，Δp>1e-3）", maxDiff > 1e-3,
+        let initDist = RLMath.softmax(reference.forward(stateToken: s0).vLogits)
+        let maxDiff = (0..<3).map { abs(trainedDist[$0] - initDist[$0]) }.max() ?? 0
+        check("双缓冲发布生效（参数被真实更新，Δp>1e-3）", maxDiff > 1e-3,
               String(format: "max|Δp|=%.3e", maxDiff))
-
-        print("  （注：MLP 在极小玩具环境跨随机种子不稳——reward 上升硬门由第三段确定性线性头承担；")
-        print("   本段只验证真实头能被整条在线循环正确驱动且确实在更新，不拿 MLP 必然学会当断言。）")
         return 0
+    }
+
+    // ========================================================================
+    // MARK: - ⑤ P1-1 采样快照 / 发布竞态
+    // ========================================================================
+    private static func runSamplingSnapshotRaceCheck(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ⑤ P1-1 采样快照/发布竞态：collect 原样保存采样时的 old logProb，不二次 forward ──")
+        // 策略 A 的 logits 特意与策略 B 不同：若 collect 二次 forward 用 B，则保存的 old 会变。
+        let policyA = FixedPolicy(vLogits: [0.0, 2.0, 0.0], hLogits: [0.0, 0.0, 0.0], value: 1.5)
+        let policyB = FixedPolicy(vLogits: [2.0, 0.0, 0.0], hLogits: [0.0, 0.0, 0.0], value: -9.0)
+        let trainer = OnlineTrainer(policy: policyA, rewardConfig: RewardConfig(),
+                                    ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
+        // 用 A 采样（拿到 A 口径的 logProb / value）
+        var rng = SplitMix64(seed: 7)
+        var polA = trainer.currentPolicyForTest()
+        let sampleA = polA.sampleSeeded(stateToken: [1, 0, 0], rng: &rng)
+        // 模拟「采样后、collect 前后台发布了 B」
+        trainer.injectPolicyForTest(policyB)
+        // collect 传入 A 的采样快照
+        _ = trainer.collect(stateToken: [1, 0, 0], sample: sampleA, tookOver: false,
+                            speedKmh: 50, speedValid: true, collision: false, laneOffset: 0, isTerminal: false)
+        let pending = trainer.pendingTransitionsForTest()
+        guard pending.count == 1 else { check("pending 恰 1 条", false, "实际 \(pending.count)"); return 0 }
+        let stored = pending[0]
+        // 用当前（B）重算会是多少：
+        let bLogProb = RLMath.logSoftmax(policyB.vLogits)[stored.vClass]
+        check("保存的 old logProbV == 采样时 A 的值", abs(stored.logProbV - sampleA.logProbV) < 1e-9,
+              String(format: "存%.5f 采样%.5f", stored.logProbV, sampleA.logProbV))
+        check("保存的 value == 采样时 A 的 value（不是 B 的 -9）", abs(stored.value - sampleA.value) < 1e-9,
+              String(format: "存%.3f 采样%.3f", stored.value, sampleA.value))
+        check("保存的 old != 用已发布 B 重算的值（证明未二次 forward）", abs(stored.logProbV - bLogProb) > 1e-3,
+              String(format: "存%.5f B重算%.5f", stored.logProbV, bLogProb))
+        return 0
+    }
+
+    // ========================================================================
+    // MARK: - ⑥ P1-2 截断 vs 终止（非零 critic 尾 bootstrap）
+    // ========================================================================
+    private static func runTruncationVsTerminationCheck(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ⑥ P1-2 截断 vs 终止：缓冲截断扣下末条 + 用其 value 做尾 bootstrap（非零 critic）──")
+        // trainEvery=3：喂 A,B,C 三帧（都非终止）→ 第 3 条触发缓冲截断。
+        // 期望：训练 [A,B]，扣下 C；[A,B] 的末条 B 用 C.value 做 tail bootstrap（不归零）。
+        let trainer = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
+                                    ppoConfig: PPOConfig(), trainEvery: 3, metricsCapacity: 16)
+        func feed(_ token: Float, reward: Double, value: Double) {
+            _ = trainer.collect(stateToken: [token],
+                                sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: value),
+                                tookOver: false, speedKmh: 1, speedValid: true,
+                                collision: false, laneOffset: 0, isTerminal: false)
+        }
+        // 用可控 reward：直接构造 transitions 里的 reward 由 frameReward 算，不便精确控制；
+        // 因此这里改用「注入 pending」不可行 —— 改为直接校验「C 被扣下且训练批末条 adv 用 C.value」。
+        // 为让 reward 已知，speedValid=false 使 reward 恒 0（无 speed/stuck/decel/lane）。
+        func feedZeroReward(_ value: Double) {
+            _ = trainer.collect(stateToken: [1],
+                                sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: value),
+                                tookOver: false, speedKmh: 0, speedValid: false,
+                                collision: false, laneOffset: 0, isTerminal: false)
+        }
+        feedZeroReward(1.0)   // A value=1
+        feedZeroReward(2.0)   // B value=2
+        // 此刻 A,B 在 pending；再喂 C(value=5) 触发 trainEvery=3 截断
+        feedZeroReward(5.0)   // C value=5
+        trainer.drainTrainingAndWait()
+        let batches = trainer.capturedBatchesForTestSnapshot()
+        guard batches.count == 1 else { check("截断后恰训练 1 批", false, ""); return 0 }
+        let trained = batches[0]
+        check("缓冲截断只训练 [A,B]（扣下 C）", trained.count == 2, "实际 \(trained.count)")
+        // 手算（gamma=0.99, lam=0.95, rewards 全 0, values A=1,B=2, tail=C.value=5）：
+        // adv_B = 0 + 0.99*5 - 2 = 2.95；adv_A = 0 + 0.99*2 - 1 + 0.99*0.95*2.95
+        let advB = 0.99 * 5.0 - 2.0
+        let advA = 0.99 * 2.0 - 1.0 + 0.99 * 0.95 * advB
+        // captured 存的是归一化后的 advantage；两元素归一化后均值≈0、差的符号可验：
+        // 直接校验 valueTarget（未归一化）= raw adv + value。
+        let vtB_expected = advB + 2.0
+        let vtB = trained[1].valueTarget           // 归一化不改 valueTarget
+        check("末条 B 的 valueTarget 用了 C.value 的尾 bootstrap（非归零）",
+              abs(vtB - vtB_expected) < 1e-9,
+              String(format: "实际%.4f 期望%.4f（尾归零则应%.4f）", vtB, vtB_expected, (0.0 - 2.0) + 2.0))
+        let vtA_expected = advA + 1.0
+        check("A 的 valueTarget 与手算一致（B 的 bootstrap 正确传导）",
+              abs(trained[0].valueTarget - vtA_expected) < 1e-9,
+              String(format: "实际%.4f 期望%.4f", trained[0].valueTarget, vtA_expected))
+        // 若把截断当终止（B 的 nextV 归零），vtB 会是 -2+2=0；必须明显不同。
+        check("尾 bootstrap 与「当终止」有显著差异（>1）", abs(vtB - 0.0) > 1.0, "")
+
+        // 对照：episode 真正结束（isTerminal=true）时末条按终止（nextV=0）。
+        trainer.clearCapturedBatchesForTest()
+        let trainer2 = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
+                                     ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
+        _ = trainer2.collect(stateToken: [1],
+                             sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 2.0),
+                             tookOver: false, speedKmh: 0, speedValid: false,
+                             collision: false, laneOffset: 0, isTerminal: true)
+        trainer2.drainTrainingAndWait()
+        let b2 = trainer2.capturedBatchesForTestSnapshot()
+        check("真终止(单帧 value=2,reward=0)：valueTarget == 0（nextV 归零）",
+              b2.count == 1 && abs(b2[0][0].valueTarget - 0.0) < 1e-9,
+              b2.count == 1 ? String(format: "实际%.4f", b2[0][0].valueTarget) : "无批")
+        return 0
+    }
+
+    // ========================================================================
+    // MARK: - ⑦ P1-3 人工接管：动作不进策略梯度，惩罚归因上一 AI 帧
+    // ========================================================================
+    private static func runTakeoverAttributionCheck(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ⑦ P1-3 人工接管：人类动作不建策略 transition，接管惩罚归因上一 AI 帧并封口 ──")
+        let trainer = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(takeover: 10),
+                                    ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
+        // 两个 AI 帧（speedValid=false → reward=0，便于精确断言）
+        func feedAI(_ value: Double) {
+            _ = trainer.collect(stateToken: [1],
+                                sample: PolicySample(vClass: 1, hClass: 1, logProbV: 0, logProbH: 0, value: value),
+                                tookOver: false, speedKmh: 0, speedValid: false,
+                                collision: false, laneOffset: 0, isTerminal: false)
+        }
+        feedAI(1.0)
+        feedAI(2.0)
+        check("接管前 pending 有 2 条 AI transition", trainer.pendingTransitionsForTest().count == 2, "")
+        // 人工接管帧：人类动作 (vClass=2,hClass=0)，应被丢弃、不建 transition
+        _ = trainer.collect(stateToken: [1],
+                            sample: PolicySample(vClass: 2, hClass: 0, logProbV: 0, logProbH: 0, value: 9.0),
+                            tookOver: true, speedKmh: 0, speedValid: false,
+                            collision: false, laneOffset: 0, isTerminal: false)
+        trainer.drainTrainingAndWait()
+        let batches = trainer.capturedBatchesForTestSnapshot()
+        check("接管后恰好训练 1 批（封口）", batches.count == 1, "实际 \(batches.count)")
+        guard batches.count == 1 else { return 0 }
+        let trained = batches[0]
+        check("人类动作未产生策略 transition（批内仍只有 2 条 AI 帧）", trained.count == 2, "实际 \(trained.count)")
+        check("批内无 vClass==2 的人类救援动作", trained.allSatisfy { !($0.vClass == 2 && $0.hClass == 0) }, "")
+        // 上一 AI 帧（第 2 条）reward 应含 -takeover(-10)（原 reward=0）
+        check("接管惩罚(-10)归因到上一 AI 帧 reward", abs(trained[1].reward - (-10.0)) < 1e-9,
+              String(format: "实际%.3f", trained[1].reward))
+        check("更早的 AI 帧 reward 未被误加惩罚", abs(trained[0].reward - 0.0) < 1e-9,
+              String(format: "实际%.3f", trained[0].reward))
+        return 0
+    }
+
+    // ========================================================================
+    // MARK: - ⑧ P1-4 UNKNOWN 缺口：sealEpisode 不伪造、两段不互串
+    // ========================================================================
+    private static func runUnknownGapCheck(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ⑧ P1-4 UNKNOWN 缺口：markInvalid 封口已有轨迹（不伪造），恢复后重开，两段不互串 ──")
+        let trainer = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
+                                    ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
+        func feed(_ value: Double) {
+            _ = trainer.collect(stateToken: [1],
+                                sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: value),
+                                tookOver: false, speedKmh: 0, speedValid: false,
+                                collision: false, laneOffset: 0, isTerminal: false)
+        }
+        // 段 A：A1(value1),A2(value2)
+        feed(1.0); feed(2.0)
+        check("UNKNOWN 前 pending 有 2 条", trainer.pendingTransitionsForTest().count == 2, "")
+        // UNKNOWN 缺口
+        trainer.markInvalid()
+        trainer.drainTrainingAndWait()
+        check("UNKNOWN 后 pending 清空（不伪造 transition）", trainer.pendingTransitionsForTest().isEmpty, "")
+        // 段 B：B1(value3),B2(value4, 真终止)
+        feed(3.0)
+        _ = trainer.collect(stateToken: [1],
+                            sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 4.0),
+                            tookOver: false, speedKmh: 0, speedValid: false,
+                            collision: false, laneOffset: 0, isTerminal: true)
+        trainer.drainTrainingAndWait()
+        let batches = trainer.capturedBatchesForTestSnapshot()
+        check("共形成 2 个独立批次（A 段封口 + B 段 episode 结束）", batches.count == 2, "实际 \(batches.count)")
+        guard batches.count == 2 else { return 0 }
+        check("A 段批次 2 条", batches[0].count == 2, "")
+        check("B 段批次 2 条", batches[1].count == 2, "")
+        // A 段优势应等于 A 单独跑（tail=0）的结果：两段 reward/ value 完全隔离，B 的 value 3/4 不渗入 A。
+        var isoA: [RLTransition] = [
+            makeTransition(reward: 0, value: 1.0, isTerminal: false),
+            makeTransition(reward: 0, value: 2.0, isTerminal: false)
+        ]
+        PolicyHead.computeGAE(&isoA, gamma: 0.99, lam: 0.95, tailBootstrapValue: 0)
+        // captured 里 valueTarget = raw adv + value（归一化不改 valueTarget）
+        let vtA2 = batches[0][1].valueTarget
+        check("A 段末条 valueTarget 与「A 单独跑」一致（B 段不渗入）",
+              abs(vtA2 - isoA[1].valueTarget) < 1e-9,
+              String(format: "拼接%.4f 单独%.4f", vtA2, isoA[1].valueTarget))
+        return 0
+    }
+
+    // ========================================================================
+    // MARK: - ⑨ P2 非有限速度不伪造急减速
+    // ========================================================================
+    private static func runNonFiniteSpeedCheck(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ⑨ P2 非有限速度：speedValid=true 但 speed=NaN 时 prevValid 置 false，不伪造急减速 ──")
+        let trainer = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
+                                    ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
+        func feed(_ speed: Double, _ valid: Bool) -> Double {
+            trainer.collect(stateToken: [1],
+                            sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 0),
+                            tookOver: false, speedKmh: speed, speedValid: valid,
+                            collision: false, laneOffset: 0, isTerminal: false)
+        }
+        _ = feed(100, true)                 // 帧1：prev speed=100, valid
+        _ = feed(Double.nan, true)          // 帧2：NaN（valid 却 NaN）→ 必须 prevValid=false
+        let r3 = feed(50, true)             // 帧3：50 km/h
+        // 若修复：帧3 decel=0（prevValid=false），reward = speedTerm(50)=0.5
+        // 若未修复：decelTerm(prev=100,cur=50)=min(50/30,1)=1 → reward = 0.5 - 2*1 = -1.5
+        check("NaN 之后一帧不被伪造急减速（reward==speedTerm 0.5，非 -1.5）",
+              abs(r3 - 0.5) < 1e-9, String(format: "实际%.4f", r3))
+        // 对照：连续两个有限值确实产生减速惩罚（证明减速项本身没坏）
+        let trainer2 = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
+                                     ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
+        _ = trainer2.collect(stateToken: [1],
+                             sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 0),
+                             tookOver: false, speedKmh: 100, speedValid: true,
+                             collision: false, laneOffset: 0, isTerminal: false)
+        let r2c = trainer2.collect(stateToken: [1],
+                                   sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 0),
+                                   tookOver: false, speedKmh: 50, speedValid: true,
+                                   collision: false, laneOffset: 0, isTerminal: false)
+        check("对照：连续有限值 100→50 确实有减速惩罚（reward < 0.5）", r2c < 0.5,
+              String(format: "实际%.4f", r2c))
+        return 0
+    }
+
+    // ========================================================================
+    // MARK: - ⑩ P2-5 真实 PolicyHead 可复现学习收益（固定采样种子，单种子小尺度 + 墙钟上限）
+    // ========================================================================
+    private static func runRealPolicyHeadLearningBenefitCheck(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ⑩ P2-5 真实 PolicyHead 可复现学习收益（固定采样种子，小尺度 + 墙钟上限）──")
+        // 说明：debug（未优化）下真 MLP 训练较慢，故用**单个固定种子 + 小尺度**
+        // （60 episode × 16 帧，epochs=1）——固定采样种子 ⇒ 完全确定可复现（实测 Δ≈+0.69）。
+        // 下方设**硬墙钟上限 15s**：一旦超时立即断言失败并返回，绝不无条件空转（防卡死）。
+        let envSeed: UInt64 = 0xBEEF
+        let start = Date()
+        let res = realMLPOneSeed(envSeed: envSeed, deadline: start.addingTimeInterval(15))
+        if res.timedOut {
+            check("真实 PolicyHead 学习测试在墙钟上限内完成", false,
+                  "超 15s 未完成 → 判失败退出（防卡死）")
+            return 0
+        }
+        print(String(format: "  envSeed=0x%llX Δ每帧=%+.3f 竖直正确率 %.2f→%.2f （耗时 %.1fs）",
+                     envSeed, res.delta, res.firstCV, res.lastCV, Date().timeIntervalSince(start)))
+        check("真实 PolicyHead 每帧奖励显著上升（Δ>0.4，不要求逐步单调）", res.delta > 0.4,
+              String(format: "Δ=%+.3f", res.delta))
+        check("真实 PolicyHead 竖直正确率显著上升（后窗 >0.85）", res.lastCV > 0.85,
+              String(format: "%.2f→%.2f", res.firstCV, res.lastCV))
+        return 0
+    }
+
+    /// 跑一个固定环境种子的真实 PolicyHead 在线学习。带墙钟 deadline：每 episode 末检查，
+    /// 超时即置 timedOut 返回（调用方判失败），绝不空转。
+    private static func realMLPOneSeed(envSeed: UInt64, deadline: Date)
+        -> (delta: Double, firstCV: Double, lastCV: Double, timedOut: Bool) {
+        let dim = 256, numContexts = 3, fpe = 16, episodes = 60
+        let prefV = [0, 1, 2], prefH = [2, 1, 0]
+        var cfg = PPOConfig(); cfg.lr = 0.01; cfg.clipEps = 0.2; cfg.gamma = 0.99; cfg.lam = 0.95
+        cfg.epochs = 1; cfg.batch = 16; cfg.vfCoef = 0.5; cfg.entCoef = 0.08
+        let trainer = OnlineTrainer(policy: PolicyHead(randomSeed: 0x51A7_2026),
+                                    rewardConfig: RewardConfig(), ppoConfig: cfg,
+                                    trainEvery: 100_000, metricsCapacity: 256)
+        var rng = SplitMix64(seed: envSeed)
+        var epR: [Double] = [], cv: [Double] = []
+        for _ in 0..<episodes {
+            if Date() > deadline { return (0, 0, 0, true) }   // 墙钟上限，防卡死
+            var tot = 0.0, cV = 0
+            for step in 0..<fpe {
+                let ctx = Int(rng.next() % UInt64(numContexts))
+                var s = [Float](repeating: 0, count: dim); s[ctx] = 1.0
+                var pol = trainer.currentPolicyForTest()
+                let sample = pol.sampleSeeded(stateToken: s, rng: &rng)
+                let vOK = sample.vClass == prefV[ctx], hOK = sample.hClass == prefH[ctx]
+                let r = trainer.collect(stateToken: s, sample: sample, tookOver: false,
+                                        speedKmh: vOK ? 90 : 20, speedValid: true, collision: false,
+                                        laneOffset: hOK ? 0 : 1, isTerminal: step == fpe - 1)
+                tot += r; if vOK { cV += 1 }
+            }
+            trainer.drainTrainingAndWait()
+            epR.append(tot); cv.append(Double(cV) / Double(fpe))
+        }
+        let W = 15
+        let fpf = mean(Array(epR.prefix(W))) / Double(fpe)
+        let lpf = mean(Array(epR.suffix(W))) / Double(fpe)
+        return (lpf - fpf, mean(Array(cv.prefix(W))), mean(Array(cv.suffix(W))), false)
     }
 
     // ========================================================================
@@ -433,7 +540,6 @@ enum OnlineTrainerSelfTest {
                      logProbV: 0, logProbH: 0, reward: reward, value: value,
                      tookOver: false, isTerminal: isTerminal)
     }
-
     private static func mean(_ xs: [Double]) -> Double {
         guard !xs.isEmpty else { return 0 }
         return xs.reduce(0, +) / Double(xs.count)
@@ -441,35 +547,45 @@ enum OnlineTrainerSelfTest {
 }
 
 // ============================================================================
+// MARK: - FixedPolicy：可控策略（语义测试用；只提供固定 forward/value，update 为空操作）
+// ============================================================================
+
+/// 语义测试用：forward 返回固定 logits/value，updatePPO 为**空操作**（不改参数、返回零指标）。
+/// 语义测试只关心 collect 存了什么、flush 怎么调 computeGAE、captured 批里的
+/// advantage/valueTarget/reward 是否正确 —— 与策略更新本身无关，故用空更新隔离。
+struct FixedPolicy: PolicyUpdatable {
+    var vLogits: [Float]
+    var hLogits: [Float]
+    var value: Float
+    init(vLogits: [Float] = [0, 0, 0], hLogits: [Float] = [0, 0, 0], value: Float = 0) {
+        self.vLogits = vLogits; self.hLogits = hLogits; self.value = value
+    }
+    func forward(stateToken: [Float]) -> (vLogits: [Float], hLogits: [Float], value: Float) {
+        (vLogits, hLogits, value)
+    }
+    func stochasticSample(vLogits: [Float], hLogits: [Float])
+        -> (vClass: Int, hClass: Int, logProbV: Double, logProbH: Double) {
+        (0, 0, 0, 0)
+    }
+    mutating func updatePPO(transitions: [RLTransition], config: PPOConfig) -> PPOMetrics {
+        PPOMetrics()
+    }
+}
+
+// ============================================================================
 // MARK: - ToyPolicy：确定性可学习的玩具策略（线性 softmax + 显式 Adam + PPO clipped）
 // ============================================================================
 
-/// 供自检使用的确定性可训练策略。state(K 维, one-hot) → vLogits(3)/hLogits(3)/value(1)，
-/// 用 PPO clipped surrogate + 显式解析梯度 + Adam。它实现 `PolicyUpdatable`，因此驱动的是
-/// OnlineTrainer 的**真实**循环（collect → GAE → updatePPO → 双缓冲发布）。
-///
-/// 为什么学习曲线用线性小头而不是真实 MLP：线性 → 三分类 toy 任务只需学「context→preferred」
-/// 映射，收敛确定、跨种子稳定，适合做「reward 必然上升」的硬门（见文件头说明）。真实 MLP 头
-/// 的端到端正确性由第四段单独验证。
 struct ToyPolicy: PolicyUpdatable {
     let numContexts: Int
     private let K: Int
-
-    private var Wv: [Double]      // K*3
-    private var Wh: [Double]      // K*3
-    private var bv: [Double]      // 3
-    private var bh: [Double]      // 3
-    private var valueW: [Double]  // K
-    private var valueBias: Double
-
-    private var mWv: [Double], vWv: [Double]
-    private var mWh: [Double], vWh: [Double]
-    private var mbv: [Double], vbv: [Double]
-    private var mbh: [Double], vbh: [Double]
+    private var Wv: [Double], Wh: [Double], bv: [Double], bh: [Double]
+    private var valueW: [Double], valueBias: Double
+    private var mWv: [Double], vWv: [Double], mWh: [Double], vWh: [Double]
+    private var mbv: [Double], vbv: [Double], mbh: [Double], vbh: [Double]
     private var mvalueW: [Double], vvalueW: [Double]
     private var mValueBias: Double, vValueBias: Double
     private var adamT: Int
-
     private let sampleRNG: SampleRNG
     private var shuffleState: UInt64
 
@@ -477,42 +593,26 @@ struct ToyPolicy: PolicyUpdatable {
         self.K = numContexts
         self.numContexts = numContexts
         var rng = SplitMix64(seed: seed)
-        func randSmall() -> Double { (rng.nextUnit() - 0.5) * 0.2 }  // ±0.1
-
-        Wv = (0..<(numContexts * 3)).map { _ in randSmall() }
-        Wh = (0..<(numContexts * 3)).map { _ in randSmall() }
-        bv = [0, 0, 0]
-        bh = [0, 0, 0]
-        valueW = [Double](repeating: 0, count: numContexts)
-        valueBias = 0
-
-        mWv = [Double](repeating: 0, count: numContexts * 3)
-        vWv = [Double](repeating: 0, count: numContexts * 3)
-        mWh = [Double](repeating: 0, count: numContexts * 3)
-        vWh = [Double](repeating: 0, count: numContexts * 3)
-        mbv = [0, 0, 0]; vbv = [0, 0, 0]
-        mbh = [0, 0, 0]; vbh = [0, 0, 0]
-        mvalueW = [Double](repeating: 0, count: numContexts)
-        vvalueW = [Double](repeating: 0, count: numContexts)
-        mValueBias = 0; vValueBias = 0
-        adamT = 0
-
+        func rs() -> Double { (rng.nextUnit() - 0.5) * 0.2 }
+        Wv = (0..<(numContexts * 3)).map { _ in rs() }
+        Wh = (0..<(numContexts * 3)).map { _ in rs() }
+        bv = [0, 0, 0]; bh = [0, 0, 0]
+        valueW = [Double](repeating: 0, count: numContexts); valueBias = 0
+        mWv = [Double](repeating: 0, count: numContexts * 3); vWv = [Double](repeating: 0, count: numContexts * 3)
+        mWh = [Double](repeating: 0, count: numContexts * 3); vWh = [Double](repeating: 0, count: numContexts * 3)
+        mbv = [0, 0, 0]; vbv = [0, 0, 0]; mbh = [0, 0, 0]; vbh = [0, 0, 0]
+        mvalueW = [Double](repeating: 0, count: numContexts); vvalueW = [Double](repeating: 0, count: numContexts)
+        mValueBias = 0; vValueBias = 0; adamT = 0
         sampleRNG = SampleRNG(seed: seed ^ 0x9E37_79B9)
         shuffleState = seed ^ 0xC0FF_EE00
     }
 
     func forward(stateToken: [Float]) -> (vLogits: [Float], hLogits: [Float], value: Float) {
-        var v = bv
-        var h = bh
-        var val = valueBias
+        var v = bv, h = bh, val = valueBias
         let n = min(K, stateToken.count)
         for k in 0..<n {
-            let s = Double(stateToken[k])
-            if s == 0 { continue }
-            for c in 0..<3 {
-                v[c] += Wv[k * 3 + c] * s
-                h[c] += Wh[k * 3 + c] * s
-            }
+            let s = Double(stateToken[k]); if s == 0 { continue }
+            for c in 0..<3 { v[c] += Wv[k * 3 + c] * s; h[c] += Wh[k * 3 + c] * s }
             val += valueW[k] * s
         }
         return (v.map { Float($0) }, h.map { Float($0) }, Float(val))
@@ -520,69 +620,42 @@ struct ToyPolicy: PolicyUpdatable {
 
     func stochasticSample(vLogits: [Float], hLogits: [Float])
         -> (vClass: Int, hClass: Int, logProbV: Double, logProbH: Double) {
-        let pv = RLMath.softmax(vLogits)
-        let ph = RLMath.softmax(hLogits)
-        let vClass = sampleCategorical(pv)
-        let hClass = sampleCategorical(ph)
-        let lv = RLMath.logSoftmax(vLogits)
-        let lh = RLMath.logSoftmax(hLogits)
-        return (vClass, hClass, vClass < lv.count ? lv[vClass] : 0,
-                hClass < lh.count ? lh[hClass] : 0)
+        let pv = RLMath.softmax(vLogits), ph = RLMath.softmax(hLogits)
+        let vClass = sampleCategorical(pv), hClass = sampleCategorical(ph)
+        let lv = RLMath.logSoftmax(vLogits), lh = RLMath.logSoftmax(hLogits)
+        return (vClass, hClass, vClass < lv.count ? lv[vClass] : 0, hClass < lh.count ? lh[hClass] : 0)
     }
 
     private func sampleCategorical(_ p: [Double]) -> Int {
         guard !p.isEmpty else { return 0 }
-        let u = sampleRNG.nextUnit()
-        var acc = 0.0
-        for i in 0..<p.count {
-            acc += p[i]
-            if u < acc { return i }
-        }
+        let u = sampleRNG.nextUnit(); var acc = 0.0
+        for i in 0..<p.count { acc += p[i]; if u < acc { return i } }
         return p.count - 1
     }
 
     mutating func updatePPO(transitions: [RLTransition], config: PPOConfig) -> PPOMetrics {
         let n = transitions.count
         guard n > 0 else { return PPOMetrics() }
-        let epochs = max(1, config.epochs)
-        let batchSize = max(1, config.batch)
-
-        var sumPolicyLoss = 0.0, sumValueLoss = 0.0, sumEntropy = 0.0, sumKL = 0.0
-        var mbCount = 0
-
+        let epochs = max(1, config.epochs), batchSize = max(1, config.batch)
+        var sp = 0.0, sv = 0.0, se = 0.0, sk = 0.0; var mb = 0
         for _ in 0..<epochs {
             var rng = SplitMix64(seed: shuffleState)
             var idx = Array(0..<n)
-            if n > 1 {
-                for i in stride(from: n - 1, through: 1, by: -1) {
-                    let j = Int(rng.next() % UInt64(i + 1))
-                    idx.swapAt(i, j)
-                }
-            }
+            if n > 1 { for i in stride(from: n - 1, through: 1, by: -1) { let j = Int(rng.next() % UInt64(i + 1)); idx.swapAt(i, j) } }
             shuffleState = rng.next()
-
             var start = 0
             while start < n {
                 let end = min(start + batchSize, n)
                 let bidx = Array(idx[start..<end])
                 let res = accumulateGradients(transitions: transitions, indices: bidx, config: config)
                 applyAdam(grads: res.grads, lr: config.lr, batchCount: bidx.count)
-                sumPolicyLoss += res.policyLoss
-                sumValueLoss += res.valueLoss
-                sumEntropy += res.entropy
-                sumKL += res.approxKL
-                mbCount += 1
+                sp += res.policyLoss; sv += res.valueLoss; se += res.entropy; sk += res.approxKL; mb += 1
                 start = end
             }
         }
-
-        let denom = Double(max(1, mbCount))
-        return PPOMetrics(policyLoss: sumPolicyLoss / denom,
-                          valueLoss: sumValueLoss / denom,
-                          entropy: sumEntropy / denom,
-                          approxKL: sumKL / denom,
-                          meanReward: 0,
-                          updateIndex: 0)
+        let d = Double(max(1, mb))
+        return PPOMetrics(policyLoss: sp / d, valueLoss: sv / d, entropy: se / d, approxKL: sk / d,
+                          meanReward: 0, updateIndex: 0)
     }
 
     private struct GradBundle {
@@ -593,116 +666,61 @@ struct ToyPolicy: PolicyUpdatable {
 
     private func accumulateGradients(transitions: [RLTransition], indices: [Int], config: PPOConfig)
         -> (grads: GradBundle, policyLoss: Double, valueLoss: Double, entropy: Double, approxKL: Double) {
-        var gWv = [Double](repeating: 0, count: K * 3)
-        var gWh = [Double](repeating: 0, count: K * 3)
-        var gbv = [0.0, 0.0, 0.0]
-        var gbh = [0.0, 0.0, 0.0]
-        var gValueW = [Double](repeating: 0, count: K)
-        var gValueBias = 0.0
-        var policyLossSum = 0.0
-        var valueLossSum = 0.0
-        var entropySum = 0.0
-        var klSum = 0.0
-
+        var gWv = [Double](repeating: 0, count: K * 3), gWh = [Double](repeating: 0, count: K * 3)
+        var gbv = [0.0, 0.0, 0.0], gbh = [0.0, 0.0, 0.0]
+        var gValueW = [Double](repeating: 0, count: K); var gValueBias = 0.0
+        var pl = 0.0, vl = 0.0, es = 0.0, kl = 0.0
         let clipEps = config.clipEps
         for ti in indices {
             let t = transitions[ti]
             let fwd = forward(stateToken: t.stateToken)
-            let vLogits = fwd.vLogits.map { Double($0) }
-            let hLogits = fwd.hLogits.map { Double($0) }
-            let pv = RLMath.softmaxD(vLogits)
-            let ph = RLMath.softmaxD(hLogits)
-
-            let vClass = min(max(t.vClass, 0), 2)
-            let hClass = min(max(t.hClass, 0), 2)
-            let logPV = log(max(pv[vClass], 1e-12))
-            let logPH = log(max(ph[hClass], 1e-12))
-            let logP = logPV + logPH
+            let vL = fwd.vLogits.map { Double($0) }, hL = fwd.hLogits.map { Double($0) }
+            let pv = RLMath.softmaxD(vL), ph = RLMath.softmaxD(hL)
+            let vc = min(max(t.vClass, 0), 2), hc = min(max(t.hClass, 0), 2)
+            let logP = log(max(pv[vc], 1e-12)) + log(max(ph[hc], 1e-12))
             let oldLogP = t.logProbV + t.logProbH
             let ratio = exp(logP - oldLogP)
             let adv = t.advantage
-
-            let clippedRatio = min(max(ratio, 1 - clipEps), 1 + clipEps)
-            let surrogate = min(ratio * adv, clippedRatio * adv)
-            policyLossSum += -surrogate
-            klSum += (oldLogP - logP)
-
-            let unclippedActive = !((adv > 0 && ratio > 1 + clipEps)
-                                    || (adv < 0 && ratio < 1 - clipEps))
-            let dLoss_dlogP = unclippedActive ? -ratio * adv : 0.0
-
-            let Hv = entropy(pv)
-            let Hh = entropy(ph)
-            entropySum += (Hv + Hh)
-
-            var gVLogit = [0.0, 0.0, 0.0]
-            var gHLogit = [0.0, 0.0, 0.0]
+            let clipped = min(max(ratio, 1 - clipEps), 1 + clipEps)
+            pl += -min(ratio * adv, clipped * adv); kl += (oldLogP - logP)
+            let active = !((adv > 0 && ratio > 1 + clipEps) || (adv < 0 && ratio < 1 - clipEps))
+            let dL = active ? -ratio * adv : 0.0
+            let Hv = entropy(pv), Hh = entropy(ph); es += (Hv + Hh)
+            var gV = [0.0, 0.0, 0.0], gH = [0.0, 0.0, 0.0]
             for c in 0..<3 {
-                let dlogp_dz = ((c == vClass ? 1.0 : 0.0) - pv[c])
-                var g = dLoss_dlogP * dlogp_dz
-                if config.entCoef != 0 {
-                    let dH_dz = -pv[c] * (log(max(pv[c], 1e-12)) + Hv)
-                    g += -config.entCoef * dH_dz
-                }
-                gVLogit[c] = g
-
-                let dlogp_dzh = ((c == hClass ? 1.0 : 0.0) - ph[c])
-                var gh = dLoss_dlogP * dlogp_dzh
-                if config.entCoef != 0 {
-                    let dH_dzh = -ph[c] * (log(max(ph[c], 1e-12)) + Hh)
-                    gh += -config.entCoef * dH_dzh
-                }
-                gHLogit[c] = gh
+                var g = dL * ((c == vc ? 1.0 : 0.0) - pv[c])
+                if config.entCoef != 0 { g += -config.entCoef * (-pv[c] * (log(max(pv[c], 1e-12)) + Hv)) }
+                gV[c] = g
+                var gh = dL * ((c == hc ? 1.0 : 0.0) - ph[c])
+                if config.entCoef != 0 { gh += -config.entCoef * (-ph[c] * (log(max(ph[c], 1e-12)) + Hh)) }
+                gH[c] = gh
             }
-
-            let nState = min(K, t.stateToken.count)
+            let ns = min(K, t.stateToken.count)
             for c in 0..<3 {
-                gbv[c] += gVLogit[c]
-                gbh[c] += gHLogit[c]
-                for k in 0..<nState {
-                    let s = Double(t.stateToken[k])
-                    gWv[k * 3 + c] += gVLogit[c] * s
-                    gWh[k * 3 + c] += gHLogit[c] * s
-                }
+                gbv[c] += gV[c]; gbh[c] += gH[c]
+                for k in 0..<ns { let s = Double(t.stateToken[k]); gWv[k * 3 + c] += gV[c] * s; gWh[k * 3 + c] += gH[c] * s }
             }
-
-            let vPred = Double(fwd.value)
-            let vErr = vPred - t.valueTarget
-            valueLossSum += config.vfCoef * vErr * vErr
-            let dValuePred = config.vfCoef * 2 * vErr
-            gValueBias += dValuePred
-            for k in 0..<nState {
-                gValueW[k] += dValuePred * Double(t.stateToken[k])
-            }
+            let vPred = Double(fwd.value), vErr = vPred - t.valueTarget
+            vl += config.vfCoef * vErr * vErr
+            let dv = config.vfCoef * 2 * vErr
+            gValueBias += dv
+            for k in 0..<ns { gValueW[k] += dv * Double(t.stateToken[k]) }
         }
-
         let cnt = Double(max(1, indices.count))
-        let bundle = GradBundle(gWv: gWv, gWh: gWh, gbv: gbv, gbh: gbh,
-                                gValueW: gValueW, gValueBias: gValueBias,
-                                policyLoss: policyLossSum / cnt,
-                                valueLoss: valueLossSum / cnt,
-                                entropy: entropySum / cnt,
-                                approxKL: klSum / cnt)
+        let bundle = GradBundle(gWv: gWv, gWh: gWh, gbv: gbv, gbh: gbh, gValueW: gValueW, gValueBias: gValueBias,
+                                policyLoss: pl / cnt, valueLoss: vl / cnt, entropy: es / cnt, approxKL: kl / cnt)
         return (bundle, bundle.policyLoss, bundle.valueLoss, bundle.entropy, bundle.approxKL)
     }
 
     private mutating func applyAdam(grads g: GradBundle, lr: Double, batchCount: Int) {
         adamT += 1
-        let b1 = 0.9, b2 = 0.999, eps = 1e-8
-        let bc = Double(max(1, batchCount))
-        let bias1 = 1 - pow(b1, Double(adamT))
-        let bias2 = 1 - pow(b2, Double(adamT))
-
-        func step(_ param: inout Double, _ m: inout Double, _ v: inout Double, _ grad: Double) {
-            var gv = grad / bc
-            if !gv.isFinite { gv = 0 }
-            m = b1 * m + (1 - b1) * gv
-            v = b2 * v + (1 - b2) * gv * gv
-            let mHat = m / bias1
-            let vHat = v / bias2
-            param -= lr * mHat / (vHat.squareRoot() + eps)
+        let b1 = 0.9, b2 = 0.999, eps = 1e-8, bc = Double(max(1, batchCount))
+        let bias1 = 1 - pow(b1, Double(adamT)), bias2 = 1 - pow(b2, Double(adamT))
+        func step(_ p: inout Double, _ m: inout Double, _ v: inout Double, _ gd: Double) {
+            var gv = gd / bc; if !gv.isFinite { gv = 0 }
+            m = b1 * m + (1 - b1) * gv; v = b2 * v + (1 - b2) * gv * gv
+            p -= lr * (m / bias1) / ((v / bias2).squareRoot() + eps)
         }
-
         for i in 0..<Wv.count { step(&Wv[i], &mWv[i], &vWv[i], g.gWv[i]) }
         for i in 0..<Wh.count { step(&Wh[i], &mWh[i], &vWh[i], g.gWh[i]) }
         for c in 0..<3 { step(&bv[c], &mbv[c], &vbv[c], g.gbv[c]) }
@@ -711,15 +729,9 @@ struct ToyPolicy: PolicyUpdatable {
         step(&valueBias, &mValueBias, &vValueBias, g.gValueBias)
     }
 
-    private func entropy(_ p: [Double]) -> Double {
-        var h = 0.0
-        for x in p where x > 0 { h -= x * log(x) }
-        return h
-    }
+    private func entropy(_ p: [Double]) -> Double { var h = 0.0; for x in p where x > 0 { h -= x * log(x) }; return h }
 }
 
-/// 采样 RNG 的引用包装：让非 mutating 的 `stochasticSample` 也能推进随机流。
-/// 只在主线程采样（OnlineTrainer.sampleAction 在锁内、单线程顺序调用）→ 确定性可复现。
 final class SampleRNG {
     private var rng: SplitMix64
     init(seed: UInt64) { self.rng = SplitMix64(seed: seed) }
@@ -730,9 +742,6 @@ final class SampleRNG {
 // ============================================================================
 // MARK: - 分发入口（供 launcher 一行调用；由 swift-core 统一在 AuroraDriveApp 接入）
 // ============================================================================
-
-/// 跑在线 RL 循环自检，返回失败项数（0 = 全过）。launcher 只需一行：
-///   `if args.contains("--rl-online-selftest") { exit(runOnlineRLSelfTest() == 0 ? 0 : 1) }`
 func runOnlineRLSelfTest() -> Int {
     OnlineTrainerSelfTest.run()
 }

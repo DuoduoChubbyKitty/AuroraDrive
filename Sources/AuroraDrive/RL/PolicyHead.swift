@@ -535,18 +535,38 @@ struct PolicyHead {
     // MARK: GAE（严格照 tools/v3_rl/reward.py 的 gae_advantages：逐 episode 不跨边界）
 
     /// 就地计算 advantage 与 valueTarget（valueTarget = advantage + value）。
-    /// episode_ends 语义：isTerminal==true 的帧是所在 episode 的末帧，
-    /// 其后向递归在下一位 bootstrap 归零、并重置 running GAE，避免跨 clip 泄漏。
+    ///
+    /// 边界**只由每条 transition 的 isTerminal 决定**（Codex 复审 788a26b 修正：
+    /// 旧实现无条件把数组末项当 terminal，导致在线批次被截断时丢掉末帧的 bootstrap）。
+    ///
+    /// - tailBootstrapValue：仅当**最后一条** transition 的 isTerminal=false 时使用——
+    ///   它代表「批次之外、紧接着的下一状态」的 critic 价值 V(s_{n})，作为末帧
+    ///   delta 的 bootstrap（delta_{n-1} = r + γ·tailBootstrapValue − V_{n-1}）。
+    ///   默认 0 = 离线整段训练行为（末帧视作无后继，等价于批次恰好切在 episode 末）。
+    ///   在线训练在批次中途 flush 时应传入当前 critic 对下一状态的价值，避免丢 bootstrap。
+    ///
+    /// 递归：delta_t = r_t + γ·nextV_t − V_t；A_t = delta_t + γ·λ·(terminal_t ? 0 : A_{t+1})，
+    /// 其中 terminal_t 取当前帧 isTerminal（terminal 处切断，杜绝跨 episode 泄漏）。
     /// 注意：本函数只填**原始** GAE 优势，不做归一化；归一化若需要应在调用方对
     /// advantage 单独施加（且必须在填 valueTarget 之前——valueTarget 用原始优势）。
-    static func computeGAE(_ transitions: inout [RLTransition], gamma: Double, lam: Double) {
+    static func computeGAE(_ transitions: inout [RLTransition], gamma: Double, lam: Double,
+                           tailBootstrapValue: Double = 0) {
         let n = transitions.count
         guard n > 0 else { return }
         var last = 0.0
         var adv = [Double](repeating: 0, count: n)
         for t in stride(from: n - 1, through: 0, by: -1) {
-            let terminal = transitions[t].isTerminal || (t == n - 1)
-            let nextV = terminal ? 0.0 : transitions[t + 1].value
+            let terminal = transitions[t].isTerminal
+            // nextV：当前帧是 terminal → 无后继，用 0；
+            // 否则用同一 episode 内下一帧 value；末帧（无 batch 内下一帧）用 tailBootstrapValue。
+            let nextV: Double
+            if terminal {
+                nextV = 0.0
+            } else if t < n - 1 {
+                nextV = transitions[t + 1].value
+            } else {
+                nextV = tailBootstrapValue
+            }
             let delta = transitions[t].reward + gamma * nextV - transitions[t].value
             last = delta + gamma * lam * (terminal ? 0.0 : last)
             adv[t] = last
@@ -557,8 +577,10 @@ struct PolicyHead {
         }
     }
 
-    static func computeGAE(_ transitions: inout [RLTransition], config: PPOConfig) {
-        computeGAE(&transitions, gamma: config.gamma, lam: config.lam)
+    static func computeGAE(_ transitions: inout [RLTransition], config: PPOConfig,
+                           tailBootstrapValue: Double = 0) {
+        computeGAE(&transitions, gamma: config.gamma, lam: config.lam,
+                   tailBootstrapValue: tailBootstrapValue)
     }
 
     // MARK: 梯度结构

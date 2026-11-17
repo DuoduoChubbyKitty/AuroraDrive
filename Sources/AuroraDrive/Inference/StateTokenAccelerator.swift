@@ -27,7 +27,7 @@
 //
 // 【返回值不吞 NaN】本类的 `stateTokenAndLogits` 只校验维度，原样返回模型算出的
 //   数值（含可能出现的 NaN）。判定 NaN 是调用方的事：
-//     · 自检据此断言「非全 NaN」；
+//     · 自检据此断言「全部 256 值 isFinite」；
 //     · 在线循环/训练端必须**丢弃**含 NaN 的帧（见设计文档安全护栏）。
 //   若这里静默把 NaN 帧换 nil，自检就分不清「模型吐了 NaN」与「读取失败」。
 //
@@ -256,19 +256,30 @@ final class StateTokenAccelerator {
 
     // MARK: - 输出读取（dtype 无关：一律 .floatValue）
 
-    /// 读 state_token：优先约定输出名；否则在模型输出里找**唯一**长度=256 的输出
-    /// （适配 A 域导出命名尚未最终定死的情况）。找不到时写清原因并返回 nil。
+    /// 读 state_token：优先约定输出名；否则在模型输出里找**恰好一个**长度=256 的输出
+    /// （适配 A 域导出命名尚未最终定死的情况）。
+    ///
+    /// ⚠️ fallback **真的做唯一性校验**：候选恰好 1 个才采用；0 个或多个都返回 nil 并写清
+    /// 原因——不做「随便取第一个 256 维输出」的猜测（那可能拿到别的同宽特征，静默错位）。
     private func readStateToken(_ output: MLFeatureProvider) -> [Float]? {
         if let mv = output.featureValue(for: stateTokenOutputName)?.multiArrayValue,
            mv.count == Self.stateTokenDim {
             return Self.floats(from: mv)
         }
-        if let mv = Self.firstMultiArray(in: output, count: Self.stateTokenDim) {
-            return Self.floats(from: mv)
+        let candidates = Self.multiArrays(ofCount: Self.stateTokenDim, in: output)
+        switch candidates.count {
+        case 1:
+            return Self.floats(from: candidates[0].array)
+        case 0:
+            failureReason = "输出里找不到 256 维 state_token（约定名 \(stateTokenOutputName) 未命中，"
+                + "且无长度=256 的输出）。可用输出：\(output.featureNames.sorted())"
+            return nil
+        default:
+            let names = candidates.map { $0.name }
+            failureReason = "输出里长度=256 的候选不唯一（\(names)），无法确定哪一路是 state_token；"
+                + "请用 AURORA_STATE_TOKEN_OUTPUT_NAME 指定约定名。"
+            return nil
         }
-        failureReason = "输出里找不到 256 维 state_token（约定名 \(stateTokenOutputName) 未命中，"
-            + "且无长度=256 的输出）。可用输出：\(output.featureNames.sorted())"
-        return nil
     }
 
     /// 读纵向/横向 logits。标准布局：vertical[3] + horizontal[3]（与 V3 输出名一致）；
@@ -298,14 +309,16 @@ final class StateTokenAccelerator {
         return out
     }
 
-    private static func firstMultiArray(in output: MLFeatureProvider,
-                                        count: Int) -> MLMultiArray? {
+    /// 收集输出里**所有**长度等于 `count` 的 MLMultiArray（带输出名），供唯一性校验。
+    private static func multiArrays(ofCount count: Int,
+                                    in output: MLFeatureProvider) -> [(name: String, array: MLMultiArray)] {
+        var found: [(name: String, array: MLMultiArray)] = []
         for name in output.featureNames.sorted() {
             if let mv = output.featureValue(for: name)?.multiArrayValue, mv.count == count {
-                return mv
+                found.append((name: name, array: mv))
             }
         }
-        return nil
+        return found
     }
 
     private static func computeUnitsFromEnvironment() -> MLComputeUnits {
@@ -324,7 +337,8 @@ extension StateTokenAccelerator {
 
     /// 自检入口（由启动器分发 `-rl-accel-selftest` 时调用本 `run()`）。
     ///
-    /// 模型存在则跑一帧真实预处理输入，断言 stateToken 维度=256 且非全 NaN；
+    /// 模型存在则跑一帧真实预处理输入，断言 stateToken 维度=256 且全部 256 值 isFinite
+    /// （非 NaN 非 Inf），vLogits/hLogits 维度=3 且全部 isFinite；
     /// **仅当模型文件不存在**时明确 SKIP（打印原因，不假装通过）；
     /// 文件存在却加载/推理失败或断言不过 → FAIL。
     ///
@@ -382,23 +396,36 @@ extension StateTokenAccelerator {
             }
         }
 
-        check("stateToken 维度 == 256", out.stateToken.count == 256,
-              "实际 \(out.stateToken.count)")
-        let nanCount = out.stateToken.filter { $0.isNaN }.count
-        check("stateToken 非全 NaN", nanCount < out.stateToken.count,
-              "NaN \(nanCount)/\(out.stateToken.count)")
-        check("vLogits 维度 == 3", out.vLogits.count == 3, "实际 \(out.vLogits.count)")
-        check("hLogits 维度 == 3", out.hLogits.count == 3, "实际 \(out.hLogits.count)")
+        let st = out.stateToken
+        let nanCount = st.filter { $0.isNaN }.count
+        let infCount = st.filter { $0.isInfinite }.count
+        let nonFiniteCount = st.filter { !$0.isFinite }.count
 
-        let finite = out.stateToken.filter { $0.isFinite }
-        let mn = finite.min() ?? 0
-        let mx = finite.max() ?? 0
-        print(String(format: "[rl-accel] state_token: dim=%d finite=%d NaN=%d min=%.4f max=%.4f",
-                     out.stateToken.count, finite.count, nanCount, mn, mx))
+        check("stateToken 维度 == 256", st.count == Self.stateTokenDim, "实际 \(st.count)")
+        // 全部 256 个值必须有限（非 NaN、非 Inf）——不是"非全 NaN"这种弱判据：
+        // 255 个 NaN 或全 Inf 都不能算通过。
+        check("stateToken 全部 256 值 isFinite（非 NaN 非 Inf）",
+              st.count == Self.stateTokenDim && nonFiniteCount == 0,
+              "NaN \(nanCount) / Inf \(infCount) / 非有限 \(nonFiniteCount) / 共 \(st.count)")
+
+        let vFinite = out.vLogits.filter { $0.isFinite }.count
+        let hFinite = out.hLogits.filter { $0.isFinite }.count
+        check("vLogits 维度 == 3", out.vLogits.count == 3, "实际 \(out.vLogits.count)")
+        check("vLogits 全部 isFinite", out.vLogits.count == 3 && vFinite == 3,
+              "有限 \(vFinite)/\(out.vLogits.count)")
+        check("hLogits 维度 == 3", out.hLogits.count == 3, "实际 \(out.hLogits.count)")
+        check("hLogits 全部 isFinite", out.hLogits.count == 3 && hFinite == 3,
+              "有限 \(hFinite)/\(out.hLogits.count)")
+
+        let finiteVals = st.filter { $0.isFinite }
+        let mn = finiteVals.min() ?? 0
+        let mx = finiteVals.max() ?? 0
+        print(String(format: "[rl-accel] state_token: dim=%d finite=%d NaN=%d Inf=%d min=%.4f max=%.4f",
+                     st.count, finiteVals.count, nanCount, infCount, mn, mx))
         print("[rl-accel] vLogits=\(out.vLogits) hLogits=\(out.hLogits)")
 
         if failures == 0 {
-            print("[rl-accel] PASS：state_token 加速器可用（维度与 NaN 断言全过）")
+            print("[rl-accel] PASS：state_token 加速器可用（维度全等 + 全部 isFinite 断言全过）")
             return 0
         }
         print("[rl-accel] FAIL：\(failures) 项断言未通过")
