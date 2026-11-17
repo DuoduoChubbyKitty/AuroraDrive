@@ -3989,6 +3989,10 @@ struct RunStatusCard: View {
 
                 // ── 自动驾驶总开关（真实调用 startDriving/stopDriving）──
                 AutoDriveSwitch(state: state)
+                    .padding(.bottom, 8)
+
+                // ── 在线策略训练开关（独立于自动驾驶：只读帧训练，不注入按键）──
+                OnlineTrainSwitch(state: state)
                     .padding(.bottom, 11)
 
                 ControlRows(state: state)
@@ -8126,5 +8130,73 @@ struct AutoDriveSwitch: View {
         }
         .buttonStyle(.plain)
         .help(state.isDriving ? "停止自动驾驶" : "启动自动驾驶")
+    }
+}
+
+// ============================================================================
+// MARK: - 在线策略训练开关（独立于自动驾驶）
+// ============================================================================
+// 真实接线：开启 → state.startOnlineTraining()，关闭 → state.stopOnlineTraining()。
+// 与「自动驾驶」的关键区别：本开关**只读帧训练**（state_token → 策略采样 → 攒
+// transition → 后台 PPO），**绝不注入任何按键**，所以开着它在跑也不会替用户操作游戏。
+// 训练与驾驶可各自单独开关：只想训不想让车自己动，就只开这个。
+
+struct OnlineTrainSwitch: View {
+    @Bindable var state: DriveState
+    @State private var busy = false
+
+    var body: some View {
+        Button {
+            guard !busy else { return }
+            busy = true
+            state.toggleOnlineTraining()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { busy = false }
+        } label: {
+            HStack(spacing: 11) {
+                ZStack(alignment: state.isOnlineTraining ? .trailing : .leading) {
+                    Capsule()
+                        .fill(state.isOnlineTraining
+                              ? Aurora.ok.opacity(0.20)
+                              : Color.black.opacity(0.45))
+                    Capsule()
+                        .strokeBorder(state.isOnlineTraining ? Aurora.okLo : Aurora.hair2, lineWidth: 1)
+                    Circle()
+                        .fill(state.isOnlineTraining ? Aurora.ok : Aurora.t3)
+                        .frame(width: 15, height: 15)
+                        .padding(2)
+                        .shadow(color: state.isOnlineTraining ? Aurora.ok.opacity(0.8) : .clear, radius: 6)
+                }
+                .frame(width: 40, height: 21)
+                .animation(.easeInOut(duration: 0.18), value: state.isOnlineTraining)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("在线训练")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(Aurora.t1)
+                    Text(state.onlineTrainStatus.isEmpty
+                         ? "Swift PPO · 只学不按键"
+                         : state.onlineTrainStatus)
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(state.isOnlineTraining ? Aurora.ok : Aurora.t4)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(state.isOnlineTraining ? Aurora.ok.opacity(0.06) : Color.black.opacity(0.22))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(state.isOnlineTraining ? Aurora.okLo : Aurora.hair1, lineWidth: 1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(state.isOnlineTraining ? "停止在线训练" : "启动在线训练（只读帧训练，不注入按键）")
     }
 }

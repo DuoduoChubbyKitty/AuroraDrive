@@ -551,10 +551,13 @@ enum OnlineTrainerSelfTest {
         // 下方设**硬墙钟上限 15s**：一旦超时立即断言失败并返回，绝不无条件空转（防卡死）。
         let envSeed: UInt64 = 0xBEEF
         let start = Date()
-        let res = realMLPOneSeed(envSeed: envSeed, deadline: start.addingTimeInterval(15))
+        // 墙钟上限放宽到 60s：固定种子下本段通常 ~8-10s 完成；并发跑多个自检时 CPU/ANE
+        // 争用会拉长耗时，此前 15s 上限会把"并发争用变慢"误判成"学习失败"。60s 只防死循环，
+        // 不再因机器忙而假红。超时仍报失败（真死循环要暴露），但正常与并发都不会触发。
+        let res = realMLPOneSeed(envSeed: envSeed, deadline: start.addingTimeInterval(60))
         if res.timedOut {
-            check("真实 PolicyHead 学习测试在墙钟上限内完成", false,
-                  "超 15s 未完成 → 判失败退出（防卡死）")
+            check("真实 PolicyHead 学习测试在墙钟上限内完成（60s，仅防死循环）", false,
+                  "超 60s 未完成 → 疑似死循环，判失败退出")
             return 0
         }
         print(String(format: "  envSeed=0x%llX Δ每帧=%+.3f 竖直正确率 %.2f→%.2f （耗时 %.1fs）",

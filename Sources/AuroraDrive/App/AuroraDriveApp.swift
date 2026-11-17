@@ -1028,7 +1028,8 @@ struct AuroraDriveLauncher {
                                // 既有约定用双横杠，但 D 域文档用单横杠，故两种写法都登记。
                                "--rl-core-selftest", "-rl-core-selftest",
                                "--rl-online-selftest", "-rl-online-selftest",
-                               "--rl-accel-selftest", "-rl-accel-selftest"]
+                               "--rl-accel-selftest", "-rl-accel-selftest",
+                               "--rl-train-wire-selftest", "-rl-train-wire-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -1119,6 +1120,11 @@ struct AuroraDriveLauncher {
         }
         if args.contains("-rl-accel-selftest") || args.contains("--rl-accel-selftest") {
             exit(Int32(StateTokenAccelerator.run()))
+        }
+        // 在线训练接线自检：真实帧 → state_token → 采样 → collect，断言训练推进 + 0 按键注入。
+        if args.contains("-rl-train-wire-selftest") || args.contains("--rl-train-wire-selftest") {
+            let failed = OnlineTrainingWireSelfTest.run()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
         }
 
         // ── AI 助手三证据链自检分发（2026-10-06）──
@@ -4364,6 +4370,14 @@ final class DriveState {
     var sportMode       = false
     var isTraining      = false
 
+    // ── 在线策略训练（Swift PPO：PolicyHead + OnlineTrainer 接真实帧流）──
+    // 独立于「自动驾驶」开关：只读帧+算策略+攒 transition，不注入任何按键。
+    // 运行时对象本身不参与 SwiftUI 观察（@ObservationIgnored），状态走下面两个
+    // 轻量 @Observable 属性，避免每帧触发整树重绘。
+    var isOnlineTraining = false
+    var onlineTrainStatus = ""
+    @ObservationIgnored let onlineTrainRuntime = OnlineTrainingRuntime()
+
     // ── 引擎模式（后台引擎拆分；EngineClient 激活时生效）──
     /// 引擎回传的检测结果（引擎模式下每 tick 刷新）
     var remoteDetections: [Detection] = []
@@ -4701,7 +4715,7 @@ final class DriveState {
                     let n = (try? FileManager.default.contentsOfDirectory(atPath: framesDir))?.count ?? 0
                     if n == 0 { try? FileManager.default.removeItem(atPath: emptyClip) }
                 }
-                if !isDriving && !isRecording {
+                if !isDriving && !isRecording && !isOnlineTraining {
                     captureEngine.stop()
                     keyboardMonitor.stop()
                 }
@@ -4752,7 +4766,8 @@ final class DriveState {
             // 把全屏往管道里推，录制都结束了还在白烧 CPU/电。
             // 判据与 isRecording 的 didSet 一致：开车由 stopDriving() 管，
             // 专家录制由它自己的 didSet 管，两者都不会被这里误关。
-            if !isDriving && !isRecording {
+            // 在线训练若在跑，也保活抓屏（训练要帧流）。
+            if !isDriving && !isRecording && !isOnlineTraining {
                 captureEngine.stop()
                 keyboardMonitor.stop()
             }
@@ -5722,7 +5737,7 @@ final class DriveState {
                 keyboardMonitor.start()
             } else {
                 recordEngine.stop()
-                if !isDriving {
+                if !isDriving && !isOnlineTraining {
                     captureEngine.stop()
                     keyboardMonitor.stop()
                 }
@@ -7406,8 +7421,12 @@ final class DriveState {
         isDriving = false
         EmergencyTakeover.shared.noteUserKeyUp()
         controlEngine.releaseAll()
+        // 抓屏归属：停车时若在线训练仍在跑，保活抓屏（训练要帧流）；
+        // 训练不在跑才真的停抓屏。键盘监听的停止与训练无关（训练不注入按键）。
         keyboardMonitor.stop()
-        captureEngine.stop()
+        if !isOnlineTraining {
+            captureEngine.stop()
+        }
         pendingNativeLock.lock()
         pendingNativeFrame = nil
         pendingNativeObservedAt = nil
@@ -7439,7 +7458,52 @@ final class DriveState {
         if isRecording { isRecording = false }   // didSet 会触发 recordEngine.stop()
     }
 
-    /// 处理网络定位结果
+    // MARK: - 在线策略训练开关（独立于自动驾驶）
+
+    /// 打开「在线训练」：加载 state_token 加速器 + 初始化 OnlineTrainer（随机策略头），
+    /// 并在未抓屏时自起抓屏（训练需要帧流，哪怕没开自动驾驶）。只读帧、不注入按键。
+    ///
+    /// 【为什么不在 startDriving 里顺带起】训练是**独立开关**：用户可能只想训、不想让
+    ///   车自己动（比如人自己开、模型旁观学习）。所以训练与驾驶解耦，各自管各自。
+    func startOnlineTraining() {
+        guard !isOnlineTraining else { return }
+        guard onlineTrainRuntime.start() else {
+            onlineTrainStatus = "无法启动：" + (onlineTrainRuntime.lastError ?? "state_token 加速器未就绪")
+            dlog("[OnlineTrain] ❌ \(onlineTrainStatus)")
+            return
+        }
+        isOnlineTraining = true
+        onlineTrainStatus = "运行中 · 采样中"
+        // 训练需要帧流；若当前没抓屏（既没开车也没录制），自起抓屏。
+        // 判据与录制开录一致：已 capturing 就不重复起，避免抢同一条屏幕流。
+        if !captureEngine.isCapturing {
+            captureEngine.start()
+            dlog("[OnlineTrain] 训练自起抓屏（当前未驾驶/未录制）")
+        }
+        dlog("[OnlineTrain] ▶ 在线训练已启动（CPU 策略头 + Accelerate，本机在线微调）")
+    }
+
+    /// 关闭「在线训练」：收尾当前 episode（安全丢弃无后继末条）+ 等后台训练跑空。
+    /// 抓屏归属：若既没开车也没录制，则关掉我们为训练自起的抓屏。
+    func stopOnlineTraining() {
+        guard isOnlineTraining else { return }
+        onlineTrainRuntime.stop()
+        isOnlineTraining = false
+        onlineTrainStatus = "已停止"
+        if !isDriving && !isRecording && !leanRecorder.isRecording {
+            captureEngine.stop()
+            keyboardMonitor.stop()
+            dlog("[OnlineTrain] 训练自起的抓屏已停止")
+        }
+        dlog("[OnlineTrain] ■ 在线训练已停止（累计 \(onlineTrainRuntime.stats())）")
+    }
+
+    /// 训练按钮切换入口。
+    func toggleOnlineTraining() {
+        if isOnlineTraining { stopOnlineTraining() } else { startOnlineTraining() }
+    }
+
+
     // 旧方法已移除（NetworkPacketCapture不编译）
     // func handleNetworkLocate(_ result: NetworkLocateResult) {
     //     if result.found, let point = result.point {
@@ -8222,6 +8286,21 @@ final class DriveState {
             currentFrameSeq = captureSeq
             if isStreaming { latestCGToPush = latestCG }
             if screenSize != latest.size { screenSize = latest.size }
+            // ── 在线训练驱动（独立开关）：用本帧鲜活画面喂训练运行时 ──
+            // 位置放在帧消费临界区内、紧贴 latestCG —— 保证训练吃到的是"本帧"，
+            // 且不额外持锁（训练运行时内部只做降频采样 + 投递，不阻塞）。
+            // 传入**真实**驾驶信号（速度/接管/人工介入）用于奖励计算；这些是 MainActor 上的
+            // DriveState 字段，与本锁（pendingFrameLock）无关，读取安全。
+            if isOnlineTraining, let trainCG = latestCG {
+                let signals = OnlineTrainingRuntime.FrameSignals(
+                    speedKmh: trustedSpeedKmh,
+                    speedValid: speedValid,
+                    tookOver: EmergencyTakeover.shared.userHoldingKey,
+                    collision: needsManualIntervention,
+                    laneOffset: 0,
+                    manualStop: needsManualIntervention)
+                onlineTrainRuntime.onFrame(trainCG, signals: signals)
+            }
         }
         pendingFrameLock.unlock()
         // ↓ 锁外推屏：这一步可能等 WindowServer，绝不能在持锁期间做
