@@ -40,7 +40,8 @@ enum OnlineTrainerSelfTest {
         failures += runTakeoverAttributionCheck(check);      print("")
         failures += runUnknownGapCheck(check);               print("")
         failures += runNonFiniteSpeedCheck(check);           print("")
-        failures += runRealPolicyHeadLearningBenefitCheck(check)
+        failures += runRealPolicyHeadLearningBenefitCheck(check); print("")
+        failures += runBoundedCaptureCheck(check)
 
         print("")
         print(failures == 0
@@ -61,7 +62,8 @@ enum OnlineTrainerSelfTest {
         ]
         PolicyHead.computeGAE(&g1, gamma: 0.99, lam: 0.95)
         check("两独立单帧 adv == [0,10]（非 [9.405,10]）",
-              abs(g1[0].advantage) < 1e-9 && abs(g1[1].advantage - 10) < 1e-9,
+              g1[0].advantage.isFinite && g1[1].advantage.isFinite
+                && abs(g1[0].advantage) < 1e-9 && abs(g1[1].advantage - 10) < 1e-9,
               "实际 [" + g1.map { String(format: "%.4f", $0.advantage) }.joined(separator: ",") + "]")
 
         var combined: [RLTransition] = [
@@ -77,12 +79,14 @@ enum OnlineTrainerSelfTest {
             makeTransition(reward: 1, value: 0, isTerminal: true)
         ]
         PolicyHead.computeGAE(&standaloneA, gamma: 0.99, lam: 0.95)
-        var okA = true
-        for i in 0..<3 where abs(combined[i].advantage - standaloneA[i].advantage) > 1e-9 { okA = false }
+        let okA = (0..<3).allSatisfy {
+            combined[$0].advantage.isFinite && abs(combined[$0].advantage - standaloneA[$0].advantage) < 1e-9
+        }
         check("episode A 优势与单独跑一致（B 的 100 不渗入 A）", okA, "")
         check("episode B 单帧 adv == 100", abs(combined[3].advantage - 100.0) < 1e-9, "")
-        var okVT = true
-        for i in 0..<3 where abs(combined[i].valueTarget - standaloneA[i].advantage) > 1e-9 { okVT = false }
+        let okVT = (0..<3).allSatisfy {
+            combined[$0].valueTarget.isFinite && abs(combined[$0].valueTarget - standaloneA[$0].advantage) < 1e-9
+        }
         check("computeGAE valueTarget = 原始优势 + value（A 段不串 B）", okVT, "")
 
         // P1-2 的 GAE 层：末帧 isTerminal=false 时用 tailBootstrapValue（非归零）。
@@ -294,6 +298,7 @@ enum OnlineTrainerSelfTest {
         // 期望：训练 [A,B]，扣下 C；[A,B] 的末条 B 用 C.value 做 tail bootstrap（不归零）。
         let trainer = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
                                     ppoConfig: PPOConfig(), trainEvery: 3, metricsCapacity: 16)
+        trainer.setCaptureBatchesForTest(true)
         func feed(_ token: Float, reward: Double, value: Double) {
             _ = trainer.collect(stateToken: [token],
                                 sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: value),
@@ -340,6 +345,7 @@ enum OnlineTrainerSelfTest {
         trainer.clearCapturedBatchesForTest()
         let trainer2 = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
                                      ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
+        trainer2.setCaptureBatchesForTest(true)
         _ = trainer2.collect(stateToken: [1],
                              sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 2.0),
                              tookOver: false, speedKmh: 0, speedValid: false,
@@ -353,85 +359,148 @@ enum OnlineTrainerSelfTest {
     }
 
     // ========================================================================
-    // MARK: - ⑦ P1-3 人工接管：动作不进策略梯度，惩罚归因上一 AI 帧
+    // MARK: - ⑦ P1-3 + P1-B 人工接管：动作不进策略梯度、惩罚归因策略动作并进入 actor 梯度
     // ========================================================================
     private static func runTakeoverAttributionCheck(_ check: (String, Bool, String) -> Void) -> Int {
-        print("── ⑦ P1-3 人工接管：人类动作不建策略 transition，接管惩罚归因上一 AI 帧并封口 ──")
-        let trainer = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(takeover: 10),
-                                    ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
-        // 两个 AI 帧（speedValid=false → reward=0，便于精确断言）
-        func feedAI(_ value: Double) {
-            _ = trainer.collect(stateToken: [1],
-                                sample: PolicySample(vClass: 1, hClass: 1, logProbV: 0, logProbH: 0, value: value),
+        print("── ⑦ P1-3+P1-B 人工接管：惩罚落在策略动作上、进入 policy 梯度（含截断后单条边界）──")
+
+        // 情形一：接管帧把惩罚并入**当前 AI 动作**并收尾，人类救援动作不成 transition。
+        let t1 = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(takeover: 10),
+                               ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
+        t1.setCaptureBatchesForTest(true)
+        func feedAI(_ trainer: OnlineTrainer, token: Float) {
+            _ = trainer.collect(stateToken: [token],
+                                sample: PolicySample(vClass: 1, hClass: 1, logProbV: 0, logProbH: 0, value: 0),
                                 tookOver: false, speedKmh: 0, speedValid: false,
                                 collision: false, laneOffset: 0, isTerminal: false)
         }
-        feedAI(1.0)
-        feedAI(2.0)
-        check("接管前 pending 有 2 条 AI transition", trainer.pendingTransitionsForTest().count == 2, "")
-        // 人工接管帧：人类动作 (vClass=2,hClass=0)，应被丢弃、不建 transition
-        _ = trainer.collect(stateToken: [1],
-                            sample: PolicySample(vClass: 2, hClass: 0, logProbV: 0, logProbH: 0, value: 9.0),
-                            tookOver: true, speedKmh: 0, speedValid: false,
-                            collision: false, laneOffset: 0, isTerminal: false)
-        trainer.drainTrainingAndWait()
-        let batches = trainer.capturedBatchesForTestSnapshot()
-        check("接管后恰好训练 1 批（封口）", batches.count == 1, "实际 \(batches.count)")
-        guard batches.count == 1 else { return 0 }
-        let trained = batches[0]
-        check("人类动作未产生策略 transition（批内仍只有 2 条 AI 帧）", trained.count == 2, "实际 \(trained.count)")
-        check("批内无 vClass==2 的人类救援动作", trained.allSatisfy { !($0.vClass == 2 && $0.hClass == 0) }, "")
-        // 上一 AI 帧（第 2 条）reward 应含 -takeover(-10)（原 reward=0）
-        check("接管惩罚(-10)归因到上一 AI 帧 reward", abs(trained[1].reward - (-10.0)) < 1e-9,
-              String(format: "实际%.3f", trained[1].reward))
-        check("更早的 AI 帧 reward 未被误加惩罚", abs(trained[0].reward - 0.0) < 1e-9,
-              String(format: "实际%.3f", trained[0].reward))
+        feedAI(t1, token: 1)                 // 前一条 AI
+        // 接管帧：人类动作 (vClass=2,hClass=0)，reward 0（speedValid=false），必须得 -10
+        _ = t1.collect(stateToken: [1],
+                       sample: PolicySample(vClass: 2, hClass: 0, logProbV: 0, logProbH: 0, value: 0),
+                       tookOver: true, speedKmh: 0, speedValid: false,
+                       collision: false, laneOffset: 0, isTerminal: false)
+        t1.drainTrainingAndWait()
+        let b1 = t1.capturedBatchesForTestSnapshot()
+        check("接管后收尾训练 1 批", b1.count == 1, "实际 \(b1.count)")
+        if b1.count == 1 {
+            let last = b1[0].last!
+            check("接管惩罚(-10)落在末条 transition 的 reward 上", abs(last.reward - (-10.0)) < 1e-9,
+                  String(format: "实际%.3f", last.reward))
+            check("该 transition 的动作用的是策略实际采样动作(vClass1)，非人类动作(vClass2)",
+                  last.vClass == 1 && last.hClass == 1, "v=\(last.vClass) h=\(last.hClass)")
+            check("批内无人类救援动作(vClass2)", b1[0].allSatisfy { !($0.vClass == 2 && $0.hClass == 0) }, "")
+        }
+
+        // 情形二（P1-B 边界）：**截断后恰剩单条 AI transition**，下一帧接管（惩罚并入被扣回的那条）
+        // → 单条批必须让该 AI 动作在 policy 上真的拿到惩罚（非零优势），不能因归一化成 0 失效。
+        let toySeed: UInt64 = 0x5151
+        let initPolicy = ToyPolicy(numContexts: 1, seed: toySeed)      // 训练器会复制它
+        let t2 = OnlineTrainer(policy: initPolicy, rewardConfig: RewardConfig(takeover: 10),
+                               ppoConfig: PPOConfig(lr: 0.5, epochs: 1, batch: 4, entCoef: 0),
+                               trainEvery: 2, metricsCapacity: 16)
+        t2.setCaptureBatchesForTest(true)
+        // 用真实 logProb 采样 (vClass0,hClass0)：竖直与水平都要用**真实** logSoftmax 值，
+        // 否则 oldLogP 与真实值不一致 → PPO ratio 偏离 1 → 梯度被 clip 置零（测试假象）。
+        func sampleV0() -> PolicySample {
+            let pol = t2.currentPolicyForTest()
+            let f = pol.forward(stateToken: [1])
+            let lpv = RLMath.logSoftmax(f.vLogits)
+            let lph = RLMath.logSoftmax(f.hLogits)
+            return PolicySample(vClass: 0, hClass: 0, logProbV: lpv[0], logProbH: lph[0], value: 0)
+        }
+        func feedAI0() {
+            _ = t2.collect(stateToken: [1], sample: sampleV0(),
+                           tookOver: false, speedKmh: 0, speedValid: false,
+                           collision: false, laneOffset: 0, isTerminal: false)
+        }
+        feedAI0()   // pending=[X1]
+        feedAI0()   // pending=[X1,X2] → trainEvery=2 截断：训[X1]，扣下 X2（pending=[X2]）
+        t2.drainTrainingAndWait()
+        check("截断后 pending 恰剩 1 条", t2.pendingTransitionsForTest().count == 1,
+              "实际 \(t2.pendingTransitionsForTest().count)")
+        // 基线取在「接管帧之前」的真实策略（隔离掉截断训练本身的任何扰动）。
+        let p0Before = RLMath.softmax(t2.currentPolicyForTest().forward(stateToken: [1]).vLogits)[0]
+        // 下一帧接管（AI 动作 vClass0）→ 惩罚并入 X2（单条批）并训练
+        _ = t2.collect(stateToken: [1], sample: sampleV0(),
+                       tookOver: true, speedKmh: 0, speedValid: false,
+                       collision: false, laneOffset: 0, isTerminal: false)
+        t2.drainTrainingAndWait()
+        let b2 = t2.capturedBatchesForTestSnapshot()
+        let singleTakeoverBatch = b2.first { $0.count == 1 && ($0[0].reward <= -9.0) }
+        check("存在「单条 + 接管惩罚(-10)」的批", singleTakeoverBatch != nil,
+              "批数=\(b2.count) 各批 count=" + b2.map { "\($0.count)" }.joined(separator: ","))
+        check("P1-B：单条接管批的 advantage 非 0（actor 不因归一化丢梯度）",
+              singleTakeoverBatch?.first?.advantage != nil
+                && abs(singleTakeoverBatch!.first!.advantage) > 1e-6,
+              singleTakeoverBatch.map { String(format: "adv=%.4f", $0[0].advantage) } ?? "无")
+        // 真正的 actor 效果：训练后策略在该状态对 vClass0 的概率应被压低（惩罚真进梯度）。
+        let trained = t2.currentPolicyForTest()
+        let p0After = RLMath.softmax(trained.forward(stateToken: [1]).vLogits)[0]
+        check("P1-B：接管后 vClass0 动作概率下降（惩罚真进 actor 梯度）", p0After < p0Before - 1e-4,
+              String(format: "p0 %.5f → %.5f", p0Before, p0After))
         return 0
     }
 
     // ========================================================================
-    // MARK: - ⑧ P1-4 UNKNOWN 缺口：sealEpisode 不伪造、两段不互串
+    // MARK: - ⑧ P1-4 + P1-A UNKNOWN 缺口：封口不伪造归零、用末条自值 bootstrap 前缀、两段不串
     // ========================================================================
     private static func runUnknownGapCheck(_ check: (String, Bool, String) -> Void) -> Int {
-        print("── ⑧ P1-4 UNKNOWN 缺口：markInvalid 封口已有轨迹（不伪造），恢复后重开，两段不互串 ──")
+        print("── ⑧ P1-4+P1-A UNKNOWN 缺口：丢弃不可靠末条、用其自值 bootstrap 前缀，不伪造归零 ──")
         let trainer = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
                                     ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
+        trainer.setCaptureBatchesForTest(true)
         func feed(_ value: Double) {
             _ = trainer.collect(stateToken: [1],
                                 sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: value),
                                 tookOver: false, speedKmh: 0, speedValid: false,
                                 collision: false, laneOffset: 0, isTerminal: false)
         }
-        // 段 A：A1(value1),A2(value2)
+        // 段 A：A1(value1),A2(value2) 后遇 UNKNOWN
         feed(1.0); feed(2.0)
         check("UNKNOWN 前 pending 有 2 条", trainer.pendingTransitionsForTest().count == 2, "")
-        // UNKNOWN 缺口
         trainer.markInvalid()
         trainer.drainTrainingAndWait()
         check("UNKNOWN 后 pending 清空（不伪造 transition）", trainer.pendingTransitionsForTest().isEmpty, "")
-        // 段 B：B1(value3),B2(value4, 真终止)
+
+        // 段 B：B1(value3),B2(value4, 真终止) —— 验证两段独立
         feed(3.0)
         _ = trainer.collect(stateToken: [1],
                             sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 4.0),
                             tookOver: false, speedKmh: 0, speedValid: false,
                             collision: false, laneOffset: 0, isTerminal: true)
         trainer.drainTrainingAndWait()
+
         let batches = trainer.capturedBatchesForTestSnapshot()
         check("共形成 2 个独立批次（A 段封口 + B 段 episode 结束）", batches.count == 2, "实际 \(batches.count)")
         guard batches.count == 2 else { return 0 }
-        check("A 段批次 2 条", batches[0].count == 2, "")
-        check("B 段批次 2 条", batches[1].count == 2, "")
-        // A 段优势应等于 A 单独跑（tail=0）的结果：两段 reward/ value 完全隔离，B 的 value 3/4 不渗入 A。
-        var isoA: [RLTransition] = [
-            makeTransition(reward: 0, value: 1.0, isTerminal: false),
-            makeTransition(reward: 0, value: 2.0, isTerminal: false)
-        ]
-        PolicyHead.computeGAE(&isoA, gamma: 0.99, lam: 0.95, tailBootstrapValue: 0)
-        // captured 里 valueTarget = raw adv + value（归一化不改 valueTarget）
-        let vtA2 = batches[0][1].valueTarget
-        check("A 段末条 valueTarget 与「A 单独跑」一致（B 段不渗入）",
-              abs(vtA2 - isoA[1].valueTarget) < 1e-9,
-              String(format: "拼接%.4f 单独%.4f", vtA2, isoA[1].valueTarget))
+
+        // P1-A 关键：A 段封口应**丢掉不可靠末条 A2(value2)**、只训练前缀 [A1(value1)]，
+        // 并以 A2 的 value(2) 作 tail bootstrap（非 tail=0）。所以 A 段批只有 1 条。
+        check("P1-A：A 段封口批只含有效前缀 1 条（丢弃不可靠末条 A2）", batches[0].count == 1,
+              "实际 \(batches[0].count)")
+        check("P1-A：B 段结束批 2 条", batches[1].count == 2, "实际 \(batches[1].count)")
+        if batches[0].count == 1 {
+            // 参考：A1 单独跑、tail=A2.value=2。raw adv = 0 + 0.99*2 - 1 = 0.98；valueTarget = 0.98 + 1 = 1.98。
+            var ref: [RLTransition] = [makeTransition(reward: 0, value: 1.0, isTerminal: false)]
+            PolicyHead.computeGAE(&ref, gamma: 0.99, lam: 0.95, tailBootstrapValue: 2.0)
+            let vt = batches[0][0].valueTarget
+            check("P1-A：A 段前缀 valueTarget == 1.98（tail=A2.value，非归零的 0.0）",
+                  abs(vt - 1.98) < 1e-9 && abs(vt - ref[0].valueTarget) < 1e-9,
+                  String(format: "实际%.4f 参考%.4f（归零则%.4f）", vt, ref[0].valueTarget, -1.0 + 1.0))
+            check("P1-A：A 段 advantage 非 0（未被末条归零污染）",
+                  abs(batches[0][0].advantage) > 1e-6,
+                  String(format: "adv=%.4f", batches[0][0].advantage))
+        }
+        // B 段（B2 真终止 value=4, reward 0）：raw adv B2 = 0+0.99*0-4 = -4 → 归一化后两元素均值0。
+        // 关键隔离：B 段 valueTarget 不受 A 段影响（B2 valueTarget = raw adv + value）。
+        // B2 单独跑：(B1 v3,B2 v4 term) adv_B2=-4 → vt=-4+4=0；B1 adv=0.99*4-3+0.99*0.95*(-4)=...
+        var isoB: [RLTransition] = [makeTransition(reward: 0, value: 3.0, isTerminal: false),
+                                    makeTransition(reward: 0, value: 4.0, isTerminal: true)]
+        PolicyHead.computeGAE(&isoB, gamma: 0.99, lam: 0.95)
+        check("B 段末条 valueTarget 与「B 单独跑」一致（A 段不渗入）",
+              abs(batches[1][1].valueTarget - isoB[1].valueTarget) < 1e-9,
+              String(format: "拼接%.4f 单独%.4f", batches[1][1].valueTarget, isoB[1].valueTarget))
         return 0
     }
 
@@ -530,6 +599,42 @@ enum OnlineTrainerSelfTest {
         let fpf = mean(Array(epR.prefix(W))) / Double(fpe)
         let lpf = mean(Array(epR.suffix(W))) / Double(fpe)
         return (lpf - fpf, mean(Array(cv.prefix(W))), mean(Array(cv.suffix(W))), false)
+    }
+
+    // ========================================================================
+    // MARK: - ⑪ P2-C 测试捕获有界 + 默认关闭（防内存无界增长）
+    // ========================================================================
+    private static func runBoundedCaptureCheck(_ check: (String, Bool, String) -> Void) -> Int {
+        print("── ⑪ P2-C 测试捕获：默认关闭不占内存、开启后有界（≤64，不随训练次数无限增长）──")
+        // 默认关闭：即便训练很多批，捕获仍为空（说明默认不占内存）。
+        let off = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
+                                ppoConfig: PPOConfig(), trainEvery: 1, metricsCapacity: 16)
+        for i in 0..<40 {
+            _ = off.collect(stateToken: [Float(i)],
+                            sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 0),
+                            tookOver: false, speedKmh: 0, speedValid: false,
+                            collision: false, laneOffset: 0, isTerminal: true)
+        }
+        off.drainTrainingAndWait()
+        check("默认未开启捕获：40 次训练后捕获仍为空（不占内存）",
+              off.capturedBatchesForTestSnapshot().isEmpty,
+              "实际 \(off.capturedBatchesForTestSnapshot().count)")
+
+        // 开启后：训练 100 批，捕获数必须被限制在 64（有界），而不是 100。
+        let on = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
+                               ppoConfig: PPOConfig(), trainEvery: 1, metricsCapacity: 16)
+        on.setCaptureBatchesForTest(true)
+        for i in 0..<100 {
+            _ = on.collect(stateToken: [Float(i)],
+                           sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 0),
+                           tookOver: false, speedKmh: 0, speedValid: false,
+                           collision: false, laneOffset: 0, isTerminal: true)
+        }
+        on.drainTrainingAndWait()
+        let cap = on.capturedBatchesForTestSnapshot().count
+        check("开启捕获后：100 次训练捕获被限制在 64（有界环形，不无限增长）", cap == 64,
+              "实际 \(cap)")
+        return 0
     }
 
     // ========================================================================

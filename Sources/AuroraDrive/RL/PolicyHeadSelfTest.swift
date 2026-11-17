@@ -227,44 +227,75 @@ enum PolicyHeadSelfTest {
         let ratio = exp((vlp[one[0].vClass] - one[0].logProbV) + (hlp[one[0].hClass] - one[0].logProbH))
         c("单样本 ratio 有限且 > 0", ratio.isFinite && ratio > 0, "ratio=\(fmt(ratio))")
 
-        // ── PPO 四种优势符号 × clip 内外区域：解析梯度逐一与有限差分比对 ──
-        // 现在 makeTransitions 的 advantage 恰为 {-0.6,-0.3,0,0.3}（四种符号），
-        // oldLogProb 取 -1.05 附近 → ratio≈exp(+0.06)≈1.06，落入 clip 内；clipped 取 0.95，
-        // ratio≈1.06 > 0.95 → 必然落在 clip 外（ratio>1 且 A≠0 时 surr1 与 surr2 走不同支）。
-        // 故正/负优势 × clip 内外被同时覆盖，逐一数字校验 vertical 梯度。
-        var quadChecked = 0
-        var quadMaxRel = 0.0
-        var quadNonFinite = 0
-        var quadInfo = ""
-        for idx in 0..<trans.count {
-            let single = [trans[idx]]
-            let (_, g1, _) = head.ppoLossAndGradients(single, config: cfg)
-            for w in [0, 47, 143, 287] where w < head.vertical.weight.count {
-                let orig = head.vertical.weight[w]
-                var hp = head; hp.vertical.weight[w] = orig + h
-                let lp = hp.ppoLossOnly(single, config: cfg)
-                var hm = head; hm.vertical.weight[w] = orig - h
-                let lm = hm.ppoLossOnly(single, config: cfg)
-                let numeric = (lp - lm) / (2 * h)
-                let analyticV = g1.dWv[w]
-                let e = relErr(analyticV, numeric)
-                quadChecked += 1
-                if !analyticV.isFinite || !numeric.isFinite || !e.isFinite {
-                    quadNonFinite += 1
-                    if quadInfo.isEmpty { quadInfo = "t=\(idx) w=\(w)" }
-                    continue
-                }
-                if e > quadMaxRel { quadMaxRel = e }
+        // ── PPO clip 四区域：显式构造 ratio 落入每种区域，断言梯度分支正确 ──
+        // 本仓实现（PolicyHead.ppoLossAndGradients）：
+        //   surr1 = ratio·A；surr2 = clip(ratio, 1-ε, 1+ε)·A；pgElem = -min(surr1, surr2)；
+        //   dpgElem/dratio = -A（min 选中 surr1 → 梯度保留）
+        //                 或 0（min 选中 surr2 且 ratio 已越界 → 梯度归零）；G = dpgDRatio·ratio。
+        // 用默认 ε=0.2（lower=0.8, upper=1.2），vfCoef=entCoef=0 隔离纯策略梯度，
+        // 构造下 4 个个例并**逐区域**核对 dWv（G 经 softmax 传到 h2 的外积）与闭式期望一致——
+        // 即真正验证「该区域走保留分支还是归零分支」，而非只看优势符号。
+        var cfgR = PPOConfig()
+        cfgR.clipEps = 0.2
+        cfgR.vfCoef = 0
+        cfgR.entCoef = 0
+        let epsR = cfgR.clipEps
+        let rState = makeState(7)
+        let rFwd = head.forward(stateToken: rState)
+        let rVlog = rFwd.vLogits.map { Double($0) }
+        let rHlog = rFwd.hLogits.map { Double($0) }
+        let rLpV = PolicyHead.logSoftmax(rVlog)
+        let rLpH = PolicyHead.logSoftmax(rHlog)
+        let rPV = PolicyHead.softmax(rVlog)
+        // h2 = ReLU(trunk1(ReLU(trunk0(x))))（用于闭式 dWv = dLv ⊗ h2）
+        let rx = rState.map { Double($0) }
+        let rh1 = head.trunk0.forward(rx, batch: 1).map { $0 > 0 ? $0 : 0 }
+        let rh2 = head.trunk1.forward(rh1, batch: 1).map { $0 > 0 ? $0 : 0 }
+        let rVC = 0, rHC = 0
+
+        func regionCase(_ name: String, advantage: Double, targetRatio: Double,
+                        expectActive: Bool) {
+            // 构造精确 ratio：把整个 log 比值放在 vertical 的 oldLogProb 上
+            let t = RLTransition(stateToken: rState, vClass: rVC, hClass: rHC,
+                                 logProbV: rLpV[rVC] - log(targetRatio),
+                                 logProbH: rLpH[rHC],
+                                 reward: 0, value: 0, tookOver: false, isTerminal: true,
+                                 advantage: advantage, valueTarget: 0)
+            let ratio = exp((rLpV[rVC] - t.logProbV) + (rLpH[rHC] - t.logProbH))
+            let (_, g, _) = head.ppoLossAndGradients([t], config: cfgR)
+            // 闭式期望：active → G = -A·ratio（保留）；clipped → G = 0（归零）
+            let G = expectActive ? (-advantage * ratio) : 0.0
+            var dLv = [Double](repeating: 0, count: PolicyHead.numV)
+            for k in 0..<PolicyHead.numV {
+                dLv[k] = G * ((k == rVC ? 1.0 : 0.0) - rPV[k])
             }
+            var expDW = [Double](repeating: 0, count: head.vertical.weight.count)
+            for o in 0..<PolicyHead.numV { for i in 0..<PolicyHead.hidden2 {
+                expDW[o * PolicyHead.hidden2 + i] = dLv[o] * rh2[i]
+            }}
+            var maxErr = 0.0, nf = 0
+            for i in 0..<g.dWv.count {
+                let a = g.dWv[i], b = expDW[i]
+                if !a.isFinite || !b.isFinite { nf += 1; continue }
+                let e = abs(a - b); if e > maxErr { maxErr = e }
+            }
+            let maxAbs = g.dWv.map { abs($0) }.max() ?? 0
+            let ratioOk = abs(ratio - targetRatio) < 1e-9
+            // 容差 1e-6（相对）：exp/log 往返 + 96 项外积累加的浮点误差约 1e-9 量级；
+            // 若走了错误分支，保留↔归零差值是 0.5 量级，1e-6 容差足以严格区分。
+            let matchOk = (nf == 0) && (maxErr < 1e-6 * max(1.0, maxAbs))
+            let magOk = expectActive ? (maxAbs > 1e-6) : (maxAbs < 1e-12)
+            c("clip 区域[\(name)] A=\(advantage) ratio=\(targetRatio) "
+              + "\(expectActive ? "保留梯度" : "归零")：ratio精确 + 闭式dWv吻合 + 幅度\(expectActive ? ">0" : "≈0")",
+              ratioOk && matchOk && magOk,
+              "ratio=\(fmt(ratio)) maxErr=\(fmtSci(maxErr)) maxAbs=\(fmtSci(maxAbs)) nf=\(nf)")
         }
-        let signs = Set(trans.map { $0.advantage > 0 ? "+" : ($0.advantage < 0 ? "-" : "0") })
-        c("覆盖优势四象限（含正/负/零，" + "符号集=" + signs.sorted().joined(separator: ",") + "）",
-          signs.contains("+") && signs.contains("-") && signs.contains("0"),
-          "signs=\(signs.sorted())")
-        c("四象限单样本梯度：解析/数值全部有限", quadNonFinite == 0,
-          quadNonFinite == 0 ? "" : quadInfo)
-        c("四象限单样本梯度与有限差分一致（\(quadChecked) 点，最大相对误差 <1e-3）",
-          quadMaxRel < 1e-3, "quadMaxRelErr=\(fmtSci(quadMaxRel))")
+        // (a) 正优势·未超上限(ratio=1.1∈band) → 保留；(b) 正优势·超上限(1.3>1.2) → 归零
+        // (c) 负优势·未破下限(0.9∈band) → 保留；(d) 负优势·破下限(0.7<0.8) → 归零
+        regionCase("a 正优势·未超上限", advantage: 0.5, targetRatio: 1.0 + 0.5 * epsR, expectActive: true)
+        regionCase("b 正优势·超上限", advantage: 0.5, targetRatio: 1.0 + 1.5 * epsR, expectActive: false)
+        regionCase("c 负优势·未破下限", advantage: -0.5, targetRatio: 1.0 - 0.5 * epsR, expectActive: true)
+        regionCase("d 负优势·破下限", advantage: -0.5, targetRatio: 1.0 - 1.5 * epsR, expectActive: false)
         return local
     }
 
@@ -282,27 +313,42 @@ enum PolicyHeadSelfTest {
         let dY: [Double] = [0.3, -0.7, 0.2, 0.9]              // batch=2, out=2
         let (dX, dW, dB) = layer.backward(X, dY, batch: 2)
 
+        // 逐元素检查：解析值/期望值均须 isFinite 且 |差|<tol；任一非有限或数量不符即失败。
+        // （Codex 复审 cc426be：原 `.max()` 在混入 NaN 时行为不可靠，会掩盖假绿。）
+        func elemwiseOK(_ got: [Double], _ want: [Double], _ tol: Double) -> (ok: Bool, maxErr: Double, nf: Int) {
+            var maxErr = 0.0
+            var nf = 0
+            if got.count != want.count { nf += 1 }
+            for i in 0..<min(got.count, want.count) {
+                let a = got[i], b = want[i]
+                if !a.isFinite || !b.isFinite { nf += 1; continue }
+                let e = abs(a - b)
+                if e > maxErr { maxErr = e }
+            }
+            return (nf == 0 && maxErr < tol, maxErr, nf)
+        }
+
         var dWExpect = [Double](repeating: 0, count: 6)
         for r in 0..<2 { for o in 0..<2 { for i in 0..<3 {
             dWExpect[o * 3 + i] += dY[r * 2 + o] * X[r * 3 + i]
         }}}
-        c("dW 手算吻合（误差 <1e-12）",
-          zip(dW, dWExpect).map { abs($0 - $1) }.max()! < 1e-12,
-          "maxErr=\(fmtSci(zip(dW, dWExpect).map { abs($0 - $1) }.max()!))")
+        let wRes = elemwiseOK(dW, dWExpect, 1e-12)
+        c("dW 手算吻合（逐元素有限 + |差|<1e-12）", wRes.ok,
+          "maxErr=\(fmtSci(wRes.maxErr)) nf=\(wRes.nf)")
 
         var dBExpect = [Double](repeating: 0, count: 2)
         for r in 0..<2 { for o in 0..<2 { dBExpect[o] += dY[r * 2 + o] } }
-        c("dB 手算吻合（误差 <1e-12）",
-          zip(dB, dBExpect).map { abs($0 - $1) }.max()! < 1e-12,
-          "maxErr=\(fmtSci(zip(dB, dBExpect).map { abs($0 - $1) }.max()!))")
+        let bRes = elemwiseOK(dB, dBExpect, 1e-12)
+        c("dB 手算吻合（逐元素有限 + |差|<1e-12）", bRes.ok,
+          "maxErr=\(fmtSci(bRes.maxErr)) nf=\(bRes.nf)")
 
         var dXExpect = [Double](repeating: 0, count: 6)
         for r in 0..<2 { for i in 0..<3 { for o in 0..<2 {
             dXExpect[r * 3 + i] += dY[r * 2 + o] * layer.weight[o * 3 + i]
         }}}
-        c("dX 手算吻合（误差 <1e-12）",
-          zip(dX, dXExpect).map { abs($0 - $1) }.max()! < 1e-12,
-          "maxErr=\(fmtSci(zip(dX, dXExpect).map { abs($0 - $1) }.max()!))")
+        let xRes = elemwiseOK(dX, dXExpect, 1e-12)
+        c("dX 手算吻合（逐元素有限 + |差|<1e-12）", xRes.ok,
+          "maxErr=\(fmtSci(xRes.maxErr)) nf=\(xRes.nf)")
         return local
     }
 

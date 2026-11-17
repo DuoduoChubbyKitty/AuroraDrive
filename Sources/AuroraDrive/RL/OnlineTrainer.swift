@@ -288,7 +288,10 @@ public final class OnlineTrainer: @unchecked Sendable {
     private var updateCounter = 0
 
     // ── 自检钩子状态（跨线程，metricsLock 保护）──
+    /// P2-C：自检捕获默认**关闭**，且有界（最多 64 批），避免持续训练时内存无界增长。
+    private var captureBatchesEnabled = false
     private var capturedBatchesForTest: [[RLTransition]] = []
+    private let captureBatchesCapacity = 64
 
     public init(policy: any PolicyUpdatable,
                 rewardConfig: RewardConfig = RewardConfig(),
@@ -357,15 +360,26 @@ public final class OnlineTrainer: @unchecked Sendable {
             previousSpeedValid = false
         }
 
-        // ③ P1-3：人工接管 —— 人类救援动作不进策略梯度
+        // ③ P1-3 + P1-B：人工接管 —— 人类救援动作不进策略梯度。
+        //    把 -takeover 归因到**上一条由策略执行的 AI transition**（作为其额外 reward），并把它
+        //    标记为真实终止（接管＝本 episode 由人接管而结束，是**真实终止**，不是 UNKNOWN 那种
+        //    "后继不可知"），用 flushTerminated 整批训练。
+        //    这样当 pending 恰好只剩 1 条（缓冲截断后）时，该条带上 -10、以终止 semantics 单独成批；
+        //    配合 normalizeAdvantages 的 n==1 返回原始优势（P1-B 修复），惩罚能真正进 actor 梯度，
+        //    不会像「加罚后又被 P1-A 当 UNKNOWN 丢弃 / 或单样本归一化成 0」那样失效。
         if tookOver {
-            // 接管惩罚归因到上一条 AI transition（作为其额外 reward），封口 episode。
             let takeoverPenalty = -rewardConfig.takeover
             if let lastIdx = pendingTransitions.indices.last {
                 pendingTransitions[lastIdx].reward += takeoverPenalty
+                pendingTransitions[lastIdx].isTerminal = true
+                episodeRewardAccumulator += frameRewardValue
+                flushTerminated()            // 整批（末条已置终止）按真实终止训练
+                resetRewardState()
+            } else {
+                // 没有可归因的策略帧：丢弃惩罚，绝不为人类动作伪造 transition。
+                episodeRewardAccumulator += frameRewardValue
+                resetRewardState()
             }
-            episodeRewardAccumulator += frameRewardValue
-            sealEpisode()
             return frameRewardValue
         }
 
@@ -445,9 +459,27 @@ public final class OnlineTrainer: @unchecked Sendable {
         trainAsync(batch, tailBootstrapValue: heldBack.value)
     }
 
-    /// 封口（UNKNOWN / 接管 / 无效帧）：整批训练，尾 bootstrap=0（无可靠后继状态），
-    /// 但**不改写**末条的 isTerminal —— computeGAE 会因 tail=0 视作软截断，而非伪造终止。
+    /// 封口（UNKNOWN / 接管 / 无效帧等「后继状态不可知」的场景）。**P1-A**：不能拿 tail=0 硬训
+    /// ——tail=0 与「当 terminal」在 GAE 里结果完全相同（末条后继 advantage=0），等于把「观测
+    /// 缺失」当「环境终止」，会把末条 valueTarget 归零并向前传播。
+    /// 正确做法：丢掉**没有可靠后继的末条**（其后的状态未知，不能当作终止），用它自身已估计
+    /// 的 value 作为「后继状态价值」的代理，去 bootstrap 前面的有效前缀 —— 即对前缀 [0..n-2]
+    /// 传 tailBootstrapValue = 末条 value。整段无有效前缀（n≤1）时直接丢弃、不训练（不伪造）。
     private func flushSealed() {
+        let n = pendingTransitions.count
+        guard n >= 2 else {
+            pendingTransitions.removeAll(keepingCapacity: true)   // 无有效前缀：丢弃，不伪造
+            return
+        }
+        let droppedLastValue = pendingTransitions[n - 1].value    // 不可靠末条的自价值（代理后继）
+        let prefix = Array(pendingTransitions[0..<(n - 1)])       // 丢掉不可靠末条
+        pendingTransitions.removeAll(keepingCapacity: true)
+        trainAsync(prefix, tailBootstrapValue: droppedLastValue)
+    }
+
+    /// 收尾一个「已明确终止」的轨迹：整批（含刚追加的末条）训练，末条已置 isTerminal=true，
+    /// computeGAE 会按真实终止处理（nextV=0）。用于接管帧把惩罚并入当前帧后立即收尾。
+    private func flushTerminated() {
         guard !pendingTransitions.isEmpty else { return }
         let batch = pendingTransitions
         pendingTransitions.removeAll(keepingCapacity: true)
@@ -468,10 +500,16 @@ public final class OnlineTrainer: @unchecked Sendable {
             // 归一化只作用于 advantage；valueTarget 保留 computeGAE 写好的「原始 adv+value」。
             let normalized = Self.normalizeAdvantages(withAdvantage.map { $0.advantage })
             for i in withAdvantage.indices { withAdvantage[i].advantage = normalized[i] }
-            // 自检钩子：在归一化后、训练前留一份（valueTarget/advantage 可被断言）
-            self.metricsLock.lock()
-            self.capturedBatchesForTest.append(withAdvantage)
-            self.metricsLock.unlock()
+            // 自检钩子（P2-C）：仅当显式开启时、且有界环形追加（默认关闭，不占内存）。
+            if self.captureBatchesEnabled {
+                self.metricsLock.lock()
+                self.capturedBatchesForTest.append(withAdvantage)
+                if self.capturedBatchesForTest.count > self.captureBatchesCapacity {
+                    self.capturedBatchesForTest.removeFirst(
+                        self.capturedBatchesForTest.count - self.captureBatchesCapacity)
+                }
+                self.metricsLock.unlock()
+            }
             let metrics = self.trainingPolicy.updatePPO(transitions: withAdvantage, config: cfg)
             self.lock.lock()
             self.inferencePolicy = self.trainingPolicy
@@ -530,6 +568,11 @@ public final class OnlineTrainer: @unchecked Sendable {
 
     func clearCapturedBatchesForTest() {
         metricsLock.lock(); capturedBatchesForTest.removeAll(); metricsLock.unlock()
+    }
+
+    /// P2-C：自检显式开启/关闭批次捕获（默认关闭；开启后仍有界 64 批）。
+    func setCaptureBatchesForTest(_ on: Bool) {
+        metricsLock.lock(); captureBatchesEnabled = on; metricsLock.unlock()
     }
 
     private static func clampClass(_ value: Int, count: Int) -> Int {
@@ -611,7 +654,13 @@ public final class OnlineTrainer: @unchecked Sendable {
         for x in adv { let d = x - mean; variance += d * d }
         variance /= Double(n)
         let std = variance.squareRoot()
-        if std < eps { return [Double](repeating: 0, count: n) }
+        if std < eps {
+            // P1-B：单样本批（n==1）不能归一化成 0——否则该动作的策略梯度被清零，接管惩罚等
+            // 只会训练 critic、actor 拿不到梯度。单样本直接返回其**原始优势**（PPO ratio 仍正常量级）。
+            // 常量多元素批仍返 0（无优势方差 ⇒ 无策略梯度信息）。
+            if n == 1 { return [adv[0]] }
+            return [Double](repeating: 0, count: n)
+        }
         return adv.map { ($0 - mean) / (std + eps) }
     }
 }
