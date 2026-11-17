@@ -116,8 +116,10 @@ enum PolicyHeadSelfTest {
         c("softmax 归一 Σp == 1（误差 <1e-12）", abs(sum - 1.0) < 1e-12, "Σp=\(fmt(sum))")
 
         let lp = PolicyHead.logSoftmax(logits)
-        let maxErr = zip(lp, p).map { abs($0 - log($1)) }.max() ?? 1
-        c("logSoftmax == log(softmax)（误差 <1e-12）", maxErr < 1e-12, "maxErr=\(fmtSci(maxErr))")
+        // 逐元素：lp 与 log(p) 必须逐元素有限且 |差|<1e-12（不能只取 .max()，NaN 会掩盖）
+        let lpRes = finiteAndClose(lp, p.map { log($0) }, tol: 1e-12)
+        c("logSoftmax == log(softmax)（逐元素有限 + |差|<1e-12）", lpRes.ok,
+          "maxErr=\(fmtSci(lpRes.maxErr)) nf=\(lpRes.nonFinite)")
 
         // 数值稳定性：大 logits 不溢出
         let big: [Double] = [1000.0, 1001.0, 999.0]
@@ -136,12 +138,18 @@ enum PolicyHeadSelfTest {
         let hlp = PolicyHead.logSoftmax(fwd.hLogits.map { Double($0) })
         for _ in 0..<64 {
             let s = head.stochasticSample(vLogits: fwd.vLogits, hLogits: fwd.hLogits, rng: &rng)
-            if abs(s.logProbV - vlp[s.vClass]) > 1e-9 || abs(s.logProbH - hlp[s.hClass]) > 1e-9 {
+            let refV = vlp[s.vClass]
+            let refH = hlp[s.hClass]
+            let dV = s.logProbV - refV
+            let dH = s.logProbH - refH
+            // 显式有限性：采样值/参考值/差值任一非有限即失败（堵 NaN 比较恒 false 的假绿）
+            if !s.logProbV.isFinite || !refV.isFinite || !dV.isFinite || abs(dV) > 1e-9
+                || !s.logProbH.isFinite || !refH.isFinite || !dH.isFinite || abs(dH) > 1e-9 {
                 sampleOk = false
             }
             if s.vClass > 0 { sawNonZero = true }
         }
-        c("采样 logProbV/H == 对应 logSoftmax 项", sampleOk)
+        c("采样 logProbV/H == 对应 logSoftmax 项（含有限性）", sampleOk)
         c("采样能覆盖到非 0 类别（非常数输出）", sawNonZero)
         return local
     }
@@ -279,7 +287,8 @@ enum PolicyHeadSelfTest {
                 if !a.isFinite || !b.isFinite { nf += 1; continue }
                 let e = abs(a - b); if e > maxErr { maxErr = e }
             }
-            let maxAbs = g.dWv.map { abs($0) }.max() ?? 0
+            // maxAbs 只在有限元素上取最大值（非有限已在上方 nf 计数，会令 matchOk=false）
+            let maxAbs = g.dWv.filter { $0.isFinite }.map { abs($0) }.max() ?? 0
             let ratioOk = abs(ratio - targetRatio) < 1e-9
             // 容差 1e-6（相对）：exp/log 往返 + 96 项外积累加的浮点误差约 1e-9 量级；
             // 若走了错误分支，保留↔归零差值是 0.5 量级，1e-6 容差足以严格区分。
@@ -594,8 +603,10 @@ enum PolicyHeadSelfTest {
         let z: [Double] = [-0.3, 1.2, 0.0, -2.0]
         let ls = PolicyHead.logSoftmax(z)
         let sm = PolicyHead.softmax(z)
-        let err = zip(ls, sm).map { abs($0 - log($1)) }.max() ?? 1
-        c("logSoftmax == log(softmax)（4 维，误差 <1e-12）", err < 1e-12, "maxErr=\(fmtSci(err))")
+        // 逐元素：ls 与 log(sm) 必须逐元素有限且 |差|<1e-12（不能只取 .max()）
+        let lsRes = finiteAndClose(ls, sm.map { log($0) }, tol: 1e-12)
+        c("logSoftmax == log(softmax)（4 维，逐元素有限 + |差|<1e-12）", lsRes.ok,
+          "maxErr=\(fmtSci(lsRes.maxErr)) nf=\(lsRes.nonFinite)")
         return local
     }
 
@@ -624,6 +635,23 @@ enum PolicyHeadSelfTest {
     }
     private static func fmtSci(_ v: Double) -> String { String(format: "%.3e", v) }
     private static func fmtPct(_ v: Double) -> String { String(format: "%.1f%%", v * 100) }
+
+    /// 逐元素检查：两数组等长、对应元素全部 isFinite、且 |a−b|<tol。
+    /// 任一元素非有限、或长度不符即判失败（返回 nonFinite 计数）——用于堵死
+    /// 「.max() 在混入 NaN/Inf 时行为不可靠」造成的假绿（Codex 三轮复审 d78f7cc）。
+    private static func finiteAndClose(_ got: [Double], _ want: [Double], tol: Double)
+        -> (ok: Bool, maxErr: Double, nonFinite: Int) {
+        var maxErr = 0.0
+        var nonFinite = 0
+        if got.count != want.count { nonFinite += 1 }
+        for i in 0..<min(got.count, want.count) {
+            let a = got[i], b = want[i]
+            if !a.isFinite || !b.isFinite { nonFinite += 1; continue }
+            let e = abs(a - b)
+            if e > maxErr { maxErr = e }
+        }
+        return (nonFinite == 0 && maxErr < tol, maxErr, nonFinite)
+    }
 
     private static func lossCurve(_ h: [Double]) -> String {
         guard !h.isEmpty else { return "(empty)" }

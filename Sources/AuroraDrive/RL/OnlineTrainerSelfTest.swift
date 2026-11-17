@@ -430,10 +430,10 @@ enum OnlineTrainerSelfTest {
         let singleTakeoverBatch = b2.first { $0.count == 1 && ($0[0].reward <= -9.0) }
         check("存在「单条 + 接管惩罚(-10)」的批", singleTakeoverBatch != nil,
               "批数=\(b2.count) 各批 count=" + b2.map { "\($0.count)" }.joined(separator: ","))
-        check("P1-B：单条接管批的 advantage 非 0（actor 不因归一化丢梯度）",
-              singleTakeoverBatch?.first?.advantage != nil
-                && abs(singleTakeoverBatch!.first!.advantage) > 1e-6,
-              singleTakeoverBatch.map { String(format: "adv=%.4f", $0[0].advantage) } ?? "无")
+        let singleAdv = singleTakeoverBatch?.first?.advantage
+        check("P1-B：单条接管批的 advantage 为有限值且 ≈ -10.0（n==1 保留原优势，拒绝 NaN/Inf/错符号）",
+              singleAdv != nil && singleAdv!.isFinite && abs(singleAdv! - (-10.0)) < 1e-6,
+              singleAdv.map { String(format: "adv=%.6f", $0) } ?? "无")
         // 真正的 actor 效果：训练后策略在该状态对 vClass0 的概率应被压低（惩罚真进梯度）。
         let trained = t2.currentPolicyForTest()
         let p0After = RLMath.softmax(trained.forward(stateToken: [1]).vLogits)[0]
@@ -485,12 +485,13 @@ enum OnlineTrainerSelfTest {
             var ref: [RLTransition] = [makeTransition(reward: 0, value: 1.0, isTerminal: false)]
             PolicyHead.computeGAE(&ref, gamma: 0.99, lam: 0.95, tailBootstrapValue: 2.0)
             let vt = batches[0][0].valueTarget
-            check("P1-A：A 段前缀 valueTarget == 1.98（tail=A2.value，非归零的 0.0）",
-                  abs(vt - 1.98) < 1e-9 && abs(vt - ref[0].valueTarget) < 1e-9,
-                  String(format: "实际%.4f 参考%.4f（归零则%.4f）", vt, ref[0].valueTarget, -1.0 + 1.0))
-            check("P1-A：A 段 advantage 非 0（未被末条归零污染）",
-                  abs(batches[0][0].advantage) > 1e-6,
-                  String(format: "adv=%.4f", batches[0][0].advantage))
+            let advA = batches[0][0].advantage
+            check("P1-A：A 段前缀 valueTarget 为有限值且 ≈1.98（tail=A2.value=2，非归零 0.0）",
+                  vt.isFinite && abs(vt - 1.98) < 1e-6 && abs(vt - ref[0].valueTarget) < 1e-6,
+                  String(format: "实际%.6f 参考%.6f", vt, ref[0].valueTarget))
+            check("P1-A：A 段 advantage 为有限值且 ≈0.98（未被末条归零污染，拒绝 NaN/Inf/错符号）",
+                  advA.isFinite && abs(advA - 0.98) < 1e-6,
+                  String(format: "adv=%.6f", advA))
         }
         // B 段（B2 真终止 value=4, reward 0）：raw adv B2 = 0+0.99*0-4 = -4 → 归一化后两元素均值0。
         // 关键隔离：B 段 valueTarget 不受 A 段影响（B2 valueTarget = raw adv + value）。

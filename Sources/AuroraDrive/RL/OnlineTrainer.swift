@@ -411,9 +411,12 @@ public final class OnlineTrainer: @unchecked Sendable {
         return frameRewardValue
     }
 
-    /// P1-4：封口当前轨迹（用于 UNKNOWN 缺口 / 无有效状态 / 非有限帧）——不伪造
-    /// transition，只把已有轨迹以 tailBootstrapValue=0（无后继状态）训练掉并清空，
-    /// 恢复后从新轨迹重新开始。不计入「已完成 episode」（它不是自然结束）。
+    /// P1-4 / P1-A：封口当前轨迹（用于 UNKNOWN 缺口 / 无有效状态 / 非有限帧）——不伪造
+    /// transition。实现并非「整段以 tailBootstrapValue=0 训练」，而是：**丢弃没有可靠后继的
+    /// 末条**，用它自身已估计的 value 作为「后继状态价值」的代理去 bootstrap 前面的有效前缀
+    /// （对前缀 [0..n-2] 传 tail = 末条 value）；整段无有效前缀（n≤1）时直接丢弃、不训练。
+    /// 清空后从新轨迹重新开始。不计入「已完成 episode」（它不是自然结束）。
+    /// 注意：人工接管走的是 flushTerminated（真实终止），不是本方法。
     public func sealEpisode() { markInvalid() }
 
     /// sealEpisode 的别名，语义同「当前帧无效 / 状态不可用」。
@@ -459,9 +462,10 @@ public final class OnlineTrainer: @unchecked Sendable {
         trainAsync(batch, tailBootstrapValue: heldBack.value)
     }
 
-    /// 封口（UNKNOWN / 接管 / 无效帧等「后继状态不可知」的场景）。**P1-A**：不能拿 tail=0 硬训
-    /// ——tail=0 与「当 terminal」在 GAE 里结果完全相同（末条后继 advantage=0），等于把「观测
-    /// 缺失」当「环境终止」，会把末条 valueTarget 归零并向前传播。
+    /// 封口 **UNKNOWN / 无有效状态 / 非有限帧**（「后继状态不可知」）——**不含人工接管**
+    /// （接管是真实终止，走 flushTerminated）。**P1-A**：不能拿 tail=0 硬训——tail=0 与「当
+    /// terminal」在 GAE 里结果完全相同（末条后继 advantage=0），等于把「观测缺失」当「环境
+    /// 终止」，会把末条 valueTarget 归零并向前传播。
     /// 正确做法：丢掉**没有可靠后继的末条**（其后的状态未知，不能当作终止），用它自身已估计
     /// 的 value 作为「后继状态价值」的代理，去 bootstrap 前面的有效前缀 —— 即对前缀 [0..n-2]
     /// 传 tailBootstrapValue = 末条 value。整段无有效前缀（n≤1）时直接丢弃、不训练（不伪造）。
@@ -477,8 +481,10 @@ public final class OnlineTrainer: @unchecked Sendable {
         trainAsync(prefix, tailBootstrapValue: droppedLastValue)
     }
 
-    /// 收尾一个「已明确终止」的轨迹：整批（含刚追加的末条）训练，末条已置 isTerminal=true，
-    /// computeGAE 会按真实终止处理（nextV=0）。用于接管帧把惩罚并入当前帧后立即收尾。
+    /// 收尾一个「已明确终止」的轨迹（真实终止，**与 UNKNOWN 丢尾语义相反**）：整批训练，
+    /// 末条已 isTerminal=true，computeGAE 按真实终止处理（nextV=0）。
+    /// 用于人工接管：不追加新 transition，而是把 -takeover 惩罚并入**上一条 AI transition** 并将其
+    /// 置为 terminal，然后在此收尾训练该批（惩罚进入 actor 梯度）。
     private func flushTerminated() {
         guard !pendingTransitions.isEmpty else { return }
         let batch = pendingTransitions
@@ -501,15 +507,16 @@ public final class OnlineTrainer: @unchecked Sendable {
             let normalized = Self.normalizeAdvantages(withAdvantage.map { $0.advantage })
             for i in withAdvantage.indices { withAdvantage[i].advantage = normalized[i] }
             // 自检钩子（P2-C）：仅当显式开启时、且有界环形追加（默认关闭，不占内存）。
+            // 读开关与追加/裁剪在同一锁域内完成，避免锁外读开关的条件性数据竞争。
+            self.metricsLock.lock()
             if self.captureBatchesEnabled {
-                self.metricsLock.lock()
                 self.capturedBatchesForTest.append(withAdvantage)
                 if self.capturedBatchesForTest.count > self.captureBatchesCapacity {
                     self.capturedBatchesForTest.removeFirst(
                         self.capturedBatchesForTest.count - self.captureBatchesCapacity)
                 }
-                self.metricsLock.unlock()
             }
+            self.metricsLock.unlock()
             let metrics = self.trainingPolicy.updatePPO(transitions: withAdvantage, config: cfg)
             self.lock.lock()
             self.inferencePolicy = self.trainingPolicy
