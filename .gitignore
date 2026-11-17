@@ -202,3 +202,7 @@ models/aurora_v3_best_ep*.pt
 # V3 部署临时锁/暂存
 models/.v3deploy.lock
 models/.v3build_*/
+
+# 在线训练派生产物：由 tools/v3_exp/export_state_token_model.py 从 checkpoint 重新生成，不入库（避免 46MB 二进制膨胀仓库）
+models/v3_state_token.mlpackage/
+models/v3_state_token.mlmodelc/

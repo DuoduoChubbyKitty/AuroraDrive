@@ -1018,7 +1018,17 @@ struct AuroraDriveLauncher {
                                "--lean-selftest",
                                // 人机共驾采集自检（codrive.csv 表头/同帧对齐/source/向后兼容）。
                                // 同样登记+分发缺一不可。
-                               "--codrive-selftest"]
+                               "--codrive-selftest",
+                               // ── RL 核心自检（B/C/D 域，2026-11-17）──
+                               // 三个自检统一由 B 域 swift-core 接入，避免多域并发改同一区域。
+                               // ⚠️ 登记与分发必须同时存在（本仓多次踩「只登记不分发→假绿」陷阱）。
+                               //   · rl-core-selftest   策略头 前向/采样/解析反向/Adam（B 域）
+                               //   · rl-online-selftest 在线 RL 循环 采集/GAE/PPO/双缓冲（C 域）
+                               //   · rl-accel-selftest  state_token CoreML 加速器（D 域）
+                               // 既有约定用双横杠，但 D 域文档用单横杠，故两种写法都登记。
+                               "--rl-core-selftest", "-rl-core-selftest",
+                               "--rl-online-selftest", "-rl-online-selftest",
+                               "--rl-accel-selftest", "-rl-accel-selftest"]
         // ── 性能基线自检（--perf-selftest）──
         // 只测量、不改逻辑：给出各子系统单次耗时 p50/p95/p99、各模型出结果频率(Hz)、
         // 引擎 CPU%，作为后续所有性能优化的裁判（项目文档里 12 项"想当然的优化"
@@ -1092,6 +1102,23 @@ struct AuroraDriveLauncher {
             let failed = LeanRecordSelfTest.runCoDriveSelfTest()
             let failed2 = LeanRecordSelfTest.runCoDriveFailureSelfTest()
             exit((failed + failed2) == 0 ? 0 : Int32(min(failed + failed2, 127)))
+        }
+
+        // ── RL 核心自检分发（B/C/D 域，2026-11-17 由 B 域 swift-core 统一接入）──
+        // 三个自检都返回失败项数（0 = 全过），与其它自检同一约定。
+        // 同时接受单/双横杠两种写法（D 域文档用单横杠 -rl-accel-selftest）。
+        // 纯内存 + 合成数据（rl-core / rl-online）或读模型文件（rl-accel），
+        // 不截屏、不需要权限、不跑真模型训练。
+        if args.contains("-rl-core-selftest") || args.contains("--rl-core-selftest") {
+            let failed = PolicyHeadSelfTest.run()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+        if args.contains("-rl-online-selftest") || args.contains("--rl-online-selftest") {
+            let failed = OnlineTrainerSelfTest.run()
+            exit(failed == 0 ? 0 : Int32(min(failed, 127)))
+        }
+        if args.contains("-rl-accel-selftest") || args.contains("--rl-accel-selftest") {
+            exit(Int32(StateTokenAccelerator.run()))
         }
 
         // ── AI 助手三证据链自检分发（2026-10-06）──
