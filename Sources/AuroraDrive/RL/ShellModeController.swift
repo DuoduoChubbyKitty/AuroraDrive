@@ -15,8 +15,8 @@
 //  【#5 动作执行链（模型真正自己开）】
 //    runtime 采样动作 → actionExecutor（本控制器注入）→ 主线程落点 →
 //    hardware.applyShellAction（生产实现：ControlEngine hold/release）。
-//    默认 digest 影子（不产生任何按键）；AURORA_RL_LIVE_ACTUATION=1 或 UI 置
-//    liveActuationEnabled 才允许真注入。
+//    默认 live 真注入（模型采样 → 真发 CGEvent 按键 → 车真动）；
+//    AURORA_RL_LIVE_ACTUATION=0 才禁用真注入、退回 digest 影子（不产生任何按键）。
 //
 //  【为什么单独一个文件、用可注入的实现】
 //    本仓纪律「最小侵入」：DriveState 只加几个成员 + 一个 tick 门控，真正的编排收敛
@@ -113,7 +113,7 @@ protocol ShellModeHardware: AnyObject {
 /// func start(windowID: UInt32?) -> Bool
 /// func stop()
 /// var running: Bool
-/// var liveActuationEnabled: Bool   // #5：live 真注入开关（默认 false=digest 影子）
+/// var liveActuationEnabled: Bool   // #5：live 真注入开关（默认 true=live 真注入）
 /// ```
 /// 注意 init **不再有** `init(runtime:)` 便捷形式：它曾隐式访问 DriveState.shared，
 /// 与单例初始化构成重入死锁（复审 #1）。生产由 DriveState.init 末尾传 self 构造。
@@ -151,13 +151,13 @@ final class ShellModeController {
 
     // MARK: #5 动作执行链（live 真注入开关）
 
-    /// 壳模式动作真注入开关：默认 false（digest 影子，**不产生任何按键**）。
-    /// 置 true（或环境 `AURORA_RL_LIVE_ACTUATION=1` 启动）才允许 live 真注入。
+    /// 壳模式动作真注入开关：默认 true（live 真注入，模型采样 → 真发 CGEvent 按键 → 车真动）。
+    /// 环境 `AURORA_RL_LIVE_ACTUATION=0` 才禁用真注入、退回 digest 影子（不产生任何按键）。
     /// 双保险：即使 live 开，ControlEngine 自身的消化开关（用户开关，tick 同步）
     /// 仍在 postKeyEvent 内部把最后一道闸 —— 两闸都开才真按键。
     /// 实例属性（非环境常量）：自测与 UI 可按需切换。
     var liveActuationEnabled =
-        ProcessInfo.processInfo.environment["AURORA_RL_LIVE_ACTUATION"] == "1"
+        ProcessInfo.processInfo.environment["AURORA_RL_LIVE_ACTUATION"] != "0"
 
     /// executor 落点（B1 线程：runtime 在**串行 actionQueue（后台线程）**调 executor；
     /// ControlEngine.hold/release 内部无锁、heldKeys 无保护，绝不能在后台线程碰）。
@@ -222,8 +222,8 @@ final class ShellModeController {
 
         // ④ #5 动作执行链接线 + 起在线训练运行时。
         //    先注 executor 再 start：保证 runtime 启动后第一个采样动作就有落点。
-        //    runtime.digestMode 是发给 executor 的 digest 入参来源；默认影子
-        //    （liveActuationEnabled=false 时恒 digest），live 开才可能 false。
+        //    runtime.digestMode 是发给 executor 的 digest 入参来源；默认 live
+        //    （liveActuationEnabled=true 时恒 false=真注入），live 关才可能 true。
         runtime.digestMode = !liveActuationEnabled
         shellSessionGeneration &+= 1
         let sessionGen = shellSessionGeneration

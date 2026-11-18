@@ -217,7 +217,7 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     }
     private nonisolated(unsafe) var userDigestProviderValue: (() -> Bool)?
 
-    /// #6 统一核算：live 真注入许可（默认读 env AURORA_RL_LIVE_ACTUATION=="1"，
+    /// #6 统一核算：live 真注入许可（默认 true，env AURORA_RL_LIVE_ACTUATION=="0" 才禁用，
     /// Controller/自检可显式覆盖）。传给 executor 的最终有效值：
     /// `effectiveDigest = digestMode(运行时基线) || userDigest(用户开关) || !liveAllowed`。
     nonisolated var liveActuationAllowed: Bool {
@@ -331,9 +331,9 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
         self.headCheckpointURL = headCheckpointURL
         self.accelerator = StateTokenAccelerator()
         // #6：live 真注入许可默认与 App/Controller 同源（env AURORA_RL_LIVE_ACTUATION）。
-        //   许可关闭时传给 executor 的有效 digest 恒为 true（强制只算不真按）。
+        //   默认 true（live 真注入）；env =="0" 才禁用，此时传给 executor 的有效 digest 恒为 true（强制只算不真按）。
         self.liveActuationAllowedValue =
-            ProcessInfo.processInfo.environment["AURORA_RL_LIVE_ACTUATION"] == "1"
+            ProcessInfo.processInfo.environment["AURORA_RL_LIVE_ACTUATION"] != "0"
         if let injected = stateTokenSource {
             self.stateTokenSource = injected
             self.usingInjectedSource = true
