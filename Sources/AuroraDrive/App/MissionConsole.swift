@@ -3623,14 +3623,14 @@ struct CoDriveBar: View {
                 .shadow(color: state.shellModeActive ? Aurora.ice.opacity(0.9) : .clear,
                         radius: 5)
 
-            Text("人机共驾壳模式")
+            Text(state.shellStartCountdown.remaining > 0 ? "取消启动" : "人机共驾壳模式")
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(state.shellModeActive ? Aurora.t1 : Aurora.t2)
 
             Spacer(minLength: 6)
 
             if state.shellModeActive {
-                Text("\(state.leanFrameCount) 帧")
+                Text(String(format: "决策 %.1f Hz", state.shellDecisionHz))
                     .font(.system(size: 8.5, design: .monospaced))
                     .foregroundStyle(Aurora.ice)
             }
@@ -3673,6 +3673,7 @@ struct CoDriveBar: View {
     /// 选窗按钮又因运行中被禁用，用户就卡死在壳模式里出不来。
     /// 只有**未激活**（按钮语义是「启动」）时才受捕获报错门控。
     private var shellToggleEnabled: Bool {
+        if state.shellStartCountdown.remaining > 0 { return true }
         let enabled = Self.shellToggleEnabled(shellActive: state.shellModeActive,
                                               captureError: state.captureModeError)
         if state.shellModeActive && state.captureModeError != nil {
@@ -3940,6 +3941,7 @@ struct CoDriveBar: View {
     // MARK: 状态与配色
 
     private var shellHelp: String {
+        if state.shellStartCountdown.remaining > 0 { return "取消本次训练倒计时" }
         if state.shellModeActive { return "点击停止壳模式（恢复自动驾驶引擎）" }
         if !canStartShellMode {
             return "当前捕获目标出错，点右侧按钮重新选择训练窗口后再启动"
@@ -3954,6 +3956,7 @@ struct CoDriveBar: View {
     }
 
     private var badge: String {
+        if state.shellStartCountdown.remaining > 0 { return "\(state.shellStartCountdown.remaining) 秒" }
         if state.shellModeActive { return "SHELL" }
         if shellErrorText != nil { return "ERR" }
         return "READY"
@@ -3975,6 +3978,7 @@ struct CoDriveBar: View {
     ///            并附上 shellMetrics 的 PPO/速度奖励/存盘摘要；
     ///   已停   → 静态说明壳模式到底是什么。
     private var shellStatusLine: String {
+        if state.shellStartCountdown.remaining > 0 { return "请切到游戏画面，倒计时结束后开始训练" }
         if state.shellModeActive {
             var line = state.shellModeStatus.isEmpty ? "壳模式运行中" : state.shellModeStatus
             if let metrics = state.shellMetrics, !metrics.isEmpty {
@@ -3982,7 +3986,7 @@ struct CoDriveBar: View {
             }
             return line
         }
-        return "人机共驾壳模式：只留 UI 壳 + 训练引擎，模型自己开并学习"
+        return state.shellModeStatus.isEmpty ? "点击后有 30 秒切换到游戏" : state.shellModeStatus
     }
 
     private var shellStatusColor: Color {
@@ -6893,6 +6897,7 @@ struct ContentView: View {
         // 纯待机降到约 1.9Hz —— 待机时界面本就静止，不需要满频刷新。
         // （历史口径：45Hz/8 ≈ 5.6Hz → 20Hz/8 = 2.5Hz → 15Hz/8 ≈ 1.9Hz。）
         var idleSkip = 0
+        let tickAvailable = DispatchSemaphore(value: 1)
         timer.setEventHandler {
             // 这些读取都是常量级，且不写状态，不会触发重绘
             // 精简录制**必须**算 busy：按键快照由 tick 里的 updateLeanSnapshot() 拍，
@@ -6900,6 +6905,7 @@ struct ContentView: View {
             // 短按（<500ms）整段丢失 → 八列标签与实际操作对不上，且 dataset_v3 的
             // skip_all_zero 会把这些样本静默跳过，屏外完全看不出来。
             let busy = state.isDriving || state.isRecording || state.leanIsRecording
+                || state.shellModeActive || state.isOnlineTraining
             if !busy {
                 idleSkip += 1
                 if idleSkip < 8 { return }   // 15Hz / 8 ≈ 1.9Hz 待机刷新
@@ -6907,7 +6913,11 @@ struct ContentView: View {
             } else {
                 idleSkip = 0
             }
-            DispatchQueue.main.async { state.tick() }
+            guard tickAvailable.wait(timeout: .now()) == .success else { return }
+            DispatchQueue.main.async {
+                defer { tickAvailable.signal() }
+                state.tick()
+            }
         }
         timer.resume()
         tickTimer = nil

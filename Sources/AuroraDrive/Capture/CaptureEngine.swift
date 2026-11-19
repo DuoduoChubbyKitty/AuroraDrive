@@ -28,6 +28,7 @@
 // ============================================================================
 
 import AppKit
+import CoreGraphics
 import ScreenCaptureKit
 import CoreVideo
 import CoreImage
@@ -119,7 +120,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
     /// 帧回调（每帧调用，传入 NSImage + CGImage）
     /// NSImage 供录制/现有引用；CGImage 直传下游（推屏/推理/置信度），
     /// 省去下游 NSImage→CGImage 的重复转换（环2）
-    var onFrame: ((NSImage, CGImage) -> Void)?
+    var onFrame: ((NSImage, CGImage, CMTime) -> Void)?
 
     /// YOLO 直通回调（每帧调用，传入 YoloEngine.inputSize×inputSize BGRA 像素缓冲）
     /// CaptureEngine 在源头用 vImage(CPU) 把全屏画面缩放到模型输入尺寸，
@@ -248,10 +249,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
     // MARK: - 私有属性
 
     private var _stream: SCStream?
-    private var stream: SCStream? {
-        get { stateLock.withLock { _stream } }
-        set { stateLock.withLock { _stream = newValue } }
-    }
+    private var stream: SCStream? { stateLock.withLock { _stream } }
     private let captureQueue = DispatchQueue(label: "aurora.capture", qos: .userInteractive)
     private var lastFPSDate: Date = .distantPast
     private var fpsAccumulator: Int = 0
@@ -314,31 +312,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         return 1000.0 / gapMs
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // task-C（2026-10-10）：start/stop 流生命周期串行化
-    // ══════════════════════════════════════════════════════════════════════════
-    /// 上一次 `stop()` 派发的**异步清理任务**（`stopCapture()` + 清池）。
-    ///
-    /// 【为什么需要它 —— 「停止后再选就不行」的竞态根因】
-    ///   `stop()` 为让紧接着的 `start()` 能过 `guard !isCapturing`，
-    ///   把 `stream=nil` / `isCapturing=false` **同步**置了；但真正的
-    ///   `oldStream.stopCapture()` 仍在异步任务里跑。
-    ///   若用户立刻 `start()`：新流 `startCapture()` 可能与**旧流的
-    ///   `stopCapture()` 交错**（同一 SCStream 子系统上的停/启竞争），
-    ///   实测表现就是"停止后再选没反应/黑屏"。
-    ///
-    /// 【修法】`start()` 在**真正建流之前**先 `await` 这个任务完成
-    ///   （见 `startStream` 开头）。用 `await` 而非信号量同步等待 ——
-    ///   **绝不阻塞主线程**（本类是 `@unchecked Sendable` 非 MainActor，
-    ///   但 `start()` 由主线程调用，同步等待会冻 UI）。
-    ///
-    /// 【为什么用 stateLock 保护】`stop()` 在主线程写、`start()` 的 Task 里读，
-    ///   跨线程裸读写是数据竞争（与 `_isCapturing` 同因，见 P0-3 注释）。
-    private var _pendingStopTask: Task<Void, Never>?
-    private var pendingStopTask: Task<Void, Never>? {
-        get { stateLock.withLock { _pendingStopTask } }
-        set { stateLock.withLock { _pendingStopTask = newValue } }
-    }
+    // 等待正常停止，ScreenCaptureKit 超时则解除对新流的阻塞。由 stateLock 保护。
+    private var pendingStop: (generation: Int, deadline: ContinuousClock.Instant)?
+    private var starting = false
 
     /// `applyMode` 早退时**是否已把 desiredMode 写入但未生效**（诊断/日志用）。
     ///
@@ -365,6 +341,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
 
     /// [cap-deep] 帧到达计数（诊断用：确认 SCStream 回调真的在跑）
     private var _deepFrameCounter = 0
+    private var lastOutputGeneration: Int?
 
     /// 抓屏累计帧数（**公开可读**，供 `state` 查询判断"抓屏是否真的活着"）。
     ///
@@ -505,36 +482,28 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
 
     func start() {
         print("[cap-deep] start() 被调用 isCapturing=\(isCapturing) desiredMode=\(desiredMode.label) pid=\(getpid())")
-        guard !isCapturing else {
-            print("[cap-deep] start() 早退：isCapturing 已为 true（重复调用）")
-            return
-        }
-        let startGen = stateLock.withLock {
+        guard let startGen = stateLock.withLock({ () -> Int? in
+            guard !_isCapturing, !starting else { return nil }
             _startGeneration &+= 1
+            starting = true
+            _lastModeError = nil
             return _startGeneration
-        }
+        }) else { return }
 
-        // 用 Task 包装 async 调用
         Task { [weak self] in
-            guard let self = self else { return }
-
-            // ══════════════════════════════════════════════════════════════════
-            // task-C：**建流前先等上一次 stop() 的异步清理跑完**（竞态加固）
-            // ══════════════════════════════════════════════════════════════════
-            // 【为什么必须等】`stop()` 为让本函数能过 `guard !isCapturing`，
-            //   把 `stream=nil` / `isCapturing=false` **同步**置了，但旧流的
-            //   `stopCapture()` 还在异步跑。若不等就 `startCapture()`，
-            //   旧流的"停"与新流的"启"会在同一 SCStream 子系统上交错 ——
-            //   实测表现正是用户报的「停止后再选就没反应」。
-            //
-            // 【为什么用 await 而不是信号量】本函数由**主线程**调用（UI 按钮 /
-            //   socket 命令）。同步等待会冻住主线程（甚至死锁：若清理任务需要
-            //   主线程推进）。`await` 让出执行权，清理任务照常推进 —— **零死锁**。
-            if let pending = self.pendingStopTask {
-                print("[cap-deep] start() 检测到 pendingStopTask → await 其完成（避免旧流 stopCapture 与新流 startCapture 交错）")
-                await pending.value
-                print("[cap-deep] start() pendingStopTask 已完成，继续建流")
-                if self.startGeneration == startGen { self.pendingStopTask = nil }
+            guard let self else { return }
+            defer {
+                self.stateLock.withLock {
+                    if self._startGeneration == startGen { self.starting = false }
+                }
+            }
+            while self.startGeneration == startGen {
+                guard let pending = self.stateLock.withLock({ self.pendingStop }) else { break }
+                if ContinuousClock.now >= pending.deadline {
+                    print("[cap-deep] 旧流停止超时，继续建立新流")
+                    break
+                }
+                try? await Task.sleep(for: .milliseconds(20))
             }
             guard self.startGeneration == startGen else { return }
 
@@ -546,6 +515,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
             let content: SCShareableContent
             do {
                 content = try await SCShareableContent.current
+                guard self.startGeneration == startGen else { return }
                 print("[cap-deep] SCShareableContent OK displays=\(content.displays.count) windows=\(content.windows.count)")
             } catch {
                 guard self.startGeneration == startGen else { return }
@@ -610,7 +580,8 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         //     静态纯函数 —— `start()` 与 `setCaptureHz()` 的**热更路径共用同一份**，
         //     保证"全量 config"逐字段一致（`updateConfiguration` 要求全量传，
         //     见 SCStream.h 签名注释）。
-        let config = Self.makeStreamConfiguration(configHz: targetCaptureHz, display: display)
+        let requestedHz = targetCaptureHz
+        let config = Self.makeStreamConfiguration(configHz: requestedHz, display: display)
         //
         //   像素流：1280×832 @20fps = **85 MB/s**（2026-10-12 定档 20fps，与推理
         //   tick 20Hz 对齐；原 45fps = 192 MB/s，多出的帧每 tick 只消费 1 帧，
@@ -688,62 +659,43 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
             return
         }
 
-        // 启动流（async/await 版本）
+        // 系统可能在 startCapture 返回前交付首帧。
+        let registered = stateLock.withLock {
+            guard _startGeneration == startGen else { return false }
+            _stream = stream
+            return true
+        }
+        guard registered else { return }
         do {
             print("[cap-deep] 即将 startCapture() filter=\(filter) config=\(config.width)x\(config.height)")
             try await stream.startCapture()
-            print("[cap-deep] ✅ startCapture 成功")
-            // 复审 B3（加强）：把「校验代数 + 提交 stream/isCapturing」放进**同一 stateLock
-            //   临界区**，与 stop() 里的「失效代数 + 取走 stream + 清 isCapturing」互斥 ——
-            //   杜绝「后台校验通过→主线程 stop 早退→后台仍发布旧流」的检查-提交竞态。
-            let committed = self.stateLock.withLock { () -> Bool in
-                guard self._startGeneration == startGen else { return false }
-                self._stream = stream
-                self._isCapturing = true
+            let committed = stateLock.withLock {
+                guard _startGeneration == startGen, _stream === stream else { return false }
+                currentDisplay = display
+                _activeMode = desired
+                _modePendingApply = false
+                _activeCaptureHz = requestedHz
+                _lastModeError = nil
+                _isCapturing = true
                 return true
             }
             if !committed {
-                print("[cap-deep] ⚠️ 建流期间已 stop（代数 \(startGen)≠\(self.startGeneration)），丢弃本次建流")
+                // stopCapture 可能在系统真正完成启动前已返回。
                 try? await stream.stopCapture()
                 return
             }
-            self.currentDisplay = display       // 切模式时复用（避免重新查显示器）
-            self.captureMode = desired
-            // task-C 第 3 点闭环：start() **确实应用了** desiredMode →
-            //   清掉"待应用"标记，让 applyMode 早退时留下的期望真正落地。
-            //   日志显式确认"用户上次的选择被沿用了"。
-            if self.modePendingApply {
-                print("[cap-deep] ✅ start() 已应用上次 applyMode 留下的期望模式"
-                      + "=\(self.desiredMode.label)（待应用标记清除）")
-            }
-            self.modePendingApply = false
-            // task-94：记录**已生效**的帧率（诊断/UI 用）。此处 targetCaptureHz
-            //   就是本次建流实际用的值（makeStreamConfiguration(configHz: targetCaptureHz)）。
-            self.activeCaptureHz = self.targetCaptureHz
-            // 复审 B3（残留）：临界区提交时已置 _isCapturing=true，这里**不再**锁外
-            //   重复置位 —— 原重复行会在「提交成功 → stop() 同步置 false → 尾部
-            //   又置 true」竞态下留下 _stream=nil 但 isCapturing=true 的假活态：
-            //   后续 start() 全部早退，抓屏永远无法恢复。
-            self.lastFPSDate = Date()
-            self.lastModeError = nil            // 抓屏真正起来了 → 清掉上一次的失败原因（防陈旧错误常驻心跳）
-            self.resetOwnUIWarning()            // 新一轮录制允许重新告警
-            // 通知遵守同一生命周期：提交与通知之间 stop() 可能已收走状态（代数已
-            //   推进），重读代数确认本次建流仍是当前会话，才发 .started。
-            if self.startGeneration == startGen {
-                self.onModeChange?(self.captureMode)
-                self.onStatusChange?(.started)
-                print("[cap-deep] ✅ 建流完成（isCapturing 已在提交临界区置位）")
-            } else {
-                print("[cap-deep] ⚠️ 建流提交后 stop() 已介入（代数 \(startGen)≠\(self.startGeneration)），跳过 .started 通知")
-            }
+            guard self.stream === stream else { return }
+            resetOwnUIWarning()
+            onModeChange?(desired)
+            onStatusChange?(.started)
+            print("[cap-deep] 建流完成 generation=\(startGen)")
         } catch {
-            guard self.startGeneration == startGen else { return }
-            print("[cap-deep] ❌ startCapture 失败: \(error)")
-            Self.requestScreenRecordingPermissionIfNeeded()
             let reason = "启动捕获失败: \(error.localizedDescription)"
                 + "（若为「屏幕录制」权限被拒，请到系统设置授权后重启 App）"
-            self.lastModeError = reason
-            onStatusChange?(.error(reason))
+            if invalidateFailedStream(stream, reason: reason) {
+                print("[cap-deep] ❌ startCapture 失败: \(error)")
+                Self.requestScreenRecordingPermissionIfNeeded()
+            }
         }
     }
 
@@ -831,7 +783,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
     ///        或改为"先热更、再按实测间隔校验、不符则重启"
     ///
     /// 【回退路径】`updateConfiguration` 抛错 → 停止 + 重启流
-    ///   （复用 `pendingStopTask` 模式避免竞态，见 `stop()` 注释）。
+    ///   （由 `start()` 等待旧流停止）。
     ///   回退会闪一帧，但**保证帧率最终生效**（比"静默不改"安全）。
     ///
     /// 【不在捕获时】只写 `targetCaptureHz`，下次 `start()` 会自动用上。
@@ -864,14 +816,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
             print("[cap-deep] ❌ updateConfiguration 失败: \(error) → 回退重启流")
         }
 
-        // ② 回退路径：停止 + 重启（复用 pendingStopTask 竞态防护）
-        if let pending = pendingStopTask {
-            print("[cap-deep] setCaptureHz 回退：await pendingStopTask 完成")
-            await pending.value
-            pendingStopTask = nil
-        }
+        // ② 回退路径：仅重启本次热更所用的流。
+        guard self.stream === stream else { return }
         stop()          // 同步置状态 + 异步 stopCapture/清池
-        start()         // 内部 await pendingStopTask + 读新 targetCaptureHz 建流
+        start()
         // ⚠️ 刻意**不在这里**置 `activeCaptureHz`：它是"已生效"语义，
         //   必须等 `startStream` 真的 startCapture 成功后才由那里设置（:530）。
         //   若在此乐观置值、而 start 失败 → activeCaptureHz 会说谎。
@@ -879,75 +827,54 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
               + "（activeCaptureHz 待建流成功后更新）")
     }
 
-    /// 停止画面流捕获
-    ///
-    /// ⚠️ 2026-10-09 修复 stop/restart 竞态：原实现把 `isCapturing=false` + `stream=nil`
-    ///   放在 async Task 里（等 stopCapture 完成才设），紧接着的 `start()` 撞
-    ///   `guard !isCapturing` 静默返回 → capture 永不重启 → 用户「停了再选就没反应」。
-    ///   修复：同步置状态（让 start() 立刻能通过 guard），async Task 只做 stopCapture + 清池。
+    /// 立即作废旧流，异步等待系统停止。
     func stop() {
-        // 复审 B3：**无条件先递增启动代数**（早退前），使任何在途 start() 的 Task 在
-        //   await 建流返回后发现代数已变而自行丢弃 —— 即便此刻 isCapturing 还是 false
-        //   （stop 早退分支），也能源泉式作废「stop 之后又被旧任务建起来的流」。
-        // 复审 B3（加强）：把「失效代数 + 取走 stream + 清 isCapturing」放进**同一 stateLock
-        //   临界区**，与 startStream 的「校验代数+提交」互斥，杜绝检查-提交竞态。
-        let oldStream: SCStream? = stateLock.withLock {
+        let old = stateLock.withLock { () -> (SCStream, Int)? in
             _startGeneration &+= 1
-            let taken = _stream
-            _stream = nil
-            _isCapturing = false
-            return taken
+            starting = false
+            guard let oldStream = _stream else { return nil }
+            detachStream()
+            pendingStop = (_startGeneration, ContinuousClock.now + .seconds(1))
+            return (oldStream, _startGeneration)
         }
-        guard let oldStream else {
-            print("[cap-deep] stop() 早退：isCapturing=false stream=nil")
-            return
-        }
-        print("[cap-deep] stop() 进入：desiredMode=\(desiredMode.label) captureMode=\(captureMode.label)")
-        self.currentFrame = nil
-        // ⚠️ **刻意不动 `desiredMode`**（task-C 第 3 点）：
-        //   用户「停止后想换另一个窗口」→ 停止不应抹掉他的选择。
-        //   下一次 `start()` 会用 `desiredMode` 建流（见 startStream）。
-        //   这里显式打日志，让"选择被保留"这件事可观测。
-        print("[cap-deep] stop() 保留 desiredMode=\(desiredMode.label)（下次 start() 将沿用它）")
+        guard let (oldStream, generation) = old else { return }
+        onStatusChange?(.stopped)
 
-        // async 清理：stopCapture + 释放缓冲池（不阻塞调用方）
-        // ⚠️ task-C：把任务句柄存进 `pendingStopTask`，供 `start()` 在建流前 await。
-        //    否则旧流 stopCapture 可能与新流 startCapture 交错（见属性注释）。
-        let cleanup = Task { [weak self] in
-            guard let self = self else { return }
+        Task { [weak self] in
             do {
                 try await oldStream.stopCapture()
-                print("[cap-deep] stop() stopCapture 完成（旧流已真正停止）")
+                print("[cap-deep] 旧流停止完成 generation=\(generation)")
             } catch {
-                // 停止失败不阻塞，继续清理状态
-                print("[cap-deep] stop() stopCapture 抛错（忽略继续）：\(error)")
+                print("[cap-deep] 旧流停止失败 generation=\(generation): \(error)")
             }
-            // P2 修复：停捕获时把四个 CVPixelBufferPool 置 nil，释放空闲缓冲
-            //（下次 start 会按当前分辨率重建）。四个池只在 captureQueue 上被
-            // stream() 回调经 make*BufferPool / upscaleBufferPool 读写，这里同样派发到
-            // captureQueue 串行清理，避免与在途帧回调竞争（否则跨线程写 nil 与建池构成数据竞争）。
-            self.captureQueue.sync {
-                self.nativePool = nil
-                self.nativePoolWidth = 0
-                self.nativePoolHeight = 0
-                self.yoloBufferPool = nil
-                self.yoloBufferPoolSize = 0
-                self.uiBufferPool = nil
-                self.uiPoolWidth = 0
-                self.uiPoolHeight = 0
-                // 第四个池：全分辨率插帧缓冲（每块可达数十 MB，之前漏清）
-                self.upscalePool = nil
-                self.upscalePoolWidth = 0
-                self.upscalePoolHeight = 0
-                // 第五个池：精简录制缓冲（同样每块数 MB，必须一并释放）
-                self.recordPool = nil
-                self.recordPoolWidth = 0
-                self.recordPoolHeight = 0
+            guard let self else { return }
+            self.stateLock.withLock {
+                if self.pendingStop?.generation == generation { self.pendingStop = nil }
             }
-            print("[cap-deep] stop() 清理完成（池已释放）")
-            self.onStatusChange?(.stopped)
         }
-        pendingStopTask = cleanup
+    }
+
+    /// 持有 stateLock 时调用，将清池排在新流注册之前。
+    private func detachStream() {
+        _stream = nil
+        _isCapturing = false
+        _currentFrame = nil
+        captureQueue.async { [self] in
+            nativePool = nil
+            nativePoolWidth = 0
+            nativePoolHeight = 0
+            yoloBufferPool = nil
+            yoloBufferPoolSize = 0
+            uiBufferPool = nil
+            uiPoolWidth = 0
+            uiPoolHeight = 0
+            upscalePool = nil
+            upscalePoolWidth = 0
+            upscalePoolHeight = 0
+            recordPool = nil
+            recordPoolWidth = 0
+            recordPoolHeight = 0
+        }
     }
 
     // MARK: - 窗口枚举 / 自家窗口识别 / 运行时切换（2026-10-08 新增）
@@ -1275,42 +1202,50 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
     }
 
 
-    /// ScreenCaptureKit 每帧回调
-    /// 系统在画面变化时自动调用，传入 CMSampleBuffer
-    func stream(_ stream: SCStream, didStopWithError error: any Error) {
+    @discardableResult
+    private func invalidateFailedStream(_ stream: SCStream, reason: String) -> Bool {
         let didStop = stateLock.withLock {
             guard _stream === stream else { return false }
-            _stream = nil
-            _isCapturing = false
+            detachStream()
+            _lastModeError = reason
             return true
         }
-        guard didStop else { return }
-        let message = "画面采集中断：\(error.localizedDescription)"
-        lastModeError = message
-        onStatusChange?(.error(message))
+        if didStop { onStatusChange?(.error(reason)) }
+        return didStop
+    }
+
+    func stream(_ stream: SCStream, didStopWithError error: any Error) {
+        invalidateFailedStream(stream, reason: "画面采集中断：\(error.localizedDescription)")
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .screen, sampleBuffer.isValid, self.stream === stream else { return }
+        guard type == .screen, sampleBuffer.isValid, CMSampleBufferDataIsReady(sampleBuffer),
+              let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer),
+              let generation = stateLock.withLock({ _stream === stream ? _startGeneration : nil }) else { return }
         if let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false)
             as? [[SCStreamFrameInfo: Any]], let raw = attachments.first?[.status] as? Int,
-           raw != SCFrameStatus.complete.rawValue { return }
+           raw != SCFrameStatus.complete.rawValue, raw != SCFrameStatus.started.rawValue { return }
+
+        let firstFrame = lastOutputGeneration != generation
+        if firstFrame {
+            lastOutputGeneration = generation
+            lastFrameTime = .distantPast
+            lastFPSDate = Date()
+            fpsAccumulator = 0
+        }
 
         // [cap-deep] 帧到达探针：前 3 帧必打，之后每 60 帧打一次（~2s@30fps）
         _deepFrameCounter += 1
         // 公开计数：供 `state.captureFrames` 判断抓屏是否活着（与是否录制无关）
         capturedFrameCount = _deepFrameCounter
-        if _deepFrameCounter <= 3 || _deepFrameCounter % 60 == 0 {
-            print("[cap-deep] 📥 帧到达 #\(_deepFrameCounter) status=\(sampleBuffer.isValid ? "valid" : "INVALID")")
+        if firstFrame || _deepFrameCounter % 60 == 0 {
+            print("[cap-deep] 📥 帧到达 #\(_deepFrameCounter) generation=\(generation) first=\(firstFrame)")
         }
 
         // P1 修复：SCStream delegate 回调不自动包 autoreleasepool，30fps 下每帧
         // 临时对象（NSImage/CGImage/CGDataProvider/vImage 等）若不在帧末释放，
         // 长时间运行会内存缓涨。整个每帧处理逻辑包进 autoreleasepool，帧末统一释放。
         autoreleasepool {
-        // 从 CMSampleBuffer 提取 CVPixelBuffer
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-
         // 诊断：相邻帧到达间隔 + 本帧处理起点（定位"捕获慢 / 处理重"）
         let frameStart = Date()
         // P2 修复：首帧 lastFrameTime 为 .distantPast，timeIntervalSince 会得到 ~5e11 ms
@@ -1469,11 +1404,15 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         }
         let nsImage = NSImage(cgImage: cgImage, size: NSSize(width: dW, height: dH))
 
-        // 更新当前帧
-        currentFrame = nsImage
+        let current = stateLock.withLock {
+            guard _stream === stream else { return false }
+            _currentFrame = nsImage
+            return true
+        }
+        guard current else { return }
 
         // 通过闭包回调输出（UI 显示和模型推理共用）
-        onFrame?(nsImage, cgImage)
+        onFrame?(nsImage, cgImage, sampleBuffer.presentationTimeStamp)
         }   // autoreleasepool 结束
     }
 
@@ -1792,6 +1731,27 @@ enum CaptureSelfTest {
                                        excluding: [candidates[0].id]) == [candidates[1]], "")
         ck("云端恢复保留同一实例",
            GameLauncher.replacements(for: candidates[1], in: candidates) == [candidates[1]], "")
+        let loading = CapturableWindow(ownerPID: 200, id: 201, applicationName: "Google Chrome",
+                                       bundleIdentifier: chrome, title: "", width: 1280, height: 720,
+                                       isGame: false, isOwn: false)
+        let playing = CapturableWindow(ownerPID: 200, id: 201, applicationName: "Google Chrome",
+                                       bundleIdentifier: chrome, title: "会话", width: 1280, height: 720,
+                                       isGame: false, isOwn: false)
+        ck("云端启动跟随 Chrome 新前台窗口，允许启动进程转交",
+           BrowserLauncher.launchedWindow(in: [candidates[0], loading], browserBundleID: chrome,
+                                         browserPID: 999, frontWindowID: loading.id,
+                                         existing: [candidates[0].id], allowReuse: true) == loading, "")
+        ck("多个云端候选时优先本次启动的前台窗口",
+           BrowserLauncher.launchedWindow(in: Array(candidates.prefix(2)), browserBundleID: chrome,
+                                         browserPID: 100, frontWindowID: candidates[1].id,
+                                         existing: [], allowReuse: true) == candidates[1], "")
+        ck("重复启动可以复用已在前台的云端窗口",
+           BrowserLauncher.launchedWindow(in: [candidates[0]], browserBundleID: chrome,
+                                         browserPID: 999, frontWindowID: candidates[0].id,
+                                         existing: [candidates[0].id], allowReuse: true) == candidates[0], "")
+        ck("窗口标题变化后保持云端绑定",
+           BrowserLauncher.isSameWindow(loading, playing)
+               && !BrowserLauncher.isSameWindow(playing, candidates[1]), "")
         if gameSourcesOnly {
             let launcher = GameLauncher()
             launcher.discover()

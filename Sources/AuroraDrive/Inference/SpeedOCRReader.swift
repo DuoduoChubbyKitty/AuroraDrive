@@ -188,7 +188,7 @@ final class SpeedOCRReader {
     /// OCR 推理时间闸（秒）：15Hz 读速度表。
     /// 2026-09-12 由 30Hz 降为 15Hz：速度是缓变量，15Hz 对控制闭环绰绰有余，
     /// 游戏满载时（本进程线程被挤到效率核）每秒推理次数减半 = 卡顿痛感减半。
-    /// 多帧确认 confirmCount=3 在 15Hz 下窗口 200ms，依然远快于驾驶反应需求。
+    /// 2026-11-19：多帧确认已删除（见 finish 内注释），现每条 OCR 读数直接输出 = 15Hz 全速刷新。
     nonisolated static let inferInterval: TimeInterval = 1.0 / 15.0
 
     /// 车速合理范围（km/h），超出视为识别噪声
@@ -207,21 +207,10 @@ final class SpeedOCRReader {
     /// 跨阈值视为噪声帧，置信度置 0（speedValid 判 false，走降级路径），不更新 speedKmh
     nonisolated static let maxJumpKmh: Double = 60.0
 
-    /// 多帧确认：最近 N 帧参与投票（N = confirmCount）
-    /// - 注意：整数速度在单调加减速时逐帧 ±1~2 km/h，靠 confirmToleranceKmh 容差
-    ///   把相邻读数归为"同读数"，否则平台值之外永无确认（见 finish Layer 3）。
-    nonisolated static let confirmCount: Int = 3
-
-    /// 多帧确认窗口：仅在最近 confirmWindowSec 秒内的样本参与投票
-    nonisolated static let confirmWindowSec: TimeInterval = 1.0
-
-    /// 多帧确认的读数容差（km/h）：|a-b| <= 此值视为"同读数"
-    /// - 大跳变已由 Layer 2 maxJumpKmh=60 挡住，此容差只针对逐帧微扰，不冲突
-    nonisolated static let confirmToleranceKmh: Int = 2
-
-    /// 多帧确认最少一致帧数（严格多数：> confirmCount/2，由 confirmCount 派生）
-    /// - confirmCount=3 → 2；confirmCount=5 → 3
-    nonisolated static var minConfirmAgreement: Int { confirmCount / 2 + 1 }
+    /// ⚠️ 2026-11-19：多帧确认（confirmCount / confirmWindowSec / confirmToleranceKmh /
+    /// minConfirmAgreement / confirmedSpeed / candidates）已按用户要求**整体删除**。
+    /// 原因：游戏急加速太快，多帧投票会把加速段的真实读数当噪声作废（详见 finish 内注释）。
+    /// 现为单帧直读 + Layer1 量程 + Layer2 大跳变 两道防线。
 
     // MARK: - PP-OCRv6 整行路径常量
 
@@ -325,7 +314,6 @@ final class SpeedOCRReader {
 
     /// 多帧确认候选历史：[(speed: Int, time: Date)]，每次成功入队推理追加一项
     @ObservationIgnored
-    private var candidates: [(speed: Int, time: Date)] = []
 
     // MARK: - 初始化
 
@@ -812,66 +800,26 @@ final class SpeedOCRReader {
         // 跨阈值视为噪声帧：不再静默沿用旧值假装新鲜读数，而是把本帧置信度置 0，
         // 让下游 speedValid（conf>0.6）判 false，走正规的"读不到→降级"路径。
         // speedKmh 保留旧值仅供显示；lastValidSpeed 不更新，避免错误读数污染下一帧基准。
+        // ⚠️ 阈值 60 km/h 远大于游戏急加速的帧间变化（40 km/h/s × 67ms ≈ 2.7），
+        //   只拦真正的误读（如 27→299），不拦真实的急加速。
         if let last = lastValidSpeed, abs(Double(speed) - last) > Self.maxJumpKmh {
             errorMessage = "jump too large \(last)→\(speed)"
             confidence = 0
             return
         }
-        // Layer 3: 多帧确认（容差内同读数 ≥ minConfirmAgreement 才输出）
-        let now = Date(timeIntervalSinceReferenceDate: observedAt)
-        candidates.append((speed, now))
-        // 截断超出时间窗的旧候选
-        let windowStart = now.addingTimeInterval(-Self.confirmWindowSec)
-        candidates.removeAll { $0.time < windowStart }
-        let recent = Array(candidates.suffix(Self.confirmCount))
-        guard let confirmed = Self.confirmedSpeed(
-            in: recent,
-            tolerance: Self.confirmToleranceKmh,
-            minAgreement: Self.minConfirmAgreement
-        ) else {
-            // 候选不足或不一致，暂不输出（置信度已清零）
-            return
-        }
+        // ── Layer 3 已删除（2026-11-19 用户拍板）──
+        // 原实现是「多帧确认投票」：最近 3 帧里 ≥2 帧读数差 ≤2 km/h 才输出。
+        // 游戏急加速实测（56→98→108→111，约 40 km/h/s）：相邻帧差 ≈2.7 km/h > 容差 2
+        // → 投票永远凑不齐 → 急加速段读数全部作废（conf=0、速度冻结几秒后一跳一大截）。
+        // 改为**单帧直读**：OCR 每帧读数直接输出，误读由 Layer 1（量程）+
+        // Layer 2（>60 大跳变）拦截——它们不拦真实急加速，只拦明显噪声。
 
-        speedKmh = Double(confirmed)
+        speedKmh = Double(speed)
         confidence = result.confidence
-        lastValidSpeed = Double(confirmed)
+        lastValidSpeed = Double(speed)
         lastResultTime = Date()   // 兼容诊断/UI；控制新鲜度只看单调观测时刻
         lastObservationUptime = observedAt
         errorMessage = nil
-    }
-
-    /// 多帧确认：在容差范围内分组投票，返回通过确认的速度（或 nil）
-    /// - 对每个候选，统计列表内与它差值 <= tolerance 的"同读数"个数；
-    ///   个数 >= minAgreement 才算确认，取同读数最多者
-    /// - 平票时直接比较候选自身 `item.time`，取组内**最新**成员（不能用组内
-    ///   最大时间 latest 作平票键：同一连通组所有成员 latest 相同，永远平票，
-    ///   会错误返回最旧候选）
-    /// - 容差解决"整数速度单调加减速时逐帧 ±1~2 km/h、永远凑不齐严格相等"的问题
-    /// - O(n²)，但 n = confirmCount（默认 3），开销可忽略
-    private static func confirmedSpeed(
-        in list: [(speed: Int, time: Date)],
-        tolerance: Int,
-        minAgreement: Int
-    ) -> Int? {
-        guard !list.isEmpty else { return nil }
-        var bestSpeed: Int = list[list.count - 1].speed
-        var bestCount: Int = 0
-        var bestTime: Date = .distantPast
-        for item in list {
-            var count = 0
-            for other in list where abs(other.speed - item.speed) <= tolerance {
-                count += 1
-            }
-            // 平票取最新：用 item.time（候选自身时间戳）直接比较
-            if count > bestCount || (count == bestCount && item.time > bestTime) {
-                bestCount = count
-                bestSpeed = item.speed
-                bestTime = item.time
-            }
-        }
-        guard bestCount >= minAgreement else { return nil }
-        return bestSpeed
     }
 
     /// 停止驾驶时清空：递增 generation 让所有在途 OCR 写回失败
@@ -887,7 +835,6 @@ final class SpeedOCRReader {
         lastInferTime = nil
         lastValidSpeed = nil
         lastOCRDiagnostic = ""
-        candidates.removeAll(keepingCapacity: true)
         // 静止帧复用缓存一并清空（新会话从干净状态开始）
         Self.lastFrameHash = []
         Self.lastFrameResult = nil

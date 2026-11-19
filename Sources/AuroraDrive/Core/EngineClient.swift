@@ -142,7 +142,7 @@ final class EngineClient {
     ///     让版本守卫强制重启引擎（`isEngineStale` 的 stale 判据，见 `:265`；
     ///     原写 `EngineClient:227` 是旧行号，2026-10-18 修正）。
     // 4 = 路况配置、真实零速有效性与卡死横幅同步；旧引擎须重启。
-    nonisolated static let protocolVersion = 5
+    nonisolated static let protocolVersion = 8
 
     // ── UI 读取的状态 ──
     private(set) var isActive = false          // 引擎模式已激活（连接成功）

@@ -56,12 +56,39 @@ enum BrowserLauncher {
             $0.bundleIdentifier == browserBundleID && $0.width >= 640 && $0.height >= 360
                 && (browserPID == nil || $0.ownerPID == browserPID)
         }
-        let titled = pool.filter {
-            $0.title.localizedCaseInsensitiveContains("异环")
-                || $0.title.contains("云游戏")
-                || $0.title.localizedCaseInsensitiveContains("wanmei")
-        }
+        let titled = pool.filter { hasGameTitle($0.title) }
         let newTitled = titled.filter { !existing.contains($0.id) }
         return newTitled.isEmpty ? titled : newTitled
+    }
+
+    static func launchedWindow(in windows: [CapturableWindow], browserBundleID: String,
+                               browserPID: pid_t, frontWindowID: CGWindowID?,
+                               existing: Set<CGWindowID>, allowReuse: Bool) -> CapturableWindow? {
+        let candidates = windows.filter {
+            $0.bundleIdentifier == browserBundleID && $0.ownerPID != nil
+                && $0.width >= 640 && $0.height >= 360
+        }
+        let newWindows = candidates.filter { !existing.contains($0.id) }
+        // Chrome can hand --app off to its already running process.
+        if let front = newWindows.first(where: { $0.id == frontWindowID }),
+           hasGameTitle(front.title)
+            || (browserBundleID == "com.google.Chrome" && newWindows.count == 1) {
+            return front
+        }
+        let newGameWindows = newWindows.filter { hasGameTitle($0.title) }
+        let launched = newGameWindows.filter { $0.ownerPID == browserPID }
+        if launched.count == 1 { return launched.first }
+        if newGameWindows.count == 1 { return newGameWindows.first }
+        guard allowReuse, newWindows.isEmpty else { return nil }
+        return candidates.first { $0.id == frontWindowID && hasGameTitle($0.title) }
+    }
+
+    static func isSameWindow(_ lhs: CapturableWindow, _ rhs: CapturableWindow) -> Bool {
+        lhs.id == rhs.id && lhs.ownerPID != nil && lhs.ownerPID == rhs.ownerPID
+            && lhs.bundleIdentifier == rhs.bundleIdentifier
+    }
+
+    static func hasGameTitle(_ title: String) -> Bool {
+        title.contains("异环") || title.contains("云游戏") || title.localizedCaseInsensitiveContains("wanmei")
     }
 }

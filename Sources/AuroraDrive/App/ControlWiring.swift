@@ -237,26 +237,18 @@ extension DriveState {
     // ────────────────────────────────────────────────────────────────────
     // ④ 四挡降级链（GEAR 1..4 的真实现）
     // ────────────────────────────────────────────────────────────────────
-    /// 手动切挡。
-    /// 降级链本身是自动的（degradeStm 按健康度走），这里提供的是**人工干预**：
-    ///   GEAR 1/2（模型侧） → 解除强制规则，让模型接回
-    ///   GEAR 3/4（规则侧） → 置 forceRuleMode，引擎立刻切纯规则
-    /// 界面上的高亮始终跟随 `mode`（引擎回报的真实档位），不是本地猜测。
+    /// 手动切挡 = **档位锁定**（2026-11-19 用户需求：点哪个档位就锁死哪个档位，
+    /// 降级链不得自作主张往下掉；再点同一档位按钮 = 解除锁定，恢复自动降级链）。
+    ///   点「端到端主驾」→ modeLock = .e2e：锁死端到端，永不掉纯规则
+    ///   点「纯规则兜底」→ modeLock = .rule：锁死纯规则
+    ///   再点当前已锁定的档位 → modeLock = nil：解除锁定
     func selectGear(_ gear: DriveMode) {
-        switch gear {
-        case .e2e, .yolo:
-            if forceRuleMode {
-                forceRuleMode = false
-                pushConfig(reason: "手切 GEAR=\(gear.rawValue)→解除强制规则")
-            }
-            // 模型侧两档的实际归属由降级链按模型存活情况决定，
-            // 人工只能表达「我希望走模型」，不能伪造「M9 活着」。
-        case .rule:
-            // ⚠️ 2026-09-30：.recover（脱困）档已删除，规则侧只剩 .rule
-            if !forceRuleMode {
-                forceRuleMode = true
-                pushConfig(reason: "手切 GEAR=\(gear.rawValue)→强制规则")
-            }
+        if modeLock == gear {
+            modeLock = nil
+            pushConfig(reason: "档位锁定解除（\(gear.rawValue)）→ 恢复自动降级链")
+        } else {
+            modeLock = gear
+            pushConfig(reason: "档位锁定=\(gear.rawValue)（降级链暂停）")
         }
     }
 
@@ -270,6 +262,10 @@ extension DriveState {
             "sport":             sportMode,
             "controlDisabled":   controlDisabled,
             "forceRule":         forceRuleMode,
+            // 档位锁定 + 速度表 ROI 归属：两者都在引擎进程生效（tick 与建流在那边）。
+            // modeLock 序列化为 rawValue 字符串（"端到端主驾"/"纯规则兜底"）。
+            "modeLock":          modeLock?.rawValue ?? NSNull(),
+            "cloudROIHint":      cloudROIHint,
             "expert":            expertMode,
             "glyph":             glyphMode,
             "degradeThreshold":  degradeThreshold,

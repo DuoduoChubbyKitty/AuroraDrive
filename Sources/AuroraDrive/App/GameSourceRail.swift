@@ -6,10 +6,46 @@ import UniformTypeIdentifiers
 enum GameWindowFocus {
     static func isFocused(_ windowID: CGWindowID, pid: pid_t) -> Bool {
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return false }
+        return (frontWindow(for: pid)?[kCGWindowNumber as String] as? Int) == Int(windowID)
+    }
+
+    private static func frontWindow(for pid: pid_t) -> [String: Any]? {
         let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]]
-        let first = windows?.first { ($0[kCGWindowOwnerPID as String] as? Int) == Int(pid)
+        return windows?.first { ($0[kCGWindowOwnerPID as String] as? Int) == Int(pid)
             && ($0[kCGWindowLayer as String] as? Int) == 0 }
-        return (first?[kCGWindowNumber as String] as? Int) == Int(windowID)
+    }
+
+    static func foregroundWindowID(for bundleID: String) -> CGWindowID? {
+        guard let app = NSWorkspace.shared.frontmostApplication, app.bundleIdentifier == bundleID,
+              let id = frontWindow(for: app.processIdentifier)?[kCGWindowNumber as String] as? Int else { return nil }
+        return CGWindowID(exactly: id)
+    }
+
+    static func browserWindows(_ browser: BrowserLauncher.Browser) -> [CapturableWindow] {
+        let pids = Set(NSRunningApplication.runningApplications(withBundleIdentifier: browser.bundleID)
+            .map(\.processIdentifier))
+        let ordered = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]]
+        return (ordered ?? []).compactMap { window in
+            guard window[kCGWindowLayer as String] as? Int == 0,
+                  let owner = window[kCGWindowOwnerPID as String] as? Int, let pid = pid_t(exactly: owner),
+                  pids.contains(pid), let number = window[kCGWindowNumber as String] as? Int,
+                  let id = CGWindowID(exactly: number),
+                  let rawBounds = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: rawBounds as CFDictionary),
+                  bounds.width >= 640, bounds.height >= 360 else { return nil }
+            let title = window[kCGWindowName as String] as? String ?? ""
+            return CapturableWindow(ownerPID: pid, id: id, applicationName: browser.name,
+                                    bundleIdentifier: browser.bundleID, title: title,
+                                    width: Int(bounds.width.rounded()), height: Int(bounds.height.rounded()),
+                                    isGame: BrowserLauncher.hasGameTitle(title), isOwn: false)
+        }
+    }
+
+    static func existingWindowIDs() -> Set<CGWindowID> {
+        let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]]
+        return Set((windows ?? []).compactMap {
+            ($0[kCGWindowNumber as String] as? Int).flatMap(CGWindowID.init(exactly:))
+        })
     }
 
     static func exists(_ windowID: CGWindowID, pid: pid_t) -> Bool {
@@ -78,6 +114,7 @@ final class GameLauncher {
     /// 云游戏「真实浏览器窗口」的采集目标（window id + 所属浏览器 pid），用于聚焦/保持前台。
     private(set) var cloudTargetWindowID: CGWindowID?
     private(set) var cloudTargetAppPID: pid_t?
+    private(set) var launchedCloudWindow: CapturableWindow?
 
     func discover() {
         let ws = NSWorkspace.shared
@@ -176,7 +213,10 @@ final class GameLauncher {
         busy = true
         needsWindow = true
         choices = []
-        defer { busy = false }
+        defer {
+            busy = false
+            state.finishLauncherWindowConnection(error: needsWindow ? status : nil)
+        }
         do {
             if cloud {
                 // 用系统真实浏览器打开（Chrome 优先、Safari 兜底），再抓浏览器窗口。
@@ -186,30 +226,49 @@ final class GameLauncher {
                     return
                 }
                 status = "正在用 \(browser.name) 打开云游戏"
-                let existing = Set(await CaptureEngine.listWindows().map(\.id))
+                let existing = GameWindowFocus.existingWindowIDs()
                 let app = try await BrowserLauncher.openCloudGame(BrowserLauncher.cloudGameURL, browser: browser)
                 status = "等待云游戏窗口（\(browser.name)）"
-                let deadline = ProcessInfo.processInfo.systemUptime + 90
-                while ProcessInfo.processInfo.systemUptime < deadline {
-                    let windows = await CaptureEngine.listWindows()
-                    let launched = BrowserLauncher.gameWindows(in: windows, browserBundleID: browser.bundleID,
-                                                               browserPID: app.processIdentifier, excluding: existing)
-                    let matches = launched.isEmpty
-                        ? BrowserLauncher.gameWindows(in: windows.filter { !existing.contains($0.id) },
-                                                      browserBundleID: browser.bundleID, browserPID: nil)
-                        : launched
-                    if matches.count == 1, let win = matches.first {
-                        await bind(win, state: state)
-                        return
+                let launchedAt = ProcessInfo.processInfo.systemUptime
+                let deadline = launchedAt + 90
+                var retryWindow: CapturableWindow?
+                var captureFailures = 0
+                var captureError: String?
+                while ProcessInfo.processInfo.systemUptime < deadline, !Task.isCancelled {
+                    // CG supplies window IDs in z-order. The capture process resolves the selected ID to an SCWindow.
+                    let windows = GameWindowFocus.browserWindows(browser)
+                    let front = windows.first?.id
+                    let launchSettled = ProcessInfo.processInfo.systemUptime - launchedAt >= 1
+                    let retained = (launchSettled ? launchedCloudWindow : nil).flatMap { previous in
+                        windows.first { $0.id == front && BrowserLauncher.isSameWindow(previous, $0) }
                     }
-                    if matches.count > 1 {
-                        choices = matches
-                        status = "请选择云游戏窗口"
-                        return
+                    let retry = retryWindow.flatMap { previous in
+                        windows.first { BrowserLauncher.isSameWindow(previous, $0) }
+                    }
+                    if let win = BrowserLauncher.launchedWindow(in: windows, browserBundleID: browser.bundleID,
+                                                               browserPID: app.processIdentifier,
+                                                               frontWindowID: front, existing: existing,
+                                                               allowReuse: launchSettled) ?? retry ?? retained,
+                       launchSettled || !win.title.isEmpty {
+                        if win.id != retryWindow?.id { captureFailures = 0 }
+                        await bind(win, state: state)
+                        if state.captureMode == .window(id: win.id), state.captureModeError == nil {
+                            launchedCloudWindow = win
+                            return
+                        }
+                        captureError = state.captureModeError
+                        retryWindow = win
+                        captureFailures += 1
+                        if captureFailures >= 4, let pid = win.ownerPID, GameWindowFocus.exists(win.id, pid: pid) {
+                            return
+                        }
+                        status = "正在重新连接云游戏画面"
+                        try await Task.sleep(for: .milliseconds(250 * min(captureFailures, 4)))
+                        continue
                     }
                     try await Task.sleep(for: .milliseconds(250))
                 }
-                status = "未找到浏览器里的云游戏窗口（请确认已打开并进入游戏）"
+                status = captureError ?? "未能连接云游戏窗口，请将云游戏页面切到前台后重试"
                 return
             }
             // 本地：外置盘架构下「机器唯一正确实例」由 LaunchAgent com.dupi.yihuan.autolaunch
@@ -320,6 +379,14 @@ final class GameLauncher {
     }
 
     private(set) var boundWindow: CapturableWindow?
+
+    func isLaunchedCloudWindow(_ window: CapturableWindow) -> Bool {
+        launchedCloudWindow.map { BrowserLauncher.isSameWindow($0, window) } ?? false
+    }
+
+    func rememberCloudReplacement(_ window: CapturableWindow) {
+        launchedCloudWindow = window
+    }
 
     static func replacements(for target: CapturableWindow, in windows: [CapturableWindow]) -> [CapturableWindow] {
         if target.bundleIdentifier == bundleID { return matchesAnyInstance(windows) }

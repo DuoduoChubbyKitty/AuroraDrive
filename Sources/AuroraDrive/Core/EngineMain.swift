@@ -1908,13 +1908,13 @@ enum EngineMain {
                         state.beginEngineDriving(id: ackID, mode: mode, pid: targetPID)
                         let deadline = Date().addingTimeInterval(10)
                         while generation == EngineGlobals.driveStartGeneration, state.driveRequestID == ackID {
-                            if state.isDriving, state.managedDriveCanRun() {
+                            if state.isDriving, state.managedDriveCanStart() {
                                 let data = requestedID.map { ["windowID": $0 as Any] }
                                 sendAck(id: ackID, cmd: "start", ok: true, detail: "已开始驾驶", data: data, server: server)
                                 return
                             }
                             if let error = state.managedDriveFailure() ?? (!state.isDriving ? "驾驶权限或状态未就绪" : nil)
-                                ?? (Date() >= deadline ? "等待游戏画面、V3 或窗口焦点超时" : nil) {
+                                ?? (Date() >= deadline ? state.managedDriveTimeoutReason() : nil) {
                                 state.stopDriving()
                                 sendAck(id: ackID, cmd: "start", ok: false, detail: error, server: server)
                                 return
