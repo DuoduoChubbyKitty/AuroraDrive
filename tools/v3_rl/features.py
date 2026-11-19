@@ -225,7 +225,7 @@ def extract_all(clips_dir: Path, ckpt: Path, cache_dir: Path, device: str = "aut
             order.append(key)
         by_clip[key].append(gi)
 
-    model = load_v3_model(Path(ckpt), device)
+    model = None
     manifest = {"clips": [], "device": device}
     total = 0
     t0 = time.time()
@@ -241,10 +241,13 @@ def extract_all(clips_dir: Path, ckpt: Path, cache_dir: Path, device: str = "aut
                 break
             idx = idx[:remain]
         if out_npz.exists():
-            n = int(np.load(out_npz)["vertical"].shape[0])
+            with np.load(out_npz) as cached:
+                n = int(cached["vertical"].shape[0])
             manifest["clips"].append({"clip": name, "frames": n, "cached": True})
             total += n
             continue
+        if model is None:
+            model = load_v3_model(Path(ckpt), device)
         cache = extract_clip(model, ds, idx, key, device, batch_size)
         cache.save(out_npz)
         n = cache.vertical.shape[0]

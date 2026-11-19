@@ -70,6 +70,7 @@
 //   发起第二次预测、不排队堆积。
 
 import Foundation
+import Accelerate
 @preconcurrency import CoreML
 import Observation
 import os
@@ -219,7 +220,7 @@ struct V3Decision: Sendable, Equatable {
 /// 【为什么存 float16 而不是 uint8】两帧都要参与推理，且模型吃 float16；
 ///   在写入时就 `/255` 归一化，推理时只需拼接——避免每帧重复做 24 次除法
 ///   （24 × 32.2 万元素 @15fps ≈ 每秒 1.16 亿次浮点运算，纯属浪费）。
-///   代价是内存：24 × (258048 + 64512) × 2B ≈ 15.5 MB，属可接受范围。
+///   满窗保留 3 张高清与 24 张低清，像素缓冲合计约 4.65 MB。
 ///
 /// 【为什么帧数不足时用"最早帧填充"】训练侧 `clamp_frame = max(0, fi)`
 ///   （`dataset_v3.py:555`）——窗口回看越界时钳到第 0 帧。运行时的等价语义
@@ -258,10 +259,8 @@ struct V3FrameRingBuffer {
 
     init(capacity: Int = V3InputContract.totalFrames) {
         self.capacity = max(1, capacity)
-        hiStorage = Array(repeating: [Float16](repeating: 0, count: V3InputContract.hiFrameElements),
-                          count: self.capacity)
-        loStorage = Array(repeating: [Float16](repeating: 0, count: V3InputContract.loFrameElements),
-                          count: self.capacity)
+        hiStorage = Array(repeating: [], count: self.capacity)
+        loStorage = Array(repeating: [], count: self.capacity)
         frameTimestamps = Array(repeating: nil, count: self.capacity)
         frameSequences = Array(repeating: nil, count: self.capacity)
     }
@@ -280,6 +279,10 @@ struct V3FrameRingBuffer {
                        capturedAt: Date? = nil, sequence: Int? = nil) -> Bool {
         guard hi.count == V3InputContract.hiFrameElements,
               lo.count == V3InputContract.loFrameElements else { return false }
+        if capacity > V3InputContract.hiFrames {
+            // t−3 and older are consumed exclusively through loStorage.
+            hiStorage[(writeIndex + capacity - V3InputContract.hiFrames) % capacity] = []
+        }
         hiStorage[writeIndex] = hi
         loStorage[writeIndex] = lo
         frameTimestamps[writeIndex] = capturedAt
@@ -297,7 +300,7 @@ struct V3FrameRingBuffer {
     /// （训练侧 `clamp_frame` 语义）。
     private func physicalIndex(_ logical: Int) -> Int {
         if filled >= capacity {
-            return (writeIndex + logical) % capacity
+            return (writeIndex + max(0, logical)) % capacity
         }
         let start = capacity - filled        // 有效帧从这里开始
         guard start < capacity else { return 0 }
@@ -333,6 +336,24 @@ struct V3FrameRingBuffer {
         return out
     }
 
+    /// 同步写入固定尺寸的连续 Core ML 输入，避免采样时创建两个临时窗口。
+    func copyWindow(hi: UnsafeMutableBufferPointer<Float16>,
+                    lo: UnsafeMutableBufferPointer<Float16>) -> Bool {
+        guard filled > 0,
+              hi.count == V3InputContract.hiFrames * V3InputContract.hiFrameElements,
+              lo.count == V3InputContract.loFrames * V3InputContract.loFrameElements,
+              let hiBase = hi.baseAddress, let loBase = lo.baseAddress else { return false }
+        for k in 0..<V3InputContract.hiFrames {
+            let frame = hiStorage[physicalIndex(capacity - 1 - k)]
+            hiBase.advanced(by: k * frame.count).update(from: frame, count: frame.count)
+        }
+        for k in 0..<V3InputContract.loFrames {
+            let frame = loStorage[physicalIndex(capacity - 1 - V3InputContract.hiFrames - k)]
+            loBase.advanced(by: k * frame.count).update(from: frame, count: frame.count)
+        }
+        return true
+    }
+
     /// 当前窗口首末帧的**真实采集时间差**（秒）。
     ///
     /// - Returns: 已填满且首末帧都有采集时刻 → 真实跨度；否则 nil。
@@ -352,6 +373,8 @@ struct V3FrameRingBuffer {
 
     /// 清空（换场景/重开局时调用，避免上一局帧污染当前决策）。
     mutating func reset() {
+        hiStorage = Array(repeating: [], count: capacity)
+        loStorage = Array(repeating: [], count: capacity)
         writeIndex = 0
         filled = 0
         frameTimestamps = Array(repeating: nil, count: capacity)
@@ -388,6 +411,7 @@ final class InferenceEngineV3 {
     /// 最近一次**有效**推理结果（控制链路消费）
     private(set) var lastResult: InferenceResult?
     private(set) var lastResultTime: Date?
+    @ObservationIgnored private(set) var lastPublishedUptime: TimeInterval = 0
     /// 最近一次有效决策（刹车头/置信度/风险）
     private(set) var lastDecision: V3Decision = .idle
     /// 累计成功推理帧数
@@ -433,6 +457,7 @@ final class InferenceEngineV3 {
     /// 复用的输入缓冲（形状固定，一次分配长期复用，避免每帧 3MB 级分配）。
     /// 只在推理队列 `queue` 上访问（`makeProvider` / `ensureBuffers` / `warmUp`）。
     @ObservationIgnored private nonisolated(unsafe) var bufferHi: MLMultiArray?
+    @ObservationIgnored private nonisolated(unsafe) var inputProvider: MLDictionaryFeatureProvider?
     @ObservationIgnored private nonisolated(unsafe) var bufferLo: MLMultiArray?
     @ObservationIgnored private nonisolated(unsafe) var bufferLane: MLMultiArray?
     @ObservationIgnored private nonisolated(unsafe) var bufferDets: MLMultiArray?
@@ -443,15 +468,12 @@ final class InferenceEngineV3 {
     ///
     /// ⚠️【它只负责预测调度，不负责入窗】（评审 P0-5）
     ///   非 nil 时：本帧照常入窗，只是不再发起第二次预测。
-    /// 【为什么访问点全在 MainActor、无需锁】发起（`infer` 的
-    ///   `Task { @MainActor }` + `beginPrediction`）、释放（`finish`）、
-    ///   清空（`invalidateResultsForModelSwap`）三处都在主线程；
-    ///   采集队列只**投递**主线程任务，自身不碰这个字段。
-    ///   故 `@MainActor` 隔离已足够，额外加锁是无效复杂度。
     /// 【为什么还要记代数】`reset`/`reload` 会强行清空槽位；若旧任务随后
     ///   完成并"释放"，就会把**新任务**刚占到的槽位放掉 → 两个预测并发。
     ///   故释放时只认自己那一代（`activePredictionGeneration == gen`）。
-    private var activePredictionGeneration: Int?
+    private nonisolated let predictionLock = NSLock()
+    @ObservationIgnored private nonisolated(unsafe) var slotGeneration = 0
+    @ObservationIgnored private nonisolated(unsafe) var activePredictionGeneration: Int?
     /// 代数：`reset` / `reloadModel` 时自增，用于丢弃过期的异步回调。
     ///
     /// 【统一出口】（评审 P1-2）重置与热重载**共用**这一套机制：
@@ -652,7 +674,10 @@ final class InferenceEngineV3 {
         timelineFrames = 0
         previousHorizontalClass = 1
         // 释放预测槽位：旧任务即使后续完成，也因代数不符而不会误释放新槽位。
-        activePredictionGeneration = nil
+        predictionLock.withLock {
+            slotGeneration = generation
+            activePredictionGeneration = nil
+        }
         captureQueue.async { [weak self] in
             self?.frameBuffer.reset()
             self?.lastFrameAt = nil
@@ -802,7 +827,7 @@ final class InferenceEngineV3 {
     ///     被再次提交（主线程卡顿时采集停了、tick 照跑）→ 直接拒绝入窗，
     ///     避免"一帧旧画面重复入窗把窗口刷成静止视频"。
     func infer(image: CGImage, capturedAt: Date? = nil, sequence: Int? = nil) {
-        guard isLoaded, model != nil else {
+        guard isLoaded, let modelRef = model else {
             loadIfNeeded()
             return
         }
@@ -875,22 +900,19 @@ final class InferenceEngineV3 {
 
             // ④ 预测调度：仅在无在途预测时发起（单飞）。历史已入窗，此处跳过不影响时间轴。
             let capturedFrames = self.frameBuffer.filled
-            let windowHi = self.frameBuffer.hiWindow()
-            let windowLo = self.frameBuffer.loWindow()
+            let window = self.frameBuffer
             let captureMoment = captureAt
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard gen == self.generation else { return }
-                guard self.beginPrediction(generation: gen) else {
-                    self.skippedPredictionCount += 1
-                    return
+            guard self.beginPrediction(generation: gen) else {
+                Task { @MainActor in
+                    if gen == self.generation { self.skippedPredictionCount += 1 }
                 }
-                let modelRef = self.model
-                self.queue.async { [weak self] in
+                return
+            }
+            self.queue.async { [weak self] in
                     guard let self else { return }
                     let start = Date()
                     // ⑤ 组装输入 provider（缓冲只在推理队列上访问）
-                    guard let provider = self.makeProvider(hi: windowHi, lo: windowLo,
+                    guard let provider = self.makeProvider(window: window,
                                                            prevHorizontalClass: prevHorizontal) else {
                         Task { @MainActor in self.finish(gen, decision: nil, error: "V3 输入构造失败") }
                         return
@@ -898,10 +920,6 @@ final class InferenceEngineV3 {
                     // ⑥ 推理
                     let output: MLFeatureProvider
                     do {
-                        guard let modelRef else {
-                            Task { @MainActor in self.finish(gen, decision: nil, error: "V3 模型已卸载") }
-                            return
-                        }
                         output = try modelRef.prediction(from: provider)
                     } catch {
                         let msg = "V3 推理失败：" + (error as NSError).localizedDescription
@@ -921,7 +939,6 @@ final class InferenceEngineV3 {
                                     filled: capturedFrames, latencyMs: ms,
                                     capturedAt: captureMoment)
                     }
-                }
             }
         }
     }
@@ -929,10 +946,12 @@ final class InferenceEngineV3 {
     /// 尝试占用在途预测槽位（单飞）。
     ///
     /// - Returns: 占用成功为 true；已有预测在飞则为 false（调用方只计数、不排队）。
-    private func beginPrediction(generation gen: Int) -> Bool {
-        guard activePredictionGeneration == nil else { return false }
-        activePredictionGeneration = gen
-        return true
+    private nonisolated func beginPrediction(generation gen: Int) -> Bool {
+        predictionLock.withLock {
+            guard slotGeneration == gen, activePredictionGeneration == nil else { return false }
+            activePredictionGeneration = gen
+            return true
+        }
     }
 
     /// 释放在途预测槽位；**只释放自己那一代**。
@@ -940,8 +959,8 @@ final class InferenceEngineV3 {
     /// 若 `reset`/`reload` 已把槽位清空并由新任务重新占用，旧任务完成时
     /// 代数不符 → 不动槽位，避免"旧任务放掉新任务的锁"导致双飞。
     private func endPrediction(generation gen: Int) {
-        if activePredictionGeneration == gen {
-            activePredictionGeneration = nil
+        predictionLock.withLock {
+            if activePredictionGeneration == gen { activePredictionGeneration = nil }
         }
     }
 
@@ -1016,6 +1035,7 @@ final class InferenceEngineV3 {
             //   `capturedAt` 为 nil 时（仅测试钩子直接调 finish 的情形）退回完成时刻。
             lastResultTime = capturedAt ?? Date()
             inferenceCount += 1
+            lastPublishedUptime = ProcessInfo.processInfo.systemUptime
             // ⚠️【这里绝不能写 previousHorizontalClass】（评审 P0-3，已逐行确认为真）
             //   该字段是 `vehicle_state[6]` 的来源，训练侧（`dataset_v3.py:630-638`）
             //   要求它等于**上一帧实际按下的 A/D**，由 `noteExecutedSteer()` 在注入后回填。
@@ -1265,10 +1285,9 @@ final class InferenceEngineV3 {
     /// 组装真实输入 provider。
     ///
     /// - Parameters:
-    ///   - hi: 高清窗口（`hiFrames × hiFrameElements`，新→旧）
-    ///   - lo: 低清窗口（`loFrames × loFrameElements`，新→旧）
+    ///   - window: 采集队列冻结的值类型快照。
     ///   - prevHorizontalClass: 上一帧横向类别（写入 `vehicle_state[6]`）
-    nonisolated private func makeProvider(hi: [Float16], lo: [Float16],
+    nonisolated private func makeProvider(window: V3FrameRingBuffer,
                                           prevHorizontalClass: Int) -> MLFeatureProvider? {
         ensureBuffers()
         guard let bufHi = bufferHi, let bufLo = bufferLo,
@@ -1276,8 +1295,11 @@ final class InferenceEngineV3 {
               let bufMask = bufferDetMask, let bufState = bufferState else { return nil }
 
         // ① image_hi / image_lo：整块拷贝（布局已与模型期望的扁平顺序一致）
-        copyInto(bufHi, from: hi)
-        copyInto(bufLo, from: lo)
+        guard window.copyWindow(
+            hi: UnsafeMutableBufferPointer(start: bufHi.dataPointer.assumingMemoryBound(to: Float16.self),
+                                           count: bufHi.count),
+            lo: UnsafeMutableBufferPointer(start: bufLo.dataPointer.assumingMemoryBound(to: Float16.self),
+                                           count: bufLo.count)) else { return nil }
 
         // ② lane / dets / det_mask：训练时恒为零填充（V3 录制数据无这两路）
         //    缓冲创建即为 0，且此后从不写入 → 无需每帧重置。
@@ -1293,6 +1315,7 @@ final class InferenceEngineV3 {
         default: statePtr[V3InputContract.steerStateIndex] = 0
         }
 
+        if let inputProvider { return inputProvider }
         let dict: [String: Any] = [
             V3InputContract.imageHi: MLFeatureValue(multiArray: bufHi),
             V3InputContract.imageLo: MLFeatureValue(multiArray: bufLo),
@@ -1301,7 +1324,8 @@ final class InferenceEngineV3 {
             V3InputContract.detMask: MLFeatureValue(multiArray: bufMask),
             V3InputContract.vehicleState: MLFeatureValue(multiArray: bufState),
         ]
-        return try? MLDictionaryFeatureProvider(dictionary: dict)
+        inputProvider = try? MLDictionaryFeatureProvider(dictionary: dict)
+        return inputProvider
     }
 
     /// 零输入 provider（预热用；形状与真实输入完全一致）。
@@ -1345,116 +1369,65 @@ final class InferenceEngineV3 {
         return try? MLDictionaryFeatureProvider(dictionary: dict)
     }
 
-    /// 把 `[Float16]` 整块写进 MLMultiArray（长度必须严格相等）。
-    nonisolated private func copyInto(_ array: MLMultiArray, from values: [Float16]) {
-        let n = array.count
-        guard values.count == n else {
-            print("[v3] 缓冲长度不符：目标 \(n) vs 来源 \(values.count)")
-            return
-        }
-        let ptr = array.dataPointer.assumingMemoryBound(to: Float16.self)
-        values.withUnsafeBufferPointer { src in
-            guard let base = src.baseAddress else { return }
-            ptr.update(from: base, count: n)
-        }
-    }
-
     // MARK: 图像预处理
 
-    /// CGImage → 归一化 float16 平面数据 `[3, H, W]`（RGB 平面顺序）。
-    ///
-    /// 【归一化口径】与训练一致：`pixel / 255.0`（`dataset_v3.py:571` 的
-    /// `image_hi.float().div_(255.0)`）。**不**做 mean/std 归一化。
-    ///
-    /// 【缩放方式】直接 `CGContext.draw` 拉伸到目标尺寸（不做等比 letterbox）。
-    /// 训练数据的录制分辨率就是 384×224，与模型输入一致，故运行时只需缩放
-    /// 游戏窗口到同一尺寸。若窗口长宽比不同，画面会有轻微形变——这与训练时
-    /// 「录制即目标尺寸」的假设一致，不做额外裁剪。
-    ///
-    /// 【线程安全】只在串行 `queue` 上调用；scratch 静态复用，避免每帧分配 344KB
-    /// （与 V2 `preprocessImage` 同一纪律）。
-    ///
-    /// 【为什么用 final class 包一层而不是 `static var`】Swift 6 不允许
-    /// `nonisolated` 修饰**可变**静态存储属性（编译错误 "'nonisolated' cannot
-    /// be applied to mutable stored properties"）。改成 `static let` 持有一个
-    /// 引用类型容器后：容器本身是 let（不可变，满足并发规则），其内部的
-    /// `bytes` 仍可原地复用 —— 语义与原来的静态数组完全等价。
+    private struct RenderSize: Hashable {
+        let width: Int
+        let height: Int
+    }
+
+    // 绘制、拆通道与 scratch 复用在同一把锁内完成。上下文拥有自己的位图内存。
     private final class RenderScratch: @unchecked Sendable {
-        /// 按尺寸缓存的复用缓冲（键 = 字节数）。
-        ///
-        /// ⚠️【为什么是字典而不是单个数组】（评审 P1-2，已确认为真）
-        ///   本函数每帧被调用**两次**：先 hi（384×224×4 = 344064 B），
-        ///   再 lo（192×112×4 = 86016 B）。若共用一个 `bytes`，
-        ///   两次 `needed` 必然交替不同 → `count != needed` 每帧都成立两次
-        ///   → **每帧真分配 2 次**（344KB + 86KB ≈ 6.4MB/s 堆垃圾 @15Hz），
-        ///   与"避免每帧分配"的设计意图完全相反（原注释也写错了）。
-        ///   改成按尺寸分别缓存后，两种尺寸各自只分配一次。
-        var bySize: [Int: [UInt8]] = [:]
-        /// 保护 `bySize` 的锁。
-        ///
-        /// 【为什么必须加】（评审 P1-5，已确认为真）
-        ///   本类每个实例有自己的 `queue`，但 `renderScratch` 是 **static 共享**：
-        ///   两个实例（如自检里同时构造的两个引擎）会各在自己的队列上
-        ///   同时 resize / 写入 / 读取**同一个** `bytes` —— 无锁共享访问。
-        ///   队列 label 相同不代表是同一个队列（DispatchQueue 不去重）。
-        ///   生产路径通常只有一个实例，但"通常"不是安全证明；
-        ///   自检的测试钩子也可能从别处直接调 `renderNormalized`。
-        ///   加一把 NSLock 是最小代价的正确做法：每帧仅 2 次加解锁（hi/lo），
-        ///   开销约百纳秒级，相对 22ms 的推理可忽略。
         let lock = NSLock()
+        var contexts: [RenderSize: CGContext] = [:]
+        var plane = [UInt8]()
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
     }
     nonisolated private static let renderScratch = RenderScratch()
 
-    /// 注：本函数不是 `private` —— `V3EngineSelfTest` 的 T3 会直接调用它。
-    /// 这是**测试钩子**，不是扩大公开 API：同 module 内可见，不对外暴露。
-    ///
-    /// ⚠️【如实说明自检覆盖范围】（评审 P2-2 指出原注释夸大）
-    ///   T3 用的是**纯色合成图**，只能验证「/255 归一化」与「RGB 平面顺序」——
-    ///   纯色图缩放后仍是同一纯色，所以它**对缩放核完全不敏感**
-    ///   （本函数用 `CGContext.interpolationQuality = .high`，训练侧用 PIL `BILINEAR`，
-    ///    两者重采样算法不同，但 T3 测不出差异）。
-    ///   缩放核的一致性由**另一条独立验证**覆盖：同一批真实训练帧分别走
-    ///   「Swift 引擎」与「PIL+INT4 CoreML」全链路，比对 8 路输出
-    ///   （实测 seg_a 横向 91.18% vs 91.24%，差 0.06% 属浮点噪声）。
     nonisolated static func renderNormalized(_ cgImage: CGImage,
                                              height: Int, width: Int) -> [Float16]? {
-        // 整段（resize + 绘制 + 拆平面）都在锁内：scratch 是共享静态缓冲，
-        // 任何一步跑到锁外都会与另一实例的读写重叠。
-        renderScratch.lock.lock()
-        defer { renderScratch.lock.unlock() }
+        let scratch = renderScratch
+        scratch.lock.lock()
+        defer { scratch.lock.unlock() }
 
-        let needed = width * height * 4
-        if renderScratch.bySize[needed] == nil {
-            renderScratch.bySize[needed] = [UInt8](repeating: 0, count: needed)
-        }
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bytesPerRow = width * 4
-
-        let drawn: Bool = renderScratch.bySize[needed]!.withUnsafeMutableBufferPointer { buf -> Bool in
-            guard let base = buf.baseAddress else { return false }
-            guard let context = CGContext(data: base, width: width, height: height,
-                                          bitsPerComponent: 8, bytesPerRow: bytesPerRow,
-                                          space: colorSpace,
+        let size = RenderSize(width: width, height: height)
+        let context: CGContext
+        if let cached = scratch.contexts[size] {
+            context = cached
+        } else {
+            guard let created = CGContext(data: nil, width: width, height: height,
+                                          bitsPerComponent: 8, bytesPerRow: width * 4,
+                                          space: scratch.colorSpace,
                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-            else { return false }
-            context.interpolationQuality = .high
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-            return true
+            else { return nil }
+            created.interpolationQuality = .high
+            created.clear(CGRect(x: 0, y: 0, width: width, height: height))
+            scratch.contexts[size] = created
+            context = created
         }
-        guard drawn else { return nil }
-
-        let planeSize = height * width
-        var out = [Float16](repeating: 0, count: 3 * planeSize)
-        // 逐像素拆成 3 个平面并除以 255（与训练侧 CHW + /255 完全一致）
-        renderScratch.bySize[needed]!.withUnsafeBufferPointer { buf in
-            guard let base = buf.baseAddress else { return }
-            for i in 0..<planeSize {
-                let p = i * 4
-                out[i]                = Float16(Float(base[p])     / 255.0)
-                out[planeSize + i]    = Float16(Float(base[p + 1]) / 255.0)
-                out[planeSize * 2 + i] = Float16(Float(base[p + 2]) / 255.0)
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let pixels = context.data else { return nil }
+        let planeSize = width * height
+        if scratch.plane.count < planeSize { scratch.plane = [UInt8](repeating: 0, count: planeSize) }
+        var src = vImage_Buffer(data: pixels, height: UInt(height), width: UInt(width), rowBytes: context.bytesPerRow)
+        // 字节顺序是 RGBA；通道 0、1、2 对应输出的 R、G、B 平面。
+        let flags = vImage_Flags(kvImageNoFlags)
+        var success = true
+        let out = [Float16](unsafeUninitializedCapacity: 3 * planeSize) { result, count in
+            scratch.plane.withUnsafeMutableBytes { tmp in
+                var channel = vImage_Buffer(data: tmp.baseAddress!, height: UInt(height), width: UInt(width), rowBytes: width)
+                for c in 0..<3 {
+                    var dest = vImage_Buffer(data: result.baseAddress!.advanced(by: c * planeSize), height: UInt(height), width: UInt(width), rowBytes: width * 2)
+                    guard vImageExtractChannel_ARGB8888(&src, &channel, c, flags) == kvImageNoError,
+                          vImageConvert_Planar8toPlanar16F(&channel, &dest, flags) == kvImageNoError else {
+                        success = false
+                        return
+                    }
+                }
+                count = 3 * planeSize
             }
         }
-        return out
+        return success ? out : nil
     }
 }

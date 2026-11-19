@@ -50,6 +50,7 @@ import Accelerate
 ///   - advantage/valueTarget : 默认 0；送入 updatePPO 前必须已由 GAE 填好
 ///     （advantage=归一化前的原始 GAE 优势；valueTarget=原始优势 + value）
 public struct RLTransition {
+    var laneMeasurement: TrainingLaneMeasurement?
     public var stateToken: [Float]
     public var vClass: Int
     public var hClass: Int
@@ -209,11 +210,7 @@ public enum PolicyHeadInitError: Error, LocalizedError {
 ///   - transA=false：A 为 [M,K]；transA=true：A 为 [K,M]
 ///   - transB=false：B 为 [K,N]；transB=true：B 为 [N,K]
 /// 这样单一一层封装即可覆盖 forward（X·Wᵀ）、dW（dYᵀ·X）、dX（dY·W）三种形态。
-/// 说明：vDSP_mmulD 按**行主序**解释输入（实测：直接喂行主序 A[M×K]、B[K×N]
-/// 即得正确行主序乘积），且不支持转置参数（新版 cblas 在 macOS 13.3+ 已弃用，
-/// 需全局编译宏，本仓不便加）。故这里先把 op(A)、op(B) 重排成行主序（O(MK)/O(KN)
-/// 内存搬运，非矩阵乘本身），交给 vDSP_mmulD 做 O(MNK) 核心乘法。矩阵本身用
-/// Accelerate 硬件实现，无 O(n³) 裸循环。
+/// 直接使用权重的物理行跨度，避免前向与反向为转置分配临时矩阵。
 @inline(__always)
 func rlMatmul(_ A: [Double], _ B: [Double],
               M: Int, N: Int, K: Int,
@@ -221,21 +218,15 @@ func rlMatmul(_ A: [Double], _ B: [Double],
     if M == 0 || N == 0 { return [] }
     if K == 0 { return [Double](repeating: 0, count: M * N) }
 
-    // opA（行主序 [M,K]）
-    var a = A
-    if transA {
-        a = [Double](repeating: 0, count: M * K)
-        for k in 0..<K { for i in 0..<M { a[i * K + k] = A[k * M + i] } }
-    }
-    // opB（行主序 [K,N]）
-    var b = B
-    if transB {
-        b = [Double](repeating: 0, count: K * N)
-        for j in 0..<N { for k in 0..<K { b[k * N + j] = B[j * K + k] } }
-    }
     var c = [Double](repeating: 0, count: M * N)
-    vDSP_mmulD(a, 1, b, 1, &c, 1,
-               vDSP_Length(M), vDSP_Length(N), vDSP_Length(K))
+    if M == 1 && transB {
+        cblas_dgemv(CblasRowMajor, CblasNoTrans, Int32(N), Int32(K),
+                    1, B, Int32(K), A, 1, 0, &c, 1)
+    } else {
+        cblas_dgemm(CblasRowMajor, transA ? CblasTrans : CblasNoTrans,
+                    transB ? CblasTrans : CblasNoTrans, Int32(M), Int32(N), Int32(K),
+                    1, A, Int32(transA ? M : K), B, Int32(transB ? K : N), 0, &c, Int32(N))
+    }
     return c
 }
 

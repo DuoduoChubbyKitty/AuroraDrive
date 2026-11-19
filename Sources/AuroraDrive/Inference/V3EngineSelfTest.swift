@@ -677,18 +677,28 @@ func runV3EngineSelfTest() -> Int {
         var engineLatencies: [Double] = []   // 引擎内部推理耗时（r.latencyMs，不含预处理前段）
         var e2eLatencies: [Double] = []      // 真·端到端：提交前 → 拿到本帧决策的墙钟耗时
         var completedCount = 0
+        var publicationTimes = PerfStats()
         var finiteViolations = 0
         var rangeViolations = 0
         var classViolations = 0
-        for url in frameURLs {
+        let paced = CommandLine.arguments.contains("--v3-pace-15hz")
+        let epoch = ProcessInfo.processInfo.systemUptime
+        for (index, url) in frameURLs.enumerated() {
             guard let cg = v3LoadCGImage(url) else { continue }
+            if paced {
+                let due = epoch + Double(index) / V3InputContract.captureFPS
+                let remaining = due - ProcessInfo.processInfo.systemUptime
+                if remaining > 0 { RunLoop.main.run(until: Date(timeIntervalSinceNow: remaining)) }
+            }
             let before = engine.inferenceCount
             let submitAt = Date()
+            let submitUptime = ProcessInfo.processInfo.systemUptime
             engine.infer(image: cg)
             guard v3DrainOneInference(engine, before: before), let r = engine.lastResult else {
                 continue  // 本帧未在超时内完成 → 计入失败
             }
             let deliverAt = Date()
+            publicationTimes.add((engine.lastPublishedUptime - submitUptime) * 1000)
             completedCount += 1
             engineLatencies.append(r.latencyMs)
             e2eLatencies.append(deliverAt.timeIntervalSince(submitAt) * 1000.0)
@@ -730,6 +740,9 @@ func runV3EngineSelfTest() -> Int {
             let p99 = pct(e2eLatencies, 0.99), mx = e2eLatencies.max() ?? 0
             let mean = e2eLatencies.reduce(0, +) / Double(e2eLatencies.count)
             let engP50 = pct(engineLatencies, 0.50)
+            let late = publicationTimes.samples.filter { $0 > 13 }.count
+            ledger.check("提交至主线程发布最大 ≤13ms", late == 0 && publicationTimes.count == frameURLs.count,
+                         "\(publicationTimes.summary) 超时=\(late)/\(frameURLs.count)")
             print(String(format: "    e2e: mean=%.2f p50=%.2f p95=%.2f p99=%.2f max=%.2f ms (n=%d，含~5ms轮询粒度)",
                          mean, p50, p95, p99, mx, e2eLatencies.count))
             print(String(format: "    引擎内: latencyMs p50=%.2f ms（对比参考，非门禁）", engP50))

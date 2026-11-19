@@ -35,6 +35,7 @@ sys.path.insert(0, str(_ROOT))
 from src.config import ROOT_DIR, MODELS_DIR, LOSS_WEIGHTS, TRAIN_GRAD_CLIP_NORM, TRAIN_WEIGHT_DECAY
 from src.model import M9MonoModel, M9Loss, build_m9_mono, export_onnx_mono
 from src.mono_dataset import MonoClipsDataset, make_train_val_split
+from src.npu_compat import is_npu_available
 
 
 def _print_mono_stats(model: M9MonoModel):
@@ -126,7 +127,11 @@ def train_mono(
 
     # 1. 设备选择
     if device == "auto":
-        if torch.backends.mps.is_available():
+        # 与 train_v3.resolve_device 同口径：NPU 优先；MPS 仅在 macOS 上才考虑，
+        # 避免 Linux 训练机因 torch.backends.mps 模块存在而误选不可用的 MPS。
+        if is_npu_available():
+            device = "npu"
+        elif sys.platform == "darwin" and torch.backends.mps.is_available():
             device = "mps"
         elif torch.cuda.is_available():
             device = "cuda"
@@ -142,8 +147,8 @@ def train_mono(
         skip_zero_label=True, seed=seed, view_filter=view_filter)
     train_ds, val_ds = make_train_val_split(train_dataset, val_ratio=val_ratio, seed=seed)
 
-    # pin_memory 仅 CUDA 受益；MPS 上反而增加 host↔device 拷贝开销
-    pin = (device == "cuda")
+    # pin_memory 仅 CUDA/NPU 受益；MPS 上反而增加 host↔device 拷贝开销
+    pin = (device in ("cuda", "npu"))
     train_loader = DataLoader(
         train_ds, batch_size=batch_size, shuffle=True,
         num_workers=num_workers, pin_memory=pin, drop_last=True,
@@ -489,7 +494,7 @@ def parse_args():
     p.add_argument("--weight_decay", type=float, default=TRAIN_WEIGHT_DECAY)
     p.add_argument("--val_ratio", type=float, default=0.15)
     p.add_argument("--no_amp", action="store_true")
-    p.add_argument("--device", default="auto", choices=["auto", "cpu", "mps", "cuda"])
+    p.add_argument("--device", default="auto", choices=["auto", "cpu", "mps", "cuda", "npu"])
     p.add_argument("--clips_dir", default=None)
     p.add_argument("--checkpoint_dir", default=None)
     p.add_argument("--num_workers", type=int, default=0)

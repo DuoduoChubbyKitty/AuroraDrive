@@ -72,7 +72,7 @@ enum OnlineTrainingRuntimeSelfTest {
 
         init(gate: Gate? = nil) { self.gate = gate }
 
-        func stateToken(hi: [Float16], lo: [Float16],
+        func stateToken(window: V3FrameRingBuffer,
                         prevHorizontalClass: Int) -> [Float]? {
             gate?.waitOpen()
             tokenCount += 1

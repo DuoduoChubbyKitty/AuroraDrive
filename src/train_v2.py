@@ -134,6 +134,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
+from src.npu_compat import is_npu_available
+
 # 项目根路径
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -168,10 +170,13 @@ M2_N_CLASSES = 4
 # ==================== 0. 设备选择（MPS / CUDA / CPU 自动） ====================
 
 def resolve_device(device: str) -> str:
-    """auto → 优先 mps（Apple Silicon），其次 cuda，最后 cpu。"""
+    """auto → 优先 Ascend NPU，其次 Apple MPS（仅 macOS），再次 cuda，最后 cpu。"""
     if device != "auto":
         return device
-    if torch.backends.mps.is_available():
+    # 与 train_v3/train_mono 同口径：NPU 优先、MPS 只在 macOS 上判断。
+    if is_npu_available():
+        return "npu"
+    if sys.platform == "darwin" and torch.backends.mps.is_available():
         return "mps"
     if torch.cuda.is_available():
         return "cuda"
@@ -1793,7 +1798,7 @@ def train_v2(
             enable["lane_consistency"] = False
 
     # ---------- 3. DataLoader ----------
-    pin = (device == "cuda")   # MPS 上 pin_memory 反而增加拷贝开销
+    pin = (device in ("cuda", "npu"))   # MPS 上 pin_memory 反而增加拷贝开销
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
                               num_workers=num_workers, pin_memory=pin, drop_last=False)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False,
@@ -2207,7 +2212,7 @@ def parse_args():
     p.add_argument("--save_every", type=int, default=10, help="每 N epoch 存一次，0=关闭")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--num_workers", type=int, default=0)
-    p.add_argument("--device", default="auto", choices=["auto", "cpu", "mps", "cuda"])
+    p.add_argument("--device", default="auto", choices=["auto", "cpu", "mps", "cuda", "npu"])
     p.add_argument("--no_amp", action="store_true")
     p.add_argument("--clips_dir", default=None)
     p.add_argument("--view_filter", default=None)

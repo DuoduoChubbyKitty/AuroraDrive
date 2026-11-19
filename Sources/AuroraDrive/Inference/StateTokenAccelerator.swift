@@ -69,6 +69,7 @@ final class StateTokenAccelerator {
     private let stateTokenOutputName: String
 
     private var model: MLModel?
+    private var inputProvider: MLDictionaryFeatureProvider?
 
     /// 最近一次加载/推理失败的原因（nil = 尚未失败）。供上层如实上报，不吞错。
     private(set) var failureReason: String?
@@ -111,13 +112,13 @@ final class StateTokenAccelerator {
             return false
         }
         let cfg = MLModelConfiguration()
-        // 默认 ANE 优先（与 InferenceEngineV3 一致）；AURORA_COMPUTE_UNITS 可覆盖，
-        // 便于复现跨计算单元的数值一致性。
-        cfg.computeUnits = Self.computeUnitsFromEnvironment()
+        // Reserve the GPU for the game during online driving.
+        cfg.computeUnits = .cpuAndNeuralEngine
+        cfg.optimizationHints.specializationStrategy = .fastPrediction
         do {
             model = try MLModel(contentsOf: modelURL, configuration: cfg)
             failureReason = nil
-            print("[rl-accel] 模型加载成功：\(modelURL.lastPathComponent)")
+            print("[rl-accel] 模型加载成功：\(modelURL.lastPathComponent) (cpuAndNeuralEngine)")
             return true
         } catch {
             // 如实上报底层原因 + 本层上下文（定位是路径/权限/模型损坏）
@@ -141,17 +142,34 @@ final class StateTokenAccelerator {
     func stateTokenAndLogits(hi: [Float16], lo: [Float16],
                              prevHorizontalClass: Int)
         -> (stateToken: [Float], vLogits: [Float], hLogits: [Float])? {
-        guard loadIfNeeded(), let model = self.model else { return nil }
-        guard let provider = makeProvider(hi: hi, lo: lo,
-                                          prevHorizontalClass: prevHorizontalClass) else {
+        guard let output = predict(prevHorizontalClass: prevHorizontalClass, fill: { high, low in
+            Self.writeFloat16(high, from: hi) && Self.writeFloat16(low, from: lo)
+        }), let stateToken = readStateToken(output), let logits = readLogits(output) else { return nil }
+        return (stateToken: stateToken, vLogits: logits.v, hLogits: logits.h)
+    }
+
+    func stateToken(window: V3FrameRingBuffer, prevHorizontalClass: Int) -> [Float]? {
+        guard let output = predict(prevHorizontalClass: prevHorizontalClass, fill: { high, low in
+            window.copyWindow(
+                hi: UnsafeMutableBufferPointer(start: high.dataPointer.assumingMemoryBound(to: Float16.self),
+                                               count: high.count),
+                lo: UnsafeMutableBufferPointer(start: low.dataPointer.assumingMemoryBound(to: Float16.self),
+                                               count: low.count))
+        }) else { return nil }
+        return readStateToken(output)
+    }
+
+    private func predict(prevHorizontalClass: Int,
+                         fill: (MLMultiArray, MLMultiArray) -> Bool) -> MLFeatureProvider? {
+        guard loadIfNeeded(), let model else { return nil }
+        guard let provider = makeProvider(prevHorizontalClass: prevHorizontalClass, fill: fill) else {
             failureReason = "构造输入 provider 失败（缓冲长度不符或分配失败）"
             return nil
         }
         do {
-            let output = try model.prediction(from: provider)
-            guard let stateToken = readStateToken(output) else { return nil }
-            guard let logits = readLogits(output) else { return nil }
-            return (stateToken: stateToken, vLogits: logits.v, hLogits: logits.h)
+            let start = PerfBus.stamp()
+            defer { PerfBus.mark("rl.prediction", from: start) }
+            return try model.prediction(from: provider)
         } catch {
             failureReason = "state_token 模型推理失败："
                 + (error as NSError).localizedDescription
@@ -203,16 +221,15 @@ final class StateTokenAccelerator {
             && bufferDets != nil && bufferDetMask != nil && bufferState != nil
     }
 
-    private func makeProvider(hi: [Float16], lo: [Float16],
-                              prevHorizontalClass: Int) -> MLFeatureProvider? {
+    private func makeProvider(prevHorizontalClass: Int,
+                              fill: (MLMultiArray, MLMultiArray) -> Bool) -> MLFeatureProvider? {
         guard ensureBuffers(),
               let bufHi = bufferHi, let bufLo = bufferLo,
               let bufLane = bufferLane, let bufDets = bufferDets,
               let bufMask = bufferDetMask, let bufState = bufferState else { return nil }
 
         // ① image_hi / image_lo：整块拷贝（布局已与模型期望的扁平顺序一致）
-        guard Self.writeFloat16(bufHi, from: hi),
-              Self.writeFloat16(bufLo, from: lo) else { return nil }
+        guard fill(bufHi, bufLo) else { return nil }
 
         // ② lane / dets / det_mask：训练时恒为零填充（V3 录制数据无这两路）。
         //    缓冲创建即为 0，此后从不写入 → 无需每帧重置。
@@ -228,6 +245,7 @@ final class StateTokenAccelerator {
         default: statePtr[V3InputContract.steerStateIndex] = 0
         }
 
+        if let inputProvider { return inputProvider }
         let dict: [String: Any] = [
             V3InputContract.imageHi: MLFeatureValue(multiArray: bufHi),
             V3InputContract.imageLo: MLFeatureValue(multiArray: bufLo),
@@ -236,7 +254,8 @@ final class StateTokenAccelerator {
             V3InputContract.detMask: MLFeatureValue(multiArray: bufMask),
             V3InputContract.vehicleState: MLFeatureValue(multiArray: bufState),
         ]
-        return try? MLDictionaryFeatureProvider(dictionary: dict)
+        inputProvider = try? MLDictionaryFeatureProvider(dictionary: dict)
+        return inputProvider
     }
 
     /// 把 `[Float16]` 整块写进 MLMultiArray（长度必须严格相等，不静默截断/补零）。
@@ -321,14 +340,6 @@ final class StateTokenAccelerator {
         return found
     }
 
-    private static func computeUnitsFromEnvironment() -> MLComputeUnits {
-        switch ProcessInfo.processInfo.environment["AURORA_COMPUTE_UNITS"] {
-        case "cpu": return .cpuOnly
-        case "cpuAndGPU": return .cpuAndGPU
-        case "all": return .all
-        default: return .cpuAndNeuralEngine
-        }
-    }
 }
 
 // MARK: - 自检（-rl-accel-selftest）

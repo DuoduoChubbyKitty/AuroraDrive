@@ -56,8 +56,11 @@ struct PerfStats {
 
     /// 分位数（p ∈ 0...1）。采样为空返回 0。
     func percentile(_ p: Double) -> Double {
-        guard !samples.isEmpty else { return 0 }
-        let sorted = samples.sorted()
+        percentile(p, sorted: samples.sorted())
+    }
+
+    private func percentile(_ p: Double, sorted: [Double]) -> Double {
+        guard !sorted.isEmpty else { return 0 }
         let idx = Int((Double(sorted.count - 1) * p).rounded())
         return sorted[max(0, min(sorted.count - 1, idx))]
     }
@@ -71,8 +74,10 @@ struct PerfStats {
     /// 一行摘要（统一格式，便于前后对比）
     var summary: String {
         guard !isEmpty else { return "n=0" }
+        let sorted = samples.sorted()
         return String(format: "n=%-4d p50=%-7.3f p95=%-7.3f p99=%-7.3f max=%-8.3f mean=%.3f",
-                      count, median, p95, p99, maxValue, mean)
+                      count, percentile(0.5, sorted: sorted), percentile(0.95, sorted: sorted),
+                      percentile(0.99, sorted: sorted), sorted[count - 1], mean)
     }
 }
 
@@ -154,9 +159,7 @@ final class PerfBus {
     func record(_ channel: String, ms: Double) {
         guard Self.enabled else { return }
         lock.lock()
-        var st = channels[channel] ?? PerfStats()
-        st.add(ms)
-        channels[channel] = st
+        channels[channel, default: PerfStats()].add(ms)
         lock.unlock()
     }
 

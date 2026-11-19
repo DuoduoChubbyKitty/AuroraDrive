@@ -364,13 +364,9 @@ def train(
     # flip the sign of AI advantages. BC stage ignores advantages, so the global
     # path there is harmless.
     if stage == "ppo" and is_ai.any():
-        ai_adv = adv[is_ai]
-        mean = float(ai_adv.mean())
-        std = float(ai_adv.std())
-        if not (np.isfinite(mean) and np.isfinite(std)) or std < 1e-8:
-            adv = np.zeros_like(adv, dtype=np.float32)
-        else:
-            adv = ((adv - mean) / (std + 1e-8)).astype(np.float32)
+        normalized = np.zeros_like(adv, dtype=np.float32)
+        normalized[is_ai] = R.normalize_advantages(adv[is_ai])
+        adv = normalized
     else:
         adv = R.normalize_advantages(adv)
     ADV = torch.tensor(adv, dtype=torch.float32, device=device)

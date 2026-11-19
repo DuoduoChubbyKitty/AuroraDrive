@@ -907,7 +907,7 @@ final class YolopxEngine {
 
     /// 异步推理一帧。
     /// - Parameter image: 截屏画面 CGImage。内部做 letterbox（等比 + 114 灰边）。
-    func infer(image: CGImage) {
+    func infer(image: CGImage, laneMeasurement: TrainingLaneMeasurement? = nil) {
         // ⚠️ 2026-09-26 修：原先只 `return`，不清理内部状态 ——
         //    停用引擎后 drivableMask/laneMask/isDegraded 还停留在停用前的旧值，
         //    决策层若此时读到就会拿**过期掩码**做判断。
@@ -1040,6 +1040,10 @@ final class YolopxEngine {
                                                          metrics: metrics)
 
                 let latency = Date().timeIntervalSince(start) * 1000
+                if let laneMeasurement, llRatio >= Self.lanePositiveFloor,
+                   llRatio <= Self.lanePositiveCeil, let snapshot = LaneMaskSnapshot(mask: llGrid) {
+                    laneMeasurement.record(LaneGeometryEstimator.estimate(mask: snapshot))
+                }
 
                 Task { @MainActor in
                     self.finish(gen, dets, daGrid, llGrid, metrics,

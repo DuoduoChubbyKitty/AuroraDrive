@@ -208,6 +208,8 @@ def normalize_advantages(adv: np.ndarray, eps: float = 1e-8) -> np.ndarray:
         return adv.astype(np.float32)
     if not np.all(np.isfinite(adv)):
         return np.zeros_like(adv, dtype=np.float32)
+    if adv.size == 1:
+        return adv.astype(np.float32)
     mean = adv.mean()
     std = adv.std()
     if std < eps:
@@ -252,6 +254,7 @@ def gae_advantages(
     episode_ends: Optional[Sequence[bool]] = None,
     gamma: float = 0.99,
     lam: float = 0.95,
+    tail_bootstrap_value: Optional[float] = None,
 ) -> tuple:
     """GAE computed **per episode**.
 
@@ -268,15 +271,20 @@ def gae_advantages(
         raise ValueError("gae_advantages: rewards/values 长度不一致")
     if episode_ends is None:
         ends = np.zeros(n, dtype=bool)
-        if n:
+        if n and tail_bootstrap_value is None:
             ends[-1] = True
     else:
         ends = np.asarray(episode_ends, dtype=bool)
     adv = np.zeros(n, dtype=np.float64)
     last = 0.0
     for t in range(n - 1, -1, -1):
-        terminal = bool(ends[t]) or (t == n - 1)
-        next_v = 0.0 if terminal else v[t + 1]
+        terminal = bool(ends[t])
+        if terminal:
+            next_v = 0.0
+        elif t + 1 < n:
+            next_v = v[t + 1]
+        else:
+            next_v = 0.0 if tail_bootstrap_value is None else tail_bootstrap_value
         delta = r[t] + gamma * next_v - v[t]
         last = delta + gamma * lam * (0.0 if terminal else last)
         adv[t] = last

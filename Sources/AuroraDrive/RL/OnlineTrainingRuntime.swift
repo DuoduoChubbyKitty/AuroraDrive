@@ -117,16 +117,12 @@ private func defaultRLHeadCheckpointURL() -> URL? {
 /// 自检注入假源（不加载真模型即可全链路驱动）。仅本文件与自检使用。
 protocol StateTokenSource {
     /// 本帧 256 维 state_token；失败返回 nil（调用方封口当前轨迹，不静默续跑）。
-    func stateToken(hi: [Float16], lo: [Float16], prevHorizontalClass: Int) -> [Float]?
+    func stateToken(window: V3FrameRingBuffer, prevHorizontalClass: Int) -> [Float]?
     /// 最近一次失败原因（诊断/如实上报，不吞错）。
     var failureReason: String? { get }
 }
 
-extension StateTokenAccelerator: StateTokenSource {
-    func stateToken(hi: [Float16], lo: [Float16], prevHorizontalClass: Int) -> [Float]? {
-        stateTokenAndLogits(hi: hi, lo: lo, prevHorizontalClass: prevHorizontalClass)?.stateToken
-    }
-}
+extension StateTokenAccelerator: StateTokenSource {}
 
 /// 在线训练运行时控制器（@MainActor：只在 tick / 按钮这些主线程上下文调用）。
 ///
@@ -139,7 +135,7 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     // MARK: 可调参数
 
     /// 每多少帧做一次「算 token + 采样 + 发布 + collect」（降频，减小对主推理的抢占）。
-    /// 默认 3 帧一次 ≈ 5Hz。注意：**不影响入窗频率**（每帧都入窗，见文件头）。
+    /// 生产默认每张新帧都决策；离线实验可单独降低决策频率。
     private let sampleEveryNFrames: Int
     /// 每 N 秒对当前轨迹做一次「软截断」（真实时间，不按采样计数伪造 terminal）。
     private let softCutSeconds: TimeInterval
@@ -295,8 +291,9 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     /// 最近一次发布的采样动作（#5 诊断/自检「参数无损」断言用）。
     private nonisolated(unsafe) var lastDispatchedActionValue: RLAction?
 
-    /// 消费队列（串行；qos=.utility——训练是后台工作，宁可丢帧也不抢主驾）。
-    private let workerQueue = DispatchQueue(label: "aurora.online-train.frame", qos: .utility)
+    /// 帧消费包含实时驾驶决策；PPO 更新独立运行在 utility 队列上。
+    private let workerQueue = DispatchQueue(label: "aurora.online-train.frame", qos: .userInteractive)
+    private var latencyActivity: NSObjectProtocol?
 
     /// B1 动作执行串行队列：所有 executor 调用收敛于此——与消费线程解耦
     /// （stop 的 releaseAll 不被卡死的推理阻塞），执行方绝不会被并发调用。
@@ -306,7 +303,7 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     /// 有界等待；串行保证多次 stop 的排空请求有序）。
     private let trainDrainQueue = DispatchQueue(label: "aurora.online-train.traindrain", qos: .utility)
 
-    init(sampleEveryNFrames: Int = 3,
+    init(sampleEveryNFrames: Int = 1,
          softCutSeconds: TimeInterval = 48,
          drainTimeout: TimeInterval = 10,
          trainDrainTimeout: TimeInterval = 10,
@@ -426,6 +423,8 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
                               ppoConfig: ppoConfig,
                               trainEvery: 64)
         trainer = t
+        latencyActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInteractive, .latencyCritical], reason: "Online driving frame deadlines")
         frameCounter = 0
         // start 复位：不跨场景拼帧。
         ring.reset()
@@ -476,6 +475,10 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
         actionSessionGenerationValue &+= 1 // 七轮 P1：作废本代（投递超时后重启也不借身份）
         stateLock.unlock()
         isRunning = false          // 关门：onFrame 不再入槽
+        if let latencyActivity {
+            ProcessInfo.processInfo.endActivity(latencyActivity)
+            self.latencyActivity = nil
+        }
         dispatchAction(.releaseAll)
         // B5③：键释放完成确认——releaseAll 之前的全部 executor 调用（含它自身）
         // 在 actionConfirmTimeout 内跑完才算送达；执行方卡死则如实 false。
@@ -554,6 +557,7 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
         var tookOver: Bool
         var collision: Bool
         var laneOffset: Double
+        var laneMeasurement: TrainingLaneMeasurement? = nil
         var manualStop: Bool     // 本帧是否处于人工介入/危险（作为 episode 硬终止边界）
     }
 
@@ -684,7 +688,7 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
 
         // ⑤ state_token：失败/维度错/非有限 = 无效观测 → 封口（不静默续旧轨迹）。
         guard let token = stateTokenSource.stateToken(
-                  hi: ring.hiWindow(), lo: ring.loWindow(),
+                  window: ring,
                   prevHorizontalClass: prevHorizontalClass) else {
             skipAndSeal(stateTokenSource.failureReason ?? "state_token 源无输出")
             return
@@ -708,7 +712,7 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
                             speedValid: signals.speedValid,
                             collision: signals.collision,
                             laneOffset: signals.laneOffset,
-                            isTerminal: false)
+                            isTerminal: false, laneMeasurement: signals.laneMeasurement)
         stateLock.lock()
         sampledFramesValue += 1
         stateLock.unlock()

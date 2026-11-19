@@ -223,6 +223,11 @@ def run() -> None:
     H.check(np.all(np.isfinite(z_nan)), "non-finite input result is finite")
 
     # ── gae_advantages (per episode) ────────────────────────────────────
+    H.check_eq(R.normalize_advantages([-10.0]).tolist(), [-10.0], "singleton preserves takeover gradient")
+    tail, _ = R.gae_advantages([0.0], [1.0], gamma=0.5, tail_bootstrap_value=6.0)
+    H.check_eq(tail.tolist(), [2.0], "nonterminal tail bootstraps")
+    terminal, _ = R.gae_advantages([0.0], [1.0], [True], gamma=0.5, tail_bootstrap_value=6.0)
+    H.check_eq(terminal.tolist(), [-1.0], "true terminal ignores tail")
     # constant reward=1, values=0, single episode gamma=0.9 lam=0.8
     adv, vt = R.gae_advantages([1.0, 1.0, 1.0], [0.0, 0.0, 0.0], gamma=0.9, lam=0.8)
     H.check_eq(len(adv), 3, "gae length")

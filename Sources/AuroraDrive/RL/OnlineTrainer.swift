@@ -349,6 +349,15 @@ public final class OnlineTrainer: @unchecked Sendable {
                         collision: Bool,
                         laneOffset: Double,
                         isTerminal: Bool) -> Double {
+        collect(stateToken: stateToken, sample: sample, tookOver: tookOver, speedKmh: speedKmh,
+                speedValid: speedValid, collision: collision, laneOffset: laneOffset,
+                isTerminal: isTerminal, laneMeasurement: nil)
+    }
+
+    @discardableResult
+    func collect(stateToken: [Float], sample: PolicySample, tookOver: Bool, speedKmh: Double,
+                 speedValid: Bool, collision: Bool, laneOffset: Double, isTerminal: Bool,
+                 laneMeasurement: TrainingLaneMeasurement?) -> Double {
         // ① 逐帧奖励（与 reward.py 同语义，prev_speed/prev_valid 跨帧保持）
         let frameRewardValue = Self.frameReward(
             signals: RewardSignals(speedKmh: speedKmh, speedValid: speedValid,
@@ -391,7 +400,7 @@ public final class OnlineTrainer: @unchecked Sendable {
         }
 
         // ④ 正常策略帧：用采样快照原样保存 old logProb / value（P1-1）
-        let transition = RLTransition(stateToken: stateToken,
+        var transition = RLTransition(stateToken: stateToken,
                                       vClass: sample.vClass,
                                       hClass: sample.hClass,
                                       logProbV: sample.logProbV,
@@ -400,6 +409,7 @@ public final class OnlineTrainer: @unchecked Sendable {
                                       value: sample.value,
                                       tookOver: false,
                                       isTerminal: isTerminal)
+        transition.laneMeasurement = laneMeasurement
         pendingTransitions.append(transition)
         episodeRewardAccumulator += frameRewardValue
 
@@ -504,9 +514,15 @@ public final class OnlineTrainer: @unchecked Sendable {
         guard !batch.isEmpty else { return }
         let meanRewardSnapshot = meanEpisodeReward
         let cfg = ppoConfig
+        let laneWeight = rewardConfig.lane
         trainingQueue.async { [weak self] in
             guard let self else { return }
             var withAdvantage = batch
+            for i in withAdvantage.indices {
+                if let offset = withAdvantage[i].laneMeasurement?.offset {
+                    withAdvantage[i].reward -= laneWeight * Self.laneTerm(offset)
+                }
+            }
             // P1-2：只按 isTerminal 判边界；末条若未终止，用 tailBootstrapValue 做 bootstrap。
             PolicyHead.computeGAE(&withAdvantage, gamma: cfg.gamma, lam: cfg.lam,
                                   tailBootstrapValue: tailBootstrapValue)

@@ -359,6 +359,21 @@ enum OnlineTrainerSelfTest {
         check("真终止(单帧 value=2,reward=0)：valueTarget == 0（nextV 归零）",
               b2.count == 1 && abs(b2[0][0].valueTarget - 0.0) < 1e-9,
               b2.count == 1 ? String(format: "实际%.4f", b2[0][0].valueTarget) : "无批")
+        let measurement = TrainingLaneMeasurement()
+        var geometry = LaneGeometry()
+        geometry.lateralOffset = -0.8
+        geometry.valid = true
+        measurement.record(geometry)
+        check("单侧几何无有效车道测量", measurement.offset == nil, "")
+        geometry.bothSides = true
+        measurement.record(geometry)
+        _ = trainer2.collect(stateToken: [2],
+                             sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 0),
+                             tookOver: false, speedKmh: 0, speedValid: false, collision: false,
+                             laneOffset: 0, isTerminal: true, laneMeasurement: measurement)
+        trainer2.drainTrainingAndWait()
+        let laneTarget = trainer2.capturedBatchesForTestSnapshot().last?.first?.valueTarget
+        check("同帧车道偏移进入 PPO 价值目标", laneTarget == -0.4, String(describing: laneTarget))
         return 0
     }
 
