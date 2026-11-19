@@ -1,0 +1,26 @@
+#1  ./verify/speed_extrapolator_audit/adv/build/adv_tests 1 100  rc=1  结果：1457 通过 / 7 失败（fuzz 断言 872 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#2  ./verify/speed_extrapolator_audit/adv/build/adv_tests 2 120  rc=1  结果：1733 通过 / 7 失败（fuzz 断言 1046 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#3  ./verify/speed_extrapolator_audit/adv/build/adv_tests 3 140  rc=1  结果：2073 通过 / 7 失败（fuzz 断言 1236 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#4  ./verify/speed_extrapolator_audit/adv/build/adv_tests 4 160  rc=1  结果：2341 通过 / 7 失败（fuzz 断言 1408 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#5  ./verify/speed_extrapolator_audit/adv/build/adv_tests 5 180  rc=1  结果：2601 通过 / 7 失败（fuzz 断言 1578 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#6  ./verify/speed_extrapolator_audit/adv/build/adv_tests 6 200  rc=1  结果：2909 通过 / 7 失败（fuzz 断言 1760 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#7  ./verify/speed_extrapolator_audit/adv/build/adv_tests 7 220  rc=1  结果：3129 通过 / 7 失败（fuzz 断言 1920 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#8  ./verify/speed_extrapolator_audit/adv/build/adv_tests 8 240  rc=1  结果：3381 通过 / 7 失败（fuzz 断言 2088 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#9  ./verify/speed_extrapolator_audit/adv/build/adv_tests 9 260  rc=1  结果：3737 通过 / 7 失败（fuzz 断言 2282 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#10  ./verify/speed_extrapolator_audit/adv/build/adv_tests 10 280  rc=1  结果：3853 通过 / 7 失败（fuzz 断言 2416 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#11  ./verify/speed_extrapolator_audit/adv/build/adv_tests 11 300  rc=1  结果：4305 通过 / 7 失败（fuzz 断言 2634 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#12  ./verify/speed_extrapolator_audit/adv/build/adv_tests 12 320  rc=1  结果：4493 通过 / 7 失败（fuzz 断言 2786 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#13  ./verify/speed_extrapolator_audit/adv/build/adv_tests 13 340  rc=1  结果：4841 通过 / 7 失败（fuzz 断言 2978 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#14  ./verify/speed_extrapolator_audit/adv/build/adv_tests 14 360  rc=1  结果：5101 通过 / 7 失败（fuzz 断言 3148 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#15  ./verify/speed_extrapolator_audit/adv/build/adv_tests 15 380  rc=1  结果：5369 通过 / 7 失败（fuzz 断言 3320 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#16  ./verify/speed_extrapolator_audit/adv/build/adv_tests 16 400  rc=1  结果：5621 通过 / 7 失败（fuzz 断言 3488 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#17  ./verify/speed_extrapolator_audit/adv/build/adv_tests 17 420  rc=1  结果：5953 通过 / 7 失败（fuzz 断言 3676 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#18  ./verify/speed_extrapolator_audit/adv/build/adv_tests 18 440  rc=1  结果：6261 通过 / 7 失败（fuzz 断言 3858 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#19  ./verify/speed_extrapolator_audit/adv/build/adv_tests 19 460  rc=1  结果：6489 通过 / 7 失败（fuzz 断言 4020 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#20  ./verify/speed_extrapolator_audit/adv/build/adv_tests 20 480  rc=1  结果：6877 通过 / 7 失败（fuzz 断言 4222 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#21  ./verify/speed_extrapolator_audit/adv/build/adv_tests 21 500  rc=1  结果：7097 通过 / 7 失败（fuzz 断言 4382 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#22  ./verify/speed_extrapolator_audit/adv/build/adv_tests 22 520  rc=1  结果：7365 通过 / 7 失败（fuzz 断言 4554 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#23  ./verify/speed_extrapolator_audit/adv/build/adv_tests 23 540  rc=1  结果：7521 通过 / 7 失败（fuzz 断言 4698 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#24  ./verify/speed_extrapolator_audit/adv/build/adv_tests 24 560  rc=1  结果：7925 通过 / 7 失败（fuzz 断言 4904 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+#25  ./verify/speed_extrapolator_audit/adv/build/adv_tests 25 600  rc=1  结果：8493 通过 / 7 失败（fuzz 断言 5256 条）  其中 HARD-FAIL（有限配置·生产可达域不变量被破）：0  failLines=7
+---- 共 25 次运行 ----

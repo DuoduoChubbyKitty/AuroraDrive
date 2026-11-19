@@ -91,7 +91,7 @@ private let eventSource: CGEventSource? = {
 - `requestScreenRecordingPermission() -> Bool`（**第 301–314 行**）：`CGRequestScreenCaptureAccess()`（:306）弹系统授权框并登记进 TCC 列表；被拒时幂等打开设置面板（:311，定义 :315）。⚠️ 首次调用几乎必然返回 false，且勾选后通常要重启 App 才生效（:303-304）
 - `openScreenRecordingSettings()`（:314-319 行）：打开「屏幕录制」面板
 - `static requestScreenRecordingPermissionOnStartup()`（:345-349 行）：**启动期版本**（供 AppDelegate 调用），先 `CGPreflightScreenCaptureAccess()` 预检、已授权则完全静默（:343-344）。**它解决的死锁**（:323-336）：`captureEngine.start()` 只在 `startDriving()` 里被调，而 `startDriving()` 开头有辅助功能守卫——没辅助功能权限 → 截屏引擎永不启动 → 屏幕录制申请永不触发。把申请从 startDriving 解耦挂到 `applicationDidFinishLaunching`，「看画面」不再依赖「能按键」
-- 背景（:271-283）：此前全项目只有 `CGPreflightScreenCaptureAccess()` 纯查询（EngineMain.swift:1107、AuroraDriveApp.swift:158），`CGRequestScreenCaptureAccess()` **零调用** → 系统设置列表里根本不会出现本 App
+- 背景（:271-283）：此前全项目只有 `CGPreflightScreenCaptureAccess()` 纯查询（EngineMain.swift:1108、AuroraDriveApp.swift:159），`CGRequestScreenCaptureAccess()` **零调用** → 系统设置列表里根本不会出现本 App
 
 ## 二、按键注入五件套与 refreshHeldKeys（ControlEngine.swift 第 351–496 行区间；`refreshHeldKeys` 本体 :417–431）
 
@@ -278,7 +278,7 @@ postedEventCount &+= 2
 |---|---|---|
 | ① 系统层：注入的键变成别的键 | macOS 把旧表的值解释成完全不同的物理键：`87`→**小键盘 5**、`65`→**小键盘 `.`**、`83`→**小键盘 1**、`32`→**字母 `u`**、`27`→**`-`**、`0xA0/0xA2`→**无字符** | ControlEngine.swift:606-611（源码自记）；evidence 文件方法①/② |
 | ② 应用层：AI 技能与工具"按了没反应" | 所有走 `pressGameKey`/`holdGameKey`（:643-675）的技能——登录、钓鱼、做咖啡、钢琴、节奏、闪避——**发出去的全是错键**，游戏侧表现为按了无效果或触发了意料之外的 UI | ControlEngine.swift:608-611 |
-| ③ 排障层：表现出"AI 是坏掉的" | 由于注入链路本身"成功"（`postedEventCount` 照常增长、CGEvent 无报错），排障时看不出异常——**只有把事件抓回来读字符串才能发现** | ControlEngine.swift:658 - 666 |
+| ③ 排障层：表现出"AI 是坏掉的" | 由于注入链路本身"成功"（`postedEventCount` 照常增长、CGEvent 无报错），排障时看不出异常——**只有把事件抓回来读字符串才能发现** | ControlEngine.swift:674 - 682 |
 
 **为什么车还能动（关键区分）**：驾驶控制量走的是 `KeyMap`（:48-53，W/A/S/D/空格/Shift），那张表用的是**正确的**虚拟键码，所以自动驾驶一直正常。`GameKey` 只服务 AI 技能 / AI 工具注入路径——**两条路径互不影响**，这既是"车能动"的原因，也是缺陷长期没被发现的原因（ControlEngine.swift:620-623）。
 
@@ -389,7 +389,7 @@ postedEventCount &+= 2
 | 修复落地于提交 `2c0459a`、F 键排除落地于 `d9675ab` | ✅ `git log -S` 实测 |
 | 四个哈希/证据可追溯 | ✅ 2026-10-07 `shasum -a 256` 实测 |
 | 自检回归数字（99/0、32/0、146/0、9/0） | ⚠️ **未验证**——取自提交信息/源码注释，本轮未真机复跑 |
-| `--control-selftest` 的"四证据链"具体四类 | ⚠️ **未验证**——四类名称取自 `AuroraDriveApp.swift:1135` 注释与 `LLMSelfTest.swift:1087-1108` 分段（`:1079-1086` 是 docstring，`static func runControl` 在 :1087），`runControl` 内部未逐行通读 |
+| `--control-selftest` 的"四证据链"具体四类 | ⚠️ **未验证**——四类名称取自 `AuroraDriveApp.swift:1216` 注释与 `LLMSelfTest.swift:1087-1108` 分段（`:1079-1086` 是 docstring，`static func runControl` 在 :1087），`runControl` 内部未逐行通读 |
 | 绕过 `enum` 硬造 `"f1"` 字符串是否会被 `resolveGameKey` 放行 | ⚠️ **未验证**——代码路径推断为"schema enum 挡下"（见 8.7），未实测 |
 | `--control-selftest` 的"四证据链"注释行号 | ✅ 2026-10-17 实测：四类名称出自 `AuroraDriveApp.swift:944` 的 flag 登记注释——原文「`--control-selftest` 按键四证据链（**权限/计数/自建tap/NSEvent**）」（**四类内部实现仍未逐行通读**，见上行）；`LLMSelfTest.swift:1110-1112` 亦自述本缺陷（"旧表 87 → \"5\" 是坏的，新表 13 → \"w\" 是对的"） |
 
@@ -452,7 +452,7 @@ postedEventCount &+= 2
 | `readPose()`（调用 / 实现 / 0.4 门） | AuroraDriveApp.swift:7654 / :8033-8041 / :8037 |
 | `segmentDecisionForRule()` / 地图段覆盖 / laneFallback | AuroraDriveApp.swift:8047-8063 / :7654-7664 / :7669-7673 |
 | `benchSuppressAllInjection` / `expertMode || controlDisabled` | AuroraDriveApp.swift:7740 / :7743-7758 |
-| `applyCommand(currentCommand)` 调用 / 实现 | AuroraDriveApp.swift:9674 / :8083-8112 |
+| `applyCommand(currentCommand)` 调用 / 实现 | AuroraDriveApp.swift:10405 / :8083-8112 |
 | `applySpeedLimitBrake` 实现 / `releaseSpeedLimitBrake` | AuroraDriveApp.swift:7963-7983 / :7992-7994 |
 | `applyLaneAdvice`（文件级全局函数） | AuroraDriveApp.swift:8380 |
 | 卡死检测（判据 / 整段） | AuroraDriveApp.swift:7391 / :7371-7402 |

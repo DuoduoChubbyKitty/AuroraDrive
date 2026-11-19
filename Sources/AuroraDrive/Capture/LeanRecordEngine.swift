@@ -316,6 +316,7 @@ final class LeanRecordEngine: @unchecked Sendable {
     /// 最近若干个「被接受的帧间隔」。用它算 median，与 `dataset_v3` 同口径。
     /// 只保留最近 `cadenceWindow` 个，既能跟上节奏变化，又不会被开头的冷启动拖累。
     private var cadenceIntervals: [TimeInterval] = []
+    private var oldestCadenceSlot = 0
     /// 窗口大小：120 帧 ≈ 8 秒 @15fps。太短会被单次抖动带偏，太长则反应迟钝。
     private let cadenceWindow = 120
     /// 连续多少次判据成立才认定"真的出界"（抗偶发抖动）。
@@ -487,8 +488,13 @@ final class LeanRecordEngine: @unchecked Sendable {
         }
         // 节奏样本：只记被接受的帧间隔，照 dataset_v3 的口径盯 median。
         if let last = lastAcceptedFrameTime {
-            cadenceIntervals.append(now.timeIntervalSince(last))
-            if cadenceIntervals.count > cadenceWindow { cadenceIntervals.removeFirst() }
+            let interval = now.timeIntervalSince(last)
+            if cadenceIntervals.count < cadenceWindow {
+                cadenceIntervals.append(interval)
+            } else {
+                cadenceIntervals[oldestCadenceSlot] = interval
+                oldestCadenceSlot = (oldestCadenceSlot + 1) % cadenceWindow
+            }
         }
         lastAcceptedFrameTime = now
         stateLock.unlock()
@@ -920,6 +926,7 @@ final class LeanRecordEngine: @unchecked Sendable {
         //    把好端端的新段停掉。契约是按段判的（dataset_v3 逐 clip 校验），
         //    监视器也必须按段看。
         cadenceIntervals.removeAll(keepingCapacity: true)
+        oldestCadenceSlot = 0
         contractBreachStreak = 0
         // 清陈旧错误，但**保留本次 codrive 降级原因**（有则可见，无则 nil）。
         lastError = coDriveDegradedError

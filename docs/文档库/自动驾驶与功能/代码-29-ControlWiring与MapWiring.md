@@ -3,7 +3,7 @@
 >
 > ✅ **2026-10-18 复核（agent-reader）**：逐条 `read` + `grep -n` 核对。本次修订：
 > - **修正 `pushConfig` 字段数**（§一③）：原文写「**7 字段**」，实测 **9 字段**（sport/controlDisabled/forceRule/expert/glyph/degradeThreshold/speedLimit + **digest** + **perceptionMode**）。后两个是后续追加的（digest 防误注入、perceptionMode 档位 IPC），原文未同步。
-> - **新增 `takeover` 发送路径说明**：`takeover` 字段**不在 `pushConfig` 里**——它由 `AuroraDriveApp.swift/6281` 的 KeyboardMonitor 回调**独立 `sendCommand("config", extra: ["takeover": true/false])`** 发送，经 `EngineMain.swift:892` 的 `case "config"` 解析。故 config IPC 的完整字段集是 **10 个**（9 在 pushConfig + 1 独立发 takeover），但 pushConfig 本身只有 9 个。
+> - **新增 `takeover` 发送路径说明**：`takeover` 字段**不在 `pushConfig` 里**——它由 `AuroraDriveApp.swift/6281` 的 KeyboardMonitor 回调**独立 `sendCommand("config", extra: ["takeover": true/false])`** 发送，经 `EngineMain.swift:893` 的 `case "config"` 解析。故 config IPC 的完整字段集是 **10 个**（9 在 pushConfig + 1 独立发 takeover），但 pushConfig 本身只有 9 个。
 > - **修正 SpeedLimitGuard 与 AutoRoadCondition 行号范围**（§一④⑤）：原文 SpeedLimitGuard「333–463 行」→ 实测 **334–~505**（`final class SpeedLimitGuard` 在 :334，紧接 `enum AutoRoadCondition` 在 :507）；原文 AutoRoadCondition「465–542 行」→ **507–542**。文件已从 450 行增至 542 行，两段均向后漂移。
 > - **修正 `regionName` 遍历数**（§二）：原文「遍历 **5677** 标记一次」→ **1777**（2026-10-04 换源到 `map_locations.json` 后，`MapDatabase.markers` 只有 1777 个点；源码注释里的 5677 是旧库 `FINAL_complete_map_database.json` 的历史引用）。
 > - **确认无误**：`stabilityFrames = 10`（:541，20Hz 下约 0.5 秒）属实；6 档路况阈值（>70/>50/>30/>20/≤10 + 11–20 滞回带）属实；`speedLimitRange = 20...200` / `unlimitedThreshold = 200` 属实；`minimapSpanMeters = 160` 属实；`MapDatabase` 1777 点属实；三级刹车时间窗属实。

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>速度表 ROI 框选工具</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; color: #eee; font-family: -apple-system, "PingFang SC", sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+  #topbar { padding: 10px 14px; background: #1b1b1b; border-bottom: 1px solid #333; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  #topbar label.btn { background: #2d6cdf; color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  #topbar .hint { font-size: 12px; color: #9a9a9a; }
+  #stage { flex: 1; position: relative; overflow: auto; display: flex; align-items: flex-start; justify-content: center; }
+  #drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #888; font-size: 18px; pointer-events: none; text-align: center; line-height: 2; }
+  #imgwrap { position: relative; margin: 20px; }
+  #img { display: block; user-select: none; -webkit-user-drag: none; }
+  /* ── 可拖动/可缩放的框 ── */
+  #box { position: absolute; border: 2px solid #ff4d4f; background: rgba(255,77,79,.12); cursor: move; }
+  #box .h { position: absolute; width: 12px; height: 12px; background: #fff; border: 2px solid #ff4d4f; border-radius: 50%; }
+  #box .h.nw { left:-7px; top:-7px; cursor:nwse-resize; } #box .h.ne { right:-7px; top:-7px; cursor:nesw-resize; }
+  #box .h.sw { left:-7px; bottom:-7px; cursor:nesw-resize; } #box .h.se { right:-7px; bottom:-7px; cursor:nwse-resize; }
+  #box .h.n { left:50%; top:-7px; margin-left:-6px; cursor:ns-resize; } #box .h.s { left:50%; bottom:-7px; margin-left:-6px; cursor:ns-resize; }
+  #box .h.w { left:-7px; top:50%; margin-top:-6px; cursor:ew-resize; } #box .h.e { right:-7px; top:50%; margin-top:-6px; cursor:ew-resize; }
+  #box .tag { position: absolute; left: 4px; top: -24px; background: #ff4d4f; color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+  /* ── 坐标面板 ── */
+  #panel { position: fixed; right: 16px; top: 66px; background: #1b1b1bee; border: 1px solid #333; border-radius: 10px; padding: 14px 16px; font-size: 13px; line-height: 1.9; min-width: 300px; z-index: 10; }
+  #panel b { color: #ffd666; }
+  #panel code { color: #69e069; word-break: break-all; }
+  #panel .copybtn { background: #2d6cdf; border: 0; color: #fff; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  #panel .note { color:#9a9a9a; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <label class="btn">打开截图<input type="file" id="file" accept="image/*" hidden></label>
+  <span class="hint">也可以把截图直接拖进来，或 Cmd+V 粘贴。拖红框罩住「速度表数字」，箭头键微调（Shift 加速）。截图请用「窗口截图」（Cmd+Shift+4 → 空格 → 点游戏窗口）。</span>
+</div>
+<div id="stage">
+  <div id="drop">把游戏窗口截图拖到这里<br>（或点左上角「打开截图」）</div>
+  <div id="imgwrap" hidden>
+    <img id="img" alt="">
+    <div id="box">
+      <div class="tag"></div>
+      <div class="h n"></div><div class="h s"></div><div class="h w"></div><div class="h e"></div>
+      <div class="h nw"></div><div class="h ne"></div><div class="h sw"></div><div class="h se"></div>
+    </div>
+  </div>
+</div>
+<div id="panel" hidden>
+  <div>归一化坐标（y 向下，与 speedROINorm 同口径）：</div>
+  <div><b>x</b> = <code id="nx"></code></div>
+  <div><b>y</b> = <code id="ny"></code></div>
+  <div><b>width</b> = <code id="nw"></code></div>
+  <div><b>height</b> = <code id="nh"></code></div>
+  <div style="margin-top:6px">像素：<span id="px"></span></div>
+  <div style="margin:8px 0"><button class="copybtn" id="copy">复制 Swift 代码</button> <span id="copied" style="color:#69e069"></span></div>
+  <div class="note">Swift 行（可直接粘给 AI）：<code id="swift"></code></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const img = $('img'), wrap = $('imgwrap'), box = $('box'), drop = $('drop'), panel = $('panel');
+let natW = 0, natH = 0;              // 图片原始像素
+// 框：图片原始像素坐标系
+let R = { x: 0.455, y: 0.885, w: 0.080, h: 0.050 };   // 初始即旧版 speedROINorm，直接在此基础上拖
+
+function loadImg(src) {
+  img.onload = () => {
+    natW = img.naturalWidth; natH = img.naturalHeight;
+    img.style.maxWidth = Math.min(window.innerWidth - 60, natW) + 'px';
+    img.style.maxHeight = window.innerHeight - 140 + 'px';
+    wrap.hidden = false; drop.style.display = 'none'; panel.hidden = false;
+    render();
+  };
+  img.src = src;
+}
+$('file').onchange = e => { if (e.target.files[0]) loadImg(URL.createObjectURL(e.target.files[0])); };
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadImg(URL.createObjectURL(f));
+});
+document.addEventListener('paste', e => {
+  for (const it of e.clipboardData.items)
+    if (it.type.startsWith('image/')) return loadImg(URL.createObjectURL(it.getAsFile()));
+});
+
+function scale() { return img.clientWidth / natW; }   // 显示尺寸 / 原始尺寸
+
+function render() {
+  if (!natW) return;
+  const s = scale();
+  // 限制在图片内
+  R.w = Math.min(Math.max(R.w, 2 / natW), 1 - R.x);
+  R.h = Math.min(Math.max(R.h, 2 / natH), 1 - R.y);
+  R.x = Math.min(Math.max(R.x, 0), 1 - R.w);
+  R.y = Math.min(Math.max(R.y, 0), 1 - R.h);
+  box.style.left = R.x * natW * s + 'px';
+  box.style.top = R.y * natH * s + 'px';
+  box.style.width = R.w * natW * s + 'px';
+  box.style.height = R.h * natH * s + 'px';
+  const f = v => v.toFixed(4);
+  $('nx').textContent = f(R.x); $('ny').textContent = f(R.y);
+  $('nw').textContent = f(R.w); $('nh').textContent = f(R.h);
+  $('px').textContent = `x=${Math.round(R.x*natW)} y=${Math.round(R.y*natH)} w=${Math.round(R.w*natW)} h=${Math.round(R.h*natH)}（图 ${natW}×${natH}）`;
+  $('swift').textContent = `CGRect(x: ${f(R.x)}, y: ${f(R.y)}, width: ${f(R.w)}, height: ${f(R.h)})`;
+  box.querySelector('.tag').textContent = `w:h ≈ ${(R.w*natW/(R.h*natH)).toFixed(1)}:1`;
+}
+window.addEventListener('resize', render);
+
+$('copy').onclick = () => {
+  navigator.clipboard.writeText($('swift').textContent).then(
+    () => $('copied').textContent = '已复制 ✓', () => $('copied').textContent = '复制失败，手动选中复制');
+};
+
+// ── 拖动 / 缩放（全部换算回原始像素） ──
+let drag = null;
+function pt(ev) { const rc = img.getBoundingClientRect(); return { x: ev.clientX - rc.left, y: ev.clientY - rc.top }; }
+box.addEventListener('pointerdown', ev => {
+  if (ev.target.classList.contains('h')) {
+    drag = { kind: ev.target.classList[1], p: pt(ev), ...structuredClone(R) };
+  } else {
+    drag = { kind: 'move', p: pt(ev), x: R.x, y: R.y };
+  }
+  box.setPointerCapture(ev.pointerId); ev.preventDefault();
+});
+box.addEventListener('pointermove', ev => {
+  if (!drag) return;
+  const s = scale(), q = pt(ev), dx = (q.x - drag.p.x) / s / natW, dy = (q.y - drag.p.y) / s / natH;
+  if (drag.kind === 'move') { R.x = drag.x + dx; R.y = drag.y + dy; }
+  else {
+    const o = drag; const minS = 4 / Math.max(natW, natH);
+    if (drag.kind.includes('w')) { R.x = Math.min(o.x + dx, o.x + o.w - minS); R.w = o.w - (R.x - o.x); }
+    if (drag.kind.includes('e')) { R.w = Math.max(o.w + dx, minS); }
+    if (drag.kind.includes('n')) { R.y = Math.min(o.y + dy, o.y + o.h - minS); R.h = o.h - (R.y - o.y); }
+    if (drag.kind.includes('s')) { R.h = Math.max(o.h + dy, minS); }
+  }
+  render();
+});
+box.addEventListener('pointerup', () => drag = null);
+
+// 箭头键微调：1px（Shift=10px）
+window.addEventListener('keydown', ev => {
+  if (!natW || !['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(ev.key)) return;
+  ev.preventDefault();
+  const step = (ev.shiftKey ? 10 : 1) / Math.max(natW, natH) / (ev.altKey ? 5 : 1); // Alt=更细
+  const dx = (ev.key === 'ArrowLeft' ? -step : ev.key === 'ArrowRight' ? step : 0);
+  const dy = (ev.key === 'ArrowUp' ? -step : ev.key === 'ArrowDown' ? step : 0);
+  if (ev.metaKey || ev.ctrlKey) {           // Cmd/Ctrl+方向 = 缩放
+    R.w = Math.min(Math.max(R.w + dx, 2/natW), 1 - R.x);
+    R.h = Math.min(Math.max(R.h + dy, 2/natH), 1 - R.y);
+  } else { R.x += dx; R.y += dy; }
+  render();
+});
+
+// ── 预载：?img=xxx 指定图，否则默认尝试同目录 shot1.webp（file:// 下 <img> 可读相对路径）──
+(function preload() {
+  const src = new URLSearchParams(location.search).get('img') || 'shot1.webp';
+  loadImg(src);
+})();
+</script>
+</body>
+</html>

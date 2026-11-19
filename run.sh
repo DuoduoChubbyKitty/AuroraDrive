@@ -164,15 +164,16 @@ elif [ "$1" = "--yolo-bench" ] && [ -n "$2" ]; then
     ./$BIN_DST --yolo-bench "$2"
 else
     echo "启动 AuroraDrive..."
-    # 优先用 .app bundle (LaunchServices 干净父进程)
-    # --auto-login: 启动即自动进入登录守护（每 8s 检测登录界面并点击，
-    #   直到进游戏或 80s 超时）。游戏已登录/未开时守护安静退出，无副作用。
-    # 默认不自动登录（用户手动控制）；要自动登录传 --auto-login 参数
+    # ⚠️ 用裸可执行启动（不再 `open .app`）：本机 TCC（屏幕录制/辅助功能）是按可执行文件
+    #    ./AuroraDriveUI 授权的；经 `open AuroraDriveUI.app` 启动会变成 com.aurora.driveui
+    #    这个**不同的 TCC 主体** → 权限全丢（壳模式在 UI 进程抓屏会报“屏幕录制被拒”）。
+    #    裸启动时 UI 与 --engine 子进程共用同一份授权，权限不会分裂成两半。
+    # --auto-login: 启动即自动进入登录守护；默认不自动登录。
     if [ "$1" = "--auto-login" ]; then
-        open "$BUNDLE_DIR" --args --auto-login
+        nohup "$ROOT/$BIN_DST" --auto-login > /tmp/aurora_ui.out 2>&1 &
         echo "已启动（--auto-login 自动登录守护已开启）。如果没出现窗口,检查:"
     else
-        open "$BUNDLE_DIR"
+        nohup "$ROOT/$BIN_DST" > /tmp/aurora_ui.out 2>&1 &
         echo "已启动（未开启自动登录）。要自动登录：./run.sh --auto-login"
         echo "如果没出现窗口,检查:"
     fi

@@ -371,9 +371,9 @@
 > `AURORA_UI_LOCAL=1`（`EngineClient.swift`）、`AURORA_API_KEY`（`AuroraDriveApp.swift`）、
 > `AURORA_MAP_WINDOW=1`（`AuroraDriveApp.swift`，仅供无人值守自动化验证）、`AURORA_STUCK_SECONDS`（`:5357`）、
 > `AURORA_DISABLE_OPTICAL_FLOW`（`:5805`）、`AURORA_OBSERVE_ONLY=1`（`:6246` + `EngineMain.swift`）、
-> `AURORA_DAEMON_MODE`（`AuroraDriveApp.swift:138`）、`AURORA_LOG_SYNC`（`:8953`）、`AURORA_MAP_LEGACY_MARKERS=1`
+> `AURORA_DAEMON_MODE`（`AuroraDriveApp.swift:139`）、`AURORA_LOG_SYNC`（`:8953`）、`AURORA_MAP_LEGACY_MARKERS=1`
 > （`MissionConsole.swift`，`--mc-map-bench` A/B 用，`AuroraDriveApp.swift` 注释）、`AURORA_AYOLOM=1`
-> （`--ayolom-selftest` 必需，`:1213` 注释）、`AURORA_TCC_TEST`（`AuroraDriveApp.swift:159`，`--tcc-selftest` 日志 mode 字段）。
+> （`--ayolom-selftest` 必需，`:1213` 注释）、`AURORA_TCC_TEST`（`AuroraDriveApp.swift:160`，`--tcc-selftest` 日志 mode 字段）。
 > 全表权威来源：`--flags-help` → `AuroraFlags.helpText()`（`Core/AuroraFlags.swift`；调用 `AuroraDriveApp.swift`）。
 >
 > 覆盖源文件：AuroraDriveApp.swift Launcher/main()（**2026-11-10 复核：@main 结构 AuroraDriveLauncher 为 `:721-1360`，main() 在 `:748`**）+ EngineMain.swift（**2416 行**，`wc -l` 实测）+ EngineClient.swift spawnEngine（**spawnEngine 声明在 `:330`；文件实测 1128 行**）+ VisualLocator.swift（**494 行**）+ 各自检入口。
@@ -522,7 +522,7 @@
 > **注意退出码语义不一致**：`--yolopx-selftest` 返回**失败项数**，而 `--tcc-selftest` 返回 0/2。
 > 写脚本判失败应统一按 `!= 0` 处理。
 
-**环境变量**：`AURORA_API_KEY`（--agent-llm-test 的 Key 来源，`AuroraDriveApp.swift:159`）/ `AURORA_TCC_TEST`（--tcc-selftest 日志的 mode 字段，`:159`）/ `AURORA_DAEMON_MODE=1`（--daemon 的等价环境变量，`:138`）。
+**环境变量**：`AURORA_API_KEY`（--agent-llm-test 的 Key 来源，`AuroraDriveApp.swift:160`）/ `AURORA_TCC_TEST`（--tcc-selftest 日志的 mode 字段，`:159`）/ `AURORA_DAEMON_MODE=1`（--daemon 的等价环境变量，`:138`）。
 
 ## 二、spawnEngine 引擎拉起与 Launcher 分流细节
 

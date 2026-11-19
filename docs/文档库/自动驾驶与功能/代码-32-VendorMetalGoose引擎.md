@@ -38,9 +38,9 @@
 
 | # | 位置 | 证据 |
 |---|---|---|
-| ① | `CaptureEngine.swift:130` | `var onUpscaleFrame: ((CVPixelBuffer) -> Void)?`——**单向回调，只出不进**（回调无返回值，引擎拿不到任何回读结果） |
+| ① | `CaptureEngine.swift:132` | `var onUpscaleFrame: ((CVPixelBuffer) -> Void)?`——**单向回调，只出不进**（回调无返回值，引擎拿不到任何回读结果） |
 | ② | `CaptureEngine.swift:1106-1109` | 调用点：`if let onUpscaleFrame, isUpscaleWanted(), let upscaleCopy = copyUpscaleFrame(...) { onUpscaleFrame(upscaleCopy) }`——**在「插帧/超分直通」段，与下游 YOLO 直通（:1111）并列，不改写 `pixelBuffer`** |
-| ③ | `CaptureEngine.swift:138` | `var isUpscaleWanted: () -> Bool = { false }`——**门禁默认 false**：默认路径下 MetalGoose 根本不参与，连全分辨率拷贝都不做（:1104 注释「门禁先于拷贝求值」） |
+| ③ | `CaptureEngine.swift:140` | `var isUpscaleWanted: () -> Bool = { false }`——**门禁默认 false**：默认路径下 MetalGoose 根本不参与，连全分辨率拷贝都不做（:1104 注释「门禁先于拷贝求值」） |
 
 即：MetalGoose **只吃像素、只吐像素**，拿不到 `ControlCommand`、检测结果、坐标；且默认关闭。
 ⚠️ **这条是产品的硬红线**（不是实现细节）：插帧必然引入额外延迟，一旦进入「捕获→推理→按键」决策链会害死驾驶决策——改动此处前必须先确认。
@@ -377,7 +377,7 @@ does not need a drawable, and take one at the last possible moment.
 
 原文 §一 已提到「Shaders.metal 运行时编译」，但没点明它在 `Package.swift` 里的处置。补三点：
 
-1. **两份都被显式 exclude**：根层 `Vendor/MetalGoose/Shaders.metal`（`Package.swift:178`）+ Engine/ `Vendor/MetalGoose/Engine/Shaders.metal`（`:178`）。
+1. **两份都被显式 exclude**：根层 `Vendor/MetalGoose/Shaders.metal`（`Package.swift:193`）+ Engine/ `Vendor/MetalGoose/Engine/Shaders.metal`（`:178`）。
 2. **466 行 / 17,016 字节**，两份内容完全相同（`diff` 零差异）——原文此结论今日复核仍成立。
 3. **运行时按路径加载**，三候选路径见 §一 `setupPipelines`（441–481 行）：`Bundle.main` → 可执行文件目录（`exeDir/Shaders.metal`、`exeDir/Vendor/MetalGoose/Engine/Shaders.metal`、以及一条硬编码绝对路径 `/Users/dupi/Desktop/自动驾驶系统/Vendor/MetalGoose/Engine/Shaders.metal`）→ `makeDefaultLibrary()` 兜底。
    ⚠️ 那条硬编码绝对路径是 vendor 原样保留的（换机器会失效，但只是三候选之一，不影响功能）。
