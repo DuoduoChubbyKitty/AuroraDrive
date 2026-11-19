@@ -470,6 +470,7 @@ final class InferenceEngineV3 {
     private(set) var windowRebuildCount = 0
     /// 上一次加载尝试时间（失败冷却，避免每帧重试刷屏）
     private var lastLoadAttempt = Date(timeIntervalSince1970: 0)
+    @ObservationIgnored private var driveLoadID: UUID?
     private let loadRetryCooldown: TimeInterval = 5.0
 
     /// 真实采集间隔超过该值即判为「断层」（秒）。
@@ -518,7 +519,7 @@ final class InferenceEngineV3 {
     /// 失败**不静默降级**：只记录 `errorMessage` 并保持 `isLoaded = false`，
     /// 由上层如实报错（用户明确要求硬切 V3、不做自动降级）。
     func loadIfNeeded() {
-        guard !isLoaded else { return }
+        guard !isLoaded, driveLoadID == nil else { return }
         guard Date().timeIntervalSince(lastLoadAttempt) >= loadRetryCooldown else { return }
         lastLoadAttempt = Date()
 
@@ -528,25 +529,62 @@ final class InferenceEngineV3 {
             return
         }
 
+        let cfg = Self.modelConfiguration()
+        do {
+            installModel(try MLModel(contentsOf: url, configuration: cfg), url: url)
+        } catch {
+            reportLoadFailure(error, url: url)
+        }
+    }
+
+    func loadForDriving() {
+        guard !isLoaded, driveLoadID == nil,
+              Date().timeIntervalSince(lastLoadAttempt) >= loadRetryCooldown else { return }
+        lastLoadAttempt = Date()
+        let url = Self.modelURL
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            errorMessage = "V3 模型未就绪：models/\(V3InputContract.modelFileName).mlmodelc 不存在"
+            return
+        }
+        let id = UUID()
+        driveLoadID = id
+        errorMessage = nil
+        MLModel.load(contentsOf: url, configuration: Self.modelConfiguration()) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, self.driveLoadID == id else { return }
+                self.driveLoadID = nil
+                switch result {
+                case .success(let model): self.installModel(model, url: url)
+                case .failure(let error): self.reportLoadFailure(error, url: url)
+                }
+            }
+        }
+    }
+
+    private static func modelConfiguration() -> MLModelConfiguration {
         let cfg = MLModelConfiguration()
         // 默认 ANE 优先：同一 INT4 模型实测 ANE 4.80ms vs CPU 21.75ms / GPU 18.62ms。
         // 可用环境变量 AURORA_COMPUTE_UNITS=cpu|cpuAndGPU|cpuAndNeuralEngine|all 覆盖，
         // 便于复现跨计算单元的数值一致性（INT4+fp16 在 ANE/CPU 上可能有细微分歧）。
         cfg.computeUnits = ComputeUnitSelection.current()
-
-        do {
-            let loaded = try MLModel(contentsOf: url, configuration: cfg)
-            self.model = loaded
-            self.isLoaded = true
-            self.errorMessage = nil
-            warmUp(model: loaded, generation: generation)
-            print("[v3] 模型加载成功：\(url.lastPathComponent)（INT4 / ANE）")
-        } catch {
-            // 如实上报底层原因，并补上本层上下文（便于定位是路径/权限/模型损坏）
-            errorMessage = "V3 模型加载失败（\(url.lastPathComponent)）："
-                + (error as NSError).localizedDescription
-            print("[v3] 加载失败：\(errorMessage ?? "-")")
+        if cfg.computeUnits == .cpuAndNeuralEngine {
+            cfg.optimizationHints.specializationStrategy = .fastPrediction
         }
+
+        return cfg
+    }
+
+    private func installModel(_ model: MLModel, url: URL) {
+        self.model = model
+        isLoaded = true
+        errorMessage = nil
+        warmUp(model: model, generation: generation)
+        print("[v3] 模型加载成功：\(url.lastPathComponent)（INT4 / ANE）")
+    }
+
+    private func reportLoadFailure(_ error: Error, url: URL) {
+        errorMessage = "V3 模型加载失败（\(url.lastPathComponent)）：\(error.localizedDescription)"
+        print("[v3] 加载失败：\(errorMessage ?? "-")")
     }
 
     /// 预热：跑一次全零输入，让 ANE 编译计算图，避免首帧卡顿。
@@ -630,6 +668,7 @@ final class InferenceEngineV3 {
     ///     → 当帧退化为 `.idle`（停控），不会出现"旧模型的决策继续执行"。
     func reloadModel() {
         invalidateResultsForModelSwap()
+        driveLoadID = nil
         isLoaded = false
         model = nil
         lastLoadAttempt = Date(timeIntervalSince1970: 0)

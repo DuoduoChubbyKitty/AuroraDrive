@@ -93,6 +93,35 @@ func engineClientLog(_ msg: String) {
     }
 }
 
+struct EngineCommandAck {
+    let id: String
+    let command: String
+    let ok: Bool
+    let detail: String
+    let windowID: CGWindowID?
+
+    init?(_ message: [String: Any]) {
+        guard let id = message["id"] as? String, let command = message["cmd"] as? String,
+              let ok = message["ok"] as? Bool, let detail = message["detail"] as? String else { return nil }
+        self.id = id
+        self.command = command
+        self.ok = ok
+        self.detail = detail
+        self.windowID = ((message["data"] as? [String: Any])?["windowID"] as? Int).flatMap(CGWindowID.init(exactly:))
+    }
+}
+
+struct DriveInputLease {
+    static let duration = 0.5
+    private(set) var expiresAt: Double = 0
+
+    mutating func update(until: Double, now: Double) {
+        expiresAt = until.isFinite && until > now ? min(until, now + Self.duration) : 0
+    }
+
+    func isValid(at now: Double) -> Bool { now < expiresAt }
+}
+
 @MainActor
 final class EngineClient {
 
@@ -113,7 +142,7 @@ final class EngineClient {
     ///     让版本守卫强制重启引擎（`isEngineStale` 的 stale 判据，见 `:265`；
     ///     原写 `EngineClient:227` 是旧行号，2026-10-18 修正）。
     // 4 = 路况配置、真实零速有效性与卡死横幅同步；旧引擎须重启。
-    nonisolated static let protocolVersion = 4
+    nonisolated static let protocolVersion = 5
 
     // ── UI 读取的状态 ──
     private(set) var isActive = false          // 引擎模式已激活（连接成功）
@@ -182,6 +211,11 @@ final class EngineClient {
     private(set) var engineSpeedKmh: Double = -1
     private(set) var engineSpeedValid = false
     private(set) var engineNeedsManualIntervention = false
+    /// 引擎侧抓屏是否在跑（heartbeat 1Hz 回传）。引擎模式下 UI 无本地抓屏，
+    /// 判断「有没有画面」要以引擎为准，不能看 UI 自己的 captureEngine。
+    private(set) var engineIsCapturing = false
+    /// 引擎侧最近一次抓屏失败原因（如屏幕录制 TCC 被拒）。nil = 无错误。
+    private(set) var engineCaptureError: String? = nil
     /// 驾驶置信度（0~1）
     private(set) var engineConfidence: Double = 0
     /// 引擎录制状态（引擎是权威源：帧在引擎进程里，UI 只负责显示与转发开关）
@@ -259,7 +293,7 @@ final class EngineClient {
                 guard let self else { return }
                 self.connectAttempts += 1
                 if self.tryConnect() {
-                    self.activate()
+                    if !self.deferActivation { self.activate() }
                     self.connectTimer?.cancel()
                     self.connectTimer = nil
                 } else if self.connectAttempts >= 20 {   // 6 秒仍未连上
@@ -285,12 +319,46 @@ final class EngineClient {
 
     /// 激活（含重连）后的回调：UI 用它把当前档位/状态同步给引擎
     var onActivated: (() -> Void)?
+    var onDisconnected: ((String) -> Void)?
+    private var pendingAcks: [String: (EngineCommandAck?) -> Void] = [:]
+
+    // Keep the transport available for the next start while this session runs locally.
+    var deferActivation = false {
+        didSet {
+            if oldValue, !deferActivation, socketFD >= 0, !isActive { activate() }
+        }
+    }
+
+    var supportsManagedDriving: Bool { sawHeartbeat && engineProtocol == Self.protocolVersion }
+
+    func request(_ command: String, id: String = UUID().uuidString,
+                 extra: [String: Any], timeout: Double = 10) async -> EngineCommandAck? {
+        await withCheckedContinuation { continuation in
+            pendingAcks[id] = { continuation.resume(returning: $0) }
+            var payload = extra
+            payload["id"] = id
+            if !sendCommand(command, extra: payload) {
+                pendingAcks.removeValue(forKey: id)?(nil)
+                return
+            }
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(timeout))
+                self?.pendingAcks.removeValue(forKey: id)?(nil)
+            }
+        }
+    }
+
+    func cancelRequest(id: String) {
+        pendingAcks.removeValue(forKey: id)?(nil)
+    }
 
     /// 尝试连接引擎 socket
     private func tryConnect() -> Bool {
         guard socketFD < 0 else { return true }
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return false }
+        var noSignal: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
 
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
@@ -313,10 +381,14 @@ final class EngineClient {
             return false
         }
         socketFD = fd
+        sawHeartbeat = false
         lineBuffer.removeAll(keepingCapacity: true)
-        let src = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+        let src = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
         src.setEventHandler { [weak self] in
-            self?.readSocket()
+            MainActor.assumeIsolated {
+                guard self?.socketFD == fd else { return }
+                self?.readSocket()
+            }
         }
         src.resume()
         readSource = src
@@ -366,6 +438,8 @@ final class EngineClient {
         sawHeartbeat = false
         lastHeartbeat = .distantPast
         enginePID = 0
+        engineCaptureError = nil
+        engineIsCapturing = false
         // 3) 真 kill（坑 1）：先 SIGTERM，1 秒后仍在则 SIGKILL
         if pid > 0 {
             kill(pid, SIGTERM)
@@ -406,6 +480,9 @@ final class EngineClient {
         let process = Process()
         process.executableURL = exeURL
         process.arguments = ["--engine"]
+        process.terminationHandler = { process in
+            engineClientLog("引擎退出 pid=\(process.processIdentifier) reason=\(process.terminationReason.rawValue) status=\(process.terminationStatus)")
+        }
         if let fh = FileHandle(forWritingAtPath: Self.engineLogPath) {
             fh.seekToEndOfFile()
             process.standardOutput = fh
@@ -433,26 +510,11 @@ final class EngineClient {
                 let lineData = lineBuffer.subdata(in: lineBuffer.startIndex..<nl)
                 lineBuffer.removeSubrange(lineBuffer.startIndex...nl)
                 if let line = String(data: lineData, encoding: .utf8) {
-                    DispatchQueue.main.async { [weak self] in
-                        self?.handleHeartbeatLine(line)
-                    }
+                    handleHeartbeatLine(line)
                 }
             }
-        } else {
-            // 断开（对端关闭 / read 出错）
-            // ★ 2026-10-02：统一走 handleConnectionLoss，并**立刻就地取消读源**。
-            //
-            // 【为什么必须就地取消】实测（23:02:26 / 23:03:26 两次）：
-            //   一次 kill 引擎，日志里刷出 12+ 条「连接断开」。
-            //   原因是 `read()` 返回 0 后本函数直接返回，**但 readSource 仍活着**，
-            //   于是同一轮事件反复投递 EOF，每次都往主队列塞一个断开回调。
-            //   改前的旧代码把 `readSource?.cancel()` 放在 async 块里，同样来不及。
-            //   现在：在**读队列上同步取消**，主队列那条只是状态收尾。
-            readSource?.cancel()
-            readSource = nil
-            DispatchQueue.main.async { [weak self] in
-                self?.handleConnectionLoss(reason: "read-eof")
-            }
+        } else if n == 0 || (errno != EINTR && errno != EAGAIN) {
+            handleConnectionLoss(reason: n == 0 ? "read-eof" : "read-error-\(errno)")
         }
     }
 
@@ -482,6 +544,11 @@ final class EngineClient {
         guard let data = line.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = obj["type"] as? String else { return }
+        if type == "ack" {
+            guard let ack = EngineCommandAck(obj) else { return }
+            pendingAcks.removeValue(forKey: ack.id)?(ack)
+            return
+        }
         // 指针朝向轻量消息（5Hz，独立于 1Hz 心跳 —— 心跳带 4 倍状态量，
         // 提到 5Hz 不划算；指针只有两个数值，单独发一条最小包）。
         if type == "pointer" {
@@ -505,6 +572,12 @@ final class EngineClient {
         if let v = obj["speedKmh"] as? Double { engineSpeedKmh = v }
         engineSpeedValid = obj["speedValid"] as? Bool ?? false
         engineNeedsManualIntervention = obj["needsManualIntervention"] as? Bool ?? false
+        if let capturing = obj["isCapturing"] as? Bool { engineIsCapturing = capturing }
+        if let err = obj["lastModeError"] as? String, !err.isEmpty {
+            engineCaptureError = err
+        } else if obj["isCapturing"] as? Bool == true {
+            engineCaptureError = nil   // 抓屏已恢复 → 清掉旧错误
+        }
         if let v = obj["confidence"] as? Double { engineConfidence = v }
         if let v = obj["driveDiagnostic"] as? String { engineDriveDiagnostic = v }
         // 录制状态回传（引擎模式下真正的写盘在引擎进程，UI 只负责显示）
@@ -644,9 +717,15 @@ final class EngineClient {
         isActive = false
         isConnected = false
         lastHeartbeat = .distantPast
+        engineCaptureError = nil
+        engineIsCapturing = false
         if wasActive {
             engineClientLog("⚠️ 连接已死 → 回落本地模式（原因：\(reason)），并开始重连")
+            onDisconnected?(reason)
         }
+        let interrupted = pendingAcks
+        pendingAcks.removeAll()
+        for complete in interrupted.values { complete(nil) }
         // 重连不依赖 isActive（那正是被我们置 false 的东西）——
         // 单独靠 wantsEngineMode 表达「用户仍然想要引擎模式」。
         startReconnectPolling()
@@ -674,9 +753,12 @@ final class EngineClient {
                 guard let self else { return }
                 self.connectAttempts += 1
                 if self.tryConnect() {
-                    self.activate()          // activate() 里会调 onActivated → 补发配置
+                    if !self.deferActivation { self.activate() }
                     self.connectTimer?.cancel()
                     self.connectTimer = nil
+                } else if self.connectAttempts == 2, self.enginePID > 0,
+                          kill(self.enginePID, 0) == -1, errno == ESRCH {
+                    _ = self.spawnEngine()
                 } else if self.connectAttempts >= 40 {   // 20 秒仍连不上 → 停轮询，保持本地模式
                     engineClientLog("重连 20 秒未成功 → 保持本地模式")
                     self.connectTimer?.cancel()
@@ -1058,6 +1140,8 @@ final class EngineClient {
         engineProtocol = 0
         sawHeartbeat = false
         lastHeartbeat = .distantPast
+        engineCaptureError = nil
+        engineIsCapturing = false
         // ④ 优雅退出：引擎收到 SIGTERM → releaseAll → stopDriving → flushSync → exit(0)
         if pid > 0 {
             kill(pid, SIGTERM)

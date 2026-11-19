@@ -49,6 +49,15 @@ final class DegradeStateMachine {
     /// 极速模式是否激活（由 DriveState.sportMode 同步过来）
     private(set) var sportOverride: Bool = false
 
+    /// 档位锁定（用户点档位按钮设置）。非 nil 时降级状态机**强制固定在锁定档**，
+    /// 不再按健康度自动降级/恢复：
+    ///   · .e2e  → 锁死端到端主驾，模型再差也不掉纯规则
+    ///   · .rule → 锁死纯规则兜底
+    ///   · nil   → 不锁定，走正常自动降级链（再次点同一档位按钮即解除）
+    /// ⚠️ 安全边界：锁定 .e2e 但模型完全不可用时，仍按用户意愿保持端到端
+    /// （用户明确要求"点端到端就锁死"，不再自作主张降级）。
+    var modeLock: DriveMode? = nil
+
     // MARK: - 内部状态
 
     /// 上一帧的模式，用于检测是否发生转换
@@ -88,7 +97,15 @@ final class DegradeStateMachine {
         // 用途就是触发 .recover，脱困删除后不再有任何消费者。
         // speedKmh/speedValid/dt 参数保留（少动调用方签名），已不参与决策。
 
-        // ── 0. 紧急切纯规则（最高优先，覆盖极速模式）──────────────
+        // ── 0. 档位锁定（用户点档位按钮）最高优先，覆盖一切自动降级 ──
+        if let lock = modeLock {
+            if mode != lock {
+                transition(to: lock, reason: "档位锁定（\(lock.rawValue)）")
+            }
+            return mode
+        }
+
+        // ── 0.5 紧急切纯规则（覆盖极速模式）──────────────────────
         if forceRule {
             if mode != .rule {
                 transition(to: .rule, reason: "紧急切纯规则")

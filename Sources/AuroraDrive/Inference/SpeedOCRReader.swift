@@ -436,7 +436,7 @@ final class SpeedOCRReader {
 
     /// 首次推理前兜底：若后台加载尚未完成，同步等待一次（保证不丢功能）。
     /// 只在极端情况（启动后立刻就有帧）才会真正阻塞，且此时加载通常已完成。
-    private func ensureModelsLoaded() {
+    func ensureModelsLoaded() {
         guard !modelsLoadFinished else { return }
         // 等后台那一轮加载的 I/O 结束（串行队列屏障；store 必然早于本屏障）
         modelLoadQueue.sync { }
@@ -710,7 +710,8 @@ final class SpeedOCRReader {
         let cnnSnapshot = cnnModel
         let ppocrSnapshot = ppocrModel
         let ppocrKeysSnapshot = ppocrKeys
-        let roiNorm = CaptureEngine.speedROINorm
+        // 活动速度表 ROI：CaptureEngine 按采集窗口归属切换（浏览器云窗=云端坐标/本地=默认）。
+        let roiNorm = CaptureEngine.activeSpeedROINorm
         let engineSnapshot = activeEngine
         isInferencing = true
         ocrQueue.async { [weak self] in
@@ -1071,11 +1072,11 @@ final class SpeedOCRReader {
         if isROISlice {
             input = CIImage(cvPixelBuffer: roiBuffer)
         } else {
-            // 全屏帧（自检路径）：按 speedROINorm 裁出速度表区域。
+            // 全屏帧（自检路径）：按活动速度表 ROI 裁出速度表区域（云端/本地口径由采集窗口决定）。
             // CIImage 原点左下（y 向上），归一化坐标左上原点 → ciRect.y = sh - yMax
             let sw = CGFloat(CVPixelBufferGetWidth(roiBuffer))
             let sh = CGFloat(CVPixelBufferGetHeight(roiBuffer))
-            let r = CaptureEngine.speedROINorm
+            let r = CaptureEngine.activeSpeedROINorm
             let rect = CGRect(x: r.origin.x * sw,
                               y: sh - (r.origin.y + r.height) * sh,
                               width: r.width * sw,
@@ -1108,7 +1109,7 @@ final class SpeedOCRReader {
         //   【回退开关】`AURORA_OCR_CI=1` 恢复 CoreImage 路径（仅排查对比用）。
         let cg: CGImage?
         if isROISlice || ProcessInfo.processInfo.environment["AURORA_OCR_CI"] != "1" {
-            cg = Self.cgImageFromPixelBuffer(roiBuffer, cropNorm: isROISlice ? nil : CaptureEngine.speedROINorm)
+            cg = Self.cgImageFromPixelBuffer(roiBuffer, cropNorm: isROISlice ? nil : CaptureEngine.activeSpeedROINorm)
         } else {
             cg = ciContext.createCGImage(input, from: input.extent)
         }

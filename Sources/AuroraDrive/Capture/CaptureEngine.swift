@@ -68,6 +68,7 @@ enum CaptureMode: Equatable, Sendable {
 /// UI 侧跨进程/跨线程持有它容易拿到已失效对象。这里拍平成纯值类型快照，
 /// 切换捕获时再按 `id` 重新解析成 SCWindow（见 `CaptureEngine.resolveWindow(id:)`）。
 struct CapturableWindow: Identifiable, Equatable, Sendable {
+    var ownerPID: pid_t? = nil
     /// CGWindowID（与 SCWindow.windowID 同源）
     let id: CGWindowID
     let applicationName: String
@@ -95,7 +96,7 @@ struct CapturableWindow: Identifiable, Equatable, Sendable {
 /// - 每帧通过 onFrame 闭包输出 NSImage，UI 显示与模型推理共用同一条流
 /// - 调用 start() 开始，stop() 停止
 /// - 2026-10-08：支持「录全屏（排除自家窗口）」/「只录指定窗口」双模式，可运行时切换
-final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
+final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
 
     /// 当前帧图像（UI 显示用）
     private(set) var currentFrame: NSImage? {
@@ -197,6 +198,41 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     /// SpeedOCRReader 用同一常量把槽位坐标换算到 ROI 相对坐标（与 Python crop_slot(roi=...) 一致）。
     nonisolated static let speedROINorm = CGRect(x: 0.455, y: 0.885,
                                                  width: 0.080, height: 0.050)
+
+    /// 云端（浏览器窗口）的速度表 ROI。2026-11-19 用 tools/roi_picker.html 在
+    /// 网页版截图上实测标定（PP-OCR 实测 conf=1.000），与本地客户端位置不同：
+    /// 网页版速度表整体更靠下（y 0.8952 vs 0.885），x 略左。
+    nonisolated static let cloudSpeedROINorm = CGRect(x: 0.4548, y: 0.8952,
+                                                      width: 0.0800, height: 0.0500)
+
+    /// 用户当前采集对象是否为云端（浏览器里的云游戏）。录全屏时没有窗口可判归属，
+    /// 只能靠这个由 UI 在切换采集源时置好的标志决定用哪套速度表坐标。
+    /// 进程内生效：UI 进程与 --engine 进程各自设置（不一致时以建流进程为准）。
+    nonisolated(unsafe) static var cloudROIHint: Bool = false
+
+    /// 活动速度表 ROI 的存储（锁保护：startStream 后台写 / captureQueue 读）。
+    private static let activeROILock = NSLock()
+    nonisolated(unsafe) private static var _activeSpeedROINorm = speedROINorm
+
+    /// 当前生效的速度表 ROI：采集窗口是浏览器（云端云游戏）→ cloudSpeedROINorm；
+    /// 否则 → speedROINorm（本地默认，行为与历史版本一致）。
+    /// 由 `startStream` 在建流时按窗口归属切换（UI 进程与 --engine 进程各自独立生效）。
+    nonisolated static var activeSpeedROINorm: CGRect {
+        activeROILock.lock(); defer { activeROILock.unlock() }
+        return _activeSpeedROINorm
+    }
+
+    nonisolated static func setActiveSpeedROI(_ roi: CGRect) {
+        activeROILock.lock(); _activeSpeedROINorm = roi; activeROILock.unlock()
+    }
+
+    /// 采集窗口归属是否为云端云游戏所在的浏览器（与 BrowserLauncher 的优先级一致：
+    /// Chrome 优先、Safari 兜底）。
+    nonisolated static func isCloudBrowserOwner(bundleID: String?, name: String?) -> Bool {
+        if let bundleID, ["com.google.Chrome", "com.apple.Safari"].contains(bundleID) { return true }
+        if let name, ["Google Chrome", "Safari"].contains(name) { return true }
+        return false
+    }
 
     /// 状态变化回调（启动/停止/错误）
     var onStatusChange: ((CaptureStatus) -> Void)?
@@ -454,13 +490,29 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     /// 4. 启动流，通过 delegate 接收 CMSampleBuffer 帧
     ///
     /// 2026-10-08：启动时按 `desiredMode` 决定是录全屏（排除自家窗口）还是录单窗口。
+    /// 屏幕录制 TCC 预检；未授权时主动发起一次系统授权申请（放到主线程，避免后台线程发起弹窗）。
+    /// ⚠️ 已是「被拒绝」状态时 `CGRequestScreenCaptureAccess()` 不会再弹窗、只会返回 false —
+    ///   这时唯一出路是用户去「系统设置 → 隐私与安全性 → 屏幕录制」手动勾选并重启 App，
+    ///   所以调用方必须同时给出可操作文案，不能只靠这一次申请。
+    static func requestScreenRecordingPermissionIfNeeded() {
+        guard !CGPreflightScreenCaptureAccess() else { return }
+        if Thread.isMainThread {
+            _ = CGRequestScreenCaptureAccess()
+        } else {
+            DispatchQueue.main.async { _ = CGRequestScreenCaptureAccess() }
+        }
+    }
+
     func start() {
         print("[cap-deep] start() 被调用 isCapturing=\(isCapturing) desiredMode=\(desiredMode.label) pid=\(getpid())")
         guard !isCapturing else {
             print("[cap-deep] start() 早退：isCapturing 已为 true（重复调用）")
             return
         }
-        let startGen = stateLock.withLock { _startGeneration }
+        let startGen = stateLock.withLock {
+            _startGeneration &+= 1
+            return _startGeneration
+        }
 
         // 用 Task 包装 async 调用
         Task { [weak self] in
@@ -482,8 +534,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                 print("[cap-deep] start() 检测到 pendingStopTask → await 其完成（避免旧流 stopCapture 与新流 startCapture 交错）")
                 await pending.value
                 print("[cap-deep] start() pendingStopTask 已完成，继续建流")
-                self.pendingStopTask = nil
+                if self.startGeneration == startGen { self.pendingStopTask = nil }
             }
+            guard self.startGeneration == startGen else { return }
 
             print("[cap-deep] Task 进入，开始 SCShareableContent.current …")
 
@@ -495,8 +548,18 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                 content = try await SCShareableContent.current
                 print("[cap-deep] SCShareableContent OK displays=\(content.displays.count) windows=\(content.windows.count)")
             } catch {
+                guard self.startGeneration == startGen else { return }
                 print("[cap-deep] ❌ SCShareableContent 失败: \(error)")
-                self.onStatusChange?(.error("获取屏幕内容失败（可能未授权）: \(error.localizedDescription)"))
+                // 屏幕录制 TCC 被拒（SCStreamErrorDomain -3801）时，引擎进程自己主动发起一次
+                // 授权申请（已授权则无弹窗、幂等）。引擎是 UI 派生的独立进程，它的 TCC 不会
+                // 因为 UI 申请过就自动具备；重建/ad-hoc 重签后旧授权还会失效 —— 必须在此申请。
+                if !CGPreflightScreenCaptureAccess() {
+                    Self.requestScreenRecordingPermissionIfNeeded()
+                }
+                let reason = "屏幕录制权限被拒绝：请到「系统设置 → 隐私与安全性 → 屏幕录制」"
+                    + "勾选 AuroraDriveUI，然后重启 App（重建后需重新授权）"
+                self.lastModeError = reason
+                self.onStatusChange?(.error(reason))
                 self.onStatusChange?(.permissionDenied)
                 return
             }
@@ -576,6 +639,14 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                 return
             }
             filter = SCContentFilter(desktopIndependentWindow: target)
+            // 速度表 ROI 按窗口归属切换：云端云游戏跑在浏览器（Chrome/Safari）里，
+            // 网页版速度表位置与本地客户端不同（实测 y≈0.8952 vs 0.885）。
+            // 全屏模式沿用本地默认（本地客户端才用录全屏）。
+            let owner = target.owningApplication
+            let useCloudROI = Self.isCloudBrowserOwner(bundleID: owner?.bundleIdentifier,
+                                                       name: owner?.applicationName)
+            Self.setActiveSpeedROI(useCloudROI ? Self.cloudSpeedROINorm : Self.speedROINorm)
+            print("[capture] 速度表ROI=\(useCloudROI ? "云端(浏览器) \(Self.cloudSpeedROINorm)" : "本地 \(Self.speedROINorm)")")
             print("[capture] 模式=只录窗口 #\(windowID) "
                   + "app=\(target.owningApplication?.applicationName ?? "?") "
                   + "title=\(target.title ?? "")")
@@ -584,14 +655,24 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             let own = Self.ownWindows(in: content)
             filter = SCContentFilter(display: display, excludingWindows: own)
             self.excludedOwnWindowCount = own.count
-            print("[capture] 模式=录全屏（排除自家窗口 \(own.count) 个）")
+            // ⚠️ 2026-11-19 修复（用户实测报障：全屏采集时车速仍读不到）：
+            //   上一版在这里把 ROI 打回 `speedROINorm`（本地默认），但用户实际用的是
+            //   **录全屏**——于是框选的云端坐标（0.4548,0.8952）从来没生效。
+            //   全屏帧是整屏（同一块屏幕游戏显示位置不变），此时应沿用
+            //   `desiredMode` 反映的采集对象：若用户是从浏览器云游戏切来的，
+            //   就继续用云端 ROI；否则用本地默认。
+            //   判据用「当前绑定的窗口是否浏览器」不可行（全屏没有窗口），
+            //   故用 UI 侧事先置好的标志（见 `cloudROIHint`）。
+            Self.setActiveSpeedROI(Self.cloudROIHint ? Self.cloudSpeedROINorm : Self.speedROINorm)
+            print("[capture] 模式=录全屏（排除自家窗口 \(own.count) 个）"
+                  + " 速度表ROI=\(Self.cloudROIHint ? "云端" : "本地")")
         }
 
         // 自动断言：排除列表是否真的生效（防「谁把 excludingWindows 改回空数组」回归）
         auditExclusion(content: content, display: display)
 
         // 创建 SCStream（非 Optional，直接初始化）
-        let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+        let stream = SCStream(filter: filter, configuration: config, delegate: self)
 
         // 注册帧输出回调
         // type: SCStreamOutputType.screen 表示捕获屏幕画面（区别于 .audio 音频）
@@ -599,8 +680,11 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             try stream.addStreamOutput(self, type: SCStreamOutputType.screen, sampleHandlerQueue: captureQueue)
             print("[cap-deep] addStreamOutput OK")
         } catch {
+            guard self.startGeneration == startGen else { return }
             print("[cap-deep] ❌ addStreamOutput 失败: \(error)")
-            onStatusChange?(.error("注册帧回调失败: \(error.localizedDescription)"))
+            let reason = "注册帧回调失败: \(error.localizedDescription)"
+            self.lastModeError = reason
+            onStatusChange?(.error(reason))
             return
         }
 
@@ -624,7 +708,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                 return
             }
             self.currentDisplay = display       // 切模式时复用（避免重新查显示器）
-            self.captureMode = self.desiredMode  // 记录已生效模式
+            self.captureMode = desired
             // task-C 第 3 点闭环：start() **确实应用了** desiredMode →
             //   清掉"待应用"标记，让 applyMode 早退时留下的期望真正落地。
             //   日志显式确认"用户上次的选择被沿用了"。
@@ -641,6 +725,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
             //   又置 true」竞态下留下 _stream=nil 但 isCapturing=true 的假活态：
             //   后续 start() 全部早退，抓屏永远无法恢复。
             self.lastFPSDate = Date()
+            self.lastModeError = nil            // 抓屏真正起来了 → 清掉上一次的失败原因（防陈旧错误常驻心跳）
             self.resetOwnUIWarning()            // 新一轮录制允许重新告警
             // 通知遵守同一生命周期：提交与通知之间 stop() 可能已收走状态（代数已
             //   推进），重读代数确认本次建流仍是当前会话，才发 .started。
@@ -652,8 +737,13 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                 print("[cap-deep] ⚠️ 建流提交后 stop() 已介入（代数 \(startGen)≠\(self.startGeneration)），跳过 .started 通知")
             }
         } catch {
+            guard self.startGeneration == startGen else { return }
             print("[cap-deep] ❌ startCapture 失败: \(error)")
-            onStatusChange?(.error("启动捕获失败: \(error.localizedDescription)"))
+            Self.requestScreenRecordingPermissionIfNeeded()
+            let reason = "启动捕获失败: \(error.localizedDescription)"
+                + "（若为「屏幕录制」权限被拒，请到系统设置授权后重启 App）"
+            self.lastModeError = reason
+            onStatusChange?(.error(reason))
         }
     }
 
@@ -861,6 +951,27 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
     }
 
     // MARK: - 窗口枚举 / 自家窗口识别 / 运行时切换（2026-10-08 新增）
+
+    @MainActor
+    func prepareDrivingSource(_ mode: CaptureMode) async {
+        if isCapturing, captureMode == mode { return }
+        // Open a new stream so queued samples from the old window cannot be reused.
+        stop()
+        await applyMode(mode)
+    }
+
+    @MainActor
+    func confirmPreview(_ mode: CaptureMode) async -> String? {
+        let deadline = ProcessInfo.processInfo.systemUptime + 5
+        let generation = startGeneration
+        while startGeneration == generation, !Task.isCancelled {
+            if isCapturing, captureMode == mode { return nil }
+            if let lastModeError { return lastModeError }
+            if ProcessInfo.processInfo.systemUptime >= deadline { return "等待窗口采集超时" }
+            try? await Task.sleep(for: .milliseconds(40))
+        }
+        return "窗口采集已切换"
+    }
     //
     // 【设计要点：为什么这些是 static / 为什么拆开】
     //   · `listWindows()` / `ownWindows(in:)` 是**纯查询**，不碰实例状态 →
@@ -904,7 +1015,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
                                        ownPIDs: ownPIDs)
             if own { continue }
             let title = window.title ?? ""
-            result.append(CapturableWindow(id: window.windowID,
+            result.append(CapturableWindow(ownerPID: app?.processID, id: window.windowID,
                                            applicationName: appName,
                                            bundleIdentifier: bundle,
                                            title: title,
@@ -1166,9 +1277,24 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
 
     /// ScreenCaptureKit 每帧回调
     /// 系统在画面变化时自动调用，传入 CMSampleBuffer
+    func stream(_ stream: SCStream, didStopWithError error: any Error) {
+        let didStop = stateLock.withLock {
+            guard _stream === stream else { return false }
+            _stream = nil
+            _isCapturing = false
+            return true
+        }
+        guard didStop else { return }
+        let message = "画面采集中断：\(error.localizedDescription)"
+        lastModeError = message
+        onStatusChange?(.error(message))
+    }
+
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        // 只处理屏幕画面帧（忽略音频）
-        guard type == .screen else { return }
+        guard type == .screen, sampleBuffer.isValid, self.stream === stream else { return }
+        if let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false)
+            as? [[SCStreamFrameInfo: Any]], let raw = attachments.first?[.status] as? Int,
+           raw != SCFrameStatus.complete.rawValue { return }
 
         // [cap-deep] 帧到达探针：前 3 帧必打，之后每 60 帧打一次（~2s@30fps）
         _deepFrameCounter += 1
@@ -1416,7 +1542,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, @unchecked Sendable {
         guard w > 0, h > 0 else { return nil }
 
         // 归一化 ROI → 像素（用 .toNearestOrEven 与 cropSlots 的 round() 同源，保证边界量化一致）
-        let roi = Self.speedROINorm
+        let roi = Self.activeSpeedROINorm
         let roiX = Int((roi.origin.x * CGFloat(w)).rounded(.toNearestOrEven))
         let roiY = Int((roi.origin.y * CGFloat(h)).rounded(.toNearestOrEven))
         let roiW = Int((roi.width * CGFloat(w)).rounded(.toNearestOrEven))
@@ -1637,7 +1763,7 @@ enum CaptureSelfTest {
 
     /// 跑自检，返回**失败项数**（0 = 全过，与其它 `--*-selftest` 同一约定）。
     @MainActor
-    static func run() -> Int {
+    static func run(gameSourcesOnly: Bool = false) -> Int {
         var fail = 0
         func ck(_ name: String, _ ok: Bool, _ detail: String) {
             print("\(ok ? "✅" : "❌") \(name)  \(detail)")
@@ -1645,6 +1771,33 @@ enum CaptureSelfTest {
         }
 
         print("═══ 捕获模式自检（--capture-selftest）═══")
+        func candidate(_ pid: pid_t, _ bundle: String, _ title: String) -> CapturableWindow {
+            CapturableWindow(ownerPID: pid, id: UInt32(pid), applicationName: "", bundleIdentifier: bundle,
+                             title: title, width: 1280, height: 720, isGame: true, isOwn: false)
+        }
+        let candidates = [candidate(100, "com.google.Chrome", "异环"),
+                          candidate(200, "com.google.Chrome", "异环云游戏"),
+                          candidate(200, "com.google.Chrome", "Google Accounts"),
+                          candidate(300, GameLauncher.bundleID, "异环启动器"),
+                          candidate(300, GameLauncher.bundleID, "异环")]
+        ck("本地游戏排除启动器", GameLauncher.matches(candidates, pid: 300) == [candidates[4]], "")
+        let chrome = "com.google.Chrome"
+        ck("云游戏排除其他浏览器实例",
+           BrowserLauncher.gameWindows(in: candidates, browserBundleID: chrome, browserPID: 200) == [candidates[1]], "")
+        ck("普通浏览器窗口不作为回退",
+           BrowserLauncher.gameWindows(in: [candidates[2]], browserBundleID: chrome, browserPID: 200).isEmpty, "")
+        ck("普通浏览器窗口不能成为驾驶目标", !GameLauncher.isDrivingTarget(candidates[2]), "")
+        ck("已有浏览器中的新游戏窗口优先",
+           BrowserLauncher.gameWindows(in: candidates, browserBundleID: chrome, browserPID: nil,
+                                       excluding: [candidates[0].id]) == [candidates[1]], "")
+        ck("云端恢复保留同一实例",
+           GameLauncher.replacements(for: candidates[1], in: candidates) == [candidates[1]], "")
+        if gameSourcesOnly {
+            let launcher = GameLauncher()
+            launcher.discover()
+            print("本地应用：\(launcher.localURL?.path ?? "未安装")，图标：\(launcher.icon != nil)")
+            return fail
+        }
 
         // ── 1. 视角归一化（perspective 参数化）──
         print("\n── 1. 录制视角归一化 ──")

@@ -1,0 +1,397 @@
+import AppKit
+import SwiftUI
+import ApplicationServices
+import UniformTypeIdentifiers
+
+enum GameWindowFocus {
+    static func isFocused(_ windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return false }
+        let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]]
+        let first = windows?.first { ($0[kCGWindowOwnerPID as String] as? Int) == Int(pid)
+            && ($0[kCGWindowLayer as String] as? Int) == 0 }
+        return (first?[kCGWindowNumber as String] as? Int) == Int(windowID)
+    }
+
+    static func exists(_ windowID: CGWindowID, pid: pid_t) -> Bool {
+        let windows = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]]
+        return (windows?.first?[kCGWindowOwnerPID as String] as? Int) == Int(pid)
+    }
+
+    @MainActor
+    static func raise(_ target: CapturableWindow) {
+        guard let pid = target.ownerPID,
+              let app = NSRunningApplication(processIdentifier: pid) else { return }
+        if pid == getpid() {
+            NSApp?.windows.first { $0.windowNumber == Int(target.id) }?.makeKeyAndOrderFront(nil)
+            return
+        }
+        let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, target.id) as? [[String: Any]]
+        let bounds = (info?.first?[kCGWindowBounds as String] as? NSDictionary)
+            .flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) }
+        if #available(macOS 14.0, *) { NSApp?.yieldActivation(to: app) }
+        app.activate(options: [])
+        guard let bounds else { return }
+        let accessibleApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(accessibleApp, 0.1)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(accessibleApp, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else { return }
+        let matching = windows.filter { window in
+            guard let point = geometry(window, kAXPositionAttribute, type: .cgPoint),
+                  let size = geometry(window, kAXSizeAttribute, type: .cgSize) else { return false }
+            return abs(point.x - bounds.minX) < 4 && abs(point.y - bounds.minY) < 4
+                && abs(size.x - bounds.width) < 4 && abs(size.y - bounds.height) < 4
+        }
+        if matching.count == 1, let window = matching.first {
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        }
+    }
+
+    private static func geometry(_ window: AXUIElement, _ attribute: String, type: AXValueType) -> CGPoint? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, attribute as CFString, &value) == .success,
+              let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+        let axValue = unsafeDowncast(value, to: AXValue.self)
+        if type == .cgSize {
+            var size = CGSize.zero
+            guard AXValueGetValue(axValue, type, &size) else { return nil }
+            return CGPoint(x: size.width, y: size.height)
+        }
+        var point = CGPoint.zero
+        guard AXValueGetValue(axValue, type, &point) else { return nil }
+        return point
+    }
+}
+@Observable @MainActor
+final class GameLauncher {
+    static let bundleID = "com.pwrd.yh.ios"
+    private let cloudWindow = CloudGameWindow()
+    let localSession = LocalGameSession()
+    private let pathKey = "Aurora.localGamePath"
+    private(set) var localURL: URL?
+    private(set) var icon: NSImage?
+    private(set) var busy = false
+    var needsWindow = false
+    var status = ""
+    private(set) var choices: [CapturableWindow] = []
+    private var lastFocusReassert = Date.distantPast
+    /// 云游戏「真实浏览器窗口」的采集目标（window id + 所属浏览器 pid），用于聚焦/保持前台。
+    private(set) var cloudTargetWindowID: CGWindowID?
+    private(set) var cloudTargetAppPID: pid_t?
+
+    func discover() {
+        let ws = NSWorkspace.shared
+        // 外置盘优先：卷名含「游戏」的排前面，避免插了备份盘时选到旧副本。
+        let volumes = (FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil) ?? [])
+            .sorted { a, b in
+                let an = a.lastPathComponent.contains("游戏"), bn = b.lastPathComponent.contains("游戏")
+                return an && !bn
+            }
+        // 外置盘架构（见 ~/.yihuan/launch.sh）：正确实例是「去沙盒副本」异环_nosandbox.app；
+        // 原版 异环.app 只是 prepare.sh 的源，经 LaunchServices 启动会注入 __CFBundleIdentifier
+        // 把 UE 卡死。候选里 nosandbox 排前，仅供图标/选择展示；真正启动走下面的启动器。
+        let installed = volumes.flatMap { vol -> [URL] in
+            let base = vol.appendingPathComponent("Applications")
+            return [base.appendingPathComponent("异环_nosandbox.app"),
+                    base.appendingPathComponent("异环.app")]
+        }
+        let wrapper = Self.externalWrapperURL()
+        let saved = UserDefaults.standard.string(forKey: pathKey).map(URL.init(fileURLWithPath:))
+        let urls = [saved].compactMap { $0 }
+            + [wrapper].compactMap { $0 }
+            + installed
+            + ws.urlsForApplications(withBundleIdentifier: Self.bundleID)
+        localURL = urls.first { Bundle(url: $0)?.bundleIdentifier == Self.bundleID }
+        icon = localURL.map { ws.icon(forFile: $0.path) }
+    }
+
+    /// 外置盘启动器 app（→ ~/.yihuan/launch.sh，会 `env -u` 掉 `__CFBundleIdentifier` 再拉起）。
+    static func externalWrapperURL() -> URL? {
+        let u = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications/异环（外置盘）.app")
+        return FileManager.default.fileExists(atPath: u.path) ? u : nil
+    }
+
+    /// 云游戏窗口号（未打开为 nil）。
+    var cloudWindowNumber: Int? { cloudWindow.windowNumber }
+
+    /// 若当前采集目标是云游戏窗口（内置 WKWebView 或真实浏览器窗口），把它/它的浏览器置前。
+    /// 按键注入是全局 `.cghidEventTap`（只送最前台焦点窗口），不置前就会打到控制台上。
+    func focusIfCloudTarget(_ mode: CaptureMode) {
+        guard case .window(let id) = mode else { return }
+        if let target = cloudTargetWindowID, id == target {
+            activateCloudBrowser()
+        } else if Int(id) == cloudWindowNumber {
+            cloudWindow.focusForInput()
+        }
+    }
+
+    /// 驾驶/壳模式期间持续确保云游戏前台（每 0.5s 最多纠正一次）。
+    func keepCloudFocus(_ mode: CaptureMode) {
+        guard case .window(let id) = mode else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastFocusReassert) > 0.5 else { return }
+        if let target = cloudTargetWindowID, id == target {
+            guard let pid = cloudTargetAppPID,
+                  let app = NSRunningApplication(processIdentifier: pid), !app.isActive else { return }
+            lastFocusReassert = now
+            app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        } else if Int(id) == cloudWindowNumber {
+            guard !cloudWindow.isKey else { return }
+            lastFocusReassert = now
+            cloudWindow.reassertKey()
+        }
+    }
+
+    /// 激活云游戏所在的浏览器 App（全局注入按键会送到最前台 App）。
+    private func activateCloudBrowser() {
+        guard let pid = cloudTargetAppPID,
+              let app = NSRunningApplication(processIdentifier: pid) else { return }
+        app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+    }
+
+    /// 兜底启动脚本（外置盘启动器 app 缺失时用它；脚本内部会 `env -u` 掉
+    /// `__CFBundleIdentifier` 再拉起去沙盒副本）。
+    static func externalLaunchScriptURL() -> URL? {
+        let u = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".yihuan/launch.sh")
+        return FileManager.default.fileExists(atPath: u.path) ? u : nil
+    }
+
+    func chooseApp() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.prompt = "选择《异环》"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard Bundle(url: url)?.bundleIdentifier == Self.bundleID else {
+            status = "请选择《异环》游戏 App"
+            return
+        }
+        UserDefaults.standard.set(url.path, forKey: pathKey)
+        discover()
+    }
+
+    func open(cloud: Bool, state: DriveState) async {
+        guard !busy else { return }
+        busy = true
+        needsWindow = true
+        choices = []
+        defer { busy = false }
+        do {
+            if cloud {
+                // 用系统真实浏览器打开（Chrome 优先、Safari 兜底），再抓浏览器窗口。
+                // 不再用内置 WKWebView：实测它抓不到游戏画面、也不接受合成按键。
+                guard let browser = BrowserLauncher.preferredBrowser() else {
+                    status = "未找到 Google Chrome 或 Safari，请先安装浏览器"
+                    return
+                }
+                status = "正在用 \(browser.name) 打开云游戏"
+                let existing = Set(await CaptureEngine.listWindows().map(\.id))
+                let app = try await BrowserLauncher.openCloudGame(BrowserLauncher.cloudGameURL, browser: browser)
+                status = "等待云游戏窗口（\(browser.name)）"
+                let deadline = ProcessInfo.processInfo.systemUptime + 90
+                while ProcessInfo.processInfo.systemUptime < deadline {
+                    let windows = await CaptureEngine.listWindows()
+                    let launched = BrowserLauncher.gameWindows(in: windows, browserBundleID: browser.bundleID,
+                                                               browserPID: app.processIdentifier, excluding: existing)
+                    let matches = launched.isEmpty
+                        ? BrowserLauncher.gameWindows(in: windows.filter { !existing.contains($0.id) },
+                                                      browserBundleID: browser.bundleID, browserPID: nil)
+                        : launched
+                    if matches.count == 1, let win = matches.first {
+                        await bind(win, state: state)
+                        return
+                    }
+                    if matches.count > 1 {
+                        choices = matches
+                        status = "请选择云游戏窗口"
+                        return
+                    }
+                    try await Task.sleep(for: .milliseconds(250))
+                }
+                status = "未找到浏览器里的云游戏窗口（请确认已打开并进入游戏）"
+                return
+            }
+            // 本地：外置盘架构下「机器唯一正确实例」由 LaunchAgent com.dupi.yihuan.autolaunch
+            // 守护保活，PID 随时会被换。所以：
+            //   ① 绝不能用 LaunchServices 再拉一个（会注入 __CFBundleIdentifier 卡死、并被守护杀掉）；
+            //   ② 绝不能按“自己启动时的 PID”找窗口（守护一换 PID 就永远匹配不上）。
+            // 正确做法：优先复用已在运行的实例；没在跑时才走外置盘启动器（wrapper → launch.sh），
+            // 然后用 bundleID 匹配任意实例的窗口。
+            discover()
+            // 用「窗口是否已经存在」判断游戏是否在跑（比查进程可靠：launch.sh 直接 exec 二进制，
+            // 不一定注册为 LaunchServices 应用）。守护保活的实例随时在，直接复用即可。
+            let preexisting = Self.matchesAnyInstance(await CaptureEngine.listWindows())
+            if preexisting.isEmpty {
+                if let wrapper = Self.externalWrapperURL() {
+                    status = "正在启动《异环》（外置盘）"
+                    if !NSWorkspace.shared.open(wrapper) {
+                        status = "外置盘启动器无法打开，请确认外置盘已挂载"
+                        return
+                    }
+                } else if let script = Self.externalLaunchScriptURL() {
+                    status = "正在启动《异环》（launch.sh）"
+                    let p = Process()
+                    p.executableURL = URL(fileURLWithPath: "/bin/bash")
+                    p.arguments = [script.path]
+                    do { try p.run() } catch {
+                        status = "启动器执行失败：\(error.localizedDescription)"
+                        return
+                    }
+                } else {
+                    status = "未找到外置盘启动器（~/Applications/异环（外置盘）.app 或 ~/.yihuan/launch.sh）"
+                    return
+                }
+            } else {
+                status = "检测到已在运行的《异环》，正在定位窗口"
+            }
+            status = "等待游戏窗口"
+            for _ in 0..<90 {
+                let windows = await CaptureEngine.listWindows()
+                let matches = Self.matchesAnyInstance(windows)
+                if matches.count == 1 {
+                    await bind(matches[0], state: state)
+                    return
+                }
+                if matches.count > 1 {
+                    choices = matches
+                    status = "请选择游戏窗口"
+                    return
+                }
+                try await Task.sleep(for: .milliseconds(250))
+            }
+            status = "未找到游戏窗口，请确认游戏已打开且已授予「屏幕录制」权限"
+        } catch {
+            status = error.localizedDescription
+        }
+    }
+
+    /// 按 bundleID 匹配**任意**实例的窗口（忽略 PID）—— 守护换 PID 后仍能定位。
+    /// 多窗口时优先「判定为游戏窗口」的，其次按面积；避免误绑登录/启动器窗口。
+    /// `matches(pid:)` 保留给自检与普通启动路径，语义不变。
+    static func matchesAnyInstance(_ windows: [CapturableWindow]) -> [CapturableWindow] {
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let matched = windows.filter {
+            $0.ownerPID != ownPID &&
+            $0.bundleIdentifier == bundleID &&
+            $0.width >= 640 && $0.height >= 360 &&
+            !$0.title.localizedCaseInsensitiveContains("launcher") &&
+            !$0.title.contains("启动器")
+        }
+        let games = matched.filter { $0.isGame }
+        let pool = games.isEmpty ? matched : games
+        return pool.sorted { ($0.width * $0.height) > ($1.width * $1.height) }
+    }
+
+    static func matches(_ windows: [CapturableWindow], pid: pid_t) -> [CapturableWindow] {
+        windows.filter {
+            guard $0.ownerPID == pid, $0.width >= 640, $0.height >= 360 else { return false }
+            return $0.bundleIdentifier == bundleID &&
+                !$0.title.localizedCaseInsensitiveContains("launcher") && !$0.title.contains("启动器")
+        }
+    }
+
+    func bind(_ window: CapturableWindow, state: DriveState) async {
+        guard !state.shellModeActive, state.shellStartCountdown.remaining == 0 else { return }
+        let resumeDriving = state.driveRequested && state.driveStatus == "等待游戏窗口恢复"
+        if resumeDriving { state.stopDriving() }
+        choices = []
+        // 速度表 ROI 归属：浏览器（云端云游戏）→ 云端坐标；本地异环 → 本地坐标。
+        // 全屏采集没有窗口可判，全靠这个标志（CaptureEngine.fullScreen 分支读它）。
+        state.cloudROIHint = CaptureEngine.isCloudBrowserOwner(bundleID: window.bundleIdentifier,
+                                                               name: window.applicationName)
+        await state.selectCaptureMode(.window(id: window.id), startPreview: true)
+        if state.captureModeError == nil { remember(window) }
+        status = state.captureModeError ?? "采集目标 · \(window.displayLabel)"
+        if resumeDriving, state.captureModeError == nil { state.startDriving() }
+    }
+
+    func offerChoices(_ windows: [CapturableWindow], status: String) {
+        if choices != windows { choices = windows }
+        if self.status != status { self.status = status }
+    }
+
+    func remember(_ window: CapturableWindow) {
+        boundWindow = window
+        if CaptureEngine.isCloudBrowserOwner(bundleID: window.bundleIdentifier, name: window.applicationName) {
+            cloudTargetWindowID = window.id
+            cloudTargetAppPID = window.ownerPID
+        }
+    }
+
+    private(set) var boundWindow: CapturableWindow?
+
+    static func replacements(for target: CapturableWindow, in windows: [CapturableWindow]) -> [CapturableWindow] {
+        if target.bundleIdentifier == bundleID { return matchesAnyInstance(windows) }
+        let matches = BrowserLauncher.gameWindows(in: windows, browserBundleID: target.bundleIdentifier, browserPID: nil)
+        let sameInstance = matches.filter { $0.ownerPID == target.ownerPID }
+        return sameInstance.isEmpty ? matches : sameInstance
+    }
+
+    static func isDrivingTarget(_ window: CapturableWindow) -> Bool {
+        guard window.ownerPID != nil else { return false }
+        if !matchesAnyInstance([window]).isEmpty { return true }
+        return CaptureEngine.isCloudBrowserOwner(bundleID: window.bundleIdentifier, name: window.applicationName)
+            && !BrowserLauncher.gameWindows(in: [window], browserBundleID: window.bundleIdentifier, browserPID: nil).isEmpty
+    }
+
+}
+
+struct GameSourceRail: View {
+    let state: DriveState
+    @State private var expanded = false
+    private var launcher: GameLauncher { state.gameLauncher }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if expanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 16) {
+                        Button {
+                            Task { await launcher.open(cloud: false, state: state) }
+                        } label: {
+                            VStack {
+                                if let icon = launcher.icon {
+                                    Image(nsImage: icon).resizable().frame(width: 32, height: 32)
+                                } else { Image(systemName: "gamecontroller").frame(width: 32, height: 32) }
+                                Text("本地")
+                            }
+                        }
+                        .help("启动本地《异环》并选择游戏窗口")
+                        .contextMenu { Button("选择游戏 App…") { launcher.chooseApp() } }
+                        Button {
+                            Task { await launcher.open(cloud: true, state: state) }
+                        } label: {
+                            VStack {
+                                Image(systemName: "cloud.fill").font(.title2).frame(width: 32, height: 32)
+                                Text("云端")
+                            }
+                        }
+                        .help("打开异环云游戏")
+                    }
+                    ForEach(launcher.choices) { window in
+                        Button(window.displayLabel + " · #\(window.id)") {
+                            Task { await launcher.bind(window, state: state) }
+                        }
+                    }
+                    if !launcher.status.isEmpty {
+                        Text(launcher.status).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 145, alignment: .leading)
+                .padding(10)
+                .disabled(launcher.busy || state.shellModeActive || state.shellStartCountdown.remaining > 0)
+            }
+            Button {
+                expanded.toggle()
+                if expanded { launcher.discover() }
+            } label: {
+                Image(systemName: expanded ? "chevron.left" : "chevron.right")
+                    .frame(width: 20, height: 54).contentShape(Rectangle())
+            }
+            .help(expanded ? "收起游戏入口" : "展开游戏入口")
+        }
+        .buttonStyle(.plain)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+    }
+}

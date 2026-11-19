@@ -76,6 +76,22 @@ func runWireSelfTest() -> Int {
     ok(client.socketFD < 0, "A3 未连接时 socketFD 为 -1（没有可写的 fd）",
        "socketFD=\(client.socketFD)")
 
+    let ack = EngineCommandAck(["id": "launch", "cmd": "start", "ok": true, "detail": "",
+                                "data": ["windowID": 42]])
+    ok(ack?.id == "launch" && ack?.command == "start" && ack?.windowID == 42,
+       "A4 启动回执保留请求和窗口标识")
+    ok(EngineCommandAck(["id": "launch", "cmd": "start"]) == nil,
+       "A5 缺少执行结果的消息不能作为回执")
+    var lease = DriveInputLease()
+    lease.update(until: 20, now: 10)
+    ok(lease.isValid(at: 10.49) && !lease.isValid(at: 10.5),
+       "A6 授权到期上限独立于重连时间")
+    lease.update(until: 10, now: 11)
+    ok(!lease.isValid(at: 11), "A7 延迟送达的授权不能恢复送键")
+    lease.update(until: 11.5, now: 11)
+    lease.update(until: 0, now: 11.1)
+    ok(!lease.isValid(at: 11.1), "A8 失焦撤销授权")
+
     // ══════════════════════════════════════════════════════════════════
     // B. 未连接时必须回落本地模式，而不是卡在僵尸引擎态（修复④）
     // ══════════════════════════════════════════════════════════════════

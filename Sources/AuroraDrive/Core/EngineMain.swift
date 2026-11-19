@@ -559,6 +559,8 @@ final class EngineSocketServer {
     private func acceptClient() {
         let fd = accept(listenFD, nil, nil)
         guard fd >= 0 else { return }
+        var noSignal: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
         // 新连接替换旧连接（UI 重开重连）：
         // 旧连接由它自己的 cancel handler 关闭（只关它自己的 fd），
         // 绝不在这里按 clientFD 关——cancel 是异步的，若按共享变量关会误关新连接。
@@ -634,6 +636,7 @@ enum EngineGlobals {
     @MainActor static var shm: EngineFrameShm?
     @MainActor static var socket: EngineSocketServer?
     @MainActor static var clientSaidBye = false
+    @MainActor static var driveStartGeneration = 0
     /// SIGTERM/SIGINT 置位（由主流 tick 检查后安全停车退出）
     nonisolated(unsafe) static var shutdownRequested = false
     /// UI 是否请求「全分辨率帧」（开了插帧才需要，否则发 480 宽省带宽）
@@ -1194,6 +1197,10 @@ enum EngineMain {
             // 看门狗（步骤4 完善）：异常断开且未收到 bye → 3 秒重连窗口 → 停车
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
+                    EngineGlobals.driveStartGeneration += 1
+                    if EngineGlobals.state?.driveRequestID != nil {
+                        EngineGlobals.state?.stopDriving()
+                    }
                     if EngineGlobals.clientSaidBye {
                         engineLog("[ENGINE] UI 主动关闭（bye），引擎继续运行等待重连")
                     } else {
@@ -1209,6 +1216,10 @@ enum EngineMain {
         server.onClientConnected = {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
+                    EngineGlobals.driveStartGeneration += 1
+                    if EngineGlobals.state?.driveRequestID != nil {
+                        EngineGlobals.state?.stopDriving()
+                    }
                     EngineMain.cancelReconnectWindow()
                     EngineMain.cancelIdleExitCountdown()
                     EngineGlobals.clientSaidBye = false
@@ -1771,7 +1782,11 @@ enum EngineMain {
             }
             return nil
         } catch {
-            return "无法获取窗口列表（\(error.localizedDescription)）"
+            // 窗口枚举失败常见根因是「屏幕录制」TCC 被拒（-3801）。主动补一次授权申请，
+            // 并把可操作提示带回，避免 ack 只说「无法获取窗口列表」让用户无从下手。
+            CaptureEngine.requestScreenRecordingPermissionIfNeeded()
+            return "无法获取窗口列表（\(error.localizedDescription)）；"
+                + "若为「屏幕录制」权限被拒，请到系统设置授权并重启 App"
         }
     }
 
@@ -1863,14 +1878,60 @@ enum EngineMain {
             engineLog("[ENGINE] 无法解析命令: \(line)")
             return
         }
-        engineLog("[ENGINE] 收到命令: \(type)")
+        if type != "drive_lease" { engineLog("[ENGINE] 收到命令: \(type)") }
         // ★ task-A：关联 id（任意 JSON 标量 → String）。为 nil 时**所有 ack 都不发**，
         //   行为与改造前逐字一致（现有 UI 调用点不带 id）。
         let ackID = ackIDString(obj["id"])
         switch type {
         case "start":
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
+            let managed = obj["managed"] as? Bool == true
+            let targetPID = (obj["targetPID"] as? Int).flatMap(pid_t.init(exactly:))
+            let requestedMode = obj["mode"] as? String
+            let requestedID = obj["windowID"] as? Int
+            Task { @MainActor in
+                    EngineGlobals.driveStartGeneration += 1
+                    let generation = EngineGlobals.driveStartGeneration
+                    if managed {
+                        guard let ackID, let state = EngineGlobals.state, server.hasClient else { return }
+                        if state.isDriving { state.stopDriving() }
+                        let mode: CaptureMode
+                        if requestedMode == "window", let requestedID, let id = CGWindowID(exactly: requestedID) {
+                            mode = .window(id: id)
+                        } else if requestedMode == "fullscreen", targetPID == nil {
+                            mode = .fullScreen
+                        } else {
+                            sendAck(id: ackID, cmd: "start", ok: false, detail: "无效的采集窗口", server: server)
+                            return
+                        }
+                        await state.captureEngine.prepareDrivingSource(mode)
+                        guard generation == EngineGlobals.driveStartGeneration, server.hasClient else { return }
+                        state.beginEngineDriving(id: ackID, mode: mode, pid: targetPID)
+                        let deadline = Date().addingTimeInterval(10)
+                        while generation == EngineGlobals.driveStartGeneration, state.driveRequestID == ackID {
+                            if state.isDriving, state.managedDriveCanRun() {
+                                let data = requestedID.map { ["windowID": $0 as Any] }
+                                sendAck(id: ackID, cmd: "start", ok: true, detail: "已开始驾驶", data: data, server: server)
+                                return
+                            }
+                            if let error = state.managedDriveFailure() ?? (!state.isDriving ? "驾驶权限或状态未就绪" : nil)
+                                ?? (Date() >= deadline ? "等待游戏画面、V3 或窗口焦点超时" : nil) {
+                                state.stopDriving()
+                                sendAck(id: ackID, cmd: "start", ok: false, detail: error, server: server)
+                                return
+                            }
+                            try? await Task.sleep(for: .milliseconds(40))
+                        }
+                        return
+                    }
+                    if let requestedMode {
+                        let (_, error) = await EngineMain.performCaptureModeSwitch(modeStr: requestedMode, windowID: requestedID)
+                        guard generation == EngineGlobals.driveStartGeneration else { return }
+                        if let error {
+                            engineLog("[ENGINE] 驾驶窗口未就绪：\(error)")
+                            EngineMain.sendAck(id: ackID, cmd: type, ok: false, detail: error, data: [:], server: server)
+                            return
+                        }
+                    }
                     EngineGlobals.clientSaidBye = false
                     EngineGlobals.state?.startDriving()
                     engineLog("[ENGINE] startDriving → isDriving=\(EngineGlobals.state?.isDriving ?? false)")
@@ -1879,11 +1940,18 @@ enum EngineMain {
                         id: ackID, cmd: type, ok: driving,
                         detail: driving ? "已开始驾驶" : "start 已下发，但 isDriving 仍为 false（状态未就绪）",
                         data: ["driving": driving], server: server)
+            }
+        case "drive_lease":
+            guard let ackID, let until = obj["until"] as? Double else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    EngineGlobals.state?.updateDriveLease(id: ackID, until: until)
                 }
             }
         case "stop":
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
+                    EngineGlobals.driveStartGeneration += 1
                     EngineGlobals.state?.stopDriving()
                     engineLog("[ENGINE] stopDriving 完成（按键已释放）")
                     let driving = EngineGlobals.state?.isDriving ?? false
@@ -1897,7 +1965,12 @@ enum EngineMain {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     EngineGlobals.clientSaidBye = true
-                    EngineMain.pauseDriving("bye")
+                    EngineGlobals.driveStartGeneration += 1
+                    if EngineGlobals.state?.driveRequestID != nil {
+                        EngineGlobals.state?.stopDriving()
+                    } else {
+                        EngineMain.pauseDriving("bye")
+                    }
                     EngineMain.sendAck(
                         id: ackID, cmd: type, ok: true,
                         detail: "已接收 bye：暂停驾驶并释放全部按键",
@@ -2065,6 +2138,15 @@ enum EngineMain {
             let cSport = obj["sport"] as? Bool
             let cCtrlDisabled = obj["controlDisabled"] as? Bool
             let cForceRule = obj["forceRule"] as? Bool
+            // 档位锁定（用户点档位按钮）：rawValue 字符串或 null。引擎进程跑降级状态机，
+            // 不传过来"点端到端锁死"就不生效（会按健康度自动掉纯规则）。
+            let cModeLock: DriveMode?? = (obj["modeLock"]).map { v -> DriveMode? in
+                guard let s = v as? String else { return nil }
+                return DriveMode(rawValue: s)
+            }
+            // 速度表 ROI 归属（云端云游戏在浏览器里）：录全屏建流时无窗口可判，
+            // 引擎侧 CaptureEngine.fullScreen 分支读这个静态标志选云端/本地坐标。
+            let cCloudROIHint = obj["cloudROIHint"] as? Bool
             let cExpert = obj["expert"] as? Bool
             let cGlyph = obj["glyph"] as? Bool
             let cThresh = obj["degradeThreshold"] as? Double
@@ -2110,6 +2192,11 @@ enum EngineMain {
                     if let v = cSport { st.sportMode = v }
                     if let v = cCtrlDisabled { st.controlDisabled = v }
                     if let v = cForceRule { st.forceRuleMode = v }
+                    if let v = cModeLock {
+                        st.modeLock = v
+                        st.degradeStm.modeLock = v
+                    }
+                    if let v = cCloudROIHint { CaptureEngine.cloudROIHint = v }
                     if let v = cExpert { st.expertMode = v }
                     // V3 按键掩码：UI 进程采样物理键盘后转发。
                     // 本进程（引擎）无 run loop → KeyboardMonitor 收不到 NSEvent，
@@ -2228,6 +2315,7 @@ enum EngineMain {
             //   mode=="window" 但没给 windowID → 原实现静默回落全屏；
             //   这里照旧回落，但 ack 如实说明"未收到 windowID，已回落全屏"。
             let windowModeMissingID = (modeStr == "window" && wID == nil)
+            let startPreview = obj["startPreview"] as? Bool == true && modeStr == "window" && wID != nil
             // ⚠️ 这里**不用** `DispatchQueue.main.async { MainActor.assumeIsolated { Task { … } } }`：
             //    在 assumeIsolated 闭包内嵌 Task 会让 Swift 6 编译器类型检查崩掉
             //    （实测两种报错：`ambiguous use of init(name:priority:operation:)`，
@@ -2235,8 +2323,17 @@ enum EngineMain {
             //    改用 `Task { @MainActor in … }`：一步到位跳到主 actor，语义等价且无嵌套。
             //    引擎无 GUI，主队列就是主 actor，行为与既有 async 派发一致。
             Task { @MainActor in
-                let (capMode, err) = await EngineMain.performCaptureModeSwitch(
-                    modeStr: modeStr, windowID: wID)
+                let capMode: CaptureMode
+                let err: String?
+                if startPreview, let wID, let id = CGWindowID(exactly: wID),
+                   let capture = EngineGlobals.state?.captureEngine {
+                    capMode = .window(id: id)
+                    await capture.prepareDrivingSource(capMode)
+                    if !capture.isCapturing { capture.start() }
+                    err = await capture.confirmPreview(capMode)
+                } else {
+                    (capMode, err) = await EngineMain.performCaptureModeSwitch(modeStr: modeStr, windowID: wID)
+                }
                 engineLog("[ENGINE] 捕获源切换（\(type)）：\(capMode.label)"
                           + (err.map { " ⚠️ \($0)" } ?? " ✅"))
                 var data: [String: Any] = [
@@ -2330,11 +2427,35 @@ enum EngineMain {
             payload["driveDiagnostic"] = st.driveDiagnostic
             payload["speedValid"] = st.speedValid
             payload["needsManualIntervention"] = st.needsManualIntervention
+            // 抓屏健康状态回传（1Hz）：UI 侧据此把「屏幕录制被拒/抓屏未起」显示出来，
+            // 否则用户只看到「没有画面」而不知道该去系统设置授权。
+            payload["isCapturing"] = st.captureEngine.isCapturing
+            payload["captureFrames"] = st.captureEngine.capturedFrameCount
+            payload["hasFrame"] = st.currentFrameCG != nil
+            if let captureError = st.captureEngine.lastModeError {
+                payload["lastModeError"] = captureError
+            }
             if let data = try? JSONSerialization.data(withJSONObject: payload),
                let enriched = String(data: data, encoding: .utf8) {
                 EngineGlobals.socket?.send(enriched)
                 return
             }
+        }
+        // 兜底：手写 json 解析失败时（例如某个 String(format:) 产出 nan）也不能把抓屏状态一起丢掉，
+        // 否则 UI 永远看不到「屏幕录制被拒」的原因。这里单独补发一个最小心跳。
+        var fallback: [String: Any] = [
+            "type": "heartbeat",
+            "proto": EngineClient.protocolVersion,
+            "ts": Int(Date().timeIntervalSince1970),
+            "isCapturing": st.captureEngine.isCapturing,
+            "captureFrames": st.captureEngine.capturedFrameCount,
+            "hasFrame": st.currentFrameCG != nil,
+        ]
+        if let captureError = st.captureEngine.lastModeError { fallback["lastModeError"] = captureError }
+        if let data = try? JSONSerialization.data(withJSONObject: fallback),
+           let s = String(data: data, encoding: .utf8) {
+            EngineGlobals.socket?.send(s)
+            return
         }
         EngineGlobals.socket?.send(json)
     }

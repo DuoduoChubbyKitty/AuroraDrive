@@ -439,7 +439,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // 它们会盖在真正的主窗口之上 —— 用户看到的就是「窗口没铺满、绕了一圈黑边」。
                 // 因此：① 先关掉并丢弃所有退化窗口；② 只对剩余的有内容窗口置前。
                 // 有意创建的辅助窗口（HUD / 锚点）带 identifier，绝不参与清理
-                let auxIDs: Set<String> = ["AuroraAuxHUD", "AuroraAuxAnchor"]
+                let auxIDs: Set<String> = ["AuroraAuxHUD", "AuroraAuxAnchor", CloudGameWindow.identifier]
                 var candidates: [NSWindow] = []
                 for window in NSApp.windows {
                     if let id = window.identifier?.rawValue, auxIDs.contains(id) {
@@ -559,6 +559,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let waiting = DriveState.shared.gameLauncher.localSession.deferQuitDuringLaunch {
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return waiting ? .terminateLater : .terminateNow
+    }
+
     /// 正常退出前通知后台引擎「我走了，继续跑」：
     /// 引擎收到 bye 后释放按键但保持抓屏推理，等待下次 UI 重连，
     /// 且不会把这次断开当作崩溃来处理（不触发看门狗停车）。
@@ -574,6 +581,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         //    controls.csv 回填，用户重开 App 再标同一段就是两个进程同写一个文件。
         DriveState.shared.leanRecorder.stop()
         DriveState.shared.leanAnnotateRunner.shutdown()
+        DriveState.shared.gameLauncher.localSession.quitOwnedGame()
     }
 
     deinit {
@@ -1008,6 +1016,7 @@ struct AuroraDriveLauncher {
                               // 2026-10-08（T3 录制链路）：捕获双模式 + 视角归一化 +
                               // 排除列表不变量（防「excludingWindows 被改回空数组」回归）。
                               "--capture-selftest",
+                              "--game-source-selftest",
                                // 2026-10-23（小地图箭头）：离线跑真实帧，与 Python 参考实现
                                // runtime_detector.py 对拍，确认 Swift 检测/裁剪/归一化移植无误。
                                "--pointer-selftest",
@@ -1091,8 +1100,8 @@ struct AuroraDriveLauncher {
         // 录制链路修复的可执行断言：视角归一化、自家窗口识别、窗口枚举过滤、
         // 排除列表不变量（原 bug 是 excludingWindows 空数组）、保留上限可配。
         // 返回失败项数，0 = 全过（与其它自检同一约定）。
-        if args.contains("--capture-selftest") {
-            let failed = CaptureSelfTest.run()
+        if args.contains("--capture-selftest") || args.contains("--game-source-selftest") {
+            let failed = CaptureSelfTest.run(gameSourcesOnly: args.contains("--game-source-selftest"))
             exit(failed == 0 ? 0 : Int32(min(failed, 127)))
         }
 
@@ -4416,6 +4425,27 @@ final class DriveState {
     static let shared = DriveState()
 
     var isDriving       = false
+    private(set) var driveStatus = ""
+    var driveRequested: Bool { driveRequestID != nil || isDriving }
+    private(set) var driveRequestID: String?
+    @ObservationIgnored private var driveTask: Task<Void, Never>?
+    @ObservationIgnored private var driveTarget: CapturableWindow?
+    @ObservationIgnored private var driveRemote = false
+    @ObservationIgnored private var driveReady = false
+    @ObservationIgnored private var driveDeadline = Date.distantFuture
+    @ObservationIgnored private var driveSourceSince = Date.distantPast
+    @ObservationIgnored private var driveExpectedMode: CaptureMode?
+    @ObservationIgnored private var driveRemotePID: pid_t?
+    @ObservationIgnored private var driveInputLease = DriveInputLease()
+    @ObservationIgnored private var driveLastLeaseSent: Double = 0
+    @ObservationIgnored private var driveFrameLogged = false
+    @ObservationIgnored private var driveFocusLogged = false
+    @ObservationIgnored private var driveV3Logged = false
+    @ObservationIgnored private var drivePostedEvents: Int = 0
+    @ObservationIgnored private var drivePostLogged = false
+    @ObservationIgnored private var driveLastWindowCheck: Double = 0
+    @ObservationIgnored private var driveKnownWindows: Set<CGWindowID> = []
+    @ObservationIgnored private var captureSelectionGeneration = 0
     var sportMode       = false
     var isTraining      = false
 
@@ -4433,6 +4463,8 @@ final class DriveState {
     // 避免每帧赋值触发整树重绘）；控制器/运行时是 @ObservationIgnored 类实例。
     // ⚠️ shellController 在 init 末尾注入（那时 DriveState 已完全初始化），此处只声明。
     var shellModeActive = false
+    let shellStartCountdown = ShellStartCountdown()
+    let gameLauncher = GameLauncher()
     var shellModeStatus = ""
     var shellMetrics: String?
     /// 复审 B5：壳模式停止时的结果摘要（排空超时/存盘失败/正常=nil），供 UI 如实展示。
@@ -4528,9 +4560,13 @@ final class DriveState {
 
     /// 在同一条 config 中发送完整物理键快照和让位状态，避免先让位后收到 W。
     private func syncPhysicalControlState() {
-        guard isDriving, !isEngineHost else { return }
+        guard driveRequested, !isEngineHost else { return }
         let keys = keyboardMonitor.heldKeys
         let holding = keyboardMonitor.isUserHoldingControlKey
+        if holding, driveRequestID != nil, !driveReady {
+            failDriveStart("已取消启动 · 人工接管")
+            return
+        }
         if EngineClient.shared.isActive {
             guard keys != lastSentPhysicalKeys else { return }
             if EngineClient.shared.sendCommand("config", extra: [
@@ -4543,7 +4579,13 @@ final class DriveState {
         } else {
             if holding {
                 EmergencyTakeover.shared.noteUserKeyDown()
-                if !benchSuppressAllInjection { controlEngine.releaseAIHeldKeys(preserving: keys) }
+                if !benchSuppressAllInjection {
+                    if driveRequestID != nil {
+                        releaseManagedDrivingKeys()
+                    } else {
+                        controlEngine.releaseAIHeldKeys(preserving: keys)
+                    }
+                }
             } else {
                 EmergencyTakeover.shared.noteUserKeyUp()
             }
@@ -5077,6 +5119,12 @@ final class DriveState {
     /// 且 M9 端到端推理停跑（省资源）。用途：紧急情况（游戏鼠标点不过去）
     /// 一键切规则兜底，直到用户手动关闭。
     var forceRuleMode = false
+
+    /// 档位锁定（点档位按钮设置）：非 nil 时降级链被强制固定在该档，不再自动降级。
+    ///   · 点「端到端主驾」→ .e2e：锁死端到端，永不掉纯规则
+    ///   · 点「纯规则兜底」→ .rule：锁死纯规则
+    ///   · 再点同一档位 → nil：解除锁定，恢复正常自动降级链
+    var modeLock: DriveMode? = nil
 
     /// 训练按钮状态/日志（UI 展示：启动中 / 完成 / 失败原因）
     var trainingLog     = ""
@@ -6598,6 +6646,12 @@ final class DriveState {
     /// 模式切换失败原因（如窗口已关闭）
     var captureModeError: String?
 
+    /// 当前游戏源是否为云端（浏览器里的云游戏）。速度表 ROI 据此切换：
+    /// true → CaptureEngine.cloudSpeedROINorm（网页版实测坐标）；
+    /// false → speedROINorm（本地客户端坐标）。
+    /// 由 GameLauncher 绑定云端/本地源时置位；录全屏时无窗口可判，全靠此标志。
+    var cloudROIHint = false
+
     /// 自家 UI 混入录制的告警（自动断言触发；UI 显著提示）
     var captureOwnUIWarning: String?
 
@@ -6629,27 +6683,59 @@ final class DriveState {
     ///   （isCapturing=false → applyMode early-return），真正的抓屏在后台引擎进程。
     ///   不转发给引擎 → 后台引擎一无所知 → 「没有任何作用」。
     ///   修复：引擎模式时通过 IPC 把 mode 转发给引擎进程执行真正的 filter 切换。
-    func selectCaptureMode(_ mode: CaptureMode) async {
+    func selectCaptureMode(_ mode: CaptureMode, startPreview: Bool = false) async {
+        if driveRequestID != nil, driveExpectedMode != mode { stopDriving() }
+        captureSelectionGeneration += 1
+        let generation = captureSelectionGeneration
         dlog("[cap-ui] selectCaptureMode(\(mode.label)) 进入 engineActive=\(EngineClient.shared.isActive)")
         captureModeError = nil
         // 引擎模式：转发给引擎进程
         if EngineClient.shared.isActive {
             var extra: [String: Any] = ["mode": "fullscreen"]
+            if startPreview { extra["startPreview"] = true }
             if case .window(let id) = mode {
                 extra["mode"] = "window"
                 extra["windowID"] = Int(id)
             }
-            let ok = EngineClient.shared.sendCommand("set_capture_mode", extra: extra)
-            dlog("[cap-ui] IPC 转发 set_capture_mode ok=\(ok) extra=\(extra)")
+            let ack = await EngineClient.shared.request("set_capture_mode", extra: extra)
+            guard generation == captureSelectionGeneration else { return }
+            guard let ack, ack.command == "set_capture_mode", ack.ok else {
+                captureModeError = ack?.detail ?? "采集引擎未确认窗口，请重试"
+                return
+            }
+            if case .window(let id) = mode, ack.windowID != id {
+                captureModeError = "采集引擎确认的窗口与所选窗口不一致"
+                return
+            }
+            // 独立在线训练在 UI 进程抓屏，给它同步同一个目标。
+            await captureEngine.applyMode(mode)
+            guard generation == captureSelectionGeneration else { return }
+            if let error = captureEngine.lastModeError {
+                captureModeError = error
+                return
+            }
             // UI 本地也记一笔（拉条选中态显示用）
             captureMode = mode
+            gameLauncher.needsWindow = false
             return
         }
         dlog("[cap-ui] ⚠️ 非引擎模式 → 走本地 captureEngine.applyMode（UI 空壳，可能 early-return）")
         // 非引擎模式（UI 直跑）：直接切换
-        await captureEngine.applyMode(mode)
-        captureMode = captureEngine.captureMode
-        captureModeError = captureEngine.lastModeError
+        if startPreview {
+            await captureEngine.prepareDrivingSource(mode)
+        } else {
+            await captureEngine.applyMode(mode)
+        }
+        guard generation == captureSelectionGeneration else { return }
+        var error = captureEngine.lastModeError
+        if startPreview, error == nil {
+            if !captureEngine.isCapturing { captureEngine.start() }
+            error = await captureEngine.confirmPreview(mode)
+        }
+        guard generation == captureSelectionGeneration else { return }
+        captureMode = error == nil ? mode : captureEngine.captureMode
+        captureModeError = error
+        if captureModeError == nil { gameLauncher.needsWindow = false }
         dlog("[cap-ui] 本地 applyMode 完成 mode=\(captureMode.label) err=\(captureModeError ?? "-")")
     }
 
@@ -7279,6 +7365,20 @@ final class DriveState {
             self.configPushRetryPending = false
             self.pushEngineConfigIfChanged()
         }
+        EngineClient.shared.onDisconnected = { [weak self] reason in
+            guard let self, self.driveRemote, let id = self.driveRequestID else { return }
+            let releaseDeadline = self.driveInputLease.expiresAt
+            self.driveRemote = false
+            self.driveReady = false
+            self.isDriving = false
+            EngineClient.shared.deferActivation = true
+            self.driveStatus = "引擎断开 · 正在本地恢复"
+            self.dlog("[DRIVE-START] id=\(id) fallback=\(reason)")
+            self.driveTask?.cancel()
+            self.driveTask = Task { [weak self] in
+                await self?.startLocalSession(id: id, after: releaseDeadline)
+            }
+        }
 
         // 旧网络定位已移除
         // 旧网络定位回调已移除（NetworkPacketCapture不编译）
@@ -7315,31 +7415,328 @@ final class DriveState {
     /// 3. 启动截屏画面流
     /// 4. 后续由推理引擎决定注入什么按键（当前仅占位，状态机已就位）
     func startDriving() {
-        if !isEngineHost {
-            guard keyboardMonitor.requestInputMonitoringPermission() else {
-                dlog("[KeyboardMonitor] 输入监控未授权，拒绝启动驾驶：无法保证人工接管")
-                return
-            }
-            let sync: () -> Void = { [weak self] in self?.syncPhysicalControlState() }
-            keyboardMonitor.onUserKeyDown = sync
-            keyboardMonitor.onUserKeyUp = sync
-            keyboardMonitor.onPhysicalKeysChanged = sync
-            guard keyboardMonitor.start() else {
-                dlog("[KeyboardMonitor] 监听未就绪，拒绝启动驾驶")
-                return
-            }
-            lastSentPhysicalKeys = nil
-        }
-        // ── 引擎模式：命令转发给后台引擎（UI 不启动本地抓屏/推理/按键）──
-        if EngineClient.shared.isActive {
-            EngineClient.shared.sendCommand("start")
-            lastDriveCommandTime = Date()
-            isDriving = true
-            drivingStartTime = Date()
-            syncPhysicalControlState()
-            dlog("[引擎模式] 已发送 start 命令给后台引擎")
+        if isEngineHost {
+            beginLocalDriving()
             return
         }
+        guard !driveRequested, !shellModeActive, shellStartCountdown.remaining == 0 else { return }
+        guard !gameLauncher.busy, !gameLauncher.needsWindow else {
+            driveStatus = "请先选择游戏窗口"
+            return
+        }
+        if !CGPreflightScreenCaptureAccess() {
+            CaptureEngine.requestScreenRecordingPermissionIfNeeded()
+            driveStatus = "需要屏幕录制权限"
+            return
+        }
+        guard keyboardMonitor.requestInputMonitoringPermission() else {
+            driveStatus = "需要输入监控权限"
+            return
+        }
+        let sync: () -> Void = { [weak self] in self?.syncPhysicalControlState() }
+        keyboardMonitor.onUserKeyDown = sync
+        keyboardMonitor.onUserKeyUp = sync
+        keyboardMonitor.onPhysicalKeysChanged = sync
+        guard keyboardMonitor.start() else {
+            driveStatus = "输入监听未就绪"
+            return
+        }
+        let id = UUID().uuidString
+        driveRequestID = id
+        lastSentPhysicalKeys = nil
+        driveStatus = "启动中 · 正在确认游戏窗口"
+        logDriveStart("requested")
+        let client = EngineClient.shared
+        if !client.isActive {
+            client.deferActivation = true
+            prepareDriveModels()
+        }
+        driveTask = Task { [weak self] in
+            await self?.resolveDrivingTarget(id: id)
+        }
+    }
+
+    private func resolveDrivingTarget(id: String) async {
+        let windows = await CaptureEngine.listWindows()
+        guard driveRequestID == id, !Task.isCancelled else { return }
+        driveKnownWindows = Set(windows.map(\.id))
+        let candidates: [CapturableWindow]
+        if case .window(let windowID) = captureMode {
+            candidates = windows.filter { $0.id == windowID && (drivingObservationOnly || GameLauncher.isDrivingTarget($0)) }
+            if candidates.isEmpty, let previous = gameLauncher.boundWindow, previous.id == windowID {
+                let replacements = GameLauncher.replacements(for: previous, in: windows)
+                if replacements.count != 1 {
+                    gameLauncher.offerChoices(replacements, status: "等待游戏窗口恢复")
+                }
+                configureDrivingTarget(replacements.count == 1 ? replacements.first : previous)
+                if replacements.count != 1 {
+                    driveReady = false
+                    driveStatus = "等待游戏窗口恢复"
+                    watchForReplacement(of: previous, id: id)
+                    return
+                }
+                if let target = driveTarget, !drivingObservationOnly { GameWindowFocus.raise(target) }
+                await launchDrivingSession(id: id)
+                return
+            }
+        } else {
+            candidates = windows.filter(GameLauncher.isDrivingTarget)
+        }
+        if !drivingObservationOnly, candidates.count != 1 || candidates.first?.ownerPID == nil {
+            gameLauncher.offerChoices(candidates, status: "请选择游戏窗口")
+            failDriveStart(candidates.isEmpty ? "未找到游戏窗口" : "请选择具体游戏窗口")
+            return
+        }
+        configureDrivingTarget(candidates.count == 1 ? candidates.first : nil)
+        if let target = driveTarget, !drivingObservationOnly { GameWindowFocus.raise(target) }
+        await launchDrivingSession(id: id)
+    }
+
+    private var drivingObservationOnly: Bool { AuroraFlags.observeOnly || controlDisabled || expertMode }
+
+    private func configureDrivingTarget(_ target: CapturableWindow?) {
+        driveTarget = target
+        if let target {
+            let mode = CaptureMode.window(id: target.id)
+            driveExpectedMode = mode
+            if captureMode != mode { captureMode = mode }
+            cloudROIHint = CaptureEngine.isCloudBrowserOwner(bundleID: target.bundleIdentifier, name: target.applicationName)
+            gameLauncher.remember(target)
+            logDriveStart("target=\(target.id) pid=\(target.ownerPID ?? 0)")
+        } else {
+            driveExpectedMode = captureMode
+        }
+        driveSourceSince = Date()
+        driveFrameLogged = false
+        driveFocusLogged = false
+        driveV3Logged = false
+        drivePostLogged = false
+        drivePostedEvents = controlEngine.postedEventCount
+    }
+
+    private func launchDrivingSession(id: String) async {
+        let client = EngineClient.shared
+        if client.isActive, !client.supportsManagedDriving {
+            let deadline = Date().addingTimeInterval(4)
+            while driveRequestID == id, !Task.isCancelled, client.isActive,
+                  !client.supportsManagedDriving, Date() < deadline {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        }
+        guard driveRequestID == id, !Task.isCancelled else { return }
+        if !client.isActive {
+            await startLocalSession(id: id, after: driveInputLease.expiresAt)
+            return
+        }
+        guard client.supportsManagedDriving else {
+            failDriveStart("后台引擎版本未就绪，请重试")
+            return
+        }
+        driveRemote = true
+        driveReady = false
+        driveLastLeaseSent = 0
+        driveStatus = "启动中 · 等待引擎画面和 V3"
+        pushEngineConfigIfChanged()
+        guard driveRemote else { return }
+        var extra = ["managed": true, "mode": "fullscreen"] as [String: Any]
+        if case .window(let windowID) = driveExpectedMode {
+            extra["mode"] = "window"
+            extra["windowID"] = Int(windowID)
+        }
+        if let pid = driveTarget?.ownerPID { extra["targetPID"] = Int(pid) }
+        let ack = await client.request("start", id: id, extra: extra, timeout: 11)
+        guard driveRequestID == id, driveRemote, !Task.isCancelled else { return }
+        guard let ack, ack.command == "start", ack.ok, ack.windowID == driveTarget?.id else {
+            failDriveStart(ack?.ok == false ? ack?.detail ?? "启动失败" : "引擎启动未确认")
+            return
+        }
+        driveReady = true
+        isDriving = true
+        driveStatus = ""
+        logDriveStart("engine-ready")
+        syncPhysicalControlState()
+    }
+
+    private func startLocalSession(id: String, after releaseDeadline: Double) async {
+        guard driveRequestID == id, !Task.isCancelled, let mode = driveExpectedMode else { return }
+        EngineClient.shared.deferActivation = true
+        driveSourceSince = Date()
+        driveStatus = "启动中 · 等待本地画面和 V3"
+        driveDeadline = Date().addingTimeInterval(10)
+        prepareDriveModels()
+        await captureEngine.prepareDrivingSource(mode)
+        guard driveRequestID == id, !Task.isCancelled else { return }
+        if let error = captureEngine.lastModeError {
+            failDriveStart(error)
+            return
+        }
+        driveSourceSince = Date()
+        driveInputLease.update(until: releaseDeadline, now: ProcessInfo.processInfo.systemUptime)
+        beginLocalDriving()
+        if !isDriving { failDriveStart("本地驾驶未就绪 · 请检查权限") }
+    }
+
+    private func watchForReplacement(of target: CapturableWindow, id: String) {
+        driveTask?.cancel()
+        driveTask = Task { [weak self] in
+            guard let self else { return }
+            let fastPollUntil = ProcessInfo.processInfo.systemUptime + 5
+            while self.driveRequestID == id, !Task.isCancelled {
+                let windows = await CaptureEngine.listWindows()
+                guard self.driveRequestID == id, !Task.isCancelled else { return }
+                let retained = windows.filter { $0.id == target.id && $0.ownerPID == target.ownerPID }
+                let matches = retained.isEmpty ? GameLauncher.replacements(for: target, in: windows) : retained
+                let newMatches = matches.filter {
+                    $0.id == target.id || target.bundleIdentifier == GameLauncher.bundleID
+                        || !self.driveKnownWindows.contains($0.id)
+                }
+                if newMatches.count == 1, let replacement = newMatches.first, replacement.ownerPID != nil {
+                    let nextID = UUID().uuidString
+                    self.logDriveStart("replacement=\(replacement.id) next=\(nextID)")
+                    self.driveRequestID = nextID
+                    self.driveKnownWindows = Set(windows.map(\.id))
+                    self.configureDrivingTarget(replacement)
+                    self.gameLauncher.offerChoices([], status: "采集目标 · \(replacement.displayLabel)")
+                    if !self.drivingObservationOnly { GameWindowFocus.raise(replacement) }
+                    await self.launchDrivingSession(id: nextID)
+                    return
+                }
+                self.gameLauncher.offerChoices(matches, status: "等待游戏窗口恢复")
+                let interval = ProcessInfo.processInfo.systemUptime < fastPollUntil ? 250 : 1000
+                try? await Task.sleep(for: .milliseconds(interval))
+            }
+        }
+    }
+
+    private func logDriveStart(_ event: String) {
+        if let id = driveRequestID { dlog("[DRIVE-START] id=\(id) \(event)") }
+    }
+
+    private func failDriveStart(_ reason: String) {
+        logDriveStart("failed=\(reason)")
+        stopDriving()
+        driveStatus = reason
+    }
+
+    func beginEngineDriving(id: String, mode: CaptureMode, pid: pid_t?) {
+        driveRequestID = id
+        driveExpectedMode = mode
+        driveRemotePID = pid
+        driveSourceSince = Date()
+        driveFrameLogged = false
+        driveFocusLogged = false
+        driveV3Logged = false
+        drivePostLogged = false
+        drivePostedEvents = controlEngine.postedEventCount
+        driveInputLease = DriveInputLease()
+        prepareDriveModels()
+        beginLocalDriving()
+    }
+
+    func updateDriveLease(id: String, until: Double) {
+        guard driveRequestID == id else { return }
+        driveInputLease.update(until: until, now: ProcessInfo.processInfo.systemUptime)
+        if until == 0 { releaseManagedDrivingKeys() }
+    }
+
+    private func releaseManagedDrivingKeys() {
+        guard !controlEngine.heldKeys.isEmpty else { return }
+        let pid = isEngineHost ? driveRemotePID : driveTarget?.ownerPID
+        let windowID: CGWindowID? = if case .window(let id) = driveExpectedMode { id } else { nil }
+        let releasePID = if let pid, let windowID, !GameWindowFocus.isFocused(windowID, pid: pid) { pid } else { nil as pid_t? }
+        controlEngine.forceReleaseAIHeldKeys(
+            preserving: isEngineHost ? remotePhysicalKeys : keyboardMonitor.heldKeys, targetPID: releasePID)
+    }
+
+    private func prepareDriveModels() {
+        inferenceEngineV3.loadForDriving()
+        speedOCR.ensureModelsLoaded()
+    }
+
+    func managedDriveFailure() -> String? {
+        if capturePermissionDenied { return "需要屏幕录制权限" }
+        if !inferenceEngineV3.isLoaded, !forceRuleMode, modeLock != .rule, modeLock != .yolo {
+            return inferenceEngineV3.errorMessage
+        }
+        return captureEngine.lastModeError
+    }
+
+    func managedDriveCanRun() -> Bool {
+        guard let expected = driveExpectedMode, captureEngine.isCapturing,
+              captureEngine.captureMode == expected, let captured = currentFrameCGAt,
+              captured >= driveSourceSince, Date().timeIntervalSince(captured) < Self.v3MaxFrameAge else { return false }
+        if !driveFrameLogged {
+            driveFrameLogged = true
+            logDriveStart("first-frame")
+        }
+        if !forceRuleMode, modeLock != .rule, modeLock != .yolo {
+            guard let result = inferenceEngineV3.lastResultTime, result >= driveSourceSince,
+                  Date().timeIntervalSince(result) < Self.v3MaxFrameAge else { return false }
+            if !driveV3Logged {
+                driveV3Logged = true
+                logDriveStart("first-v3")
+            }
+        }
+        if drivingObservationOnly { return true }
+        let now = ProcessInfo.processInfo.systemUptime
+        let pid = isEngineHost ? driveRemotePID : driveTarget?.ownerPID
+        guard let pid, case .window(let windowID) = expected,
+              driveInputLease.isValid(at: now) == isEngineHost,
+              GameWindowFocus.isFocused(windowID, pid: pid) else { return false }
+        if !driveFocusLogged {
+            driveFocusLogged = true
+            logDriveStart("focused")
+        }
+        return true
+    }
+
+    private func stepDrivingSession() {
+        guard !isEngineHost, let id = driveRequestID else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let target = driveTarget, let pid = target.ownerPID,
+           now - driveLastWindowCheck >= 0.35, driveRemote || isDriving {
+            driveLastWindowCheck = now
+            let captureInterrupted = driveReady && (driveRemote
+                ? EngineClient.shared.engineCaptureError != nil
+                : !captureEngine.isCapturing)
+            if captureInterrupted || !GameWindowFocus.exists(target.id, pid: pid) {
+                if driveRemote {
+                    EngineClient.shared.cancelRequest(id: id)
+                    EngineClient.shared.sendCommand("drive_lease", extra: ["id": id, "until": 0])
+                    EngineClient.shared.sendCommand("stop")
+                } else {
+                    releaseManagedDrivingKeys()
+                    stopLocalDriving(managed: true)
+                }
+                driveRemote = false
+                driveReady = false
+                isDriving = false
+                driveStatus = "等待游戏窗口恢复"
+                logDriveStart("window-lost=\(target.id)")
+                watchForReplacement(of: target, id: id)
+                return
+            }
+        }
+        if driveRemote, let target = driveTarget, let pid = target.ownerPID {
+            let focused = !drivingObservationOnly && !keyboardMonitor.isUserHoldingControlKey
+                && GameWindowFocus.isFocused(target.id, pid: pid)
+            if focused, now - driveLastLeaseSent >= 0.15 {
+                let until = now + DriveInputLease.duration
+                driveInputLease.update(until: until, now: now)
+                driveLastLeaseSent = now
+                EngineClient.shared.sendCommand("drive_lease", extra: ["id": id, "until": until])
+            } else if !focused, driveLastLeaseSent != 0 {
+                driveLastLeaseSent = 0
+                EngineClient.shared.sendCommand("drive_lease", extra: ["id": id, "until": 0])
+            }
+            if driveRequestID == id, driveRemote, driveReady {
+                let status = focused || drivingObservationOnly ? "" : "已暂停 · 等待游戏窗口焦点"
+                if driveStatus != status { driveStatus = status }
+            }
+        }
+    }
+
+    private func beginLocalDriving() {
         // 权限检查：按键注入需要辅助功能权限
         // 无权限时引导用户到系统设置，不启动
         //
@@ -7401,7 +7798,7 @@ final class DriveState {
 
         // 开始驾驶前清掉系统里残留的卡键（上次进程异常退出可能留下
         // 未释放的 W/A/S/D，污染游戏输入；releaseAll 无条件清理）
-        controlEngine.releaseAll()
+        if driveRequestID == nil { controlEngine.releaseAll() }
 
         isDriving = true
         drivingStartTime = Date()
@@ -7423,60 +7820,8 @@ final class DriveState {
         syncPhysicalControlState()
         captureEngine.start()
         // networkLocator.start()  // 旧网络抓包定位已移除    // 启动网络抓包定位
-        // ── 主驾模型：V2 优先；M9 只在 V2 **真的加载失败**时才加载（2026-10-24 打死 M9 空转）──
-        //
-        // 【改前】这里无条件 `inferenceEngine.loadIfNeeded()`：每次 `startDriving()` 都在
-        //   **主线程**同步 `MLModel(contentsOf:)` 加载 `m9_mono`（15MB 纯 fp16 未量化，
-        //   `InferenceEngine.swift:281-285` 自述冷态 **250–1330ms**）。
-        //   而 V2 正常时 M9 的 `infer()` **永远不会被调用** —— 推理分支是互斥的
-        //   （`:7452` `if inferenceEngineV2.isLoaded { V2 } else { M9 }`）。
-        //   实测日志 `模型加载: M9=true V2=true` 且 V2 每帧在跑 ⟹ M9 是"加载了但永不推理"。
-        //   代价：15MB 常驻 + 一次主线程加载 + 一次 warmUp 预热；收益 0。
-        //   连带后果：`m9Command = v2CommandOf(V2) ?? commandOf(M9)`（`:7608`）里
-        //   回退项永远拿 `.idle`（`commandOf` 在 `lastResult == nil` 时返回 `.idle`），
-        //   即这个回退**从来没有真的兜住过任何东西**。
-        //
-        // 【改后】先加载 V2，只有 V2 没起来才加载 M9。
-        //   `InferenceEngineV2.loadIfNeeded()` 是**同步**的（`:1728` guard 之后直接
-        //   `MLModel(contentsOf:)`），所以此处读到的是已落定的结果，不存在竞态。
-        //
-        // 【V2 真失败时 M9 还起得来吗】能，而且不需要这里兜底：M9 的 `infer()` 内置
-        //   懒加载（`InferenceEngine.swift:297-300`：未加载就
-        //   `scheduleBackgroundLoadIfNeeded()` 然后 return），而 M9 的 infer 只在
-        //   "V2 未加载"的 else 分支被调用 ⟹ 需要它的时候它自己会在后台加载，
-        //   代价只是 V2 故障时的首帧晚几百毫秒（而这种场景本来就不开车）。
-        // 硬切 V3：只加载 V3；失败则如实报错（用户要求不做自动降级）
-        inferenceEngineV3.loadIfNeeded()
-        if !inferenceEngineV3.isLoaded {
-            dlog("[V3] 模型未就绪：\(inferenceEngineV3.errorMessage ?? "未知原因")")
-        }
-        // ⚠️ V2 仍加载但其结果不再驱动驾驶（保留为降级备份，见实例声明处注释）
-        inferenceEngineV2.loadIfNeeded()
-        if !inferenceEngineV2.isLoaded {
-            inferenceEngine.loadIfNeeded()   // 仅 V2 不可用时：此时 M9 才是真司机
-        }
-        assistEngine.loadIfNeeded()      // 首次启动加载第二套驾驶模型（YOLO接管档）
-        // ── yolo26s 按档位加载（2026-10-19 用户拍板，goal-3279b59b 需求7）──
-        //
-        // 【改前】无条件 `yoloEngine.loadIfNeeded()` —— 用户默认就是 A 模型档，
-        //   而 A 模型档的设计原话是「只跑 A-YOLOM(n) int8 一个三合一模型」
-        //   （PerceptionMode.swift:194-200）。无条件加载的后果：开机就白占
-        //   9.2MB 权重常驻 + 加载耗时，且 `detectGateB` 当时没档位门 → 每两帧
-        //   还推理一次（p50 6.2~14ms）抢 ANE/GPU。用户实测「裸游戏流畅、
-        //   开 App 持续卡、GPU 恒 100%」，这是其中之一。
-        //
-        // 【改后】只有 legacy 三件套档才在开机时加载；A 模型档连内存都不占。
-        //   切档时的装卸在 `selectPerceptionMode`（用户要求「点一下立刻生效」）。
-        //
-        // 【回退开关】AURORA_FORCE_YOLO26S=1 → 恢复无条件加载+每帧推理的旧行为。
-        if Self.forceYolo26s || perceptionMode == .legacy {
-            yoloEngine.loadIfNeeded()    // 仅 legacy 三件套档需要检测网
-        } else {
-            dlog("[启动] A 模型档：跳过 yolo26s 加载（不占 9.2MB 权重常驻）")
-        }
-        yolopxEngine.loadIfNeeded()      // 首次启动加载三合一感知模型（A 模型档内为 ayolom_n_int8）
+        prepareDriveModels()
         dlog("启动开车: 辅助功能权限=\(controlEngine.hasAccessibilityPermission) 专家模式=\(expertMode) 禁用控制=\(controlDisabled)")
-        dlog("模型加载: V3=\(inferenceEngineV3.isLoaded) M9=\(inferenceEngine.isLoaded) V2=\(inferenceEngineV2.isLoaded) V2拆分=\(inferenceEngineV2.useSplitModels) 第二司机=\(assistEngine.isLoaded) YOLO=\(yoloEngine.isLoaded) YOLOPX=\(yolopxEngine.isLoaded) M9错误=\(inferenceEngine.errorMessage ?? "-") V2错误=\(inferenceEngineV2.errorMessage ?? "-") 世界模型=\(inferenceEngineV2.worldModelLoaded)")
     }
 
     /// 停止/待机清理全部速度状态，快速重开也不能沿用上一会话估计。
@@ -7494,9 +7839,22 @@ final class DriveState {
     /// 4. 重置降级状态机 + 脱困控制器 + 置信度估计器 + 推理引擎
     /// 5. 若正在录制，一并停止录制（保证 meta.json 落盘）
     func stopDriving() {
+        let managed = driveRequestID != nil
+        let remote = driveRemote
+        driveTask?.cancel()
+        driveTask = nil
+        if let id = driveRequestID, remote { EngineClient.shared.cancelRequest(id: id) }
+        if managed && !remote { releaseManagedDrivingKeys() }
+        driveRequestID = nil
+        driveRemote = false
+        driveReady = false
+        driveStatus = ""
+        driveExpectedMode = nil
+        driveRemotePID = nil
+        driveTarget = nil
         resetSpeedTracking()
         // ── 引擎模式：命令转发给后台引擎（引擎侧释放按键并停止抓屏）──
-        if EngineClient.shared.isActive {
+        if EngineClient.shared.isActive && (!managed || remote) {
             EngineClient.shared.sendCommand("stop")
             lastDriveCommandTime = Date()
             isDriving = false
@@ -7505,12 +7863,17 @@ final class DriveState {
             dlog("[引擎模式] 已发送 stop 命令给后台引擎")
             return
         }
+        stopLocalDriving(managed: managed)
+        if !isEngineHost { EngineClient.shared.deferActivation = false }
+    }
+
+    private func stopLocalDriving(managed: Bool) {
         isDriving = false
         EmergencyTakeover.shared.noteUserKeyUp()
-        controlEngine.releaseAll()
+        if !managed { controlEngine.releaseAll() }
         // 抓屏归属：停车时若在线训练仍在跑，保活抓屏（训练要帧流）；
         // 训练不在跑才真的停抓屏。键盘监听的停止与训练无关（训练不注入按键）。
-        keyboardMonitor.stop()
+        if !managed || driveRequestID == nil { keyboardMonitor.stop() }
         // 抓屏归属：壳模式存在时要保活（训练/观测要帧流），不停抓屏。
         if !isOnlineTraining && !shellModeActive {
             captureEngine.stop()
@@ -7596,7 +7959,25 @@ final class DriveState {
 
     /// 壳模式切换入口（T3 的按钮直接调它）。内部转 start/stop 两个包装。
     func toggleShellMode() {
-        if shellModeActive { stopShellMode() } else { startShellMode() }
+        if shellModeActive || shellStartCountdown.remaining > 0 {
+            stopShellMode()
+            return
+        }
+        guard canScheduleShellTraining() else { return }
+        shellStartCountdown.start { [weak self] in
+            guard let self, self.canScheduleShellTraining() else { return }
+            self.startShellMode()
+        }
+    }
+
+    private func canScheduleShellTraining() -> Bool {
+        if gameLauncher.busy { shellModeStatus = "正在等待游戏窗口" }
+        else if gameLauncher.needsWindow { shellModeStatus = "请先选择采集窗口" }
+        else if isOnlineTraining { shellModeStatus = "请先停止独立在线训练" }
+        else if leanRecorder.isRecording || isRecording { shellModeStatus = "请先停止录制" }
+        else if let captureModeError { shellModeStatus = captureModeError }
+        else { return true }
+        return false
     }
 
     /// 启动壳模式：把当前若为「只录某窗口」的捕获模式带进壳模式（否则全屏）。
@@ -7647,6 +8028,11 @@ final class DriveState {
     ///   heldKeys），后到的释放哨兵会读到空 humanKeys，人和 AI 同按 W 时给
     ///   W 发 up，抵消人手里的键。新序保证释放发生在监听/物理键记录仍在时。
     func stopShellMode() {
+        if shellStartCountdown.remaining > 0 {
+            shellStartCountdown.cancel()
+            shellModeStatus = "已取消启动"
+            return
+        }
         guard let shellController else { return }
         // ① 先快照有效物理键（此时 keyboardMonitor 仍在跑，heldKeys 未被清）。
         let humanKeys = keyboardMonitor.heldKeys
@@ -7950,6 +8336,20 @@ final class DriveState {
         // 镜像连接状态到 DriveState（@Observable），供状态栏显示
         if engineModeActive != client.isActive { engineModeActive = client.isActive }
         if engineConnected != client.isConnected { engineConnected = client.isConnected }
+        // 驾驶/壳模式期间持续把云游戏窗口保持为 key window —— 全局 HID 注入只会送到
+        // 最前台 App 的 key window，控制台一抢焦点，按键就打到控制台（beep）而不是游戏。
+        if shellModeActive || (isDriving && driveRequestID == nil) {
+            gameLauncher.keepCloudFocus(captureMode)
+        }
+        // 引擎抓屏失败（典型：屏幕录制 TCC 被拒 / 目标窗口已关闭）→ 同步到 captureModeError，
+        // 让 MissionConsole 的错误横幅把原因显示出来；抓屏恢复后自动清掉。
+        if client.isActive {
+            if !client.engineIsCapturing, let err = client.engineCaptureError, !err.isEmpty {
+                if captureModeError != err { captureModeError = err }
+            } else if client.engineIsCapturing, client.engineCaptureError == nil, captureModeError != nil {
+                captureModeError = nil
+            }
+        }
 
         // V3 按键标签：把本进程（UI，有 run loop、能收到 NSEvent）采到的物理按键
         // 转发给引擎进程（无 run loop，KeyboardMonitor 是死的）。
@@ -8045,7 +8445,7 @@ final class DriveState {
         // 否则锁定框冻在原地不动、目标离开也不会自动解除。
         yoloEngine.trackLockFromRemote(client.engineDetections)
         // 引擎是状态权威源；命令发出后 1 秒内保留 UI 乐观值，避免切换瞬间闪烁
-        if Date().timeIntervalSince(lastDriveCommandTime) > 1.0,
+        if driveRequestID == nil, Date().timeIntervalSince(lastDriveCommandTime) > 1.0,
            isDriving != client.engineIsDriving {
             isDriving = client.engineIsDriving
         }
@@ -8209,7 +8609,7 @@ final class DriveState {
     /// 把「只在 tick() 里被读」的驾驶参数推给引擎（引擎模式下 tick 跑在引擎进程）。
     /// 覆盖：极速模式 / 禁用控制 / 紧急切纯规则 / 专家模式 / 字模模式 / 降级阈值 / 速度上限。
     private func pushEngineConfigIfChanged() {
-        let snap = "\(sportMode)|\(controlDisabled)|\(forceRuleMode)|\(expertMode)|\(glyphMode)|\(String(format: "%.3f", degradeThreshold))|\(String(format: "%.1f", speedLimit))|\(roadCondition.rawValue)|\(autoSpeedEnabled)|\(unlimitedSource.rawValue)"
+        let snap = "\(sportMode)|\(controlDisabled)|\(forceRuleMode)|\(modeLock?.rawValue ?? "-")|\(captureMode.isWindowMode)|\(cloudROIHint)|\(expertMode)|\(glyphMode)|\(String(format: "%.3f", degradeThreshold))|\(String(format: "%.1f", speedLimit))|\(roadCondition.rawValue)|\(autoSpeedEnabled)|\(unlimitedSource.rawValue)"
         guard snap != lastPushedEngineConfig else { return }
         // ★★★ 2026-10-02 核心修复：**只有真的发出去才记账**。
         //
@@ -8228,6 +8628,9 @@ final class DriveState {
             "sport": sportMode,
             "controlDisabled": controlDisabled,
             "forceRule": forceRuleMode,
+            "modeLock": modeLock?.rawValue ?? NSNull(),
+            // 速度表 ROI 归属：引擎进程建流前据此选择云端/本地坐标（全屏模式无窗口可判归属）。
+            "cloudROIHint": cloudROIHint,
             "expert": expertMode,
             "glyph": glyphMode,
             "degradeThreshold": degradeThreshold,
@@ -8338,6 +8741,7 @@ final class DriveState {
     /// 每帧推进（30Hz，由 ContentView 的 Timer 驱动）
     /// 完整决策管线：CoreML推理 → 置信度估计 → 状态机决策 → 按态输出控制量 → 录制
     func tick() {
+        stepDrivingSession()
         defer { if isDriving && !EngineClient.shared.isActive { auditDriveInference() } }
         // 诊断：tick 实际间隔（>33ms = 主线程掉拍/被卡；配合 capGap/capWork 定位延迟）
         let tickNow = Date()
@@ -8755,6 +9159,7 @@ final class DriveState {
 
         // 阈值同步：UI 改 degradeThreshold 时，状态机跟着变
         degradeStm.degradeHealth = degradeThreshold
+        degradeStm.modeLock = modeLock          // 档位锁定同步给状态机（锁定时强制固定）
 
         // 消化模式：**无条件每帧同步**（w1+w3 独立发现的三层 gap：
         //   ① 原在 V2 分支内 → M9 回退走不到
@@ -8982,7 +9387,7 @@ final class DriveState {
                     // 这里在失败分支直接调 `loadIfNeeded()`：
                     // 它自身带 5s 冷却（`loadRetryCooldown`），每帧调用也只会
                     // 每 5 秒真正尝试一次，不会形成加载风暴。
-                    inferenceEngineV3.loadIfNeeded()
+                    inferenceEngineV3.loadForDriving()
 
                     // V3 不可用 → 本帧不产生主驾命令（上层退化为 .idle）。
                     // ⚠️ 措辞如实：不是说"全车停控"，而是"主驾不产命令，
@@ -9391,7 +9796,24 @@ final class DriveState {
         //   限速分支仍会松油门 / 松方向 / 按 Space，人工接管形同虚设。
         //   加进本条件后：接管期间限速策略不启动（并走 !mayInjectKeys 分支
         //   复位 guard、释放手刹），用户释放后自然恢复。
-        let mayInjectKeys = isDriving && !expertMode && !controlDisabled
+        let managedInputReady = driveRequestID == nil || managedDriveCanRun()
+        if !isEngineHost, driveRequestID != nil {
+            if managedInputReady {
+                if !driveReady { logDriveStart("local-ready") }
+                driveReady = true
+                if !driveStatus.isEmpty { driveStatus = "" }
+            } else if let reason = managedDriveFailure(), !driveReady {
+                failDriveStart(reason)
+                return
+            } else if Date() > driveDeadline, !driveReady {
+                failDriveStart("等待游戏画面、V3 或窗口焦点超时")
+                return
+            } else if driveReady {
+                let status = "已暂停 · 等待游戏窗口和新画面"
+                if driveStatus != status { driveStatus = status }
+            }
+        }
+        let mayInjectKeys = isDriving && !expertMode && !controlDisabled && managedInputReady
             && !EmergencyTakeover.shared.userHoldingKey
         let limitBraking = mayInjectKeys
             && speedLimitGuard.update(speedKmh: trustedSpeedKmh,
@@ -9405,7 +9827,9 @@ final class DriveState {
             // 否则 return 后的 releaseAll 走不到，空格会永久卡住。
             if speedLimitBrakeLatched {
                 speedLimitBrakeLatched = false
-                if EmergencyTakeover.shared.userHoldingKey {
+                if driveRequestID != nil && !managedInputReady {
+                    releaseManagedDrivingKeys()
+                } else if EmergencyTakeover.shared.userHoldingKey {
                     controlEngine.releaseAIHeldKeys(preserving:
                         isEngineHost ? remotePhysicalKeys : keyboardMonitor.heldKeys)
                 } else {
@@ -9663,6 +10087,9 @@ final class DriveState {
         if benchSuppressAllInjection {
             // 夹具模式：**零注入**。只复位刹车闩锁状态（纯内存写，不发事件）。
             if speedLimitBrakeLatched { speedLimitBrakeLatched = false }
+        } else if driveRequestID != nil && (!managedInputReady || expertMode || controlDisabled) {
+            if !controlEngine.heldKeys.isEmpty { releaseManagedDrivingKeys() }
+            if speedLimitBrakeLatched { speedLimitBrakeLatched = false }
         } else if EmergencyTakeover.shared.userHoldingKey {
             // 人工让位优先于专家/禁用控制的全量清扫，绝不释放人物理按住的键。
             controlEngine.releaseAIHeldKeys(preserving:
@@ -9751,6 +10178,11 @@ final class DriveState {
             }
         }
 
+        if let id = driveRequestID, !drivePostLogged, !controlEngine.heldKeys.isEmpty,
+           controlEngine.postedEventCount > drivePostedEvents {
+            drivePostLogged = true
+            dlog("[DRIVE-START] id=\(id) first-input")
+        }
         let auditDecision = inferenceEngineV3.lastDecision
         let auditV3 = v3Active && decided == .e2e && v3DecisionFresh
         let auditGuarded = auditV3 ? InferenceEngineV3.applyRolloverGuard(

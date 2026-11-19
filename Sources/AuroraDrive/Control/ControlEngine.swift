@@ -447,9 +447,9 @@ final class ControlEngine: @unchecked Sendable {
     /// 消化闸口吃掉（账本清了但 OS 层键还按着 → 键卡死），本方法保证释放事件一定
     /// 发出。只用于停止/人工接管/撤销哨兵/live→digest 切换等**清理场景**，常规帧
     /// 动作一律不得调用。同样保留人的物理键（不发 keyUp 抵消用户正按的键）。
-    func forceReleaseAIHeldKeys(preserving physicalKeys: Set<CGKeyCode>) {
+    func forceReleaseAIHeldKeys(preserving physicalKeys: Set<CGKeyCode>, targetPID: pid_t? = nil) {
         for keyCode in heldKeys.subtracting(physicalKeys) {
-            postKeyEvent(keyCode: keyCode, keyDown: false, bypassDigest: true)
+            postKeyEvent(keyCode: keyCode, keyDown: false, bypassDigest: true, targetPID: targetPID)
         }
         heldKeys.removeAll()
     }
@@ -530,7 +530,8 @@ final class ControlEngine: @unchecked Sendable {
     ///                 默认 false —— 该游戏输入层只认「新按下」，会忽略
     ///                 auto-repeat 事件（详见 refreshHeldKeys 说明）。
     private func postKeyEvent(
-        keyCode: CGKeyCode, keyDown: Bool, autorepeat: Bool = false, bypassDigest: Bool = false
+        keyCode: CGKeyCode, keyDown: Bool, autorepeat: Bool = false, bypassDigest: Bool = false,
+        targetPID: pid_t? = nil
     ) {
         // CGEvent 创建：nil eventSource 时使用默认源
         guard let event = CGEvent(
@@ -564,7 +565,11 @@ final class ControlEngine: @unchecked Sendable {
             digestedEventCount &+= 1
             return
         }
-        event.post(tap: .cghidEventTap)
+        if let targetPID {
+            event.postToPid(targetPID)
+        } else {
+            event.post(tap: .cghidEventTap)
+        }
         postedEventCount &+= 1
     }
 

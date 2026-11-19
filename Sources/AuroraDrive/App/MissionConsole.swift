@@ -6300,6 +6300,11 @@ struct DecisionRail: View {
                 mini("降级阈值", String(format: "%.2f", state.degradeThreshold), Aurora.amber)
                 mini("强制规则", state.forceRuleMode ? "是" : "否",
                      state.forceRuleMode ? Aurora.danger : Aurora.t4)
+                // 档位锁定状态：点上方「端到端主驾」/「纯规则兜底」即锁定该档，不再自动降级。
+                // 再次点同一档位按钮 = 解除锁定（恢复自动降级链）。
+                if let lock = state.modeLock {
+                    mini("档位锁定", lock.rawValue, lock == .rule ? Aurora.danger : Aurora.ok)
+                }
             }
             section("状态向量 · [6]", "契约") {
                 let b = state.driveBars
@@ -6834,6 +6839,8 @@ struct ContentView: View {
             }
 
             // 浮层（打开/关闭都留痕，便于核验链路而非猜测）
+            GameSourceRail(state: state)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             if showMap {
                 MapOverlay(isOpen: $showMap, state: state)
                     .zIndex(10)
@@ -8425,7 +8432,7 @@ struct AutoDriveSwitch: View {
         Button {
             guard !busy else { return }
             busy = true
-            if state.isDriving {
+            if state.driveRequested {
                 state.stopDriving()
             } else {
                 state.startDriving()
@@ -8454,9 +8461,12 @@ struct AutoDriveSwitch: View {
                     Text("自动驾驶")
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(Aurora.t1)
-                    Text(state.isDriving ? "运行中 · 点击停止" : "已停止 · 点击启动")
+                    Text(state.driveStatus.isEmpty
+                         ? (state.isDriving ? "运行中 · 点击停止" : "已停止 · 点击启动")
+                         : state.driveStatus)
                         .font(.system(size: 8.5))
                         .foregroundStyle(state.isDriving ? Aurora.ok : Aurora.t4)
+                        .lineLimit(2)
                 }
 
                 Spacer()
@@ -8481,7 +8491,7 @@ struct AutoDriveSwitch: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(state.isDriving ? "停止自动驾驶" : "启动自动驾驶")
+        .help(state.driveRequested ? "停止自动驾驶" : "启动自动驾驶")
     }
 }
 
