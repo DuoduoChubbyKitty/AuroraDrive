@@ -455,7 +455,7 @@ for round in 1...maxRounds {
 
 - **现象**：改了 Swift 源码，跑构建后行为没变——编译「成功」但产物还是旧的
 - **根因**：SwiftPM 的增量缓存按 **mtime** 判断要不要重编，工作区快照/git 操作会让 mtime 不可靠，缓存命中时**静默跳过重编译**，不报任何错
-- **修复**：`run.sh` 构建前固定 `rm -rf .build` 全量重编译（`run.sh:76-77`，注释「必须先清缓存! SwiftPM 缓存会导致代码改动不生效」）；`--disable-sandbox` 下 scratch 统一放 `.build/scratch` 与增量构建共用缓存（`run.sh:84`）
+- **修复**：`run.sh` 构建前固定 `rm -rf .build` 全量重编译（`run.sh:76-77`，注释「必须先清缓存! SwiftPM 缓存会导致代码改动不生效」）；`--disable-sandbox` 下 scratch 统一放 `.build/scratch` 与增量构建共用缓存（`run.sh:77`）
 - **教训**：**「构建成功」≠「重编译了」**。排查「改了没生效」类问题时，第一步先确认产物 mtime 晚于源码 mtime；长期解是构建入口强制清缓存
 
 ## 33. `--wire-selftest` 必须带 `AURORA_UI_LOCAL=1`（2026-10-06）

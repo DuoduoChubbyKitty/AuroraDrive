@@ -2,7 +2,7 @@
 
 > ✅ **2026-10-18 复核**（merge-arch）：逐行对照 `run.sh`（182 行）与 `scripts/build-lock.sh`（146 行），修正 3 处：
 > 1. **§一 `[3/4] 编译` 代码块漏了 `--disable-sandbox --scratch-path .build/scratch`**（最严重——读者照抄会在 DSH workspace 沙盒下 manifest 编译失败，或产物落到 `.build/release/` 而后续 `[ ! -f "$BIN_SRC" ]` 判失败）。已按 `run.sh:85` 逐字补全。
-> 2. **libpcap 提示文案已更新**：`run.sh:37` 现在写的是「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」（2026-09-29 已修，本文 §一旧文仍写「NetworkPacketCapture.swift 需要」）。判据本身也已换成 dyld 解析（`:32-34`），不再是 `ls /usr/lib/libpcap*`。
+> 2. **libpcap 提示文案已更新**：`run.sh:85` 现在写的是「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」（2026-09-29 已修，本文 §一旧文仍写「NetworkPacketCapture.swift 需要」）。判据本身也已换成 dyld 解析（`:32-34`），不再是 `ls /usr/lib/libpcap*`。
 > 3. **build-lock.sh 146 行与全部行号引用命中**（:7-11/:30/:37/:38/:64-71/:87-90/:91-94/:95/:102-107/:129-138），无需改动；`git ls-files scripts/` 实测 7 个文件全部已跟踪，`git status --short scripts/` 空。
 >
 > 已核对无误的结论：run.sh 182 行、`BIN_SRC`/`BIN_DST`（:11-12）、模型只查 3 个 + yolopx 三合四（:47/:57-64）、`--disable-sandbox --scratch-path`（:85）、原子双写部署（:104-111）、Info.plist 的 `CFBundleIdentifier=com.aurora.driveui` 与 `LSMinimumSystemVersion=14.0`（:137/:142）、`pkill -f "AuroraDriveUI"`（:148）、`.app` bundle 优先启动（:167-176）、`AuroraDriveUI` 14,193,680 B（2026-10-15）、`docs/git/` 12 个备份（2026-08-07 ~ 2026-09-13，2,561,952→4,334,752 B）、`legacy/NetworkPacketCapture.swift` 仍存在。
@@ -263,7 +263,7 @@
 **`[1/4] 环境检查（18–32 行）**：
 
 - `swift --version`（首行）+ `sw_vers -productVersion`——打印工具链与系统版本
-- **libpcap 检查（26–39 行，2026-09-20 已重写判据）**：旧判据 `ls /usr/lib/libpcap*` / `brew list libpcap` 自 macOS 11 起恒为假、必然误报「✗ 未安装」——现改为 **dyld 实际解析结果**：① `dyld_info -linked_dylibs "$BIN_SRC"`（需产物存在）；② `dyld_info -exports /usr/lib/libpcap.A.dylib` 兜底；③ `ls` 旧判据兜底。三者任一命中即 ✓。未安装时提示文案为「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」（`run.sh:37`）——⚠️ 注意 `CoordinateCapture`（`Capture/`，现役抓包）与 `NetworkLocator`（`Locate/`）是**两个不同文件**，不是改名关系；`legacy/NetworkPacketCapture.swift` 是废弃实现，不参与编译
+- **libpcap 检查（26–39 行，2026-09-20 已重写判据）**：旧判据 `ls /usr/lib/libpcap*` / `brew list libpcap` 自 macOS 11 起恒为假、必然误报「✗ 未安装」——现改为 **dyld 实际解析结果**：① `dyld_info -linked_dylibs "$BIN_SRC"`（需产物存在）；② `dyld_info -exports /usr/lib/libpcap.A.dylib` 兜底；③ `ls` 旧判据兜底。三者任一命中即 ✓。未安装时提示文案为「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」（`run.sh:30`）——⚠️ 注意 `CoordinateCapture`（`Capture/`，现役抓包）与 `NetworkLocator`（`Locate/`）是**两个不同文件**，不是改名关系；`legacy/NetworkPacketCapture.swift` 是废弃实现，不参与编译
 
 **`[2/4] 模型检查（34–45 行）**：`for m in m9_mono game_assist_control yolo26s`——三个模型逐个检查；`run.sh:56-64` 另对 yolopx 三合一特查：
 

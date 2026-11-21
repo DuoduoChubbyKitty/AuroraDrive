@@ -124,7 +124,7 @@ MissionConsole 的**每一个可点元素**背后都有真实执行路径（Cont
 
 ## 三-B、QuestCard 数据链（OCR → 先比后写落库，2026-10-06 新增核实）
 
-- `DriveState`（`@Observable @MainActor final class`，AuroraDriveApp.swift:4889）相关字段（行号 2026-10-18 实测）：`locatorFound / locatorX / locatorY`（:4367–4369）、`locatorScore`（:4370）、`locatorHeading`（:4371）、`locatorTarget: (x: Double, y: Double)?`（:4378，世界坐标 UE5 厘米）、`questName: String? = nil`（:4384，注释 :4380–4383 仍带旧「整张隐藏」说法，与常驻卡片矛盾，以 MissionConsole.swift 为准）、`routePlan: RoutePlan?`（:4394）。
+- `DriveState`（`@Observable @MainActor final class`，AuroraDriveApp.swift:5175）相关字段（行号 2026-10-18 实测）：`locatorFound / locatorX / locatorY`（:4367–4369）、`locatorScore`（:4370）、`locatorHeading`（:4371）、`locatorTarget: (x: Double, y: Double)?`（:4378，世界坐标 UE5 厘米）、`questName: String? = nil`（:4384，注释 :4380–4383 仍带旧「整张隐藏」说法，与常驻卡片矛盾，以 MissionConsole.swift 为准）、`routePlan: RoutePlan?`（:4394）。
 - `setLocatorTarget(x:y:)` 直接赋值，无坐标转换（AuroraDriveApp.swift）；`clearRoute()` 会连带把 `locatorTarget` 置 nil（:4416–4422）。
 - **OCR 链**：`DriveState.questPanel = QuestPanelReader()`（`@ObservationIgnored`，AuroraDriveApp.swift；类定义 Inference/QuestPanelReader.swift）。`tick()` 每帧 `if AuroraFlags.questOCR, let cg = currentFrameCG { questPanel.ingest(cgImage: cg) }`（AuroraDriveApp.swift）。
   - ✅ 开关口径**三处已一致**（2026-10-18 复核）：`AuroraFlags.questOCR = bool("AURORA_QUEST_OCR", default: true)` **默认开**（AuroraFlags.swift:201）；注册表 `AuroraFlags.swift:445` `defaultValue: "1"` + summary「默认开，2026-10-17 修正：原误写默认关」（已改对）；调用点注释 `AuroraDriveApp.swift:5903` / `:6966` 均「2026-10-17 修正」。`--flags-help` 输出 `AURORA_QUEST_OCR=1 …（默认开）`。运行时可用 `AURORA_QUEST_OCR=0` 关闭。
@@ -168,7 +168,7 @@ MissionConsole 的**每一个可点元素**背后都有真实执行路径（Cont
 
 ## 三-F、QuestCard 的刷新机制：20Hz DispatchSource tick（2026-10-06 核实，2026-10-18 更新频率）
 
-- **主时钟**：`bootstrap()`（MissionConsole.swift:6392）里 DispatchSourceTimer，独立高优队列 `com.aurora.tick`（:6111），**20Hz** `repeating: 1.0 / 20.0`（:6117；⚠️ 原为 `1.0/30.0`，2026-10-12 定档 20Hz 时改，注释 :6113–6116 记录「原为 1.0/30.0，是 20Hz 定档前的遗留值」），每拍 `DispatchQueue.main.async { state.tick() }`（:6140）；待机（非开车/非录制）降频（`idleSkip < 8` 每 8 拍投 1 次 = **20Hz/8 ≈ 2.5Hz**，语句 :6131–6137；⚠️ 原注释「45Hz/8 ≈ 5.6Hz」是 45Hz 时代遗留口径）。App Nap 规避原因 :6108–6110。
+- **主时钟**：`bootstrap()`（MissionConsole.swift:6872）里 DispatchSourceTimer，独立高优队列 `com.aurora.tick`（:6111），**20Hz** `repeating: 1.0 / 20.0`（:6117；⚠️ 原为 `1.0/30.0`，2026-10-12 定档 20Hz 时改，注释 :6113–6116 记录「原为 1.0/30.0，是 20Hz 定档前的遗留值」），每拍 `DispatchQueue.main.async { state.tick() }`（:6140）；待机（非开车/非录制）降频（`idleSkip < 8` 每 8 拍投 1 次 = **20Hz/8 ≈ 2.5Hz**，语句 :6131–6137；⚠️ 原注释「45Hz/8 ≈ 5.6Hz」是 45Hz 时代遗留口径）。App Nap 规避原因 :6108–6110。
 - 刷新链：`tick()`（AuroraDriveApp.swift 起）消费 pendingFrame 写 `currentScreenImage/currentFrameCG` 等 @Observable 字段（:6946–6961）；同一 tick 里喂 `questPanel.ingest(cgImage:)`（:6973–6975）。
 - QuestCard 数据全部来自 `@Observable DriveState`（AuroraDriveApp.swift）：`questName / locatorFound / locatorX / locatorY / locatorTarget / routePlan` 任一被赋值即触发观察它的视图（挂载处 ViewportPanel body）重算；QuestCard 本身无定时器、无动画、无 onAppear 副作用（MissionConsole.swift），纯读字段。
 - QuestCard 未定位时 `egoWorld` 传 nil（MissionConsole.swift:648），直线距离落「--」。
@@ -209,11 +209,11 @@ MissionConsole 的**每一个可点元素**背后都有真实执行路径（Cont
 
 | 符号 | 文件:行号 |
 |---|---|
-| `final class DriveState` / `locatorFound/X/Y/Score/Heading` | AuroraDriveApp.swift:4276 / :4367–4371 |
-| `locatorTarget` / `questName` / `routePlan` | AuroraDriveApp.swift:4276 / :4384 / :4394 |
-| `clearRoute()` / `setLocatorTarget()` | AuroraDriveApp.swift:4927 / :4515 |
-| `questPanel` / `onConfirmed` 接线 / `questPanel.ingest` | AuroraDriveApp.swift:8070 / :5981–5987 / :6973–6975 |
-| `tick()` / `locatorX/Y` 写入 | AuroraDriveApp.swift:8070 / :4766–4767 |
+| `final class DriveState` / `locatorFound/X/Y/Score/Heading` | AuroraDriveApp.swift:4396 / :4367–4371 |
+| `locatorTarget` / `questName` / `routePlan` | AuroraDriveApp.swift:4396 / :4384 / :4394 |
+| `clearRoute()` / `setLocatorTarget()` | AuroraDriveApp.swift:5213 / :4515 |
+| `questPanel` / `onConfirmed` 接线 / `questPanel.ingest` | AuroraDriveApp.swift:8768 / :5981–5987 / :6973–6975 |
+| `tick()` / `locatorX/Y` 写入 | AuroraDriveApp.swift:8768 / :4766–4767 |
 | `AuroraFlags.questOCR` | AuroraFlags.swift:201（注释 :192–200；注册表 summary :445） |
 | `final class QuestPanelReader` / `ingest(cgImage:)` | QuestPanelReader.swift:416 / :541 |
 | `minInterval` / `voteNeed` / `fuzzyThreshold` / `fuzzyConfident` / `equivalentRadiusMeters` / `questROI` / `ocrQueue` | QuestPanelReader.swift:431 / :427 / :434 / :440 / :449 / :424 / :483 |
