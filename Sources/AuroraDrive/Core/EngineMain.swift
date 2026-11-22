@@ -697,6 +697,7 @@ enum EngineGlobals {
     /// 为什么用帧相位而不是时间戳：tick 基准 15Hz，÷3 = 5Hz 精确对齐，
     /// 且不引入浮点比较；`&+=` 进位自然回绕，无需重置。
     @MainActor static var pointerPhase: UInt64 = 0
+    @MainActor static var lastGuideLinePublishedAt: TimeInterval?
 }
 
 // MARK: - 引擎主入口
@@ -1254,6 +1255,10 @@ enum EngineMain {
                 EngineGlobals.latestFullFrame = pb
                 EngineGlobals.latestFullFrameLock.unlock()
             }
+            // 云游戏小地图 ROI 直通（视觉定位）：引擎进程自己的 DriveState.tick 消费。
+            EngineGlobals.state?.captureEngine.onMinimapFrame = { pb, revision in
+                EngineGlobals.state?.offerMinimapFrame(pb, revision: revision)
+            }
             // 门禁：UI 经 socket 的 upscale 命令（wantFullFrame）实时控制——
             // 关闭时帧回调里连全分辨率拷贝都不做（isUpscaleWanted 在拷贝前求值）。
             EngineGlobals.state?.captureEngine.isUpscaleWanted = { EngineGlobals.wantFullFrame }
@@ -1669,6 +1674,13 @@ enum EngineMain {
             let heading = st.bodyHeadingDeg.map { String(format: "%.1f", $0) } ?? "null"
             let conf = String(format: "%.3f", st.bodyHeadingConf)
             socket.send("{\"type\":\"pointer\",\"heading\":\(heading),\"conf\":\(conf)}")
+            let guide = st.guideLineSignal
+            if guide.observedAt != EngineGlobals.lastGuideLinePublishedAt,
+               let data = try? JSONEncoder().encode(guide),
+               let json = String(data: data, encoding: .utf8) {
+                EngineGlobals.lastGuideLinePublishedAt = guide.observedAt
+                socket.send("{\"type\":\"guideline\",\"signal\":\(json)}")
+            }
         }
     }
 
@@ -2147,6 +2159,9 @@ enum EngineMain {
             // 速度表 ROI 归属（云端云游戏在浏览器里）：录全屏建流时无窗口可判，
             // 引擎侧 CaptureEngine.fullScreen 分支读这个静态标志选云端/本地坐标。
             let cCloudROIHint = obj["cloudROIHint"] as? Bool
+            // 定位方式（UI 决策）：引擎侧 DriveState.tick 据此驱动视觉/网络定位。
+            let cPositioningMode = (obj["positioningMode"] as? String)
+                .flatMap(PositioningMode.init(rawValue:))
             let cExpert = obj["expert"] as? Bool
             let cGlyph = obj["glyph"] as? Bool
             let cThresh = obj["degradeThreshold"] as? Double
@@ -2197,6 +2212,7 @@ enum EngineMain {
                         st.degradeStm.modeLock = v
                     }
                     if let v = cCloudROIHint { CaptureEngine.cloudROIHint = v }
+                    if let v = cPositioningMode { st.applyPositioningMode(v) }
                     if let v = cExpert { st.expertMode = v }
                     // V3 按键掩码：UI 进程采样物理键盘后转发。
                     // 本进程（引擎）无 run loop → KeyboardMonitor 收不到 NSEvent，

@@ -5,8 +5,20 @@ import UniformTypeIdentifiers
 
 enum GameWindowFocus {
     static func isFocused(_ windowID: CGWindowID, pid: pid_t) -> Bool {
+        // ⚠️ 2026-11-19 修复（用户报障：驾驶时永远显示「等待游戏切到前台」）：
+        //   原实现要求「该进程 layer0 的**第一个**窗口号 == 采集窗口号」。
+        //   Chrome --app 模式下同一 Chrome 进程有多个 layer0 窗口（app 窗 + 隐藏/辅助窗），
+        //   CGWindowListCopyWindowInfo 的首个不一定是真正被采集的那个 → 恒 false → 误报。
+        //   改为：前台 App 是该 pid，且采集窗口**存在于该进程的可见 layer0 窗口集合中**。
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return false }
-        return (frontWindow(for: pid)?[kCGWindowNumber as String] as? Int) == Int(windowID)
+        // 采集窗口仍存在且属于该 pid（窗口被关掉时这里会 false，语义不变）
+        guard exists(windowID, pid: pid) else { return false }
+        let onScreen = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]]
+        return (onScreen ?? []).contains {
+            ($0[kCGWindowOwnerPID as String] as? Int) == Int(pid)
+                && ($0[kCGWindowLayer as String] as? Int) == 0
+                && ($0[kCGWindowNumber as String] as? Int) == Int(windowID)
+        }
     }
 
     private static func frontWindow(for pid: pid_t) -> [String: Any]? {
@@ -97,6 +109,45 @@ enum GameWindowFocus {
         guard AXValueGetValue(axValue, type, &point) else { return nil }
         return point
     }
+
+    /// 把目标窗口用辅助功能 API 直接设成主屏**可见区域**大小并归位到 (0,0)。
+    /// 【为什么需要】Chrome `--app` 的 `--window-size` 在把 URL 交给已运行的 Chrome
+    ///   实例时经常被忽略（窗口用默认小尺寸），且单位是"点"未扣菜单栏 → 云游戏占不满屏。
+    ///   这里在窗口出现后主动用 AX 设定位置/尺寸，可靠铺满。
+    /// 【前置】调用方需有「辅助功能」授权（本项目驾驶本就需要，已有）。
+    @MainActor
+    static func maximizeToScreen(_ target: CapturableWindow) {
+        guard let pid = target.ownerPID, pid != getpid() else { return }
+        // 可见区域（扣掉菜单栏/Dock），y 原点即 menu bar 下方
+        let vis = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.2)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else { return }
+        // 用「当前 bounds 与之最接近」匹配出被采集的那个窗口（与 raise 同款比对）
+        let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, target.id) as? [[String: Any]]
+        let bounds = (info?.first?[kCGWindowBounds as String] as? NSDictionary)
+            .flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) }
+        let match = windows.first { window in
+            guard let point = geometry(window, kAXPositionAttribute, type: .cgPoint),
+                  let size = geometry(window, kAXSizeAttribute, type: .cgSize) else { return false }
+            guard let bounds else { return false }
+            return abs(point.x - bounds.minX) < 4 && abs(point.y - bounds.minY) < 4
+                && abs(size.x - bounds.width) < 4 && abs(size.y - bounds.height) < 4
+        }
+        guard let win = match else { return }
+        // AX 坐标系原点在主屏左上角（y 向下）；visibleFrame 原点在左下（y 向上）→ 换算
+        let screenH = NSScreen.main?.frame.height ?? vis.maxY
+        var pos = CGPoint(x: vis.minX, y: screenH - vis.maxY)
+        var size = CGSize(width: vis.width, height: vis.height)
+        if let posVal = AXValueCreate(.cgPoint, &pos) {
+            AXUIElementSetAttributeValue(win, kAXPositionAttribute as CFString, posVal)
+        }
+        if let sizeVal = AXValueCreate(.cgSize, &size) {
+            AXUIElementSetAttributeValue(win, kAXSizeAttribute as CFString, sizeVal)
+        }
+    }
 }
 @Observable @MainActor
 final class GameLauncher {
@@ -177,7 +228,22 @@ final class GameLauncher {
             guard !cloudWindow.isKey else { return }
             lastFocusReassert = now
             cloudWindow.reassertKey()
+        } else {
+            // ⚠️ 2026-11-19 兜底：启动阶段也可能出现 cloudTargetWindowID 未设（未走 open(cloud:)，
+            //   例如重启 App 后直接开驾驶）。此时按采集窗口 id 反查其所属 App 并激活，
+            //   否则前台永远停在控制台 → 焦点判定失败 → 10s 超时死循环。
+            guard let pid = Self.ownerPID(ofWindow: id),
+                  let app = NSRunningApplication(processIdentifier: pid), !app.isActive else { return }
+            lastFocusReassert = now
+            app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
         }
+    }
+
+    /// 按 CGWindowID 反查所属进程 pid（窗口不存在返回 nil）。
+    static func ownerPID(ofWindow id: CGWindowID) -> pid_t? {
+        let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]]
+        guard let raw = info?.first?[kCGWindowOwnerPID as String] as? Int else { return nil }
+        return pid_t(exactly: raw)
     }
 
     /// 激活云游戏所在的浏览器 App（全局注入按键会送到最前台 App）。
@@ -213,6 +279,8 @@ final class GameLauncher {
         busy = true
         needsWindow = true
         choices = []
+        // 启动来源：必须在 bind() 之前记录（bind 消费它做定位决策）。
+        pendingLaunchSource = cloud ? .cloud : .local
         defer {
             busy = false
             state.finishLauncherWindowConnection(error: needsWindow ? status : nil)
@@ -254,6 +322,9 @@ final class GameLauncher {
                         await bind(win, state: state)
                         if state.captureMode == .window(id: win.id), state.captureModeError == nil {
                             launchedCloudWindow = win
+                            // 窗口已连上 → 主动铺满主屏（Chrome --app 的 --window-size
+                            // 交给已运行实例时经常被忽略，窗口会以默认小尺寸出现）。
+                            GameWindowFocus.maximizeToScreen(win)
                             return
                         }
                         captureError = state.captureModeError
@@ -350,6 +421,10 @@ final class GameLauncher {
         }
     }
 
+    /// 待提交的启动来源：open(cloud:) 的各分支记录，bind() 消费后清空。
+    /// 手动选窗/用户自启时为 nil → .unknown（靠浏览器判定）。
+    private(set) var pendingLaunchSource: PositioningLaunchSource?
+
     func bind(_ window: CapturableWindow, state: DriveState) async {
         guard !state.shellModeActive, state.shellStartCountdown.remaining == 0 else { return }
         let resumeDriving = state.driveRequested && state.driveStatus == "等待游戏窗口恢复"
@@ -357,8 +432,13 @@ final class GameLauncher {
         choices = []
         // 速度表 ROI 归属：浏览器（云端云游戏）→ 云端坐标；本地异环 → 本地坐标。
         // 全屏采集没有窗口可判，全靠这个标志（CaptureEngine.fullScreen 分支读它）。
-        state.cloudROIHint = CaptureEngine.isCloudBrowserOwner(bundleID: window.bundleIdentifier,
-                                                               name: window.applicationName)
+        let isBrowser = CaptureEngine.isCloudBrowserOwner(bundleID: window.bundleIdentifier,
+                                                                  name: window.applicationName)
+        state.cloudROIHint = isBrowser
+        // 定位方式决策（云端→视觉 / 本地→网络 / 未知→按浏览器）：绑定窗口时提交一次。
+        state.commitPositioningSource(launchSource: pendingLaunchSource ?? .unknown,
+                                      captureIsBrowser: isBrowser)
+        pendingLaunchSource = nil
         await state.selectCaptureMode(.window(id: window.id), startPreview: true)
         if state.captureModeError == nil { remember(window) }
         status = state.captureModeError ?? "采集目标 · \(window.displayLabel)"
@@ -383,6 +463,9 @@ final class GameLauncher {
     func isLaunchedCloudWindow(_ window: CapturableWindow) -> Bool {
         launchedCloudWindow.map { BrowserLauncher.isSameWindow($0, window) } ?? false
     }
+
+    /// 上次启动的云游戏窗口（供驾驶启动时自动重发现使用；只读）。
+    var preferredCloudWindow: CapturableWindow? { launchedCloudWindow }
 
     func rememberCloudReplacement(_ window: CapturableWindow) {
         launchedCloudWindow = window

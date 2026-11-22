@@ -226,6 +226,7 @@ final class EngineClient {
     /// 引擎模式下 UI 进程 tickEngineMode 早退 → pointerReader 从不执行，
     /// 故 UI 侧的 bodyHeadingDeg 必须由引擎回传（5Hz 独立 `pointer` 消息）。
     private(set) var engineBodyHeading: Double?
+    private(set) var engineGuideLineSignal = GuideLineSignal()
     /// 引擎回传的指针置信度 [0,1]（engineBodyHeading 非 nil 时才有意义）
     private(set) var engineBodyHeadingConf: Double = 0
 
@@ -544,6 +545,14 @@ final class EngineClient {
         guard let data = line.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = obj["type"] as? String else { return }
+        if type == "guideline" {
+            if let signal = obj["signal"] as? [String: Any],
+               let payload = try? JSONSerialization.data(withJSONObject: signal),
+               let decoded = try? JSONDecoder().decode(GuideLineSignal.self, from: payload) {
+                engineGuideLineSignal = decoded
+            }
+            return
+        }
         if type == "ack" {
             guard let ack = EngineCommandAck(obj) else { return }
             pendingAcks.removeValue(forKey: ack.id)?(ack)
@@ -717,6 +726,7 @@ final class EngineClient {
         isActive = false
         isConnected = false
         lastHeartbeat = .distantPast
+        engineGuideLineSignal = .init()
         engineCaptureError = nil
         engineIsCapturing = false
         if wasActive {

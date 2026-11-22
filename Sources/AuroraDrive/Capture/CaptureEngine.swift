@@ -194,6 +194,24 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
     /// 绕开 NSImage 缩放链路；与 onFrame / onYoloFrame 互不影响
     var onNativeFrame: ((CVPixelBuffer) -> Void)?
 
+    /// 云游戏小地图 ROI 直通（视觉定位用）。回调在 captureQueue 同步产出，
+    /// 内容是按 minimapROINorm 裁出的自持缓冲；仅静态门禁 visionLocWanted 为真时拷贝。
+    var onMinimapFrame: ((CVPixelBuffer, UInt64) -> Void)?
+    /// 门禁（UI/引擎各自设）：视觉定位未启用时不拷小地图 ROI（省带宽）。
+    /// ⚠️ 2026-11-21 修数据竞争（评审抓出）：原为裸 nonisolated(unsafe)，
+    /// 采集队列在 streamFrame 无锁读、主线程无锁写 → 真实数据竞争。
+    /// 现纳入 minimapROILock 保护，与 ROI/revision 同锁（见 setMinimapROI/activeMinimapROI）。
+    nonisolated(unsafe) private static var _visionLocWanted = false
+    /// 采集队列读（与 activeMinimapROI 同锁，取一致快照）。
+    nonisolated static var visionLocWanted: Bool {
+        minimapROILock.lock(); defer { minimapROILock.unlock() }
+        return _visionLocWanted
+    }
+    /// 主线程写（与 ROI 同锁）。
+    nonisolated static func setVisionLocWanted(_ wanted: Bool) {
+        minimapROILock.lock(); _visionLocWanted = wanted; minimapROILock.unlock()
+    }
+
     /// 速度表 ROI（归一化，左上角原点 y 向下）。字模录制（glyphMode）与 SpeedOCR 共用此 ROI。
     /// 环1：copyNativeFrame 只拷贝该区域（≈100KB，替代整帧 22MB），
     /// SpeedOCRReader 用同一常量把槽位坐标换算到 ROI 相对坐标（与 Python crop_slot(roi=...) 一致）。
@@ -205,6 +223,35 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
     /// 网页版速度表整体更靠下（y 0.8952 vs 0.885），x 略左。
     nonisolated static let cloudSpeedROINorm = CGRect(x: 0.4548, y: 0.8952,
                                                       width: 0.0800, height: 0.0500)
+
+    /// 云游戏小地图 ROI 默认值（归一化，左上角原点）。手工标定兜底：
+    /// 2940×1912 桌面截图圆心(302,330)、边长280。运行时由自动标定
+    /// （MinimapCalibrator，圆形检测多帧收敛）覆盖为实测值。
+    nonisolated static let minimapROINorm = CGRect(x: (302.0 - 140.0) / 2940.0,
+                                                   y: (330.0 - 140.0) / 1912.0,
+                                                   width: 280.0 / 2940.0,
+                                                   height: 280.0 / 1912.0)
+
+    /// 标定态区域 ROI（左上 30% 宽 × 35% 高，与 C 桥 ad_maploc_detect_circle
+    /// 的内部裁剪区一致）。视觉模式启动期先把 minimap 通道切到这块大区域，
+    /// 圆形检测收敛后再切回真正的小地图 ROI（用户 2026-11-20 提议的自动标定）。
+    nonisolated static let minimapCalibRegionROINorm = CGRect(x: 0, y: 0, width: 0.30, height: 0.35)
+
+    /// 活动 minimap ROI 的存储与读写（锁保护：captureQueue 读 / 主线程标定写）。
+    private static let minimapROILock = NSLock()
+    nonisolated(unsafe) private static var _activeMinimapROI = (rect: minimapROINorm, revision: UInt64(0))
+    /// 当前生效的小地图 ROI：自动标定收敛后覆盖默认值。
+    nonisolated static var activeMinimapROI: (rect: CGRect, revision: UInt64) {
+        minimapROILock.lock(); defer { minimapROILock.unlock() }
+        return _activeMinimapROI
+    }
+    /// 标定收敛后写入（主线程调；CaptureEngine 建流帧回调读）。
+    nonisolated static func setMinimapROI(_ roi: CGRect) -> UInt64 {
+        minimapROILock.lock(); defer { minimapROILock.unlock() }
+        let revision = _activeMinimapROI.revision &+ 1
+        _activeMinimapROI = (roi, revision)
+        return revision
+    }
 
     /// 用户当前采集对象是否为云端（浏览器里的云游戏）。录全屏时没有窗口可判归属，
     /// 只能靠这个由 UI 在切换采集源时置好的标志决定用哪套速度表坐标。
@@ -370,9 +417,8 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
     /// 原生帧自持缓冲池（与 SCStream 生命周期解耦）
     /// 在 captureQueue 内同步把 SCStream 缓冲按行拷贝到池缓冲，再派发主线程；
     /// 池缓冲由下游闭包持有引用，用完后自动回池 —— 主线程永不接触系统托管缓冲
-    private var nativePool: CVPixelBufferPool?
-    private var nativePoolWidth = 0
-    private var nativePoolHeight = 0
+    private var nativePool: NativeBufferPool?
+    private var minimapPool: NativeBufferPool?
 
     // MARK: - 捕获模式状态（2026-10-08 新增）
 
@@ -419,6 +465,11 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
 
     /// 当前 SCStream 用的 SCDisplay（切模式时复用，避免重新查一遍显示器）
     private var currentDisplay: SCDisplay?
+
+    /// 当前流的**采集内容宽高比**（窗口模式=窗口比例；全屏=nil=按屏幕比例）。
+    /// ⚠️ 2026-11-19：窗口捕获必须按窗口比例出帧，否则 SCK letterbox 加黑边 →
+    ///   速度表归一化位置偏移 → OCR 裁片全黑。`setCaptureHz` 热更时必须沿用同一比例。
+    private var currentWindowAspect: Double? = nil
 
     /// YOLO 直通缩放缓冲池（vImage 直接缩放进池化私有缓冲，每帧独立，池深度 ≥4）
     /// 缓冲由下游 onYoloFrame 闭包强捕获持有，直到 tick 消费 + inferFast 拷贝完才释放回池；
@@ -581,7 +632,6 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         //     保证"全量 config"逐字段一致（`updateConfiguration` 要求全量传，
         //     见 SCStream.h 签名注释）。
         let requestedHz = targetCaptureHz
-        let config = Self.makeStreamConfiguration(configHz: requestedHz, display: display)
         //
         //   像素流：1280×832 @20fps = **85 MB/s**（2026-10-12 定档 20fps，与推理
         //   tick 20Hz 对齐；原 45fps = 192 MB/s，多出的帧每 tick 只消费 1 帧，
@@ -598,6 +648,9 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         //   · .window(id) → 只捕获该窗口（desktopIndependentWindow）
         let desired = self.desiredMode
         let filter: SCContentFilter
+        // ⚠️ 2026-11-19：窗口比例缓存 —— 窗口捕获必须按窗口自身宽高比出帧，否则 SCK
+        //   会 letterbox 加黑边，速度表归一化位置偏移（导致 OCR 裁片全黑）。
+        var windowAspect: Double? = nil
         switch desired {
         case .window(let windowID):
             guard let target = Self.findWindow(id: windowID, in: content) else {
@@ -610,6 +663,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
                 return
             }
             filter = SCContentFilter(desktopIndependentWindow: target)
+            // 记录窗口宽高比 → 在此比例下出帧，杜绝 letterbox（速度表位置才与裁片一致）。
+            if target.frame.width > 0, target.frame.height > 0 {
+                windowAspect = target.frame.height / target.frame.width
+            }
             // 速度表 ROI 按窗口归属切换：云端云游戏跑在浏览器（Chrome/Safari）里，
             // 网页版速度表位置与本地客户端不同（实测 y≈0.8952 vs 0.885）。
             // 全屏模式沿用本地默认（本地客户端才用录全屏）。
@@ -641,6 +698,13 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
 
         // 自动断言：排除列表是否真的生效（防「谁把 excludingWindows 改回空数组」回归）
         auditExclusion(content: content, display: display)
+
+        // ⚠️ 2026-11-19：配置**在 filter 之后**构造，才能用上窗口真实宽高比（windowAspect）。
+        //   窗口模式下按窗口比例出帧 → 无 letterbox → 速度表归一化位置与裁片一致。
+        //   同比例存实例状态，setCaptureHz 热更时沿用（否则改帧率会把黑边带回来）。
+        currentWindowAspect = windowAspect
+        let config = Self.makeStreamConfiguration(configHz: requestedHz, display: display,
+                                                  contentAspect: windowAspect)
 
         // 创建 SCStream（非 Optional，直接初始化）
         let stream = SCStream(filter: filter, configuration: config, delegate: self)
@@ -710,14 +774,23 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
     ///   保证 `updateConfiguration` 收到的 config **逐字段一致**
     ///   （官方 API 要求全量传，不是增量更新，见 SCStream.h 注释）。
     ///
-    /// 【分辨率逻辑（保持不变）】
-    ///   targetW=1280，height 按屏幕宽高比等比算（3:2 → 832），
-    ///   `scalesToFit=false`（无 letterbox、坐标不错位）。
-    static func makeStreamConfiguration(configHz: Double, display: SCDisplay) -> SCStreamConfiguration {
+    /// 【分辨率逻辑】
+    ///   targetW=1280，height 按 **采集内容的宽高比** 等比算，`scalesToFit=false`。
+    ///   ⚠️ 2026-11-19 修复（用户实测报障：云端窗口速度表 OCR 裁片全黑）：
+    ///     原实现**恒用主屏比例**。但窗口捕获（desktopIndependentWindow）的内容是
+    ///     **窗口本身**，窗口比例与屏幕比例（3:2=0.650）不一致时，SCK 会 letterbox
+    ///     加黑边 → 速度表在帧里的归一化位置整体偏移 → ROI 裁到黑边上（fg=0 全黑）。
+    ///     故 height 必须按「实际采集内容的宽高比」算：窗口模式传窗口比例，
+    ///     全屏模式传屏幕比例（contentAspect 参数，nil=沿用屏幕比例）。这样任何窗口
+    ///     比例下都不会有黑边，归一化坐标才与裁片所见一致。
+    static func makeStreamConfiguration(configHz: Double, display: SCDisplay,
+                                        contentAspect: Double? = nil) -> SCStreamConfiguration {
         let config = SCStreamConfiguration()
         let targetW: Double = 1280
         let aspect: Double
-        if let screen = NSScreen.screens.filter({
+        if let a = contentAspect, a.isFinite, a > 0.05, a < 20 {
+            aspect = a
+        } else if let screen = NSScreen.screens.filter({
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
                 == NSNumber(value: display.displayID)
         }).first, screen.frame.height > 0 {
@@ -805,8 +878,10 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
             return
         }
 
-        // ① 热更路径（优先）
-        let newConfig = Self.makeStreamConfiguration(configHz: newHz, display: display)
+        // ① 热更路径（优先）：沿用当前流的**采集内容比例**（窗口模式=窗口比例），
+        //    防止热更帧率时配置悄悄退回屏幕比例 → letterbox 黑边回归。
+        let newConfig = Self.makeStreamConfiguration(configHz: newHz, display: display,
+                                                     contentAspect: currentWindowAspect)
         do {
             try await stream.updateConfiguration(newConfig)
             activeCaptureHz = newHz
@@ -861,8 +936,7 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         _currentFrame = nil
         captureQueue.async { [self] in
             nativePool = nil
-            nativePoolWidth = 0
-            nativePoolHeight = 0
+            minimapPool = nil
             yoloBufferPool = nil
             yoloBufferPoolSize = 0
             uiBufferPool = nil
@@ -1268,6 +1342,14 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
             onNativeFrame(nativeCopy)
         }
 
+        // ── 云游戏小地图 ROI 直通（视觉定位）：仅视觉模式开启时拷贝 ──
+        if let onMinimapFrame, Self.visionLocWanted {
+            let (roi, revision) = Self.activeMinimapROI
+            if let miniCopy = copyNativeFrame(from: pixelBuffer, roi: roi) {
+                onMinimapFrame(miniCopy, revision)
+            }
+        }
+
         // ── 插帧/超分直通：把全分辨率帧送给 MetalGoose 引擎 ──
         // 必须复制到带 IOSurface 的私有缓冲，否则下游 CGImage 创建会崩（MG-ENG-001）
         // 门禁先于拷贝求值：插帧/清晰画面关闭时连全分辨率拷贝都不做
@@ -1470,25 +1552,27 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
 
     // MARK: - 原生帧自持拷贝
 
-    /// 同步拷贝原生帧的**速度表 ROI** 到自持小缓冲（仅 captureQueue 串行调用，无需加锁）
+    /// 同步拷贝原生帧的速度表或小地图 ROI 到自持缓冲（captureQueue 串行调用）。
     /// - Note: 环1 优化 —— 只逐行 memcpy speedROINorm 区域（≈100KB），不再整帧 22MB。
     ///   行序照抄 src 的 bytesPerRow（row 0 = 画面顶部），ROI 顶部行 = src 的 roiY 行，
     ///   逐行 1:1 复制、不翻转、不解释方向；方向语义由下游（SpeedOCRReader CIImage 路径）负责。
     /// - Returns: ROI 自持拷贝缓冲（尺寸 ≈ 速度表区域）；拷贝失败返回 nil（调用方跳过该帧直通）
-    private func copyNativeFrame(from src: CVPixelBuffer) -> CVPixelBuffer? {
+    private func copyNativeFrame(from src: CVPixelBuffer,
+                                 roi: CGRect? = nil) -> CVPixelBuffer? {
         let w = CVPixelBufferGetWidth(src)
         let h = CVPixelBufferGetHeight(src)
         guard w > 0, h > 0 else { return nil }
 
         // 归一化 ROI → 像素（用 .toNearestOrEven 与 cropSlots 的 round() 同源，保证边界量化一致）
-        let roi = Self.activeSpeedROINorm
+        let isMinimap = roi != nil
+        let roi = roi ?? Self.activeSpeedROINorm
         let roiX = Int((roi.origin.x * CGFloat(w)).rounded(.toNearestOrEven))
         let roiY = Int((roi.origin.y * CGFloat(h)).rounded(.toNearestOrEven))
         let roiW = Int((roi.width * CGFloat(w)).rounded(.toNearestOrEven))
         let roiH = Int((roi.height * CGFloat(h)).rounded(.toNearestOrEven))
         guard roiX >= 0, roiY >= 0, roiW > 0, roiH > 0,
               roiX + roiW <= w, roiY + roiH <= h,
-              let pool = nativeBufferPool(width: roiW, height: roiH) else { return nil }
+              let pool = nativeBufferPool(width: roiW, height: roiH, isMinimap: isMinimap) else { return nil }
 
         var dst: CVPixelBuffer?
         let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &dst)
@@ -1517,12 +1601,19 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         return dst
     }
 
-    /// 惰性创建（或复用）与 ROI 同尺寸的私有缓冲池
+    private struct NativeBufferPool {
+        let width: Int
+        let height: Int
+        let pool: CVPixelBufferPool
+    }
+
+    /// 两路 ROI 各自缓存缓冲池，避免尺寸不同时每帧交替重建。
     /// 池深度 ≥4：主线程通常 1-2 帧在途，留足余量避免频繁分配；
     /// 全部在途时 CVPixelBufferPoolCreatePixelBuffer 会自行扩容。
-    private func nativeBufferPool(width: Int, height: Int) -> CVPixelBufferPool? {
-        if let pool = nativePool, nativePoolWidth == width, nativePoolHeight == height {
-            return pool
+    private func nativeBufferPool(width: Int, height: Int, isMinimap: Bool) -> CVPixelBufferPool? {
+        if let cached = isMinimap ? minimapPool : nativePool,
+           cached.width == width, cached.height == height {
+            return cached.pool
         }
         let attrs: [CFString: Any] = [
             kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
@@ -1537,9 +1628,12 @@ final class CaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
             [kCVPixelBufferPoolMinimumBufferCountKey: 4] as CFDictionary,
             attrs as CFDictionary, &pool)
         guard status == kCVReturnSuccess, let pool else { return nil }
-        nativePool = pool
-        nativePoolWidth = width
-        nativePoolHeight = height
+        let cached = NativeBufferPool(width: width, height: height, pool: pool)
+        if isMinimap {
+            minimapPool = cached
+        } else {
+            nativePool = cached
+        }
         return pool
     }
 

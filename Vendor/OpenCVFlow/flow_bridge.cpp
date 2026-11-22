@@ -409,3 +409,325 @@ extern "C" AD_FlowResult ad_dis_compute(void *ctxPtr,
     }
     return result;
 }
+
+// ============================================================================
+//  小地图视觉定位（2026-11-20 新增）—— 实现见 flow_bridge.h 声明处
+// ============================================================================
+
+namespace {
+
+/// 自适应 CLAHE：低纹理(std<阈值)用大 clip 强化弱特征，否则用常规 clip。
+/// 与 Python 验证脚本 /tmp/gmw_our_map.py 完全同口径。
+cv::Mat adaptiveCLAHE(const cv::Mat &gray, double lowTextureThresh,
+                      double clipNormal, double clipLow) {
+    const double stddev = [&]() {
+        cv::Scalar mean, sd;
+        cv::meanStdDev(gray, mean, sd);
+        return sd[0];
+    }();
+    const double clip = (stddev < lowTextureThresh) ? clipLow : clipNormal;
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(clip, cv::Size(8, 8));
+    cv::Mat out;
+    clahe->apply(gray, out);
+    return out;
+}
+
+/// 定位器内部状态：持有预处理后的大图 + 圆形 mask + CLAHE 参数。
+struct MapLocatorCtx {
+    cv::Mat mapPrepared;   // 降采样 + CLAHE 后的大图（灰度）
+    int downscale = 4;
+};
+
+/// 圆形 mask（半径 = side/2 - 11，与 MaaNTE / gmw 口径一致）。
+cv::Mat circleMask(int side) {
+    cv::Mat m = cv::Mat::zeros(side, side, CV_8UC1);
+    const int radius = side / 2 - 11;
+    cv::circle(m, cv::Point(side / 2, side / 2), radius, cv::Scalar(255), -1);
+    return m;
+}
+
+}  // namespace
+
+extern "C" {
+
+void *ad_maploc_create(const uint8_t *mapGray, int mapStride,
+                       int mapW, int mapH, int downscale) {
+    try {
+        if (!mapGray || mapW <= 0 || mapH <= 0 || mapStride < mapW) return nullptr;
+        if (downscale < 1) downscale = 1;
+        cv::Mat full(mapH, mapW, CV_8UC1, const_cast<uint8_t *>(mapGray), mapStride);
+        cv::Mat small;
+        const int sw = std::max(1, mapW / downscale);
+        const int sh = std::max(1, mapH / downscale);
+        cv::resize(full, small, cv::Size(sw, sh), 0, 0, cv::INTER_AREA);
+        // 先完成可能抛异常的预处理再分配 ctx：若 CLAHE 抛出，此前 new 出的
+        // ctx 会泄漏（审查 2026-11-20）。调换顺序后异常路径不持有任何资源。
+        cv::Mat prepared = adaptiveCLAHE(small, 30.0, 3.0, 6.0);
+        MapLocatorCtx *ctx = new MapLocatorCtx();
+        ctx->downscale = downscale;
+        ctx->mapPrepared = std::move(prepared);
+        return ctx;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void ad_maploc_destroy(void *ctx) {
+    delete static_cast<MapLocatorCtx *>(ctx);
+}
+
+static AD_MapLocResult maploc_match(const cv::Mat &searchImage,
+                                    const uint8_t *miniGray, int miniStride, int miniSide,
+                                    double offsetX, double offsetY) {
+    AD_MapLocResult r{0, 0, 0, 0};
+    try {
+        if (!miniGray || miniSide < 16 || miniStride < miniSide) return r;
+        cv::Mat mini(miniSide, miniSide, CV_8UC1, const_cast<uint8_t *>(miniGray), miniStride);
+        cv::Mat tpl = adaptiveCLAHE(mini, 30.0, 3.0, 6.0);
+        cv::Mat mask = circleMask(miniSide);
+        // 无纹理模板拒绝：纯色模板的 CCORR 分数天然虚高（恒定值相关≈1），
+        // 却不含任何位置信息——返回 valid=0，由调用方按「本帧无定位」处理。
+        cv::Scalar tMean, tStd;
+        cv::meanStdDev(tpl, tMean, tStd, mask);
+        if (tStd[0] < 2.0) return r;
+        if (searchImage.cols < miniSide || searchImage.rows < miniSide) return r;
+        cv::Mat response;
+        cv::matchTemplate(searchImage, tpl, response, cv::TM_CCORR_NORMED, mask);
+        // 只需 clamp 后的首个正峰。按行扫描保留 minMaxLoc 的并列顺序，
+        // 两侧比较同时排除非有限值和超过误差容限的值。
+        float maxV = 0.0f;
+        cv::Point maxP;
+        for (int y = 0; y < response.rows && maxV < 1.0f; ++y) {
+            const float *row = response.ptr<float>(y);
+            for (int x = 0; x < response.cols; ++x) {
+                const float value = row[x];
+                if (value > maxV && value <= 1.0f + 1e-6f) {
+                    maxV = std::min(value, 1.0f);
+                    maxP = cv::Point(x, y);
+                    if (maxV == 1.0f) break;
+                }
+            }
+        }
+        if (maxV == 0.0f) return r;
+        r.x = offsetX + maxP.x + miniSide * 0.5;
+        r.y = offsetY + maxP.y + miniSide * 0.5;
+        r.score = maxV;
+        r.valid = 1;
+    } catch (...) {
+        r.valid = 0;
+    }
+    return r;
+}
+
+AD_MapLocResult ad_maploc_global(void *ctx,
+                                 const uint8_t *miniGray, int miniStride, int miniSide) {
+    AD_MapLocResult r{0, 0, 0, 0};
+    if (!ctx) return r;
+    MapLocatorCtx *c = static_cast<MapLocatorCtx *>(ctx);
+    return maploc_match(c->mapPrepared, miniGray, miniStride, miniSide, 0.0, 0.0);
+}
+
+AD_MapLocResult ad_maploc_track(void *ctx,
+                                const uint8_t *miniGray, int miniStride, int miniSide,
+                                double hintX, double hintY, int window) {
+    AD_MapLocResult r{0, 0, 0, 0};
+    if (!ctx) return r;
+    try {
+        MapLocatorCtx *c = static_cast<MapLocatorCtx *>(ctx);
+        // hint 必须有限且落在图内，否则回退全局（头文件契约）。
+        // 不能先 static_cast<int>：NaN/超范围 double 转 int 是 UB（审查 2026-11-20）。
+        const double mapW = c->mapPrepared.cols, mapH = c->mapPrepared.rows;
+        if (!std::isfinite(hintX) || !std::isfinite(hintY)
+                || hintX < 0.0 || hintY < 0.0 || hintX >= mapW || hintY >= mapH) {
+            return ad_maploc_global(ctx, miniGray, miniStride, miniSide);
+        }
+        if (window < miniSide + 8) window = miniSide + 8;
+        const int half = window / 2;
+        const int cx = static_cast<int>(hintX), cy = static_cast<int>(hintY);
+        const int x0 = std::max(0, cx - half);
+        const int y0 = std::max(0, cy - half);
+        const int x1 = std::min(c->mapPrepared.cols, cx + half);
+        const int y1 = std::min(c->mapPrepared.rows, cy + half);
+        if (x1 - x0 < miniSide || y1 - y0 < miniSide) {
+            return ad_maploc_global(ctx, miniGray, miniStride, miniSide);
+        }
+        cv::Mat win = c->mapPrepared(cv::Rect(x0, y0, x1 - x0, y1 - y0));
+        return maploc_match(win, miniGray, miniStride, miniSide, x0, y0);
+    } catch (...) {
+        // ROI 构造/裁剪可能抛（cv::Rect 越界断言），必须兜住，不能崩进程。
+        r.valid = 0;
+        return r;
+    }
+}
+
+AD_MapCircleResult ad_maploc_detect_circle(const uint8_t *gray, int stride,
+                                            int w, int h,
+                                            int regionPreCropped, int frameW) {
+    AD_MapCircleResult out{0, 0, 0, 0};
+    try {
+        if (!gray || w < 64 || h < 64 || stride < w) return out;
+        if (frameW <= 0) frameW = w;
+        cv::Mat img(h, w, CV_8UC1, const_cast<uint8_t *>(gray), stride);
+        // gmw 的做法：先裁固定区域再在区域内检测（全图找会命中道路大弧线，
+        // 实测 2940 全图曾误中 r=416 的假圆）。云游戏小地图固定在左上：
+        // 实测圆心 ≈(0.102w, 0.172h)、半径 ≈0.058w（2940/1280 两尺度一致）。
+        // regionPreCropped=1 时输入已是该区域（CaptureEngine 标定态 ROI 1:1 裁出）。
+        cv::Mat crop = img;
+        if (!regionPreCropped) {
+            const int cropW = w * 30 / 100;   // 左上 30% 宽
+            const int cropH = h * 35 / 100;   // 左上 35% 高
+            crop = img(cv::Rect(0, 0, cropW, cropH));
+        }
+        // 半径窗按**整帧宽**比例（0.035~0.07）：实测小地图 r≈0.047~0.058×帧宽
+        //（2940 帧 137~170 / 1280 帧 ~74），道路弧线假圆 r≈0.10×帧宽被排除。
+        // ⚠️ 必须用 frameW 而不是 w：区域输入时 w 只是裁剪宽，用 w 算窗会把
+        //   真圆排在窗外（实测 882 宽区域 maxR=61，检不到 r=204 的真圆）。
+        const int minR = std::max(8, frameW * 35 / 1000);
+        const int maxR = std::max(minR + 8, frameW * 7 / 100);
+        std::vector<cv::Vec3f> circles;
+        cv::HoughCircles(crop, circles, cv::HOUGH_GRADIENT, 1.2,
+                         (double)std::min(crop.cols, crop.rows) / 2.0,
+                         80, 35, minR, maxR);
+        if (circles.empty()) return out;
+        // 取离预期位置（左上区域内偏中）最近的圆（gmw 同款：closest-to-center）。
+        const double ex = crop.cols * 0.34, ey = crop.rows * 0.50;   // ≈(0.102w,0.172h)
+        const cv::Vec3f *best = &circles[0];
+        double bestD = 1e18;
+        for (const auto &c : circles) {
+            const double dx = c[0] - ex, dy = c[1] - ey;
+            const double d = dx * dx + dy * dy;
+            if (d < bestD) { bestD = d; best = &c; }
+        }
+        out.cx = (*best)[0];
+        out.cy = (*best)[1];
+        out.r = (*best)[2];
+        out.valid = 1;
+    } catch (...) {
+        out.valid = 0;
+    }
+    return out;
+}
+
+double ad_maploc_measure_span(void *ctx, const uint8_t *miniGray, int side, double x, double y) {
+    if (!ctx || !miniGray || side != 150 || !std::isfinite(x) || !std::isfinite(y)) return 0;
+    try {
+        const cv::Mat &map = static_cast<MapLocatorCtx *>(ctx)->mapPrepared;
+        constexpr int window = 256;
+        if (x < window / 2 || y < window / 2 ||
+            x + window / 2 >= map.cols || y + window / 2 >= map.rows) return 0;
+        const cv::Rect rect(static_cast<int>(x) - window / 2, static_cast<int>(y) - window / 2, window, window);
+        cv::Mat search;
+        cv::resize(map(rect), search, cv::Size(window / 2, window / 2), 0, 0, cv::INTER_AREA);
+        const cv::Mat mini(side, side, CV_8UC1, const_cast<uint8_t *>(miniGray));
+        const cv::Mat prepared = adaptiveCLAHE(mini, 30.0, 3.0, 6.0);
+        const auto score = [&](int span) {
+            cv::Mat scaled, response;
+            cv::resize(prepared, scaled, cv::Size(span, span), 0, 0, cv::INTER_AREA);
+            cv::Mat mask = cv::Mat::zeros(span, span, CV_8UC1);
+            cv::circle(mask, cv::Point(span / 2, span / 2), cvRound(64.0 * span / side), cv::Scalar(255), -1);
+            cv::Scalar mean, deviation;
+            cv::meanStdDev(scaled, mean, deviation, mask);
+            if (deviation[0] < 8.0) return 0.0;
+            // Remove mean luminance so nearly flat terrain cannot produce a strong peak.
+            cv::matchTemplate(search, scaled, response, cv::TM_CCOEFF_NORMED, mask);
+            cv::patchNaNs(response, 0.0);
+            double best;
+            cv::Point peak;
+            cv::minMaxLoc(response, nullptr, &best, nullptr, &peak);
+            if (!std::isfinite(best) || best > 1.0 + 1e-6 ||
+                std::hypot(peak.x + span * 0.5 - search.cols * 0.5,
+                           peak.y + span * 0.5 - search.rows * 0.5) > 22.0) return 0.0;
+            return best;
+        };
+        // Step in half-resolution map pixels. Refine around the strongest coarse candidate.
+        constexpr int first = 40, last = 100, step = 5;
+        double scores[last + 1]{};
+        int bestSpan = first;
+        for (int span = first; span <= last; span += step) {
+            scores[span] = score(span);
+            if (scores[span] > scores[bestSpan]) bestSpan = span;
+        }
+        const int coarse = bestSpan;
+        for (int span = std::max(first, coarse - step + 1); span <= std::min(last, coarse + step - 1); ++span) {
+            if (span == coarse) continue;
+            scores[span] = score(span);
+            if (scores[span] > scores[bestSpan]) bestSpan = span;
+        }
+        double competitor = 0;
+        for (int span = first; span <= last; ++span) {
+            if (std::abs(span - bestSpan) >= step) competitor = std::max(competitor, scores[span]);
+        }
+        // Require a clear peak inside the tested zoom interval.
+        if (bestSpan == first || bestSpan == last ||
+            scores[bestSpan] < 0.60 || scores[bestSpan] - competitor < 0.06) return 0;
+        return 2.0 * bestSpan;
+    } catch (...) {
+        return 0;
+    }
+}
+
+AD_GuideLineScan ad_guideline_scan(const uint8_t *bgra, int32_t width, int32_t height,
+                                  int32_t stride, double ringSq, double radiusSq, uint32_t *hits) {
+    AD_GuideLineScan out{};
+    out.bestSq = INFINITY;
+    if (!bgra || width <= 0 || height <= 0 || width > stride / 4 ||
+        height > INT32_MAX / width) return out;
+    const double cx = (width - 1) * 0.5;
+    const double cy = (height - 1) * 0.5;
+    // ⚠️ PCA 采样环（2026-11-21 评审 A 反例修复）：
+    // 原实现只排除车心 2 倍 ring，一直采到地图边缘 → 弯道时**远处已偏转的线**
+    // 与近端切线混进同一次平均，主轴变成整段圆弧的中点切线。实测反例：
+    // 半径 17.9px 的 120° 圆弧，当前切线 0° 时 PCA 主轴偏到 70~82°（置信度还高达 0.94）
+    // → 正常跟弯被判「方向不对」扣分。
+    // 现在只采**紧邻车心的近段**（ring*2 ~ ring*3.5），该段走向≈车辆当前位置切线。
+    // 近段像素少，但小地图引导线宽 2~3px × 约 1.5×ring 弧长仍足够拟合（实测 >30 点）。
+    const double shapeRadiusInnerSq = ringSq * 4;
+    const double shapeRadiusOuterSq = ringSq * 12.25;
+    for (int y = 0; y < height; ++y) {
+        const double dy = y - cy;
+        const double dySq = dy * dy;
+        if (dySq >= radiusSq) continue;
+        const double reach = std::sqrt(radiusSq - dySq);
+        // Round outwards, then keep the original strict radius checks below.
+        const int firstX = static_cast<int>(std::max(0.0, std::floor(cx - reach)));
+        const int lastX = static_cast<int>(std::min(width - 1.0, std::ceil(cx + reach)));
+        const uint8_t *row = bgra + static_cast<size_t>(y) * stride;
+        for (int x = firstX; x <= lastX; ++x) {
+            const uint8_t *p = row + x * 4;
+            const int b = p[0], g = p[1], r = p[2];
+            const bool yellow = r > 140 && g > 100 && b < 110 && r - b > 60 && g - b > 40;
+            const bool cream = r > 180 && g > 170 && b > 150 && r >= b - 10;
+            if (!yellow && !cream) continue;
+            const double dx = x - cx;
+            const double dSq = dx * dx + dySq;
+            if (!(dSq > ringSq && dSq < radiusSq)) continue;
+            if (hits) hits[out.count] = static_cast<uint32_t>(y * width + x);
+            ++out.count;
+            if (dSq < out.bestSq) {
+                out.bestSq = dSq;
+                out.bestX = dx;
+                out.bestY = dy;
+            }
+            // 远端方位统计（逆行判定用）：取拟合环之外的更远段。
+            if (dSq > shapeRadiusOuterSq) {
+                const double len = std::sqrt(dSq);
+                if (len > 0) {
+                    // 画面坐标 → 世界方位（东=+dx, 北=-dy），单位向量累加。
+                    out.farSin += dx / len;
+                    out.farCos += -dy / len;
+                    ++out.farCount;
+                }
+            }
+            if (dSq <= shapeRadiusInnerSq || dSq > shapeRadiusOuterSq) continue;
+            out.sumX += dx;
+            out.sumY += dy;
+            out.sumXX += dx * dx;
+            out.sumYY += dySq;
+            out.sumXY += dx * dy;
+            ++out.shapeCount;
+        }
+    }
+    return out;
+}
+
+}  // extern "C"

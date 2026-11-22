@@ -266,6 +266,8 @@ extension DriveState {
             // modeLock 序列化为 rawValue 字符串（"端到端主驾"/"纯规则兜底"）。
             "modeLock":          modeLock?.rawValue ?? NSNull(),
             "cloudROIHint":      cloudROIHint,
+            // 定位方式（UI 决策结果）：引擎 DriveState/tick 据此走视觉或网络定位。
+            "positioningMode":   (visualFallbackActive ? PositioningMode.visual.rawValue : positioningMode.rawValue),
             "expert":            expertMode,
             "glyph":             glyphMode,
             "degradeThreshold":  degradeThreshold,

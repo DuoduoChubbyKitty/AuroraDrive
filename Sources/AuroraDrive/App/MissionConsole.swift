@@ -600,6 +600,11 @@ struct ViewportPanel: View {
             AuroraLightField(condition: state.roadCondition)
                 .allowsHitTesting(false)
 
+            if state.isStreaming, let paths = state.guideLinePaths,
+               let sourceSize = state.screenSize, !paths.minimap.isEmpty {
+                MinimapGuideOverlay(paths: paths, sourceSize: sourceSize)
+            }
+
             // 检测框
             //
             // ★ 2026-10-02：数据源从 effectiveDetections 换为 displayDetections。
@@ -1962,21 +1967,28 @@ struct MiniMapCanvas: View {
     var body: some View {
         GeometryReader { g in
             let w = g.size.width, h = g.size.height
+            let guide = state.guideLinePaths
+            let ego = guide?.overlay.egoMap
+            let hasPosition = state.locatorFound || ego != nil
+            let centerX = ego.map { Double($0.x) } ?? state.mapPixelX
+            let centerY = ego.map { Double($0.y) } ?? state.mapPixelY
+            let spanPx = DriveState.minimapSpanMeters * MapTileImage.mapPixels / MapTileImage.worldMetersPerMap
+            let viewport = MapLayerViewport(centerX: centerX, centerY: centerY, spanPx: spanPx).quantized
             ZStack {
                 Color(hex: 0x060B13)
 
                 // 真实地图底图：bigworldmap-13056.jpg（13056×13056）按自车位置裁一块
                 // ⚠️ 只在定位锁定时才画。未锁定时 mapPixelX/Y 会退化成地图正中心，
                 //    裁出来的那一块跟自车毫无关系 —— 那是假位置，不能冒充定位。
-                if state.locatorFound {
-                    MapTileImage(centerMapX: state.mapPixelX,
-                                 centerMapY: state.mapPixelY,
+                if hasPosition {
+                    MapTileImage(centerMapX: centerX,
+                                 centerMapY: centerY,
                                  spanMeters: DriveState.minimapSpanMeters)
                         .opacity(0.9)
                 }
 
                 // 定位未锁定时给出明确提示，不画假路网冒充地图
-                if !state.locatorFound {
+                if !hasPosition {
                     VStack(spacing: 4) {
                         Image(systemName: state.locateGameOffline
                               ? "gamecontroller.fill" : "location.slash")
@@ -1988,6 +2000,11 @@ struct MiniMapCanvas: View {
                             .font(.system(size: 9))
                             .foregroundStyle(state.locateGameOffline ? Aurora.amber : Aurora.t4)
                     }
+                }
+
+                if let guide, !guide.latestMap.isEmpty {
+                    MapGuideOverlay(current: guide.latestMap, traveled: Path(),
+                                    centerX: viewport.centerX, centerY: viewport.centerY, spanPx: viewport.spanPx)
                 }
 
                 // 目标点/路径：仅在有真实目标点时绘制
@@ -2059,6 +2076,9 @@ struct MiniMapCanvas: View {
                             .shadow(color: Aurora.ice, radius: 8)
                     }
                     .position(x: w * state.egoNormX, y: h * state.egoNormY)
+                } else if hasPosition {
+                    Circle().fill(Aurora.ice).frame(width: 8, height: 8)
+                        .position(x: w / 2, y: h / 2)
                 }
 
                 Text("N")
@@ -2088,6 +2108,52 @@ struct MiniMapCanvas: View {
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .strokeBorder(Aurora.hair2, lineWidth: 1)
         }
+    }
+}
+
+struct GuideLinePaths {
+    let overlay: GuideLineOverlay
+    let minimap: Path
+    let latestMap: Path
+    let currentMap: Path
+    let traveledMap: Path
+
+    init(overlay: GuideLineOverlay) {
+        self.overlay = overlay
+        minimap = Self.path(overlay.minimap)
+        latestMap = Self.path(overlay.currentMap.last ?? [])
+        currentMap = Self.path(overlay.currentMap.flatMap { $0 })
+        traveledMap = Self.path(overlay.traveledMap)
+    }
+
+    private static func path(_ segments: [[CGPoint]]) -> Path {
+        Path { path in
+            for points in segments where points.count >= 2 {
+                path.move(to: points[0])
+                for point in points.dropFirst() { path.addLine(to: point) }
+            }
+        }
+    }
+}
+
+struct MapGuideOverlay: View {
+    let current: Path
+    let traveled: Path
+    let centerX: Double
+    let centerY: Double
+    let spanPx: Double
+
+    var body: some View {
+        Canvas { context, size in
+            let scale = max(size.width, size.height) / spanPx
+            let transform = CGAffineTransform(a: scale, b: 0, c: 0, d: scale,
+                                              tx: size.width / 2 - centerX * scale,
+                                              ty: size.height / 2 - centerY * scale)
+            let style = StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
+            context.stroke(traveled.applying(transform), with: .color(Aurora.muted), style: style)
+            context.stroke(current.applying(transform), with: .color(Aurora.iceHi), style: style)
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -5157,6 +5223,9 @@ struct LargeMapCanvas: View {
             let cy = (vp.centerY / 4).rounded() * 4
             let spanPx = max((rawSpanPx / 4).rounded() * 4, 4)
             let spanMeters = spanPx / pxPerMeter
+            let guide = state.guideLinePaths
+            let ego = guide?.overlay.egoMap ?? (state.locatorFound
+                ? CGPoint(x: state.mapPixelX, y: state.mapPixelY) : nil)
 
             // ── 聚类（每帧求值，但内部有量化缓存）──
             // 顺序**必须**是「先按组过滤 → 再聚类」：若先聚类再过滤，
@@ -5178,6 +5247,11 @@ struct LargeMapCanvas: View {
                 RoadOverlayLayer(centerX: cx, centerY: cy,
                                  spanPx: spanPx,
                                  flags: layerFlags)
+
+                if let guide {
+                    MapGuideOverlay(current: guide.currentMap, traveled: guide.traveledMap,
+                                    centerX: cx, centerY: cy, spanPx: spanPx)
+                }
 
                 // ── 真实标记点：5677 条，聚类后绘制 ──
                 //
@@ -5328,23 +5402,23 @@ struct LargeMapCanvas: View {
                 // ── 自车：真实定位坐标映射到视口 ──
                 // 注意：这里必须用视口中心 cx/cy 换算，不能用 state.mapPixelX/Y，
                 // 否则用户平移后自车图标会画错位置（原实现就是混用导致漂移）。
-                if state.locatorFound {
-                    let egoPx = DriveState.worldToMapPixelX(state.locatorX, state.locatorY)
-                    let egoPy = DriveState.worldToMapPixelY(state.locatorX, state.locatorY)
-                    let ex = min(0.97, max(0.03, (egoPx - cx) / spanPx + 0.5))
-                    let ey = min(0.97, max(0.03, (egoPy - cy) / spanPx + 0.5))
+                if let ego {
+                    let position = Self.mapToView(min(0.97, max(0.03, (ego.x - cx) / spanPx + 0.5)),
+                                                   min(0.97, max(0.03, (ego.y - cy) / spanPx + 0.5)), w, h)
                     ZStack {
                         Circle().fill(Aurora.ice.opacity(0.18)).frame(width: 34, height: 34)
                         // 朝向指示（真实 locatorHeading）
-                        Capsule()
-                            .fill(Aurora.ice)
-                            .frame(width: 3, height: 15)
-                            .offset(y: -13)
-                            .rotationEffect(.degrees(state.locatorHeading))
+                        if state.locatorFound {
+                            Capsule()
+                                .fill(Aurora.ice)
+                                .frame(width: 3, height: 15)
+                                .offset(y: -13)
+                                .rotationEffect(.degrees(state.locatorHeading))
+                        }
                         Circle().fill(Aurora.ice).frame(width: 10, height: 10)
                             .shadow(color: Aurora.ice, radius: 10)
                     }
-                    .position(x: w * ex, y: h * ey)
+                    .position(position)
                 } else {
                     // 定位未锁定：如实提示，不画假自车
                     VStack(spacing: 5) {
@@ -5363,10 +5437,9 @@ struct LargeMapCanvas: View {
                             MapCtrlBtn(icon: "plus") { vp.zoom(by: MapViewport.zoomStep) }
                             MapCtrlBtn(icon: "minus") { vp.zoom(by: 1 / MapViewport.zoomStep) }
                             MapCtrlBtn(icon: "location.fill",
-                                       tint: state.locatorFound ? Aurora.ice : Aurora.t4,
+                                       tint: ego != nil ? Aurora.ice : Aurora.t4,
                                        tip: "回到自车") {
-                                vp.recenter(egoX: state.locatorFound ? DriveState.worldToMapPixelX(state.locatorX, state.locatorY) : nil,
-                                            egoY: state.locatorFound ? DriveState.worldToMapPixelY(state.locatorX, state.locatorY) : nil)
+                                vp.recenter(egoX: ego.map { Double($0.x) }, egoY: ego.map { Double($0.y) })
                             }
                         }
                         .padding(.trailing, 14)
@@ -5503,9 +5576,8 @@ struct LargeMapCanvas: View {
             .onAppear {
                 // 路网图层：后台解析一次，就绪后自动刷新（见 MapLayerStore）
                 MapLayerStore.shared.ensureLoaded()
-                if !vp.userMoved, state.locatorFound {
-                    vp.recenter(egoX: DriveState.worldToMapPixelX(state.locatorX, state.locatorY),
-                                egoY: DriveState.worldToMapPixelY(state.locatorX, state.locatorY))
+                if !vp.userMoved, let ego {
+                    vp.recenter(egoX: ego.x, egoY: ego.y)
                 }
                 // ── 基准夹具：真正平移视口以击穿 4px 量化缓存（A10）──
                 // 必须放在 recenter **之后**：recenter 只在 !userMoved 时生效，
@@ -5514,10 +5586,9 @@ struct LargeMapCanvas: View {
                     vp.pan(toMapX: vp.centerX + benchDragPx, mapY: vp.centerY)
                 }
             }
-            .onChange(of: state.locatorFound) { _, found in
-                if found, !vp.userMoved {
-                    vp.recenter(egoX: DriveState.worldToMapPixelX(state.locatorX, state.locatorY),
-                                egoY: DriveState.worldToMapPixelY(state.locatorX, state.locatorY))
+            .onChange(of: ego != nil) { _, found in
+                if found, !vp.userMoved, let ego {
+                    vp.recenter(egoX: ego.x, egoY: ego.y)
                 }
             }
             // ── 点击设终点 + 规划（2026-10-03 新增）──

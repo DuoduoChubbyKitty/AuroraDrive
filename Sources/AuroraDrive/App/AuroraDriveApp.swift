@@ -1014,6 +1014,21 @@ struct AuroraDriveLauncher {
                               //   · --lane-extrapolator-selftest  车道线光流外推自检（Perception/LaneExtrapolatorSelfTest.swift）
                               "--agent-selftest", "--map-selftest",
                               "--lane-extrapolator-selftest",
+                              // 2026-11-20（小地图视觉定位）：OpenCV C 桥
+                              // CLAHE+matchTemplate 冒烟自检（MapLocSelfTest.swift）。
+                              "--maploc-selftest",
+                              // 2026-11-20（定位决策）：云端→视觉/本地→网络/未知→浏览器判定
+                              // 真值表自检（Resolver/PositioningResolverSelfTest.swift）。
+                              "--positioning-selftest",
+                              // 2026-11-20（网络定位故障兜底）：真炸了才切视觉、
+                              // 恢复才切回的状态机真值表自检（NetworkFailoverMonitorSelfTest.swift）。
+                              "--failover-selftest",
+                              // 2026-11-21（引导线导航）：小地图黄色引导线方位提取
+                              // 对拍 Python 参考数值（GuideLineSelfTest.swift）。
+                              "--guideline-selftest",
+                              // 2026-11-21（引导线偏离）：真实连续训练帧离线回放，
+                              // 统计判偏离率验收「预测是否准」（GuideLineReplay.swift）。
+                              "--guideline-replay",
                               // 2026-10-08（T3 录制链路）：捕获双模式 + 视角归一化 +
                               // 排除列表不变量（防「excludingWindows 被改回空数组」回归）。
                               "--capture-selftest",
@@ -1458,6 +1473,45 @@ struct AuroraDriveLauncher {
         // 纯离屏自检（不开窗、不连引擎），所以在 UI 单实例锁之前就 exit。
         if args.contains("--map-selftest") {
             exit(Int32(runMapSelfTest()))
+        }
+
+        // ── 小地图视觉定位冒烟自检（--maploc-selftest，2026-11-20 新增）──
+        // 真实资产（生产大图 + 桌面截图小地图）验证 C 桥定位链路 + 7ms 性能红线。
+        // 纯离屏同步计算，不联网不碰权限，在单实例锁之前 exit。
+        if args.contains("--maploc-selftest") {
+            exit(runMapLocSelfTest())
+        }
+
+        // ── 定位方式决策真值表自检（--positioning-selftest，2026-11-20 新增）──
+        // 纯逻辑无 IO，验证三条规则 + 边界组合的真值表。
+        if args.contains("--positioning-selftest") {
+            exit(runPositioningResolverSelfTest())
+        }
+
+        // ── 网络定位故障兜底状态机自检（--failover-selftest，2026-11-20 新增）──
+        // 纯逻辑真值表：误切边界（stale/画面停/非驾驶/单帧抖动）+ 接管/恢复时序。
+        if args.contains("--failover-selftest") {
+            exit(runNetworkFailoverSelfTest())
+        }
+
+        // ── 引导线方位读取自检（--guideline-selftest，2026-11-21 新增）──
+        // 真实截图对拍 Python 参考实现（环带方位 + 玩家环不误报）。
+        if args.contains("--guideline-selftest") {
+            let readerFailures = runGuideLineSelfTest()
+            exit(readerFailures + runGuideLineIntegrationSelfTest())
+        }
+
+        // ── 引导线偏离 · 真实连续帧离线回放（--guideline-replay）──
+        // 跑生产检测器，统计正常驾驶段的误判率（验收判据是否可用）。
+        if args.contains("--guideline-replay") {
+            // 支持可选参数：--guideline-replay <clip> <from> <to>
+            // 用于分批抽样验证（用户 2026-11-22 要求抽 5 批各测一遍）。
+            let i = args.firstIndex(of: "--guideline-replay")!
+            let clip = i + 1 < args.count && !args[i + 1].hasPrefix("--")
+                ? args[i + 1] : "clip_20261114_161701"
+            let from = i + 2 < args.count ? (Int(args[i + 2]) ?? 2010) : 2010
+            let to = i + 3 < args.count ? (Int(args[i + 3]) ?? 2861) : 2861
+            exit(runGuideLineReplay(clip: clip, from: from, to: to))
         }
 
         // ── 车道线光流外推自检（--lane-extrapolator-selftest，2026-10-07 新增）──
@@ -5175,6 +5229,7 @@ final class DriveState {
         case "not_ready":        return "抓包未就绪"
         case "no_data":          return "已抓包 · 等待定位数据"
         case "network":          return "网络定位已锁定"
+        case "visual":           return "云游戏视觉定位已锁定"
         // ── 2026-09-30 新增 ──
         // 游戏固定每 15.01 秒才发一个坐标包（实测），期间有约 6% 的周期整轮不发。
         // 旧行为是超窗即清空 → 小地图反复闪断。现改为「保留最后位置 + 如实标注」，
@@ -5195,6 +5250,363 @@ final class DriveState {
     var locatorY: Double = 0
     var locatorScore: Double = 0
     var locatorHeading: Double = 0
+
+    // ── 云端小地图视觉定位（2026-11-20）──
+    // 云游戏只有视频流、没有 30031 坐标包，只能靠小地图匹配定位。
+    // 定位器独占一个串行 worker（MapLocBridge 内部无锁）；首次进入视觉模式
+    // 惰性初始化（13056 大图解码+降采样+CLAHE），不在主线程做。
+    /// 采集端拷贝完成后只读，持有 buffer 期间池不会复用它。
+    private struct MinimapFrame: @unchecked Sendable {
+        let buffer: CVPixelBuffer
+        let revision: UInt64
+        let observedAt: TimeInterval
+    }
+
+    @ObservationIgnored nonisolated(unsafe) private var visualLocator: MapLocBridge?
+    @ObservationIgnored nonisolated(unsafe) private var visualLocHint: (revision: UInt64, x: Double, y: Double)?
+    @ObservationIgnored private let visualLocQueue = DispatchQueue(label: "com.aurora.visuallocate", qos: .userInteractive)
+    @ObservationIgnored private let minimapCalibQueue = DispatchQueue(label: "com.aurora.minimapcalibration", qos: .userInteractive)
+    @ObservationIgnored private var minimapROIRevision: UInt64 = 0
+    @ObservationIgnored private var visualLocateInFlight = false
+    @ObservationIgnored private var minimapRadiusPerWidth: Double?
+    @ObservationIgnored private var guideScaleJob: UUID?
+    @ObservationIgnored private var guideScaleSize: CGSize?
+    @ObservationIgnored private var guideScaleAttemptAt: TimeInterval?
+    @ObservationIgnored private var guideMapSpan: Double?
+    private static let guideScaleInterval: TimeInterval = 2
+    @ObservationIgnored private var guideMotion = GuideLineMotion()
+    @ObservationIgnored private var guideMapHistory = GuideLineMapHistory()
+    @ObservationIgnored private var lastGuideFrameAt: TimeInterval?
+    @ObservationIgnored private var guideLineHeadingDeg: Double?
+    @ObservationIgnored private var guideDirectionVerdict: GuideLineReader.DirectionVerdict = .insufficient
+    @ObservationIgnored private var guideDirectionOffRoute = false
+    @ObservationIgnored private var guideObservedAt: TimeInterval?
+    private(set) var guideLinePaths: GuideLinePaths?
+
+    var guideLineSignal: GuideLineSignal {
+        GuideLineSignal(observedAt: guideObservedAt, headingDeg: guideLineHeadingDeg, verdict: guideDirectionVerdict,
+                        offRoute: guideDirectionOffRoute, overlay: guideLinePaths?.overlay)
+    }
+
+    private func publishGuideLine(_ signal: GuideLineSignal) {
+        guideObservedAt = signal.observedAt
+        guideLineHeadingDeg = signal.headingDeg
+        guideDirectionVerdict = signal.verdict
+        guideDirectionOffRoute = signal.offRoute
+        if guideLinePaths?.overlay != signal.overlay {
+            guideLinePaths = signal.overlay.map(GuideLinePaths.init)
+        }
+    }
+
+    private func resetGuideLine(clearHistory: Bool) {
+        guideMotion.reset()
+        if clearHistory {
+            guideMapHistory = GuideLineMapHistory()
+            guideScaleJob = nil
+            guideScaleSize = nil
+            guideScaleAttemptAt = nil
+            guideMapSpan = nil
+        } else {
+            guideMapHistory.breakTrail()
+        }
+        lastGuideFrameAt = nil
+        publishGuideLine(.init())
+    }
+    @ObservationIgnored private var calibrationJob: UUID?
+    /// 小地图 ROI 自动标定状态：视觉模式启动期，minimap 通道先送「左上大区域」
+    /// 帧（圆形检测），收敛后切回真正的小地图 ROI（用户 2026-11-20 提议，
+    /// 标定期正好落在壳模式 RL 训练的 30 秒等待里）。
+    @ObservationIgnored private var minimapCalibrator = MinimapCalibrator()
+    @ObservationIgnored private(set) var minimapCalibrating = false
+    /// 标定期已消费帧数（超时兜底：小地图不可见/检测失败时不永远卡在标定态）。
+    @ObservationIgnored private var calibFrames = 0
+    /// 标定超时（15Hz tick 下 ≈20s；正常收敛只需 8 帧 ≈0.6s）。
+    private static let calibMaxFrames = 300
+
+    // ── 网络定位故障兜底（2026-11-20 用户需求）──
+    // 正常驾驶时网络定位是主力；哪天被玩炸了（协议变了/抓包挂了）→ 自动切
+    // 视觉定位接管；网络恢复 → 切回。**只有真炸了才切**（用户原话）。
+    /// 视觉兜底是否激活（决策仍是 .network，只是临时接管）。
+    var visualFallbackActive = false
+    /// 视觉管线是否应当运行：决策为视觉，或兜底激活。
+    var visualPipelineActive: Bool { positioningMode == .visual || visualFallbackActive }
+    /// 故障监视器（真值表见 NetworkFailoverMonitorSelfTest；阈值 150≈10s 接管 / 75≈5s 切回）。
+    @ObservationIgnored private var netFailover = NetworkFailoverMonitor()
+    /// 上一 tick 的帧序号（检测「画面在动」= 游戏明明在跑）。
+    @ObservationIgnored private var lastTickFrameSeq = 0
+    /// 当前定位方式（云端→视觉 / 本地→网络 / 未知→按浏览器）。
+    var positioningMode: PositioningMode = .network
+
+    /// 采集目标确认生效时调用一次：决定定位方式，并为视觉模式准备定位器。
+    /// - Parameters:
+    ///   - launchSource: 内置启动器来源；用户自启传 .unknown。
+    ///   - captureIsBrowser: 抓屏目标是否浏览器窗口（cloudROIHint）。
+    func commitPositioningSource(launchSource: PositioningLaunchSource, captureIsBrowser: Bool) {
+        let mode = PositioningResolver.resolve(launchSource: launchSource,
+                                               captureIsBrowser: captureIsBrowser)
+        applyPositioningMode(mode)
+        // 同步推给引擎进程（它有自己的 DriveState/tick，靠 config IPC 才知道模式）。
+        // 引擎未连接时 sendCommand 安全返回，无副作用。
+        pushConfig(reason: "positioning:\(mode.rawValue)")
+    }
+
+    /// 应用定位模式（UI 由 commitPositioningSource 调；引擎由 config IPC 直接调）。
+    /// 模式翻转：清兜底状态、按新模式启停视觉管线；视觉模式惰性建定位器。
+    func applyPositioningMode(_ mode: PositioningMode) {
+        if mode != positioningMode {
+            positioningMode = mode
+            visualFallbackActive = false   // 决策模式变化：兜底状态作废，按新模式走
+            setVisualPipeline(mode == .visual)
+        }
+        if mode == .visual { ensureVisualLocator() }
+    }
+
+    /// 启停视觉管线（决策切模式 / 故障兜底接管·恢复 共用）。
+    /// 启动 = 开 ROI 拷贝门禁 + 切标定态区域（圆形检测自动标定收敛后自切回）；
+    /// 停止 = 关门禁 + 清帧槽/hint + ROI 回默认。
+    private func setVisualPipeline(_ active: Bool) {
+        CaptureEngine.setVisionLocWanted(active)
+        calibrationJob = nil
+        minimapRadiusPerWidth = nil
+        resetGuideLine(clearHistory: true)
+        pendingMinimapLock.lock()
+        pendingMinimapFrame = nil
+        pendingMinimapLock.unlock()
+        if active {
+            minimapROIRevision = CaptureEngine.setMinimapROI(CaptureEngine.minimapCalibRegionROINorm)
+            minimapCalibrator = MinimapCalibrator()
+            minimapCalibrating = true
+            calibFrames = 0
+            ensureVisualLocator()
+        } else {
+            minimapROIRevision = CaptureEngine.setMinimapROI(CaptureEngine.minimapROINorm)
+            minimapCalibrating = false
+        }
+    }
+
+    /// 惰性建视觉定位器（幂等：已建/在途则跳过；13056 大图解码+CLAHE ≈1s 在 worker 队列）。
+    private func ensureVisualLocator() {
+        let path = mapPath
+        visualLocQueue.async { [weak self] in
+            guard let self, self.visualLocator == nil,
+                  let locator = MapLocBridge(mapPath: path, downscale: 4) else { return }
+            self.visualLocator = locator
+        }
+    }
+
+    /// 采集线程直写小地图帧槽（覆盖式跳帧，锁保护；引擎进程回调用）。
+    nonisolated func offerMinimapFrame(_ pb: CVPixelBuffer, revision: UInt64) {
+        pendingMinimapLock.lock()
+        pendingMinimapFrame = MinimapFrame(buffer: pb, revision: revision,
+                                          observedAt: ProcessInfo.processInfo.systemUptime)
+        pendingMinimapLock.unlock()
+    }
+
+    /// 标定期消费一帧「左上区域」帧：圆形检测 → 多帧收敛 → 切回小地图 ROI。
+    /// 同时只检测一帧。检测在 worker 跑，收敛状态和 ROI 在主线程更新。
+    private func calibrateMinimapFrame(_ frame: MinimapFrame) {
+        calibFrames += 1
+        if calibFrames > Self.calibMaxFrames {
+            // 超时兜底：小地图不可见/检测一直失败 → 回退手工默认 ROI，继续定位。
+            calibrationJob = nil
+            minimapCalibrating = false
+            minimapROIRevision = CaptureEngine.setMinimapROI(CaptureEngine.minimapROINorm)
+            dlog("[VISUAL-LOC] 标定超时（\(calibFrames) 帧未收敛）→ 回退默认 ROI")
+            return
+        }
+        guard calibrationJob == nil else { return }
+        let w = CVPixelBufferGetWidth(frame.buffer), h = CVPixelBufferGetHeight(frame.buffer)
+        guard w >= 64, h >= 64 else { return }
+        // 区域 = 整帧的 30%×35%（minimapCalibRegionROINorm），反推整帧尺寸。
+        let frameW = Int((Double(w) / 0.30).rounded())
+        let frameH = Int((Double(h) / 0.35).rounded())
+        let job = UUID()
+        calibrationJob = job
+        minimapCalibQueue.async { [weak self] in
+            let det = MapLocBridge.cgImageFromBGRA(frame.buffer).flatMap {
+                MapLocBridge.detectCircle(regionGray: $0, isRegion: true, frameW: frameW)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.calibrationJob == job else { return }
+                self.calibrationJob = nil
+                guard let det else { return }
+                self.acceptCalibratedCircle(det, frameW: frameW, frameH: frameH)
+            }
+        }
+    }
+
+    private func acceptCalibratedCircle(_ det: MapLocBridge.DetectedCircle, frameW: Int, frameH: Int) {
+        guard let converged = minimapCalibrator.add(
+                  .init(cx: det.cx, cy: det.cy, r: det.r)),
+              let roi = MinimapCalibrator.normalizedROI(
+                  from: converged, frameW: Double(frameW), frameH: Double(frameH))
+        else { return }
+        // 收敛：切回真正的小地图 ROI，退出标定态，下次 tick 起走定位。
+        minimapROIRevision = CaptureEngine.setMinimapROI(roi)
+        // ROI 随源尺寸缩放，存同一 revision 的半径/原始裁剪宽度比。
+        minimapRadiusPerWidth = converged.r / (roi.width * Double(frameW))
+        minimapCalibrating = false
+        dlog("[VISUAL-LOC] 自动标定收敛 center=(\(Int(converged.cx)),\(Int(converged.cy))) r=\(Int(converged.r)) roi=\(roi) 用\(calibFrames)帧")
+    }
+
+    // ── 独立限频全局定位（2026-11-21 评审 blocker 修复）──
+    // 首次定位/跟丢/ROI 变更时需要全图搜索（ad_maploc_global ~330ms）。
+    // 该操作**不能**跑在逐帧定位 worker 里（会堵死 worker、超 7ms 红线），
+    // 拆为独立任务 + 限频（最小间隔 1s），同一时刻只允许一个在途。
+    @ObservationIgnored private var globalLocateInFlight = false
+    @ObservationIgnored private var globalLocateAttemptAt: TimeInterval?
+    @ObservationIgnored private let globalLocateLock = NSLock()
+    private static let globalLocateInterval: TimeInterval = 1.0
+
+    private func scheduleGlobalLocateIfNeeded(revision: UInt64) {
+        guard let locator = visualLocator else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        // 只在视觉管线运行时补（避免退出后还抢 GPU/CPU）。
+        guard visualPipelineActive else { return }
+        globalLocateLock.lock()
+        let busy = globalLocateInFlight
+        let tooSoon = globalLocateAttemptAt.map { now - $0 < Self.globalLocateInterval } ?? false
+        if !busy && !tooSoon {
+            globalLocateInFlight = true
+            globalLocateAttemptAt = now
+        }
+        globalLocateLock.unlock()
+        guard !busy && !tooSoon else { return }
+        // 抓当前帧引用（frame 是自持池缓冲，worker 持有期间安全）。
+        let pending = { [weak self] () -> MinimapFrame? in
+            guard let self else { return nil }
+            self.pendingMinimapLock.lock()
+            let f = self.pendingMinimapFrame
+            self.pendingMinimapLock.unlock()
+            return f
+        }()
+        guard let frame = pending, frame.revision == revision else {
+            globalLocateLock.lock(); globalLocateInFlight = false; globalLocateLock.unlock()
+            return
+        }
+        visualLocQueue.async { [weak self] in
+            guard let self else { return }
+            let image = MapLocBridge.cgImageFromBGRA(frame.buffer)
+            let result = image.map {
+                locator.track(minimap: $0, hint: nil, window: 400, allowGlobalFallback: true)
+            } ?? MapLocBridge.Result()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.globalLocateLock.lock(); self.globalLocateInFlight = false; self.globalLocateLock.unlock()
+                guard result.found, self.minimapROIRevision == revision else { return }
+                self.visualLocHint = (revision, result.x, result.y)
+                _ = result  // 下一个逐帧 tick 会带 hint 走局部跟踪并把结果落库
+            }
+        }
+    }
+
+    /// 视觉定位一帧（串行 worker 调用；桥内部 matchTemplate ~3.5ms）。
+    /// 首次/无 hint 走全局（~330ms），有 hint 走局部跟踪。
+    /// - Parameter frame: 小地图 ROI 的 BGRA pixelBuffer（captureQueue 自持拷贝）。
+    ///   像素读取、转换、定位都在 worker 上。
+    private func locateVisualFrame(_ frame: MinimapFrame) {
+        guard !visualLocateInFlight else { return }
+        let (roi, activeRevision) = CaptureEngine.activeMinimapROI
+        let radiusPerWidth = minimapRadiusPerWidth
+        let revision = frame.revision
+        guard revision == activeRevision else { return }
+        visualLocateInFlight = true
+        visualLocQueue.async { [weak self] in
+            guard let self else { return }
+            let roiSize = CGSize(width: CVPixelBufferGetWidth(frame.buffer),
+                                 height: CVPixelBufferGetHeight(frame.buffer))
+            let detection = GuideLineReader.detect(pixelBuffer: frame.buffer)
+            let locator = self.visualLocator
+            let hint = self.visualLocHint.flatMap { $0.revision == revision ? ($0.x, $0.y) : nil }
+            let image = MapLocBridge.cgImageFromBGRA(frame.buffer)
+            // ⚠️ allowGlobalFallback: false —— 逐帧路径禁止全局搜索（~330ms 堵 worker，
+            // 实测 8/8 超 7ms 红线）。无 hint 时本帧返回空，由 runGlobalLocateIfNeeded 补。
+            let result = image.flatMap {
+                locator?.track(minimap: $0, hint: hint, window: 400, allowGlobalFallback: false)
+            } ?? MapLocBridge.Result()
+            if result.found { self.visualLocHint = (revision, result.x, result.y) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.visualLocateInFlight = false
+                guard self.minimapROIRevision == revision else { return }
+                var world: CGPoint?
+                if result.found {
+                    // locatorX/Y 是 UE5 厘米，networkLocateX/Y 是大地图像素。
+                    let x = Self.mapPixelToWorldX(result.x, result.y)
+                    let y = Self.mapPixelToWorldY(result.x, result.y)
+                    self.networkLocateX = result.x
+                    self.networkLocateY = result.y
+                    self.networkLocateScore = result.score
+                    self.locatorX = x
+                    self.locatorY = y
+                    self.locatorScore = result.score
+                    self.locatorFound = true
+                    if self.networkLocateMode != "visual" { self.networkLocateMode = "visual" }
+                    world = CGPoint(x: x, y: y)
+                }
+                self.updateGuideLine(detection, world: world, at: frame.observedAt, roi: roi,
+                                     size: roiSize, radius: radiusPerWidth.map { $0 * roiSize.width })
+                if result.found, detection != nil, radiusPerWidth != nil, let locator, let image {
+                    self.measureGuideScale(image, locator: locator, result: result, size: roiSize,
+                                           revision: revision, at: frame.observedAt)
+                }
+                // 无 hint（首次定位/跟丢/换图）→ 交给独立限频全局任务，不占逐帧 worker。
+                if !result.found {
+                    self.scheduleGlobalLocateIfNeeded(revision: revision)
+                }
+            }
+        }
+    }
+
+    private func updateGuideLine(_ detection: GuideLineReader.Detection?, world: CGPoint?,
+                                 at: TimeInterval, roi: CGRect, size: CGSize,
+                                 radius: Double?) {
+        guard ProcessInfo.processInfo.systemUptime - at <= GuideLineMotion.maxFrameGap else {
+            resetGuideLine(clearHistory: false)
+            return
+        }
+        let contiguous = lastGuideFrameAt.map { at > $0 && at - $0 <= GuideLineMotion.maxFrameGap } ?? false
+        lastGuideFrameAt = at
+        let verdict = guideMotion.update(world: world, at: at, deviation: detection?.deviation)
+        let mini = detection?.segments ?? []
+        let paths = guideMapHistory.update(minimap: mini, size: size, radius: radius,
+                                           mapSpan: guideScaleSize == size ? guideMapSpan : nil,
+                                           world: world, contiguous: contiguous)
+        let egoMap = world.map {
+            CGPoint(x: Self.worldToMapPixelX($0.x, $0.y), y: Self.worldToMapPixelY($0.x, $0.y))
+        }
+        let overlay = mini.isEmpty && paths.traveled.isEmpty ? nil
+            : GuideLineOverlay(roi: roi, roiSize: size, minimap: mini, currentMap: paths.current,
+                               traveledMap: paths.traveled, egoMap: egoMap)
+        publishGuideLine(.init(observedAt: at, headingDeg: detection?.deviation.lineHeadingDeg, verdict: verdict,
+                               offRoute: guideMotion.offRoute, overlay: overlay))
+    }
+
+    private func measureGuideScale(_ image: CGImage, locator: MapLocBridge, result: MapLocBridge.Result,
+                                   size: CGSize, revision: UInt64, at: TimeInterval) {
+        // 独立低频标定读取同一份不可变大图，避免多尺度匹配占用定位队列。
+        if guideScaleSize != size {
+            guideScaleJob = nil
+            guideScaleAttemptAt = nil
+            guideMapSpan = nil
+            guideScaleSize = size
+        }
+        guard guideScaleJob == nil,
+              guideScaleAttemptAt.map({ at - $0 >= Self.guideScaleInterval }) ?? true,
+              ProcessInfo.processInfo.systemUptime - at <= GuideLineMotion.maxFrameGap else { return }
+        let job = UUID()
+        guideScaleJob = job
+        guideScaleAttemptAt = at
+        minimapCalibQueue.async { [weak self] in
+            let span = locator.measureGuideSpan(minimap: image, at: result)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.minimapROIRevision == revision, self.guideScaleJob == job else { return }
+                self.guideScaleJob = nil
+                if self.guideMapSpan != span { self.guideMapHistory.clearCurrent() }
+                self.guideMapSpan = span
+            }
+        }
+    }
 
     /// 角色/车辆身体朝向（罗盘角 [0,360)，0=正北顺时针）。
     ///
@@ -5380,6 +5792,9 @@ final class DriveState {
     }
 
     func runNetworkLocateStep() {
+        // 互斥：视觉管线运行时（云端决策 或 故障兜底）网络定位不发布结果
+        //（同一会话只允许一个定位生产者；抓包器保持运行供恢复检测用）。
+        if visualPipelineActive { return }
         // 网络定位常开：不做开关判断，直接确保抓包在跑。
         // 懒初始化 CoordinateCapture（纯网络定位，无自愈引擎）
         if coordinateCapture == nil {
@@ -6549,6 +6964,12 @@ final class DriveState {
     @ObservationIgnored
     private nonisolated(unsafe) let pendingNativeLock = NSLock()
 
+    // ── 云游戏小地图 ROI 帧（视觉定位）：captureQueue 写 / tick 读，覆盖式跳帧 ──
+    @ObservationIgnored
+    private nonisolated(unsafe) var pendingMinimapFrame: MinimapFrame?
+    @ObservationIgnored
+    private nonisolated(unsafe) let pendingMinimapLock = NSLock()
+
     // ── 诊断：主线程 tick 实际间隔(ms)（>66ms = 主线程掉拍/被卡）──
     // ⚠️ tick 是 **15Hz**，不是 30Hz：`Core/EngineMain.swift:771` engineTickHz=15.0
     //   （:868-871 两档均 15.0），UI-local 见 `MissionConsole.swift:6393` 的 1.0/15.0。
@@ -7218,6 +7639,10 @@ final class DriveState {
             self.pendingNativeObservedAt = ProcessInfo.processInfo.systemUptime
             self.pendingNativeLock.unlock()
         }
+        // 云游戏小地图 ROI 直通（视觉定位）：仅视觉模式时 CaptureEngine 才拷这份 ROI。
+        captureEngine.onMinimapFrame = { [weak self] pb, revision in
+            self?.offerMinimapFrame(pb, revision: revision)
+        }
         // 插帧/超分直通：全分辨率帧 → MetalGoose 引擎（仅显示路径）
         captureEngine.onUpscaleFrame = { [weak self] pb in
             guard let self else { return }
@@ -7327,6 +7752,15 @@ final class DriveState {
                     self?.pendingNativeLock.lock()
                     self?.pendingNativeFrame = nil
                     self?.pendingNativeLock.unlock()
+                    // 清残留小地图 ROI 直通帧（视觉定位）
+                    self?.pendingMinimapLock.lock()
+                    self?.pendingMinimapFrame = nil
+                    self?.pendingMinimapLock.unlock()
+                    self?.calibrationJob = nil
+                    if let self {
+                        self.minimapROIRevision = CaptureEngine.setMinimapROI(CaptureEngine.activeMinimapROI.rect)
+                        self.resetGuideLine(clearHistory: true)
+                    }
                 }
             }
         }
@@ -7501,8 +7935,19 @@ final class DriveState {
         let windows = await CaptureEngine.listWindows()
         guard driveRequestID == id, !Task.isCancelled, captureMode == .window(id: windowID) else { return }
         driveKnownWindows = Set(windows.map(\.id))
-        let candidates = windows.filter {
+        var candidates = windows.filter {
             $0.id == windowID && (drivingObservationOnly || GameLauncher.isDrivingTarget($0))
+        }
+        // ⚠️ 2026-11-19 修复（用户报障：停止后再开自动驾驶，认不到自己开过的云游戏窗口）：
+        //   旧 id 窗口已不存在（Chrome 窗口重建/id 变化/被关）时，**先尝试按采集源自动重新发现**，
+        //   而不是直接 failDriveStart（原逻辑只认 captureMode 里的旧 id，id 一变就永远失败）。
+        //   发现到唯一可用窗口 → 直接改绑并继续启动，用户无感。
+        if candidates.isEmpty, !drivingObservationOnly,
+           let rediscovered = await Self.rediscoverCloudTarget(state: self, excluding: windowID) {
+            configureDrivingTarget(rediscovered)
+            if !drivingObservationOnly { GameWindowFocus.raise(rediscovered) }
+            await launchDrivingSession(id: id)
+            return
         }
         if candidates.isEmpty, let previous = gameLauncher.boundWindow, previous.id == windowID {
             let replacements = GameLauncher.replacements(for: previous, in: windows)
@@ -7533,6 +7978,42 @@ final class DriveState {
     }
 
     private var drivingObservationOnly: Bool { AuroraFlags.observeOnly || controlDisabled || expertMode }
+
+    /// 旧采集窗口已不存在时，按「采集源」自动重新发现可绑定的窗口。
+    /// 顺序：① 之前记住的云窗/绑定窗同 bundleID 的新窗口（Chrome 窗口重建最常见）；
+    ///       ② 若采集源是云端浏览器 → 在该浏览器所有窗口里挑云游戏窗口（同 BrowserLauncher 规则）。
+    /// 只在**唯一**候选时返回，多个候选返回 nil（交给原有「请选择窗口」流程，不擅自替用户选）。
+    @MainActor
+    private static func rediscoverCloudTarget(state: DriveState,
+                                              excluding oldWindowID: CGWindowID) async -> CapturableWindow? {
+        let windows = await CaptureEngine.listWindows()
+        // ① 之前记住的窗口所属浏览器（用于定位同一浏览器的其它窗口）
+        var browserBundleID: String? = nil
+        if let prev = state.gameLauncher.boundWindow {
+            browserBundleID = prev.bundleIdentifier
+            let replacements = GameLauncher.replacements(for: prev, in: windows)
+                .filter { $0.id != oldWindowID }
+            if replacements.count == 1 { return replacements.first }
+        }
+        if let prev = state.gameLauncher.preferredCloudWindow {
+            browserBundleID = browserBundleID ?? prev.bundleIdentifier
+            let replacements = GameLauncher.replacements(for: prev, in: windows)
+                .filter { $0.id != oldWindowID }
+            if replacements.count == 1 { return replacements.first }
+        }
+        // ② 采集源是云端浏览器：在该浏览器窗口里找云游戏窗口
+        if let bid = browserBundleID, CaptureEngine.isCloudBrowserOwner(bundleID: bid, name: nil) {
+            let games = BrowserLauncher.gameWindows(in: windows, browserBundleID: bid, browserPID: nil)
+                .filter { $0.id != oldWindowID }
+            if games.count == 1 { return games.first }
+        }
+        // ③ 兜底：任何浏览器里的云游戏窗口（唯一时）
+        let allBrowserGames = windows.filter {
+            CaptureEngine.isCloudBrowserOwner(bundleID: $0.bundleIdentifier, name: $0.applicationName)
+                && BrowserLauncher.hasGameTitle($0.title) && $0.id != oldWindowID
+        }
+        return allBrowserGames.count == 1 ? allBrowserGames.first : nil
+    }
 
     private func configureDrivingTarget(_ target: CapturableWindow?) {
         driveTarget = target
@@ -7991,6 +8472,10 @@ final class DriveState {
         pendingNativeFrame = nil
         pendingNativeObservedAt = nil
         pendingNativeLock.unlock()
+        pendingMinimapLock.lock()
+        pendingMinimapFrame = nil
+        pendingMinimapLock.unlock()
+        calibrationJob = nil
         // networkLocator.stop()   // 旧网络抓包定位已移除
         degradeStm.reset()
         lastDecided = .e2e
@@ -8508,7 +8993,13 @@ final class DriveState {
         if engineConnected != client.isConnected { engineConnected = client.isConnected }
         // 驾驶/壳模式期间持续把云游戏窗口保持为 key window —— 全局 HID 注入只会送到
         // 最前台 App 的 key window，控制台一抢焦点，按键就打到控制台（beep）而不是游戏。
-        if shellModeActive || (isDriving && driveRequestID == nil) {
+        // ⚠️ 2026-11-19 修复（用户报障：启动一小会视频流断→又启动→又断，无限循环）：
+        //   原守卫是 `isDriving && driveRequestID == nil`，而启动阶段 driveRequestID != nil
+        //   且 isDriving 尚未 true → 不置前 → 用户点「启动」时前台是我们自己的控制台 →
+        //   focusedDrivingPID() 恒 nil → 10s 后 failDriveStart("等待游戏窗口就绪超时") →
+        //   stopDriving → 引擎又拉起 → 死循环（日志整段 front=AuroraDriveUI 即实锤）。
+        //   改为：只要有驾驶请求在途（含启动中）或已在驾驶/壳模式，就持续把云窗置前。
+        if shellModeActive || isDriving || driveRequestID != nil {
             gameLauncher.keepCloudFocus(captureMode)
         }
         // 引擎抓屏失败（典型：屏幕录制 TCC 被拒 / 目标窗口已关闭）→ 同步到 captureModeError，
@@ -8533,6 +9024,13 @@ final class DriveState {
         client.wantPixelBuffer = useUpscale
 
         let cg = client.poll()
+        let guide = client.engineGuideLineSignal
+        if client.isConnected, let at = guide.observedAt,
+           ProcessInfo.processInfo.systemUptime - at <= GuideLineMotion.maxFrameGap {
+            publishGuideLine(guide)
+        } else if guideObservedAt != nil {
+            publishGuideLine(.init())
+        }
         if useUpscale {
             if let pb = client.takePixelBuffer() {
                 upscaleHost.push(pixelBuffer: pb)
@@ -8801,6 +9299,9 @@ final class DriveState {
             "modeLock": modeLock?.rawValue ?? NSNull(),
             // 速度表 ROI 归属：引擎进程建流前据此选择云端/本地坐标（全屏模式无窗口可判归属）。
             "cloudROIHint": cloudROIHint,
+            // 定位方式（UI 解析好的 .visual/.network）：引擎自己的 DriveState/tick 用
+            //（云端→小地图视觉定位 / 本地→网络抓包）。
+            "positioningMode": (visualFallbackActive ? PositioningMode.visual.rawValue : positioningMode.rawValue),
             "expert": expertMode,
             "glyph": glyphMode,
             "degradeThreshold": degradeThreshold,
@@ -8916,6 +9417,9 @@ final class DriveState {
         // 诊断：tick 实际间隔（>33ms = 主线程掉拍/被卡；配合 capGap/capWork 定位延迟）
         let tickNow = Date()
         let tickUptime = ProcessInfo.processInfo.systemUptime
+        if let at = guideObservedAt, tickUptime - at > GuideLineMotion.maxFrameGap {
+            resetGuideLine(clearHistory: false)
+        }
         tickGapMs = (tickUptime - lastTickUptime) * 1000
         lastTickUptime = tickUptime
 
@@ -9329,6 +9833,60 @@ final class DriveState {
                 frames = recordEngine.frameCount
             }
         }
+        // ── 网络定位故障兜底监测（2026-11-20 用户需求）──
+        // 正常驾驶（.network）时：帧在动（游戏明明在跑）+ 网络持续无有效定位
+        // = 网络定位真炸了（协议变/抓包挂）→ 视觉接管；pose 恢复 live → 切回。
+        // ⚠️ "stale" 不算炸：游戏 15s 一个坐标包，包间隙本来就是 stale（防误切）。
+        // ⚠️ 仅 UI 进程监测：引擎进程不跑 runNetworkLocateStep（networkLocateMode
+        //    不由它驱动），引擎的模式由 UI 经 config IPC 下发。
+        if !isEngineHost && positioningMode == .network {
+            let framesAdvanced = frameSequenceCounter != lastTickFrameSeq
+            lastTickFrameSeq = frameSequenceCounter
+            // 兜底中直读抓包器判恢复（runNetworkLocateStep 已被兜底短路，
+            // networkLocateMode 冻结在故障值，不能用它判恢复）。
+            let poseLive = coordinateCapture.map {
+                $0.hasRecentTraffic(window: CoordinateCapture.trafficFreshWindow)
+                    && $0.readWithTier().tier == .live
+            } ?? false
+            switch netFailover.step(.init(
+                    isDriving: isDriving,
+                    framesAdvanced: framesAdvanced,
+                    networkHealthy: networkLocateMode == "network" || networkLocateMode == "stale",
+                    captureHasTraffic: poseLive,
+                    poseLive: poseLive)) {
+            case .engage:
+                visualFallbackActive = true
+                setVisualPipeline(true)
+                dlog("[VISUAL-LOC] 网络定位真炸了（持续故障且画面在跑）→ 视觉兜底接管")
+                // 引擎若在跑也切视觉（引擎侧 config 逐字段 if-let 应用）
+                EngineClient.shared.sendCommand(
+                    "config", extra: ["positioningMode": PositioningMode.visual.rawValue])
+            case .recover:
+                visualFallbackActive = false
+                setVisualPipeline(false)
+                dlog("[VISUAL-LOC] 网络定位恢复（pose live 持续稳定）→ 切回网络定位")
+                pushConfig(reason: "positioning-fallback-recover")
+            case .none:
+                break
+            }
+        }
+
+        // ── 云游戏视觉定位（小地图 ROI → MapLocBridge）──
+        // 决策为视觉 或 兜底激活 时消费；captureQueue 覆盖式跳帧，取最新一份。
+        if visualPipelineActive {
+            pendingMinimapLock.lock()
+            let miniFrame = pendingMinimapFrame
+            pendingMinimapFrame = nil
+            pendingMinimapLock.unlock()
+            if let miniFrame, miniFrame.revision == minimapROIRevision {
+                if minimapCalibrating {
+                    calibrateMinimapFrame(miniFrame)
+                } else {
+                    locateVisualFrame(miniFrame)
+                }
+            }
+        }
+
         perfT = PerfBus.lap("tick.nativeROI", from: perfT)   // ★ 阶段1 打点
 
         // 阈值同步：UI 改 degradeThreshold 时，状态机跟着变
@@ -10874,7 +11432,32 @@ final class DriveState {
 // ============================================================================
 // MARK: - 常驻左上角悬浮小地图（不依赖 GameMapView，应用启动即显示）
 
+/// 画在预览画面原有的小地图上，使用与 FrameHost 一致的 aspect fill。
+struct MinimapGuideOverlay: View {
+    let paths: GuideLinePaths
+    let sourceSize: CGSize
 
+    var body: some View {
+        Canvas { context, size in
+            let overlay = paths.overlay
+            guard sourceSize.width > 0, sourceSize.height > 0,
+                  overlay.roiSize.width > 0, overlay.roiSize.height > 0 else { return }
+            let scale = max(size.width / sourceSize.width, size.height / sourceSize.height)
+            let width = sourceSize.width * scale, height = sourceSize.height * scale
+            let roi = overlay.roi
+            let left = (size.width - width) / 2 + roi.minX * width
+            let top = (size.height - height) / 2 + roi.minY * height
+            let sx = roi.width * width / overlay.roiSize.width
+            let sy = roi.height * height / overlay.roiSize.height
+            let path = paths.minimap.applying(.init(a: sx, b: 0, c: 0, d: sy, tx: left, ty: top))
+            context.stroke(path, with: .color(Aurora.void.opacity(0.8)),
+                           style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+            context.stroke(path, with: .color(Aurora.iceHi),
+                           style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round))
+        }
+        .allowsHitTesting(false)
+    }
+}
 
 
 
