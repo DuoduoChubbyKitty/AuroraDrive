@@ -6,14 +6,14 @@
 > **✅ 2026-10-18 复核（T7）**：lead 于 10-18 改过 `CaptureEngine.swift` 两处频率注释，连带 `EngineMain.swift`（2002 行）与 `AuroraDriveApp.swift`（9095 行）行号漂移。本次逐条核对 47 条跨文件引用，改动如下：
 > - **内容修正 4 处**：①**tick 频率 30Hz → 20Hz**（`EngineMain.engineTickHz = 20.0` @:686，`tickHz(forPerceptionMode:)` 两档都返回 20，应急 sprint 45Hz）②「初始 30Hz / 按档位 45Hz 或 30Hz」→「两档均 20Hz + 应急 45Hz」③`MissionConsole` bootstrap 的 tick 定时器 30Hz→**20Hz**（源码 :6113-6115 注释自证「2026-10-12 定档 20Hz」）④`DriveState.tick()` 「30Hz 决策管线」→**20Hz**
 > - **行号修正 51 条**：EngineMain 26 条（`run() :880-1167→:885 起`、`handleCommand :1484-1882→:1497-1883`、`sendHeartbeat :1887→:1900`、9 个命令分发 `start :1496→:1509` 等全部 +13、`shm 布局 :114-128→:82-135`）、AuroraDriveApp 5 条（`AURORA_DISABLE_OPTICAL_FLOW :5803→:5805`、`AURORA_OBSERVE_ONLY :6243→:6246`、`AURORA_LOG_SYNC :8954→:8953`、`--skip_view 转发 :6415→:6418`、`startup() :208-210→:209`）
-> - **复核仍准确、未改的**：oneShotFlags 50 项（括号配平实测 `:919-970` = 50，去重 50）、AuroraDrive 自有 CLI 72 字面量/70 自有 flag（`grep -rhoE '"--[a-z0-9_-]+"' Sources/ | sort -u | wc -l` = 72）、`@main` :721 / `main()` :748 / `setvbuf` :751 / UI 单实例锁 :1301-1307 / `SelfTestResultBox` :713 / `runBlockingSelfTest` :1043-1051 / 全部 `--mc-*` 与自检分流区间 / EngineClient 全部 12 条 / AuroraFlags `helpText()` :521 / MissionConsole bootstrap 各 flag / LLMSelfTest 7 个入口 / QuestPanelReader 6 条 / WireSelfTest 3 条 / VisualLocator 3 条
+> - **复核仍准确、未改的**：oneShotFlags 67 项（括号配平实测 `:961-1066` = 67，去重 67）、AuroraDrive 自有 CLI 92 个去重 flag（`grep -rhoE '"--[a-z0-9-]+"' Sources/ | sort -u | wc -l` = 92；仅 `AuroraDriveApp.swift` 内就有 85 个）、`@main` :721 / `main()` :748 / `setvbuf` :751 / UI 单实例锁 :1301-1307 / `SelfTestResultBox` :713 / `runBlockingSelfTest` :1043-1051 / 全部 `--mc-*` 与自检分流区间 / EngineClient 全部 12 条 / AuroraFlags `helpText()` :521 / MissionConsole bootstrap 各 flag / LLMSelfTest 7 个入口 / QuestPanelReader 6 条 / WireSelfTest 3 条 / VisualLocator 3 条
 > - **未改**：`Sources/` 下任何文件（纪律）。
 >
 > **✅ 2026-10-18 二次重基准（源码冻结于 AuroraDriveApp 9097 行版）**：逐条 `sed -n` + `grep -n`，共检查 **43** 条唯一引用，修正 **9** 条：
 > - `EngineClient.swift` 4 条：`engineLogPath :151-154→:152-155`（3 处）、`attachShm :501-522→:502-524`、`poll :609-781→:610-783`
 > - `MissionConsole.swift` 2 条：`renderQuestCardNow :6886→:6891`（原来引的是它上方的注释块）、bootstrap 六个 flag `:6207/6211/6219/6242/6250/6254→:6212/6216/6224/6247/6255/6259`
 > - 文件行数声明 3 条：`AuroraDriveApp 9095→9097`（冻结版）、`MissionConsole 7716→7721`、其余 7 个文件行数逐个实测后标注「本次实测 N」
-> - **判定为「语义一致、无需改」的 34 条**：含 `AuroraDriveApp:919-970` oneShotFlags 50 项（括号配平复验）、`AuroraDriveApp:919` 起数组、`EngineMain:885/916-958/1497/1970`、`EngineClient:64/166-205/166-172/704-712`、`AuroraFlags:521`、`QuestPanelReader:11/929`、`WebSearch:1451`、`VisualLocator:118`、`WireSelfTest:12-30/47`、`LLMSelfTest:93`、`MissionConsole:4259/6045-6052` 等
+> - **判定为「语义一致、无需改」的 34 条**：含 `AuroraDriveApp:961-1066` oneShotFlags 67 项（括号配平复验）、`AuroraDriveApp:961` 起数组、`EngineMain:885/916-958/1497/1970`、`EngineClient:64/166-205/166-172/704-712`、`AuroraFlags:521`、`QuestPanelReader:11/929`、`WebSearch:1451`、`VisualLocator:118`、`WireSelfTest:12-30/47`、`LLMSelfTest:93`、`MissionConsole:4259/6045-6052` 等
 > - **刻意保留不改的 2 条**：`AuroraDriveApp.swift:816-820`（文档自标「2026-09-29 历史快照，已失效，仅作历史」）与 `AuroraDriveApp.swift:1033`（文档自标「**取证当时**记录的行号」，是 `sample` 栈里的历史值）—— 两者都是**历史引用**，改成现值反而失真
 
 > ### 2026-10-07 复核块（**AI 自检 8 flag 入库 + oneShotFlags 陷阱定案**，逐行实测；行号 2026-10-17 复核更新）
@@ -22,7 +22,7 @@
 >
 > ---
 >
-> ## ★ 一、oneShotFlags 现为 **50 项**（`AuroraDriveApp.swift`，2026-10-16 括号配平实测，2026-10-17 复核仍为 50 项）
+> ## ★ 一、oneShotFlags 现为 **67 项**（`AuroraDriveApp.swift:961-1066`，括号配平实测，67 个去重后仍为 67）
 >
 > 实测方法（**不要按 `]` 截断，注释里也有 `]`，会少数**）：
 >
@@ -41,9 +41,9 @@
 > EOF
 > ```
 >
-> **实测输出（2026-10-17 复核）**：行范围 `919-970`，**项数 = 50，去重后 = 50**（无重复项）。
-> 演进：37 项（2026-10-06 记录）→ 45 项（2026-10-07，新增 8 个 AI flag，第 38–45 项）→
-> **50 项**（2026-10-16，新增 `--v2-selftest`/`--agent-selftest`/`--map-selftest`/`--lane-extrapolator-selftest`/`--capture-selftest` 五项，第 46–50 项）。
+> **实测输出**：行范围 `961-1066`，**项数 = 67，去重后 = 67**（无重复项）。
+> 演进（仅供沿革）：37 项 → 45 项（新增 8 个 AI flag）→
+> **67 项**（后续补登 `--map-selftest`、`--maploc-selftest`、`--guideline-*`、`--failover-selftest`、`--positioning-selftest`、`--rl-*` 等）。
 >
 > | # | flag | 分组 | 说明 |
 > |---|---|---|---|
@@ -56,18 +56,21 @@
 > | 44 | `--llm-perf-selftest` | 性能预算 | 主线程阻塞 / 首字延迟 / 内存 |
 > | 45 | `--websearch-selftest` | W5 联网搜索 | 解析器离线默认，`--network` 真发请求 |
 >
-> **完整 50 项清单**（源码顺序，`919-970`）：
+> **完整 67 项清单**（源码顺序，`:961-1066`）：
 > `--speed-selftest`、`--tcc-selftest`、`--test-xpc`、`--yolo-selftest`、`--upscale-selftest`、
-> `--yolo-bench`、`--daemon`、`--mc-shot`、`--mc-map`、`--mc-map-offline`、`--fit-selftest`、
-> `--limit-selftest`、`--nic-autotest`、`--proto-selftest`、`--yolopx-selftest`、
-> `--opticalflow-selftest`、`--motion-selftest`、`--corner-selftest`、`--perf-selftest`、
-> `--tick-profile`、`--tick-bench`、`--realshot-selftest`、`--egobox-selftest`、`--ayolom-selftest`、
-> `--lanekeep-selftest`、`--perception-selftest`、`--wire-selftest`、`--lanekeep-reality`、
-> `--route-selftest`、`--taxonomy-selftest`、`--mc-route`、`--mc-route-loading`、`--mc-map-bench`、
-> `--flags-help`、`--cache-selftest`、`--quest-selftest`、`--mc-quest`、
-> `--llm-selftest`、`--llm-probe`、`--llm-vision-selftest`、`--control-selftest`、`--tool-selftest`、
-> `--tool-call-demo`、`--llm-perf-selftest`、`--websearch-selftest`、
-> `--v2-selftest`、`--agent-selftest`、`--map-selftest`、`--lane-extrapolator-selftest`、`--capture-selftest`。
+> `--yolo-bench`、`--daemon`、`--mc-shot`、`--mc-map`、`--mc-map-offline`、
+> `--fit-selftest`、`--limit-selftest`、`--nic-autotest`、`--proto-selftest`、`--yolopx-selftest`、
+> `--opticalflow-selftest`、`--motion-selftest`、`--corner-selftest`、`--perf-selftest`、`--tick-profile`、
+> `--tick-bench`、`--realshot-selftest`、`--egobox-selftest`、`--ayolom-selftest`、`--lanekeep-selftest`、
+> `--perception-selftest`、`--wire-selftest`、`--lanekeep-reality`、`--route-selftest`、`--taxonomy-selftest`、
+> `--mc-route`、`--mc-route-loading`、`--mc-map-bench`、`--flags-help`、`--cache-selftest`、
+> `--quest-selftest`、`--mc-quest`、`--llm-selftest`、`--llm-probe`、`--llm-vision-selftest`、
+> `--control-selftest`、`--tool-selftest`、`--tool-call-demo`、`--llm-perf-selftest`、`--websearch-selftest`、
+> `--v2-selftest`、`--lean-annotate`、`--agent-selftest`、`--map-selftest`、`--lane-extrapolator-selftest`、
+> `--maploc-selftest`、`--positioning-selftest`、`--failover-selftest`、`--guideline-selftest`、`--guideline-replay`、
+> `--capture-selftest`、`--game-source-selftest`、`--pointer-selftest`、`--lean-selftest`、`--codrive-selftest`、
+> `--rl-core-selftest`、`--rl-online-selftest`、`--rl-accel-selftest`、`--rl-train-wire-selftest`、`--shell-engine-selftest`、
+> `--rl-shell-selftest`、`--rl-shell-runtime-selftest`。
 >
 > ---
 >
@@ -165,7 +168,7 @@
 >
 > ```bash
 > cd /Users/dupi/Desktop/自动驾驶系统
-> # ① 先确认 flag 在数组里（应打印 50 项数组内的目标 flag）
+> # ① 先确认 flag 在数组里（应打印 67 项数组内的目标 flag）
 > grep -n -- '--websearch-selftest' Sources/AuroraDrive/App/AuroraDriveApp.swift | head -3
 > # ② 再确认「真的跑了」：输出里必须有自检的抬头行与汇总行，而不是锁提示
 > AURORA_UI_LOCAL=1 ./AuroraDriveUI --websearch-selftest "swift actor" 2>&1 | tail -3
@@ -224,7 +227,7 @@
 >
 > ## ★ 五、8 个 AI flag 的一行速查（源码分流顺序）
 >
-> 分流顺序（`AuroraDriveApp.swift` 实测）：oneShotFlags 数组定义 `:919-970`（50 项）→
+> 分流顺序（`AuroraDriveApp.swift` 实测）：oneShotFlags 数组定义 `:961-1066`（67 项）→
 > `--perf-selftest` `:1130` → `--tick-profile` `:1144` → `--tick-bench` `:1157` →
 > `--realshot-selftest` `:1169` → … → `runBlockingSelfTest` 定义 `:1043` →
 > **AI 段 `:1028-1129`** →
@@ -247,7 +250,7 @@
 > 分流顺序（全部实测）：`setvbuf`（`:751`）→ `--mc-map`（`:758`）→ `--mc-map-offline`（`:763`）→
 > `--mc-route`（`:770`）→ `--mc-route-loading`（`:775`）→ `--mc-map-bench`（`:782`）→ `--mc-shot`（`:792`）→
 > `--mc-quest`（`:810-820`）→ `--engine`（`:822-824`，`EngineMain.run()` 永不返回）→
-> `--set-llm-config`（`:828-841`）→ `--agent-llm-test`（`:846-916`）→ oneShotFlags 数组定义（`:919-970`）→
+> `--set-llm-config`（`:828-841`）→ `--agent-llm-test`（`:846-916`）→ oneShotFlags 数组定义（`:961-1066`）→
 > `--lanekeep-reality`（`:979-989`）→ `--wire-selftest`（`:990-993`）→ `--flags-help`（`:998-1001`）→
 > `--cache-selftest`（`:1005-1008`）→ `--quest-selftest`（`:1014-1017`）→ `--capture-selftest`（`:1023-1026`）→
 > **AI 段 `:1028-1129`**（`--llm-selftest` `:1053-1060` → `--llm-probe` `:1061-1067` → `--llm-vision-selftest` `:1068-1074` →
@@ -265,7 +268,7 @@
 > `AuroraDriveApp.main()`（`:1358`）。
 > 除 `--engine` 外全部 one-shot：跑完即 `exit()`，不参与 UI 锁（`:917-918` 注释）。
 >
-> **oneShotFlags 现为 50 项**（`:919-970`）：`--corner-selftest`、`--perf-selftest`、`--tick-profile`、`--tick-bench`、`--realshot-selftest`、
+> **oneShotFlags 现为 67 项**（`:961-1066`）：`--corner-selftest`、`--perf-selftest`、`--tick-profile`、`--tick-bench`、`--realshot-selftest`、
 > `--egobox-selftest`、`--ayolom-selftest`、`--lanekeep-selftest`、`--perception-selftest`、
 > `--wire-selftest`、`--lanekeep-reality`、`--route-selftest`、`--taxonomy-selftest`、`--mc-route`、
 > `--mc-route-loading`、`--mc-map-bench`、`--flags-help`、`--cache-selftest`、`--quest-selftest`、`--mc-quest`
@@ -356,7 +359,7 @@
 >   UI 在引擎模式下的显示数据全部镜像自 EngineClient（`AuroraDriveApp.swift`、`:6585-6588` 等，见文末锚点表）。
 >
 > ### 3.4 三个踩坑实录（代码注释逐条核实）
-> 1. **新增夹具忘登记 oneShotFlags** → 被 UI 单实例锁静默挡掉（`:919-970` 手写数组 +
+> 1. **新增夹具忘登记 oneShotFlags** → 被 UI 单实例锁静默挡掉（`:961-1066` 手写数组 +
 >    `:1301-1307` 判定；`--quest-selftest` / `--mc-quest` 就是 2026-10-06 补登记的，`:936-938`）。
 > 2. **协议/布局变更不升 protocolVersion** → 新 UI 按新偏移读旧引擎掩码区会读到 mmap 之外
 >    直接 SIGSEGV（`EngineClient.swift` 注释 + 物理边界校验）；版本守卫必须以
@@ -419,6 +422,12 @@
 > | 光流（OpenCV DIS） | `--opticalflow-selftest` | p95 延迟 / 精度 |
 > | 运动预测（α-β） | `--motion-selftest` | 外推/校正 |
 > | 新协议解码 | `--proto-selftest` | **14 项** |
+> | 视觉小地图定位（OpenCV 桥） | `--maploc-selftest`（入口 `:1481`） | 11 项（实跑 11 通过 / 0 失败） |
+> | 引导线方位与偏离 | `--guideline-selftest`（入口 `:1499`） | 真实帧真值表（实跑 0 项失败） |
+> | 引导线离线回放 | `--guideline-replay [clip] [from] [to]`（入口 `:1506`） | 逐帧偏离率统计 |
+> | 网络定位故障兜底 | `--failover-selftest`（入口 `:1493`） | 14 项（实跑 14 通过 / 0 失败） |
+> | 定位模式决策 | `--positioning-selftest`（入口 `:1487`） | 6 项（实跑 6 通过 / 0 失败） |
+> | RL 核心（策略头/反向） | `--rl-core-selftest`（入口 `:1147`） | 全部通过（实跑 0 项失败） |
 >
 > ### ★ D. 2026-09-29 实跑结果（真机执行，非静态推断）
 >
@@ -457,7 +466,7 @@
 | **GUI 模式**（默认） | `AuroraDriveApp.main()`（`AuroraDriveApp.swift:1358`） | SwiftUI 界面 + engine.sock 探测（无引擎 spawn 自己）+ 全部防冻结措施 |
 | **引擎模式** | `--engine` → `EngineMain.run()`（`:822-824`） | **纯后台驾驶引擎：不触碰 SwiftUI、不创建窗口、不跑 NSApp**；dispatchMain 常驻；自身 engine.lock |
 | **命令模式** | `--agent-command "<指令>"`（AppDelegate `:325-329`、`:516-522`、`:529-536`） | **.accessory 后台运行、不抢焦点、全部窗口 orderOut（保持游戏所在 Space 激活，供键注入落到游戏内）**；独立引擎组（AppDelegate.agentEngines 静态持有） |
-| **一次性自检** | **50 个** one-shot flag | **短命进程或被 launchd 托管，不参与 UI 锁**（`oneShotFlags`，`AuroraDriveApp.swift:919-970`）；跑完即 `exit()`。⚠️ 演进：初版 7 → 17 → 37 → 45（2026-10-07）→ **50**（2026-10-16 实测，2026-10-17 复核仍为 50） |
+| **一次性自检** | **50 个** one-shot flag | **短命进程或被 launchd 托管，不参与 UI 锁**（`oneShotFlags`，`AuroraDriveApp.swift:961-1066`）；跑完即 `exit()`。⚠️ 演进：初版 7 → 17 → 37 → 45 → **67**（当前实测） |
 
 **CLI 参数全集（本程序 70 个 + 2 个转发参数 = 72 个字面量，2026-10-17 `grep -n` 实测；解析位置列 = 当前真实行号）：**
 
@@ -499,7 +508,7 @@
 
 **oneShotFlags（初版 7 个短命进程）**：`--speed-selftest / --tcc-selftest / --test-xpc / --yolo-selftest / --upscale-selftest / --yolo-bench / --daemon`——源注释（`AuroraDriveApp.swift`）："它们是短命进程或被 launchd 托管，若参与锁会与常驻 UI 互斥，导致自检失败或用户无法启动界面"；非 oneShot 且 UI 锁失败 → 打印原因 + exit(0)（`:1301-1307`）。
 
-> ### ⚠️ 2026-09-29 订正：oneShotFlags 实际已是 **17 项**（原记 7 项；2026-10-17 复核现为 **50 项**，历史快照如下）
+> ### ⚠️ 2026-09-29 订正：oneShotFlags 历史演进（**当前实测 67 项**，历史快照如下）
 >
 > **2026-09-29 实测（当时行号 `AuroraDriveApp.swift:816-820`，已失效，仅作历史）**：
 > `let oneShotFlags = ["--speed-selftest", "--tcc-selftest", "--test-xpc",`
@@ -508,7 +517,7 @@
 > `                    "--limit-selftest", "--nic-autotest", "--proto-selftest",`
 > `                    "--yolopx-selftest", "--opticalflow-selftest", "--motion-selftest"]`
 >
-> **当前（2026-10-17）该数组为 50 项，行号 `:919-970`，见顶部复核块。**
+> **当前该数组为 67 项，行号 `:961-1066`，见顶部复核块。**
 >
 > ### ⚠️ 附带订正：YOLOPX 自检的退出码语义（2026-09-26 修，行号 2026-10-17 复核）
 >
@@ -646,7 +655,7 @@ AURORA_UI_LOCAL=1 $BIN --tool-call-demo "领奖励"
 | `acquireUISingleInstanceLock()` | 730 | — |
 | `SelfTestResultBox` | 713 | 713 |
 | `runBlockingSelfTest` | 1043–1051 | 1017–1025 |
-| oneShotFlags 数组 | 919–970（**50 项**，括号配平） | 906–925（37 项）/ 919–953（45 项） |
+| oneShotFlags 数组 | 961–1066（**67 项**，括号配平） | 906–925（37 项）/ 919–953（45 项） |
 | UI 单实例锁判定 | 1301–1307 | 1257–1263 / 1136–1142 |
 | 禁用窗口状态恢复 | 1310–1356 | 1265+ / 1186–1191 |
 | `AuroraDriveApp.main()` 调用 | 1358 | 1193 |
@@ -767,7 +776,7 @@ AURORA_UI_LOCAL=1 $BIN --tool-call-demo "领奖励"
 
 | 断言 | 实测值 | 说明 |
 |---|---|---|
-| oneShotFlags 项数 | **50**（去重后 50） | `AuroraDriveApp.swift:919-970` 括号配平；含注释内提及去重 51（多出 `--network` 出现在注释） |
+| oneShotFlags 项数 | **67**（去重后 67） | `AuroraDriveApp.swift:961-1066` 括号配平；仅统计数组内 `--flag` 字面量 |
 | AuroraDrive 自有 CLI 参数 | **70** | 含下划线口径 `grep -rhoE '"--[a-z0-9_-]+"' Sources/ | sort -u` = 72（本程序 70 + 转发 2），与正文一致；无下划线口径 = 70（该口径下 `--skip_view`/`--skip_yolo` 因含 `_` 不匹配，本就不在集合内），故本程序自有参数为 **70** |
 | 全 Sources 去重 flag（含辅助参数） | 70（含下划线 72） | 参数值修饰子 `--dir/frames/stride/iters/image/network/roi/seconds/live` 计入 |
 | `--proto-selftest` 断言数 | 14 | 与 2026-09-29 实跑一致 |

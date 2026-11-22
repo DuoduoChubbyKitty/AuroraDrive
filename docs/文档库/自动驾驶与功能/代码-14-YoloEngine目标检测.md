@@ -27,7 +27,7 @@
 
 > **用户拍板**（goal-3279b59b 需求 1/6/7）：A 模型档（`.ayolom`，**默认档**）下
 > yolo26s **不加载、不推理**；只有 legacy 三件套档才加载并跑 26S。
-> 用户原话逻辑：A 模型档的设计原话（`PerceptionMode.swift:194-200`）是
+> 用户原话逻辑：A 模型档的设计原话（`YolopxEngine.swift:195-198` 的 `enum PerceptionMode` 注释）是
 > 「**只跑 A-YOLOM(n) int8 一个三合一模型**」——26S 只属于 legacy 档，
 > 却常驻 9.2MB 权重 + 每两帧 p50 6.2~14ms 推理，且 `computeUnits = .all`
 > 会把算子派 GPU 与游戏抢卡（用户实测：裸游戏流畅、开 App 持续卡、GPU 恒 100%）。

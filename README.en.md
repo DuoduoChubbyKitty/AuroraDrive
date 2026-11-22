@@ -30,8 +30,8 @@ MaaNTE source code is NOT distributed with this repository (AGPL-3.0 is viral); 
 ### Positioning
 
 - **Network positioning**: libpcap captures UE5 movement sync packets (`tcp/30031 or udp`), decodes world coordinates and heading from the bitstream, maps to a 13056×13056 world map. Higher precision than visual positioning
-- **Visual positioning**: template matching on minimap crops against the 13056×13056 basemap. Cloud gaming has no decodable movement packets, making this the only available path there
-- **Positioning decision**: automatically picks the mode based on the game source (cloud / local / unknown)
+- **Visual positioning**: the circular minimap region is CLAHE-enhanced and template-matched against the 13056×13056 basemap (circular mask); the first fix does a global search, then a 400² window tracks it frame by frame. Cloud gaming has no decodable movement packets, making this the only available path there
+- **Positioning decision**: built-in launcher on cloud → visual; on local → network; when launched by the user with an unknown source, the capture target is checked for a browser window to decide
 - **Failure failover**: when network positioning keeps failing while frames are still advancing, visual positioning takes over; switches back once the network recovers. A `stale` state is not treated as failure (ingame coordinate packets are intermittent)
 - **Auto-calibration**: minimap ROI calibrated automatically via multi-frame circle detection, no manual coordinates; falls back to a default ROI on timeout
 

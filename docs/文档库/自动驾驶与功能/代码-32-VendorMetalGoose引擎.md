@@ -20,7 +20,7 @@
 
 ---
 
-> ✅ **2026-10-18 复核**（merge-arch）：逐文件 `wc -l` + 抽查 GooseEngine 20+ 处行号，全部命中无漂移（2057/236/107/364/466/16 = 3246 行）。`Package.swift:182-185` 的 `sources: ["Sources/AuroraDrive", "Vendor/MetalGoose/Engine"]` 确认 Engine/ 子集进编译；`:163-178` exclude 显式排除根层 15 个文件 + **两份 Shaders.metal**（根层 `:176` + Engine/ `:178`）。本次补两处缺失：
+> ✅ **2026-10-18 复核**（merge-arch）：逐文件 `wc -l` + 抽查 GooseEngine 20+ 处行号，全部命中无漂移（2057/236/107/364/466/16 = 3246 行）。`Package.swift:206-209` 的 `sources: ["Sources/AuroraDrive", "Vendor/MetalGoose/Engine"]` 确认 Engine/ 子集进编译；`exclude:` 块（`:93-205`）显式排除根层文件 + **两份 Shaders.metal**（根层 `:193` + Engine/ `:195`）。本次补两处缺失：
 > 1. **GPL v3 强传染论证完全缺失**——本文通篇未提 GPL，而 `Vendor/MetalGoose/LICENSE` 首行就是 `GNU GENERAL PUBLIC LICENSE Version 3`，且 Engine/ 已进 `sources:` 编译。已补 §七。
 > 2. **「仅显示层」缺代码级证据**——原文 §一只写了一句「决策链路永不经过本引擎」，但没给 `onUpscaleFrame` 的出处。已补 `CaptureEngine.swift:1106-1109` + `isUpscaleWanted` 默认 false（:138）的逐行证据。
 
@@ -355,7 +355,7 @@ does not need a drawable, and take one at the last possible moment.
 | # | 事实 | 证据 |
 |---|---|---|
 | ① | MetalGoose 是 **GPL v3** | `Vendor/MetalGoose/LICENSE` 首行：`GNU GENERAL PUBLIC LICENSE / Version 3, 29 June 2007` |
-| ② | **源码已进 `sources:` 编译**，不是"只放个参考" | `Package.swift:182-185`：`sources: ["Sources/AuroraDrive", "Vendor/MetalGoose/Engine"]` |
+| ② | **源码已进 `sources:` 编译**，不是"只放个参考" | `Package.swift:206-209`：`sources: ["Sources/AuroraDrive", "Vendor/MetalGoose/Engine"]` |
 | ③ | 因此是**链接式衍生作品** | SwiftPM 把 Engine/ 的 5 个 .swift 编进 `AuroraDrive` 同一个 module，与主代码同一二进制 |
 
 **结论（与 `docs/整合文档/09-模型资产与第三方依赖.md` §4.2 口径一致）**：
@@ -371,13 +371,13 @@ does not need a drawable, and take one at the last possible moment.
 **未受影响的边界（常见误解澄清）**：
 
 - `Stubs.swift`（16 行）是 **AuroraDrive 自有代码**，源码注释明确写 *"This file is AuroraDrive's own addition and is NOT part of the upstream GPL v3.0 source"* ——它不受 GPL 约束，但它与 GPL 代码在同一 module 里，**不改变整体传染结论**。
-- **根层 15 个文件不参与编译**（`Package.swift:163-178` exclude）——根层的 `ContentView.swift` / `MGHUD.swift` / `OverlayWindowManager.swift` 等**不构成衍生作品**，但 Engine/ 子集构成。
+- **根层文件不参与编译**（`Package.swift:93-205` exclude）——根层的 `ContentView.swift` / `MGHUD.swift` / `OverlayWindowManager.swift` 等**不构成衍生作品**，但 Engine/ 子集构成。
 
 ## 八、`Shaders.metal` 不参与编译（2026-10-18 补强）
 
 原文 §一 已提到「Shaders.metal 运行时编译」，但没点明它在 `Package.swift` 里的处置。补三点：
 
-1. **两份都被显式 exclude**：根层 `Vendor/MetalGoose/Shaders.metal`（`Package.swift:193`）+ Engine/ `Vendor/MetalGoose/Engine/Shaders.metal`（`:178`）。
+1. **两份都被显式 exclude**：根层 `Vendor/MetalGoose/Shaders.metal`（`Package.swift:193`）+ Engine/ `Vendor/MetalGoose/Engine/Shaders.metal`（`:195`）。
 2. **466 行 / 17,016 字节**，两份内容完全相同（`diff` 零差异）——原文此结论今日复核仍成立。
 3. **运行时按路径加载**，三候选路径见 §一 `setupPipelines`（441–481 行）：`Bundle.main` → 可执行文件目录（`exeDir/Shaders.metal`、`exeDir/Vendor/MetalGoose/Engine/Shaders.metal`、以及一条硬编码绝对路径 `/Users/dupi/Desktop/自动驾驶系统/Vendor/MetalGoose/Engine/Shaders.metal`）→ `makeDefaultLibrary()` 兜底。
    ⚠️ 那条硬编码绝对路径是 vendor 原样保留的（换机器会失效，但只是三候选之一，不影响功能）。

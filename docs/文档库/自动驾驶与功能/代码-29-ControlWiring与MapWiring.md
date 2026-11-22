@@ -10,12 +10,12 @@
 >
 > **✅ 行号已按当前版重基准（2026-10-18 二次，merge-tools）**：`ControlWiring.swift`(542) / `MapWiring.swift`(613) / `LocateRuntime.swift`(35) 三文件**均未改动**，逐条 `sed -n` 复核 **42 条**引用 —— **41 条全部命中、零漂移**（含 §一全部区间 1-16/24-57/48-53/59-67/73-259/208-217/218-229/:233/189-193/323-332/:334/339-341/342-356/431-451/507-542/510-515/:541，§二 29-36/148-601/264-292/482-503/:509/547-568/:453/:467/:602/605-612，§三 12-26/29-35）。**修正 1 条**：`EngineMain.swift` → **`:1685`**（`case "config":` 实际在 :1685，:1684 是上一分支的闭括号）。另 **2 条复核确认正确**：`EngineMain.swift`（`let cTakeover = obj["takeover"] as? Bool` ✓）、`AuroraDriveApp.swift:6278/6281`（两行 `sendCommand("config", extra: ["takeover": true/false])` ✓）。
 >
-> 覆盖源文件：`Sources/AuroraDrive/App/ControlWiring.swift`（**547 行**，2026-11-10 `wc -l` 实测；原文写 450 行）+ `MapWiring.swift`（**613 行**，2026-11-10 `wc -l` 实测）+ `LocateRuntime.swift`（**35 行**）。
-> ✅ **2026-10-17 复核**：`ControlWiring.swift` 实测 **542 行**（`wc -l`），`MapWiring.swift` 613 行、`LocateRuntime.swift` 35 行 —— 与上方覆盖行数一致。原文「现为 475 行」为 2026-09-29 旧值，**已作废**。正文行号已按当前源码逐条 `grep -n` 重测（见各节标注）。
+> 覆盖源文件：`Sources/AuroraDrive/App/ControlWiring.swift`（**545 行**，`wc -l` 实测）+ `MapWiring.swift`（**613 行**，`wc -l` 实测）+ `LocateRuntime.swift`（**45 行**，`wc -l` 实测）。
+> ✅ **行数复核（`wc -l` 实测）**：`ControlWiring.swift` **545 行**、`MapWiring.swift` **613 行**、`LocateRuntime.swift` **45 行** —— 与上方覆盖行数一致。原文「现为 475 行」为 2026-09-29 旧值，**已作废**。正文行号已按当前源码逐条 `grep -n` 重测（见各节标注）。
 >
 > **⚠️ 2026-09-25 重建说明**：本档原覆盖 `App/MinimapLocatorView.swift`（196 行）——该文件已在 UI 大改版中删除，纯逻辑类型（LocateGate/LocateContext）被析出到 `LocateRuntime.swift` 单独留存（源码头注释实录），UI 侧由 MissionConsole 的 MiniMapCard/MiniMapCanvas 承载。本档现按三个新文件的实际内容重写。
 
-## 一、ControlWiring — 任务控制台功能接线层（542 行）
+## 一、ControlWiring — 任务控制台功能接线层（545 行）
 
 **文件头原则（1–16 行）**："界面（A-任务控制中心.html 的 SwiftUI 版）与真实引擎之间的**唯一通道**。界面上的每一个可点元素，背后都必须有一条真的执行路径。**没有执行路径的，宁可不画**。" 接线清单六项：① 路况自适应 4 态 ② 自动速度开关 ③ 四挡降级链 ④ 限速滑块 ⑤ 18 项技能 ⑥ 引擎 9 命令。
 
@@ -47,7 +47,7 @@
   - ⚠️ **`takeover` 不在本函数内**（第 10 个 config 字段，独立发送）：由 `AuroraDriveApp.swift/6281` 的 KeyboardMonitor 回调直接 `sendCommand("config", extra: ["takeover": true/false])`，引擎侧 `EngineMain.swift` 解析 → `EmergencyTakeover.noteUserKeyDown/Up`。**故 config IPC 全字段集 = 10，而 pushConfig 只发其中 9 个。**
 - **`driveBars`**：四条控制量归一化快照（steer ±1 / throttle 0-1 / brake 0-1 / speed 相对限速）→ UI 底部四条进度条
 
-### ④ SpeedLimitGuard — 限速闭环执行器（**334–505 行**，三级刹车；✅ 2026-10-18 修正：原写「333–463 行」，文件已增至 542 行，该类实际从 :334 起、到 :507 的 `enum AutoRoadCondition` 之前止）
+### ④ SpeedLimitGuard — 限速闭环执行器（**337–509 行**，三级刹车；`final class SpeedLimitGuard` 在 `:337` 起，到 `:510` 的 `enum AutoRoadCondition` 之前止）
 
 **设计要点（323–332 行）**：触发源=速度模型真实读数（speedOCR/引擎回传），**纯规则覆盖、不走任何神经网络**（"刹车这件事不允许被模型置信度影响"，用户明确要求"千万不能用模型来实现"）；不限速（≥200）→ **整个闭环彻底停用**（短路，不是把阈值设大）。
 
@@ -63,7 +63,7 @@
 - **峰值留档（431–451 行）**：reset() 清零前把本轮 lastBrakeSeconds/lastStage/lastOvershoot/lastPulseCount 留档——否则刹车结束后读到的永远是 0/待命，日志无法诊断"刹了多久、到没到持续刹"
 - 诊断状态：stage / handbrakeDown（点刹真假交替）/ overspeedSeconds / overshoot / pulseCount
 
-### ⑤ AutoRoadCondition — 路况自动判定（**507–542 行**；✅ 2026-10-18 修正：原写「465–542 行」，`enum AutoRoadCondition` 实际声明在 :507）
+### ⑤ AutoRoadCondition — 路况自动判定（**510–545 行**；`enum AutoRoadCondition` 实际声明在 `:510`，`stabilityFrames` 在 `:544`）
 
 **用 YOLO 实测检测框数量判定**（不用模型置信度——框数是直接观测可解释可验证，置信度是黑箱，"让模型既当运动员又当裁判"是用户明确禁止的）。阈值（**510–515 行**，集中一处、UI 说明文字同源；✅ 2026-10-18 修正：原写「509–515」）：**>70 极度复杂 / >50 繁忙 / >30 中等 / >20 轻松 / ≤10 简单（不限速）**；**11–20 为滞回带**（保持原状，防反复横跳）；`stabilityFrames = 10`（**第 541 行**，20Hz 下约 0.5 秒稳定门——同一判定需连续成立 10 帧才切换，防单帧抖动导致限速跳变触发刹车；源码注释明写「若将来再改帧率，请按 `≈0.5s × 帧率` 重算」）。`legendText` 读常量生成阈值说明文字。
 
@@ -81,11 +81,11 @@
 - **PlacedMarker.stableID**（453 行声明 / 467 行赋值）：存储属性（init 算一次，直接取数据库 `id`，不再拼 "kind#name#x#y"）——ForEach 身份稳定（9-24 优化改动 16）
 - **normMapXLarge/normMapYLarge（605–612 行）**：大地图归一化（spanPx 参数化，夹紧 0.03–0.97）——**注意这两个在 `extension DriveState` 里，而 `enum MapDatabase` 已在 :602 结束**
 
-## 三、LocateRuntime — 定位运行时支撑（35 行）
+## 三、LocateRuntime — 定位运行时支撑（45 行）
 
 **从已删除的 MinimapLocatorView.swift 析出的纯逻辑类型**（头注释实录：原文件里 LocateGate/LocateContext 与视图混在一起，删除旧视图时被一并带走导致编译失败，按职责单独留存）：
 
-- **`LocateGate`（12–26 行）**：定位互斥闸（NSLock 保护 busy 标志）——tryBegin/end/isBusy，保证同一时刻只有一路定位在跑（视觉/网络共用）
-- **`LocateContext`（29–35 行）**：定位上下文——visualLocator/networkLocator 两路实例 + visualReady/networkReady 就绪标志 + activeMode（默认 "fallback"）
+- **`LocateGate`（15–29 行）**：定位互斥闸（NSLock 保护 busy 标志）——tryBegin/end/isBusy，保证同一时刻只有一路定位在跑（视觉/网络共用）
+- **`LocateContext`（39–45 行，含 31–38 行的说明注释）**：定位上下文——visualLocator/networkLocator 两路实例 + visualReady/networkReady 就绪标志 + activeMode（默认 "fallback"）
 
 **ControlWiring/MapWiring/LocateRuntime 文档至此完整**。给别的 AI 的最关键提示：**限速优先级三档不可调换**（用户手动不限速 > 自动速度 > 手动路况），**刹车纯规则不走模型**，**speedLimit 直接进 vehicle_state[4] 参与推理**——这三个约束都是用户明确定义的安全边界。
