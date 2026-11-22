@@ -291,6 +291,13 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
     /// 最近一次发布的采样动作（#5 诊断/自检「参数无损」断言用）。
     private nonisolated(unsafe) var lastDispatchedActionValue: RLAction?
 
+    /// 倒车防抖：连续满足「按 S 且速度 30~40」的帧数（消费线程独占，无需锁）。
+    /// 达 RewardConfig.reverseConfirmFrames 才判为倒车并重罚。
+    private nonisolated(unsafe) var reverseStreakFrames: Int = 0
+    /// 碰撞检测用的上一帧速度（消费线程独占；与 trainer 内部的 previousSpeedKmh 独立）。
+    private nonisolated(unsafe) var previousFrameSpeedKmh: Double = 0
+    private nonisolated(unsafe) var previousFrameSpeedValid: Bool = false
+
     /// 帧消费包含实时驾驶决策；PPO 更新独立运行在 utility 队列上。
     private let workerQueue = DispatchQueue(label: "aurora.online-train.frame", qos: .userInteractive)
     private var latencyActivity: NSObjectProtocol?
@@ -430,6 +437,9 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
         ring.reset()
         prevHorizontalClass = 1
         episodeSegmentStart = nil
+        reverseStreakFrames = 0
+        previousFrameSpeedKmh = 0
+        previousFrameSpeedValid = false
         stateLock.lock()
         sampledFramesValue = 0
         skippedFramesValue = 0
@@ -497,6 +507,9 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
         ring.reset()               // stop 复位：不跨场景拼帧
         prevHorizontalClass = 1
         episodeSegmentStart = nil
+        reverseStreakFrames = 0
+        previousFrameSpeedKmh = 0
+        previousFrameSpeedValid = false
         frameCounter = 0
         noteWindowFilled()
         // B5②：训练排空有界化——drainTrainingAndWait 是无限 sync，裸调会让
@@ -704,15 +717,46 @@ final class OnlineTrainingRuntime: @unchecked Sendable {
         //    isTerminal 恒 false——真实终止由接管路径与 stop()/封口承担。
         let sample = trainer.sampleAction(stateToken: token)
         prevHorizontalClass = sample.hClass
+
+        // ── 碰撞推断（按油门但速度骤降）：用**上一帧**实际派发的动作判，
+        //    即"我这一帧踩着的油门"与"这一帧速度读数"的因果对齐。
+        //    上一帧油门(vClass==0) + 上一帧速度≥100 + 本帧速度比上帧掉 >30km/h → 撞了。
+        let prevAction = lastDispatchedActionValue
+        let collisionDetected: Bool = {
+            guard let prevAction, prevAction.vClass == 0 else { return false }
+            guard previousFrameSpeedValid, signals.speedValid,
+                  previousFrameSpeedKmh >= RewardConfig.collisionMinPrevSpeedKmh else { return false }
+            return (previousFrameSpeedKmh - signals.speedKmh) > RewardConfig.collisionSpeedDropKmh
+        }()
+
+        // ── 倒车防抖：连续 N 帧「按 S 且速度 30~40」才判倒车重罚。
+        if OnlineTrainer.isReverseFrame(vClass: sample.vClass,
+                                        speedKmh: signals.speedKmh,
+                                        speedValid: signals.speedValid) {
+            reverseStreakFrames += 1
+        } else {
+            reverseStreakFrames = 0
+        }
+        let reverseConfirmed = reverseStreakFrames >= RewardConfig.reverseConfirmFrames
+
         dispatchAction(sample.action)
         _ = trainer.collect(stateToken: token,
                             sample: sample,
                             tookOver: false,       // 接管帧走 .seal，不会到这里
                             speedKmh: signals.speedKmh,
                             speedValid: signals.speedValid,
-                            collision: signals.collision,
+                            collision: collisionDetected,
                             laneOffset: signals.laneOffset,
-                            isTerminal: false, laneMeasurement: signals.laneMeasurement)
+                            isTerminal: false, laneMeasurement: signals.laneMeasurement,
+                            reverseConfirmed: reverseConfirmed)
+
+        // 记录本帧速度供下一帧碰撞判定（无效值不覆盖旧值，语义与 reward 侧一致）。
+        if signals.speedValid, signals.speedKmh.isFinite {
+            previousFrameSpeedKmh = signals.speedKmh
+            previousFrameSpeedValid = true
+        } else {
+            previousFrameSpeedValid = false
+        }
         stateLock.lock()
         sampledFramesValue += 1
         stateLock.unlock()

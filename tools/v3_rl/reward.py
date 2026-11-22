@@ -22,16 +22,24 @@ SPEED_NORM_KMH = 100.0
 STUCK_SPEED_KMH = 1.0
 # 速度三段奖励的分界（km/h）。必须与 Swift RewardConfig.speedLowKmh / speedHighKmh 一致。
 SPEED_LOW_KMH = 100.0     # 下分界：v<速度这里为负、100≤v≤上分界为线性正
-SPEED_HIGH_KMH = 160.0    # 上分界：v>这里为负（按超出扣）
+SPEED_HIGH_KMH = 160.0    # 上分界：v>这里为轻微扣分（-1/10 量级）
+# 倒车判定（与 Swift RewardConfig.reverseSpeedLow/HighKmh、reverseConfirmFrames 一致）。
+REVERSE_SPEED_LOW_KMH = 30.0
+REVERSE_SPEED_HIGH_KMH = 40.0
+REVERSE_CONFIRM_FRAMES = 3
+# 碰撞判定（与 Swift RewardConfig.collisionMinPrevSpeedKmh / collisionSpeedDropKmh 一致）。
+COLLISION_MIN_PREV_SPEED_KMH = 100.0
+COLLISION_SPEED_DROP_KMH = 30.0
 
 
 @dataclass(frozen=True)
 class RewardWeights:
+    # 2026-11-20 按极限竞速语义重做：删 lane（竞速走线本就该偏离车道）与 decel
+    # （过弯掉速由「v<100 负分」直接覆盖）；新增 reverse（按 S 且速度 30~40 连续帧）。
     speed: float = 1.0
     stuck: float = 0.5
     collision: float = 5.0
-    decel: float = 2.0
-    lane: float = 0.5
+    reverse: float = 1.5
     takeover: float = 10.0
     human: float = 1.0
 
@@ -46,7 +54,7 @@ def speed_term(speed_kmh: float, speed_valid: bool) -> float:
       越接近 0（v=99≈-0.01），v=0 最负（-1.0）；
     * ``SPEED_LOW_KMH ≤ v ≤ SPEED_HIGH_KMH``（100..160）：线性递增正分 —— ``(v - 100)/60``，
       v=100 为 0，v=160 最大（+1.0）；
-    * ``v > SPEED_HIGH_KMH``（160）：负分，按超出扣 —— ``-(v - 160)/60``，v=161 略负，越高越负。
+    * ``v > SPEED_HIGH_KMH``（160）：负分，按超出扣 —— ``-(v - 160)/600``（扣分仅为正向增益的 1/10 量级），v=161 略负，越高越负。
 
     注意 ``v == 160`` 属中间段（+1.0）；越过 160 立刻转负（按超出扣、无下界），这是「甜点区
     上限」的设计跳变，并不连续。``speed_valid=False`` 或速度非有限/为负 → 返回 0（不伪造奖励）。
@@ -59,9 +67,9 @@ def speed_term(speed_kmh: float, speed_valid: bool) -> float:
     if speed_kmh <= SPEED_HIGH_KMH:
         # 100≤v≤160：线性递增正分，(v-100)/(160-100)。
         return float((speed_kmh - SPEED_LOW_KMH) / (SPEED_HIGH_KMH - SPEED_LOW_KMH))
-    # v>160：按超出扣，(v-160)/(160-100)。注意 v 恰为 160 属上一段（+1.0），本段从略高于
-    # 160 起为小负——160 是「甜点区上限」，越过即罚，是设计上的跳变（不连续）。
-    return float(-(speed_kmh - SPEED_HIGH_KMH) / (SPEED_HIGH_KMH - SPEED_LOW_KMH))
+    # v>160：**轻微**扣分，(v-160)/600。分母 600=60×10，扣得只有正向增益的 1/10 量级
+    # （161≈-0.0017，200≈-0.067）。v=160 属上一段（+1.0）。
+    return float(-(speed_kmh - SPEED_HIGH_KMH) / ((SPEED_HIGH_KMH - SPEED_LOW_KMH) * 10.0))
 
 
 def is_stuck(speed_kmh: float, speed_valid: bool) -> bool:
@@ -70,39 +78,47 @@ def is_stuck(speed_kmh: float, speed_valid: bool) -> bool:
 
 def decel_term(prev_speed: float, speed_kmh: float, cur_valid: bool,
                prev_valid: bool = True) -> float:
-    """Hard-deceleration magnitude in [0,1].
+    """Deprecated: 2026-11-20 起奖励不再含急减速项（过弯掉速由 v<100 负分覆盖）。
 
-    Requires BOTH readings valid: across an OCR gap ``prev_speed`` may be a stale
-    value from before the gap, so comparing it to a fresh reading after the gap
-    would fabricate a huge one-frame decel. ``prev_valid`` guards that.
+    保留函数体仅为兼容旧调用方；新代码不要使用。
     """
-    if not (cur_valid and prev_valid):
-        return 0.0
-    if not (np.isfinite(prev_speed) and np.isfinite(speed_kmh)):
-        return 0.0
-    drop = prev_speed - speed_kmh
-    if drop <= 0.0:
-        return 0.0
-    return float(min(drop / 30.0, 1.0))
+    return 0.0
 
 
-def lane_term(lane_offset: float) -> float:
-    if not np.isfinite(lane_offset):
-        return 0.0
-    return float(min(abs(lane_offset), 1.0))
+def is_reverse_frame(v_class: int, speed_kmh: float, speed_valid: bool) -> bool:
+    """倒车判据（单帧）：模型选了 S 键（vClass==2）且速度读数落在 [30,40]。
+
+    依据：OCR 读不出倒挡（只显示正数）；正常前进时按 S 会瞬间刹停，不会
+    稳定停在 30~40 —— 稳定在 30~40 且按 S 即倒车。连续确认（防抖）由
+    Swift OnlineTrainingRuntime.reverseStreakFrames 维护，与 Swift
+    OnlineTrainer.isReverseFrame 同口径。
+    """
+    if v_class != 2 or not speed_valid or not np.isfinite(speed_kmh):
+        return False
+    return REVERSE_SPEED_LOW_KMH <= speed_kmh <= REVERSE_SPEED_HIGH_KMH
 
 
 def dense_reward(speed_kmh, speed_valid, prev_speed, lane_offset, collided,
                  weights: RewardWeights = DEFAULT_WEIGHTS,
-                 prev_valid: bool = True) -> float:
+                 prev_valid: bool = True,
+                 v_class: int = 1,
+                 reverse_confirmed: bool = False) -> float:
+    """一帧密集奖励 = 速度段 − 卡死 − 碰撞 − 倒车。
+
+    2026-11-20 重做：删 lane/decel（竞速走线本就该偏离车道；过弯掉速由
+    v<100 负分直接覆盖）。`prev_speed`/`prev_valid`/`lane_offset` 参数保留
+    仅为兼容旧调用方签名，不再参与计算。
+    倒车惩罚由调用方防抖（连续 N 帧 is_reverse_frame）后经
+    ``reverse_confirmed`` 传入，避免单帧噪声。
+    """
     r = 0.0
     r += weights.speed * speed_term(speed_kmh, speed_valid)
     if is_stuck(speed_kmh, speed_valid):
         r -= weights.stuck
     if collided:
         r -= weights.collision
-    r -= weights.decel * decel_term(prev_speed, speed_kmh, speed_valid, prev_valid)
-    r -= weights.lane * lane_term(lane_offset)
+    if reverse_confirmed:
+        r -= weights.reverse
     return float(r)
 
 
@@ -173,9 +189,10 @@ def compose_frame_reward(dense, human_score, took_over,
 class FrameSignals:
     speed_kmh: float = 0.0
     speed_valid: bool = False
-    lane_offset: float = 0.0
+    lane_offset: float = 0.0   # 已废弃：奖励不再使用（保留字段兼容旧数据管线）
     collided: bool = False
     took_over: bool = False
+    v_class: int = 1           # 模型本帧动作竖直类（0=油门 1=滑行 2=刹车/S）；用于倒车判定
 
 
 def compute_episode_rewards(
@@ -192,9 +209,16 @@ def compute_episode_rewards(
     out = np.zeros(n, dtype=np.float32)
     prev_speed = 0.0
     prev_valid = False
+    reverse_streak = 0  # 倒车防抖计数（与 Swift 运行时 reverseStreakFrames 同口径）
     for i, f in enumerate(frames):
+        if is_reverse_frame(f.v_class, f.speed_kmh, f.speed_valid):
+            reverse_streak += 1
+        else:
+            reverse_streak = 0
+        reverse_confirmed = reverse_streak >= REVERSE_CONFIRM_FRAMES
         d = dense_reward(f.speed_kmh, f.speed_valid, prev_speed, f.lane_offset,
-                         f.collided, weights, prev_valid=prev_valid)
+                         f.collided, weights, prev_valid=prev_valid,
+                         v_class=f.v_class, reverse_confirmed=reverse_confirmed)
         out[i] = compose_frame_reward(d, float(human[i]), f.took_over, weights)
         prev_speed = f.speed_kmh if f.speed_valid else prev_speed
         prev_valid = f.speed_valid

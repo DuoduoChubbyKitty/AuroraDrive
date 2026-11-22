@@ -75,7 +75,7 @@ enum ShellModeSelfTest {
             SpeedCase(v: 100, expect: 0.0,          label: "下分界零点"),
             SpeedCase(v: 130, expect: 0.5,          label: "线性递增"),
             SpeedCase(v: 160, expect: 1.0,          label: "上分界最大正"),
-            SpeedCase(v: 161, expect: -1.0 / 60.0, label: "越过即略负"),
+            SpeedCase(v: 161, expect: -1.0 / 600.0, label: "越过即轻微扣"),
         ]
         // 用非默认 speed 权重，证明 frameReward 的速度项确实乘了 config.speed。
         let speedWeight = 3.0

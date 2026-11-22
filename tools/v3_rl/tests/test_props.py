@@ -80,16 +80,18 @@ def run() -> None:
     H.check_close(R.speed_term(100.0, True), 0.0, msg="speed 100 -> 0（下分界）")
     H.check_close(R.speed_term(130.0, True), 0.5, msg="speed 130 -> +0.5")
     H.check_close(R.speed_term(160.0, True), 1.0, msg="speed 160 -> +1.0（甜点上限最大正）")
-    H.check_close(R.speed_term(161.0, True), -1.0 / 60.0, msg="speed 161 -> -1/60（越过即小负）")
+    H.check_close(R.speed_term(161.0, True), -1.0 / 600.0, msg="speed 161 -> -1/600（越过即小负，扣分仅为正增益 1/10）")
     H.check_close(R.speed_term(100.0 - 1e-6, True),
                   R.speed_term(100.0 + 1e-6, True), tol=1e-6,
                   msg="speed 在 100 处左右连续")
     for _ in range(50):
-        off = float(rng.uniform(-3, 3))
-        H.check(0.0 <= R.lane_term(off) <= 1.0, "lane_term in [0,1]")
+        v = float(rng.uniform(0, 250))
+        # v>160 段现在只能轻微扣分：|speed_term| 在 [0,1] 内（不再无界放大到 -40/60）
+        H.check(-1.0 <= R.speed_term(v, True) <= 1.0, "speed_term in [-1,1]")
     for _ in range(50):
-        a = float(rng.uniform(0, 200)); b = float(rng.uniform(0, 200))
-        H.check(0.0 <= R.decel_term(a, b, True) <= 1.0, "decel_term in [0,1]")
+        vc = int(rng.integers(0, 3))
+        sp = float(rng.uniform(0, 200))
+        H.check(isinstance(R.is_reverse_frame(vc, sp, True), bool), "is_reverse_frame returns bool")
 
     fast = R.dense_reward(100.0, True, 100.0, 0.0, False)
     for _ in range(20):

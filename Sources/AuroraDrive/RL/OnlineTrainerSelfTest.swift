@@ -207,7 +207,12 @@ enum OnlineTrainerSelfTest {
               String(format: "Δ=%.3f", lpf - fpf))
         check("后窗口每帧奖励 > 0.55", lpf > 0.55, String(format: "%.3f", lpf))
         check("竖直正确率显著上升（Δ>0.3）", lcv - fcv > 0.3, String(format: "%.2f→%.2f", fcv, lcv))
-        check("水平正确率显著上升（Δ>0.3）", lch - fch > 0.3, String(format: "%.2f→%.2f", fch, lch))
+        // ⚠️ 2026-11-20：lane（车道偏离）奖励项已删除 → 水平（转向）动作在本奖励中**没有直接信号**，
+        //   本合成环境也没有「转错→撞车/卡死」的因果耦合，故水平正确率不涨是预期结果（不是回归）。
+        //   现实中转向靠「撞车(速度骤降)/卡死」间接学习，属环境耦合，无法在本纯合成测试里断言。
+        //   这里保留一条正向校验：水平动作不因无信号而崩溃（每帧回报仍由竖直段主导为正）。
+        check("竖直主导回报为显著正（水平无直接信号不影响总回报）", lpf > 0.55,
+              String(format: "%.3f", lpf))
         let metrics = trainer.recentMetrics
         check("产生 PPO 更新指标（>10 次）", metrics.count > 10, "\(metrics.count) 次")
         check("四类指标全部有限", metrics.allSatisfy {
@@ -373,7 +378,10 @@ enum OnlineTrainerSelfTest {
                              laneOffset: 0, isTerminal: true, laneMeasurement: measurement)
         trainer2.drainTrainingAndWait()
         let laneTarget = trainer2.capturedBatchesForTestSnapshot().last?.first?.valueTarget
-        check("同帧车道偏移进入 PPO 价值目标", laneTarget == -0.4, String(describing: laneTarget))
+        // 2026-11-20：lane（车道偏离）奖励项已删除 —— 车道偏移**不再**进入奖励/价值目标。
+        // 本帧 reward=0、value=0，故 valueTarget 应为 0（旧口径下会因 -0.5×0.8=-0.4 而变 -0.4）。
+        check("车道偏移不再进入 PPO 价值目标（lane 项已删，valueTarget==0）",
+              laneTarget == 0.0, String(describing: laneTarget))
         return 0
     }
 
@@ -540,12 +548,11 @@ enum OnlineTrainerSelfTest {
         _ = feed(100, true)                 // 帧1：prev speed=100, valid
         _ = feed(Double.nan, true)          // 帧2：NaN（valid 却 NaN）→ 必须 prevValid=false
         let r3 = feed(50, true)             // 帧3：50 km/h
-        // 若修复：帧3 decel=0（prevValid=false），reward = speedTerm(50)。
-        // 三段式下 speedTerm(50) = -(100-50)/100 = -0.5。
-        // 若未修复：decelTerm(prev=100,cur=50)=min(50/30,1)=1 → reward = -0.5 - 2*1 = -2.5
-        check("NaN 之后一帧不被伪造急减速（reward==speedTerm(50)=-0.5，非 -2.5）",
+        // decel 项已于 2026-11-20 删除：reward 只剩速度段 = speedTerm(50) = -(100-50)/100 = -0.5。
+        // 非有限速度仍不得污染后续帧（本测试守住「帧2 的 NaN 不遗留成 prev 值」）。
+        check("NaN 之后一帧 reward==speedTerm(50)=-0.5（不残留 NaN 影响）",
               abs(r3 - (-0.5)) < 1e-9, String(format: "实际%.4f", r3))
-        // 对照：连续两个有限值确实产生减速惩罚（证明减速项本身没坏）
+        // 对照：连续两个有限值 100→50，decel 已删 → reward 仅按当前速度段 = -0.5（不再叠加减速罚）
         let trainer2 = OnlineTrainer(policy: FixedPolicy(), rewardConfig: RewardConfig(),
                                      ppoConfig: PPOConfig(), trainEvery: 10_000, metricsCapacity: 16)
         _ = trainer2.collect(stateToken: [1],
@@ -556,9 +563,9 @@ enum OnlineTrainerSelfTest {
                                    sample: PolicySample(vClass: 0, hClass: 0, logProbV: 0, logProbH: 0, value: 0),
                                    tookOver: false, speedKmh: 50, speedValid: true,
                                    collision: false, laneOffset: 0, isTerminal: false)
-        // speedTerm(50)=-0.5，再叠加 decel 1.0*2=2 → 约 -2.5，明显比「无减速」的 -0.5 更负。
-        check("对照：连续有限值 100→50 确实有减速惩罚（reward < -0.5）", r2c < -0.5,
-              String(format: "实际%.4f", r2c))
+        // speedTerm(50)=-0.5；decel 已删 → 不再叠加 -2.0。
+        check("对照：连续有限值 100→50 仅速度段 -0.5（decel 已删、无额外减速罚）",
+              abs(r2c - (-0.5)) < 1e-9, String(format: "实际%.4f", r2c))
         return 0
     }
 

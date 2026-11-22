@@ -120,36 +120,49 @@ public struct PolicySample {
     public var action: RLAction { RLAction(vClass: vClass, hClass: hClass) }
 }
 
-/// 奖励权重，默认值与 tools/v3_rl/reward.py 的 RewardWeights 一一对应。
+/// 奖励权重。2026-11-20 按极限竞速游戏的驾驶语义重做：
+///   · 速度：<100 负分、100~160 加分、>160 轻微扣分（鼓励保持 100+ 的高速走线）
+///   · 卡死：<1km/h 罚
+///   · 碰撞：由「按油门但速度骤降」推断（见 OnlineTrainingRuntime.runningCollisionDetector）
+///   · 倒车：模型按 S 键且速度 30~40 连续 N 帧 → 罚（OCR 读不出倒挡，用动作判）
+///   · 接管：人类接管重罚
+/// ⚠️ 已删除 lane（车道偏离）与 decel（急减速）两项：
+///   本作是极限竞速游戏，走线本就要偏离车道追求速度；过弯掉速由「速度<100 负分」直接覆盖。
 public struct RewardConfig {
     public var speed: Double
     public var stuck: Double
     public var collision: Double
-    public var decel: Double
-    public var lane: Double
+    public var reverse: Double
     public var takeover: Double
-    /// 速度归一上限（km/h）＝三段奖励的下分界。与 reward.py 的 SPEED_NORM_KMH 一致。
+    /// 速度归一上限（km/h）＝三段奖励的下分界。
     public static let speedNormKmh: Double = 100.0
-    /// 速度三段奖励的下分界（km/h）：v<下分界 → 负分（按差距扣）。复用 speedNormKmh=100，
-    /// 与 reward.py 的 SPEED_LOW_KMH 一致。
+    /// 速度三段奖励的下分界（km/h）：v<下分界 → 负分（按差距扣）。
     public static let speedLowKmh: Double = speedNormKmh
     /// 速度三段奖励的上分界（km/h）：下分界≤v≤上分界 → 线性递增正分；v>上分界 → 负分（按超出扣）。
-    /// 与 reward.py 的 SPEED_HIGH_KMH 一致。
     public static let speedHighKmh: Double = 160.0
-    /// 判定「卡死」的速度阈值（km/h）。与 reward.py 的 STUCK_SPEED_KMH 一致。
+    /// 判定「卡死」的速度阈值（km/h）。
     public static let stuckSpeedKmh: Double = 1.0
+    /// 倒车判定的速度带宽（km/h）：模型按 S 且速度落在此区间 → 视为倒车。
+    /// 依据：正常前进时按 S 会瞬间刹停，不会稳定停在 30~40；稳定在 30~40 且按 S = 惯性/坡道倒车。
+    public static let reverseSpeedLowKmh: Double = 30.0
+    public static let reverseSpeedHighKmh: Double = 40.0
+    /// 倒车需连续确认的帧数（防抖）：连续 N 帧满足才罚，避免单帧噪声误判。
+    public static let reverseConfirmFrames: Int = 3
+    /// 碰撞判定（按油门但速度骤降）：上一帧速度须 ≥ 此值才有意义（低速抖动不算撞）。
+    public static let collisionMinPrevSpeedKmh: Double = 100.0
+    /// 单帧速度骤降阈值（km/h）：按油门时一帧内掉落超过它 → 视作撞到东西。
+    /// 依据：正常松开油门一帧掉速远小于此（20Hz 下一帧约 50ms）；撞墙会瞬间断崖式掉落。
+    public static let collisionSpeedDropKmh: Double = 30.0
 
     public init(speed: Double = 1.0,
                 stuck: Double = 0.5,
                 collision: Double = 5.0,
-                decel: Double = 2.0,
-                lane: Double = 0.5,
+                reverse: Double = 1.5,
                 takeover: Double = 10.0) {
         self.speed = speed
         self.stuck = stuck
         self.collision = collision
-        self.decel = decel
-        self.lane = lane
+        self.reverse = reverse
         self.takeover = takeover
     }
 }
@@ -351,20 +364,22 @@ public final class OnlineTrainer: @unchecked Sendable {
                         isTerminal: Bool) -> Double {
         collect(stateToken: stateToken, sample: sample, tookOver: tookOver, speedKmh: speedKmh,
                 speedValid: speedValid, collision: collision, laneOffset: laneOffset,
-                isTerminal: isTerminal, laneMeasurement: nil)
+                isTerminal: isTerminal, laneMeasurement: nil, reverseConfirmed: false)
     }
 
     @discardableResult
     func collect(stateToken: [Float], sample: PolicySample, tookOver: Bool, speedKmh: Double,
                  speedValid: Bool, collision: Bool, laneOffset: Double, isTerminal: Bool,
-                 laneMeasurement: TrainingLaneMeasurement?) -> Double {
+                 laneMeasurement: TrainingLaneMeasurement?,
+                 reverseConfirmed: Bool = false) -> Double {
         // ① 逐帧奖励（与 reward.py 同语义，prev_speed/prev_valid 跨帧保持）
         let frameRewardValue = Self.frameReward(
             signals: RewardSignals(speedKmh: speedKmh, speedValid: speedValid,
                                    laneOffset: laneOffset, collided: collision, tookOver: tookOver),
             previousSpeedKmh: previousSpeedKmh,
             previousSpeedValid: previousSpeedValid,
-            config: rewardConfig)
+            config: rewardConfig,
+            reverseConfirmed: reverseConfirmed)
 
         // ② 推进上一帧速度状态（P2：NaN/无效 → previousValid=false，下一帧 decel 被抑制）
         if speedValid && speedKmh.isFinite {
@@ -514,15 +529,9 @@ public final class OnlineTrainer: @unchecked Sendable {
         guard !batch.isEmpty else { return }
         let meanRewardSnapshot = meanEpisodeReward
         let cfg = ppoConfig
-        let laneWeight = rewardConfig.lane
         trainingQueue.async { [weak self] in
             guard let self else { return }
             var withAdvantage = batch
-            for i in withAdvantage.indices {
-                if let offset = withAdvantage[i].laneMeasurement?.offset {
-                    withAdvantage[i].reward -= laneWeight * Self.laneTerm(offset)
-                }
-            }
             // P1-2：只按 isTerminal 判边界；末条若未终止，用 tailBootstrapValue 做 bootstrap。
             PolicyHead.computeGAE(&withAdvantage, gamma: cfg.gamma, lam: cfg.lam,
                                   tailBootstrapValue: tailBootstrapValue)
@@ -630,62 +639,50 @@ public final class OnlineTrainer: @unchecked Sendable {
         }
     }
 
-    /// 速度三段奖励（归一化到 [-1, +1]）。与 reward.py 的 speed_term 同口径，必须保持一致：
-    ///   · v < 100（下分界）：负分，按差距扣 —— -(100 - v)/100，v 越接近 100 越接近 0（v=99≈-0.01），
-    ///     v=0 最负（-1.0）；
+    /// 速度三段奖励（归一化到 [-1, +1]）：
+    ///   · v < 100（下分界）：负分，按差距扣 —— -(100 - v)/100，v=0 最负（-1.0）；
     ///   · 100 ≤ v ≤ 160：线性递增正分 —— (v - 100)/60，v=100 为 0，v=160 最大（+1.0）；
-    ///   · v > 160（上分界）：负分，按超出扣 —— -(v - 160)/60，v=161 略负，越高越负。
+    ///   · v > 160（上分界）：**轻微扣分** —— -(v - 160)/600（160→161 仅 -0.0017，扣得很轻）。
     /// speedValid=false 或速度非有限/为负 → 该项为 0（不伪造奖励）。
-    /// 注意：v=100 处左右连续（两段都恰为 0）；v=160 属中间段最大正分（+1.0），越过 160 立刻转负
-    /// （按超出扣、无下界）——这是「甜点区上限」的设计跳变，并不连续。
     public static func speedTerm(_ speedKmh: Double, _ speedValid: Bool) -> Double {
         guard speedValid, speedKmh.isFinite, speedKmh >= 0 else { return 0 }
         if speedKmh < RewardConfig.speedLowKmh {
-            // v<100：按差距扣。v=100 时此式恰为 0（与中间段起点连续），故不必特判。
             return -(RewardConfig.speedLowKmh - speedKmh) / RewardConfig.speedLowKmh
         }
         if speedKmh <= RewardConfig.speedHighKmh {
-            // 100≤v≤160：线性递增正分，(v-100)/(160-100)。
             return (speedKmh - RewardConfig.speedLowKmh)
                 / (RewardConfig.speedHighKmh - RewardConfig.speedLowKmh)
         }
-        // v>160：按超出扣，(v-160)/(160-100)。v=160 属上一段（+1.0），本段从略高于 160 起为小负。
+        // v>160：轻微扣分。分母 600 = (160-100)×10 → 扣得只有正向增益的 1/10 量级。
         return -(speedKmh - RewardConfig.speedHighKmh)
-            / (RewardConfig.speedHighKmh - RewardConfig.speedLowKmh)
+            / ((RewardConfig.speedHighKmh - RewardConfig.speedLowKmh) * 10.0)
     }
 
     public static func isStuck(_ speedKmh: Double, _ speedValid: Bool) -> Bool {
         speedValid && speedKmh.isFinite && speedKmh < RewardConfig.stuckSpeedKmh
     }
 
-    public static func decelTerm(previousSpeed: Double, speedKmh: Double,
-                                 currentValid: Bool, previousValid: Bool) -> Double {
-        guard currentValid, previousValid else { return 0 }
-        guard previousSpeed.isFinite, speedKmh.isFinite else { return 0 }
-        let drop = previousSpeed - speedKmh
-        if drop <= 0 { return 0 }
-        return min(drop / 30.0, 1.0)
+    /// 倒车判据（纯函数）：模型本帧选了 S 键（vClass=2）且速度落在 [30,40] → 该帧"疑似倒车"。
+    /// 连续确认帧数由调用方（运行时）维护计数器，本函数只判单帧。
+    public static func isReverseFrame(vClass: Int, speedKmh: Double, speedValid: Bool) -> Bool {
+        guard vClass == 2, speedValid, speedKmh.isFinite else { return false }
+        return speedKmh >= RewardConfig.reverseSpeedLowKmh
+            && speedKmh <= RewardConfig.reverseSpeedHighKmh
     }
 
-    public static func laneTerm(_ laneOffset: Double) -> Double {
-        guard laneOffset.isFinite else { return 0 }
-        return min(abs(laneOffset), 1.0)
-    }
-
-    /// 一帧奖励 = dense（speed - stuck - collision - decel - lane）+ takeover 强负。
+    /// 一帧奖励 = 速度段 − 卡死 − 碰撞 − 倒车 + 接管强负。
+    /// ⚠️ lane/decel 已删除（见 RewardConfig 注释）。`reverseConfirmed` 由运行时的
+    /// 连续帧计数器产出（连续 N 帧 isReverseFrame 才为 true），避免单帧噪声。
     public static func frameReward(signals: RewardSignals,
                                    previousSpeedKmh: Double,
                                    previousSpeedValid: Bool,
-                                   config: RewardConfig) -> Double {
+                                   config: RewardConfig,
+                                   reverseConfirmed: Bool = false) -> Double {
         var r = 0.0
         r += config.speed * speedTerm(signals.speedKmh, signals.speedValid)
         if isStuck(signals.speedKmh, signals.speedValid) { r -= config.stuck }
         if signals.collided { r -= config.collision }
-        r -= config.decel * decelTerm(previousSpeed: previousSpeedKmh,
-                                      speedKmh: signals.speedKmh,
-                                      currentValid: signals.speedValid,
-                                      previousValid: previousSpeedValid)
-        r -= config.lane * laneTerm(signals.laneOffset)
+        if reverseConfirmed { r -= config.reverse }
         if signals.tookOver { r -= config.takeover }
         return r
     }

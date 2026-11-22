@@ -28,8 +28,8 @@ def run() -> None:
     H.check_close(R.speed_term(100.0, True), 0.0, msg="speed 100 -> 0（下分界）")
     H.check_close(R.speed_term(130.0, True), 0.5, msg="speed 130 -> +0.5（线性递增）")
     H.check_close(R.speed_term(160.0, True), 1.0, msg="speed 160 -> +1.0（上分界最大正）")
-    H.check_close(R.speed_term(161.0, True), -1.0 / 60.0, msg="speed 161 -> -1/60（略负）")
-    H.check_close(R.speed_term(200.0, True), -40.0 / 60.0, msg="speed 200 -> -40/60（超出扣）")
+    H.check_close(R.speed_term(161.0, True), -1.0 / 600.0, msg="speed 161 -> -1/600（轻微扣）")
+    H.check_close(R.speed_term(200.0, True), -40.0 / 600.0, msg="speed 200 -> -40/600（轻微扣）")
     H.check_close(R.speed_term(-5.0, True), 0.0, msg="negative speed -> 0")
     H.check_close(R.speed_term(float("nan"), True), 0.0, msg="NaN speed -> 0")
     H.check_close(R.speed_term(float("inf"), True), 0.0, msg="inf speed -> 0")
@@ -42,7 +42,7 @@ def run() -> None:
     # 任一语言的口径漂移都会在对应套件里立刻暴露。
     H.check_eq(R.SPEED_LOW_KMH, 100.0, "SPEED_LOW_KMH 必须与 Swift speedLowKmh 一致=100")
     H.check_eq(R.SPEED_HIGH_KMH, 160.0, "SPEED_HIGH_KMH 必须与 Swift speedHighKmh 一致=160")
-    golden = [(99.0, -0.01), (100.0, 0.0), (130.0, 0.5), (160.0, 1.0), (161.0, -1.0 / 60.0)]
+    golden = [(99.0, -0.01), (100.0, 0.0), (130.0, 0.5), (160.0, 1.0), (161.0, -1.0 / 600.0)]
     for v, expect in golden:
         H.check_close(R.speed_term(v, True), expect, tol=1e-9,
                       msg=f"golden speed_term({v}) 与 Swift 同值")
@@ -57,28 +57,22 @@ def run() -> None:
     H.check(R.is_stuck(0.0, False) is False, "0 km/h invalid -> not stuck")
     H.check(R.is_stuck(float("nan"), True) is False, "NaN -> not stuck")
 
-    # ── decel_term (incl. prev_valid OCR-gap guard) ─────────────────────
-    H.check_close(R.decel_term(80.0, 80.0, True), 0.0, msg="no change -> 0")
-    H.check_close(R.decel_term(80.0, 90.0, True), 0.0, msg="accel -> 0")
-    H.check_close(R.decel_term(80.0, 65.0, True), 0.5, msg="15 km/h drop -> 0.5")
-    H.check_close(R.decel_term(80.0, 40.0, True), 1.0, msg="40 km/h drop -> saturate")
-    H.check_close(R.decel_term(80.0, 40.0, False), 0.0, msg="invalid cur -> 0")
-    H.check_close(R.decel_term(float("nan"), 40.0, True), 0.0, msg="NaN prev -> 0")
-    H.check_close(R.decel_term(80.0, float("inf"), True), 0.0, msg="inf cur -> 0")
-    # prev_valid=False must NOT fabricate decel across an OCR gap
-    H.check_close(R.decel_term(80.0, 40.0, True, prev_valid=False), 0.0,
-                  msg="prev invalid (OCR gap) -> no fabricated decel")
-    H.check_close(R.decel_term(80.0, 40.0, True, prev_valid=True), 1.0,
-                  msg="prev valid -> decel counted")
+    # ── 倒车判据 is_reverse_frame（2026-11-20 新增：按 S 且速度 30~40）─────
+    H.check(R.is_reverse_frame(2, 35.0, True) is True, "S + 35km/h -> reverse")
+    H.check(R.is_reverse_frame(2, 30.0, True) is True, "S + 30（下界）-> reverse")
+    H.check(R.is_reverse_frame(2, 40.0, True) is True, "S + 40（上界）-> reverse")
+    H.check(R.is_reverse_frame(2, 29.9, True) is False, "S + 29.9 -> 不算倒车")
+    H.check(R.is_reverse_frame(2, 40.1, True) is False, "S + 40.1 -> 不算倒车")
+    H.check(R.is_reverse_frame(0, 35.0, True) is False, "油门 + 35 -> 不算倒车")
+    H.check(R.is_reverse_frame(1, 35.0, True) is False, "滑行 + 35 -> 不算倒车")
+    H.check(R.is_reverse_frame(2, 35.0, False) is False, "S + 无效速度 -> 不算倒车")
+    H.check(R.is_reverse_frame(2, float("nan"), True) is False, "S + NaN -> 不算倒车")
+    # 跨语言常数一致（与 Swift RewardConfig.reverseSpeedLow/HighKmh / reverseConfirmFrames）
+    H.check_eq(R.REVERSE_SPEED_LOW_KMH, 30.0, "REVERSE_SPEED_LOW_KMH 与 Swift 一致=30")
+    H.check_eq(R.REVERSE_SPEED_HIGH_KMH, 40.0, "REVERSE_SPEED_HIGH_KMH 与 Swift 一致=40")
+    H.check_eq(R.REVERSE_CONFIRM_FRAMES, 3, "REVERSE_CONFIRM_FRAMES 与 Swift 一致=3")
 
-    # ── lane_term ───────────────────────────────────────────────────────
-    H.check_close(R.lane_term(0.0), 0.0, msg="centred -> 0")
-    H.check_close(R.lane_term(0.5), 0.5, msg="half offset -> 0.5")
-    H.check_close(R.lane_term(-0.5), 0.5, msg="symmetric (abs)")
-    H.check_close(R.lane_term(1.5), 1.0, msg="clamped to 1")
-    H.check_close(R.lane_term(float("nan")), 0.0, msg="NaN -> 0")
-
-    # ── dense_reward composition ────────────────────────────────────────
+    # ── dense_reward composition（2026-11-20：无 lane/decel，含 reverse）─────
     # 满分基线取 v=160（三段式最大正 = +1.0），用它隔离其它奖励项。
     w = R.DEFAULT_WEIGHTS
     r_perfect = R.dense_reward(160.0, True, 160.0, 0.0, False)
@@ -87,16 +81,17 @@ def run() -> None:
     H.check_close(r_stuck, -w.speed - w.stuck, msg="stuck frame = -speed(最负) -stuck weight")
     r_coll = R.dense_reward(160.0, True, 160.0, 0.0, True)
     H.check_close(r_coll, w.speed - w.collision, msg="collision subtracts")
+    # lane_offset 现已废弃：不再影响奖励（传 0.8 与传 0 结果相同）
     r_off = R.dense_reward(160.0, True, 160.0, 0.8, False)
-    H.check_close(r_off, w.speed - w.lane * 0.8, msg="lane offset subtracts")
+    H.check_close(r_off, w.speed, msg="lane offset no longer penalized（已废弃）")
     r_inv = R.dense_reward(0.0, False, 0.0, 0.0, False)
     H.check_close(r_inv, 0.0, msg="invalid speed -> 0 dense")
-    # decel path: 80 -> 40 is a 40 km/h drop, saturates decel at 1.0
+    # decel 已删除：80->40 的大跌不再单独扣分，只按当前速度算速度段
     r_dec = R.dense_reward(40.0, True, 80.0, 0.0, False)
-    H.check_close(r_dec, w.speed * (-0.6) - w.decel * 1.0, msg="decel included")
-    # prev_valid=False suppresses the decel term in dense_reward
-    r_gap = R.dense_reward(40.0, True, 80.0, 0.0, False, prev_valid=False)
-    H.check_close(r_gap, w.speed * (-0.6), msg="dense: prev invalid -> no decel")
+    H.check_close(r_dec, w.speed * (-0.6), msg="decel 项已删除（不再额外扣）")
+    # reverse_confirmed=True 扣 reverse 权重
+    r_rev = R.dense_reward(35.0, True, 35.0, 0.0, False, reverse_confirmed=True)
+    H.check_close(r_rev, w.speed * (-0.65) - w.reverse, msg="reverse confirmed subtracts")
 
     # ── takeover_reward ─────────────────────────────────────────────────
     H.check_close(R.takeover_reward(False), 0.0, msg="no takeover -> 0")
@@ -183,8 +178,8 @@ def run() -> None:
     rew = R.compute_episode_rewards(frames, evs, times3)
     H.check_eq(len(rew), 3, "episode reward length")
     H.check_close(float(rew[0]), 1.0 + 1.0, msg="episode frame0 = speed(160)=+1 + human")
-    H.check_close(float(rew[2]), -1.0 - w.stuck - w.decel * 1.0 - w.takeover,
-                  msg="episode frame2 takeover+stuck+decel（speed(0)=-1）")
+    H.check_close(float(rew[2]), -1.0 - w.stuck - w.takeover,
+                  msg="episode frame2 takeover+stuck（speed(0)=-1；decel 已删）")
 
     # empty episode
     H.check_eq(len(R.compute_episode_rewards([], [], [])), 0, "empty episode -> empty array")
@@ -193,23 +188,23 @@ def run() -> None:
     H.check_raises(lambda: R.compute_episode_rewards(frames, [], [0.0]),
                    ValueError, "frame_times/frames length mismatch raises")
 
-    # prev_speed tracking: 80 -> 40 penalised on frame1
+    # prev_speed tracking 已不影响奖励（decel 已删除）：两帧只看各自速度段
     frames2 = [
         R.FrameSignals(speed_kmh=80.0, speed_valid=True),
         R.FrameSignals(speed_kmh=40.0, speed_valid=True),
     ]
     rew2 = R.compute_episode_rewards(frames2, [], _times(2, 10.0))
-    H.check_close(float(rew2[0]), -0.2, msg="frame0 no decel（speed(80)=-0.2）")
-    H.check_close(float(rew2[1]), -0.6 - w.decel * 1.0, msg="frame1 hard decel（speed(40)=-0.6）")
+    H.check_close(float(rew2[0]), -0.2, msg="frame0 (speed(80)=-0.2)")
+    H.check_close(float(rew2[1]), -0.6, msg="frame1 (speed(40)=-0.6；无 decel 额外扣)")
 
-    # prev_valid across an OCR gap: middle frame invalid -> no fake decel after it
+    # OCR 断档不再影响奖励（无 decel 项），但仍验证跨帧不崩
     frames_gap = [
         R.FrameSignals(speed_kmh=80.0, speed_valid=True),
         R.FrameSignals(speed_kmh=0.0, speed_valid=False),
         R.FrameSignals(speed_kmh=10.0, speed_valid=True),
     ]
     rew_gap = R.compute_episode_rewards(frames_gap, [], _times(3, 10.0))
-    H.check_close(float(rew_gap[2]), -0.9, msg="frame after OCR gap: no fabricated decel（speed(10)=-0.9）")
+    H.check_close(float(rew_gap[2]), -0.9, msg="frame after OCR gap（speed(10)=-0.9）")
 
     # ── normalize_advantages ────────────────────────────────────────────
     na = R.normalize_advantages(np.array([1.0, 2.0, 3.0, 4.0]))
