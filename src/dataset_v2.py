@@ -123,6 +123,10 @@ STATE_DIM = 10
 LEGACY_STATE_DIM = 6          # 前 6 维 = mono_dataset v2_new 契约
 DEFAULT_DET_N = 20            # 检测框固定槽位数 N（padding 到 N）
 DEFAULT_IMAGE_SIZE = (180, 320)   # (H, W)，与 mono_dataset 默认一致
+# ⚠️ 帧率口径（2026-11-25 登记）：V3 链路（src/dataset_v3.py 的 EXPECTED_FPS）
+#    是 15fps 硬校验，本链是 30fps；两条链共用同一份 lean_clips。改写这里
+#    之前先确认数据来源——录得偏 15fps 的数据在本链会被 t_sec 交叉校验
+#    打警告（见 _load_controls_csv 的 derived_fps 检查，偏差 >15%）。
 DEFAULT_FPS = 30.0            # 缺 t_sec 时用于推 dt
 
 _AUG_BRIGHTNESS = 0.20
@@ -376,6 +380,22 @@ def _load_controls_csv(
     if n_bad_rows:
         print(f"[warn] {csv_path.name}: 跳过 {n_bad_rows} 行缺少控制标签的数据"
               f"（共 {len(rows) + n_bad_rows} 行），首个: {first_bad}")
+
+    # ---- 帧率交叉校验（2026-11-25）：t_sec 反推 fps vs default_fps ----
+    # 【为什么只警告不抛】同一份 lean_clips 喂两条链：本链（V2）按 30fps 口径
+    #   设计（accel 差分与缺 t_sec 的回退 dt 都用它），V3 链（src/dataset_v3.py
+    #   的 EXPECTED_FPS）是 15fps 硬校验。老数据可能真是 30fps，改默认值会
+    #   改变旧数据行为——所以先如实报告偏差，由人判断数据来源后再改。
+    ts = [r["t_sec"] for r in rows if r["t_sec"] is not None]
+    if len(ts) >= 3 and default_fps > 0:
+        dts = [b - a for a, b in zip(ts[:-1], ts[1:]) if (b - a) > 0]
+        if dts:
+            derived_fps = 1.0 / float(np.median(dts))
+            rel = abs(derived_fps - default_fps) / default_fps
+            if rel > 0.15:
+                print(f"[warn] {csv_path.name}: 数据实测约 {derived_fps:.1f} fps，"
+                      f"与 DEFAULT_FPS={default_fps:g} 相差 {rel:.0%}，"
+                      f"时序窗口可能错位（accel 差分与缺 t_sec 的回退 dt 均受影响）")
 
     # ---- heading 单位统一（auto 判定，全 clip 统一，避免逐帧抖动）----
     hvals = [r["heading_raw"] for r in rows if r["heading_raw"] is not None]
