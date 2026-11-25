@@ -534,8 +534,10 @@ final class MapLayerStore: ObservableObject {
         var problems: [String] = []
 
         // ── roads.json（6528 空间 → ×2 到 13056）──
-        if let url = resolve(["tools/roadnet/web/roads.json",
-                              "models/map/roads.json"]) {
+        // 2026-11-25 删掉候选 "models/map/roads.json"：git 全历史从未存在过该文件
+        // （git log --all -- models/map/roads.json 为空），models/map/ 目录本身也不存在，
+        // 死候选只会误导后人以为这个文件本该存在。真实来源只有 tools/roadnet/web/。
+        if let url = resolve(["tools/roadnet/web/roads.json"]) {
             if let edges = parseEdgeList(url) {
                 roads = PolylineStore.build(edges: edges, scale: 2.0)
             } else {
