@@ -135,6 +135,11 @@ NUM_HI_FRAMES = 3
 #: 窗口总帧数（高低清合计），用于与模型侧断言对齐。
 NUM_TOTAL_FRAMES = 24
 
+#: 低清帧数。必须与 model_v3.V3Config.num_lo_frames 一致（默认 21）。
+#: dataset 的 history 参数就是这个数的入口——image_lo 是固定 21 帧窗口，
+#: 不是自由配置；__init__ 里的硬校验会拦截任何不等于本值的 history。
+NUM_LO_FRAMES = NUM_TOTAL_FRAMES - NUM_HI_FRAMES  # 21
+
 #: V3 时序设计假设的录制帧率。
 #: 依据：部署端 tick 定档 15Hz（EngineMain.swift:709「tick（推理+控制+录制）：15Hz」），
 #: V3 的 24 帧窗口按 15Hz 设计 = 1.6s（model_v3.py:274）。
@@ -432,6 +437,16 @@ class V3KeyDataset(Dataset):
         self.image_size = image_size
         self.lowres_size = lowres_size
         self.history = history
+        # 【契约硬校验】history 是低清窗口深度，模型侧 image_lo 固定 21 帧
+        # （NUM_LO_FRAMES = model_v3.V3Config.num_lo_frames 的默认）。传别的值
+        # 训练能跑但窗口深度与模型契约不一致——模型期望 21 帧却收到别的数量，
+        # 训练/推理分布错位，且错误不发生在加载期、毫无征兆。故在此 fail-fast。
+        if history != NUM_LO_FRAMES:
+            raise ValueError(
+                f"history={history} 与模型契约不一致：image_lo 是固定的 "
+                f"{NUM_LO_FRAMES} 帧低清窗口（与 model_v3.V3Config.num_lo_frames 绑定）。"
+                f"改 history 必须同步改 src/model_v3.py 的 V3Config.num_lo_frames "
+                f"和 CoreML 输入 shape，否则训练与推理分布不一致")
         self.augment = augment
         self.rng = random.Random(seed)
         self.expected_fps = expected_fps
