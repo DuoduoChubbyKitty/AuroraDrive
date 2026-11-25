@@ -24,6 +24,11 @@
 #  【用法】
 #    bash scripts/check-dead-code.sh
 #  【退出码】0 = 全部断言通过；1 = 有符号被复活（打印命中行）
+#  【断言清单】
+#    1. V3Decision.risk 非自检代码 0 消费点（唯一登记读者=心跳观测行）
+#    2. VisualLocator / NetworkLocator 全仓零构造点（自身文件除外）
+#    3. locateGate 的 tryBegin/end/isBusy 全仓零调用（闸未生效）
+#    4. locateCtx 四个死字段 0 读写（networkReady 是唯一活字段，不在范围）
 # ============================================================================
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -48,6 +53,48 @@ if [ -n "$HITS" ]; then
     FAIL=1
 else
     echo "  ✓ 非自检代码 0 消费点（V3Decision.risk 仍未接线；唯一登记读者=心跳观测行）"
+fi
+
+echo ""
+echo "── 断言 2：VisualLocator / NetworkLocator 全仓零构造点（自身文件除外）──"
+# 模式 `(^|[^A-Za-z0-9_])X(` 要求构造点前面不是标识符字符：
+# 避开 `ensureVisualLocator(`（MapLocBridge 的接线函数，名字像但无关）。
+# 现役视觉定位是 MapLocBridge，与本二类无关。
+HITS=$(grep -rnE '(^|[^A-Za-z0-9_])(VisualLocator|NetworkLocator)\(' Sources/ \
+    | grep -v 'Locate/VisualLocator.swift' \
+    | grep -v 'Locate/NetworkLocator.swift' \
+    || true)
+if [ -n "$HITS" ]; then
+    echo "  ✗ 出现了新的构造点（接线请同步改对应类型的 deprecated 标记与本判据）："
+    echo "$HITS" | sed 's/^/      /'
+    FAIL=1
+else
+    echo "  ✓ 0 构造点（VisualLocator/NetworkLocator 仍未接线）"
+fi
+
+echo ""
+echo "── 断言 3：locateGate 的 tryBegin/end/isBusy 全仓零调用 ──"
+# DriveState 构造了 locateGate 实例（AuroraDriveApp.swift），但三个方法
+# 全仓零调用 —— 闸未生效。出现 `locateGate.` 即有人在接线。
+HITS=$(grep -rn 'locateGate\.' Sources/ || true)
+if [ -n "$HITS" ]; then
+    echo "  ✗ locateGate 出现了方法调用（接线请同步改 LocateGate 的 deprecated 标记）："
+    echo "$HITS" | sed 's/^/      /'
+    FAIL=1
+else
+    echo "  ✓ 0 调用点（locateGate 仍未生效）"
+fi
+
+echo ""
+echo "── 断言 4：locateCtx 四个死字段（networkReady 除外）零读写 ──"
+HITS=$(grep -rnE 'locateCtx\.(visualLocator|networkLocator|visualReady|activeMode)\b' Sources/ \
+    || true)
+if [ -n "$HITS" ]; then
+    echo "  ✗ 死字段出现读写点（接线请同步改 LocateContext 对应字段的 deprecated 标记）："
+    echo "$HITS" | sed 's/^/      /'
+    FAIL=1
+else
+    echo "  ✓ 0 读写点（唯一活字段 networkReady 不在本断言范围）"
 fi
 
 echo ""

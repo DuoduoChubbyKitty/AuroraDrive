@@ -27,6 +27,12 @@ struct LocateResult {
 /// 视觉定位器（地图模板匹配）。
 /// ⚠️ 2026-11 核实：本类**未被任何代码实例化**（全仓无 `VisualLocator(` 构造点），
 ///   属未接线的死代码（仅 `LocateContext.visualLocator` 有个恒 nil 的可选字段）。
+///   2026-11-25：任务书原计划直接删除本文件，但核实发现 1 处真实引用
+///   （LocateContext.visualLocator 的类型引用），按「有引用不删、标记
+///   deprecated」处理；若将来要删，须连 LocateContext 的死字段一起清。
+///   现役视觉定位是 MapLocBridge（OpenCV CLAHE + 圆形 mask 模板匹配），
+///   与本类无关，别因重名混淆。
+@available(*, deprecated, message: "未接线：全仓零构造点，唯一引用是 LocateContext.visualLocator 的恒 nil 字段（防复活断言见 scripts/check-dead-code.sh）")
 final class VisualLocator {
 
     private let mapPath: String
