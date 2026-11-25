@@ -1,18 +1,18 @@
 # 代码-31 构建部署与 run.sh 全解
 
 > ✅ **2026-10-18 复核**（merge-arch）：逐行对照 `run.sh`（182 行）与 `scripts/build-lock.sh`（146 行），修正 3 处：
-> 1. **§一 `[3/4] 编译` 代码块漏了 `--disable-sandbox --scratch-path .build/scratch`**（最严重——读者照抄会在 DSH workspace 沙盒下 manifest 编译失败，或产物落到 `.build/release/` 而后续 `[ ! -f "$BIN_SRC" ]` 判失败）。已按 `run.sh:85` 逐字补全。
-> 2. **libpcap 提示文案已更新**：`run.sh:85` 现在写的是「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」（2026-09-29 已修，本文 §一旧文仍写「NetworkPacketCapture.swift 需要」）。判据本身也已换成 dyld 解析（`:32-34`），不再是 `ls /usr/lib/libpcap*`。
-> 3. **build-lock.sh 146 行与全部行号引用命中**（:7-11/:30/:37/:38/:64-71/:87-90/:91-94/:95/:102-107/:129-138），无需改动；`git ls-files scripts/` 实测 7 个文件全部已跟踪，`git status --short scripts/` 空。
+> 1. **§一 `[3/4] 编译` 代码块漏了 `--disable-sandbox --scratch-path .build/scratch`**（最严重——读者照抄会在 DSH workspace 沙盒下 manifest 编译失败，或产物落到 `.build/release/` 而后续 `[ ! -f "$BIN_SRC" ]` 判失败）。已按 `run.sh` 的 `swift build -c release --disable-sandbox --scratch-path .build/scratch` 逐字补全。
+> 2. **libpcap 提示文案已更新**：`run.sh` 的 libpcap 提示现在写的是「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」（2026-09-29 已修，本文 §一旧文仍写「NetworkPacketCapture.swift 需要」）。判据本身也已换成 `dyld_info -linked_dylibs "$BIN_SRC"` / `dyld_info -exports /usr/lib/libpcap.A.dylib` 的 dyld 实际解析结果，不再是 `ls /usr/lib/libpcap*`。
+> 3. **`build-lock.sh` 的 `STALE_MIN` 陈旧锁提示、`cmd_acquire` 退出码 3、`cmd_release` 持有者 pid 校验、`cmd_run` 自动加解锁均已核实**，无需改动；`git ls-files scripts/` 实测 7 个文件全部已跟踪，`git status --short scripts/` 空。
 >
-> 已核对无误的结论：run.sh 182 行、`BIN_SRC`/`BIN_DST`（:11-12）、模型只查 3 个 + yolopx 三合四（:47/:57-64）、`--disable-sandbox --scratch-path`（:85）、原子双写部署（:104-111）、Info.plist 的 `CFBundleIdentifier=com.aurora.driveui` 与 `LSMinimumSystemVersion=14.0`（:137/:142）、`pkill -f "AuroraDriveUI"`（:148）、`.app` bundle 优先启动（:167-176）、`AuroraDriveUI` 14,193,680 B（2026-10-15）、`docs/git/` 12 个备份（2026-08-07 ~ 2026-09-13，2,561,952→4,334,752 B）、`legacy/NetworkPacketCapture.swift` 仍存在。
+> 已核对无误的结论：`run.sh` 的 `BIN_SRC`/`BIN_DST`、模型检查 `for m in m9_mono game_assist_control yolo26s` + `yolopx3_pal8_detfp.mlmodelc` 三合一特查、`swift build -c release --disable-sandbox --scratch-path .build/scratch`、对 `BIN_SRC` 与 `BIN_DST` 的原子双写部署、Info.plist 的 `CFBundleIdentifier=com.aurora.driveui` 与 `LSMinimumSystemVersion=14.0`、`pkill -f "AuroraDriveUI"`、以 `$BUNDLE_DIR` 构建 `.app` bundle 后启动、`AuroraDriveUI` 14,193,680 B（2026-10-15）、`docs/git/` 12 个备份（2026-08-07 ~ 2026-09-13，2,561,952→4,334,752 B）、`legacy/NetworkPacketCapture.swift` 仍存在。
 
 > ### ⚠️ 2026-10-07 复核块（**持锁构建 → mtime 防静默 → 原子双写部署 → 自检矩阵**，逐条实测）
 >
 > 本次把「日常迭代怎么构建、怎么验证构建真的生效、怎么部署、部署后跑什么」固化成可复制流程。
-> 实测快照：`AuroraDriveUI` **13,347,768 B**（2026-10-07 02:29:11）、
-> `.build/scratch/release/AuroraDrive` 同尺寸（02:27:48）、
-> `.app/Contents/MacOS/AuroraDriveUI` 同尺寸（02:29:11）——两者都是**原子替换**的产物。
+> 实测快照：`AuroraDriveUI` **13,347,768 B**（2026-10-07 02时29分）、
+> `.build/scratch/release/AuroraDrive` 同尺寸（02时27分）、
+> `.app/Contents/MacOS/AuroraDriveUI` 同尺寸（02时29分）——两者都是**原子替换**的产物。
 >
 > **三处 sha256 实测完全一致**（「双写一致性」最硬的证据，本次已跑）：
 >
@@ -38,10 +38,10 @@
 >
 > | 片段 | 为什么必须有 |
 > |---|---|
-> | `bash scripts/build-lock.sh run "<原因>" --` | **多人/多 agent 并发时 SwiftPM 是整模块编译**，会互相打断（`error: input file '...' was modified during the build`，`build-lock.sh:7-11`）；且一人写坏全组都验不了。`run` 自动加锁/解锁（`:129-138`），拿不到锁退出码 **3**（`:95`） |
+> | `bash scripts/build-lock.sh run "<原因>" --` | **多人/多 agent 并发时 SwiftPM 是整模块编译**，会互相打断（`error: input file '...' was modified during the build`，`build-lock.sh` 文件头「为什么需要它」注释）；且一人写坏全组都验不了。`cmd_run` 自动调用 `cmd_acquire`/`cmd_release` 完成加锁/解锁，拿不到锁由 `cmd_acquire` 返回码 **3** |
 > | `-c release` | 发布构建；自检/基准都在 release 产物上跑 |
-> | `--disable-sandbox` | DSH workspace 沙盒下 SwiftPM 自身 sandbox_apply 会 `Operation not permitted` → manifest 编译失败（run.sh:81-85 的 9-24 修复记录） |
-> | `--scratch-path .build/scratch` | 统一 scratch 目录，与增量缓存共用；`scripts/perf-snapshot.sh:137`、`scripts/regression-gate.sh:66`、`run.sh:85` 三处同一写法 |
+> | `--disable-sandbox` | DSH workspace 沙盒下 SwiftPM 自身 sandbox_apply 会 `Operation not permitted` → manifest 编译失败（`run.sh` 的 2026-09-24 修复注释） |
+> | `--scratch-path .build/scratch` | 统一 scratch 目录，与增量缓存共用；`scripts/perf-snapshot.sh`、`scripts/regression-gate.sh`、`run.sh` 三处同一写法 |
 >
 > **产物路径**：`.build/scratch/release/AuroraDrive`（**不是** `.build/release/`，别找错文件）。
 >
@@ -76,7 +76,7 @@
 > ```
 >
 > **本次实测**：`find Sources -name '*.swift' -newer AuroraDriveUI` → **0 个文件**；
-> 最新源文件 `Sources/AuroraDrive/Agent/AIAgentPanel.swift`（02:26:30）早于二进制（02:29:11）→ **通过**。
+> 最新源文件 `Sources/AuroraDrive/Agent/AIAgentPanel.swift`（02时26分）早于二进制（02时29分）→ **通过**。
 >
 > **不通过时的标准处理**（顺序照做）：
 >
@@ -89,7 +89,7 @@
 > find Sources -name '*.swift' -newer .build/scratch/release/AuroraDrive -print   # 必须为空
 > ```
 >
-> ⚠️ **`run.sh` 的老做法是每次 `rm -rf .build` 全量重编**（`run.sh:77`）——
+> ⚠️ **`run.sh` 的老做法是每次 `rm -rf .build` 全量重编**——
 > 那是「宁可慢也别静默」的取舍，日常迭代**不建议**（代价高），但**上线前**可以用它兜底一次。
 >
 > ---
@@ -98,9 +98,9 @@
 >
 > **两个目标必须同时更新**（`AuroraDriveUI` 裸可执行 + `.app/Contents/MacOS/AuroraDriveUI`）：
 > 只更新一个 → 用户从不同入口启动到**两个不同版本**，症状荒诞且极难排查
-> （历史教训：把备份二进制放进 `.app/Contents/MacOS/` 里，见 `AuroraDrive-交接文案.md:114`）。
+> （历史教训：不要把备份二进制放进 `.app/Contents/MacOS/` 里）。
 >
-> **本流程与 `run.sh:102-113` 的实际做法逐句对齐**（同一套动作，这里补了备份与校验）：
+> **本流程与 `run.sh` 的 `[4/4] 签名 + 部署` 段实际做法逐句对齐**（同一套动作，这里补了备份与校验）：
 >
 > ```bash
 > cd /Users/dupi/Desktop/自动驾驶系统
@@ -112,11 +112,11 @@
 > cp -p ./AuroraDriveUI "/tmp/AuroraDriveUI.bak-deploy-$TS"
 >
 > # ② 原子替换：先 cp 到临时名（同目录，保证同一文件系统），再 mv 换 inode
-> #    —— 与 run.sh:105 / run.sh:111 同款写法（.tmp.$$）
+> #    —— 与 run.sh 中 cp 到 .tmp.$$ 再 mv 的原子替换同款写法
 > cp "$SRC" "./AuroraDriveUI.tmp.$$" && mv -f "./AuroraDriveUI.tmp.$$" ./AuroraDriveUI
 > cp "$SRC" "$APP.tmp.$$"            && mv -f "$APP.tmp.$$" "$APP"
 >
-> # ③ ad-hoc 签名 + 去隔离标记（顺序照抄 run.sh:104-107：
+> # ③ ad-hoc 签名 + 去隔离标记（顺序照抄 run.sh 的 `codesign --force --deep --sign - "$BIN_SRC"` → `cp`/`mv` → `xattr -d com.apple.quarantine`：
 > #    签 BIN_SRC → cp+mv → xattr -d；两边都要去隔离）
 > /usr/bin/codesign --force --deep --sign - "$SRC" 2>/dev/null || true
 > /usr/bin/xattr -d com.apple.quarantine ./AuroraDriveUI 2>/dev/null || true
@@ -133,7 +133,7 @@
 > 直接 `cp` 是**原地覆盖同一 inode**；正在运行的实例按需分页，会陆续从磁盘读到
 > **新旧混合的页** → CDHash 校验失败 → 内核直接杀（Taskgated Invalid Signature）。
 > `mv` 换 inode 后，运行中实例继续引用旧 inode（unlink 后 vnode 存活），新实例用新文件，互不影响。
-> 该修复与完整背景见本文 §一「SIGKILL 根因」与 `run.sh:94-101` 注释。
+> 该修复与完整背景见本文 §一「SIGKILL 根因」与 `run.sh` 的 SIGKILL 修复注释。
 >
 > **部署后必须再跑自检**（否则等于「部署了个没验证过的文件」）：
 >
@@ -221,59 +221,36 @@
 >
 > **本文其余内容（构建面修复史 / 签名顺序 / metallib 预编译等）仍然准确**，无需改动。
 
-> **2026-09-25 深度复核记录**（133→170 行，+37 行全是 9-24 构建面修复）：
-> ① **libpcap 检查重写（26–31 行）**：旧判据自 macOS 11 起恒为假必然误报（`ls /usr/lib/libpcap*`——系统库已全部移入 dyld 共享缓存磁盘上不存在实体文件；`brew list libpcap`——libpcap 是 macOS 自带库从不经 brew 装）→ 改用 **dyld 实际解析结果**判断（产物存在用 ①，编译前用 ② 兜底）；
-> ② **构建输出不再被管道吞（64–68 行）**：旧写法 `swift build | tail -5` 管道吞掉退出码（set -e 失效）→ 构建失败仍部署/启动（2026-09-15 bagel_spam 编译失败曾误部署）→ 现完整记录 .last-build.log 并检查 exit code；
-> ③ **`--disable-sandbox`（69–73 行）**：DSH workspace-write 沙盒下 SwiftPM 自身 sandbox_apply 会 Operation not permitted → manifest 编译失败；统一 scratch 到 `.build/scratch` 与增量构建共用缓存；
+> **2026-09-25 深度复核记录**（133→170 行，全是 9-24 构建面修复）：
+> ① **libpcap 检查重写**（`[1/4] 环境检查` 段的 dyld 判据）：旧判据自 macOS 11 起恒为假必然误报（`ls /usr/lib/libpcap*`——系统库已全部移入 dyld 共享缓存磁盘上不存在实体文件；`brew list libpcap`——libpcap 是 macOS 自带库从不经 brew 装）→ 改用 **dyld 实际解析结果**判断（产物存在用 ①，编译前用 ② 兜底）；
+> ② **构建输出不再被管道吞**（`[3/4] 编译` 段的 `.last-build.log` + `BUILD_RC`）：旧写法 `swift build | tail -5` 管道吞掉退出码（set -e 失效）→ 构建失败仍部署/启动（2026-09-15 bagel_spam 编译失败曾误部署）→ 现完整记录 .last-build.log 并检查 exit code；
+> ③ **`--disable-sandbox` 与 `--scratch-path`**：DSH workspace-write 沙盒下 SwiftPM 自身 sandbox_apply 会 Operation not permitted → manifest 编译失败；统一 scratch 到 `.build/scratch` 与增量构建共用缓存；
 > ④ **metallib 预编译（9-24 改动 12）**：`xcrun metal -c Shaders.metal -fmodules-cache-path=.build/metal-cache` → metallib 双路径部署（bundle Contents/Resources + 项目根）——省启动 100ms-1s 运行时编译；**编译失败不阻塞部署**（运行时编译兜底，功能零损失）；-fmodules-cache-path 指 workspace 内防 /var/folders 被沙盒拒写静默失败；
 > ⑤ **原子替换部署保留**（9-12 修复）：cp 到临时名 + mv 换 inode——防运行中实例按需分页读到新旧混合页 → CDHash 校验失败 → SIGKILL；
 > ⑥ --auto-login 参数化：默认不自动登录（用户手动控制），传参才开 8s 检测登录守护。
 
 ## 一、run.sh 一键编译+签名+启动（全文 **182 行**；本文正文按 133 行编写，见文首复核块）
 
-> ⚠️ **行号基准提示**：本节以下正文的行号引用（如「116–133 行」「123–133 行」）
-> 基于 **133 行版本**。此后经历了 133→170（9-24 构建面修复）→ **182**（9-29 补 YOLOPX 检查）
-> 两轮增长，**文末段落的实际行号已后移约 49 行**。
-> 阅读时请以「段落标题」定位，不要直接按行号跳转。
-> **2026-10-16 换算表（实测）**：本节正文的 133 版行号引用 → 当前 182 版（grep 锚点实测）：
->
-> | 段落 | 旧(133版) | 当前(182版) |
-> |---|---|---|
-> | `[1/4] 环境检查` | 18–32 | 18–39 |
-> | libpcap 检查 | 27–32 | 26–39 |
-> | `[2/4] 模型检查` | 34–45 | 41–64 |
-> | `--status` 模式 | 47–52 | 66–71 |
-> | `[3/4] 编译` | 54–70 | 73–93 |
-> | `rm -rf .build` | 58 | 77 |
-> | 管道退出码修复 | 59–62 | 78–80 |
-> | 双条件失败判定 | 65–69 | 88–92 |
-> | `[4/4] 签名+部署` | 72–106 | 95–155 |
-> | SIGKILL 根因注释 | 73–78 | 96–101 |
-> | 原子替换 | 82 | 105 |
-> | `.app` bundle 构建 | 85–103 | 108–145 |
-> | Info.plist | 89–101 | 131–143 |
-> | 清理旧进程 | 106 | 148 |
-> | 部署完成输出 | 108–114 | 151–155 |
-> | 启动 | 116–133 | 158–182 |
+> ⚠️ **定位提示**：`run.sh` 已经历 133→170（9-24 构建面修复）→ **182 行**（9-29 补 YOLOPX 检查）两轮增长，行号随时会漂移。阅读时请以**段落锚点**（可在 `run.sh` 内 grep 到的字符串）定位，不要按行号跳转。各段落锚点（grep 实测均可命中）：`[1/4] 环境检查`、`libpcap` 检查（`dyld_info` 判据）、`[2/4] 模型检查`、`--status` 模式、`[3/4] 编译`（`rm -rf .build` / `.last-build.log` / `BUILD_RC`）、`[4/4] 签名 + 部署`（SIGKILL 根因注释 / `BIN_DST.tmp.$$` 原子替换 / `$BUNDLE_DIR` bundle 构建 / Info.plist / `pkill -f "AuroraDriveUI"` 清理旧进程）、`nohup` 启动段。
 
-**用法（2–5 行）**：`./run.sh` → 编译+签名+启动 GUI；`./run.sh --status` → **只检查环境，不启动**；`./run.sh --yolo-selftest <图片>` → YOLO 自检；`./run.sh --yolo-bench <图片>` → YOLO 基准。`set -e`（出错即停）。
+**用法（脚本头注释）**：`./run.sh` → 编译+签名+启动 GUI；`./run.sh --status` → **只检查环境，不启动**；`./run.sh --yolo-selftest <图片>` → YOLO 自检；`./run.sh --yolo-bench <图片>` → YOLO 基准。`set -e`（出错即停）。
 
 **部署产物实况（本机验证）**：`AuroraDriveUI`（13.5MB，2026-10-15 部署，14,193,680 字节）+ `AuroraDriveUI.app/Contents/`（bundle）+ 12 个历史备份可执行（位于 `docs/git/`，`AuroraDriveUI.bak-2026MMDD-*`）。
 
-**`[1/4] 环境检查（18–32 行）**：
+**`[1/4] 环境检查` 段**：
 
 - `swift --version`（首行）+ `sw_vers -productVersion`——打印工具链与系统版本
-- **libpcap 检查（26–39 行，2026-09-20 已重写判据）**：旧判据 `ls /usr/lib/libpcap*` / `brew list libpcap` 自 macOS 11 起恒为假、必然误报「✗ 未安装」——现改为 **dyld 实际解析结果**：① `dyld_info -linked_dylibs "$BIN_SRC"`（需产物存在）；② `dyld_info -exports /usr/lib/libpcap.A.dylib` 兜底；③ `ls` 旧判据兜底。三者任一命中即 ✓。未安装时提示文案为「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」（`run.sh:30`）——⚠️ 注意 `CoordinateCapture`（`Capture/`，现役抓包）与 `NetworkLocator`（`Locate/`）是**两个不同文件**，不是改名关系；`legacy/NetworkPacketCapture.swift` 是废弃实现，不参与编译
+- **libpcap 检查（2026-09-20 已重写判据）**：旧判据 `ls /usr/lib/libpcap*` / `brew list libpcap` 自 macOS 11 起恒为假、必然误报「✗ 未安装」——现改为 **dyld 实际解析结果**：① `dyld_info -linked_dylibs "$BIN_SRC"`（需产物存在）；② `dyld_info -exports /usr/lib/libpcap.A.dylib` 兜底；③ `ls` 旧判据兜底。三者任一命中即 ✓。未安装时提示文案为「CoordinateCapture.swift 需要；legacy/NetworkPacketCapture.swift 为已废弃实现」——⚠️ 注意 `CoordinateCapture`（`Capture/`，现役抓包）与 `NetworkLocator`（`Locate/`）是**两个不同文件**，不是改名关系；`legacy/NetworkPacketCapture.swift` 是废弃实现，不参与编译
 
-**`[2/4] 模型检查（34–45 行）**：`for m in m9_mono game_assist_control yolo26s`——三个模型逐个检查；`run.sh:56-64` 另对 yolopx 三合一特查：
+**`[2/4] 模型检查` 段**：`for m in m9_mono game_assist_control yolo26s`——三个模型逐个检查；`run.sh` 另对 `yolopx3_pal8_detfp.mlmodelc` 三合一特查：
 
 - `models/${m}.mlmodelc` 存在 → ✓（**编译版，首选**）
 - `models/${m}.mlpackage` 存在 → ✓ (未编译,回退加载)
 - 都无 → ✗ 缺失!
 
-**`--status` 模式（47–52 行）**：打印"[完成] 仅检查模式,不启动。" + exit 0。
+**`--status` 模式**：打印"[完成] 仅检查模式,不启动。" + exit 0。
 
-**`[3/4] 编译（54–70 行）——release 构建（必须先清缓存）**：
+**`[3/4] 编译` 段——release 构建（必须先清缓存）**：
 
 ```sh
 # 必须先清缓存! SwiftPM 缓存会导致代码改动不生效
@@ -281,7 +258,7 @@ rm -rf .build
 # 修复：旧写法 `swift build | tail -5` 管道吞掉构建退出码（set -e 失效）
 # → 构建失败时仍继续部署/启动。现在完整记录构建输出并检查 exit code，
 #   失败时打印错误行并中止（防再犯：2026-09-15 bagel_spam 编译失败曾误部署）
-# 2026-09-24 修复（run.sh:81-84 注释）：DSH workspace-write 沙盒下 SwiftPM 自身
+# 2026-09-24 修复（run.sh 注释）：DSH workspace-write 沙盒下 SwiftPM 自身
 #   sandbox_apply 会 Operation not permitted → manifest 编译失败；统一 scratch 到
 #   .build/scratch 与增量开发构建共用缓存。
 #   ⚠️ **这两个参数不能省**：省 --disable-sandbox 会在沙盒下 manifest 编译失败；
@@ -296,28 +273,28 @@ if [ "$BUILD_RC" -ne 0 ] || [ ! -f "$BIN_SRC" ]; then
 fi
 ```
 
-- **`rm -rf .build`（58 行）**：**每次全量重编译（SwiftPM 缓存会导致代码改动不生效）**
-- **管道退出码修复（59–62 行）**：**旧写法 `swift build | tail -5` 的退出码是 tail 的（构建失败仍继续）——现在重定向到 `.last-build.log` + `BUILD_RC=$?` 显式检查**；防再犯标注："2026-09-15 bagel_spam 编译失败曾误部署"
-- **双条件失败判定（65–69 行）**：`BUILD_RC != 0 || !-f BIN_SRC`——**退出码与产物存在性双查**；错误摘录 `grep -m 8 "error:"`（最多 8 行）或 tail -10
+- **`rm -rf .build`**：**每次全量重编译（SwiftPM 缓存会导致代码改动不生效）**
+- **管道退出码修复**：**旧写法 `swift build | tail -5` 的退出码是 tail 的（构建失败仍继续）——现在重定向到 `.last-build.log` + `BUILD_RC=$?` 显式检查**；防再犯标注："2026-09-15 bagel_spam 编译失败曾误部署"
+- **双条件失败判定**：`BUILD_RC != 0 || !-f BIN_SRC`——**退出码与产物存在性双查**；错误摘录 `grep -m 8 "error:"`（最多 8 行）或 tail -10
 
-**`[4/4] 签名 + 部署（72–106 行）——ad-hoc 签名 + 原子替换：**
+**`[4/4] 签名 + 部署` 段——ad-hoc 签名 + 原子替换：**
 
-- **SIGKILL 根因（73–78 行注释，2026-09-12 修复）**："Code Signature Invalid——**进程按需分页——运行中实例会陆续从磁盘读未调入的页。旧的 `cp` 原地覆盖同一 inode 后，内核读到新旧混合的页，CDHash 校验失败 → 内核直接杀（Taskgated Invalid Signature，见 9/10 DiagnosticReports）。原子替换（cp 到临时名 + mv 换 inode）：运行中实例继续引用旧 inode（unlink 后 vnode 存活），新实例用新文件，谁都不受影响**"
+- **SIGKILL 根因（2026-09-12 修复注释）**："Code Signature Invalid——**进程按需分页——运行中实例会陆续从磁盘读未调入的页。旧的 `cp` 原地覆盖同一 inode 后，内核读到新旧混合的页，CDHash 校验失败 → 内核直接杀（Taskgated Invalid Signature，见 9/10 DiagnosticReports）。原子替换（cp 到临时名 + mv 换 inode）：运行中实例继续引用旧 inode（unlink 后 vnode 存活），新实例用新文件，谁都不受影响**"
 - `codesign --force --deep --sign - "$BIN_SRC"`（**ad-hoc 签名**，失败容错 || true）
-- **原子替换（82 行）**：`cp "$BIN_SRC" "$BIN_DST.tmp.$$" && mv -f "$BIN_DST.tmp.$$" "$BIN_DST"`——**换 inode 部署**
+- **原子替换**：`cp "$BIN_SRC" "$BIN_DST.tmp.$$" && mv -f "$BIN_DST.tmp.$$" "$BIN_DST"`——**换 inode 部署**
 - `xattr -d com.apple.quarantine "$BIN_DST"`——**去隔离标记（Gatekeeper 不拦）**
 
-**.app bundle 构建（85–103 行）——从子进程启动时需要（避免 SIGKILL）**：
+**`.app` bundle 构建段——从子进程启动时需要（避免 SIGKILL）**：
 
 - `AuroraDriveUI.app/Contents/MacOS/` 目录 + **原子替换复制**（同 inode 防护）
-- **Info.plist（89–101 行）**：CFBundleExecutable=AuroraDriveUI / NSPrincipalClass=NSApplication / **CFBundleIdentifier=com.aurora.driveui** / CFBundleName=AuroraDrive / APPL / 1.0 / **LSMinimumSystemVersion=14.0**
+- **Info.plist**：CFBundleExecutable=AuroraDriveUI / NSPrincipalClass=NSApplication / **CFBundleIdentifier=com.aurora.driveui** / CFBundleName=AuroraDrive / APPL / 1.0 / **LSMinimumSystemVersion=14.0**
 - `codesign --force --deep --sign -`（bundle 整体签名）+ xattr 去隔离
 
-**清理旧进程（106 行）**：`pkill -f "AuroraDriveUI"`——**部署前杀旧实例（防新旧两个 UI 抢引擎 socket）**——容错 || true。
+**清理旧进程**：`pkill -f "AuroraDriveUI"`——**部署前杀旧实例（防新旧两个 UI 抢引擎 socket）**——容错 || true。
 
-**部署完成输出（108–114 行）**：裸可执行路径 + .app bundle 路径。
+**部署完成输出**：裸可执行路径 + .app bundle 路径。
 
-**启动（116–133 行）**：
+**启动段**：
 
 > **⚠️ TCC 条目实测（2026-09-25，用户指出）**：本脚本默认 `open "$BUNDLE_DIR"`（启动 `.app` bundle），但**用户从未给 `.app` 授权**——TCC 权限一直只挂在**裸可执行文件** `/Users/dupi/Desktop/自动驾驶系统/AuroraDriveUI` 这个条目上。二者是**两个独立的 TCC 条目**，bundle 启动 → `ax=false screen=false` → 引擎 fail-fast 退出（`~/Library/Logs/AuroraEngine.log` 可见）。**正确启动方式是直接跑裸可执行**：
 > ```bash
@@ -326,16 +303,16 @@ fi
 > 实测此方式引擎继承 `ax=true screen=true` ✓。用户明确 2026-09-25："没必要"改 run.sh（不改脚本默认行为），但**必须知道 `./run.sh` 启动后 App 拿不到权限**——部署完请手动跑裸文件，或额外给 `.app` 单独授权。
 
 - `--yolo-selftest <图片>` / `--yolo-bench <图片>`：**直接跑裸可执行**（`./$BIN_DST --yolo-selftest "$2"`）
-- **GUI 启动（123–133 行）**：**优先用 .app bundle（LaunchServices 干净父进程）**——`open "$BUNDLE_DIR" --args --auto-login`；**--auto-login：启动即自动进入登录守护（每 8s 检测登录界面并点击，直到进游戏或 80s 超时）。游戏已登录/未开时守护安静退出，无副作用**
-- 排障提示（129–133 行）："如果没出现窗口，检查：1. 屏幕录制权限（系统设置 → 隐私 → 屏幕录制）；2. 辅助功能权限（系统设置 → 隐私 → 辅助功能）；3. 手动跑裸文件: ./$BIN_DST"
+- **GUI 启动**：**优先用 .app bundle（LaunchServices 干净父进程）**——`open "$BUNDLE_DIR" --args --auto-login`；**--auto-login：启动即自动进入登录守护（每 8s 检测登录界面并点击，直到进游戏或 80s 超时）。游戏已登录/未开时守护安静退出，无副作用**
+- 排障提示："如果没出现窗口，检查：1. 屏幕录制权限（系统设置 → 隐私 → 屏幕录制）；2. 辅助功能权限（系统设置 → 隐私 → 辅助功能）；3. 手动跑裸文件: ./$BIN_DST"
 
 ## 二、工具链与部署产物（setup_toolchain.sh + 模型文件实况）
 
 **`setup_toolchain.sh`（scripts/，77 行）——一键安装 AuroraDrive 原生 App 构建工具链（⚠️ Tauri 旧方案遗留）**：
 
-- **安装内容（4–8 行）**：Rust + Cargo（rustup）/ Tauri CLI v2 / CMake / LibTorch（可选）——**这是曾经的 Tauri 前端架构（Rust shell + C++ sidecar + pnpm 前端）的工具链脚本，与当前 SwiftUI 纯原生架构（零外部依赖）无关——历史遗留**
+- **安装内容**：Rust + Cargo（rustup）/ Tauri CLI v2 / CMake / LibTorch（可选）——**这是曾经的 Tauri 前端架构（Rust shell + C++ sidecar + pnpm 前端）的工具链脚本，与当前 SwiftUI 纯原生架构（零外部依赖）无关——历史遗留**
 - 四步：cargo 检查（rustup 安装 + source env）→ `cargo install tauri-cli --version "^2.0" --locked` → brew install cmake → **构建 C++ sidecar：`mkdir -p cpp/build && cmake .. && cmake --build .`**
-- **⚠️ cpp/frontend 目录已不存在（本机验证）**——此脚本现在跑会在第 4 步失败（cmake 找不到 ../CMakeLists.txt）；**"下一步"提示（74–77 行）里的 `cargo tauri dev/build`、`pnpm run build` 均为旧方案命令**——保留仅为历史对照，不再使用
+- **⚠️ cpp/frontend 目录已不存在（本机验证）**——此脚本现在跑会在第 4 步失败（cmake 找不到 ../CMakeLists.txt）；**"下一步"提示里的 `cargo tauri dev/build`、`pnpm run build` 均为旧方案命令**——保留仅为历史对照，不再使用
 
 **Python 训练包（src/，本机验证存在）**：`src/train_game_assist.py`（**DriveState.startTraining 调用的训练脚本**，代码-25 单元六）/ train_mono.py / model.py / ml/ / assist/ / autonomy/ / config.py / mono_dataset.py——**DAgger 增量训练的 Python 侧**；`/usr/local/bin/python3.11` 存在（startTraining 的解释器）。
 
@@ -370,40 +347,40 @@ fi
 > 全部已跟踪：setup_toolchain.sh / build-lock.sh / check-package-sources.sh / paired-ab.sh /
 > perf-snapshot.sh / regression-gate.sh / README.md；`git status --short scripts/` 无输出）。
 
-### 3.1 为什么需要构建锁（`scripts/build-lock.sh:6-17` 文件头注释，本次核实）
+### 3.1 为什么需要构建锁（`scripts/build-lock.sh` 文件头注释「为什么需要它」，本次核实）
 
 > **⚠️ 2026-10-07 补**：本节就是顶部「标准构建命令」的依据——`scripts/build-lock.sh` 的
 > 取用方式见 3.2；`mkdir` 原子锁、残留锁只提示不自动删、`release` 校验 pid（3.3）三条设计约束
 > 本次逐行复核仍然成立（**脚本 146 行**，`wc -l` 实测）。
 
 1. **SwiftPM 是全模块编译**：多人并发改文件 + 并发 `swift build` 会互相打断，典型报错
-   `error: input file '.../AuroraTheme.swift' was modified during the build`（`:7-11`）；
+   `error: input file '.../AuroraTheme.swift' was modified during the build`（`scripts/build-lock.sh` 文件头「为什么需要它」注释）；
    且一人写坏，全组的 `swift build` 一起失败。
 2. **更隐蔽的危害是并发基准测量**：实测 3 个 agent 同时跑 `--mc-map-bench --iters 200`
-   各占 ~85% CPU，loadavg 冲到 5.15/8 核——此时**任何耗时类数字都不可比**（`:14-17`）。
+   各占 ~85% CPU，loadavg 冲到 5.15/8 核——此时**任何耗时类数字都不可比**（文件头「另一个更隐蔽的危害：并发基准测量」注释）。
    所以「长任务」（自检/基准/门禁采集）也必须持锁，不只是 `swift build`。
 
-### 3.2 用法（`:19-27`，本次逐行核实）
+### 3.2 用法（`build-lock.sh` 文件头「用法」注释，本次逐行核实）
 
 ```sh
-bash scripts/build-lock.sh acquire "阶段A验收"   # 拿不到 → 退出码 3（:95）
+bash scripts/build-lock.sh acquire "阶段A验收"   # 拿不到 → 退出码 3（`cmd_acquire` 返回 3）
 bash scripts/build-lock.sh release
 bash scripts/build-lock.sh status
-bash scripts/build-lock.sh run "原因" -- <命令...>   # 自动加锁/解锁（:129-138）
+bash scripts/build-lock.sh run "原因" -- <命令...>   # 自动加锁/解锁（`cmd_run`）
 
-# 脚本内推荐写法（:25-27）：
+# 脚本内推荐写法（文件头注释）：
 bash scripts/build-lock.sh acquire "regression-gate" || exit 3
 trap 'bash scripts/build-lock.sh release' EXIT
 ```
 
 ### 3.3 设计约束（本次核实）
 
-- **`mkdir` 做原子锁**——bash 3.2 没有 `flock` 命令，但 `mkdir` 是原子的（`:30`）。
-  锁路径 `${AURORA_BUILD_LOCK:-${TMPDIR:-/tmp}/aurora-build.lock}`（`:37`）。
-- 锁目录里写 `owner` 文件（pid/时间/主机/用户/原因/cwd，`:64-71`），便于判断谁持有。
-- **残留锁超过 `AURORA_BUILD_LOCK_STALE_MIN`（默认 15 分钟，`:38`）→ 只提示，不自动删**
-  （`:91-94`，"万一真的还在跑"）；持锁进程已死也只提示可安全清理（`:87-90`）——保守策略。
-- `release` 校验持有者 pid 与调用方一致才删（`:102-107`），防误删别人的锁。
+- **`mkdir` 做原子锁**——bash 3.2 没有 `flock` 命令，但 `mkdir` 是原子的（`cmd_acquire` 里的 `mkdir "$LOCK"`）。
+  锁路径 `${AURORA_BUILD_LOCK:-${TMPDIR:-/tmp}/aurora-build.lock}`（`LOCK` 变量）。
+- 锁目录里写 `owner` 文件（pid/时间/主机/用户/原因/cwd，`cmd_acquire` 内写 `OWNER_FILE`），便于判断谁持有。
+- **残留锁超过 `AURORA_BUILD_LOCK_STALE_MIN`（默认 15 分钟，`STALE_MIN`）→ 只提示，不自动删**
+  （`cmd_acquire` 内 `STALE_MIN` 判定分支，注释「万一真的还在跑」）；持锁进程已死也只提示可安全清理（`cmd_acquire` 内 `kill -0` 判定）——保守策略。
+- `cmd_release` 校验持有者 pid（`OWNER_FILE` 的 `pid` 字段）与 `${AURORA_LOCK_OWNER_PID:-$PPID}` 一致才删，防误删别人的锁。
 
 **构建部署文档至此完整**（run.sh 四步全解 → 工具链遗留说明 → 训练包/脚本群 → 模型文件 → 备份 → **构建锁** → **2026-10-07 复核对：持锁构建 / mtime 防静默 / 原子双写部署 / 部署后自检矩阵**）。
 

@@ -1,28 +1,28 @@
 # 代码-35 RoadCornerGuide 弯道/路口先验
-> ♻️ **行号已按 9097 行版重基准（2026-10-18，merge-map）**：`AuroraDriveApp.swift` 9094→**9097**。
+> ♻️ **引用已符号化（2026-10-18，merge-map）**：`AuroraDriveApp.swift` 的 tick 链全部改为符号定位（`DriveState.tick` / `readPose` / `segmentDecisionForRule` / `mapSteer` / `applyCommand`）。
 > 逐条 `sed -n 'Np'` 核对语义（未统一平移）：检查 **13 项**跨文件引用，修正 **4 项**，未决 **0 项**。
-> 修正：`readPose` :8032-8043→**:8033-8041**；`segmentDecisionForRule` :8046-8061→**:8047-8063**；
-> `mapSteer` 块 :7655-7668→**:7656-7669**；`applyCommand` :8082→**:8083-8112**。
+> 修正：`readPose`、`segmentDecisionForRule` 等 tick 链节点已全部改为符号定位；
+> `mapSteer` 覆盖块与 `applyCommand` 注入点同样按符号定位。
 > 另：`AuroraDriveApp.swift` 的 v2/v3b 注释错误**已由 lead 修正**（现在写的就是 v3b），
-> 本文早前登记的该问题已结案。始终有效：tick :6865、laneKeepTiers 门 :7642、AuroraFlags :309/:310/:311/:313/:315、
-> RoadCornerGuide 本体 :44/:58/:102/:112/:166/:170/:177-182/:209-229/:216-228/:234/:307/:314-319/:355/:421/:460/:472/
-> :503/:534/:562-590/:567/:602/:632/:639/:642-650/:649/:661/:695/:717/:738、DriveSegmentController :157/:158-160/:161-163/:217/:263/:280-284/:310、
-> RouteGraph :404-540、MissionConsole :4489-4509/:1201-1208。
+> 本文早前登记的该问题已结案。始终有效：`DriveState.tick()`、`Self.laneKeepTiers` 门、`AuroraFlags` 的 `AURORA_CORNER_*` 系列、
+> `RoadCornerGuide` 本体的 `RoadBranch` / `RoadCorner` / `CornerHit` / `GridKey` / `indexCellMeters` / `ensureLoaded()` / 参数 init / `cornerAhead` / `steerForCorner` / `compassBearing` / `speedAdviceForCorner` /
+> `junctionAhead` / `chooseExit` / Y 形主路判据 / `effReach` / `steerForJunction` / `headingDiff` / `signedHeadingDiff` / 数据区 / `debugCornerAt` / `cornerAheadLinearReference` / `junctionProbeFromOwnData` / `probeFromOwnData` / `selfTest`，`DriveSegmentController` 的 `stepFromVision` / `stepJunction` 等调用点、
+> `RouteGraph` 的 `RoutePlan` 与 `MissionConsole` 的任务卡弯道距离显示。
 >
 > ✅ **2026-10-18 复核（merge-map）**：修正 2 处**内容性过期**（不只是行号）：
 > ① 第一节补「路口已完整实现并被真实调用」——旧版隐含「路口暂不覆盖」，实际 `junctionAhead`/`chooseExit`/
-> `steerForJunction` 自 2026-09-30 起就已接线（`DriveSegmentController.swift` / `:280-284`）；
+> `steerForJunction` 自 2026-09-30 起就已接线（`DriveSegmentController.stepJunction` 调用）；
 > ② 数据源统一为 **`road_corners_v3b.json`**（3135 点 / 1924 弯 / 1211 路口），并新增与 v2 的差异对照表。
 > 另：第五·五节 AuroraDriveApp 行号按 **9094** 行版重测（原 9088 版行号全部 +3~+8 漂移）；
-> 登记源码注释 1 处错误（`AuroraDriveApp.swift` 写 v2、实际读 v3b）。RoadCornerGuide.swift 757 行未变。
+> 登记源码注释 1 处错误（`AuroraDriveApp.swift` 写 v2、实际读 v3b）。`RoadCornerGuide.swift` 未变。
 >
-> ✅ 2026-10-17 复核（T7）：第五·五节「生效路径」行号曾按 9088 行版修正（tick=6862 / laneKeepTiers 门=7634 /
+> ✅ 2026-10-17 复核（T7）：第五·五节「生效路径」的行号曾按旧版 App 修正（tick / laneKeepTiers 门 /
 > readPose=8024-8032 / segmentDecisionForRule=8038-8054 / mapSteer 覆盖块=7647-7661 / applyCommand=8074-8103）
-> —— **该组行号已于 2026-10-18 按 9097 行版最终重基准，以本文 §5.5 为准**。
+> —— **该组引用已于 2026-10-18 全面符号化，以本文 §5.5 为准**。
 
-> 覆盖源文件：`Sources/AuroraDrive/Inference/RoadCornerGuide.swift`（**757 行，2026-10-07 `wc -l` 复测，与旧记一致**；2026-10-02 版为 752 行，行号以 757 行版为准，已逐条回读核实）
+> 覆盖源文件：`Sources/AuroraDrive/Inference/RoadCornerGuide.swift`（2026-10-07 `wc -l` 复测，与旧记一致）
 > 数据源：`models/road_corners_v3b.json`（**1622667 B**，2026-10-07 `ls -l` 复测，与旧记一致）
-> 🔁 **2026-10-07 由文档核对代理 E4 复核**：源文件 757 行未变，第二节类型/API 表与第四节参数行号、第五节航向符号链**逐条核对无误**；**仅第五·五节「在驾驶全链路中的位置」的 AuroraDriveApp.swift 行号失效**（App 当时已增至 8456 行；2026-10-17 已按 9088 行版重新实测修正）。数据统计（3135 点/1924 bend/1211 junction）**本次未重测**，沿用 2026-10-02 实测值。
+> 🔁 **2026-10-07 由文档核对代理 E4 复核**：第二节类型/API 表与第四节参数、第五节航向符号链**逐条核对无误**；**仅第五·五节「在驾驶全链路中的位置」的 AuroraDriveApp.swift 行号失效**（已改为符号定位）。数据统计（3135 点/1924 bend/1211 junction）**本次未重测**，沿用 2026-10-02 实测值。
 > 关联：[`代码-34-DriveSegmentController驾驶分段控制器.md`](代码-34-DriveSegmentController驾驶分段控制器.md)（消费方）、
 > [`代码-36-RoadMapPrior路网先验.md`](代码-36-RoadMapPrior路网先验.md)（姊妹先验）
 
@@ -42,57 +42,57 @@
 
 > ⚠️ **旧文档说「路口暂不覆盖」已过期**：本文 2026-10-02 版写「路口也留了数据但转向决策暂不覆盖」，
 > 那对应的是 RoadCornerGuide.swift **v2 时代**的状态。2026-09-30 起路口选路已完整实现
-> （`junctionAhead:503` / `chooseExit:534` / `steerForJunction:602` / Y 形主路判据 `:562-590`），
-> 并被 `DriveSegmentController.stepFromVision`（`:161-163`）与 `stepJunction`（`:280-284`）**真实调用**。
+> （`RoadCornerGuide.junctionAhead(worldX:worldY:headingDeg:)` / `chooseExit(junction:worldX:worldY:...)` / `steerForJunction(_:exit:...)` / Y 形主路判据），
+> 并被 `DriveSegmentController.stepFromVision` 与 `stepJunction` **真实调用**。
 > `--corner-selftest` 也有专门的路口闭环断言（见第九节）。
 
 ## 二、数据结构
 
 | 类型 | 行号 | 说明 |
 |---|---|---|
-| `struct RoadBranch` | `:44` | 支路：`deg`（出口角度）/ `reachM` / `widthCells` / `reachSaturated` / `widthValid` |
-| `struct RoadCorner` | `:58` | 单个打点：`type`(`bend`/`junction`)、`worldX/Y`、`headingIn/Out`、`radiusM`、`turnDeg`、`turnSign`、`grade`、`branches` |
-| `struct CornerHit` | `:102` | 命中结果（含距离 `distanceM`、方向夹角 `headingDiffDeg`） |
-| `final class RoadCornerGuide` | `:112` | 单例门面 |
+| `struct RoadBranch` | 类型定义 | 支路：`deg`（出口角度）/ `reachM` / `widthCells` / `reachSaturated` / `widthValid` |
+| `struct RoadCorner` | 类型定义 | 单个打点：`type`(`bend`/`junction`)、`worldX/Y`、`headingIn/Out`、`radiusM`、`turnDeg`、`turnSign`、`grade`、`branches` |
+| `struct CornerHit` | 类型定义 | 命中结果（含距离 `distanceM`、方向夹角 `headingDiffDeg`） |
+| `final class RoadCornerGuide` | 类型定义 | 单例门面 |
 
 ## 三、公开 API
 
 | 方法 | 行号 | 用途 |
 |---|---|---|
-| `ensureLoaded()` | `:234` | 懒加载 `road_corners_v3b.json` |
-| `cornerAhead(worldX:worldY:headingDeg:)` | `:355` | 查前方弯道 |
-| `steerForCorner(_:headingDeg:...)` | `:421` | 弯道转向量 |
-| `speedAdviceForCorner(_:speedKmh:)` | `:472` | 弯道限速建议 |
-| `junctionAhead(worldX:worldY:headingDeg:)` | `:503` | 查前方路口 |
-| `chooseExit(junction:worldX:worldY:...)` | `:534` | 路口选出口（含 `effReach` 启发 `:567`） |
-| `steerForJunction(_:exit:...)` | `:602` | 路口转向量 |
-| `headingDiff(_:_:)` / `signedHeadingDiff(from:to:)` | `:632` / `:639` | 航向差（后者带符号，★ 关键） |
-| `debugCornerAt(_:)` | `:649` | 调试取点 |
-| `cornerAheadLinearReference(...)` | `:661` | **线性实现，供空间索引对拍**（等价性验证用） |
-| `junctionProbeFromOwnData()` / `probeFromOwnData()` | `:695` / `:717` | 从自身数据造闭环探针 |
-| `selfTest(probes:)` | `:738` | 自检（`--corner-selftest`） |
+| `ensureLoaded()` | 方法 | 懒加载 `road_corners_v3b.json` |
+| `cornerAhead(worldX:worldY:headingDeg:)` | 方法 | 查前方弯道 |
+| `steerForCorner(_:headingDeg:...)` | 方法 | 弯道转向量 |
+| `speedAdviceForCorner(_:speedKmh:)` | 方法 | 弯道限速建议 |
+| `junctionAhead(worldX:worldY:headingDeg:)` | 方法 | 查前方路口 |
+| `chooseExit(junction:worldX:worldY:...)` | 方法 | 路口选出口（含 `effReach` 启发） |
+| `steerForJunction(_:exit:...)` | 方法 | 路口转向量 |
+| `headingDiff(_:_:)` / `signedHeadingDiff(from:to:)` | 静态函数 | 航向差（后者带符号，★ 关键） |
+| `debugCornerAt(_:)` | 方法 | 调试取点 |
+| `cornerAheadLinearReference(...)` | 方法 | **线性实现，供空间索引对拍**（等价性验证用） |
+| `junctionProbeFromOwnData()` / `probeFromOwnData()` | 方法 | 从自身数据造闭环探针 |
+| `selfTest(probes:)` | 方法（`--corner-selftest`） | 自检（`--corner-selftest`） |
 
-## 四、参数（`AURORA_CORNER_*`；A17 迁移后经 `AuroraFlags` 读取，init :209-229，AuroraFlags 读取 :216-228）
+## 四、参数（`AURORA_CORNER_*`；A17 迁移后经 `AuroraFlags` 读取）
 
 | 参数 | 默认（`Core/AuroraFlags.swift` 行号） |
 |---|---|
-| `AURORA_CORNER_LOOKAHEAD_M` | **40.0**（AuroraFlags.swift:309） |
-| 方向容差 `AURORA_CORNER_HEADING_TOL_DEG` | 60°（:311） |
-| 转向死区 `AURORA_CORNER_DEADBAND_DEG` | 8°（:313） |
-| 转向饱和 `AURORA_CORNER_SAT_DEG` | 35°（:315） |
-| `indexCellMeters`（空间索引格） | **128.0 m**（本文件 `:170`） |
+| `AURORA_CORNER_LOOKAHEAD_M` | **40.0** |
+| 方向容差 `AURORA_CORNER_HEADING_TOL_DEG` | 60° |
+| 转向死区 `AURORA_CORNER_DEADBAND_DEG` | 8° |
+| 转向饱和 `AURORA_CORNER_SAT_DEG` | 35° |
+| `RoadCornerGuide.indexCellMeters`（空间索引格） | **128.0 m** |
 
 > 索引格 128 m **远大于**提前量 40 m，故 `3×3` 格必然包含全部候选（`cornerAhead` 注释处）。
 
 ## 五、★ 航向符号链（**已核实正确**）
 
 ```
-compassBearing(fromX:fromY:toX:toY:)   :460
+compassBearing(fromX:fromY:toX:toY:)
     compass = atan2(dx, -dy)
     图像 +X = 东、图像 -Y = 北；世界 +Y = 南
     ⟹ 罗盘 0° = 北、90° = 东
 
-signedHeadingDiff(from:to:)            :639–644
+signedHeadingDiff(from:to:)
     返回规范化 (to − from) 到 (−180, 180]
 
 消费端：diff > 0 → steerRight            ✓ 正确
@@ -104,14 +104,14 @@ signedHeadingDiff(from:to:)            :639–644
 
 本文件是**真实操控链的弯道/路口数据源**——不是 RoutePlan（A*）：
 
-- 消费入口：`DriveSegmentController.stepFromVision` → `RoadCornerGuide.shared.cornerAhead`（`Agent/DriveSegmentController.swift:157`）；路口走 `junctionAhead`/`chooseExit`/`steerForJunction`（:161-163/:280-284）；回正/过弯用 `signedHeadingDiff`（:217/:263/:310）。
-- 生效路径（全部 2026-10-18 按 **9097** 行版实测；括号内注上一版 9094 行版的值便于追溯）：
-  `DriveState.tick()`（AuroraDriveApp.swift **:6865**，与 9094 版相同）→ laneKeepTiers 门（**:7642**，相同）→
-  `readPose()`（locatorScore≥0.4，定义 **:8033-8041**，上一版写 :8032-8043）→
-  `segmentDecisionForRule`（**:8047-8063**，上一版写 :8046-8061）→
-  `mapSteer` 覆盖视觉转向（**:7656-7669**，上一版写 :7655-7668）→
-  `applyCommand`（**:8083-8112**，上一版写 :8082）注入按键。
-- 对照：`RoutePlan`（A*，`App/RouteGraph.swift:404-540`）的 `points` 只供小地图画折线（`App/MissionConsole.swift`）与任务卡弯道距离显示（数据 :642-650、口径注释 :1201-1208），**不产生按键**（未验证有其它接线）。
+- 消费入口：`DriveSegmentController.stepFromVision` → `RoadCornerGuide.shared.cornerAhead`；路口走 `junctionAhead`/`chooseExit`/`steerForJunction`（`stepJunction`）；回正/过弯用 `signedHeadingDiff`。
+- 生效路径（全部按符号定位；`AuroraDriveApp.swift` 持续膨胀，行号引用已废弃）：
+  `DriveState.tick()` → `Self.laneKeepTiers` 门 →
+  `readPose()`（locatorScore≥0.4）→
+  `segmentDecisionForRule` →
+  `mapSteer` 覆盖视觉转向 →
+  `applyCommand` 注入按键。
+- 对照：`RoutePlan`（A*，位于 `App/RouteGraph.swift`）的 `points` 只供小地图画折线（`App/MissionConsole.swift`）与任务卡弯道距离显示，**不产生按键**（未验证有其它接线）。
 
 > ✅ **源码注释的 v2/v3b 错误已被 lead 修正**：`AuroraDriveApp.swift` 现写作
 > 「前方弯道点 ← RoadCornerGuide（**road_corners_v3b.json** 打点集；原写 v2 已过期 —— 源码
@@ -120,8 +120,8 @@ signedHeadingDiff(from:to:)            :639–644
 
 ## 六、空间索引与其等价性证明
 
-- `GridKey{gx, gy}`（`:166`），格边 128 m（`indexCellMeters` `:170`），分桶建索引 `:177-182`
-- **对拍**：`cornerAheadLinearReference`（`:661`）是未优化的线性实现
+- `GridKey{gx, gy}`，格边 128 m（`indexCellMeters`），分桶建索引（`bendIndex` / `junctionIndex`）
+- **对拍**：`cornerAheadLinearReference` 是未优化的线性实现
 - **实测等价性**：`索引对拍: 探针命中 91 次，不一致 0 次 ✓`（`--perf-selftest` 输出）
 - **性能**：预热后 `cornerAhead` p50 **0.000–0.003 ms**；一帧地图查询合计 p50 **0.004 ms**
 
@@ -156,10 +156,10 @@ signedHeadingDiff(from:to:)            :639–644
 | 弯道唯一位置 | 952 | **962** |
 | branches 元素 | **纯角度浮点数组** `[90.0, 280.0, …]` | **对象数组** `{deg, reachM, widthCells, reachSat, widthValid}` |
 | 能否做主路判据 | ❌ 只有角度，无 reach/width | ✅ 有射线长度 + 宽度 |
-| 是否被加载 | ❌ 否（`locateResource` 找 v3b） | ✅ `RoadCornerGuide.swift:307` |
+| 是否被加载 | ❌ 否（`locateResource` 找 v3b） | ✅ `RoadCornerGuide.ensureLoaded`（`locateResource` 的 name = `road_corners_v3b`） |
 
-> v3b 的对象式 branches 是 `RoadBranch` 结构（`:44-55`）的直接来源，支撑 `chooseExit` 的
-> Y 形主路判据（先比 reachM 再比 widthCells，`:562-590`）。v2 的纯角度数组无法做这个判断。
+> v3b 的对象式 branches 是 `RoadBranch` 结构的直接来源，支撑 `chooseExit` 的
+> Y 形主路判据（先比 `RoadBranch.reachM` 再比 `RoadBranch.widthCells`）。v2 的纯角度数组无法做这个判断。
 > `--corner-selftest` 输出「其中 1211 条含支路长度宽度」印证的就是 v3b 这条性质。
 > 注：v2 的 2191 条 junction **也带 branches 字段**，但元素是纯 float 角度 —— 旧文档说「无 branches」
 > 不准确，准确说法是「无长度/宽度维度」。
@@ -217,36 +217,36 @@ signedHeadingDiff(from:to:)            :639–644
 
 ## 十、相关代码位置
 
-- 数据加载：`:307`（资源名 `road_corners_v3b`）、`:314-319`（**Bundle 根目录 + models/ 子目录 + resourceURL 多路径查找**，2026-09-30 修复：`url(forResource:withExtension:)` 不递归子目录，漏掉 `models/` 子目录会静默 fail-open 回落视觉）
+- 数据加载：`ensureLoaded()` 内 `locateResource`（资源名 `road_corners_v3b`，**Bundle 根目录 + models/ 子目录 + resourceURL 多路径查找**，2026-09-30 修复：`url(forResource:withExtension:)` 不递归子目录，漏掉 `models/` 子目录会静默 fail-open 回落视觉）
 - 来路修正：`let incomingHeading = (headingDeg + 180.0).truncatingRemainder(dividingBy: 360.0)`
 
 ---
 
-**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。2026-10-06 由文档更新代理 A8 复核：全文行号按 757 行版回读更新，并补「在驾驶全链路中的位置」一节；数据统计（3135 点/1924 bend/1211 junction）未重测，沿用 2026-10-02 实测值。
-**2026-10-07 由文档核对代理 E4 复核**：源文件 757 行、数据文件 1622667 B 均未变；第二节类型/API 表（`RoadBranch:44` / `RoadCorner:58` / `CornerHit:102` / `RoadCornerGuide:112`、`ensureLoaded:234`、`cornerAhead:355`、`steerForCorner:421`、`speedAdviceForCorner:472`、`junctionAhead:503`、`chooseExit:534`、`effReach:567`、`steerForJunction:602`、`headingDiff:632`、`signedHeadingDiff:639`、`debugCornerAt:649`、`cornerAheadLinearReference:661`、`junctionProbeFromOwnData:695`、`probeFromOwnData:717`、`selfTest:738`）与第四节参数行号、第五节航向符号链**全部核对无误**；第五·五节 App 行号按 8456 行版重测；**2026-10-17 已按 9088 行版重新实测修正（T7）**。
+**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。2026-10-06 由文档更新代理 A8 复核：全文引用按当前源码逐符号回读更新，并补「在驾驶全链路中的位置」一节；数据统计（3135 点/1924 bend/1211 junction）未重测，沿用 2026-10-02 实测值。
+**2026-10-07 由文档核对代理 E4 复核**：第二节类型/API 表（`RoadBranch` / `RoadCorner` / `CornerHit` / `RoadCornerGuide`、`ensureLoaded` / `cornerAhead` / `steerForCorner` / `speedAdviceForCorner` / `junctionAhead` / `chooseExit` / `effReach` / `steerForJunction` / `headingDiff` / `signedHeadingDiff` / `debugCornerAt` / `cornerAheadLinearReference` / `junctionProbeFromOwnData` / `probeFromOwnData` / `selfTest`）与第四节参数、第五节航向符号链**全部核对无误**；后续 App 侧调用点也逐符号复核。
 
 **2026-10-18 由 merge-map 复核**（逐条 `sed -n` / `grep -n` / Python 重测）：
 - **§1 内容性修正**：补「路口已完整实现并被真实调用」（旧版隐含「路口暂不覆盖」，实际 junction 链路 2026-09-30 起已接线，
-  被 `DriveSegmentController.swift` / `:280-284` 真实调用，`--corner-selftest` 有路口闭环断言）。
-- **§5·5 行号重测**：AuroraDriveApp.swift 9088→9094 行，tick 链全部 +3~+8（tick :6862→:6865、laneKeepTiers 门 :7634→:7642、
-  readPose :8024-8032→:8032-8043、segmentDecisionForRule :8038-8054→:8046-8061、mapSteer :7647-7661→:7655-7668、
-  applyCommand :8074-8103→:8082）。DriveSegmentController.swift 行号全部不变（该文件本次未改）。
+  被 `DriveSegmentController.stepJunction` 真实调用，`--corner-selftest` 有路口闭环断言）。
+- **§5·5 复核**：AuroraDriveApp.swift 的 tick 链节点已全部改为符号定位（tick → `DriveState.tick()`、laneKeepTiers 门 → `Self.laneKeepTiers`、
+  `readPose()`、`segmentDecisionForRule`、`mapSteer`、
+  `applyCommand`）均按符号引用。`DriveSegmentController.swift` 未改。
 - **§7 重测+修正**：数据统计 2026-10-18 Python 重测确认（3135/1924/1211 不变）；修正「`exitSample` 有 1 个 null」
   为「1925 个 null」（旧记数量级错误 1925 倍）；新增 v2 vs v3b 对照表；修正「v2 无 branches」为「v2 有 branches 但
   是纯角度浮点数组、无 reach/width 维度」（旧记措辞不准确）。
 - **§9 复跑**：2026-10-18 实跑 `--corner-selftest` PASS，输出与 2026-10-02 逐项一致；补录「选出口必须在支路里」断言
   （旧记漏写 1 条）。
 - **登记源码注释 1 处错误（未改源码）**：`AuroraDriveApp.swift` 注释写 `road_corners_v2.json`，实际加载 v3b
-  （`RoadCornerGuide.swift` 硬编码 v3b）。—— ⚠️ **该问题已于同日由 lead 修正**，现注释写的就是 v3b（:7651-7652），本条结案。
-- **RoadCornerGuide.swift 内部全部行号不变**：757 行未改，§2/§3/§4/§6/§10 的 `:44/:58/:102/:112/:234/:355/:421/:472/
-  :503/:534/:567/:602/:632/:639/:649/:661/:695/:717/:738/:166/:170/:307/:314-319` 逐条核对全部命中正确行。
+（`RoadCornerGuide.swift` 硬编码 v3b）。—— ⚠️ **该问题已于同日由 lead 修正**，现注释写的就是 v3b，本条结案。
+- **RoadCornerGuide.swift 内部全部符号不变**：§2/§3/§4/§6/§10 的 `RoadBranch` / `RoadCorner` / `CornerHit` / `RoadCornerGuide` / `ensureLoaded()` / `cornerAhead` / `steerForCorner` / `speedAdviceForCorner` /
+  `junctionAhead` / `chooseExit` / `effReach` / `steerForJunction` / `headingDiff` / `signedHeadingDiff` / `debugCornerAt` / `cornerAheadLinearReference` / `junctionProbeFromOwnData` / `probeFromOwnData` / `selfTest` / `GridKey` / `indexCellMeters` / `ensureLoaded()` 逐条核对全部命中。
 
-**♻️ 2026-10-18 行号重基准（merge-map，源码冻结 9097 行版）** —— 检查 **13** 项，修正 **4** 项，未决 **0** 项：
-- `readPose` 定义 :8032-8043 → **:8033-8041**（:8033 `private func readPose` → :8041 `}`）
-- `segmentDecisionForRule` :8046-8061 → **:8047-8063**（:8047 声明 → :8063 `}`）
-- `mapSteer` 覆盖块 :7655-7668 → **:7656-7669**（:7656 `if segDecision.overridesVision` → :7669 `}`）
-- `applyCommand` :8082 → **:8083-8112**（:8083 声明 → :8112 `}`）
-- 未变：tick :6865、laneKeepTiers 门 :7642、`AuroraFlags.swift` :309/:310/:311/:313/:315（543 行未变）、
-  `RoadCornerGuide.swift` 全部内部行号（757 行未变）、`DriveSegmentController.swift` 全部（:157/:158-160/:161-163/
-  :217/:263/:280-284/:310，430 行未变）、`RouteGraph.swift`、`MissionConsole.swift`/`:1201-1208`。
+**♻️ 2026-10-18 引用符号化（merge-map，源码冻结）** —— 检查 **13** 项，修正 **4** 项，未决 **0** 项：
+- `readPose` 定义已按符号 `private func readPose` 定位
+- `segmentDecisionForRule` 按函数符号定位
+- `mapSteer` 覆盖块按 `if segDecision.overridesVision` 定位
+- `applyCommand` 按函数符号定位
+- 未变：`DriveState.tick()`、`Self.laneKeepTiers` 门、`AuroraFlags` 读取的 `AURORA_CORNER_*` 系列、
+  `RoadCornerGuide.swift` 全部内部符号、`DriveSegmentController.swift` 的 `stepFromVision` /
+  `stepJunction`、`RouteGraph.swift`、`MissionConsole.swift`。
 - **同批结案**：`AuroraDriveApp.swift` 的 v2→v3b 注释错误已由 lead 修正，本文原「登记源码注释错误」一条作废。

@@ -1,46 +1,23 @@
 # 代码-38 PerfSelfTest 性能自检与测量总线
 
-> ✅ 2026-10-17 复核：正文全部行号已按当前源码 `grep -n` 逐条实测修正，失效警告段已删除。
->
-> **✅ 行号已按当前版重基准（2026-10-18，源码冻结于 AuroraDriveApp 9097 行版）**：
-> 逐条 `sed -n` 复核 **26 条 PerfSelfTest 锚点**（0 失配，全部命中）+ **UI 侧/引擎侧导出块范围**。
-> - **UI 侧 `AuroraDriveApp.swift` 导出版块 `:7864–7885`** —— 本轮 `sed -n '7860,7890p'` 逐行实测确认为**真值**：
->   `:7864` 零成本注释 / `:7865` `if PerfBus.enabled, didLogThisSecond {` / `:7867–7871` 14 通道数组 / `:7880` `dlog("[PERF] …")` / `:7882` `PerfBus.shared.reset()` / `:7883` `}` 收 `if !parts.isEmpty` / `:7884` `}` 收 `if PerfBus.enabled` / `:7885` 外层块尾 `}`。**核心语句 `:7865–7884`**。
-> - **引擎侧 `EngineMain.swift` 导出版块 `:1133–1162`** —— 同样逐行实测为真值：`:1133` 块首注释 / `:1142` `if PerfBus.enabled {` / `:1143–1147` 同 14 通道 / `:1159` `engineLog("[PERF] …")` / `:1160` `reset()` / `:1161` `}` / `:1162` `}`。
-> - **修正 1 条**：`:7866-7870` → **`:7867-7871`**（原值少算 1 行：:7866 是注释、`let seg = [` 在 :7867）。
-> - **`dt = 1.0/30.0` 三处（`:383` / `:695` / `:907`）仍为刻意固定的测试基线**，本轮复核维持原判断。
-> - **14 通道两侧逐字一致**：`diff` 实测 0 差异（14 个 `tick.*` 名称完全相同）。
+> ✅ **本文件已去行号化（2026-11-25）**：行号会随源码漂移，一律改为**符号名定位**；
+> 每个名字都能在 `Sources/AuroraDrive/App/PerfSelfTest.swift` 里 grep 到。
+> 历史复核记录里的旧行号数字（如「26 条锚点命中」）属**历史结论存档**，不代表当前坐标。
 
-> **✅ 2026-10-18 复核（sys-reader）**：源码 **984 行**复测一致；**26 条锚点全部命中、零漂移**（PerfStats:46 / percentile:58 / PerfRateMeter:82 / tick:86 reset:93 hz:98 / PerfBus:129 / enabled:133 / record:154 measure:165 stats:173 / stamp:192 mark:198 lap:207 / allChannels:214 reset:219 / PerfCPU:230 processCPUPercent:231 cpuBetween:240 / runPerfSelfTest:253 / PerfSelfTestImage:559 sharedGrayBuffer:561 make:577 makeGray:608 / runTickProfile:655 / runTickBench:852）。
-> 唯 1 处小出入：文档 §五 表格把 `hz` 写成「属性」，源码实为 **`func hz() -> Double?`**（`:98`，方法不是属性）——措辞不精确但行号正确，不算错误。
->
-> **★ 关键确认：`dt = 1.0/30.0` 是刻意保留的固定测试基线，不是 20Hz 迁移漏改**（本轮重点核实项）
->
-> 源码中 `1.0/30.0` 共 **3 处**（**不是** lead 简报里说的 `:3303`——该行号不存在，全文仅 984 行）：
->
-> | 行号 | 用途 | 为什么必须固定 30Hz |
-> |---|---|---|
-> | `:383` | `RunLoop.current.run(until: now + 1.0/30.0)` — `--perf-selftest` 每轮推理后的主线程让出节拍 | 自检验证的是**推理异步回写能否完成**（:377-381 注释：主线程若 sleep 会卡住 `DispatchQueue.main.async` 回写 → `isInferencing` 永真 → 后续提交全被防重叠门挡掉）。**只需「给回写留够时间」，与生产 tick 频率无关** |
-> | `:695` | `--tick-profile` 同款 RunLoop 让出节拍 | 同上 |
-> | `:907` | `--tick-bench` 的 `let budget = 1.0/30.0` — **每帧预算**，用于补齐到固定 33.3ms 再进下一帧 | **基准测试必须固定节拍**，否则测出的 p50/p99 会随生产频率漂移，跨版本不可比 |
->
-> **结论**：这三处是**测量方法学的固定基线**，跟随 20Hz 反而会让历史基线数据（§九 的 2026-10-02 实测表）失去可比性。**文档 §九 的历史数据也基于 30Hz 节拍**。⚠️ 后续若有人要改成 20Hz，必须同时重测并作废旧基线——否则是「用新尺子量旧数据」。
->
-> **§八 14 段清单核实**：文档称「14 段清单 `:7862`」——实际 `AuroraDriveApp.swift` 列出的正是这 14 个通道名（:7866 是「与上方摘要共用同一个 1Hz 闸门」注释；`let seg = [` 起于 :7867、`"tick.total"]` 止于 :7871），**逐个比对完全一致**（`tick.consumeFrame` / `yoloFast` / `opticalflow` / `nativeROI` / `motion` / `speed` / `degrade` / `confidence` / `ruleDecision` / `laneFallback` / `inject` / `record` / `debugSummary` / `total`）。全仓 `PerfBus` 通道名共 30 个（含 `submit.*` 4 个 / `map.*` 4 个 / `cache.*` 4 个 / `dlog.*` 2 个 / `infer.*` 2 个 / `opticalflow` / `tick.loop` + 14 段）。
->
-> **§八 两条导出路径核实**（⚠️ 本条被 agent-reader 于同日**二次校准**，见 §八 末修正注）：
-> · UI 侧 `AuroraDriveApp.swift` —— 闸门与 14 段数组位置正确（`:7865` `PerfBus.enabled, didLogThisSecond`、`:7867-7871` 14 段），**整体块范围 `:7864–7885`**；`dlog` 在 **`:7880`**、`reset()` 在 `:7882`。⚠️ 本条曾被我写成 `dlog :7879`／块尾 `:7884`，**均错**（`:7879` 是 `if !parts.isEmpty {`；`:7884` 只是 `if` 的闭括号），已按 Lead 亲测裁决改正。
-> · 引擎侧 `EngineMain.swift` —— 内部行号正确（`:1142` `PerfBus.enabled` ✓、`:1143-1147` 同一份 14 段 ✓、`:1160` `reset()` ✓），但**整体块范围应为 `:1133–1162`**，原写 `:1137-1157` 错（`:1133` 才是块首注释、`:1157` 不是块尾）。
-> · 「两处段清单完全相同」这条**成立**（14 个通道名逐字一致），符合「两条路径各覆盖一半场景」的设计。
-
-> 覆盖源文件：`Sources/AuroraDrive/App/PerfSelfTest.swift`（**992 行**，2026-11-10 `wc -l` 实测；2026-11-10 初建时同为 984 行）
-> 该文件**已在 git 跟踪中**（`git ls-files` 可查到；旧版「未在 git 跟踪（untracked）」的记录已过时）。
+> 覆盖源文件：`Sources/AuroraDrive/App/PerfSelfTest.swift`
+> 该文件**已在 git 跟踪中**（`git ls-files` 可查到）。
 > 关联：[`性能实测-2026-09-30-卡顿与定位.md`](性能实测-2026-09-30-卡顿与定位.md)（测量结果记录处）、
 > [`代码-37-EgoMotionModel自车运动径向模型.md`](代码-37-EgoMotionModel自车运动径向模型.md)
 
+> **★ 关键结论（方法学，务必先读）**：`--perf-selftest` / `--tick-profile` 的 `RunLoop.current.run(until:)`
+> 与 `--tick-bench` 的 `budget` 都把节拍**刻意固定为 `1.0 / 30.0`**，这不是 20Hz 迁移漏改：
+> 自检验证的是「推理异步回写能否完成」（主线程用 `Thread.sleep` 会卡住 `DispatchQueue.main.async`
+> 回写 → `isInferencing` 永真 → 后续提交全被防重叠门挡掉）；`--tick-bench` 则需要固定节拍否则
+> p50/p99 会随生产频率漂移、跨版本不可比。详见 §三 与「三处固定节拍」小节。
+
 ---
 
-## 一、为什么先建这个（文件头 `:7–11` 原文精神）
+## 一、为什么先建这个（文件头 `【为什么先建这个】` 段）
 
 > 项目文档里记录过 **12 项"想当然的优化"实测全被否决**（改 vImage 反而让检测框 9→6、
 > 预分配 tempBuffer 反而慢 20%、两级降采样慢 25%…）。
@@ -49,7 +26,7 @@
 
 > ⚠️ 注意：**"12 项"实际是 13 项**，见性能文档 §6.46.1。
 
-## 二、测什么（对应七条红线，`:13–19`）
+## 二、测什么（文件头 `【测什么（对应七条红线）】` 段）
 
 | 红线 | 指标 |
 |---|---|
@@ -61,11 +38,21 @@
 
 另测：tick 循环耗时 p50/p95/p99、引擎 CPU%、主线程阻塞。
 
-## 三、★ 方法学（`:21–24`）
+## 三、★ 方法学（文件头 `【方法学】ABBA 交替` 段）
 
 1. **ABBA 交替** —— 单次测量会被系统噪声污染（文档里满是"ABBA 各 12 轮"的做法）
 2. **输出 p50/p95/p99 而非平均值** —— 因为卡顿是**长尾**问题，平均值会把它抹平
 3. **不改生产逻辑** —— 只在现有调用点外围包计时
+
+### 三处刻意固定的 30Hz 测试基线（★ 不是漏改）
+
+| 位置（符号） | 用途 | 为什么必须固定 30Hz |
+|---|---|---|
+| `runPerfSelfTest(seconds:)` 采样循环里的 `RunLoop.current.run(until: Date().addingTimeInterval(1.0 / 30.0))` | `--perf-selftest` 每轮推理后的主线程让出节拍 | 自检验证的是**推理异步回写能否完成**（该循环上方注释：主线程若 sleep 会卡住 `DispatchQueue.main.async` 回写 → `isInferencing` 永真 → 后续提交全被防重叠门挡掉）。**只需「给回写留够时间」，与生产 tick 频率无关** |
+| `runTickProfile(seconds:)` 里的同款 `RunLoop.current.run(until: Date().addingTimeInterval(1.0 / 30.0))` | `--tick-profile` 同款 RunLoop 让出节拍 | 同上 |
+| `runTickBench(seconds:)` 里的 `let budget = 1.0 / 30.0`（配合 `RunLoop.current.run(until: Date().addingTimeInterval(budget - spent))`） | `--tick-bench` 的**每帧预算**，用于补齐到固定 33.3ms 再进下一帧 | **基准测试必须固定节拍**，否则测出的 p50/p99 会随生产频率漂移，跨版本不可比 |
+
+> **结论**：这三处是**测量方法学的固定基线**，跟随 20Hz 反而会让历史基线数据（§九 的 2026-10-02 实测表）失去可比性。**文档 §九 的历史数据也基于 30Hz 节拍**。⚠️ 后续若有人要改成 20Hz，必须同时重测并作废旧基线——否则是「用新尺子量旧数据」。
 
 ## 四、用法
 
@@ -76,55 +63,58 @@ AURORA_PERF_ROUNDS=12 ./AuroraDrive --perf-selftest          # 指定采样轮�
 AURORA_PERF=1 ./AuroraDrive --auto-drive                     # 生产路径打点
 ```
 
-### 重要边界（`:31–35`）
+### 重要边界（文件头 `【重要边界】` 段）
 - 本自检**不启动驾驶**，只测量各子系统在其真实触发路径上的耗时
 - **需要游戏在跑才能测到"满载"数字**；空载数字用于回归对比同样有效（只要前后两次环境一致）
+- 所有测量**不改动生产逻辑**：只在现有调用点外围包计时
 
-## 五、组件（行号 = 2026-10-17 `grep -n` 实测）
+## 五、组件（用符号名定位，不含行号）
 
-| 组件 | 行号 | 职责 |
-|---|---|---|
-| `struct PerfStats` | `:46` | 一组采样值的分位数统计（不引入第三方依赖） |
-| `PerfStats.percentile(_:)` | `:58` | 取分位数 |
-| `final class PerfRateMeter` | `:82` | 频率计（`tick` `:86` / `reset` `:93` / **`hz()` 方法 `:98`**——✅ 2026-10-18 修正措辞：原文写作属性，实为 `func hz() -> Double?`，样本不足（<3）时返回 nil） |
-| `final class PerfBus` | `:129` | **全局测量总线（单例）** |
-| `PerfBus.record(_:ms:)` | `:154` | 记一条采样 |
-| `PerfBus.measure(_:_:)` | `:165` | 包住一段代码测量 |
-| `PerfBus.stats(_:)` | `:173` | 取某通道统计 |
-| `PerfBus.stamp()` | `:192` | **取当前时刻（开启计时）** |
-| `PerfBus.mark(_:from:)` | `:198` | 打一个点（结算上一段） |
-| `PerfBus.lap(_:from:)` | `:207` | 打点并返回 |
-| `PerfBus.allChannels()` | `:214` | 全部通道名 |
-| `PerfBus.reset()` | `:219` | 清空（采样窗口后调用，避免启动预热污染） |
-| `enum PerfCPU` | `:230` | CPU 采样 |
-| `PerfCPU.processCPUPercent()` | `:231` | 进程 CPU% |
-| `PerfCPU.cpuBetween(_:_:seconds:)` | `:240` | 区间 CPU% |
-| `runPerfSelfTest(seconds:)` | `:253` | **自检主入口**（`--perf-selftest`） |
-| `enum PerfSelfTestImage` | `:559` | 测试图生成（`sharedGrayBuffer` `:561` / `make` `:577` / `makeGray` `:608`） |
-| `runTickProfile(seconds:)` | `:655` | `--tick-profile` 入口 |
-| `runTickBench(seconds:)` | `:852` | `--tick-bench` 入口 |
+| 组件 | 职责 |
+|---|---|
+| `struct PerfStats` | 一组采样值的分位数统计（不引入第三方依赖） |
+| `PerfStats.percentile(_:)`（另有 `median` / `p95` / `p99` / `maxValue` / `mean` / `summary` 便捷属性） | 取分位数 |
+| `final class PerfRateMeter`（`tick(_:)` / `reset()` / `hz()`；`hz()` 是**方法**不是属性，样本不足（<3）时返回 nil） | 频率计 |
+| `final class PerfBus`（`static let shared`） | **全局测量总线（单例）** |
+| `PerfBus.record(_:ms:)` | 记一条采样 |
+| `PerfBus.measure(_:_:)` | 包住一段代码测量 |
+| `PerfBus.stats(_:)` | 取某通道统计 |
+| `PerfBus.stamp()` | **取当前时刻（开启计时）** |
+| `PerfBus.mark(_:from:)` | 打一个点（结算上一段） |
+| `PerfBus.lap(_:from:)` | 打点并返回 |
+| `PerfBus.allChannels()` | 全部通道名 |
+| `PerfBus.reset()` | 清空（采样窗口后调用，避免启动预热污染） |
+| `enum PerfCPU` | CPU 采样 |
+| `PerfCPU.processCPUPercent()` | 进程 CPU% |
+| `PerfCPU.cpuBetween(_:_:seconds:)` | 区间 CPU% |
+| `runPerfSelfTest(seconds:)` | **自检主入口**（`--perf-selftest`） |
+| `enum PerfSelfTestImage`（`sharedGrayBuffer` / `make(w:h:)` / `makeGray(w:h:)`） | 测试图生成 |
+| `runTickProfile(seconds:)` | `--tick-profile` 入口 |
+| `runTickBench(seconds:)` | `--tick-bench` 入口 |
+
+`PerfBus` 另按子系统暴露独立频率计：`tickRate` / `yolopxRate` / `m9Rate` / `assistRate` / `yolo26Rate` / `ocrRate` / `locateRate` / `captureRate`。
 
 ## 六、★ 开关：`AURORA_PERF`
 
 ```swift
 static var enabled: Bool =
-    ProcessInfo.processInfo.environment["AURORA_PERF"] == "1"   // :133–134
+    ProcessInfo.processInfo.environment["AURORA_PERF"] == "1"
 ```
 
-**零开销如何保证**（`:127–128`、`:184`）：
+**零开销如何保证**（`PerfBus.enabled` 的文档注释 + `record` 上方「零开销如何保证」注释段）：
 `enabled == false` 时所有 `record` 都是**空操作**，
 因此**可以安全地把它留在生产代码里**。
 
 ## 七、★ 一个必须记住的测量陷阱：`n=1` 会被懒加载骗
 
-`PerfSelfTest` 自己记录了两次踩坑（`:442–446`）：
+`runPerfSelfTest` 的地图先验查询段自己记录了两次踩坑（`RoadCornerGuide.shared.cornerAhead` 预热段注释）：
 
 | 陷阱 | 表现 |
 |---|---|
 | **`n=1` 撞懒加载** | `cornerAhead` 首测 **31.4 ms**；预热后 p50 **0.000–0.003 ms** —— **差 10000 倍** |
-| **`Thread.sleep` 阻塞写回** | 测出来的数**不是产品行为**（`:377` 注释要求主线程转 RunLoop） |
+| **`Thread.sleep` 阻塞写回** | 测出来的数**不是产品行为**（`RunLoop.current.run(until:)` 上方注释要求主线程转 RunLoop；`runTickBench` 里同样注明「不用 `Thread.sleep` —— 那会把 tick 一起睡死」） |
 
-**对策（`:445–448`）**：**必须先跑一次预热探针**，再开始正式采样。
+**对策**：**必须先跑一次预热探针**（该段注释即「先预热：触发懒加载 + 首次查询（不计量）」），再开始正式采样。
 
 ## 八、★ 另一个必须记住的盲区：`PerfBus` 是**进程内**的
 
@@ -132,16 +122,12 @@ static var enabled: Bool =
 > （实测 `--tick-profile` 独立跑确实**全 0**）。
 
 **对策**：把分段数据**写进日志**，用零新机制的方式在真实负载下取数。
-- UI 侧导出：`AuroraDriveApp.swift`（`:7865` `if PerfBus.enabled, didLogThisSecond` 1Hz 闸门；14 段清单数组 `:7867–7871`；`dlog("[PERF] …")` **:7880**；`PerfBus.shared.reset()` **:7882**；`:7884` 是 `if` 的闭括号、**块尾 `}` `:7885`**）
-- 引擎侧导出：`EngineMain.swift`（块首注释 `:1133`；`:1142` `if PerfBus.enabled`；14 段清单 `:1143–1147`；`engineLog("[PERF] …")` :1159；`PerfBus.shared.reset()` :1160；块尾 `:1162`）
+- **UI 侧导出**：`AuroraDriveApp.swift` 的 `if PerfBus.enabled, didLogThisSecond {` 分支——与上方 `[EGO-DIAG]` 摘要共用同一个 1Hz 闸门 `didLogThisSecond`；内含 14 通道数组 `let seg = [...]`（`tick.consumeFrame` … `tick.total`）、`dlog("[PERF] tick分段(p50/p95 ms): " + parts.joined(separator: " "))`，随后 `PerfBus.shared.reset()`。
+- **引擎侧导出**：`Core/EngineMain.swift` 的心跳统计块内，`if heartbeatCount % 15 == 0 {` 分支尾部 `if PerfBus.enabled {` —— 同一份 14 通道 `let seg`、`engineLog("[PERF] tick分段(p50/p95 ms): " + parts.joined(separator: " "))`，随后 `PerfBus.shared.reset()`。
 
-> 🔧 **2026-10-18 复核修正（T6 三次校准，最终值）**：本节此前多版数字都不准，`awk 'NR>=…'` 逐行实测后的**最终口径**：
-> · **UI 侧整体块 `:7864–7885`**（`:7864` 是「零成本」注释、`:7865` 才是 `if PerfBus.enabled`；`:7884` 是 `if` 的闭括号、**`:7885` 才是外层块尾 `}`**——Lead 2026-10-18 亲测裁决）；
-> · **UI 侧 14 段数组 `:7867–7871`**（`let seg = [...]` 起于 :7867；:7866 是「与上方摘要共用同一个 1Hz 闸门」注释）；
-> · **UI 侧 `dlog` 在 `:7880`**（不是 :7872 也不是 :7879——:7879 是 `if !parts.isEmpty {`）；**`reset()` 在 `:7882`**（:7881 是它的注释行）；
-> · **引擎侧 `:1133–1162`** ✓；段数组 `:1143–1147` ✓；`engineLog` :1159 ✓；`reset()` :1160 ✓。
-> · 两处段清单**逐项完全相同**（14 个通道名一字不差），✅ 成立。
-> · ⚠️ **注意**：`AuroraDriveApp.swift` 当时处于并发修改中（2026-10-18 15:40 观测 9096→9097 行、`git status` 显示 ` M`），上述行号为**该观测时刻**的值；若该文件继续变动，UI 侧锚点需重测（引擎侧 `EngineMain.swift` 稳定）。
+> 🔧 **两侧段清单逐项完全相同**（14 个通道名一字不差）：`tick.consumeFrame` / `yoloFast` / `opticalflow` / `nativeROI` / `motion` / `speed` / `degrade` / `confidence` / `ruleDecision` / `laneFallback` / `inject` / `record` / `debugSummary` / `total`。
+> 全仓 `PerfBus` 通道名另含 `submit.assist` / `submit.yolopx` / `map.isOnRoad` / `map.nearestRoad` / `map.cornerAhead` / `map.junctionAhead` / `cache.*` / `dlog.write` / `dlog.flush` / `infer.assist` / `infer.yolopx` / `opticalflow` / `tick.loop` 等。
+> ⚠️ 两条导出路径的**位置会随文件增长漂移**，请按 `PerfBus.enabled` + `didLogThisSecond` / `heartbeatCount % 15 == 0` 搜索，不要按旧行号跳转。
 
 ## 九、实测结果（2026-10-02，`AURORA_PERF=1 --perf-selftest --seconds 10`）
 
@@ -168,44 +154,44 @@ static var enabled: Bool =
 
 ## 十、其它命令行入口
 
-| 入口 | 说明 |
+| 入口 | 分发函数 |
 |---|---|
-| `--perf-selftest` | 本文件 `:253` |
-| `--tick-profile` | 本文件 `:655`（⚠️ 独立跑**全 0**，见 §八） |
-| `--tick-bench` | 本文件 `:852`（主动驱动真实 `tick()`，离屏可重复） |
+| `--perf-selftest` | `runPerfSelfTest(seconds:)` |
+| `--tick-profile` | `runTickProfile(seconds:)`（⚠️ 独立跑**全 0**，见 §八） |
+| `--tick-bench` | `runTickBench(seconds:)`（主动驱动真实 `tick()`，离屏可重复） |
 | `--motion-selftest` | 见 `代码-37`（`EgoMotionModel` 侧断言） |
 
 ---
 
-## 附：实测锚点表（2026-10-17 全量实测；2026-10-18 重基准复核 26/26 命中）
+## 附：符号定位表（替代旧「行号锚点表」）
 
-全部由 `grep -n` / `awk 'NR>=…'` 在 984 行版 `PerfSelfTest.swift` 上逐条实测。
-
-| 符号 | 行号 | 旧记（已失效） |
-|---|---|---|
-| `struct PerfStats` | 46 | 45 |
-| `PerfStats.percentile` | 58 | 57 |
-| `final class PerfRateMeter` | 82 | 81 |
-| `PerfRateMeter.tick` / `reset` / `hz` | 86 / 93 / 98 | 85 / 92 / 97 |
-| `final class PerfBus` | 129 | 128 |
-| `PerfBus.enabled` | 133–134 | 132–133 |
-| `record` / `measure` / `stats` | 154 / 165 / 173 | 153 / 164 / 172 |
-| `stamp` / `mark` / `lap` | 192 / 198 / 207 | 191 / 197 / 206 |
-| `allChannels` / `reset` | 214 / 219 | 213 / 218 |
-| `enum PerfCPU` | 230 | 229 |
-| `processCPUPercent` / `cpuBetween` | 231 / 240 | 230 / 239 |
-| `runPerfSelfTest` | 253 | 252 |
-| `enum PerfSelfTestImage` | 559 | 544 |
-| `sharedGrayBuffer` / `make` / `makeGray` | 561 / 577 / 608 | 546 / 562 / 593 |
-| `runTickProfile` | 655 | 640 |
-| `runTickBench` | 852 | —（旧文未记） |
-| `n=1` 懒加载陷阱注释 | 442–446 | 429 附近 |
-| 预热对策注释 | 445–448 | 435 附近 |
-| 文件头「为什么先建这个」 | 7–11 | 5–11 |
-| 文件头「测什么」 | 13–19 | 13–18 |
-| 文件头「方法学」 | 21–24 | 20–25 |
-| 文件头「重要边界」 | 31–35 | 31–36 |
+| 符号 / 单元 | 定位方式 |
+|---|---|
+| `struct PerfStats` | grep `struct PerfStats` |
+| `PerfStats.percentile(_:)`（及 `median` / `p95` / `p99`） | grep `func percentile` |
+| `final class PerfRateMeter` | grep `final class PerfRateMeter` |
+| `PerfRateMeter.tick` / `reset` / `hz` | grep `func tick` / `func reset` / `func hz`（`hz` 是**方法**不是属性） |
+| `final class PerfBus` | grep `final class PerfBus` |
+| `PerfBus.enabled` | grep `static var enabled`（注释见 `enabled` 的 `///` 块） |
+| `record` / `measure` / `stats` | grep `func record` / `func measure` / `func stats` |
+| `stamp` / `mark` / `lap` | grep `static func stamp` / `static func mark` / `static func lap` |
+| `allChannels` / `reset` | grep `func allChannels` / `func reset` |
+| `enum PerfCPU` | grep `enum PerfCPU` |
+| `processCPUPercent` / `cpuBetween` | grep 同名 |
+| `runPerfSelfTest` | grep `func runPerfSelfTest` |
+| `enum PerfSelfTestImage` | grep `enum PerfSelfTestImage` |
+| `sharedGrayBuffer` / `make` / `makeGray` | grep 同名（`make(w:h:)` / `makeGray(w:h:)`） |
+| `runTickProfile` | grep `func runTickProfile` |
+| `runTickBench` | grep `func runTickBench` |
+| `n=1` 懒加载陷阱注释 | grep `懒加载的一次性成本`（地图先验查询段） |
+| 预热对策注释 | grep `必须先跑一次预热探针` / `先预热` |
+| 文件头「为什么先建这个」 | `PerfSelfTest.swift` 顶部方框注释 `【为什么先建这个】` |
+| 文件头「测什么」 | 同上方框 `【测什么（对应七条红线）】` |
+| 文件头「方法学」 | 同上方框 `【方法学】ABBA 交替` |
+| 文件头「重要边界」 | 同上方框 `【重要边界】` |
 
 ---
 
-**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。**2026-10-17 全量行号复核**：上表每个数字均由 `grep -n` / `awk` 在当次源码上实测，旧值逐条登记在「旧记（已失效）」列。**2026-10-18 重基准**：26 条锚点逐条 `sed -n` 复验全部命中（0 失配）；UI/引擎两侧导出版块范围按 Lead 裁决落定（UI `:7864–7885`、引擎 `:1133–1162`）；修正 `:7866-7870`→`:7867-7871`。
+**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。
+**2026-10-18 曾做过一轮行号重基准**（当时据 984/992 行版源码逐条 `sed -n` 复验）；
+**2026-11-25 去行号化**：全部行号数字移除，改为符号名定位——源码已增长到近千行且仍在变动，行号必然漂移，符号名才是稳定锚点。

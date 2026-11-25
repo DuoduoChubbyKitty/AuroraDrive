@@ -1,19 +1,19 @@
 # 代码-39 RealShotSelfTest 真实截图红线自证
 
-> ✅ **2026-10-18 复核**（merge-arch）：源码 257 行未变；**API 行号全部命中**（`RealShotResult` :47 / 9 个字段 :48-57 / `loadCGImage` :62 / `runRealShotSelfTest` :116），文件头注释区间也逐条对上（:7-15 审计缺陷 / :17-18 本自检做什么 / :20-25 用法 / :27-29 历史真值 / :30-32 判据说明 / :34-37 分工 / :60-61 ImageIO 而非 NSImage）。修正 3 处：
+> ✅ **2026-10-18 复核**（merge-arch）：源码未变；**API 全部命中**（`RealShotResult` 及其 9 个字段 / `loadCGImage(path:)` / `runRealShotSelfTest(image:dir:)`），文件头注释里的「为什么需要这个文件 / 本自检做什么 / 用法 / 历史真值 / 判据说明 / 与 yolopx-selftest 的分工」六段也逐条对上；`loadCGImage(path:)` 的 `ImageIO` 而非 `NSImage` 注释同样一致。修正 3 处：
 > 1. ~~「未在 git 跟踪（untracked）」~~ → **已跟踪**。`git ls-files --error-unmatch` 返回该路径，`git status --short` 无输出。原文此条已过期。
 > 2. ~~「`data/nte_test_frames` 是否存在、内容为何，本次未核实」~~ → **存在，9 个文件**：`nte_slide1~6.jpg`（6 张，478KB~683KB）+ `yt_*_maxresdefault.jpg`（3 张 YouTube 帧，256KB~338KB），mtime 2026-09-27。
-> 3. **历史真值的行号已补**：R2=9 / R3 可行驶 26.19% / 车道线 8.042% 写在源码 `:28-29`（原文 §四 只标了判据说明的 `:30-32`，真值本身的行号漏了）。
+> 3. **历史真值已补进出处说明**：R2=9 / R3 可行驶 26.19% / 车道线 8.042% 写在源码文件头注释的「历史真值（2026-09-29 实测，同一批图）」段（原文 §四 只标了判据说明段，真值本身的出处漏了）。
 >
 > 🔴 **本次还实跑了自检（原文说"未运行"）**：`--realshot-selftest --dir data/nte_test_frames` → **EXIT=1 / FAIL**，R2 平均 1.0 框、R3 平均 1.78% / 0.465%。根因是**模型换代**（今天加载 `ayolom_n_int8`，历史真值来自旧档），**不是回归**。实跑数据与判读见 **§四 的「2026-10-18 实跑」小节**。
 
-> 覆盖源文件：`Sources/AuroraDrive/App/RealShotSelfTest.swift`（**257 行**，2026-11-10 实测）
+> 覆盖源文件：`Sources/AuroraDrive/App/RealShotSelfTest.swift`
 > 关联：[`代码-38-PerfSelfTest性能自检.md`](代码-38-PerfSelfTest性能自检.md)、
 > [`性能实测-2026-09-30-卡顿与定位.md`](性能实测-2026-09-30-卡顿与定位.md)
 
 ---
 
-## 一、★ 为什么需要这个文件（`:7–15` 原文，**本文档最重要的一段**）
+## 一、★ 为什么需要这个文件（源码头注释「为什么需要这个文件」段，**本文档最重要的一段**）
 
 > **2026-10-01 审计发现的验证可信度缺陷**：
 > `--perf-selftest` 与 `--yolopx-selftest` 都用 `PerfSelfTestImage.make()` 构造的**合成图**
@@ -31,7 +31,7 @@
 **⟹ 结论：`--perf-selftest` 输出的 R2/R3 是 0，是设计使然，不是回归失败；
 但也不能当作红线通过的证据。**（本小姐 2026-10-02 跑出的 `R2=0 / R3=0.00%` 就是这个原因。）
 
-## 二、本自检做什么（`:17–18`）
+## 二、本自检做什么（源码头注释「本自检做什么」段）
 
 用**用户提供的真实游戏截图**跑 YOLOPX，输出 R2/R3 的**真实数值**，
 并与历史记录做**逐位对比**。**同图前后一致 = 红线守住。**
@@ -48,7 +48,7 @@ AURORA_UI_LOCAL=1 ./AuroraDrive --realshot-selftest --dir data/nte_test_frames
 
 ## 四、★ 历史真值（2026-09-29 实测，同一批图）
 
-> 出处：源码 `:27-29`（`// 【历史真值（2026-09-29 实测，同一批图）】` 三行字面量，2026-10-18 复核确认）。
+> 出处：源码文件头注释里的「【历史真值（2026-09-29 实测，同一批图）】」段（`R2 检测框` / `R3 可行驶` / `R3 车道线` 三行字面量，2026-10-18 复核确认）。
 
 | 红线 | 数值 |
 |---|---|
@@ -79,7 +79,7 @@ AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --realshot-selftest --dir
 
 | | 2026-09-29 历史真值 | 2026-10-18 实跑 | 差异原因 |
 |---|---|---|---|
-| 加载模型 | （未记录） | **`ayolom_n_int8.mlmodelc`**（输出首行明示） | **模型换代**：A-YOLOM 档已是生产首位（`YolopxEngine.swift:626`） |
+| 加载模型 | （未记录） | **`ayolom_n_int8.mlmodelc`**（输出首行明示） | **模型换代**：A-YOLOM 档已是生产首位（`YolopxEngine.ayolomCandidates` 的首项） |
 | R2 检测框 | 9 个 | **1.0 个（平均）** | 同上 |
 | R3 可行驶 | 26.19% | **1.78%** | 同上 |
 | R3 车道线 | 8.042% | **0.465%** | 同上 |
@@ -91,7 +91,7 @@ AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --realshot-selftest --dir
 
 > **给后续维护者**：用本自检验 R2/R3 前，必须记录**当次加载的模型名**（输出的「模型: xxx」行），对比时保证模型一致。只比数字不比模型，必误判。
 
-### ⚠️ 判据不是"等于固定值"（`:30–32`）
+### ⚠️ 判据不是"等于固定值"（源码头注释「历史真值」段尾的判据说明）
 
 > 这两个数字是**特定图 + 特定模型**下的结果，换图就会变。
 > 故本自检的判据是「**同一张图**前后一致」，不是「等于某个固定值」——
@@ -99,7 +99,7 @@ AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --realshot-selftest --dir
 
 **这是本项目里少见的、把判据设计想清楚的例子。**
 
-## 五、与 `--yolopx-selftest` 的分工（`:34–37`）
+## 五、与 `--yolopx-selftest` 的分工（源码头注释「与 yolopx-selftest 的分工」段）
 
 | 自检 | 验什么 | 图的来源 | 真值可控性 |
 |---|---|---|---|
@@ -110,13 +110,13 @@ AURORA_UI_LOCAL=1 ./.build/scratch/release/AuroraDrive --realshot-selftest --dir
 
 ## 六、API
 
-| 成员 | 行号 | 说明 |
-|---|---|---|
-| `struct RealShotResult` | `:47` | 单张图的测量结果 |
-| `loadCGImage(path:)` | `:62` | 读图 |
-| `runRealShotSelfTest(image:dir:)` | `:116` | **主入口**（`--realshot-selftest`） |
+| 成员 | 说明 |
+|---|---|
+| `struct RealShotResult` | 单张图的测量结果 |
+| `loadCGImage(path:)` | 读图 |
+| `runRealShotSelfTest(image:dir:)` | **主入口**（`--realshot-selftest`） |
 
-### `RealShotResult` 字段（`:47–58`）
+### `RealShotResult` 字段（`RealShotResult` 结构体定义）
 
 ```swift
 var path: String
@@ -131,7 +131,7 @@ var modelName: String = ""
 var errorMessage: String?
 ```
 
-## 七、一个实现细节值得记（`:60–62`）
+## 七、一个实现细节值得记（`loadCGImage(path:)` 函数注释）
 
 > 读图**用 `ImageIO` 而不是 `NSImage`** —— 后者依赖 AppKit 上下文，
 > 在**无窗口的 CLI 进程里可能拿到空图**。
@@ -149,4 +149,4 @@ var errorMessage: String?
 
 ---
 
-**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。所有行号均写前 `sed -n` 回读确认。
+**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。所有 API 名与语义均经源码回读确认。

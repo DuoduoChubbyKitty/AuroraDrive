@@ -1,8 +1,11 @@
 # 代码-36 RoadMapPrior 路网先验
 
-> ✅ **2026-10-18 复核**（merge-arch）：源码 360 行未变，**本文全部行号与常量逐条命中、零漂移、零修正**。13 个常量（shared:48 / gridSize:53 / metersPerCell:56 / calibA:59 / calibB:60 / calibTX:61 / calibTY:62 / mapPixels:63 / headingAgreementDeg:76 / nearRadiusCells:79 / farRadiusCells:80 / junctionPenalty:83 / lock:90）+ 11 个 API（ensureLoaded:104 / locateResource:151 / isLoaded:176 / worldToGrid:184 / gridToWorld:195 / isOnRoad:210 / nearestRoadPoint:225 / roadHeadingCandidates:273 / pcaLineAngle:308 / ringDiff180:336 / selfTest:344）全部对上。三次修正记录（:18-31）与源码头注释逐字一致。资产实测：`road_prior_2048_t70_fixed.png` 42,993 B ✓、`bigworldmap-13056.jpg` 7,740,402 B（doc 写 7.7MB ✓）、两个生成脚本均存在。**本类是现役代码**（DriveSegmentController:125 / AuroraDriveApp:8049-8050 / PerfSelfTest:449-461 均调用），非死代码。
+> ✅ **2026-11-25 去行号化**：本文原按行号定位（13 个常量 + 11 个 API 的逐行锚点），现全部改为**符号名定位**——符号名可在 `Sources/AuroraDrive/Inference/RoadMapPrior.swift` 直接 grep，行号会随文件增长漂移。
+> 13 个常量（`shared` / `gridSize` / `metersPerCell` / `calibA` / `calibB` / `calibTX` / `calibTY` / `mapPixels` / `headingAgreementDeg` / `nearRadiusCells` / `farRadiusCells` / `junctionPenalty` / `lock`）+ 11 个 API（`ensureLoaded()` / `locateResource()` / `isLoaded` / `worldToGrid(_:_:)` / `gridToWorld(_:_:)` / `isOnRoad(worldX:worldY:)` / `nearestRoadPoint(worldX:worldY:…)` / `roadHeadingCandidates(worldX:worldY:)` / `pcaLineAngle(gx:gy:radius:)` / `ringDiff180(_:_:)` / `selfTest(points:)`）全部存在。
+> 三次修正记录与源码头注释（`【修正 1：阈值】` / `【修正 2：缩放】` / `【修正 3：断裂】`）逐字一致。资产实测：`road_prior_2048_t70_fixed.png` 42,993 B ✓、`bigworldmap-13056.jpg` 7,740,402 B（doc 写 7.7MB ✓）、两个生成脚本均存在。
+> **本类是现役代码**（`DriveSegmentController` 的 `onRoad:` 入参注释、`AuroraDriveApp` 自检段、`PerfSelfTest` 预热段均调用 `RoadMapPrior.shared`），非死代码。
 
-> 覆盖源文件：`Sources/AuroraDrive/Inference/RoadMapPrior.swift`（**360 行**，2026-11-10 实测）
+> 覆盖源文件：`Sources/AuroraDrive/Inference/RoadMapPrior.swift`（2026-11-10 实测 360 行，行数仅供参考、会随源码变动）
 > 数据源：`models/road_prior_2048_t70_fixed.png`（**42993 B**）
 > 关联：[`代码-35-RoadCornerGuide弯道先验.md`](代码-35-RoadCornerGuide弯道先验.md)、
 > [`代码-34-DriveSegmentController驾驶分段控制器.md`](代码-34-DriveSegmentController驾驶分段控制器.md)
@@ -11,7 +14,7 @@
 
 ## 一、用途与**边界**（最重要的一段）
 
-文件头 `:7–12` 写死了一条边界，**必须遵守**：
+文件头注释「⚠️ 边界（必须遵守）」段写死了一条边界，**必须遵守**：
 
 > ⚠️ 本先验**只提供航向，绝不提供横向偏差**。
 > 横向（车偏左还是偏右）必须来自实时视觉（车道线/可行驶区），
@@ -30,7 +33,7 @@ models/bigworldmap-13056.jpg  (13056×13056, 7.7MB)
 
 ## 三、★ 三次重大修正（此前版本全错，用户当场指出）
 
-文件头 `:18–31` 完整记录了这三次修正 —— **这段是本文档最有价值的部分**：
+文件头注释「⚠️ 2026-09-30 三次重大修正」段完整记录了这三次修正 —— **这段是本文档最有价值的部分**：
 
 ### 修正 1 · 阈值（45 → 70）
 - 早先误用阈值 **45** → 多抓 **16.1%** 的**等高线噪声**（实测 677,265 像素）
@@ -80,36 +83,36 @@ models/bigworldmap-13056.jpg  (13056×13056, 7.7MB)
 
 ## 五、常量与参数
 
-| 名称 | 值 | 行号 |
+| 名称 | 值 | 可见性 / 备注 |
 |---|---|---|
-| `shared` | 单例 | `:48` |
-| `gridSize` | **2048** | `:53` |
-| `metersPerCell` | `13056.0/2048 * 0.61` ≈ **3.89 m** | `:56` |
-| `calibA` | `0.016394586684750773` | `:59` |
-| `calibB` | `5.693519256055879e-08` | `:60` |
-| `calibTX` | `6526.474380746091` | `:61` |
-| `calibTY` | `5210.664390686138` | `:62` |
-| `mapPixels` | `13056.0` | `:63` |
-| `headingAgreementDeg` | `50.0` | `:76` |
-| `nearRadiusCells` / `farRadiusCells` | `10` / `16` | `:79–80` |
-| `junctionPenalty` | `0.5` | `:83` |
-| `lock` | `NSLock()` | `:90` |
+| `shared` | 单例 | `static let` |
+| `gridSize` | **2048** | `static let` |
+| `metersPerCell` | `13056.0/2048 * 0.61` ≈ **3.89 m** | `static let` |
+| `calibA` | `0.016394586684750773` | `private let`（与 `CoordinateCapture.kCalib*` 同源同值） |
+| `calibB` | `5.693519256055879e-08` | `private let` |
+| `calibTX` | `6526.474380746091` | `private let` |
+| `calibTY` | `5210.664390686138` | `private let` |
+| `mapPixels` | `13056.0` | `private let` |
+| `headingAgreementDeg` | `50.0` | `private let`（PCA 一致性阈值，注释含 15 点调参依据） |
+| `nearRadiusCells` / `farRadiusCells` | `10` / `16` | `private let` |
+| `junctionPenalty` | `0.5` | `static let`（置信度折扣） |
+| `lock` | `NSLock()` | `private let` |
 
 ## 六、公开 API
 
-| 方法 | 行号 | 用途 |
+| 方法 | 签名要点 | 用途 |
 |---|---|---|
-| `ensureLoaded()` | `:104` | 懒加载 PNG |
-| `locateResource()` | `:151` | 资源定位（**Bundle 优先** `:156–159`） |
-| `isLoaded` | `:176` | 加载状态（消费端 `segmentDecisionForRule` 读它） |
-| `worldToGrid(_:_:)` | `:184` | 世界坐标 → 网格 |
-| `gridToWorld(_:_:)` | `:195` | 网格 → 世界坐标 |
-| `isOnRoad(worldX:worldY:)` | `:210` | **是否在路上**（交接条件①的数据源） |
-| `nearestRoadPoint(...)` | `:225` | 最近道路点 |
-| `roadHeadingCandidates(...)` | `:273` | 道路航向候选（**PCA 主轴**） |
-| `pcaLineAngle(gx:gy:radius:)` | `:308` | PCA 线角 |
-| `ringDiff180(_:_:)` | `:336` | 180° 环形差 |
-| `selfTest(points:)` | `:344` | 自检 |
+| `ensureLoaded()` | 实例方法 | 懒加载 PNG |
+| `locateResource()` | `private static` | 资源定位（**Bundle 优先**：先查 `Bundle.main` 再回退） |
+| `isLoaded` | `var`（计算属性） | 加载状态（消费端 `segmentDecisionForRule` 读它） |
+| `worldToGrid(_:_:)` | 返回 `(gx: Int, gy: Int)?` | 世界坐标 → 网格 |
+| `gridToWorld(_:_:)` | `private`，返回 `(Double, Double)` | 网格 → 世界坐标 |
+| `isOnRoad(worldX:worldY:)` | 返回 `Bool` | **是否在路上**（交接条件①的数据源） |
+| `nearestRoadPoint(worldX:worldY:…)` | 实例方法 | 最近道路点 |
+| `roadHeadingCandidates(worldX:worldY:)` | 返回 `[Double]?` | 道路航向候选（**PCA 主轴**） |
+| `pcaLineAngle(gx:gy:radius:)` | `private`，返回 `Double?` | PCA 线角 |
+| `ringDiff180(_:_:)` | `private static` | 180° 环形差 |
+| `selfTest(points:)` | 返回 `[String]` | 自检 |
 
 ## 七、方向约定（与 `toPose` 罗盘角一致）
 
@@ -132,4 +135,6 @@ models/bigworldmap-13056.jpg  (13056×13056, 7.7MB)
 
 ---
 
-**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。所有行号均写前 `sed -n` 回读确认。
+**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。**2026-11-25 去行号化**：原「所有行号均 `sed -n` 回读确认」的做法已废弃——行号随源码漂移，现改为符号名定位，按上表名字 grep 即可。
+
+另注：`RoadMapPrior` 还暴露两个诊断属性 `lastQueryReason`（最近一次查询原因）与 `lastJunction`（最近一次查询是否判定为路口/急弯，调用方据此打折置信度），本表原未列，补记于此。
