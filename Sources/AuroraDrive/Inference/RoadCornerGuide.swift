@@ -4,7 +4,10 @@
 // ============================================================================
 //  RoadCornerGuide.swift — 弯道打点集的运行时查询与按键决策
 //
-//  数据源：models/road_corners_v2.json（由 models/tools/make_road_corners_v2.py 生成）
+//  数据源：models/road_corners_v3b.json（由 models/tools/make_road_corners_v3b.py 生成；
+//  2026-11-25 更正——此前此处写 v2，是 v2 时代的遗留表述，实际加载点在
+//  locateResource() 的 name = "road_corners_v3b"。五份打点集的演进与现状
+//  见 models/road_corners_README.md，改打点集版本必须同步改 locateResource）
 //
 //  【为什么需要打点集，而不是只靠实时视觉】
 //    视觉识别（车道线）在弯道/路口经常失效或混杂；地图是**固定不变**的先验，
@@ -304,6 +307,8 @@ final class RoadCornerGuide {
     }
 
     private static func locateResource() -> URL? {
+        // 现役打点集版本：换版本必须同步改这里（五份打点集的演进与现役判定
+        // 见 models/road_corners_README.md，生成脚本在 models/tools/make_road_corners*.py）
         let name = "road_corners_v3b"
         var candidates: [URL] = []
         // ⚠️ 2026-09-30：Bundle 查找必须同时覆盖 Resources **根目录**与 **models/ 子目录**。
