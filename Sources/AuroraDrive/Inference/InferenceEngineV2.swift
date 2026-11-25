@@ -199,6 +199,17 @@ enum V2InputContract {
     //
     // 【computeUnits = .cpuOnly】用户铁律：不碰 GPU。世界模型也走 cpuOnly，
     //   与 multi_split 的 tf/chunk/head 同一套纪律。
+    //
+    // ⛔⛔【现状——不要因为读到本节就以为世界模型在工作】⛔⛔
+    //   上面是**设计契约**，不是现状。当前事实（2026-11-25 复核）：
+    //   · 默认**连加载都不开**：`worldModelEnabled` = AURORA_WORLD_MODEL==1，
+    //     2026-10-22 纯浪费清理改为默认关（加载后永不推理，白吃 1.3MB 常驻）；
+    //   · 即使显式开 AURORA_WORLD_MODEL=1，也**只加载不推理**：本文件三处
+    //     `runWorldModel` 调用点（grep runWorldModel 可定位）全部被注释，
+    //     其输出 lastPredNextFused 的唯一消费者 `consumePredNextFeat()`
+    //     全仓零调用（见各调用点注释与 loadIfNeeded 的 2026-10-22 记录）。
+    //   被注释的调用块是将来接线的说明书，**不许顺手删**——删了等于销毁
+    //   接线设计意图。
     /// 世界模型文件名（不带扩展名）。
     static let worldModelFileName = "world_model"
     /// 世界模型输入：当前帧融合特征 `[1, fusedDim]`。
