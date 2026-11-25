@@ -578,6 +578,44 @@ func runV3EngineSelfTest() -> Int {
         ledger.check("兜底只改纵向，横向 steer 原样保留", g6.steer == 1)
     }
 
+    ledger.section("[T16] risk 头未接线：risk 不得影响任何生成的命令")
+    do {
+        // 【为什么断言这个】risk 头全仓非自检代码无消费点（静态半边证据见
+        //   scripts/check-dead-code.sh 的 grep 断言；字段注释 InferenceEngineV3.swift
+        //   risk 处的 ⛔ 段）。这里是运行期半边：applyRolloverGuard 是 V3 决策 →
+        //   ControlCommand 的引擎侧变换，若有人把 risk 悄悄接进命令生成
+        //   （例如 risk>0.5 强制刹车），risk=0 与 risk=1 的输出就会分叉，这条
+        //   check 当场红掉——接线必须先改注释、过阈值口径，不许静默上线。
+        //   兜底生效与不生效两种输入都测：两条路径上的任何 risk 消费都会被抓住。
+        func riskOnly(_ risk: Double, superBrake: Bool) -> V3Decision {
+            V3Decision(verticalClass: 0, horizontalClass: 2,
+                       brakePressed: false, handbrakePressed: true,
+                       superBrakePressed: superBrake, ultimatePressed: false,
+                       confidence: 0.5, risk: risk)
+        }
+        let base = ControlCommand(steer: 1, throttle: 1, brake: 0, confidence: 0.5)
+        // 路径①：无 super/ultimate，兜底不介入（命令原样通过）
+        let idle0 = InferenceEngineV3.applyRolloverGuard(
+            to: base, decision: riskOnly(0, superBrake: false),
+            speedKmh: 120, speedValid: true)
+        let idle1 = InferenceEngineV3.applyRolloverGuard(
+            to: base, decision: riskOnly(1, superBrake: false),
+            speedKmh: 120, speedValid: true)
+        ledger.check("risk=0 vs 1（兜底不介入路径）：命令输出完全相同",
+                     idle0 == idle1, "risk=0 → \(idle0)；risk=1 → \(idle1)")
+        // 路径②：高速 + super_brake，兜底正在改写纵向（真变换路径）
+        let hot0 = InferenceEngineV3.applyRolloverGuard(
+            to: base, decision: riskOnly(0, superBrake: true),
+            speedKmh: 120, speedValid: true)
+        let hot1 = InferenceEngineV3.applyRolloverGuard(
+            to: base, decision: riskOnly(1, superBrake: true),
+            speedKmh: 120, speedValid: true)
+        ledger.check("risk=0 vs 1（兜底改写路径）：命令输出完全相同",
+                     hot0 == hot1, "risk=0 → \(hot0)；risk=1 → \(hot1)")
+        ledger.check("idle 占位的 risk 为 0（冷启动时日志观测值不误导读者）",
+                     V3Decision.idle.risk == 0)
+    }
+
     ledger.section("[T13] 保留降级安全链与恢复")
     do {
         let stm = DegradeStateMachine()

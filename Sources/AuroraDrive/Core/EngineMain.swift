@@ -1367,7 +1367,14 @@ enum EngineMain {
                             //   —— 必须让「跳了多少次」可直接观测。
                             //   判读：`skip` 单调涨 + `帧数` 不动 = 短路正在生效；
                             //         `skip` 不涨 = 有真实新帧（正常驾驶态就该如此）。
-                            + " skip=\(EngineGlobals.skippedPublishTicks)")
+                            + " skip=\(EngineGlobals.skippedPublishTicks)"
+                            // ── 2026-11-25 新增：V3 risk 只读观测 ──
+                            // 【为什么进日志】risk 头目前**未接线**（不影响任何控制/安全
+                            //   判断，见 InferenceEngineV3.swift risk 字段的 ⛔ 注释），
+                            //   但它毕竟是训练好的安全头——让它的数值进日志，才谈得上
+                            //   「有朝一日接线时阈值取多少」这类讨论有据可依。
+                            //   ⚠️ 这里是纯观测展示，绝不构成接线。
+                            + " v3:risk=\(String(format: "%.3f", EngineGlobals.state?.inferenceEngineV3.lastDecision.risk ?? 0))")
 
                         // ── 阶段1（2026-10-01）：生产 tick 分段统计导出 ──
                         // 【为什么在这里导出】`PerfBus` 是**进程内**单例，而生产 tick
