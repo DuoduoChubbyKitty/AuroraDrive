@@ -1,24 +1,17 @@
 # 代码-37 EgoMotionModel 自车运动径向模型
-> ✅ **2026-10-18 行号重基准（源码冻结，EgoMotionModel.swift 398→399 行）**：Lead 在 `:181` 附近把注释「1/30s」改为「**1/20s**（tick 定档 20Hz；原写 1/30s 是 30Hz 时代口径）」，**插入 1 行 → `:181` 之后所有锚点 +1**（`CaptureEngine.swift:1124` 不受影响，该行在另一文件且未改动）。
-> 本轮**逐条 `sed -n 'Np'` 验证，非统一平移**（实测 `:119`/`:181` 不变，`:184` 起 +1；参数区间终点经二次校正为 `:185-202` 而非 `:185-203`）。修正 **9 处**：
-> `typicalDt :268→:269`、`dtDeviation :269→:270`、`maskShift :335→:336`（2 处）、`estimate :231→:232`、`置信度区间 :255-272→:256-273`、`predictedImageShift :290→:291`、`verdict :357→:358`、参数声明 `:184-201→:185-202`、`init :203-221→:204-222`、`AuroraFlags 读取 :216-220→:217-221`、源码注释 `:265-267→:266-268`。
-> 未修正（实测准确）：`:119 ==`、`:181`（内容已改为 1/20s）、`:8-9`/`:16-17`/`:19-21`/`:35-40` 文件头引用、`CaptureEngine.swift:1124`、跨文件 `EngineMain.swift:686` / `MissionConsole.swift:6113`。
-> ✅ 2026-10-17 复核（T7）：覆盖源文件行数已按当前实测更新（398 行）；正文行号已按当前源码 `grep -n` 全部实测修正（estimate=231 / predictedImageShift=290 / verdict=357 / 参数声明=184-201 / init=203-221 / AuroraFlags 读取=216-220 / CaptureEngine 非等比拉伸=1124），失效警告已移除。
+> **引用纪律（本篇已重写为名字锚点）**：不再用「文件:行号」定位。本篇所有代码位置一律引用源码里**真实存在的名字**（类型 / 方法签名 / 属性 / 常量 / 枚举 case / 环境变量）。
 >
-> **✅ 2026-10-18 复核（T8）**：逐条 `sed -n` 核对全部 27 个行号引用——**全部准确**，零行号漂移（本文件未被 lead 10-18 改动）。补充 3 项内容：
-> - **`typicalDt = 1.0 / 20.0`（:269）**——这是 20Hz 迁移**已正确落地的 3 处之一**（另两处：`EngineMain.engineTickHz=20.0`@:686、`MissionConsole` tick 定时器注释「2026-10-12 定档 20Hz」@:6113），不是漏改项。源码 :266-268 注释明确写了迁移原因。
-> - **`maskShift(for:ego:)`（:336）零调用**——`grep -rn 'maskShift' Sources/` 排除定义行后为空，是**死代码**。API 表原先漏列此方法，现补入并标注。
-> - ~~**源码注释 `:181` 的 `1/30s`**~~——✅ **已由 Lead 修正**（现为「**1/20s**，tick 定档 20Hz；原写 1/30s 是 30Hz 时代口径」）。此条闭环，不再是遗留。
+> **本次重写一并校正的两处**：① `typicalDt` 的值以源码为准（`1.0 / 20.0`）；② `maskShift(for:ego:)` 仍是**零调用死代码**——`grep -rn 'maskShift' Sources/` 只有定义处与 `LaneBridge` 的两行「尚未落地」注记，从未被 LaneExtrapolator 或任何调用方接线。
 
-> 覆盖源文件：`Sources/AuroraDrive/Inference/EgoMotionModel.swift`（**399 行**，2026-11-10 `wc -l` 实测；398 为 10-02 旧基准）
-> 2026-10-01 新增（性能文档 §6.45「光流接线 · 路线2」的实现），当前 **git 已跟踪**（`git ls-files` 命中，历史见 `git log --follow`）。
+> 覆盖源文件：`Sources/AuroraDrive/Inference/EgoMotionModel.swift`（当前 git 已跟踪）。
+> 2026-10-01 新增（性能文档 §6.45「光流接线 · 路线2」的实现）。
 > 关联：[`代码-38-PerfSelfTest性能自检.md`](代码-38-PerfSelfTest性能自检.md)（`--motion-selftest` 在 `PerfSelfTest` 侧）
 
 ---
 
 ## 一、它解决什么问题
 
-**问题（文件头注释 `:8–9`）**：`OpticalFlowBridge` 算了很久的光流，输出 `dx/dy/divergence`
+**问题（文件头注释）**：`OpticalFlowBridge` 算了很久的光流，输出 `dx/dy/divergence`
 **在全项目零读取方**（2026-09-30 静态核查）。
 它的设计用途写的是「交叉校验全局运动方向」，但**那段校验从未实现** ——
 接口预留了、数据喂进来了、**消费端没接线**。
@@ -28,11 +21,11 @@
 
 ## 二、★ 为什么必须是「径向」而不是平移
 
-`MotionPredictor` 的速度来自 α-β 滤波对检测框差分的更新。天生弱点（文件头注释 `:16–17`）：
+`MotionPredictor` 的速度来自 α-β 滤波对检测框差分的更新。天生弱点（文件头注释）：
 
-> **目标静止、自车在动**时，它会把"自己的运动"误算成"目标在动"。
+> **目标静止、自车在动**时，它会把「自己的运动」误算成「目标在动」。
 
-直觉上可以拿光流的 `dx/dy`（全局中位平移）去减，但**那是错的**（文件头注释 `:19–21`）：
+直觉上可以拿光流的 `dx/dy`（全局中位平移）去减，但**那是错的**（文件头注释）：
 
 | 自车动作 | 画面表现 | `dx` 能否描述 |
 |---|---|---|
@@ -52,54 +45,58 @@ u_ego(px, py) = forwardRate · r_x
 v_ego(px, py) = forwardRate · r_y
 ```
 
-其中 `forwardRate` = 「本帧自车前进导致视野扩张的比例」，与 `OpticalFlowBridge.divergence`
-**同量纲**（正 = 内容向外扩张 = 前进）。
+其中 `forwardRate` = 「本帧自车前进导致视野扩张的比例」（`EgoMotionEstimate.forwardRate`），与
+`OpticalFlowBridge.divergence` **同量纲**（正 = 内容向外扩张 = 前进）。
 
-### ★ 非等比拉伸 —— 本项目的关键几何事实（文件头注释 `:35–40`）
+### ★ 非等比拉伸 —— 本项目的关键几何事实（文件头注释）
 
-`CaptureEngine.swift` 明确注释：直通帧是
-「**非等比拉伸到 640×640**（与训练/慢路径一致，不保持宽高比）」。故：
+`CaptureEngine` 明确注释：直通帧是
+「**非等比拉伸到 640×640**（与训练/慢路径一致，不保持宽高比）；」，调用 `vImageScale_ARGB8888`。故：
 
 - x/y 两方向**焦距不同**（`fx ≠ fy`），需按屏幕宽高比拆分
 - 但**消失点恒在画面中心**（拉伸不改变中心）
 - ⟹ **只需 2 个参数即可标定** —— 这是本项目比常规标定简单的地方
 
-## 四、参数（全部 `AURORA_EGO_*`；声明 :185-202，`init()` :204-222，AuroraFlags 读取 :217-221）
+## 四、参数（全部 `AURORA_EGO_*`；声明为 `EgoMotionModel` 的 let 属性，在 `init()` 里从 `AuroraFlags` 读取）
 
 | 参数 | 默认 | 含义 |
 |---|---|---|
-| `AURORA_EGO_MAX_FWD` | **0.5** | forwardRate 上限 |
-| `AURORA_EGO_MAX_FLOW_PX` | **80.0** | 光流像素上限（超限即 fail-open） |
-| `AURORA_EGO_RESIDUAL_RATIO` | **0.6** | 残差比阈值 |
-| `AURORA_EGO_MIN_CONF` | **0.35** | 最低置信度 |
-| `AURORA_EGO_CHECK` | `off` = 关闭 | 总开关（关闭后行为与接线前一致） |
+| `AURORA_EGO_MAX_FWD`（`AuroraFlags.egoMaxFwd` 读取，`EgoMotionModel.maxForwardRate`） | **0.5** | forwardRate 上限 |
+| `AURORA_EGO_MAX_FLOW_PX`（`AuroraFlags.egoMaxFlowPx` 读取，`EgoMotionModel.maxFlowPixels`） | **80.0** | 光流像素上限（超限即 fail-open） |
+| `AURORA_EGO_RESIDUAL_RATIO`（`AuroraFlags.egoResidualRatio` 读取，`EgoMotionModel.residualRatioThreshold`） | **0.6** | 残差比阈值 |
+| `AURORA_EGO_MIN_CONF`（`AuroraFlags.egoMinConf` 读取，`EgoMotionModel.minConfidence`） | **0.35** | 最低置信度 |
+| `AURORA_EGO_CHECK`（读取 `AuroraFlags.egoCheck`，写入 `EgoMotionModel.enabled`） | `off` = 关闭 | 总开关（关闭后行为与接线前一致） |
 
-### ★ `typicalDt = 1.0 / 20.0`（:269）—— 20Hz 迁移已正确
+### ★ `typicalDt = 1.0 / 20.0` —— 20Hz 迁移已正确
 
-`estimate` 内部用 `typicalDt` 计算 `dtDeviation`（:270），判定帧间隔是否偏离典型值。源码 :266-268 注释明确写：「2026-10-11 主循环最终定档 20Hz → typicalDt 必须与实际 tick 频率一致 → 20Hz → dt=0.05s」。**这是已正确落地的迁移**，不是漏改项——若 typicalDt 仍写 `1/30=0.0333`，dtDeviation 会误判 50% 偏离 → 误降置信度。
+`estimate(from:dt:)` 内部用 `typicalDt` 计算 `dtDeviation`，判定帧间隔是否偏离典型值。源码注释明确写：「2026-10-11 主循环最终定档 20Hz → typicalDt 必须与实际 tick 频率一致 → 20Hz → dt=0.05s」。**这是已正确落地的迁移**，不是漏改项——若 typicalDt 仍写 `1/30=0.0333`，dtDeviation 会误判 50% 偏离 → 误降置信度。
 
-### ⚠️ 一个踩过的坑：**不要缓存环境变量字典**（注释 :139-151；A5「单一来源」改造 :156-165）
+> 注：`1.0 / 20.0` 是**本模型内部的时间基准**，与 `EngineMain.engineTickHz`（当前 15.0，2026-10-22 由 20 降到 15）不是同一个量。若 tick 频率继续变化，这里是需要一并复核的硬编码点。
+
+### ⚠️ 一个踩过的坑：**不要缓存环境变量字典**（源码注释）
 
 > 初版写的是 `private static let env = ProcessInfo.processInfo.environment`，
 > 结果 `AURORA_EGO_CHECK=off` 在 `--motion-selftest` 的 ④-8 项验证里**不生效**
 > —— `static let` 只在**首次访问时初始化一次**，之后再 `setenv` 读到的还是旧值。
 
+现在的做法：4 个阈值走 `static let`（`AuroraFlags.egoMaxFwd` 等，省掉每次 init 的环境变量读取），`AURORA_EGO_CHECK` 保持现读（`AuroraFlags.egoCheck` 是计算属性）——因为只有它需要在运行时切换（自检里用 `setenv("AURORA_EGO_CHECK", "off", 1)` 验证可回退）。
+
 ## 五、API
 
-| 方法 | 行号 | 用途 |
-|---|---|---|
-| `==(EgoVerdict, EgoVerdict)` | `:119` | 判定相等 |
-| `estimate(from:dt:)` | `:232` | 从光流估算自车运动（含置信度计算 `:256-273`） |
-| `predictedImageShift(for:ego:)` | `:291` | 预测某检测框因自车运动产生的位移 |
-| `verdict(for:ego:...)` | `:358` | **给出裁决**（是否拦截该目标的速度更新） |
-| `maskShift(for:ego:)` | `:336` | 预测自车运动让整张 MaskGrid 平移多少格；⚠️ **零调用（死代码）**——`grep -rn 'maskShift' Sources/` 排除定义后为空，从未被 LaneExtrapolator 或任何调用方接线 |
+| 方法 | 用途 |
+|---|---|
+| `==(EgoVerdict, EgoVerdict)`（`Equatable` 合成） | 判定相等（`EgoVerdict` 是 `struct ... : Equatable`） |
+| `estimate(from:dt:)` | 从光流估算自车运动（含置信度计算：`forwardRate` / `lateralRate` / 多因子相乘的 `conf`） |
+| `predictedImageShift(for:ego:)` | 预测某检测框因自车运动产生的位移 |
+| `verdict(for:ego:...)` | **给出裁决**（是否拦截该目标的速度更新，产出 `EgoVerdict.blocksPrediction`） |
+| `maskShift(for:ego:)` | 预测自车运动让整张 `MaskGrid` 平移多少格；⚠️ **零调用（死代码）**——`grep -rn 'maskShift' Sources/` 排除定义后只剩 `LaneBridge` 两行「尚未落地」注记，从未被 LaneExtrapolator 或任何调用方接线 |
 
 ## 六、语义（三态）
 
 | 裁决 | 含义 |
 |---|---|
-| `egoBlocked` | 目标静止、自车在动 → **拦截** `MotionPredictor` 的速度更新 |
-| 不拦截 | 目标自身在动 |
+| `blocksPrediction = true`（文档旧称 `egoBlocked`） | 目标静止、自车在动 → **拦截** `MotionPredictor` 的速度更新 |
+| `blocksPrediction = false` | 目标自身在动 |
 | `nil` | **fail-open**（光流失效 / 超限 / dt 异常） |
 
 ## 七、自检实测（`--motion-selftest`，2026-10-02）
@@ -109,18 +106,18 @@ v_ego(px, py) = forwardRate · r_y
 | 项 | 结果 |
 |---|---|
 | 径向模型对拍 | ±0.002500 |
-| 静止目标 + 自车前进 | 残差比 **0.00**（→ 正确判定 `egoBlocked`） |
+| 静止目标 + 自车前进 | 残差比 **0.00**（→ 正确判定拦截） |
 | 目标自身运动 | **0.90** → 不拦截 ✓ |
 | fail-open | nil / oversized flow / bad dt **全部 fail-open** ✓ |
-| `egoBlocked=1` 前置条件 | 真的触发 ✓ |
+| 拦截计数前置条件 | 真的触发 ✓（`--motion-selftest` 里的 `lastEgoBlockedCount` 断言） |
 | `AURORA_EGO_CHECK=off` | 判定关闭 ✓ |
 | 性能 | p50 **0.0001 ms** / p95 **0.0001 ms** |
 
 ## 八、⚠️ 诚实边界（性能文档 §6.45.9 自述，此处忠实转述）
 
-1. **相机参数未真机标定**：中心 `(320,320)`、`pitch=0` 是保守初值。
+1. **相机参数未真机标定**：中心 `(320,320)`、`pitch=0` 是保守初值（由 `centerX` / `centerY` 从 `flowSize` 派生得到）。
    第三人称视角若有俯仰，径向模型会有系统偏差 —— 需真机数据修正。
-2. **残差比阈值 0.6 是初值**：太松会误拦真实运动目标，太紧抓不住"目标静止"。**必须用真实驾驶数据标定。**
+2. **残差比阈值 0.6 是初值**（`residualRatioThreshold`）：太松会误拦真实运动目标，太紧抓不住「目标静止」。**必须用真实驾驶数据标定。**
 3. **真机验证仍依赖 TCC**：光流只在 YOLO 直通帧到达时触发，
    而直通帧需**屏幕录制权限**（本机 `screen=false`）。
    ⟹ **本轮无法在真实驾驶中验证接线效果**，需开游戏实测。
@@ -130,4 +127,4 @@ v_ego(px, py) = forwardRate · r_y
 
 ---
 
-**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。所有行号均写前 `sed -n` 回读确认。**2026-10-17（T7）**：正文行号按当前源码重新实测修正。**2026-10-18（T8）**：27 条行号逐条复核全部准确（零漂移）；补入 `maskShift` 死代码记录与 `typicalDt` 20Hz 迁移说明；记录源码 :181 `1/30s` 注释为已知遗留（不在本任务改动范围）。
+**本文件创建于 2026-10-02**（补 `代码-NN` 覆盖缺口）。本次重写：全部行号引用改为源码真实名字；`maskShift` 死代码记录与 `typicalDt` 20Hz 迁移说明保留。
