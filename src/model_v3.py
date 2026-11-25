@@ -1693,6 +1693,39 @@ EXPORT_OUTPUT_NAMES: Tuple[str, ...] = (
     "super_brake", "ultimate", "confidence", "risk",
 )
 
+#: 训练存档顶层键的认键顺序（先到先得）。
+#: "model" 在前：`src/train_v3.py` 的 torch.save 存的就是这个键；
+#: 历史教训：旧实现只认 "model_state_dict"、认不到就把**整个 ckpt dict**
+#: 当 state_dict 用，strict=False 又静默吞掉全部失配 → 导出零权重随机模型
+#: 且不报任何错（tools/v3_exp/export_v3_checkpoint_int4.py 文件头 ① 记录过）。
+_STATE_DICT_KEYS: Tuple[str, ...] = ("model", "model_state_dict", "state_dict")
+
+
+def _extract_state_dict(ckpt: object, source: str) -> Dict[str, torch.Tensor]:
+    """从训练存档里取出真正的 state_dict，取不到就当场炸，绝不静默回退。
+
+    Args:
+        ckpt: `torch.load` 的返回值（正常是 dict，也可能是裸 state_dict）
+        source: 存档路径（只用于报错定位）
+
+    Raises:
+        TypeError: ckpt 不是 dict（裸 state_dict 直接喂进来时给用户明确指引）
+        KeyError: 三个候选键一个都取不到（打印存档实际顶层键，方便定位）
+    """
+    if not isinstance(ckpt, dict):
+        raise TypeError(
+            f"存档必须是 dict，实际类型是 {type(ckpt).__name__}（source={source}）；"
+            f"若这是裸 state_dict，请用 'model' 键包一层后再存")
+    for key in _STATE_DICT_KEYS:
+        sd = ckpt.get(key)
+        if isinstance(sd, dict) and sd:
+            return sd
+    raise KeyError(
+        f"存档里找不到 state_dict：source={source}，"
+        f"期望顶层键之一 {_STATE_DICT_KEYS}，"
+        f"实际顶层键={sorted(ckpt.keys())} —— "
+        f"如果是新版存档格式，请把新键补进 _STATE_DICT_KEYS")
+
 
 class _ExportWrapper(nn.Module):
     """把 forward 的 dict 输出转成 tuple，供 `torch.jit.trace` + `ct.convert` 使用。
@@ -1719,7 +1752,8 @@ class _ExportWrapper(nn.Module):
 
 def export_coreml(state_dict_path: str, save_path: str,
                   cfg: Optional[V3Config] = None,
-                  precision: str = "float16") -> None:
+                  precision: str = "float16",
+                  allow_partial: bool = False) -> None:
     """导出 V3 为 CoreML .mlpackage（部署主路径）。
 
     关键实现要点（都是项目实测踩过的坑，勿随意改动）：
@@ -1731,26 +1765,45 @@ def export_coreml(state_dict_path: str, save_path: str,
          否则拿不到 ANE 加速（老的 neuralnetwork 后端性能差一个量级）。
       4) **必须训练态构建再 reparameterize** —— 见 `V3Model.reparameterize()` 的
          checkpoint 加载顺序告警，用 deploy=True 构建再 load 会静默丢权重。
+      5) **默认 strict=True 加载权重** —— 历史教训：旧实现认不到存档键就把整个
+         ckpt 当 state_dict 用，strict=False 又静默吞掉全部失配，导出过零权重
+         随机模型且不报任何错（见 `_STATE_DICT_KEYS` 注释）。默认路径必须炸在明处。
 
     Args:
-        state_dict_path: 训练存档 .pt（含 model_state_dict）
+        state_dict_path: 训练存档 .pt（顶层键按 `_STATE_DICT_KEYS` 顺序认：
+            model / model_state_dict / state_dict，认不到当场抛 KeyError）
         save_path: 输出 .mlpackage 路径
         cfg: 模型配置（必须与训练时一致，否则 shape 不符）
         precision: "float16"（推荐）或 "float32"
+        allow_partial: 默认 False（strict=True）。仅限排障对比架构时显式传 True，
+            会退回 strict=False 并打醒目警告，导出的模型可能部分是随机权重
     """
     import coremltools as ct  # 延迟导入：训练环境可能没装 coremltools
 
     c = cfg or V3Config()
     model = build_v3_model(deploy=False, cfg=c)
     ckpt = torch.load(state_dict_path, map_location="cpu", weights_only=False)
-    sd = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
+    sd = _extract_state_dict(ckpt, state_dict_path)
+    # 去掉 torch.compile 的 _orig_mod. 前缀
+    # （与 tools/v3_exp/export_v3_checkpoint_int4.py 的去前缀同口径，那里还查去前缀后的重名键）
     sd = {k[len("_orig_mod."):] if k.startswith("_orig_mod.") else k: v for k, v in sd.items()}
-    result = model.load_state_dict(sd, strict=False)
-    if result.unexpected_keys:
-        # 用 deploy=True 构建再 load 的典型症状：多分支权重对不上
-        print(f"[V3] ⚠ load_state_dict 有 {len(result.unexpected_keys)} 个 unexpected keys "
-              f"（前 5 个：{result.unexpected_keys[:5]}）——"
-              f"检查是否误用 deploy=True 构建后加载训练态 checkpoint")
+    if allow_partial:
+        # 逃生口：strict=False 会静默吞掉 missing/unexpected —— 历史上「零权重静默
+        # 导出」正是这条宽松路径造成的。只许排障对比架构时显式打开，绝不能当默认。
+        print("[V3] ⚠⚠ allow_partial=True：允许部分权重缺失（strict=False），"
+              "导出的模型可能部分是随机权重，仅限排障用，慎用！")
+        result = model.load_state_dict(sd, strict=False)
+        if result.missing_keys or result.unexpected_keys:
+            print(f"[V3] ⚠ 部分加载：missing={len(result.missing_keys)} "
+                  f"unexpected={len(result.unexpected_keys)}")
+    else:
+        # 默认 strict：任何 missing/unexpected 当场抛异常（含键名清单），杜绝静默漏载。
+        # 典型失配症状：误用 deploy=True 构建后加载训练态 checkpoint，多分支权重对不上。
+        result = model.load_state_dict(sd, strict=True)
+    # 加载摘要：让「导出的到底是不是真权重」可从日志直接审计，不靠事后对比
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"[V3] 权重加载：张量数={len(sd)} 模型总参数量={total_params} "
+          f"missing={len(result.missing_keys)} unexpected={len(result.unexpected_keys)}")
     model.reparameterize()
     model.eval()
 

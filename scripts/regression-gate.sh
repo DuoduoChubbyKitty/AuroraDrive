@@ -47,6 +47,17 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# ── 静态契约门（先于一切测量：纯 AST，秒级，不需要构建产物）────────────────
+# 为什么放最前、且独立于七个维度：export_coreml 的「零权重静默导出」是
+# 正确性事故而非性能劣化，七维度对比拦不住它（历史事故见
+# tools/v3_exp/check_export_contract.py 文件头）。--freeze / 比对两种模式
+# 都必须先过这一关，防冻结或对比本身建立在坏代码上。
+if ! python3 tools/v3_exp/check_export_contract.py; then
+    echo ""
+    echo "  ✗ export_coreml 存档键契约破裂（见上方断言失败清单）—— 门禁拒绝通过。"
+    exit 1
+fi
+
 BIN="$ROOT/.build/scratch/release/AuroraDrive"
 
 # ── 构建/验收锁：门禁全程持锁 ─────────────────────────────────────────────
