@@ -169,6 +169,46 @@
 | `NetworkLocator.prepare()` 内部调 `start()` | ✅ 实测 `prepare()`：`socketClient = LocalPoseSocketClient()`、`socketClient?.start()`、`isConnected = true`、无条件 `return true` |
 | 重启接线是否有计划 | ⚠️ **未验证**（同上 4.4 末条） |
 
+## 五、网络定位 ↔ 视觉定位的交接（hint 播种与故障兜底）
+
+两条定位链路并非互斥：网络定位在位时负责精度，视觉定位在旁待命，两者通过一组**纯函数判据**交接。
+
+### 5.1 视觉首帧 hint 来自网络最后一次坐标
+
+主链路入口是 `DriveState.seedVisualHintFromNetwork(roiRevision:)`：只在视觉管线真要跑时（`visualPipelineActive`）执行，
+把网络定位的最后坐标 `networkLocateX/Y` 与置信度 `networkLocateScore`、模式串 `networkLocateMode` 交给判据，
+通过则写入 `visualLocHint`（携带 `roiRevision` 世代号），让视觉首帧不必做全图搜索。
+
+判据本身是与主链路解耦的**无状态纯函数** —— 因为它混着 `@MainActor` 状态和异步初始化的定位器，
+写在主链路里无法离线复现，而这恰是最容易写错、最该用真值表钉死的部分。
+
+- `VisualHintSource.resolve(score:mode:x:y:mapWidth:mapHeight:)` —— 判断「网络最后坐标能否当视觉起点」，返回可用坐标或 nil：
+  - 从没锁定过（`score <= 0` 且 `mode != "stale"`）→ 不种，走原全图搜索；
+  - 脏值防护：`x`/`y` 非有限或非正（换底图、解析出错时的典型形态）→ 弃用；
+  - 范围校验：越出底图（`mapWidth`/`mapHeight`）的坐标只会让局部窗口落在空白区 → 弃用；
+    定位器尚未建好（尺寸为 nil）时跳过范围校验，但仍要求坐标有限且为正。
+- `VisualHintUse.take(hint:currentRevision:)` —— 取用 hint 并校验 `revision`：
+  世代号不等说明这份坐标按旧 ROI 几何算出，位置会偏，**必须弃用**（换 ROI / 标定收敛后旧坐标作废）。
+
+两个判据都由 `--failover-selftest` 用假数据直接验证，不依赖真实游戏。
+
+### 5.2 网络定位故障 → 视觉兜底的接管状态机
+
+`DriveState.stepPositioningFailover()` 每 tick 推进一次，判据由 `NetworkFailoverMonitor.step(_:)` 给出：
+
+- **接管条件**（三条连续满足 150 tick，15Hz 下约 10 秒）：正在驾驶、画面在动（游戏在跑）、网络不健康；
+- **恢复条件**（连续 75 tick，约 5 秒）：抓包器有流量且 pose 为 `live`；
+- **`stale` 算健康** —— 游戏十几秒才一个包，包间隙本就是 `stale`，当成故障会天天误切；
+- 恢复判据**直读抓包器**（`CoordinateCapture.hasRecentTraffic` + `readWithTier`）而非 `networkLocateMode`：
+  兜底期间 `runNetworkLocateStep` 被 `visualPipelineActive` 短路，该模式串已冻结在故障值；
+- 接管时置 `visualFallbackActive` 并 `setVisualPipeline(true)`，同时向引擎下发 `positioningMode` 配置；恢复时反向切回。
+
+只在 UI 进程监测（引擎进程不跑 `runNetworkLocateStep`，其模式串恒空），引擎侧模式由 UI 经 config IPC 下发。
+
+调用点位于 `DriveState.tick()` 的**引擎模式早退之前** —— 这是必须的：生产形态是 UI + `--engine` 双进程，
+若放在早退之后，该状态机在双进程下永不执行（只有单进程本地模式才生效）。
+
+---
 ## 附：B 符号不一致现状（2026-10-06 逐行核实）
 
 - **现状（已确认）**：存在两套符号约定，均为**正确实现**，只是矩阵定义写法不同：

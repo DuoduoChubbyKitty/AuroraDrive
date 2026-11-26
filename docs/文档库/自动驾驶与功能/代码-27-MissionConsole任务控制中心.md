@@ -36,7 +36,7 @@
 | 挡位带 | `GearRing` | 网页 .gear-ring: 4 × .gr-item |
 | 自动速度胶囊 | `AutoSpeedPill` | 网页 .auto-speed |
 | 双圆表 | `DualGauge` / `GaugeDial` | 网页 .speed-hud |
-| 中栏 | `MidColumn` → `MiniMapCard` / `MiniMapCanvas` + `MapTileStore` / `MapTileCache` / `MapBaseImageProvider` / `MapTileImage` / `MapPin` / `MapCorner` / `NavLine` / `NavGuidance`（真实地图底图 13056）+ `HardwareBank` / `BankSwitch` + `PerceptionPickerCard` + `RunLogCard` | 小地图与工具栏 |
+| 中栏 | `MidColumn` → `MiniMapCard` / `MiniMapCanvas` / **`MinimapMarkerLayer`** + `MapTileStore` / `MapTileCache` / `MapBaseImageProvider` / `MapTileImage` / `MapPin` / `MapCorner` / `NavLine` / `NavGuidance`（真实地图底图 13056）+ `HardwareBank` / `BankSwitch` + `PerceptionPickerCard` + `RunLogCard` | 小地图与工具栏 |
 | 右栏 | `RightColumn` → `AutomationBigButton` + `RunStatusCard` + `ControlRows` + **`LimitSection`（限速滑块）** + `SystemCard` | 控制区 |
 | 大地图浮层 | `MapOverlay` / `MapViewport` / `ClusterCacheStore` / `LargeMapCanvas` / `RoutePlanningOverlay` / `MarkerFilterBar` / `ClusterTooltip` / `MapScrollZoom`（NSViewRepresentable 拖拽/滚轮/捏合）/ `MapCtrlBtn` / `DecisionRail`（决策电路栏） | .ov#mapov |
 | 技能浮层 | `SkillOverlay` / `SkillRow` / `SkillGroup` | .ov#skov，width 572 |
@@ -176,6 +176,25 @@ MissionConsole 的**每一个可点元素**背后都有真实执行路径（`Con
 **给别的 AI 的提示**：改 MissionConsole 布局前先看网页原型（docs/文档库/探索文档/ui-prototypes/A-任务控制中心.好版备份-224710.html）——视觉规范以原型为准（纯黑底 #03060B、冰蓝强调 #4CC9FF、发丝线、玻璃拟态 token 全在 `AuroraTheme`）；布局参数（fr/gap/padding）从网页 CSS 等价翻译，不凭感觉调。
 
 **MissionConsole 文档至此完整**（结构总览级；每个子视图的细节按需查阅源码中对应类型的符号）。
+
+---
+
+## 三-G、小地图标记图层 MiniMapMarkerLayer
+
+小地图上的兴趣点标记由 `MinimapMarkerLayer` 绘制（`Canvas` 实现，轻量、无子视图）。
+
+几何与其它叠加层**同源**：以 `(centerX, centerY)` 为中心、`spanPx` 为边长，比例尺 `scale = side / spanPx`，
+取标记来自 `MapDatabase.markersInViewAll(centerX:centerY:spanPx:)` —— 不另造坐标系。
+
+显示哪些组由 `MarkerTaxonomy.defaultOnGroups` 决定（与大地图、筛选条同源，不另设开关）。
+
+两个必须知道的设计点：
+
+- **分组匹配用标签而非 id**：`defaultOnGroups` 返回的是中文标签（「探索度」「资源」…），点位自带的是英文 id（`explore`/`resource`…）。
+  直接拿 id 去比中文集合会恒为空 —— 一个点都不画，**不崩不报错**，只是地图空着（同款事故在 `MarkerTaxonomy` 注释里有记录）。
+  故优先用 `groupLabel` 比对，同时接受 id 形态兜底。
+- **点径随密度收敛**：单点直径上限 `maxDotRadius`（超过会把小地图糊满），
+  总数上限 `hardLimit` 防病态数据下的绘制爆炸；视口外的点显式跳过以省 GPU/CPU。
 
 ---
 
