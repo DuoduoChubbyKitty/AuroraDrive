@@ -61,6 +61,7 @@ MaaNTE source code is NOT distributed with this repository (AGPL-3.0 is viral); 
 - **MetalFX enhancement**: upscaling + frame interpolation, display layer only, never entering the decision path
 - **Full-collection map**: multi-layer toggles (teleport points / materials / chests / oracle stones), live player position and heading
 - **Persistent floating minimap**: shown at app launch, independent of the main map view
+- **In-game overlay (ESP)**: entity boxes and labels written by an external backend are read over shared memory and drawn on top of the game with a full-screen transparent window (does not intercept the mouse or obscure the picture); off by default, enable with `AURORA_ESP_OVERLAY=1`
 - **AI assistant**: real LLM conversation (streaming), can autonomously call tools to operate the game UI
 
 ## Quick Start
@@ -155,9 +156,10 @@ See [`代码-33-进程模式与CLI参数全解.md`](docs/文档库/自动驾驶�
 - [Developer guide](docs/文档库/自动驾驶与功能/DEVELOPER_GUIDE.md)
 - [Full index](docs/文档库/自动驾驶与功能/00-文档索引.md)
 - [Source tree and architecture overview](docs/文档库/自动驾驶与功能/代码-00-源码树与架构总览.md)
+- [ESP channel and in-game overlay](docs/文档库/自动驾驶与功能/代码-40-ESP通道与游戏画面浮层.md)
 - [Human-in-the-loop and RL training pipeline](docs/v3-design/06-人机共驾与RL训练管线.md)
 
-Per-module docs map one-to-one onto subsystems with `file:line` references.
+Per-module docs map one-to-one onto subsystems and locate code by function, type, and variable names rather than line numbers, which drift as the code changes.
 
 ## License
 
