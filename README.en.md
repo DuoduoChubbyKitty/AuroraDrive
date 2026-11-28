@@ -122,7 +122,8 @@ Sources/AuroraDrive/
 ├── Inference/     model inference, speed OCR, quest OCR, heading reader
 ├── Locate/        visual positioning, network positioning, decision and failover
 ├── Perception/    lane lines, optical flow
-└── RL/            online training, policy head, shell mode
+├── RL/            online training, policy head, shell mode
+└── ShmBridge/     fixed-argument C bridge for shm_open (used by the ESP channel)
 Vendor/
 ├── OpenCVFlow/    OpenCV C bridge (optical flow, map localization, guide-line scan)
 └── opencv/        OpenCV static libraries

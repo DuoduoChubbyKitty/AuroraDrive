@@ -180,7 +180,7 @@
 >
 > ---
 
-> 覆盖源文件：`run.sh`（**182 行**，2026-09-29 `wc -l` 实测；本文写 170 行）+ `scripts/setup_toolchain.sh`（77 行）+ Package.swift 构建面 + 部署产物实况。基于当前仓库逐单元编写。
+> 覆盖源文件：`run.sh`（**183 行**，`wc -l` 实测）+ `scripts/setup_toolchain.sh`（77 行）+ Package.swift 构建面 + 部署产物实况。基于当前仓库逐单元编写。
 >
 > ### 📌 2026-09-29 复核追加：模型检查补了 YOLOPX（+12 行）
 >
@@ -229,7 +229,7 @@
 > ⑤ **原子替换部署保留**（9-12 修复）：cp 到临时名 + mv 换 inode——防运行中实例按需分页读到新旧混合页 → CDHash 校验失败 → SIGKILL；
 > ⑥ --auto-login 参数化：默认不自动登录（用户手动控制），传参才开 8s 检测登录守护。
 
-## 一、run.sh 一键编译+签名+启动（全文 **182 行**；本文正文按 133 行编写，见文首复核块）
+## 一、run.sh 一键编译+签名+启动（全文 **183 行**）
 
 > ⚠️ **定位提示**：`run.sh` 已经历 133→170（9-24 构建面修复）→ **182 行**（9-29 补 YOLOPX 检查）两轮增长，行号随时会漂移。阅读时请以**段落锚点**（可在 `run.sh` 内 grep 到的字符串）定位，不要按行号跳转。各段落锚点（grep 实测均可命中）：`[1/4] 环境检查`、`libpcap` 检查（`dyld_info` 判据）、`[2/4] 模型检查`、`--status` 模式、`[3/4] 编译`（`rm -rf .build` / `.last-build.log` / `BUILD_RC`）、`[4/4] 签名 + 部署`（SIGKILL 根因注释 / `BIN_DST.tmp.$$` 原子替换 / `$BUNDLE_DIR` bundle 构建 / Info.plist / `pkill -f "AuroraDriveUI"` 清理旧进程）、`nohup` 启动段。
 

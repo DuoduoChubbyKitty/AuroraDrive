@@ -122,7 +122,8 @@ Sources/AuroraDrive/
 ├── Inference/     模型推理、速度 OCR、任务 OCR、朝向读取
 ├── Locate/        视觉定位、网络定位、定位决策与故障兜底
 ├── Perception/    车道线、光流
-└── RL/            在线训练、策略头、壳模式
+├── RL/            在线训练、策略头、壳模式
+└── ShmBridge/     POSIX shm_open 固定参数 C 桥（ESP 通道用）
 Vendor/
 ├── OpenCVFlow/    OpenCV C 桥（光流、地图定位、引导线扫描）
 └── opencv/        OpenCV 静态库
